@@ -43,7 +43,6 @@ touch skills/.gitkeep
 
 # Root config files
 touch .sourcery.yaml
-touch REVIEW_RULES.md
 ```
 
 ---

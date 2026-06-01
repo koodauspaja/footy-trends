@@ -1,8 +1,8 @@
 # 004 — Sourcery setup
 
 ## Goal
-Install Sourcery on the repository, configure it to review in Finnish, point it
-at the project-specific rules, and verify it works with a dummy PR.
+Install Sourcery on the repository, configure project-specific review rules
+in the dashboard, and verify it works with a dummy PR.
 
 ---
 
@@ -15,7 +15,6 @@ at the project-specific rules, and verify it works with a dummy PR.
 
 ---
 
-
 ## Step 2 — Create `.sourcery.yaml`
 
 Create file: `.sourcery.yaml` in the repo root.
@@ -24,74 +23,54 @@ Create file: `.sourcery.yaml` in the repo root.
 rule_settings:
   enable:
     - default
-
-reviews:
-  # Review in Finnish
-  # (also set in dashboard — belt and braces)
-  profile: default
-
-  review_level: balanced
-
-  # Disable sections we don't need
-  enable_tips_comments: false
-
-  # Path-specific rules — only review source code, not specs or decisions
-  paths:
-    - src/**
-    - tests/**
 ```
+
+That's all that goes here. Path restrictions and review rules are configured
+in the dashboard, not in this file.
 
 ---
 
-## Step 3 — Create `REVIEW_RULES.md`
+## Step 3 — Add review rules in the dashboard
 
-This is the file Sourcery reads to understand project-specific expectations.
-Write it in English — Sourcery translates its output to Finnish automatically.
+Go to https://app.sourcery.ai → **Review Settings** → **Review Rules**.
 
-Create file: `REVIEW_RULES.md` in the repo root.
+Add the following rules. Where noted, set the path pattern to
+`src/**/*.ts,src/**/*.tsx,tests/**/*.ts` so the rule only applies to source
+code and not to specs, decisions, or docs.
 
-```markdown
-# Review rules for footy-trends
+Add each rule as a separate block (Sourcery recommends fewer than 3 rules per block):
 
-These rules apply to every pull request. Sourcery should check for all of them
-and flag violations as review comments in Finnish.
+**Block 1** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+```
+- Every PR must reference a spec file in specs/ via the PR template.
+- Every PR must reference a decision record in decisions/ via the PR template.
+- The decision record must faithfully interpret the spec — flag any drift, e.g. spec says "show last 5 matches" but decisions doc says "show last 3".
+```
 
-## Spec and decision integrity
-- Every PR must reference a spec file in `specs/` via the PR template.
-- Every PR must reference a decision record in `decisions/` via the PR template.
-- The decision record must faithfully interpret the spec. Flag any drift between
-  the two — for example, if the spec says "show last 5 matches" but the decisions
-  doc says "show last 3 matches".
-- If the spec defines explicit edge cases, check that the code handles them.
+**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
+```
+- All user-facing strings must be in English. Variable names, function names, comments, and code must also be in English.
+- API responses from football-data.org must be cached. Never call the API on every page load or render.
+- No API keys or secrets may appear in code or committed files. All secrets must come from environment variables.
+```
 
-## Finnish UI
-- All user-facing strings must be in Finnish.
-- Variable names, function names, comments, and code must remain in English.
-
-## Testing
-- Every new feature must have corresponding tests in `tests/`.
+**Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+```
+- Every new feature must have corresponding tests in tests/.
 - Tests should cover the happy path and the edge cases defined in the spec.
-
-## Data and API
-- API responses from football-data.org must be cached. Never call the API
-  on every page load or render.
-- No API keys or secrets may appear in code or committed files.
-  All secrets must come from environment variables.
-
-## General
-- No `console.log` left in production code.
-- TypeScript strict mode — no use of `any`. This is enforced by Biome at the
-  tooling level (`noExplicitAny: error`). If `any` appears in a PR it is a
-  Biome violation, not just a style note.
 ```
+
+> Sourcery's `noExplicitAny` and `noConsoleLog` rules are already enforced
+> at the tooling level by Biome (set up in `012-project-init.md`), so no
+> need to duplicate them here.
 
 ---
 
-## Step 4 — Commit config files
+## Step 4 — Commit the config file
 
 ```bash
-git add .sourcery.yaml REVIEW_RULES.md
-git commit -m "chore: add Sourcery config and review rules"
+git add .sourcery.yaml
+git commit -m "chore: add Sourcery config"
 git push origin main
 ```
 
@@ -99,8 +78,7 @@ git push origin main
 
 ## Step 5 — Test with a dummy PR
 
-Create a throwaway branch with a small intentional issue to confirm Sourcery
-fires and comments in Finnish:
+Create a throwaway branch to confirm Sourcery fires and posts a review comment:
 
 ```bash
 git checkout -b test/sourcery-check
@@ -114,7 +92,6 @@ Open a PR from this branch to main on GitHub. Within a few minutes Sourcery
 should add a review comment. Confirm:
 
 - [ ] Comment appears on the PR
-- [ ] Comment is in Finnish
 - [ ] PR template loaded correctly
 
 Delete the branch and close the PR without merging once confirmed.
@@ -123,9 +100,9 @@ Delete the branch and close the PR without merging once confirmed.
 
 ## Done when
 - [ ] Sourcery installed on repo
-- [ ] Language set to Finnish in dashboard
-- [ ] `.sourcery.yaml` and `REVIEW_RULES.md` committed
-- [ ] Dummy PR confirmed Sourcery fires in Finnish
+- [ ] `.sourcery.yaml` committed
+- [ ] Review rules added in the dashboard
+- [ ] Dummy PR confirmed Sourcery fires
 
 ## Next
 → `005-railway-setup.md`
