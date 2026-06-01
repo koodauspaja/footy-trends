@@ -15,17 +15,8 @@ at the project-specific rules, and verify it works with a dummy PR.
 
 ---
 
-## Step 2 — Configure language to Finnish
 
-In the Sourcery dashboard (https://app.sourcery.ai):
-
-1. Go to **Review Settings**
-2. Under **Language**, select **Finnish**
-3. Save
-
----
-
-## Step 3 — Create `.sourcery.yaml`
+## Step 2 — Create `.sourcery.yaml`
 
 Create file: `.sourcery.yaml` in the repo root.
 
@@ -52,7 +43,7 @@ reviews:
 
 ---
 
-## Step 4 — Create `REVIEW_RULES.md`
+## Step 3 — Create `REVIEW_RULES.md`
 
 This is the file Sourcery reads to understand project-specific expectations.
 Write it in English — Sourcery translates its output to Finnish automatically.
@@ -96,7 +87,7 @@ and flag violations as review comments in Finnish.
 
 ---
 
-## Step 5 — Commit config files
+## Step 4 — Commit config files
 
 ```bash
 git add .sourcery.yaml REVIEW_RULES.md
@@ -106,7 +97,7 @@ git push origin main
 
 ---
 
-## Step 6 — Test with a dummy PR
+## Step 5 — Test with a dummy PR
 
 Create a throwaway branch with a small intentional issue to confirm Sourcery
 fires and comments in Finnish:
