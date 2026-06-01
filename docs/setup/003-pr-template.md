@@ -75,6 +75,12 @@ request using the following steps:
 5. Do not merge the PR yourself. Leave it for human review.
 ```
 
+```bash
+git add skills/open-pr.md docs/setup/003-pr-template.md
+git commit -m "chore: add open-pr skill and update setup instructions"
+git push origin main
+```
+
 ---
 
 ## Done when
