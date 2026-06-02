@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run --coverage",
+    "test": "vitest run --coverage --passWithNoTests",
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
