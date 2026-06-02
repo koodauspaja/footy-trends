@@ -71,6 +71,19 @@ Enable the following:
 
 ---
 
+## Step 4 — Wire up required status checks
+
+1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
+2. Under **Require status checks to pass**, click **Add checks**
+3. Search for and add:
+   - `CI / Typecheck, lint, test`
+   - `SonarCloud / SonarCloud scan`
+4. Save
+
+From this point on, a PR cannot merge unless both checks pass.
+
+---
+
 ## Done when
 - [ ] Branch ruleset active on main
 - [ ] Direct push to main rejected

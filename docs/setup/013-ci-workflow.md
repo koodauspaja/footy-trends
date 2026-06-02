@@ -139,22 +139,6 @@ Once confirmed, close the PR without merging and delete the branch.
 
 ---
 
-## Step 4 — Wire up required status checks
-
-Now that both workflows have run on a PR, go back and complete the step deferred
-in `011-branch-protection.md`:
-
-1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
-2. Under **Require status checks to pass**, click **Add checks**
-3. Search for and add:
-   - `CI / Typecheck, lint, test`
-   - `SonarCloud / SonarCloud scan`
-4. Save
-
-From this point on, a PR cannot merge unless both checks pass.
-
----
-
 ## Done when
 - [ ] `ci.yml` triggers on push to main and on PRs
 - [ ] Typecheck, lint, and test all pass on the scaffolded project
