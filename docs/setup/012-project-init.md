@@ -9,26 +9,35 @@ project structure.
 
 ## Step 1 — Scaffold Next.js
 
-Run this from the repo root. Answer the prompts as shown:
+Because the repo already has files in it, scaffold into a temp directory and
+copy the generated files across:
 
 ```bash
-npx create-next-app@latest . --typescript
+cd ..
+npx create-next-app@latest footy-trends-temp --typescript --tailwind --src-dir --app --turbopack --import-alias "@/*" --biome
 ```
 
-Prompts:
-```
-Would you like to use ESLint?                → No   (Biome replaces this)
-Would you like to use Tailwind CSS?          → Yes
-Would you like your code inside a `src/`     → Yes
-  directory?
-Would you like to use App Router?            → Yes
-Would you like to use Turbopack for next     → Yes
-  dev?
-Would you like to customize the import       → Yes
-  alias (@/* is already set)?               → keep default (@/*)
+Then copy the generated files into the repo:
+
+```bash
+cp footy-trends-temp/AGENTS.md footy-trends/
+cp footy-trends-temp/biome.json footy-trends/
+cp footy-trends-temp/CLAUDE.md footy-trends/
+cp footy-trends-temp/next-env.d.ts footy-trends/
+cp footy-trends-temp/next.config.ts footy-trends/
+cp footy-trends-temp/package-lock.json footy-trends/
+cp footy-trends-temp/package.json footy-trends/
+cp footy-trends-temp/postcss.config.mjs footy-trends/
+cp footy-trends-temp/tsconfig.json footy-trends/
+cp -R footy-trends-temp/node_modules footy-trends/
+cp -R footy-trends-temp/public footy-trends/
+cp -R footy-trends-temp/src footy-trends/
+rm -rf ../footy-trends-temp
+cd footy-trends
 ```
 
-This creates the standard Next.js App Router structure inside `src/`.
+> `CLAUDE.md` is where Claude Code reads project-specific instructions.
+> `AGENTS.md` serves the same purpose for other AI coding agents. Keep both.
 
 ---
 
@@ -41,7 +50,7 @@ Create `.nvmrc` in the repo root:
 ```
 
 Add an `engines` field to `package.json` so Railway and CI both fail loudly if
-the wrong Node version is used rather than silently misbehaving:
+the wrong Node version is used:
 
 ```json
 "engines": {
@@ -49,12 +58,22 @@ the wrong Node version is used rather than silently misbehaving:
 }
 ```
 
+Create `.npmrc` in the repo root to pin all future package installs to exact
+versions instead of `^` ranges:
+
+```
+save-exact=true
+```
+
+This won't retroactively fix versions already in `package.json` from the
+scaffold, but any new installs going forward will be pinned. Renovate handles
+keeping those exact versions up to date via automated PRs.
+
 ---
 
 ## Step 3 — Replace tsconfig.json
 
-`create-next-app` generates a basic `tsconfig.json`. Replace it entirely with
-a stricter version:
+Replace the generated `tsconfig.json` with a stricter version:
 
 ```json
 {
@@ -70,6 +89,7 @@ a stricter version:
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -83,7 +103,14 @@ a stricter version:
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
   "exclude": ["node_modules"]
 }
 ```
@@ -100,22 +127,28 @@ Key options above baseline `strict: true`:
 
 ---
 
-## Step 4 — Install and configure Biome
+## Step 4 — Replace biome.json
 
-Biome replaces ESLint and Prettier with a single fast tool.
-
-```bash
-npm install --save-dev @biomejs/biome
-npx biome init
-```
-
-Replace the generated `biome.json` with:
+Replace the generated `biome.json` with the project version that adds the
+required linting rules on top of the generated defaults:
 
 ```json
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "organizeImports": {
-    "enabled": true
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!coverage"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
   },
   "linter": {
     "enabled": true,
@@ -126,19 +159,18 @@ Replace the generated `biome.json` with:
         "useExhaustiveDependencies": "error"
       },
       "suspicious": {
+        "noUnknownAtRules": "off",
         "noExplicitAny": "error",
-        "noConsoleLog": "error"
+        "noConsole": "error"
       },
       "style": {
         "noNonNullAssertion": "warn"
       }
+    },
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
     }
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
   },
   "javascript": {
     "formatter": {
@@ -147,49 +179,34 @@ Replace the generated `biome.json` with:
       "semicolons": "always"
     }
   },
-  "files": {
-    "ignore": [
-      "node_modules/**",
-      ".next/**",
-      "dist/**",
-      "coverage/**"
-    ]
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
   }
 }
 ```
 
 Notable rules:
 - `noExplicitAny` — enforces the "no `any`" rule from `REVIEW_RULES.md` at the tooling level
-- `noConsoleLog` — catches leftover debug logs before they reach review
+- `noConsole` — catches all console calls (`log`, `error`, `warn` etc.) before they reach review
 - `noNonNullAssertion` — warns on `!` assertions; prefer explicit narrowing
 
 ---
 
-## Step 5 — Remove ESLint
+## Step 5 — Add scripts to package.json
 
-`create-next-app` installs ESLint even when you say no, or leaves remnants.
-Clean it up:
-
-```bash
-npm uninstall eslint eslint-config-next
-rm -f .eslintrc.json .eslintrc.js .eslintignore
-```
-
-Remove the `eslint` script from `package.json` if present, and delete the
-`next/core-web-vitals` lint config from `next.config.ts` if it appears there.
-
----
-
-## Step 6 — Add scripts to package.json
-
-Add these to the `scripts` section:
+Update the `scripts` section:
 
 ```json
 "scripts": {
   "dev": "next dev --turbopack",
   "build": "next build",
   "start": "next start",
-  "test": "jest --coverage",
+  "test": "vitest run --coverage",
+  "test:watch": "vitest",
   "lint": "biome check .",
   "lint:fix": "biome check --write .",
   "format": "biome format --write .",
@@ -199,31 +216,41 @@ Add these to the `scripts` section:
 
 ---
 
-## Step 7 — Install Jest for TypeScript
+## Step 6 — Install Vitest
 
 ```bash
-npm install --save-dev jest @types/jest ts-jest jest-environment-jsdom \
+npm install --save-dev vitest @vitejs/plugin-react \
+  @vitest/coverage-v8 jsdom \
   @testing-library/react @testing-library/jest-dom
 ```
 
-Create `jest.config.ts`:
+Create `vitest.config.ts`:
 
 ```typescript
-import type { Config } from "jest";
-import nextJest from "next/jest.js";
+import path from "node:path";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
-const createJestConfig = nextJest({ dir: "./" });
-
-const config: Config = {
-  coverageProvider: "v8",
-  testEnvironment: "jsdom",
-  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
-};
-
-export default createJestConfig(config);
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["lcov", "text"],
+      exclude: ["node_modules", ".next", "vitest.config.ts"],
+    },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
 ```
 
-Create `jest.setup.ts`:
+Create `vitest.setup.ts`:
 
 ```typescript
 import "@testing-library/jest-dom";
@@ -231,7 +258,7 @@ import "@testing-library/jest-dom";
 
 ---
 
-## Step 8 — Verify everything works
+## Step 7 — Verify everything works
 
 ```bash
 npm run typecheck   # should pass with no errors
@@ -244,7 +271,7 @@ will run all three.
 
 ---
 
-## Step 9 — Commit
+## Step 8 — Commit
 
 ```bash
 git add .
@@ -259,7 +286,7 @@ git push origin main
 - [ ] `npm run typecheck` passes
 - [ ] `npm run lint` passes
 - [ ] `npm run build` passes
-- [ ] No ESLint config or packages remaining
+- [ ] Vitest installed and `npm test` runs
 
 ## Next
 → `013-ci-workflow.md`
