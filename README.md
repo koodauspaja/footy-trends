@@ -19,4 +19,4 @@ Built with TypeScript. Data from football-data.org.
 
 ## Development process
 
-See `docs/setup/README.md` for the infrastructure setup sequence.
+See `docs/setup/README.md` for the infrastructure setup sequence.# deploy test
