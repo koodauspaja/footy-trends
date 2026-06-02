@@ -20,8 +20,10 @@ the project with a PostgreSQL database and auto-deploy from main.
 1. In Railway dashboard → **New Project**
 2. Choose **Deploy from GitHub repo**
 3. Select `footy-trends`
-4. Railway will create a project and attempt an initial deploy
+4. Give the project a description, e.g. "Finnish-language European football trends dashboard"
+5. Railway will create a project and attempt an initial deploy
    (it may fail at this point — that is fine, the app does not exist yet)
+6. Click on the app service → **Settings** → **Region** → select **Europe West** (or the closest EU region available)
 
 ---
 
@@ -31,34 +33,39 @@ Inside the Railway project:
 
 1. Click **+ New** → **Database** → **Add PostgreSQL**
 2. Railway provisions a Postgres instance with persistent storage
-3. Click on the database service → **Variables** tab
-4. Note the `DATABASE_URL` — Railway injects this automatically into your app
-   as an environment variable. You do not need to copy it manually.
+3. Click on the database service → **Settings** → **Region** → select the same EU region as the app
 
 ---
 
-## Step 4 — Configure the app service
+## Step 4 — Wire DATABASE_URL into the app service
 
-Click on the app service (the one connected to GitHub):
+Railway does not automatically inject the Postgres URL into the app service —
+you need to create a reference variable that pulls it across:
+
+1. Click on the **app service** → **Variables** tab
+2. Click **+ New Variable**
+3. Name: `DATABASE_URL`
+4. Value: `${{Postgres.DATABASE_URL}}`
+5. Save
+
+Railway will resolve the reference at deploy time, keeping the actual connection
+string out of your config and always in sync if the database URL ever changes.
+
+---
+
+## Step 5 — Configure the app service
+
+Still on the app service:
 
 1. **Settings** → **Source** → confirm it is pointing at your `footy-trends` repo, main branch
 2. **Settings** → **Deploy** → confirm **Auto Deploy** is enabled for the main branch
-3. **Variables** tab → add environment variables (see `007-football-data-api.md` for the API key)
 
-### Build and start commands
-Railway will try to detect these automatically for a TypeScript/Node project.
-If it does not, set them manually:
-
-```
-Build command:   npm run build
-Start command:   npm start
-```
-
-These can be updated later once the app has a proper build setup.
+> Build and start commands will be set via `railway.toml` in `019-railway-config.md`.
+> Leave them blank in the dashboard for now.
 
 ---
 
-## Step 5 — Confirm the connection
+## Step 6 — Confirm the connection
 
 Push a small change to main and confirm Railway picks it up:
 
@@ -79,6 +86,7 @@ seconds of the push.
 - [ ] Railway Hobby account active
 - [ ] Project connected to `footy-trends` GitHub repo
 - [ ] PostgreSQL database provisioned with persistent storage
+- [ ] `DATABASE_URL` reference variable added to app service
 - [ ] Auto-deploy enabled on main branch
 - [ ] Test push triggered a deploy in Railway
 
