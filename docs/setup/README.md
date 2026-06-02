@@ -13,9 +13,8 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 006 | [006-railway-verify.md](006-railway-verify.md) | Verify auto-deploy and confirm database persistence |
 | 007 | [007-football-data-api.md](007-football-data-api.md) | Register for football-data.org API key and store it in Railway |
 | 008 | [008-sonarqube-setup.md](008-sonarqube-setup.md) | Connect SonarQube Cloud for static analysis on every PR |
-| 009 | [009-axiom-logs.md](009-axiom-logs.md) | Wire Railway log drain to Axiom for searchable log retention |
+| 009 | [009-axiom-logs.md](009-axiom-logs.md) | Axiom account, dataset, and credentials for log shipping |
 | 010 | [010-renovate-setup.md](010-renovate-setup.md) | Install Renovate for automated dependency update PRs |
-| 011 | [011-branch-protection.md](011-branch-protection.md) | Protect main branch and enforce status checks before merge |
 | 012 | [012-project-init.md](012-project-init.md) | Scaffold Next.js, strict TypeScript config, and Biome |
 | 013 | [013-ci-workflow.md](013-ci-workflow.md) | GitHub Actions CI — typecheck, lint, and test on every PR |
 | 014 | [014-google-oauth-setup.md](014-google-oauth-setup.md) | Google Cloud project and OAuth credentials for sign-in |
@@ -23,8 +22,10 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 016 | [016-redis-cache-setup.md](016-redis-cache-setup.md) | Redis on Railway and cache utility for API responses |
 | 017 | [017-sentry-setup.md](017-sentry-setup.md) | Sentry error monitoring for runtime exceptions |
 | 018 | [018-health-check.md](018-health-check.md) | Health check endpoint wired into Railway deploy |
+| 019 | [019-railway-config.md](019-railway-config.md) | Railway config as code via railway.toml |
+| 011 | [011-branch-protection.md](011-branch-protection.md) | Protect main branch and enforce status checks before merge |
 
 ## After setup
 
-Once all eighteen steps are done, start with the first feature spec:
+Once all nineteen steps are done, start with the first feature spec:
 `specs/001-standings-form-table.md`

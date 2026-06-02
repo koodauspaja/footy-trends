@@ -77,4 +77,5 @@ Enable the following:
 - [ ] Required status checks added (after `013-ci-workflow.md`)
 
 ## Next
-→ `012-project-init.md`
+→ Setup complete. All eighteen infrastructure steps are done.
+  Start with the first feature spec: `specs/001-standings-form-table.md`

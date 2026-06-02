@@ -104,5 +104,4 @@ Expected response:
 - [ ] Endpoint returns 200 with both checks passing after deploy
 
 ## Next
-→ Setup complete. All eighteen infrastructure steps are done.
-  Start with the first feature spec: `specs/001-standings-form-table.md`
+→ `019-railway-config.md`

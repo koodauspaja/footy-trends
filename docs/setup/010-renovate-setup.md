@@ -54,10 +54,6 @@ Create file: `renovate.json` in the repo root.
 }
 ```
 
-> Replace `your-github-username` in `assignees` with your actual GitHub username.
-> This is a JSON file so it cannot use the `vars.*` pattern from the workflow
-> files — the literal username is required here.
-
 A few decisions baked into this config worth knowing:
 
 | Setting | Value | Reason |
@@ -77,14 +73,21 @@ close it manually — the config file is the source of truth.
 
 ---
 
-## Step 4 — Verify the workflow allowlist
+## Step 4 — Add Renovate to the PR actor allowlist
 
-The `sonarcloud.yml` workflow created in `008-sonarqube-setup.md` already
-includes `renovate[bot]` in its `if:` guard. Confirm this is present before
-Renovate opens its first PR — without it, Renovate PRs will not get SonarCloud
-analysis.
+Renovate opens PRs as the `renovate[bot]` actor. Update any workflow `if:`
+guards to let it trigger CI:
 
-The CI workflow added in `013-ci-workflow.md` will also include it from the start.
+```yaml
+if: |
+  github.actor == 'your-github-username' ||
+  github.actor == 'friends-github-username' ||
+  github.actor == 'renovate[bot]'
+```
+
+Apply this to `.github/workflows/sonarcloud.yml` and any other workflow files
+created later. Without this, Renovate PRs will not get SonarCloud or test
+coverage analysis.
 
 ---
 
@@ -100,15 +103,16 @@ git push origin main
    dependency PRs on the next scheduled run (Monday morning) or shortly after
    the config is detected
 2. Confirm each PR has the `dependencies` label
-3. Confirm SonarCloud and the CI workflow both trigger on the PR
+3. Confirm SonarCloud and any other CI workflows trigger on the PR
 
 ---
 
 ## Done when
 - [ ] Renovate GitHub App installed on `footy-trends`
-- [ ] `renovate.json` committed to repo root with your real username in `assignees`
+- [ ] `renovate.json` committed to repo root
+- [ ] `renovate[bot]` added to workflow actor allowlists
 - [ ] Onboarding PR closed
 - [ ] First Renovate dependency PR appears and CI runs on it
 
 ## Next
-→ `011-branch-protection.md`
+→ `012-project-init.md`
