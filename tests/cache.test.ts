@@ -26,6 +26,21 @@ describe("cache helpers", () => {
     const result = await getCached("foo", 30, fetcher);
 
     expect(result).toEqual({ value: 42 });
+    expect(getMock).toHaveBeenCalledWith("foo");
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(setexMock).not.toHaveBeenCalled();
+  });
+
+  it("returns falsy cached values without calling fetcher", async () => {
+    getMock.mockResolvedValue("0");
+
+    const { getCached } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => 999);
+
+    const result = await getCached("falsy", 30, fetcher);
+
+    expect(result).toBe(0);
+    expect(getMock).toHaveBeenCalledWith("falsy");
     expect(fetcher).not.toHaveBeenCalled();
     expect(setexMock).not.toHaveBeenCalled();
   });
@@ -39,8 +54,38 @@ describe("cache helpers", () => {
     const result = await getCached("bar", 60, fetcher);
 
     expect(result).toEqual({ value: 7 });
+    expect(getMock).toHaveBeenCalledWith("bar");
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(setexMock).toHaveBeenCalledWith("bar", 60, '{"value":7}');
+  });
+
+  it("throws when cached JSON is invalid", async () => {
+    getMock.mockResolvedValue("not-json");
+
+    const { getCached } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: 1 }));
+
+    await expect(getCached("broken", 60, fetcher)).rejects.toThrow();
+
+    expect(getMock).toHaveBeenCalledWith("broken");
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(setexMock).not.toHaveBeenCalled();
+  });
+
+  it("propagates fetcher errors and does not cache on failure", async () => {
+    getMock.mockResolvedValue(null);
+
+    const { getCached } = await import("@/lib/cache");
+    const fetcherError = new Error("fetch failed");
+    const fetcher = vi.fn(async () => {
+      throw fetcherError;
+    });
+
+    await expect(getCached("fetch-fail", 60, fetcher)).rejects.toThrow("fetch failed");
+
+    expect(getMock).toHaveBeenCalledWith("fetch-fail");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(setexMock).not.toHaveBeenCalled();
   });
 
   it("invalidates cache by deleting the key", async () => {
@@ -50,5 +95,6 @@ describe("cache helpers", () => {
     await invalidateCache("baz");
 
     expect(delMock).toHaveBeenCalledWith("baz");
+    expect(delMock).toHaveBeenCalledTimes(1);
   });
 });
