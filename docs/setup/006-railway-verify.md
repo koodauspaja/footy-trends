@@ -45,7 +45,7 @@ SELECT * FROM persistence_test;
 
 In the Railway app service → Variables tab, confirm:
 
-- [ ] `DATABASE_URL` is present (auto-injected by Railway from the Postgres service)
+- [ ] `DATABASE_URL` is present (added as a reference variable to Postgres)
 - [ ] Any other variables you have added are listed
 
 To confirm they reach the app at runtime, you can temporarily add a health check

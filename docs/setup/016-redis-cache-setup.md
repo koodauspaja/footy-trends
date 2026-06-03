@@ -11,9 +11,12 @@ caching rule in `REVIEW_RULES.md` at the code level.
 
 1. Go to Railway → your `footy-trends` project
 2. Click **+ New** → **Database** → **Add Redis**
-3. Railway provisions a Redis instance and auto-injects `REDIS_URL` into all
-   services in the project — no manual wiring needed
-4. Confirm `REDIS_URL` appears in the app service → **Variables** tab
+3. Railway provisions the Redis instance
+4. Wire it into the app service variables:
+  - App service → **Variables** → **+ New Variable**
+  - Name: `REDIS_URL`
+  - Value: `${{Redis.REDIS_URL}}`
+5. Confirm `REDIS_URL` appears in the app service → **Variables** tab
 
 ---
 
@@ -25,7 +28,19 @@ Add to your local `.env`:
 REDIS_URL=redis://localhost:6379
 ```
 
-For local dev you can run Redis via Docker if you do not have it installed:
+Start local dependencies with Docker Compose (recommended, matches the Postgres setup):
+
+```bash
+docker compose up -d
+```
+
+If you want to start only Redis:
+
+```bash
+docker compose up -d redis
+```
+
+As a one-off alternative, you can run Redis via Docker directly:
 
 ```bash
 docker run -d -p 6379:6379 redis:alpine
@@ -133,6 +148,7 @@ git push origin main
 - [ ] Redis service provisioned in Railway
 - [ ] `REDIS_URL` visible in app service variables
 - [ ] `REDIS_URL` added to local `.env`
+- [ ] Local Docker Compose starts Redis on port 6379
 - [ ] `ioredis` installed
 - [ ] `src/lib/redis.ts` and `src/lib/cache.ts` committed
 - [ ] `getCached` tested locally with a dummy call
