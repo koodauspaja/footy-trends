@@ -5,6 +5,12 @@ import { redis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
+function toLogError(error: unknown) {
+  return {
+    err: error instanceof Error ? error : { error },
+  };
+}
+
 export async function GET() {
   const checks: Record<string, "ok" | "error"> = {};
   let healthy = true;
@@ -15,7 +21,7 @@ export async function GET() {
   } catch (error: unknown) {
     checks.database = "error";
     healthy = false;
-    logger.error({ error }, "Database health check failed");
+    logger.error(toLogError(error), "Database health check failed");
   }
 
   try {
@@ -24,7 +30,7 @@ export async function GET() {
   } catch (error: unknown) {
     checks.redis = "error";
     // Redis failure is non-fatal: the app can serve requests without cache.
-    logger.warn({ error }, "Redis health check failed");
+    logger.warn(toLogError(error), "Redis health check failed");
   }
 
   return Response.json(
