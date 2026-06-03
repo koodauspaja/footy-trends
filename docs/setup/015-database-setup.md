@@ -2,8 +2,8 @@
 
 ## Goal
 Add Drizzle ORM and a migration workflow so every schema change is versioned,
-repeatable, and runs automatically on Railway deploy. No application features
-in this step — just the plumbing every feature will build on.
+repeatable, and runs automatically on Railway deploy. Also sets up a local
+Postgres instance via Docker for development.
 
 ---
 
@@ -16,11 +16,46 @@ changes show up in normal TypeScript type checking.
 
 ---
 
-## Step 1 — Install packages
+## Step 1 — Set up local Postgres with Docker
+
+Create `docker-compose.yml` in the repo root:
+
+```yaml
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: footy-trends
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
+```
+
+Start the database:
+
+```bash
+docker compose up -d
+```
+
+Update your local `.env`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/footy-trends
+```
+
+---
+
+## Step 2 — Install packages
 
 ```bash
 npm install drizzle-orm postgres
-npm install --save-dev drizzle-kit
+npm install --save-dev drizzle-kit tsx
 ```
 
 `postgres` is the modern Node.js Postgres client Drizzle recommends. Do not
@@ -28,7 +63,7 @@ install `pg` — mixing clients causes confusion.
 
 ---
 
-## Step 2 — Create the database client
+## Step 3 — Create the database client
 
 Create file: `src/db/index.ts`
 
@@ -37,31 +72,26 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
+// biome-ignore lint/style/noNonNullAssertion: app must not start without DATABASE_URL
 const client = postgres(process.env.DATABASE_URL!);
 
 export const db = drizzle(client, { schema });
 ```
 
-> The `!` non-null assertion is intentional here — if `DATABASE_URL` is missing
-> the app should crash immediately at startup rather than failing silently later.
-> Add a `// biome-ignore lint/style/noNonNullAssertion` comment if Biome flags it,
-> and note why in the decisions record for the first feature that uses the DB.
-
 ---
 
-## Step 3 — Create the schema file
+## Step 4 — Create the schema file
 
 Create file: `src/db/schema.ts`
 
 ```typescript
+// Schema is empty until the first feature is implemented.
+// Each feature spec that needs a table will add to this file.
 ```
-
-Leave it empty for now. Each feature spec that needs a table will add to this
-file. The migration workflow below will pick up changes automatically.
 
 ---
 
-## Step 4 — Configure Drizzle Kit
+## Step 5 — Configure Drizzle Kit
 
 Create file: `drizzle.config.ts` in the repo root.
 
@@ -73,6 +103,7 @@ export default defineConfig({
   out: "./drizzle/migrations",
   dialect: "postgresql",
   dbCredentials: {
+    // biome-ignore lint/style/noNonNullAssertion: required at build time
     url: process.env.DATABASE_URL!,
   },
 });
@@ -80,7 +111,7 @@ export default defineConfig({
 
 ---
 
-## Step 5 — Create the migration runner
+## Step 6 — Create the migration runner
 
 This script runs pending migrations at deploy time.
 
@@ -91,6 +122,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
+// biome-ignore lint/style/noNonNullAssertion: required for migrations
 const client = postgres(process.env.DATABASE_URL!, { max: 1 });
 const db = drizzle(client);
 
@@ -102,7 +134,7 @@ console.log("Migrations complete");
 
 ---
 
-## Step 6 — Add scripts to package.json
+## Step 7 — Add scripts to package.json
 
 Add to the `scripts` section:
 
@@ -111,12 +143,6 @@ Add to the `scripts` section:
 "db:migrate": "tsx src/db/migrate.ts",
 "db:studio": "drizzle-kit studio",
 "db:push": "drizzle-kit push"
-```
-
-Install `tsx` if not already present:
-
-```bash
-npm install --save-dev tsx
 ```
 
 | Script | When to use |
@@ -128,26 +154,12 @@ npm install --save-dev tsx
 
 ---
 
-## Step 7 — Update the Railway start command
-
-Migrations must run before the app starts on each deploy. In Railway:
-
-1. Go to Railway → project → app service → **Settings** → **Deploy**
-2. Set **Start command** to:
-   ```
-   npm run db:migrate && npm start
-   ```
-
-This ensures schema changes are applied before traffic hits the new code.
-
----
-
-## Step 8 — Create the migrations folder
+## Step 8 — Create the migrations folder and commit
 
 ```bash
 mkdir -p drizzle/migrations
 touch drizzle/migrations/.gitkeep
-git add drizzle/
+git add drizzle/ src/db/ drizzle.config.ts package.json package-lock.json docker-compose.yml
 git commit -m "chore: set up Drizzle ORM and migration workflow"
 git push origin main
 ```
@@ -157,7 +169,7 @@ git push origin main
 ## Step 9 — Verify locally
 
 ```bash
-DATABASE_URL=your_local_db_url npm run db:migrate
+npm run db:migrate
 ```
 
 Should output `Migrations complete` with no errors. On an empty schema this is
@@ -166,11 +178,11 @@ a no-op — that is expected.
 ---
 
 ## Done when
-- [ ] `drizzle-orm` and `postgres` installed
-- [ ] `src/db/index.ts` and `src/db/schema.ts` created
+- [ ] Docker Compose running local Postgres on port 5432
+- [ ] `DATABASE_URL` set in local `.env`
+- [ ] `drizzle-orm`, `postgres`, `drizzle-kit`, and `tsx` installed
+- [ ] `src/db/index.ts`, `src/db/schema.ts`, and `src/db/migrate.ts` created
 - [ ] `drizzle.config.ts` committed
-- [ ] `src/db/migrate.ts` committed
-- [ ] Railway start command updated to run migrations before start
 - [ ] `npm run db:migrate` runs cleanly locally
 
 ## Next

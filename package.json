@@ -11,10 +11,16 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "drizzle-orm": "0.45.2",
     "next": "16.2.7",
+    "postgres": "3.4.9",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
@@ -28,8 +34,10 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitest/coverage-v8": "4.1.8",
+    "drizzle-kit": "0.31.10",
     "jsdom": "29.1.1",
     "tailwindcss": "4.3.0",
+    "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
   },
