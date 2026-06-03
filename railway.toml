@@ -15,7 +15,7 @@ watchPatterns = [
 [deploy]
 # Run migrations before the new container takes traffic.
 # Railway runs this command inside the new container before health checks pass.
-preDeployCommand = ["npm", "run", "db:migrate"]
+preDeployCommand = "npm run db:migrate"
 
 # Start the Next.js server.
 startCommand = "npm start"
@@ -31,5 +31,5 @@ restartPolicyMaxRetries = 3
 # Zero-downtime deploys:
 # keep the old container alive for 15 seconds after the new one is healthy,
 # then drain connections for 10 seconds before killing it.
-overlapSeconds = "15"
-drainingSeconds = "10"
+overlapSeconds = 15
+drainingSeconds = 10
