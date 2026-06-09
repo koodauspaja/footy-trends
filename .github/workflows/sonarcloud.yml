@@ -16,7 +16,7 @@ jobs:
       github.actor == vars.COLLABORATOR_USERNAME ||
       github.actor == 'renovate[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Required for SonarCloud blame data
 
