@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@axiomhq/pino": "1.6.1",
-    "@sentry/nextjs": "10.56.0",
+    "@sentry/nextjs": "10.63.0",
     "drizzle-orm": "0.45.2",
     "ioredis": "5.11.1",
     "next": "16.2.9",
