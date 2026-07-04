@@ -56,5 +56,5 @@
     "sharp@0.34.5": true,
     "@sentry/cli@2.58.6": true
   },
-  "packageManager": "npm@11.16.0"
+  "packageManager": "npm@11.18.0"
 }
