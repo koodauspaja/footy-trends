@@ -47,9 +47,9 @@ Add each rule as a separate block (Sourcery recommends fewer than 3 rules per bl
 - The decision record must faithfully interpret the spec — flag any drift, e.g. spec says "show last 5 matches" but decisions doc says "show last 3".
 ```
 
-**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
+-**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
 ```
-- All user-facing strings must be in English. Variable names, function names, comments, and code must also be in English.
+- All user-facing strings must be in Finnish. Variable names, function names, comments, and code must be in English.
 - API responses from football-data.org must be cached. Never call the API on every page load or render.
 - No API keys or secrets may appear in code or committed files. All secrets must come from environment variables.
 ```
