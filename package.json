@@ -18,7 +18,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "@axiomhq/pino": "1.6.1",
+    "@axiomhq/pino": "1.8.0",
     "@sentry/nextjs": "10.63.0",
     "drizzle-orm": "0.45.2",
     "ioredis": "5.11.1",
