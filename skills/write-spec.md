@@ -25,6 +25,12 @@ Checklist (what a spec must contain)
 8. Acceptance Criteria — testable, concrete outcomes for the feature.
 9. Tests Required — file paths and minimal assertions (happy+edge cases).
 10. Files To Update — `specs/`, `.env.example`, docs, and any README notes.
+    - Note: `decisions/NNN-feature-name.md` is written by the implementing
+      agent, not the spec author — but the spec should be precise enough
+      (especially on edge cases and numeric values, e.g. "last 5 matches")
+      that any drift between spec and decisions doc is easy to spot during
+      review. See `REVIEW_RULES.md` — spec/decision drift is a required
+      Sourcery check.
 
 How to use in chat
 - Paste the spec and run this checklist with Claude. Confirm each item is
@@ -35,3 +41,4 @@ Notes
 - This lives in `skills/` so agents and humans can reference a single,
   consistent checklist. It intentionally avoids forcing an automated interview
   flow — use conversational clarification instead.
+  
