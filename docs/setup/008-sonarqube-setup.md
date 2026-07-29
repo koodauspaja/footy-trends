@@ -93,10 +93,11 @@ jobs:
           fetch-depth: 0  # Required for SonarCloud blame data
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+          check-latest: true
 
       - name: Install dependencies
         run: npm ci

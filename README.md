@@ -38,7 +38,7 @@ App runs at: http://localhost:3000
 ### Prerequisites
 
 - Node.js 24+
-- npm 11.16.0
+- npm 12.0.1
 - Docker (for local Postgres)
 - Local `.env` file based on `.env.example`
 
@@ -128,7 +128,7 @@ GitHub Actions workflows in `.github/workflows`:
 - `ci.yml`: typecheck, lint, test
 - `sonarcloud.yml`: test with coverage + SonarCloud scan
 
-Both workflows pin Node 24 and npm 11.16.0.
+Both workflows target Node 24, and the project expects npm 12.0.1.
 
 ---
 
