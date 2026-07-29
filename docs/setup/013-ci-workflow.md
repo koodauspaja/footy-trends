@@ -31,13 +31,14 @@ jobs:
       github.actor == 'renovate[bot]'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+          check-latest: true
 
       - name: Install dependencies
         run: npm ci
@@ -82,15 +83,16 @@ jobs:
       github.actor == vars.COLLABORATOR_USERNAME ||
       github.actor == 'renovate[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
+          check-latest: true
 
       - name: Install dependencies
         run: npm ci
