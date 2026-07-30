@@ -111,6 +111,55 @@ npm run db:push
 - restart policy
 - deploy watch patterns
 
+### Human Contributor Workflow
+
+For day-to-day development, follow this sequence:
+
+1. Write or update a feature spec in `specs/NNN-feature-name.md` before coding.
+   The AI may help draft or refine the spec, but the human remains responsible
+   for the final content and intent.
+2. Use `skills/write-spec.md` to check that the spec covers scope, UX copy,
+   API/data, edge cases, security, acceptance criteria, tests, and files to
+   update.
+3. Confirm the spec checklist in chat before implementation begins.
+4. Let the AI proceed autonomously from there: create or update the GitHub issue,
+   create the implementation branch, implement the feature, write the decision
+   record, run the checks, and prepare the PR.
+5. Review the AI-written decision record in `decisions/NNN-feature-name.md`
+   while the work is in progress.
+6. Add or update tests, then run `npm run typecheck`, `npm run lint`, and
+   `npm test`.
+7. Let the AI open a PR using `skills/open-pr.md`, reference the spec and
+   decisions file, link the issue, and prepare it for review.
+8. Respond to review feedback, make any required changes, and only merge after
+   the branch is approved.
+
+### What the AI should do
+
+When working with this repository, the AI assistant should:
+
+- follow the spec-first workflow and stop if the spec is incomplete
+- use the repository rules in `CLAUDE.md`, `skills/write-spec.md`,
+  `skills/open-issue.md`, `skills/implement-feature.md`, and
+  `skills/open-pr.md`
+- help draft or refine specs, decision records, tests, and PR descriptions
+- implement the feature autonomously within the bounds of the approved spec
+- carry out routine workflow steps without repeated handholding, including
+  issue creation, branching, testing, and PR preparation
+- verify changes with the relevant checks before suggesting completion
+- keep user-facing UI strings in Finnish and other repo text in English
+
+### What humans should do
+
+Humans remain responsible for:
+
+- deciding the product direction and acceptance criteria
+- validating that the spec is complete enough for implementation
+- reviewing the AI-written plan and decision record
+- approving the final implementation and merge decision in GitHub
+- reviewing PRs and responding to feedback
+- handling repository access, branch protection, and release choices
+
 ---
 
 ## Repository Guidelines

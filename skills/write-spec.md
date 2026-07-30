@@ -1,16 +1,13 @@
-# Skill: Spec Checklist
-
 Purpose
 Provide a short, reusable skill/checklist that authors and agents can use to
 validate feature specs before implementation. This is a lightweight, non-agentic
 artifact — it lists the questions a spec should answer, not a forced Q&A flow.
-
+ 
 When to use
 - During spec writing: run this checklist to ensure completeness.
 - Before handing the spec to Claude Code: confirm the checklist in chat.
-
 Checklist (what a spec must contain)
-
+ 
 1. Title & Summary — one-line description and motivation.
 2. Scope — what is in scope and explicitly out of scope.
 3. UX / UI (end-user visible)
@@ -31,14 +28,20 @@ Checklist (what a spec must contain)
       that any drift between spec and decisions doc is easy to spot during
       review. See `REVIEW_RULES.md` — spec/decision drift is a required
       Sourcery check.
-
+11. Open Questions — anything the spec author is unsure about, listed
+    explicitly rather than left implicit. An empty list is fine; the field
+    exists to force a deliberate check rather than a silent gap.
 How to use in chat
 - Paste the spec and run this checklist with Claude. Confirm each item is
   present (yes/no) before creating a PR. If any item is missing, expand the
   spec and re-run the checklist.
-
 Notes
 - This lives in `skills/` so agents and humans can reference a single,
   consistent checklist. It intentionally avoids forcing an automated interview
   flow — use conversational clarification instead.
-  
+- The rule that implementation must not start on an unconfirmed spec lives in
+  `CLAUDE.md`, not here — that file is loaded automatically every session, so
+  it's the right place for anything that must never be skipped.
+- The full workflow from spec to published code is also described in
+  `CLAUDE.md`, including implementation, decision records, testing, PRs, and
+  merge/release.
