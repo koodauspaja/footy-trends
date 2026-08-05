@@ -9,6 +9,7 @@ Postgres, Redis cache, CI, Sentry, and Railway config as code.
 ## Quick Start
 
 ```bash
+cp .env.example .env
 npm install
 docker compose up -d
 npm run db:migrate
@@ -16,6 +17,8 @@ npm run dev
 ```
 
 App runs at: http://localhost:3000
+
+If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first and confirm the checklist in chat before implementation.
 
 ---
 
@@ -115,12 +118,27 @@ npm run db:push
 
 For day-to-day development, follow this sequence:
 
+```mermaid
+flowchart TD
+  Human_spec["Human writes/refines spec in specs/NNN-feature-name.md"]
+  Spec_checklist["Use skills/write-spec.md to verify required sections"]
+  Spec_confirmed{Spec checklist confirmed in chat?}
+  AI_issue_branch["AI creates/updates issue and implementation branch (skills/open-issue.md)"]
+  AI_implement["AI implements feature within spec (skills/implement-feature.md)"]
+  AI_decision["AI writes/updates decision record in decisions/NNN-feature-name.md"]
+  AI_checks["AI runs tests, lint, typecheck, local validation"]
+  AI_open_pr["AI opens PR referencing spec and decision record (skills/open-pr.md)"]
+  Human_review["Human reviews spec, decision record, and implementation"]
+  Human_merge["Human approves and merges in GitHub"]
+  Ask_for_info["Stop and ask for missing or unclear spec details"]
+
+  Human_spec --> Spec_checklist --> Spec_confirmed
+  Spec_confirmed -->|Yes| AI_issue_branch --> AI_implement --> AI_decision --> AI_checks --> AI_open_pr --> Human_review --> Human_merge
+  Spec_confirmed -->|No| Ask_for_info --> Human_spec
+```
+
 1. Write or update a feature spec in `specs/NNN-feature-name.md` before coding.
-   The AI may help draft or refine the spec, but the human remains responsible
-   for the final content and intent.
-2. Use `skills/write-spec.md` to check that the spec covers scope, UX copy,
-   API/data, edge cases, security, acceptance criteria, tests, and files to
-   update.
+2. Use `skills/write-spec.md` to check that the spec covers the required sections.
 3. Confirm the spec checklist in chat before implementation begins.
 4. Let the AI proceed autonomously from there: create or update the GitHub issue,
    create the implementation branch, implement the feature, write the decision
