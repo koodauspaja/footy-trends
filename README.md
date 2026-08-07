@@ -91,6 +91,21 @@ npm run lint
 npm test
 ```
 
+### Test Layout
+
+Tests are organized by test type, with unit tests mirroring the relevant
+`src/` paths:
+
+- `tests/unit/` - isolated unit tests, run with `npm run test:unit`
+- `tests/integration/` - tests spanning multiple application boundaries, run
+   with `npm run test:integration`
+- `tests/e2e/` - end-to-end tests against the running application, run with
+   `npm run test:e2e`
+
+CI runs the unit test suite with coverage. Integration and end-to-end suites
+have separate commands so they can be enabled with their required services and
+runtime setup without changing the unit-test workflow.
+
 ### Database Workflows
 
 ```bash
