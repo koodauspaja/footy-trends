@@ -9,7 +9,7 @@ on:
 
 jobs:
   ci:
-    name: Typecheck, lint, test
+    name: Typecheck, lint, unit test
     runs-on: ubuntu-latest
     if: |
       github.actor == vars.OWNER_USERNAME ||
@@ -35,5 +35,5 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      - name: Unit tests
+        run: npm run test:unit
