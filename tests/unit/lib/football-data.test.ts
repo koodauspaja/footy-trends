@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  COMPETITION_CACHE_TTL_SECONDS,
   getCurrentSeasonId,
   getFinishedMatches,
+  MATCHES_CACHE_TTL_SECONDS,
   normalizeMatch,
   selectActiveSeason,
 } from "@/lib/football-data";
@@ -68,6 +70,11 @@ describe("football-data mapping", () => {
     const seasonId = await getCurrentSeasonId();
 
     expect(seasonId).toBe(2025);
+    expect(getCachedMock).toHaveBeenCalledWith(
+      expect.any(String),
+      COMPETITION_CACHE_TTL_SECONDS,
+      expect.any(Function)
+    );
   });
 
   it("rejects when the provider has no resolvable season", async () => {
@@ -95,6 +102,11 @@ describe("football-data mapping", () => {
 
     const result = await getFinishedMatches(2025);
 
+    expect(getCachedMock).toHaveBeenCalledWith(
+      expect.any(String),
+      MATCHES_CACHE_TTL_SECONDS,
+      expect.any(Function)
+    );
     expect(result).toEqual([
       {
         providerMatchId: 1,
