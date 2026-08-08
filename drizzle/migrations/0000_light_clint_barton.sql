@@ -1,0 +1,18 @@
+CREATE TABLE "matches" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"provider_match_id" integer NOT NULL,
+	"competition_code" text NOT NULL,
+	"season_id" integer NOT NULL,
+	"kickoff_at" timestamp with time zone NOT NULL,
+	"matchday" integer,
+	"home_team_provider_id" integer NOT NULL,
+	"home_team_name" text NOT NULL,
+	"away_team_provider_id" integer NOT NULL,
+	"away_team_name" text NOT NULL,
+	"home_goals" integer NOT NULL,
+	"away_goals" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX "matches_provider_match_id_idx" ON "matches" USING btree ("provider_match_id");

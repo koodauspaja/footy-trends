@@ -54,6 +54,7 @@ Key variables:
 - `DATABASE_URL` - Postgres connection string
 - `REDIS_URL` - Redis connection string
 - `FOOTBALL_DATA_API_KEY` - football-data.org API key
+- `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` - local match freshness threshold (default `3600`)
 - `NEXT_PUBLIC_SENTRY_DSN` - Sentry client DSN
 - `AXIOM_TOKEN` and `AXIOM_DATASET` - Axiom log ingest
 - `LOG_LEVEL` - Pino log level (`info`, `debug`, etc.)
@@ -78,6 +79,15 @@ Key variables:
 - `src/db` - database client, schema, migrations runner
 - `src/lib` - shared utilities (cache, redis, logger)
 - `docs/setup` - step-by-step infrastructure setup docs
+
+### Premier League standings
+
+The home page resolves the current Premier League season server-side. It reads
+calculated standings from Redis first, then normalized finished matches from
+PostgreSQL, and refreshes from football-data.org when local data is missing or
+older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS`. Provider responses use
+separate Redis TTLs: one hour for competition metadata and 15 minutes for
+finished matches. The provider API key is never sent to the browser.
 
 ---
 
