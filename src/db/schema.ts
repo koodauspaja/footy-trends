@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const matches = pgTable(
   "matches",
@@ -18,5 +18,9 @@ export const matches = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("matches_provider_match_id_idx").on(table.providerMatchId)]
+  (table) => [
+    uniqueIndex("matches_provider_match_id_idx").on(table.providerMatchId),
+    // Standings are always read for one competition and season at a time.
+    index("matches_competition_season_idx").on(table.competitionCode, table.seasonId),
+  ]
 );

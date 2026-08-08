@@ -1,3 +1,8 @@
+import type { ReactNode } from "react";
+import { SeasonSelector } from "@/components/season-selector";
+import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
+import { logger } from "@/lib/logger";
+import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
 import { getPremierLeagueStandings } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -13,16 +18,66 @@ const columns = [
   ["P", "Pisteet"],
 ] as const;
 
-export default async function Home() {
-  const result = await getPremierLeagueStandings();
+const BASE_HEADING = "Valioliigan sarjataulukko";
+const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 
+type HomeProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function PageShell({ heading, children }: { heading: string; children: ReactNode }) {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-8">
-      <h1 className="mb-8 text-3xl font-semibold">Valioliigan sarjataulukko</h1>
-      {result.status === "empty" && <p>Sarjataulukkoa ei ole saatavilla.</p>}
-      {result.status === "error" && (
-        <p>Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.</p>
+      <h1 className="mb-8 text-3xl font-semibold">{heading}</h1>
+      {children}
+    </main>
+  );
+}
+
+async function resolveSeasonContext(): Promise<SeasonContext | null> {
+  try {
+    return await getSeasonContext();
+  } catch (error) {
+    logger.error({ err: error }, "Unable to resolve the selectable seasons");
+    return null;
+  }
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const context = await resolveSeasonContext();
+  if (context === null) {
+    return (
+      <PageShell heading={BASE_HEADING}>
+        <p>{ERROR_MESSAGE}</p>
+      </PageShell>
+    );
+  }
+
+  const params = (await searchParams) ?? {};
+  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
+  // An unselectable season falls back to the active one. Redirecting would only
+  // ever be soft here — the streamed shell has already flushed by this point —
+  // so the substitution is stated in the page instead of hidden behind a delay.
+  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
+  const seasonLabel = formatSeasonLabel(seasonId);
+  const result = await getPremierLeagueStandings({
+    seasonId,
+    activeSeasonId: context.activeSeasonId,
+  });
+
+  return (
+    <PageShell heading={`${BASE_HEADING} ${seasonLabel}`}>
+      {season.kind === "invalid" && (
+        <p
+          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
+        </p>
       )}
+      <SeasonSelector seasons={context.selectableSeasons} selectedSeasonId={seasonId} />
+      {result.status === "empty" && <p>Sarjataulukkoa ei ole saatavilla.</p>}
+      {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left">
@@ -70,6 +125,6 @@ export default async function Home() {
         O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt
         maalit, ME = maaliero, P = pisteet.
       </p>
-    </main>
+    </PageShell>
   );
 }
