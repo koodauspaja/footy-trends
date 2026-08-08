@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COMPETITION_CACHE_TTL_SECONDS,
   getFinishedMatches,
@@ -12,9 +12,16 @@ const { getCachedMock } = vi.hoisted(() => ({ getCachedMock: vi.fn() }));
 vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
 
 describe("football-data mapping", () => {
+  const originalApiKey = process.env.FOOTBALL_DATA_API_KEY;
+
   beforeEach(() => {
     vi.unstubAllEnvs();
     getCachedMock.mockReset();
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    process.env.FOOTBALL_DATA_API_KEY = originalApiKey;
   });
 
   it("maps a finished provider match", () => {
@@ -48,6 +55,30 @@ describe("football-data mapping", () => {
         2026
       )
     ).toBeNull();
+  });
+
+  it("treats a season with no start date as already started, ranked behind a dated season", () => {
+    const season = selectActiveSeason(
+      {
+        currentSeason: { id: 2026 },
+        seasons: [{ id: 2025, startDate: "2025-08-15", endDate: "2026-05-24" }],
+      },
+      new Date("2026-08-08")
+    );
+
+    expect(season?.id).toBe(2025);
+  });
+
+  it("ranks a dated season ahead of an undated one regardless of input order", () => {
+    const season = selectActiveSeason(
+      {
+        currentSeason: { id: 2025, startDate: "2025-08-15" },
+        seasons: [{ id: 2026 }],
+      },
+      new Date("2026-08-08")
+    );
+
+    expect(season?.id).toBe(2025);
   });
 
   it("selects the previous season before the current season starts", () => {
@@ -115,6 +146,12 @@ describe("football-data mapping", () => {
     );
   });
 
+  it("treats a response with no matches field as no finished matches", async () => {
+    getCachedMock.mockResolvedValue({});
+
+    await expect(getFinishedMatches(2025)).resolves.toEqual([]);
+  });
+
   it("caches each season's matches under its own key", async () => {
     getCachedMock.mockResolvedValue({ matches: [] });
 
@@ -164,5 +201,50 @@ describe("football-data mapping", () => {
         awayGoals: 1,
       },
     ]);
+  });
+
+  it("requests the provider with the configured API key and base URL", async () => {
+    vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ currentSeason: { id: 1, startDate: "2025-08-15" } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await getSeasonContext();
+
+    expect(fetchMock).toHaveBeenCalledWith("https://api.football-data.org/v4/competitions/PL", {
+      headers: { "X-Auth-Token": "test-api-key" },
+    });
+  });
+
+  it("throws when the API key is not configured", async () => {
+    process.env.FOOTBALL_DATA_API_KEY = "";
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await expect(getSeasonContext()).rejects.toThrow("FOOTBALL_DATA_API_KEY is not configured");
+  });
+
+  it("throws when the provider request fails", async () => {
+    vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await expect(getSeasonContext()).rejects.toThrow("Football data request failed: 500");
+  });
+
+  it("requests finished matches for the given season", async () => {
+    vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await getFinishedMatches(2025);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.football-data.org/v4/competitions/PL/matches?season=2025&status=FINISHED",
+      { headers: { "X-Auth-Token": "test-api-key" } }
+    );
   });
 });
