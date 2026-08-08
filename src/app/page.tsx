@@ -1,65 +1,73 @@
-import Image from "next/image";
+import { getPremierLeagueStandings } from "@/lib/standings-service";
 
-export default function Home() {
+const columns = [
+  ["O", "Ottelut"],
+  ["V", "Voitot"],
+  ["T", "Tasapelit"],
+  ["H", "Häviöt"],
+  ["TM", "Tehdyt maalit"],
+  ["PM", "Päästetyt maalit"],
+  ["ME", "Maaliero"],
+  ["P", "Pisteet"],
+] as const;
+
+export default async function Home() {
+  const result = await getPremierLeagueStandings();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-8">
+      <h1 className="mb-8 text-3xl font-semibold">Valioliigan sarjataulukko</h1>
+      {result.status === "empty" && <p>Sarjataulukkoa ei ole saatavilla.</p>}
+      {result.status === "error" && (
+        <p>Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.</p>
+      )}
+      {result.status === "ok" && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-zinc-300 text-sm text-zinc-600">
+                <th className="p-3">Sija</th>
+                <th className="p-3">Joukkue</th>
+                {columns.map(([short, title]) => (
+                  <th className="p-3" key={short} title={title}>
+                    {short}
+                  </th>
+                ))}
+                <th className="p-3">Vire</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.standings.map((team) => (
+                <tr className="border-b border-zinc-200" key={team.teamProviderId}>
+                  <td className="p-3">{team.position}</td>
+                  <th scope="row" className="p-3 font-medium">
+                    {team.teamName}
+                  </th>
+                  <td className="p-3">{team.played}</td>
+                  <td className="p-3">{team.won}</td>
+                  <td className="p-3">{team.drawn}</td>
+                  <td className="p-3">{team.lost}</td>
+                  <td className="p-3">{team.goalsFor}</td>
+                  <td className="p-3">{team.goalsAgainst}</td>
+                  <td className="p-3">{team.goalDifference}</td>
+                  <td className="p-3 font-semibold">{team.points}</td>
+                  <td className="p-3" aria-label={team.form.map((item) => item.label).join(", ")}>
+                    {team.form.map((item) => (
+                      <span className="mr-1" key={item.matchId} title={item.label}>
+                        {item.result}
+                      </span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+      <p className="mt-4 text-sm text-zinc-500">
+        O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt
+        maalit, ME = maaliero, P = pisteet.
+      </p>
+    </main>
   );
 }
