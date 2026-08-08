@@ -9,12 +9,40 @@ on:
 
 jobs:
   ci:
-    name: Typecheck, lint, unit test
+    name: Typecheck, lint, unit and integration test
     runs-on: ubuntu-latest
     if: |
       github.actor == vars.OWNER_USERNAME ||
       github.actor == vars.COLLABORATOR_USERNAME ||
       github.actor == 'renovate[bot]'
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: footy-trends
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v7
@@ -37,3 +65,9 @@ jobs:
 
       - name: Unit tests
         run: npm run test:unit
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      - name: Integration tests
+        run: npm run test:integration

@@ -112,9 +112,10 @@ Tests are organized by test type, with unit tests mirroring the relevant
 - `tests/e2e/` - end-to-end tests against the running application, run with
    `npm run test:e2e`
 
-CI runs the unit test suite with coverage. Integration and end-to-end suites
-have separate commands so they can be enabled with their required services and
-runtime setup without changing the unit-test workflow.
+CI runs the unit test suite with coverage and the integration suite, the
+latter against Postgres/Redis service containers it provisions itself. The
+end-to-end suite has a separate command so it can be enabled with its
+required runtime setup without changing the CI workflow.
 
 ### Database Workflows
 
@@ -217,7 +218,7 @@ Humans remain responsible for:
 
 GitHub Actions workflows in `.github/workflows`:
 
-- `ci.yml`: typecheck, lint, test
+- `ci.yml`: typecheck, lint, unit test, integration test
 - `sonarcloud.yml`: test with coverage + SonarCloud scan
 
 Both workflows target Node 24, and the project expects npm 12.0.1.
