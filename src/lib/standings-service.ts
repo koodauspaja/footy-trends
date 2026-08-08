@@ -8,7 +8,12 @@ import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./s
 
 const COMPETITION_CODE = "PL";
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
-const refreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS ?? "3600");
+const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
+const parsedRefreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS);
+const refreshIntervalSeconds =
+  Number.isFinite(parsedRefreshIntervalSeconds) && parsedRefreshIntervalSeconds > 0
+    ? parsedRefreshIntervalSeconds
+    : DEFAULT_REFRESH_INTERVAL_SECONDS;
 
 export type StandingsResult =
   | { status: "ok"; standings: TeamStanding[] }

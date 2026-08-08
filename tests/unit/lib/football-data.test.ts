@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentSeasonId, normalizeMatch, selectActiveSeason } from "@/lib/football-data";
+import {
+  getCurrentSeasonId,
+  getFinishedMatches,
+  normalizeMatch,
+  selectActiveSeason,
+} from "@/lib/football-data";
 
 const { getCachedMock } = vi.hoisted(() => ({ getCachedMock: vi.fn() }));
 vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
@@ -63,5 +68,47 @@ describe("football-data mapping", () => {
     const seasonId = await getCurrentSeasonId();
 
     expect(seasonId).toBe(2025);
+  });
+
+  it("rejects when the provider has no resolvable season", async () => {
+    getCachedMock.mockResolvedValue({});
+
+    await expect(getCurrentSeasonId()).rejects.toThrow(
+      "Football data response has no current season"
+    );
+  });
+
+  it("returns only normalized finished matches for the requested season", async () => {
+    getCachedMock.mockResolvedValue({
+      matches: [
+        {
+          id: 1,
+          utcDate: "2025-08-15T14:00:00Z",
+          status: "FINISHED",
+          homeTeam: { id: 57, name: "Arsenal FC" },
+          awayTeam: { id: 61, name: "Chelsea FC" },
+          score: { fullTime: { home: 2, away: 1 } },
+        },
+        { id: 2, status: "POSTPONED" },
+      ],
+    });
+
+    const result = await getFinishedMatches(2025);
+
+    expect(result).toEqual([
+      {
+        providerMatchId: 1,
+        competitionCode: "PL",
+        seasonId: 2025,
+        kickoffAt: new Date("2025-08-15T14:00:00Z"),
+        matchday: null,
+        homeTeamProviderId: 57,
+        homeTeamName: "Arsenal FC",
+        awayTeamProviderId: 61,
+        awayTeamName: "Chelsea FC",
+        homeGoals: 2,
+        awayGoals: 1,
+      },
+    ]);
   });
 });

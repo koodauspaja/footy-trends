@@ -96,4 +96,35 @@ describe("standings integration", () => {
     expect(result.status).toBe("ok");
     expect(result.standings.map((team) => team.teamName)).toContain("Integration United");
   });
+
+  it("returns cached Redis standings without querying stored matches or the provider", async () => {
+    const { getCurrentSeasonId, getFinishedMatches } = await import("@/lib/football-data");
+    vi.mocked(getCurrentSeasonId).mockResolvedValue(seasonId);
+
+    const cachedStandings = calculateStandings([buildMatch()]);
+    await redis.setex(cacheKey, 60, JSON.stringify(cachedStandings));
+
+    const { getPremierLeagueStandings } = await import("@/lib/standings-service");
+    const result = await getPremierLeagueStandings();
+
+    expect(result).toEqual({ status: "ok", standings: cachedStandings });
+    expect(getFinishedMatches).not.toHaveBeenCalled();
+  });
+
+  it("uses fresh stored matches without calling the provider", async () => {
+    const { getCurrentSeasonId, getFinishedMatches } = await import("@/lib/football-data");
+    vi.mocked(getCurrentSeasonId).mockResolvedValue(seasonId);
+
+    const { synchronizeMatches, getPremierLeagueStandings } = await import(
+      "@/lib/standings-service"
+    );
+    const providerMatch = buildMatch();
+    await synchronizeMatches([providerMatch]);
+
+    const result = await getPremierLeagueStandings();
+
+    expect(result.status).toBe("ok");
+    expect(result.standings.map((team) => team.teamName)).toContain("Integration United");
+    expect(getFinishedMatches).not.toHaveBeenCalled();
+  });
 });

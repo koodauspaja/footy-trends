@@ -49,9 +49,16 @@ describe("Home page", () => {
     expect(screen.getByRole("heading", { name: "Valioliigan sarjataulukko" })).toBeInTheDocument();
     expect(screen.getByTitle("Ottelut")).toBeInTheDocument();
     expect(screen.getByTitle("Voitot")).toBeInTheDocument();
+    expect(screen.getByTitle("Tasapelit")).toBeInTheDocument();
+    expect(screen.getByTitle("Häviöt")).toBeInTheDocument();
     expect(screen.getByText("Arsenal FC")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByLabelText("Voitto, Tasapeli")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit, ME = maaliero, P = pisteet."
+      )
+    ).toBeInTheDocument();
   });
 
   it("shows the Finnish empty-state message when no standings are available", async () => {

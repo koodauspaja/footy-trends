@@ -75,4 +75,24 @@ describe("calculateStandings", () => {
       { matchId: 6, result: "T", label: "Tasapeli" },
     ]);
   });
+
+  it("returns an empty array for no matches", () => {
+    expect(calculateStandings([])).toEqual([]);
+  });
+
+  it("breaks a full points and goal-difference tie by team name", () => {
+    const standings = calculateStandings([
+      match({
+        providerMatchId: 1,
+        homeTeamProviderId: 1,
+        homeTeamName: "Brighton FC",
+        awayTeamProviderId: 2,
+        awayTeamName: "Arsenal FC",
+        homeGoals: 1,
+        awayGoals: 1,
+      }),
+    ]);
+
+    expect(standings.map((team) => team.teamName)).toEqual(["Arsenal FC", "Brighton FC"]);
+  });
 });

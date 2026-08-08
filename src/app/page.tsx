@@ -40,7 +40,9 @@ export default async function Home() {
               {result.standings.map((team) => (
                 <tr className="border-b border-zinc-200" key={team.teamProviderId}>
                   <td className="p-3">{team.position}</td>
-                  <th className="p-3 font-medium">{team.teamName}</th>
+                  <th scope="row" className="p-3 font-medium">
+                    {team.teamName}
+                  </th>
                   <td className="p-3">{team.played}</td>
                   <td className="p-3">{team.won}</td>
                   <td className="p-3">{team.drawn}</td>
