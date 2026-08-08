@@ -1,5 +1,7 @@
 import { getPremierLeagueStandings } from "@/lib/standings-service";
 
+export const dynamic = "force-dynamic";
+
 const columns = [
   ["O", "Ottelut"],
   ["V", "Voitot"],
