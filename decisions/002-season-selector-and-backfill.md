@@ -94,6 +94,28 @@ because each one queried distinct text. `afterEach(cleanup)` was added to
 `vitest.setup.ts`; this fixes latent cross-test pollution for the whole suite,
 not just the new tests.
 
+## Integration tests never loaded `.env`
+
+`npm run test:integration` failed with `password authentication failed for user
+"carlos"`: Vitest does not populate `process.env` from `.env` files, so
+`src/db/index.ts` fell back to a local socket and the current OS user. The
+tests only passed for anyone who had already exported `DATABASE_URL` and
+`REDIS_URL` into their shell. This predates this branch — `main` has the same
+`test:integration` script, the same `process.env.DATABASE_URL!`, and no env
+loading in `vitest.config.ts`.
+
+Fixed with Node's built-in `process.loadEnvFile(".env")` in `vitest.config.ts`,
+guarded by an existence check. `loadEnv` from Vite would have worked too, but
+`vitest/config` does not re-export it in v4 and `vite` is not a declared
+dependency of this project, so importing it directly would rely on hoisting.
+The built-in needs Node >= 20.12 and the project already requires 24.
+
+Because the interval is now actually read from `.env`,
+`tests/unit/lib/standings-service.test.ts` pins
+`FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` with `vi.stubEnv` and a module reset
+rather than relying on the default. It previously passed only because no env
+file was loaded at all.
+
 ## Empty seasons now report `empty` rather than `ok`
 
 `getPremierLeagueStandings` previously cached and returned an empty standings
