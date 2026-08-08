@@ -1,4 +1,5 @@
 import { getCached } from "./cache";
+import { listSelectableSeasons, resolveEarliestSeason, type SeasonOption } from "./seasons";
 
 const API_BASE_URL = "https://api.football-data.org/v4";
 export const COMPETITION_CACHE_TTL_SECONDS = 60 * 60;
@@ -34,7 +35,22 @@ async function request<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function getCurrentSeasonId(): Promise<number> {
+export type SeasonContext = {
+  /** The newest season that has already started; the default the home page shows. */
+  activeSeasonId: number;
+  /** Newest first, bounded by `FOOTBALL_DATA_EARLIEST_SEASON`. */
+  selectableSeasons: SeasonOption[];
+};
+
+/**
+ * Resolves the active season and the seasons the user may select, from a single
+ * cached competition response.
+ *
+ * The provider's `seasons[]` array is deliberately not used to build the
+ * selectable list: it advertises seasons back to 1888 that the API plan rejects
+ * with 403. See specs/002-season-selector-and-backfill.md.
+ */
+export async function getSeasonContext(): Promise<SeasonContext> {
   const competition = await getCached<CompetitionResponse>(
     "football-data:competition:PL:v2",
     COMPETITION_CACHE_TTL_SECONDS,
@@ -45,7 +61,13 @@ export async function getCurrentSeasonId(): Promise<number> {
   // The matches endpoint's `season` query parameter is the season's start year
   // (e.g. 2025), not the season object's `id` field (e.g. 2403) — confirmed
   // against the live API, which 404s when passed the `id`.
-  return new Date(startDate).getUTCFullYear();
+  const activeSeasonId = new Date(startDate).getUTCFullYear();
+  const earliestSeason = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
+
+  return {
+    activeSeasonId,
+    selectableSeasons: listSelectableSeasons(activeSeasonId, earliestSeason),
+  };
 }
 
 export function selectActiveSeason(

@@ -1,0 +1,1 @@
+CREATE INDEX "matches_competition_season_idx" ON "matches" USING btree ("competition_code","season_id");

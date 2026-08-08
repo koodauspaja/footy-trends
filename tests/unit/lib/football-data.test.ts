@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COMPETITION_CACHE_TTL_SECONDS,
-  getCurrentSeasonId,
   getFinishedMatches,
+  getSeasonContext,
   MATCHES_CACHE_TTL_SECONDS,
   normalizeMatch,
   selectActiveSeason,
@@ -67,9 +67,9 @@ describe("football-data mapping", () => {
       currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
     });
 
-    const seasonId = await getCurrentSeasonId();
+    const { activeSeasonId } = await getSeasonContext();
 
-    expect(seasonId).toBe(2025);
+    expect(activeSeasonId).toBe(2025);
     expect(getCachedMock).toHaveBeenCalledWith(
       expect.any(String),
       COMPETITION_CACHE_TTL_SECONDS,
@@ -77,12 +77,54 @@ describe("football-data mapping", () => {
     );
   });
 
+  it("bounds the selectable seasons by the configured floor", async () => {
+    vi.stubEnv("FOOTBALL_DATA_EARLIEST_SEASON", "2023");
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+    });
+
+    const { selectableSeasons } = await getSeasonContext();
+
+    expect(selectableSeasons).toEqual([
+      { seasonId: 2025, label: "2025/26" },
+      { seasonId: 2024, label: "2024/25" },
+      { seasonId: 2023, label: "2023/24" },
+    ]);
+  });
+
+  it("ignores the provider's unreachable historical seasons when listing selectable ones", async () => {
+    vi.stubEnv("FOOTBALL_DATA_EARLIEST_SEASON", "2024");
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+      seasons: [
+        { id: 2403, startDate: "2025-08-15" },
+        { id: 1, startDate: "1888-09-08" },
+      ],
+    });
+
+    const { selectableSeasons } = await getSeasonContext();
+
+    expect(selectableSeasons.map((season) => season.seasonId)).toEqual([2025, 2024]);
+  });
+
   it("rejects when the provider has no resolvable season", async () => {
     getCachedMock.mockResolvedValue({});
 
-    await expect(getCurrentSeasonId()).rejects.toThrow(
+    await expect(getSeasonContext()).rejects.toThrow(
       "Football data response has no current season"
     );
+  });
+
+  it("caches each season's matches under its own key", async () => {
+    getCachedMock.mockResolvedValue({ matches: [] });
+
+    await getFinishedMatches(2024);
+    await getFinishedMatches(2023);
+
+    expect(getCachedMock.mock.calls.map(([key]) => key)).toEqual([
+      "football-data:matches:PL:2024",
+      "football-data:matches:PL:2023",
+    ]);
   });
 
   it("returns only normalized finished matches for the requested season", async () => {
