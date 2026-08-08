@@ -94,6 +94,16 @@ describe("Home page", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("defaults to the active season when searchParams is not provided", async () => {
+    const { default: Home } = await import("@/app/page");
+    render(await Home({}));
+
+    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+      seasonId: 2025,
+      activeSeasonId: 2025,
+    });
+  });
+
   it("shows the season named by a valid kausi parameter", async () => {
     await renderHome({ kausi: "2023" });
 
