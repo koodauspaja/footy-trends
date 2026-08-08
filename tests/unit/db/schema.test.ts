@@ -7,12 +7,14 @@ describe("matches table", () => {
     const { indexes } = getTableConfig(matches);
 
     expect(indexes).toHaveLength(2);
-    expect(indexes[0]?.config).toMatchObject({
-      name: "matches_provider_match_id_idx",
+    expect(
+      indexes.find((index) => index.config.name === "matches_provider_match_id_idx")?.config
+    ).toMatchObject({
       unique: true,
     });
-    expect(indexes[1]?.config).toMatchObject({
-      name: "matches_competition_season_idx",
+    expect(
+      indexes.find((index) => index.config.name === "matches_competition_season_idx")?.config
+    ).toMatchObject({
       unique: false,
     });
   });
