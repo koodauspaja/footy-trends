@@ -38,7 +38,12 @@ Workflow
    issue when applicable, for example:
    `chore: update development documentation (#NNN)`.
 7. Push the chore branch and open a pull request against `main`.
-   - Link the originating GitHub issue.
+   - Link the originating GitHub issue with a closing keyword — `Closes #NNN`
+     (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or `Refs #NNN`.
+     Only a closing keyword makes GitHub populate the PR↔issue link; the
+     link is mandatory even though the issue auto-closing on merge is just
+     an accepted side effect of it. See `skills/open-pr.md` for the full
+     rationale.
    - Summarize what changed and why.
    - List the validation commands and their results.
    - Mark the Spec and Decision record sections as `Not applicable - chore`.
