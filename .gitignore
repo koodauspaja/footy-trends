@@ -10,3 +10,4 @@ tsconfig.tsbuildinfo
 .env.sentry-build-plugin
 .next/
 coverage/
+.claude/settings.local.json
