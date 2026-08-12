@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { redis } from "./redis";
 
 export async function getCached<T>(
@@ -5,17 +6,32 @@ export async function getCached<T>(
   ttlSeconds: number,
   fetcher: () => Promise<T>
 ): Promise<T> {
-  const cached = await redis.get(key);
+  let cached: string | null = null;
+  try {
+    cached = await redis.get(key);
+  } catch (error) {
+    logger.error({ err: error, key }, "Cache read failed");
+  }
 
   if (cached !== null) {
     return JSON.parse(cached) as T;
   }
 
   const fresh = await fetcher();
-  await redis.setex(key, ttlSeconds, JSON.stringify(fresh));
+
+  try {
+    await redis.setex(key, ttlSeconds, JSON.stringify(fresh));
+  } catch (error) {
+    logger.error({ err: error, key }, "Cache write failed");
+  }
+
   return fresh;
 }
 
 export async function invalidateCache(key: string): Promise<void> {
-  await redis.del(key);
+  try {
+    await redis.del(key);
+  } catch (error) {
+    logger.error({ err: error, key }, "Cache invalidate failed");
+  }
 }

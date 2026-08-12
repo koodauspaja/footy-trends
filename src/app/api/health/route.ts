@@ -12,6 +12,7 @@ function toLogError(error: unknown) {
 }
 
 export async function GET() {
+  const startedAt = Date.now();
   const checks: Record<string, "ok" | "error"> = {};
   let healthy = true;
 
@@ -33,12 +34,18 @@ export async function GET() {
     logger.warn(toLogError(error), "Redis health check failed");
   }
 
+  const status = healthy ? 200 : 503;
+  logger.info(
+    { method: "GET", path: "/api/health", status, durationMs: Date.now() - startedAt, checks },
+    "API request completed"
+  );
+
   return Response.json(
     {
       status: healthy ? "ok" : "error",
       checks,
       timestamp: new Date().toISOString(),
     },
-    { status: healthy ? 200 : 503 }
+    { status }
   );
 }

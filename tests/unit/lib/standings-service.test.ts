@@ -2,15 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedMatch } from "@/lib/standings";
 import { getPremierLeagueStandings, synchronizeMatches } from "@/lib/standings-service";
 
-const { dbMock, redisMock, getFinishedMatchesMock, calculateStandingsMock } = vi.hoisted(() => ({
+const {
+  dbMock,
+  redisMock,
+  getFinishedMatchesMock,
+  calculateStandingsMock,
+  loggerWarnMock,
+  loggerErrorMock,
+} = vi.hoisted(() => ({
   dbMock: { select: vi.fn(), insert: vi.fn() },
   redisMock: { get: vi.fn(), setex: vi.fn() },
   getFinishedMatchesMock: vi.fn(),
   calculateStandingsMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
 vi.mock("@/lib/football-data", () => ({ getFinishedMatches: getFinishedMatchesMock }));
+vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
 // Wraps the real implementation so every test gets true standings math by
 // default; only the "impossible in production" branch test below overrides
 // a single call to force a case calculateStandings' own invariants forbid.
@@ -162,6 +172,10 @@ describe("getPremierLeagueStandings", () => {
 
     expect(result.status).toBe("ok");
     expect(dbMock.select).toHaveBeenCalled();
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Standings cache read failed"
+    );
   });
 
   it("refreshes from the provider when nothing is stored, and caches the result", async () => {
@@ -215,6 +229,10 @@ describe("getPremierLeagueStandings", () => {
     expect(result.status).toBe("ok");
     expect(result.standings[0]?.teamName).toBe("Arsenal FC");
     expect(redisMock.setex).not.toHaveBeenCalled();
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), seasonId: ACTIVE_SEASON }),
+      "Premier League refresh failed; using stored matches"
+    );
   });
 
   it("returns an error when a refresh fails and nothing is stored", async () => {
@@ -228,6 +246,10 @@ describe("getPremierLeagueStandings", () => {
     });
 
     expect(result).toEqual({ status: "error", standings: [] });
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), seasonId: ACTIVE_SEASON }),
+      "Premier League refresh failed; using stored matches"
+    );
   });
 
   it("serves a past season straight from storage without a refresh, and caches it", async () => {
@@ -256,6 +278,10 @@ describe("getPremierLeagueStandings", () => {
     });
 
     expect(result.status).toBe("ok");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Standings cache write failed"
+    );
   });
 
   it("reports empty standings for stored matches that calculate to no standings", async () => {
@@ -288,6 +314,10 @@ describe("getPremierLeagueStandings", () => {
     });
 
     expect(result).toEqual({ status: "error", standings: [] });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), seasonId: ACTIVE_SEASON }),
+      "Unable to load Premier League standings"
+    );
   });
 });
 

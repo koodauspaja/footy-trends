@@ -3,12 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getMock = vi.fn();
 const setexMock = vi.fn();
 const delMock = vi.fn();
+const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/redis", () => ({
   redis: {
     get: getMock,
     setex: setexMock,
     del: delMock,
+  },
+}));
+
+vi.mock("@/lib/logger", () => ({
+  logger: {
+    error: loggerErrorMock,
   },
 }));
 
@@ -96,5 +103,54 @@ describe("cache helpers", () => {
 
     expect(delMock).toHaveBeenCalledWith("baz");
     expect(delMock).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the fetcher and logs when the cache read fails", async () => {
+    const readError = new Error("redis unavailable");
+    getMock.mockRejectedValue(readError);
+    setexMock.mockResolvedValue("OK");
+
+    const { getCached } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: 5 }));
+
+    const result = await getCached("read-fail", 30, fetcher);
+
+    expect(result).toEqual({ value: 5 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: readError, key: "read-fail" },
+      "Cache read failed"
+    );
+  });
+
+  it("still returns the fetched value and logs when the cache write fails", async () => {
+    getMock.mockResolvedValue(null);
+    const writeError = new Error("redis unavailable");
+    setexMock.mockRejectedValue(writeError);
+
+    const { getCached } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: 9 }));
+
+    const result = await getCached("write-fail", 30, fetcher);
+
+    expect(result).toEqual({ value: 9 });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: writeError, key: "write-fail" },
+      "Cache write failed"
+    );
+  });
+
+  it("does not throw and logs when cache invalidation fails", async () => {
+    const delError = new Error("redis unavailable");
+    delMock.mockRejectedValue(delError);
+
+    const { invalidateCache } = await import("@/lib/cache");
+
+    await expect(invalidateCache("baz")).resolves.toBeUndefined();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: delError, key: "baz" },
+      "Cache invalidate failed"
+    );
   });
 });

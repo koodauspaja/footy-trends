@@ -1,4 +1,5 @@
 import { getCached } from "./cache";
+import { logger } from "./logger";
 import { listSelectableSeasons, resolveEarliestSeason, type SeasonOption } from "./seasons";
 
 const API_BASE_URL = "https://api.football-data.org/v4";
@@ -28,10 +29,29 @@ function apiKey(): string {
 }
 
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "X-Auth-Token": apiKey() },
-  });
-  if (!response.ok) throw new Error(`Football data request failed: ${response.status}`);
+  const startedAt = Date.now();
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: { "X-Auth-Token": apiKey() },
+    });
+  } catch (error) {
+    logger.error(
+      { err: error, path, durationMs: Date.now() - startedAt },
+      "Football data request failed"
+    );
+    throw error;
+  }
+
+  const durationMs = Date.now() - startedAt;
+
+  if (!response.ok) {
+    logger.error({ path, status: response.status, durationMs }, "Football data request failed");
+    throw new Error(`Football data request failed: ${response.status}`);
+  }
+
+  logger.info({ path, status: response.status, durationMs }, "Football data request completed");
   return (await response.json()) as T;
 }
 
