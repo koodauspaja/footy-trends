@@ -25,32 +25,50 @@ export type StandingsRequest = {
   seasonId: number;
   /** The newest started season, used to decide whether `seasonId` is still being played. */
   activeSeasonId: number;
+  /**
+   * Restricts standings to matches with `matchday <= round`. Bypasses the
+   * season-level cache, which only stores the full-season result — see
+   * specs/003-standings-after-selected-round.md.
+   */
+  round?: number;
 };
 
 type StoredMatch = typeof matches.$inferSelect;
 
+/** Matches with no known matchday are excluded once a round filter applies. */
+function filterByRound<T extends { matchday: number | null }>(
+  matchList: T[],
+  round: number | undefined
+): T[] {
+  if (round === undefined) return matchList;
+  return matchList.filter((match) => match.matchday !== null && match.matchday <= round);
+}
+
 export async function getPremierLeagueStandings({
   seasonId,
   activeSeasonId,
+  round,
 }: StandingsRequest): Promise<StandingsResult> {
   try {
     const cacheKey = `standings:${COMPETITION_CODE}:${seasonId}`;
-    const cached = await readCachedStandings(cacheKey);
-    if (cached) return toResult(cached);
+    if (round === undefined) {
+      const cached = await readCachedStandings(cacheKey);
+      if (cached) return toResult(cached);
+    }
 
     const storedMatches = await db
       .select()
       .from(matches)
       .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)))
       .orderBy(desc(matches.updatedAt));
-    const storedStandings = calculateStandings(storedMatches);
+    const storedStandings = calculateStandings(filterByRound(storedMatches, round));
 
     if (needsRefresh(seasonId, activeSeasonId, storedMatches)) {
       try {
         const providerMatches = await getFinishedMatches(seasonId);
         await synchronizeMatches(providerMatches);
-        const refreshedStandings = calculateStandings(providerMatches);
-        await writeCachedStandings(cacheKey, refreshedStandings);
+        const refreshedStandings = calculateStandings(filterByRound(providerMatches, round));
+        if (round === undefined) await writeCachedStandings(cacheKey, refreshedStandings);
         return toResult(refreshedStandings);
       } catch (error) {
         logger.warn(
@@ -63,12 +81,21 @@ export async function getPremierLeagueStandings({
     }
 
     if (storedStandings.length === 0) return { status: "empty", standings: [] };
-    await writeCachedStandings(cacheKey, storedStandings);
+    if (round === undefined) await writeCachedStandings(cacheKey, storedStandings);
     return { status: "ok", standings: storedStandings };
   } catch (error) {
     logger.error({ err: error, seasonId }, "Unable to load Premier League standings");
     return { status: "error", standings: [] };
   }
+}
+
+/** The highest matchday with at least one stored match for the season, or null if none. */
+export async function getMaxMatchday(seasonId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ maxMatchday: sql<number | null>`max(${matches.matchday})` })
+    .from(matches)
+    .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)));
+  return row?.maxMatchday ?? null;
 }
 
 /**

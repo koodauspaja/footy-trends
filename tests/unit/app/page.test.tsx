@@ -5,10 +5,12 @@ import type { SeasonContext } from "@/lib/football-data";
 import type { StandingsResult } from "@/lib/standings-service";
 
 const getPremierLeagueStandingsMock = vi.fn<() => Promise<StandingsResult>>();
+const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 
 vi.mock("@/lib/standings-service", () => ({
   getPremierLeagueStandings: getPremierLeagueStandingsMock,
+  getMaxMatchday: getMaxMatchdayMock,
 }));
 
 vi.mock("@/lib/football-data", () => ({
@@ -62,6 +64,7 @@ describe("Home page", () => {
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getPremierLeagueStandingsMock.mockResolvedValue(standings);
+    getMaxMatchdayMock.mockResolvedValue(10);
   });
 
   it("shows the Finnish heading, column labels, and calculated standings", async () => {
@@ -143,6 +146,90 @@ describe("Home page", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("defaults to the whole season without a kierros parameter", async () => {
+    await renderHome();
+
+    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+      seasonId: 2025,
+      activeSeasonId: 2025,
+    });
+    expect(screen.getByLabelText("Kierros")).toHaveValue("");
+  });
+
+  it("shows the round named by a valid kierros parameter", async () => {
+    await renderHome({ kierros: "5" });
+
+    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+      seasonId: 2025,
+      activeSeasonId: 2025,
+      round: 5,
+    });
+    expect(screen.getByLabelText("Kierros")).toHaveValue("5");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("lists round options up to the season's highest known matchday", async () => {
+    getMaxMatchdayMock.mockResolvedValue(3);
+
+    await renderHome();
+
+    expect(
+      Array.from(screen.getByLabelText("Kierros").querySelectorAll("option")).map(
+        (option) => option.textContent
+      )
+    ).toEqual(["Koko kausi", "Kierros 1", "Kierros 2", "Kierros 3"]);
+  });
+
+  it("falls back to the whole season for a kierros parameter beyond the highest known matchday", async () => {
+    getMaxMatchdayMock.mockResolvedValue(5);
+
+    await renderHome({ kierros: "99" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kierrosta ei löytynyt. Näytetään koko kausi."
+    );
+    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+      seasonId: 2025,
+      activeSeasonId: 2025,
+    });
+    expect(screen.getByLabelText("Kierros")).toHaveValue("");
+  });
+
+  it("falls back to the whole season for a non-numeric kierros parameter", async () => {
+    await renderHome({ kierros: "abc" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kierrosta ei löytynyt. Näytetään koko kausi."
+    );
+    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+      seasonId: 2025,
+      activeSeasonId: 2025,
+    });
+  });
+
+  it("falls back to the whole season when no matches are stored for the season yet", async () => {
+    getMaxMatchdayMock.mockResolvedValue(null);
+
+    await renderHome({ kierros: "1" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kierrosta ei löytynyt. Näytetään koko kausi."
+    );
+    expect(screen.getByLabelText("Kierros").querySelectorAll("option")).toHaveLength(1);
+  });
+
+  it("shows both fallback notices when season and round are both invalid", async () => {
+    getMaxMatchdayMock.mockResolvedValue(5);
+
+    await renderHome({ kausi: "1999", kierros: "99" });
+
+    const notices = screen.getAllByRole("status");
+    expect(notices.map((notice) => notice.textContent)).toEqual([
+      "Kautta ei löytynyt. Näytetään kausi 2025/26.",
+      "Kierrosta ei löytynyt. Näytetään koko kausi.",
+    ]);
+  });
+
   it("keeps the season selector visible in the empty state", async () => {
     getPremierLeagueStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
 
@@ -150,6 +237,7 @@ describe("Home page", () => {
 
     expect(screen.getByText("Sarjataulukkoa ei ole saatavilla.")).toBeInTheDocument();
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
+    expect(screen.getByLabelText("Kierros")).toBeInTheDocument();
   });
 
   it("keeps the season selector visible in the error state", async () => {
@@ -161,6 +249,7 @@ describe("Home page", () => {
       screen.getByText("Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
+    expect(screen.getByLabelText("Kierros")).toBeInTheDocument();
   });
 
   it("shows the error message when the selectable seasons cannot be resolved", async () => {
@@ -173,6 +262,7 @@ describe("Home page", () => {
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getPremierLeagueStandingsMock).not.toHaveBeenCalled();
+    expect(getMaxMatchdayMock).not.toHaveBeenCalled();
   });
 });
 

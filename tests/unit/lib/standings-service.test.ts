@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedMatch } from "@/lib/standings";
-import { getPremierLeagueStandings, synchronizeMatches } from "@/lib/standings-service";
+import {
+  getMaxMatchday,
+  getPremierLeagueStandings,
+  synchronizeMatches,
+} from "@/lib/standings-service";
 
 const {
   dbMock,
@@ -64,6 +68,13 @@ function storedMatch(overrides: Partial<NormalizedMatch> & { updatedAt: Date }) 
 function mockStoredMatches(rows: unknown[]) {
   const orderBy = vi.fn().mockResolvedValue(rows);
   const where = vi.fn().mockReturnValue({ orderBy });
+  const from = vi.fn().mockReturnValue({ where });
+  dbMock.select.mockReturnValue({ from });
+}
+
+function mockMaxMatchdayRow(maxMatchday: number | null | undefined) {
+  const rows = maxMatchday === undefined ? [] : [{ maxMatchday }];
+  const where = vi.fn().mockResolvedValue(rows);
   const from = vi.fn().mockReturnValue({ where });
   dbMock.select.mockReturnValue({ from });
 }
@@ -318,6 +329,84 @@ describe("getPremierLeagueStandings", () => {
       expect.objectContaining({ err: expect.any(Error), seasonId: ACTIVE_SEASON }),
       "Unable to load Premier League standings"
     );
+  });
+
+  it("filters stored matches by round and bypasses the cache entirely", async () => {
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, matchday: 1, updatedAt: new Date(0) }),
+      storedMatch({ providerMatchId: 2, matchday: 2, updatedAt: new Date(0) }),
+      storedMatch({ providerMatchId: 3, matchday: 3, updatedAt: new Date(0) }),
+    ]);
+
+    const result = await getPremierLeagueStandings({
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+      round: 2,
+    });
+
+    expect(redisMock.get).not.toHaveBeenCalled();
+    expect(redisMock.setex).not.toHaveBeenCalled();
+    expect(result.status).toBe("ok");
+    expect(result.standings.reduce((sum, team) => sum + team.played, 0)).toBe(4);
+  });
+
+  it("excludes matches with no known matchday from a round filter", async () => {
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, matchday: 1, updatedAt: new Date(0) }),
+      storedMatch({ providerMatchId: 2, matchday: null, updatedAt: new Date(0) }),
+    ]);
+
+    const result = await getPremierLeagueStandings({
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+      round: 5,
+    });
+
+    expect(result.status).toBe("ok");
+    expect(result.standings.reduce((sum, team) => sum + team.played, 0)).toBe(2);
+  });
+
+  it("filters freshly refreshed provider matches by round and skips caching the round-scoped result", async () => {
+    mockStoredMatches([]);
+    getFinishedMatchesMock.mockResolvedValue([
+      { ...match, providerMatchId: 1, matchday: 1 },
+      { ...match, providerMatchId: 2, matchday: 5 },
+    ]);
+    mockInsert();
+
+    const result = await getPremierLeagueStandings({
+      seasonId: ACTIVE_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+      round: 1,
+    });
+
+    expect(result.status).toBe("ok");
+    expect(redisMock.setex).not.toHaveBeenCalled();
+    expect(result.standings.reduce((sum, team) => sum + team.played, 0)).toBe(2);
+  });
+});
+
+describe("getMaxMatchday", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the highest known matchday for the season", async () => {
+    mockMaxMatchdayRow(7);
+
+    await expect(getMaxMatchday(ACTIVE_SEASON)).resolves.toBe(7);
+  });
+
+  it("returns null when no matches are stored for the season", async () => {
+    mockMaxMatchdayRow(null);
+
+    await expect(getMaxMatchday(ACTIVE_SEASON)).resolves.toBeNull();
+  });
+
+  it("returns null when the query yields no row", async () => {
+    mockMaxMatchdayRow(undefined);
+
+    await expect(getMaxMatchday(ACTIVE_SEASON)).resolves.toBeNull();
   });
 });
 
