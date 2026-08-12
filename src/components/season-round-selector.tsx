@@ -26,8 +26,13 @@ export function SeasonRoundSelector({
   const router = useRouter();
 
   function navigate(seasonId: number, round: number | undefined) {
-    const params = new URLSearchParams({ kausi: String(seasonId) });
-    if (round !== undefined) params.set("kierros", String(round));
+    const params = new URLSearchParams(window.location.search);
+    params.set("kausi", String(seasonId));
+    if (round === undefined) {
+      params.delete("kierros");
+    } else {
+      params.set("kierros", String(round));
+    }
     router.push(`/?${params.toString()}`);
   }
 

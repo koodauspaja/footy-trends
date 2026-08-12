@@ -17,6 +17,7 @@ const seasons = [
 describe("SeasonRoundSelector", () => {
   beforeEach(() => {
     pushMock.mockReset();
+    window.history.pushState({}, "", "/");
   });
 
   it("labels both controls in Finnish and associates them with their selects", () => {
@@ -124,6 +125,23 @@ describe("SeasonRoundSelector", () => {
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "3" } });
 
     expect(pushMock).toHaveBeenCalledWith("/?kausi=2025&kierros=3");
+  });
+
+  it("preserves unrelated query params already in the URL", () => {
+    window.history.pushState({}, "", "/?kausi=2025&utm_source=newsletter");
+
+    render(
+      <SeasonRoundSelector
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "2" } });
+
+    expect(pushMock).toHaveBeenCalledWith("/?kausi=2025&utm_source=newsletter&kierros=2");
   });
 
   it("clears the round param when switching back to whole season", () => {
