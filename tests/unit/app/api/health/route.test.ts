@@ -114,4 +114,31 @@ describe("GET /api/health", () => {
       "API request completed"
     );
   });
+
+  it("returns 503, logs both errors, and logs one info entry when database and redis checks both fail", async () => {
+    const dbError = new Error("database down");
+    executeMock.mockRejectedValue(dbError);
+    pingMock.mockRejectedValue("redis unavailable");
+
+    const GET = await loadGetRoute();
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe("error");
+    expect(body.checks).toEqual({
+      database: "error",
+      redis: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith({ err: dbError }, "Database health check failed");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { err: { error: "redis unavailable" } },
+      "Redis health check failed"
+    );
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 503, checks: { database: "error", redis: "error" } }),
+      "API request completed"
+    );
+  });
 });

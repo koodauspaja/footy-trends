@@ -38,7 +38,7 @@ async function request<T>(path: string): Promise<T> {
     });
   } catch (error) {
     logger.error(
-      { err: error, path, durationMs: Date.now() - startedAt },
+      { err: error, method: "GET", path, durationMs: Date.now() - startedAt },
       "Football data request failed"
     );
     throw error;
@@ -47,11 +47,17 @@ async function request<T>(path: string): Promise<T> {
   const durationMs = Date.now() - startedAt;
 
   if (!response.ok) {
-    logger.error({ path, status: response.status, durationMs }, "Football data request failed");
+    logger.error(
+      { method: "GET", path, status: response.status, durationMs },
+      "Football data request failed"
+    );
     throw new Error(`Football data request failed: ${response.status}`);
   }
 
-  logger.info({ path, status: response.status, durationMs }, "Football data request completed");
+  logger.info(
+    { method: "GET", path, status: response.status, durationMs },
+    "Football data request completed"
+  );
   return (await response.json()) as T;
 }
 

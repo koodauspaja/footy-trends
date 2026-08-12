@@ -226,7 +226,7 @@ describe("football-data mapping", () => {
       headers: { "X-Auth-Token": "test-api-key" },
     });
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "/competitions/PL", status: 200 }),
+      { method: "GET", path: "/competitions/PL", status: 200, durationMs: expect.any(Number) },
       "Football data request completed"
     );
     expect(loggerErrorMock).not.toHaveBeenCalled();
@@ -246,7 +246,7 @@ describe("football-data mapping", () => {
 
     await expect(getSeasonContext()).rejects.toThrow("Football data request failed: 500");
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "/competitions/PL", status: 500 }),
+      { method: "GET", path: "/competitions/PL", status: 500, durationMs: expect.any(Number) },
       "Football data request failed"
     );
     expect(loggerInfoMock).not.toHaveBeenCalled();
@@ -260,7 +260,12 @@ describe("football-data mapping", () => {
 
     await expect(getSeasonContext()).rejects.toThrow("network unreachable");
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ err: networkError, path: "/competitions/PL" }),
+      {
+        err: networkError,
+        method: "GET",
+        path: "/competitions/PL",
+        durationMs: expect.any(Number),
+      },
       "Football data request failed"
     );
     expect(loggerInfoMock).not.toHaveBeenCalled();

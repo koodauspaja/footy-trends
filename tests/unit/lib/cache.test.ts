@@ -66,17 +66,22 @@ describe("cache helpers", () => {
     expect(setexMock).toHaveBeenCalledWith("bar", 60, '{"value":7}');
   });
 
-  it("throws when cached JSON is invalid", async () => {
+  it("falls back to the fetcher and logs when cached JSON is invalid", async () => {
     getMock.mockResolvedValue("not-json");
+    setexMock.mockResolvedValue("OK");
 
     const { getCached } = await import("@/lib/cache");
     const fetcher = vi.fn(async () => ({ value: 1 }));
 
-    await expect(getCached("broken", 60, fetcher)).rejects.toThrow();
+    const result = await getCached("broken", 60, fetcher);
 
+    expect(result).toEqual({ value: 1 });
     expect(getMock).toHaveBeenCalledWith("broken");
-    expect(fetcher).not.toHaveBeenCalled();
-    expect(setexMock).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: expect.any(SyntaxError), key: "broken" },
+      "Cache read failed: invalid JSON"
+    );
   });
 
   it("propagates fetcher errors and does not cache on failure", async () => {

@@ -14,7 +14,11 @@ export async function getCached<T>(
   }
 
   if (cached !== null) {
-    return JSON.parse(cached) as T;
+    try {
+      return JSON.parse(cached) as T;
+    } catch (error) {
+      logger.error({ err: error, key }, "Cache read failed: invalid JSON");
+    }
   }
 
   const fresh = await fetcher();
