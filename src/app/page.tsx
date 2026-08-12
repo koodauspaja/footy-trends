@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { SeasonSelector } from "@/components/season-selector";
+import { SeasonRoundSelector } from "@/components/season-round-selector";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
+import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
 import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
-import { getPremierLeagueStandings } from "@/lib/standings-service";
+import { getMaxMatchday, getPremierLeagueStandings } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ const columns = [
 
 const BASE_HEADING = "Valioliigan sarjataulukko";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
+const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi.";
 
 type HomeProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -60,9 +62,16 @@ export default async function Home({ searchParams }: HomeProps) {
   // so the substitution is stated in the page instead of hidden behind a delay.
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
+
+  const maxMatchday = await getMaxMatchday(seasonId);
+  const round = parseRoundParam(params.kierros, maxMatchday);
+  const selectedRound = round.kind === "valid" ? round.round : undefined;
+  const availableRounds = listSelectableRounds(maxMatchday);
+
   const result = await getPremierLeagueStandings({
     seasonId,
     activeSeasonId: context.activeSeasonId,
+    ...(selectedRound !== undefined ? { round: selectedRound } : {}),
   });
 
   return (
@@ -75,7 +84,20 @@ export default async function Home({ searchParams }: HomeProps) {
           Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
         </p>
       )}
-      <SeasonSelector seasons={context.selectableSeasons} selectedSeasonId={seasonId} />
+      {round.kind === "invalid" && (
+        <p
+          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          {INVALID_ROUND_MESSAGE}
+        </p>
+      )}
+      <SeasonRoundSelector
+        seasons={context.selectableSeasons}
+        selectedSeasonId={seasonId}
+        availableRounds={availableRounds}
+        selectedRound={selectedRound}
+      />
       {result.status === "empty" && <p>Sarjataulukkoa ei ole saatavilla.</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (
