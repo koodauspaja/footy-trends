@@ -19,21 +19,34 @@ Workflow
 2. Human verifies that the spec is complete enough for implementation.
    - Confirm the spec checklist in chat or in review before any implementation
      begins.
-3. AI proceeds autonomously from there.
-   - Create or update the GitHub issue when needed using `skills/open-issue.md`.
+3. Create or update the GitHub issue using `skills/open-issue.md`, then check
+   its status on the `Footy Trends` GitHub Project board. It must be in the
+   `Ready` column ("Spec written and validated — ready for Claude Code" — see
+   `docs/setup/002-github-project-board.md`) before any implementation
+   begins.
+   - Chat confirmation of the spec checklist (step 2) is what makes moving
+     the card to `Ready` valid — do not move it before that confirmation.
+   - If the issue is in `Backlog` or any other column, stop. Do not create a
+     branch or write code. Confirm with the user and ask them to move the
+     card to `Ready` (or move it yourself only if the user explicitly says
+     to) before continuing.
+   - Once confirmed `Ready`, move the card to `In Progress` before creating
+     a branch or writing any code.
+4. AI proceeds autonomously from there.
    - Create the implementation branch and begin work without waiting for
      additional handholding unless the spec is unclear or blocked.
-4. AI implements the feature autonomously within the bounds of the spec.
+5. AI implements the feature autonomously within the bounds of the spec.
    - Use `skills/implement-feature.md` for the implementation, testing, and
      decision-record steps.
-5. AI writes or updates the decision record while implementing.
+6. AI writes or updates the decision record while implementing.
    - The human should review it before final approval.
-6. AI runs the relevant verification checks and prepares the change for review.
+7. AI runs the relevant verification checks and prepares the change for review.
    - This includes tests, linting, type checking, and any relevant local
      validation.
-7. AI opens a pull request.
+8. AI opens a pull request.
    - Use `skills/open-pr.md` for the PR workflow.
-8. Human reviewers approve and merge.
+   - Move the card to `In Review` once the pull request is open.
+9. Human reviewers approve and merge.
    - The AI supports the process, but humans own the review and merge decision
      in GitHub.
 
@@ -43,6 +56,10 @@ Important rules
 - If required information is missing, stop and ask rather than guessing.
 - The spec is the source of truth; implementation should not diverge from it
   without clear explanation in the decision record.
-- Once the spec is confirmed, the AI should continue through the workflow
-  without requiring repeated human instruction for routine tasks such as issue
-  creation, branch creation, testing, and PR preparation.
+- Never begin implementation (branch creation, code, or tests) before the
+  issue's Project board status is `Ready`. Confirming the spec checklist in
+  chat is a precondition for moving the card to `Ready`, not a substitute
+  for it — the two are separate checkpoints.
+- Once the spec is confirmed and the card is `Ready`, the AI should continue
+  through the workflow without requiring repeated human instruction for
+  routine tasks such as branch creation, testing, and PR preparation.
