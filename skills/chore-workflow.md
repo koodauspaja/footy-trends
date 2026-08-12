@@ -31,6 +31,8 @@ Workflow
    - This applies even after scope has just been clarified in chat —
      agreeing on scope in conversation is not the same as the card being
      `Ready`, and does not substitute for it.
+   - Once confirmed `Ready`, move the card to `In Progress` before creating
+     a branch or writing any code.
 3. Create a chore branch named `chore/NNN-short-description` when an issue
    number exists. For unnumbered maintenance work, use
    `chore/short-description`.
@@ -59,6 +61,7 @@ Workflow
    - List the validation commands and their results.
    - Mark the Spec and Decision record sections as `Not applicable - chore`.
    - Do not create placeholder files in `specs/` or `decisions/`.
+   - Move the card to `In Review` once the pull request is open.
 9. Leave the pull request for human review. Do not merge it yourself.
 
 Important rules
