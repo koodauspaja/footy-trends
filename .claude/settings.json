@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vitest *)",
+      "Bash(gh api *)",
+      "Bash(git commit -m ' *)",
+      "Bash(python3 -c ' *)",
+      "Bash(xargs -I{} echo {})"
+    ]
+  }
+}
