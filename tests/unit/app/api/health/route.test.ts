@@ -4,6 +4,7 @@ const executeMock = vi.fn();
 const pingMock = vi.fn();
 const loggerErrorMock = vi.fn();
 const loggerWarnMock = vi.fn();
+const loggerInfoMock = vi.fn();
 
 vi.mock("@/db", () => ({
   db: {
@@ -21,6 +22,7 @@ vi.mock("@/lib/logger", () => ({
   logger: {
     error: loggerErrorMock,
     warn: loggerWarnMock,
+    info: loggerInfoMock,
   },
 }));
 
@@ -35,7 +37,7 @@ describe("GET /api/health", () => {
     vi.resetModules();
   });
 
-  it("returns healthy response without logging when database and redis checks pass", async () => {
+  it("returns healthy response and logs one info entry when database and redis checks pass", async () => {
     executeMock.mockResolvedValue(undefined);
     pingMock.mockResolvedValue("PONG");
 
@@ -51,9 +53,19 @@ describe("GET /api/health", () => {
     });
     expect(loggerErrorMock).not.toHaveBeenCalled();
     expect(loggerWarnMock).not.toHaveBeenCalled();
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "GET",
+        path: "/api/health",
+        status: 200,
+        checks: { database: "ok", redis: "ok" },
+      }),
+      "API request completed"
+    );
   });
 
-  it("returns 503 and logs normalized database error when database check fails", async () => {
+  it("returns 503, logs normalized database error, and logs one info entry when database check fails", async () => {
     const dbError = new Error("database down");
     executeMock.mockRejectedValue(dbError);
     pingMock.mockResolvedValue("PONG");
@@ -70,9 +82,14 @@ describe("GET /api/health", () => {
     });
     expect(loggerErrorMock).toHaveBeenCalledWith({ err: dbError }, "Database health check failed");
     expect(loggerWarnMock).not.toHaveBeenCalled();
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 503, checks: { database: "error", redis: "ok" } }),
+      "API request completed"
+    );
   });
 
-  it("logs normalized redis error but still returns 200 when database check passes", async () => {
+  it("logs normalized redis error, still returns 200, and logs one info entry when database check passes", async () => {
     executeMock.mockResolvedValue(undefined);
     pingMock.mockRejectedValue("redis unavailable");
 
@@ -91,5 +108,37 @@ describe("GET /api/health", () => {
       "Redis health check failed"
     );
     expect(loggerErrorMock).not.toHaveBeenCalled();
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 200, checks: { database: "ok", redis: "error" } }),
+      "API request completed"
+    );
+  });
+
+  it("returns 503, logs both errors, and logs one info entry when database and redis checks both fail", async () => {
+    const dbError = new Error("database down");
+    executeMock.mockRejectedValue(dbError);
+    pingMock.mockRejectedValue("redis unavailable");
+
+    const GET = await loadGetRoute();
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe("error");
+    expect(body.checks).toEqual({
+      database: "error",
+      redis: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith({ err: dbError }, "Database health check failed");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { err: { error: "redis unavailable" } },
+      "Redis health check failed"
+    );
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 503, checks: { database: "error", redis: "error" } }),
+      "API request completed"
+    );
   });
 });

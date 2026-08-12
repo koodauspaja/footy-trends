@@ -8,8 +8,13 @@ import {
   selectActiveSeason,
 } from "@/lib/football-data";
 
-const { getCachedMock } = vi.hoisted(() => ({ getCachedMock: vi.fn() }));
+const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
+  getCachedMock: vi.fn(),
+  loggerInfoMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
+}));
 vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
+vi.mock("@/lib/logger", () => ({ logger: { info: loggerInfoMock, error: loggerErrorMock } }));
 
 describe("football-data mapping", () => {
   const originalApiKey = process.env.FOOTBALL_DATA_API_KEY;
@@ -17,6 +22,8 @@ describe("football-data mapping", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     getCachedMock.mockReset();
+    loggerInfoMock.mockReset();
+    loggerErrorMock.mockReset();
     vi.unstubAllGlobals();
   });
 
@@ -203,10 +210,11 @@ describe("football-data mapping", () => {
     ]);
   });
 
-  it("requests the provider with the configured API key and base URL", async () => {
+  it("requests the provider with the configured API key and base URL, and logs the call", async () => {
     vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
+      status: 200,
       json: async () => ({ currentSeason: { id: 1, startDate: "2025-08-15" } }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -217,6 +225,11 @@ describe("football-data mapping", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://api.football-data.org/v4/competitions/PL", {
       headers: { "X-Auth-Token": "test-api-key" },
     });
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      { method: "GET", path: "/competitions/PL", status: 200, durationMs: expect.any(Number) },
+      "Football data request completed"
+    );
+    expect(loggerErrorMock).not.toHaveBeenCalled();
   });
 
   it("throws when the API key is not configured", async () => {
@@ -226,12 +239,36 @@ describe("football-data mapping", () => {
     await expect(getSeasonContext()).rejects.toThrow("FOOTBALL_DATA_API_KEY is not configured");
   });
 
-  it("throws when the provider request fails", async () => {
+  it("logs and throws when the provider request fails", async () => {
     vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
     await expect(getSeasonContext()).rejects.toThrow("Football data request failed: 500");
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { method: "GET", path: "/competitions/PL", status: 500, durationMs: expect.any(Number) },
+      "Football data request failed"
+    );
+    expect(loggerInfoMock).not.toHaveBeenCalled();
+  });
+
+  it("logs and rethrows when the fetch itself rejects", async () => {
+    vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
+    const networkError = new Error("network unreachable");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await expect(getSeasonContext()).rejects.toThrow("network unreachable");
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: networkError,
+        method: "GET",
+        path: "/competitions/PL",
+        durationMs: expect.any(Number),
+      },
+      "Football data request failed"
+    );
+    expect(loggerInfoMock).not.toHaveBeenCalled();
   });
 
   it("requests finished matches for the given season", async () => {
