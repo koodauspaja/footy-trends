@@ -74,11 +74,13 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
           Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
         </p>
       )}
-      <TeamSeasonSelector
-        teamProviderId={teamProviderId}
-        seasons={context.selectableSeasons}
-        selectedSeasonId={seasonId}
-      />
+      {!Number.isNaN(teamProviderId) && (
+        <TeamSeasonSelector
+          teamProviderId={teamProviderId}
+          seasons={context.selectableSeasons}
+          selectedSeasonId={seasonId}
+        />
+      )}
       {result.status === "not_found" && <p>{NOT_FOUND_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}

@@ -211,11 +211,12 @@ describe("Team page", () => {
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
   });
 
-  it("shows the not-found message for a non-numeric team id without querying matches", async () => {
+  it("shows the not-found message for a non-numeric team id without querying matches or a season selector", async () => {
     await renderTeamPage("abc");
 
     expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
   });
 
   it("shows the empty-season message when the team has no stored matches", async () => {
