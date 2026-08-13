@@ -109,8 +109,9 @@ Tests are organized by test type, with unit tests mirroring the relevant
 - `tests/unit/` - isolated unit tests, run with `npm run test:unit`
 - `tests/integration/` - tests spanning multiple application boundaries, run
    with `npm run test:integration`
-- `tests/e2e/` - end-to-end tests against the running application, run with
-   `npm run test:e2e`
+- `tests/e2e/` - Playwright end-to-end tests against a real running
+   application, run with `npm run test:e2e` (see `tests/e2e/README.md` for
+   prerequisites)
 
 CI runs the unit test suite with coverage and the integration suite, the
 latter against Postgres/Redis service containers it provisions itself. The
