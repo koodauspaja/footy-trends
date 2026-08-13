@@ -120,9 +120,12 @@ required runtime setup without changing the CI workflow.
 ### Database Workflows
 
 ```bash
-npm run db:generate
+npm run db:generate -- --name=descriptive_migration_name
 npm run db:migrate
 ```
+
+Always pass `--name` — without it, `drizzle-kit` invents a whimsical
+filename that says nothing about what changed.
 
 Alternative for local-only schema sync:
 
