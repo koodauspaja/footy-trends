@@ -166,6 +166,14 @@ Add to the `scripts` section:
 | `db:studio` | Opens Drizzle Studio, a local DB browser |
 | `db:push` | Pushes schema directly without a migration file — local dev only, never production |
 
+Always pass `--name` to `db:generate` with a short, descriptive name —
+without it, `drizzle-kit` invents a whimsical one (e.g.
+`0002_light_clint_barton.sql`) that says nothing about what changed:
+
+```bash
+npm run db:generate -- --name=add_match_status_column
+```
+
 ---
 
 ## Step 8 — Create the migrations folder and commit
