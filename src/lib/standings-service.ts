@@ -4,6 +4,7 @@ import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { logger } from "./logger";
 import { redis } from "./redis";
+import { resolveCurrentRound } from "./rounds";
 import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./standings";
 
 const COMPETITION_CODE = "PL";
@@ -37,6 +38,11 @@ export type StandingsRequest = {
 export type TeamMatchesResult =
   | { status: "ok"; matches: NormalizedProviderMatch[] }
   | { status: "not_found" }
+  | { status: "empty" }
+  | { status: "error" };
+
+export type RoundMatchesResult =
+  | { status: "ok"; round: number; matches: NormalizedProviderMatch[] }
   | { status: "empty" }
   | { status: "error" };
 
@@ -168,6 +174,45 @@ export async function getTeamMatches(
     return { status: "ok", matches: teamMatches };
   } catch (error) {
     logger.error({ err: error, seasonId, teamProviderId }, "Unable to load team matches");
+    return { status: "error" };
+  }
+}
+
+/**
+ * Every match for one round (matchday) of a season, all teams — shares the
+ * same sync path as `getPremierLeagueStandings` and `getTeamMatches`. When
+ * `round` is `undefined`, resolves and returns the season's current round
+ * instead of requiring the caller to already know it.
+ */
+export async function getRoundMatches(
+  seasonId: number,
+  round: number | undefined,
+  activeSeasonId: number
+): Promise<RoundMatchesResult> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      seasonId,
+      activeSeasonId
+    );
+
+    if (seasonMatches.length === 0) {
+      return refreshFailed ? { status: "error" } : { status: "empty" };
+    }
+
+    const matchdays = seasonMatches.flatMap((match) =>
+      match.matchday !== null ? [match.matchday] : []
+    );
+    if (matchdays.length === 0) return { status: "empty" };
+    const maxMatchday = Math.max(...matchdays);
+
+    const resolvedRound = round ?? resolveCurrentRound(seasonMatches, maxMatchday);
+    const roundMatches = seasonMatches
+      .filter((match) => match.matchday === resolvedRound)
+      .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+
+    return { status: "ok", round: resolvedRound, matches: roundMatches };
+  } catch (error) {
+    logger.error({ err: error, seasonId, round }, "Unable to load round matches");
     return { status: "error" };
   }
 }

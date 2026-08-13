@@ -109,6 +109,23 @@ describe("Home page", () => {
     expect(screen.queryByRole("link", { name: "Arsenal FC" })).not.toBeInTheDocument();
   });
 
+  it("links to the season-wide match list for the currently selected season", async () => {
+    await renderHome({ kausi: "2024" });
+
+    expect(screen.getByRole("link", { name: "Kaikki ottelut" })).toHaveAttribute(
+      "href",
+      "/ottelut?kausi=2024"
+    );
+  });
+
+  it("shows the Kaikki ottelut link regardless of standings status", async () => {
+    getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
+
+    await renderHome();
+
+    expect(screen.getByRole("link", { name: "Kaikki ottelut" })).toBeInTheDocument();
+  });
+
   it("does not link team names in the error standings state", async () => {
     getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
 

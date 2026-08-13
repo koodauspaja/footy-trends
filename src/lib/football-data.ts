@@ -82,17 +82,21 @@ export async function getSeasonContext(): Promise<SeasonContext> {
     COMPETITION_CACHE_TTL_SECONDS,
     () => request<CompetitionResponse>("/competitions/PL")
   );
-  const startDate = selectActiveSeason(competition, new Date())?.startDate;
+  const now = new Date();
+  const startDate = selectActiveSeason(competition, now)?.startDate;
   if (startDate === undefined) throw new Error("Football data response has no current season");
   // The matches endpoint's `season` query parameter is the season's start year
   // (e.g. 2025), not the season object's `id` field (e.g. 2403) — confirmed
   // against the live API, which 404s when passed the `id`.
   const activeSeasonId = new Date(startDate).getUTCFullYear();
   const earliestSeason = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
+  const upcomingStartDate = selectUpcomingSeason(competition, now)?.startDate;
+  const upcomingSeasonId =
+    upcomingStartDate === undefined ? undefined : new Date(upcomingStartDate).getUTCFullYear();
 
   return {
     activeSeasonId,
-    selectableSeasons: listSelectableSeasons(activeSeasonId, earliestSeason),
+    selectableSeasons: listSelectableSeasons(activeSeasonId, earliestSeason, upcomingSeasonId),
   };
 }
 
@@ -111,6 +115,24 @@ export function selectActiveSeason(
     const rightStart = right.startDate ? new Date(right.startDate).getTime() : 0;
     return rightStart - leftStart;
   })[0];
+}
+
+/**
+ * The provider's next season by `startDate`, once it has one already listed
+ * — even before it starts. Unlike `selectActiveSeason`, an undated season is
+ * never "upcoming" (there is nothing to compare against `now`).
+ */
+export function selectUpcomingSeason(
+  competition: { currentSeason?: ProviderSeason; seasons?: ProviderSeason[] },
+  now: Date
+): ProviderSeason | undefined {
+  const seasons = [competition.currentSeason, ...(competition.seasons ?? [])].filter(
+    (season): season is ProviderSeason & { startDate: string } =>
+      season?.id !== undefined && season.startDate !== undefined && new Date(season.startDate) > now
+  );
+  return seasons.sort(
+    (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime()
+  )[0];
 }
 
 /** Returns every match for the season regardless of status — played and upcoming alike. */

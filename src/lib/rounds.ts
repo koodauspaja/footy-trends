@@ -33,3 +33,19 @@ export function parseRoundParam(
   if (maxMatchday === null || round < 1 || round > maxMatchday) return { kind: "invalid" };
   return { kind: "valid", round };
 }
+
+type RoundCandidate = { status: string; matchday: number | null; kickoffAt: Date };
+const FINISHED_STATUS = "FINISHED";
+
+/**
+ * The round to show by default: the earliest not-yet-finished match's
+ * matchday, or the season's last round if everything is `FINISHED`. Callers
+ * must supply a non-empty `matches` list and its season's `maxMatchday` —
+ * an empty season has no "current round" and is the caller's own concern.
+ */
+export function resolveCurrentRound(matches: RoundCandidate[], maxMatchday: number): number {
+  const nextUnplayed = matches
+    .filter((match) => match.matchday !== null && match.status !== FINISHED_STATUS)
+    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime())[0];
+  return nextUnplayed?.matchday ?? maxMatchday;
+}

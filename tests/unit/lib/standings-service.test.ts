@@ -3,6 +3,7 @@ import type { NormalizedProviderMatch } from "@/lib/football-data";
 import {
   getMaxMatchday,
   getPremierLeagueStandings,
+  getRoundMatches,
   getTeamMatches,
   synchronizeMatches,
 } from "@/lib/standings-service";
@@ -537,6 +538,139 @@ describe("getTeamMatches", () => {
     const result = await getTeamMatches(HOME_TEAM_ID, ACTIVE_SEASON, ACTIVE_SEASON);
 
     expect(result).toEqual({ status: "error" });
+  });
+});
+
+describe("getRoundMatches", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns matches for an explicitly requested round, sorted by kickoff time", async () => {
+    mockStoredMatches([
+      storedMatch({
+        providerMatchId: 2,
+        matchday: 3,
+        kickoffAt: new Date("2025-09-15"),
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 1,
+        matchday: 3,
+        kickoffAt: new Date("2025-09-14"),
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 3,
+        matchday: 4,
+        kickoffAt: new Date("2025-09-20"),
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getRoundMatches(PAST_SEASON, 3, ACTIVE_SEASON);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.round).toBe(3);
+    expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
+  });
+
+  it("defaults to the round containing the next unplayed match when no round is requested", async () => {
+    mockStoredMatches([
+      storedMatch({
+        providerMatchId: 1,
+        matchday: 1,
+        status: "FINISHED",
+        kickoffAt: new Date("2025-08-15"),
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 2,
+        matchday: 2,
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        kickoffAt: new Date("2025-08-22"),
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getRoundMatches(PAST_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result.status === "ok" && result.round).toBe(2);
+  });
+
+  it("defaults to the last round when every match is finished", async () => {
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, matchday: 1, status: "FINISHED", updatedAt: new Date(0) }),
+      storedMatch({ providerMatchId: 2, matchday: 2, status: "FINISHED", updatedAt: new Date(0) }),
+    ]);
+
+    const result = await getRoundMatches(PAST_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result.status === "ok" && result.round).toBe(2);
+  });
+
+  it("reports ok with an empty list for an in-range round with no matches", async () => {
+    mockStoredMatches([storedMatch({ providerMatchId: 1, matchday: 1, updatedAt: new Date(0) })]);
+
+    const result = await getRoundMatches(PAST_SEASON, 2, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "ok", round: 2, matches: [] });
+  });
+
+  it("triggers the shared sync path when nothing is stored yet, same as standings", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([match]);
+    mockInsert();
+
+    const result = await getRoundMatches(ACTIVE_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith(ACTIVE_SEASON);
+    expect(dbMock.insert).toHaveBeenCalled();
+    expect(result.status).toBe("ok");
+  });
+
+  it("reports empty when the season truly has no matches", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    const result = await getRoundMatches(ACTIVE_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "empty" });
+  });
+
+  it("reports empty when stored matches have no known matchday", async () => {
+    mockStoredMatches([storedMatch({ matchday: null, updatedAt: new Date(0) })]);
+
+    const result = await getRoundMatches(PAST_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "empty" });
+  });
+
+  it("reports error when refresh fails and nothing is stored", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const result = await getRoundMatches(ACTIVE_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "error" });
+  });
+
+  it("reports error when the database query itself fails", async () => {
+    const orderBy = vi.fn().mockRejectedValue(new Error("connection refused"));
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    dbMock.select.mockReturnValue({ from });
+
+    const result = await getRoundMatches(ACTIVE_SEASON, undefined, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), seasonId: ACTIVE_SEASON }),
+      "Unable to load round matches"
+    );
   });
 });
 

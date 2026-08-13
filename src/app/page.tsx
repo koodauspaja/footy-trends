@@ -68,6 +68,11 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <PageShell heading={`${BASE_HEADING} ${seasonLabel}`}>
+      <p className="mb-6">
+        <Link className="text-sm hover:underline" href={`/ottelut?kausi=${seasonId}`}>
+          Kaikki ottelut
+        </Link>
+      </p>
       {season.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"

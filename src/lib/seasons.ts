@@ -34,13 +34,21 @@ export function resolveEarliestSeason(rawValue: string | undefined): number {
   return parsed > 0 ? parsed : DEFAULT_EARLIEST_SEASON;
 }
 
-/** Every season from the active season down to the floor, newest first. */
+/**
+ * Every season from the active season down to the floor, newest first. When
+ * the provider has already published an upcoming season's fixtures (even
+ * before it starts), `upcomingSeasonId` prepends it ahead of the active one.
+ */
 export function listSelectableSeasons(
   activeSeasonId: number,
-  earliestSeason: number
+  earliestSeason: number,
+  upcomingSeasonId?: number
 ): SeasonOption[] {
   const oldest = Math.min(earliestSeason, activeSeasonId);
   const options: SeasonOption[] = [];
+  if (upcomingSeasonId !== undefined && upcomingSeasonId > activeSeasonId) {
+    options.push({ seasonId: upcomingSeasonId, label: formatSeasonLabel(upcomingSeasonId) });
+  }
   for (let seasonId = activeSeasonId; seasonId >= oldest; seasonId -= 1) {
     options.push({ seasonId, label: formatSeasonLabel(seasonId) });
   }
