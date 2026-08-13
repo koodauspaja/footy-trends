@@ -9,7 +9,7 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run tests/unit --coverage --passWithNoTests",
     "test:integration": "vitest run tests/integration --passWithNoTests",
-    "test:e2e": "vitest run tests/e2e --passWithNoTests",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
