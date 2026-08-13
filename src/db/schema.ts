@@ -9,12 +9,16 @@ export const matches = pgTable(
     seasonId: integer("season_id").notNull(),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     matchday: integer("matchday"),
+    // Only ever "FINISHED" until 004-listing-matches-for-selected-team, whose
+    // migration backfills the default below so existing rows stay accurate.
+    status: text("status").notNull().default("FINISHED"),
     homeTeamProviderId: integer("home_team_provider_id").notNull(),
     homeTeamName: text("home_team_name").notNull(),
     awayTeamProviderId: integer("away_team_provider_id").notNull(),
     awayTeamName: text("away_team_name").notNull(),
-    homeGoals: integer("home_goals").notNull(),
-    awayGoals: integer("away_goals").notNull(),
+    // Nullable: a not-yet-played match has no final score.
+    homeGoals: integer("home_goals"),
+    awayGoals: integer("away_goals"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
