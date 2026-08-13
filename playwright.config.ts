@@ -5,6 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 // -d) and a configured FOOTBALL_DATA_API_KEY in .env, same as npm run dev.
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

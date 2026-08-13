@@ -25,9 +25,13 @@ test.describe("Season-wide match list", () => {
     await page.goto("/ottelut");
 
     const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
+    const teamName = await firstTeamLink.textContent();
     await firstTeamLink.click();
 
     await expect(page).toHaveURL(/\/joukkue\/\d+/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(teamName ?? "");
+    await expect(page.getByRole("table")).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Pvm" })).toBeVisible();
   });
 
   test("falls back to the current round with a Finnish banner for an invalid kierros", async ({
