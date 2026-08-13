@@ -1,12 +1,13 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
-import { getFinishedMatches } from "./football-data";
+import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { logger } from "./logger";
 import { redis } from "./redis";
 import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./standings";
 
 const COMPETITION_CODE = "PL";
+const FINISHED_STATUS = "FINISHED";
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const parsedRefreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS);
@@ -33,7 +34,15 @@ export type StandingsRequest = {
   round?: number;
 };
 
+export type TeamMatchesResult =
+  | { status: "ok"; matches: NormalizedProviderMatch[] }
+  | { status: "not_found" }
+  | { status: "empty" }
+  | { status: "error" };
+
 type StoredMatch = typeof matches.$inferSelect;
+/** A match from either the DB or a fresh provider fetch — see football-data.ts. */
+type MatchRow = NormalizedProviderMatch;
 
 /** Matches with no known matchday are excluded once a round filter applies. */
 function filterByRound<T extends { matchday: number | null }>(
@@ -42,6 +51,55 @@ function filterByRound<T extends { matchday: number | null }>(
 ): T[] {
   if (round === undefined) return matchList;
   return matchList.filter((match) => match.matchday !== null && match.matchday <= round);
+}
+
+/**
+ * Narrows to matches with a final score, which is what `calculateStandings`
+ * requires. A match with `status !== "FINISHED"` is excluded even if it
+ * happens to carry goals (defensive — the provider should never do this).
+ */
+function toFinishedMatches(matchList: MatchRow[]): NormalizedMatch[] {
+  return matchList.filter(
+    (match): match is MatchRow & { homeGoals: number; awayGoals: number } =>
+      match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
+  );
+}
+
+type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
+
+/**
+ * Reads a season's stored matches and refreshes them from the provider when
+ * stale, per `needsRefresh`. Shared by `getPremierLeagueStandings` and
+ * `getTeamMatches` so both see the same season data through one sync path —
+ * see specs/004-listing-matches-for-selected-team.md.
+ *
+ * Never throws: a failed refresh falls back to whatever is already stored,
+ * with `refreshFailed: true` so callers can distinguish "stale but present"
+ * from "genuinely nothing to show" when deciding between an empty and an
+ * error result.
+ */
+async function getSyncedSeasonMatches(
+  seasonId: number,
+  activeSeasonId: number
+): Promise<SyncedSeasonMatches> {
+  const storedMatches = await db
+    .select()
+    .from(matches)
+    .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)))
+    .orderBy(desc(matches.updatedAt));
+
+  if (!needsRefresh(seasonId, activeSeasonId, storedMatches)) {
+    return { matches: storedMatches, refreshFailed: false };
+  }
+
+  try {
+    const providerMatches = await getSeasonMatches(seasonId);
+    await synchronizeMatches(providerMatches);
+    return { matches: providerMatches, refreshFailed: false };
+  } catch (error) {
+    logger.warn({ err: error, seasonId }, "Premier League refresh failed; using stored matches");
+    return { matches: storedMatches, refreshFailed: true };
+  }
 }
 
 export async function getPremierLeagueStandings({
@@ -56,36 +114,61 @@ export async function getPremierLeagueStandings({
       if (cached) return toResult(cached);
     }
 
-    const storedMatches = await db
-      .select()
-      .from(matches)
-      .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)))
-      .orderBy(desc(matches.updatedAt));
-    const storedStandings = calculateStandings(filterByRound(storedMatches, round));
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      seasonId,
+      activeSeasonId
+    );
+    const standings = calculateStandings(filterByRound(toFinishedMatches(seasonMatches), round));
 
-    if (needsRefresh(seasonId, activeSeasonId, storedMatches)) {
-      try {
-        const providerMatches = await getFinishedMatches(seasonId);
-        await synchronizeMatches(providerMatches);
-        const refreshedStandings = calculateStandings(filterByRound(providerMatches, round));
-        if (round === undefined) await writeCachedStandings(cacheKey, refreshedStandings);
-        return toResult(refreshedStandings);
-      } catch (error) {
-        logger.warn(
-          { err: error, seasonId },
-          "Premier League refresh failed; using stored matches"
-        );
-        if (storedStandings.length > 0) return { status: "ok", standings: storedStandings };
-        return { status: "error", standings: [] };
-      }
+    if (standings.length === 0) {
+      return refreshFailed
+        ? { status: "error", standings: [] }
+        : { status: "empty", standings: [] };
     }
-
-    if (storedStandings.length === 0) return { status: "empty", standings: [] };
-    if (round === undefined) await writeCachedStandings(cacheKey, storedStandings);
-    return { status: "ok", standings: storedStandings };
+    // Never cache a stale fallback: if the refresh failed, this is admittedly
+    // out-of-date data serving only because nothing better was available.
+    if (round === undefined && !refreshFailed) await writeCachedStandings(cacheKey, standings);
+    return { status: "ok", standings };
   } catch (error) {
     logger.error({ err: error, seasonId }, "Unable to load Premier League standings");
     return { status: "error", standings: [] };
+  }
+}
+
+/**
+ * A team's full match list for a season — played and upcoming — sorted by
+ * kickoff time. A team is only known to exist here through its matches;
+ * there is no independent teams table, so a team id that appears in no
+ * stored match for the season is indistinguishable from an unknown id (both
+ * report `"not_found"`).
+ */
+export async function getTeamMatches(
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<TeamMatchesResult> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      seasonId,
+      activeSeasonId
+    );
+
+    if (seasonMatches.length === 0) {
+      return refreshFailed ? { status: "error" } : { status: "empty" };
+    }
+
+    const teamMatches = seasonMatches
+      .filter(
+        (match) =>
+          match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId
+      )
+      .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+
+    if (teamMatches.length === 0) return { status: "not_found" };
+    return { status: "ok", matches: teamMatches };
+  } catch (error) {
+    logger.error({ err: error, seasonId, teamProviderId }, "Unable to load team matches");
+    return { status: "error" };
   }
 }
 
@@ -121,7 +204,9 @@ function toResult(standings: TeamStanding[]): StandingsResult {
   return standings.length > 0 ? { status: "ok", standings } : { status: "empty", standings: [] };
 }
 
-export async function synchronizeMatches(providerMatches: NormalizedMatch[]): Promise<void> {
+export async function synchronizeMatches(
+  providerMatches: NormalizedProviderMatch[]
+): Promise<void> {
   if (providerMatches.length === 0) return;
 
   await db
@@ -132,6 +217,7 @@ export async function synchronizeMatches(providerMatches: NormalizedMatch[]): Pr
       set: {
         competitionCode: sql`excluded.competition_code`,
         seasonId: sql`excluded.season_id`,
+        status: sql`excluded.status`,
         kickoffAt: sql`excluded.kickoff_at`,
         matchday: sql`excluded.matchday`,
         homeTeamProviderId: sql`excluded.home_team_provider_id`,

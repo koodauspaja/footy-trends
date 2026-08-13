@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
+import { SeasonSelect } from "./season-select";
 
 type SeasonRoundSelectorProps = {
   seasons: SeasonOption[];
@@ -38,22 +39,11 @@ export function SeasonRoundSelector({
 
   return (
     <form action="/" method="get" className="mb-6 flex flex-wrap items-center gap-3">
-      <label className="text-sm text-zinc-600" htmlFor="kausi">
-        Kausi
-      </label>
-      <select
-        className="rounded border border-zinc-300 px-3 py-2"
-        defaultValue={selectedSeasonId}
-        id="kausi"
-        name="kausi"
-        onChange={(event) => navigate(Number(event.target.value), selectedRound)}
-      >
-        {seasons.map((season) => (
-          <option key={season.seasonId} value={season.seasonId}>
-            {season.label}
-          </option>
-        ))}
-      </select>
+      <SeasonSelect
+        seasons={seasons}
+        selectedSeasonId={selectedSeasonId}
+        onChange={(seasonId) => navigate(seasonId, selectedRound)}
+      />
 
       <label className="text-sm text-zinc-600" htmlFor="kierros">
         Kierros

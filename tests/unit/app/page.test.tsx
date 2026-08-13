@@ -7,6 +7,7 @@ import type { StandingsResult } from "@/lib/standings-service";
 const getPremierLeagueStandingsMock = vi.fn<() => Promise<StandingsResult>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
+const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/standings-service", () => ({
   getPremierLeagueStandings: getPremierLeagueStandingsMock,
@@ -15,6 +16,10 @@ vi.mock("@/lib/standings-service", () => ({
 
 vi.mock("@/lib/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
+}));
+
+vi.mock("@/lib/logger", () => ({
+  logger: { error: loggerErrorMock },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -85,6 +90,31 @@ describe("Home page", () => {
         "O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit, ME = maaliero, P = pisteet."
       )
     ).toBeInTheDocument();
+  });
+
+  it("links each team name to its team page, carrying the selected season", async () => {
+    await renderHome({ kausi: "2024" });
+
+    expect(screen.getByRole("link", { name: "Arsenal FC" })).toHaveAttribute(
+      "href",
+      "/joukkue/1?kausi=2024"
+    );
+  });
+
+  it("does not link team names in the empty standings state", async () => {
+    getPremierLeagueStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
+
+    await renderHome();
+
+    expect(screen.queryByRole("link", { name: "Arsenal FC" })).not.toBeInTheDocument();
+  });
+
+  it("does not link team names in the error standings state", async () => {
+    getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
+
+    await renderHome();
+
+    expect(screen.queryByRole("link", { name: "Arsenal FC" })).not.toBeInTheDocument();
   });
 
   it("defaults to the active season without a kausi parameter", async () => {
@@ -263,6 +293,10 @@ describe("Home page", () => {
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getPremierLeagueStandingsMock).not.toHaveBeenCalled();
     expect(getMaxMatchdayMock).not.toHaveBeenCalled();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to resolve the selectable seasons"
+    );
   });
 });
 

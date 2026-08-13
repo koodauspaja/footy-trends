@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { PageShell } from "@/components/page-shell";
 import { SeasonRoundSelector } from "@/components/season-round-selector";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
@@ -26,15 +27,6 @@ const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi."
 type HomeProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function PageShell({ heading, children }: { heading: string; children: ReactNode }) {
-  return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-8">
-      <h1 className="mb-8 text-3xl font-semibold">{heading}</h1>
-      {children}
-    </main>
-  );
-}
 
 async function resolveSeasonContext(): Promise<SeasonContext | null> {
   try {
@@ -120,7 +112,12 @@ export default async function Home({ searchParams }: HomeProps) {
                 <tr className="border-b border-zinc-200" key={team.teamProviderId}>
                   <td className="p-3">{team.position}</td>
                   <th scope="row" className="p-3 font-medium">
-                    {team.teamName}
+                    <Link
+                      className="hover:underline"
+                      href={`/joukkue/${team.teamProviderId}?kausi=${seasonId}`}
+                    >
+                      {team.teamName}
+                    </Link>
                   </th>
                   <td className="p-3">{team.played}</td>
                   <td className="p-3">{team.won}</td>

@@ -7,7 +7,7 @@ import { redis } from "@/lib/redis";
 import { calculateStandings } from "@/lib/standings";
 
 vi.mock("@/lib/football-data", () => ({
-  getFinishedMatches: vi.fn(),
+  getSeasonMatches: vi.fn(),
 }));
 
 const competitionCode = "PL";
@@ -21,6 +21,7 @@ function buildMatch(overrides: Partial<NormalizedProviderMatch> = {}): Normalize
     providerMatchId: 900001,
     competitionCode,
     seasonId,
+    status: "FINISHED",
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
     matchday: 1,
     homeTeamProviderId: 9001,
@@ -31,6 +32,16 @@ function buildMatch(overrides: Partial<NormalizedProviderMatch> = {}): Normalize
     awayGoals: 1,
     ...overrides,
   };
+}
+
+/** Narrows to matches with a final score, mirroring standings-service.ts's own filter. */
+function toPlayedMatches<T extends { homeGoals: number | null; awayGoals: number | null }>(
+  rows: T[]
+): Array<T & { homeGoals: number; awayGoals: number }> {
+  return rows.filter(
+    (row): row is T & { homeGoals: number; awayGoals: number } =>
+      row.homeGoals !== null && row.awayGoals !== null
+  );
 }
 
 async function clearFixtures() {
@@ -59,7 +70,9 @@ describe("standings integration", () => {
       .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
 
     expect(stored).toHaveLength(1);
-    expect(calculateStandings(stored)).toEqual(calculateStandings(providerMatches));
+    expect(calculateStandings(toPlayedMatches(stored))).toEqual(
+      calculateStandings(toPlayedMatches(providerMatches))
+    );
   });
 
   it("does not duplicate a match when the same provider response is synchronized twice", async () => {
@@ -79,8 +92,8 @@ describe("standings integration", () => {
   });
 
   it("falls back to stored standings when the provider refresh fails", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
-    vi.mocked(getFinishedMatches).mockRejectedValue(new Error("provider unavailable"));
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
 
     const { synchronizeMatches, getPremierLeagueStandings } = await import(
       "@/lib/standings-service"
@@ -99,19 +112,19 @@ describe("standings integration", () => {
   });
 
   it("returns cached Redis standings without querying stored matches or the provider", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
-    const cachedStandings = calculateStandings([buildMatch()]);
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    const cachedStandings = calculateStandings(toPlayedMatches([buildMatch()]));
     await redis.setex(cacheKey, 60, JSON.stringify(cachedStandings));
 
     const { getPremierLeagueStandings } = await import("@/lib/standings-service");
     const result = await getPremierLeagueStandings({ seasonId, activeSeasonId: seasonId });
 
     expect(result).toEqual({ status: "ok", standings: cachedStandings });
-    expect(getFinishedMatches).not.toHaveBeenCalled();
+    expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
   it("uses fresh stored matches without calling the provider", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data");
     const { synchronizeMatches, getPremierLeagueStandings } = await import(
       "@/lib/standings-service"
     );
@@ -121,13 +134,13 @@ describe("standings integration", () => {
 
     expect(result.status).toBe("ok");
     expect(result.standings.map((team) => team.teamName)).toContain("Integration United");
-    expect(getFinishedMatches).not.toHaveBeenCalled();
+    expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
   it("backfills a season that has no stored matches", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data");
     const providerMatches = [buildMatch()];
-    vi.mocked(getFinishedMatches).mockResolvedValue(providerMatches);
+    vi.mocked(getSeasonMatches).mockResolvedValue(providerMatches);
 
     const { getPremierLeagueStandings } = await import("@/lib/standings-service");
     const result = await getPremierLeagueStandings({
@@ -140,14 +153,14 @@ describe("standings integration", () => {
       .from(matches)
       .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
 
-    expect(getFinishedMatches).toHaveBeenCalledWith(seasonId);
+    expect(getSeasonMatches).toHaveBeenCalledWith(seasonId);
     expect(stored).toHaveLength(1);
     expect(result.status).toBe("ok");
     expect(result.standings.map((team) => team.teamName)).toContain("Integration United");
   });
 
   it("never refetches a past season that already has stored matches, however stale", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data");
     const { synchronizeMatches, getPremierLeagueStandings } = await import(
       "@/lib/standings-service"
     );
@@ -164,13 +177,13 @@ describe("standings integration", () => {
       activeSeasonId: laterActiveSeasonId,
     });
 
-    expect(getFinishedMatches).not.toHaveBeenCalled();
+    expect(getSeasonMatches).not.toHaveBeenCalled();
     expect(result.status).toBe("ok");
   });
 
   it("reports an empty season when the provider has no finished matches", async () => {
-    const { getFinishedMatches } = await import("@/lib/football-data");
-    vi.mocked(getFinishedMatches).mockResolvedValue([]);
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockResolvedValue([]);
 
     const { getPremierLeagueStandings } = await import("@/lib/standings-service");
     const result = await getPremierLeagueStandings({
@@ -179,5 +192,39 @@ describe("standings integration", () => {
     });
 
     expect(result).toEqual({ status: "empty", standings: [] });
+  });
+
+  it("stores a finished and an unplayed match side by side, and excludes the unplayed one from standings", async () => {
+    const { synchronizeMatches, getPremierLeagueStandings, getTeamMatches } = await import(
+      "@/lib/standings-service"
+    );
+    const finished = buildMatch();
+    const upcoming = buildMatch({
+      providerMatchId: 900002,
+      status: "SCHEDULED",
+      homeGoals: null,
+      awayGoals: null,
+      homeTeamProviderId: 9003,
+      homeTeamName: "Integration Rovers",
+    });
+
+    await synchronizeMatches([finished, upcoming]);
+
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)))
+      .orderBy(matches.providerMatchId);
+
+    // Confirms the migration: a NULL-goals, non-default-status row round-trips through Postgres.
+    expect(stored).toHaveLength(2);
+    expect(stored[1]).toMatchObject({ status: "SCHEDULED", homeGoals: null, awayGoals: null });
+
+    const standings = await getPremierLeagueStandings({ seasonId, activeSeasonId: seasonId });
+    expect(standings.status).toBe("ok");
+    expect(standings.standings.map((team) => team.teamName)).not.toContain("Integration Rovers");
+
+    const teamMatches = await getTeamMatches(9003, seasonId, seasonId);
+    expect(teamMatches).toEqual({ status: "ok", matches: [expect.objectContaining(upcoming)] });
   });
 });

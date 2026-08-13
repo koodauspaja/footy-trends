@@ -1,29 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NormalizedMatch } from "@/lib/standings";
+import type { NormalizedProviderMatch } from "@/lib/football-data";
 import {
   getMaxMatchday,
   getPremierLeagueStandings,
+  getTeamMatches,
   synchronizeMatches,
 } from "@/lib/standings-service";
 
 const {
   dbMock,
   redisMock,
-  getFinishedMatchesMock,
+  getSeasonMatchesMock,
   calculateStandingsMock,
   loggerWarnMock,
   loggerErrorMock,
 } = vi.hoisted(() => ({
   dbMock: { select: vi.fn(), insert: vi.fn() },
   redisMock: { get: vi.fn(), setex: vi.fn() },
-  getFinishedMatchesMock: vi.fn(),
+  getSeasonMatchesMock: vi.fn(),
   calculateStandingsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
-vi.mock("@/lib/football-data", () => ({ getFinishedMatches: getFinishedMatchesMock }));
+vi.mock("@/lib/football-data", () => ({ getSeasonMatches: getSeasonMatchesMock }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
 // Wraps the real implementation so every test gets true standings math by
 // default; only the "impossible in production" branch test below overrides
@@ -47,10 +48,11 @@ function storedAt(msAgo: number) {
   return [{ updatedAt: new Date(Date.now() - msAgo) }];
 }
 
-const match: NormalizedMatch = {
+const match: NormalizedProviderMatch = {
   providerMatchId: 1,
   competitionCode: "PL",
   seasonId: ACTIVE_SEASON,
+  status: "FINISHED",
   kickoffAt: new Date("2025-08-15T14:00:00Z"),
   matchday: 1,
   homeTeamProviderId: 1,
@@ -61,7 +63,7 @@ const match: NormalizedMatch = {
   awayGoals: 1,
 };
 
-function storedMatch(overrides: Partial<NormalizedMatch> & { updatedAt: Date }) {
+function storedMatch(overrides: Partial<NormalizedProviderMatch> & { updatedAt: Date }) {
   return { ...match, ...overrides };
 }
 
@@ -192,7 +194,7 @@ describe("getPremierLeagueStandings", () => {
   it("refreshes from the provider when nothing is stored, and caches the result", async () => {
     redisMock.get.mockResolvedValue(null);
     mockStoredMatches([]);
-    getFinishedMatchesMock.mockResolvedValue([match]);
+    getSeasonMatchesMock.mockResolvedValue([match]);
     mockInsert();
     redisMock.setex.mockResolvedValue("OK");
 
@@ -201,7 +203,7 @@ describe("getPremierLeagueStandings", () => {
       activeSeasonId: ACTIVE_SEASON,
     });
 
-    expect(getFinishedMatchesMock).toHaveBeenCalledWith(ACTIVE_SEASON);
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith(ACTIVE_SEASON);
     expect(dbMock.insert).toHaveBeenCalled();
     expect(redisMock.setex).toHaveBeenCalledWith(
       `standings:PL:${ACTIVE_SEASON}`,
@@ -215,7 +217,7 @@ describe("getPremierLeagueStandings", () => {
   it("reports empty standings when a refresh finds no finished matches", async () => {
     redisMock.get.mockResolvedValue(null);
     mockStoredMatches([]);
-    getFinishedMatchesMock.mockResolvedValue([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
     redisMock.setex.mockResolvedValue("OK");
 
@@ -230,7 +232,7 @@ describe("getPremierLeagueStandings", () => {
   it("falls back to stored matches when a refresh fails but stored data exists", async () => {
     redisMock.get.mockResolvedValue(null);
     mockStoredMatches([storedMatch({ updatedAt: new Date(0) })]);
-    getFinishedMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
 
     const result = await getPremierLeagueStandings({
       seasonId: ACTIVE_SEASON,
@@ -249,7 +251,7 @@ describe("getPremierLeagueStandings", () => {
   it("returns an error when a refresh fails and nothing is stored", async () => {
     redisMock.get.mockResolvedValue(null);
     mockStoredMatches([]);
-    getFinishedMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
 
     const result = await getPremierLeagueStandings({
       seasonId: ACTIVE_SEASON,
@@ -273,7 +275,7 @@ describe("getPremierLeagueStandings", () => {
       activeSeasonId: ACTIVE_SEASON,
     });
 
-    expect(getFinishedMatchesMock).not.toHaveBeenCalled();
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
     expect(result.status).toBe("ok");
     expect(redisMock.setex).toHaveBeenCalled();
   });
@@ -368,7 +370,7 @@ describe("getPremierLeagueStandings", () => {
 
   it("filters freshly refreshed provider matches by round and skips caching the round-scoped result", async () => {
     mockStoredMatches([]);
-    getFinishedMatchesMock.mockResolvedValue([
+    getSeasonMatchesMock.mockResolvedValue([
       { ...match, providerMatchId: 1, matchday: 1 },
       { ...match, providerMatchId: 2, matchday: 5 },
     ]);
@@ -383,6 +385,158 @@ describe("getPremierLeagueStandings", () => {
     expect(result.status).toBe("ok");
     expect(redisMock.setex).not.toHaveBeenCalled();
     expect(result.standings.reduce((sum, team) => sum + team.played, 0)).toBe(2);
+  });
+
+  it("only feeds FINISHED matches to calculateStandings on the stored-matches path", async () => {
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, status: "FINISHED", updatedAt: new Date(0) }),
+      storedMatch({
+        providerMatchId: 2,
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getPremierLeagueStandings({
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+
+    expect(result.status).toBe("ok");
+    expect(calculateStandingsMock).toHaveBeenLastCalledWith([
+      expect.objectContaining({ providerMatchId: 1, status: "FINISHED" }),
+    ]);
+  });
+
+  it("only feeds FINISHED matches to calculateStandings on the freshly-refreshed-from-provider path", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([
+      { ...match, providerMatchId: 1, status: "FINISHED" },
+      { ...match, providerMatchId: 2, status: "SCHEDULED", homeGoals: null, awayGoals: null },
+    ]);
+    mockInsert();
+
+    const result = await getPremierLeagueStandings({
+      seasonId: ACTIVE_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+
+    expect(result.status).toBe("ok");
+    expect(calculateStandingsMock).toHaveBeenLastCalledWith([
+      expect.objectContaining({ providerMatchId: 1, status: "FINISHED" }),
+    ]);
+  });
+});
+
+describe("getTeamMatches", () => {
+  const HOME_TEAM_ID = 1;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the team's matches sorted by kickoff, including unplayed ones, excluding other teams", async () => {
+    mockStoredMatches([
+      storedMatch({
+        providerMatchId: 3,
+        kickoffAt: new Date("2025-09-01"),
+        homeTeamProviderId: HOME_TEAM_ID,
+        awayTeamProviderId: 3,
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 1,
+        kickoffAt: new Date("2025-08-01"),
+        homeTeamProviderId: HOME_TEAM_ID,
+        awayTeamProviderId: 2,
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 2,
+        kickoffAt: new Date("2025-08-15"),
+        homeTeamProviderId: 4,
+        awayTeamProviderId: HOME_TEAM_ID,
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 4,
+        kickoffAt: new Date("2025-08-20"),
+        homeTeamProviderId: 5,
+        awayTeamProviderId: 6,
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getTeamMatches(HOME_TEAM_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it("triggers the shared sync path when nothing is stored yet, same as standings", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([
+      { ...match, providerMatchId: 1, homeTeamProviderId: HOME_TEAM_ID },
+    ]);
+    mockInsert();
+
+    const result = await getTeamMatches(HOME_TEAM_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith(ACTIVE_SEASON);
+    expect(dbMock.insert).toHaveBeenCalled();
+    expect(result.status).toBe("ok");
+  });
+
+  it("reports not_found when the team never appears in the season's matches", async () => {
+    mockStoredMatches([
+      storedMatch({
+        providerMatchId: 1,
+        homeTeamProviderId: 9,
+        awayTeamProviderId: 8,
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getTeamMatches(HOME_TEAM_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "not_found" });
+  });
+
+  it("reports empty when the season truly has no matches", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    const result = await getTeamMatches(HOME_TEAM_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "empty" });
+  });
+
+  it("reports error when refresh fails and nothing is stored", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const result = await getTeamMatches(HOME_TEAM_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "error" });
+  });
+
+  it("reports error when the database query itself fails", async () => {
+    const orderBy = vi.fn().mockRejectedValue(new Error("connection refused"));
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    dbMock.select.mockReturnValue({ from });
+
+    const result = await getTeamMatches(HOME_TEAM_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(result).toEqual({ status: "error" });
   });
 });
 

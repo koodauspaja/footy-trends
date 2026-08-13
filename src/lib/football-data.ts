@@ -113,11 +113,12 @@ export function selectActiveSeason(
   })[0];
 }
 
-export async function getFinishedMatches(seasonId: number): Promise<NormalizedProviderMatch[]> {
+/** Returns every match for the season regardless of status — played and upcoming alike. */
+export async function getSeasonMatches(seasonId: number): Promise<NormalizedProviderMatch[]> {
   const response = await getCached<MatchesResponse>(
     `football-data:matches:PL:${seasonId}`,
     MATCHES_CACHE_TTL_SECONDS,
-    () => request<MatchesResponse>(`/competitions/PL/matches?season=${seasonId}&status=FINISHED`)
+    () => request<MatchesResponse>(`/competitions/PL/matches?season=${seasonId}`)
   );
   return (response.matches ?? []).flatMap((match) => {
     const normalized = normalizeMatch(match, seasonId);
@@ -127,36 +128,35 @@ export async function getFinishedMatches(seasonId: number): Promise<NormalizedPr
 
 export type NormalizedProviderMatch = {
   providerMatchId: number;
-  competitionCode: "PL";
+  // string rather than the literal "PL": lets a DB row (typeof matches.$inferSelect,
+  // whose competitionCode column is plain text) structurally satisfy this type too,
+  // so standings-service.ts can treat provider- and DB-sourced matches uniformly.
+  competitionCode: string;
   seasonId: number;
+  status: string;
   kickoffAt: Date;
   matchday: number | null;
   homeTeamProviderId: number;
   homeTeamName: string;
   awayTeamProviderId: number;
   awayTeamName: string;
-  homeGoals: number;
-  awayGoals: number;
+  /** Only set once the provider reports a final score, e.g. once `status` is `"FINISHED"`. */
+  homeGoals: number | null;
+  awayGoals: number | null;
 };
 
 export function normalizeMatch(
   match: ProviderMatch,
   seasonId: number
 ): NormalizedProviderMatch | null {
-  const homeGoals = match.score?.fullTime?.home;
-  const awayGoals = match.score?.fullTime?.away;
   if (
-    match.status !== "FINISHED" ||
     match.id === undefined ||
+    match.status === undefined ||
     match.utcDate === undefined ||
     match.homeTeam?.id === undefined ||
     match.homeTeam.name === undefined ||
     match.awayTeam?.id === undefined ||
-    match.awayTeam.name === undefined ||
-    homeGoals === undefined ||
-    homeGoals === null ||
-    awayGoals === undefined ||
-    awayGoals === null
+    match.awayTeam.name === undefined
   )
     return null;
 
@@ -164,13 +164,14 @@ export function normalizeMatch(
     providerMatchId: match.id,
     competitionCode: "PL",
     seasonId,
+    status: match.status,
     kickoffAt: new Date(match.utcDate),
     matchday: match.matchday ?? null,
     homeTeamProviderId: match.homeTeam.id,
     homeTeamName: match.homeTeam.name,
     awayTeamProviderId: match.awayTeam.id,
     awayTeamName: match.awayTeam.name,
-    homeGoals,
-    awayGoals,
+    homeGoals: match.score?.fullTime?.home ?? null,
+    awayGoals: match.score?.fullTime?.away ?? null,
   };
 }

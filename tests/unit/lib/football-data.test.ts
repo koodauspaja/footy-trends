@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COMPETITION_CACHE_TTL_SECONDS,
-  getFinishedMatches,
   getSeasonContext,
+  getSeasonMatches,
   MATCHES_CACHE_TTL_SECONDS,
   normalizeMatch,
   selectActiveSeason,
@@ -49,16 +49,48 @@ describe("football-data mapping", () => {
       providerMatchId: 123,
       competitionCode: "PL",
       seasonId: 2026,
+      status: "FINISHED",
       homeGoals: 2,
       awayGoals: 1,
     });
   });
 
-  it("ignores unfinished and incomplete matches", () => {
-    expect(normalizeMatch({ id: 1, status: "POSTPONED" }, 2026)).toBeNull();
+  it("maps a not-yet-played match to null goals instead of rejecting it", () => {
+    const result = normalizeMatch(
+      {
+        id: 456,
+        utcDate: "2026-08-22T14:00:00Z",
+        status: "SCHEDULED",
+        matchday: 2,
+        homeTeam: { id: 57, name: "Arsenal FC" },
+        awayTeam: { id: 61, name: "Chelsea FC" },
+      },
+      2026
+    );
+
+    expect(result).toMatchObject({
+      providerMatchId: 456,
+      status: "SCHEDULED",
+      homeGoals: null,
+      awayGoals: null,
+    });
+  });
+
+  it("rejects matches missing required fields, regardless of status", () => {
+    expect(normalizeMatch({ status: "FINISHED" }, 2026)).toBeNull();
+    expect(normalizeMatch({ id: 1 }, 2026)).toBeNull();
+    expect(normalizeMatch({ id: 1, status: "FINISHED" }, 2026)).toBeNull();
+    expect(
+      normalizeMatch({ id: 1, status: "FINISHED", utcDate: "2026-08-15T14:00:00Z" }, 2026)
+    ).toBeNull();
     expect(
       normalizeMatch(
-        { id: 2, status: "FINISHED", score: { fullTime: { home: null, away: 1 } } },
+        {
+          id: 1,
+          status: "FINISHED",
+          utcDate: "2026-08-15T14:00:00Z",
+          homeTeam: { id: 57, name: "Arsenal FC" },
+        },
         2026
       )
     ).toBeNull();
@@ -153,17 +185,17 @@ describe("football-data mapping", () => {
     );
   });
 
-  it("treats a response with no matches field as no finished matches", async () => {
+  it("treats a response with no matches field as no matches", async () => {
     getCachedMock.mockResolvedValue({});
 
-    await expect(getFinishedMatches(2025)).resolves.toEqual([]);
+    await expect(getSeasonMatches(2025)).resolves.toEqual([]);
   });
 
   it("caches each season's matches under its own key", async () => {
     getCachedMock.mockResolvedValue({ matches: [] });
 
-    await getFinishedMatches(2024);
-    await getFinishedMatches(2023);
+    await getSeasonMatches(2024);
+    await getSeasonMatches(2023);
 
     expect(getCachedMock.mock.calls.map(([key]) => key)).toEqual([
       "football-data:matches:PL:2024",
@@ -171,7 +203,7 @@ describe("football-data mapping", () => {
     ]);
   });
 
-  it("returns only normalized finished matches for the requested season", async () => {
+  it("normalizes every returned match regardless of status, and drops incomplete ones", async () => {
     getCachedMock.mockResolvedValue({
       matches: [
         {
@@ -182,11 +214,18 @@ describe("football-data mapping", () => {
           awayTeam: { id: 61, name: "Chelsea FC" },
           score: { fullTime: { home: 2, away: 1 } },
         },
-        { id: 2, status: "POSTPONED" },
+        {
+          id: 2,
+          utcDate: "2025-08-22T14:00:00Z",
+          status: "SCHEDULED",
+          homeTeam: { id: 61, name: "Chelsea FC" },
+          awayTeam: { id: 57, name: "Arsenal FC" },
+        },
+        { id: 3, status: "POSTPONED" },
       ],
     });
 
-    const result = await getFinishedMatches(2025);
+    const result = await getSeasonMatches(2025);
 
     expect(getCachedMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -198,6 +237,7 @@ describe("football-data mapping", () => {
         providerMatchId: 1,
         competitionCode: "PL",
         seasonId: 2025,
+        status: "FINISHED",
         kickoffAt: new Date("2025-08-15T14:00:00Z"),
         matchday: null,
         homeTeamProviderId: 57,
@@ -206,6 +246,20 @@ describe("football-data mapping", () => {
         awayTeamName: "Chelsea FC",
         homeGoals: 2,
         awayGoals: 1,
+      },
+      {
+        providerMatchId: 2,
+        competitionCode: "PL",
+        seasonId: 2025,
+        status: "SCHEDULED",
+        kickoffAt: new Date("2025-08-22T14:00:00Z"),
+        matchday: null,
+        homeTeamProviderId: 61,
+        homeTeamName: "Chelsea FC",
+        awayTeamProviderId: 57,
+        awayTeamName: "Arsenal FC",
+        homeGoals: null,
+        awayGoals: null,
       },
     ]);
   });
@@ -271,16 +325,16 @@ describe("football-data mapping", () => {
     expect(loggerInfoMock).not.toHaveBeenCalled();
   });
 
-  it("requests finished matches for the given season", async () => {
+  it("requests the season's matches without a status filter, so upcoming fixtures are included too", async () => {
     vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ matches: [] }) });
     vi.stubGlobal("fetch", fetchMock);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await getFinishedMatches(2025);
+    await getSeasonMatches(2025);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.football-data.org/v4/competitions/PL/matches?season=2025&status=FINISHED",
+      "https://api.football-data.org/v4/competitions/PL/matches?season=2025",
       { headers: { "X-Auth-Token": "test-api-key" } }
     );
   });
