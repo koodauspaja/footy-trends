@@ -2,11 +2,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Public URLs stay Finnish; the App Router folder (src/app/team/[id]) stays
-  // English per project convention. This rewrite is server-side, so the
-  // browser always shows /joukkue/:id, never /team/:id.
+  // Public URLs stay Finnish; the App Router folders (src/app/team/[id],
+  // src/app/matches) stay English per project convention. These rewrites are
+  // server-side, so the browser always shows /joukkue/:id and /ottelut,
+  // never /team/:id or /matches.
   async rewrites() {
-    return [{ source: "/joukkue/:id", destination: "/team/:id" }];
+    return [
+      { source: "/joukkue/:id", destination: "/team/:id" },
+      { source: "/ottelut", destination: "/matches" },
+    ];
   },
 };
 

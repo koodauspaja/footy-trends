@@ -6,6 +6,7 @@ import {
   MATCHES_CACHE_TTL_SECONDS,
   normalizeMatch,
   selectActiveSeason,
+  selectUpcomingSeason,
 } from "@/lib/football-data";
 
 const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
@@ -132,6 +133,62 @@ describe("football-data mapping", () => {
     expect(season?.id).toBe(2025);
   });
 
+  it("selects the currentSeason as upcoming when its startDate is in the future", () => {
+    const season = selectUpcomingSeason(
+      { currentSeason: { id: 2500, startDate: "2026-08-15" } },
+      new Date("2026-08-08")
+    );
+
+    expect(season?.id).toBe(2500);
+  });
+
+  it("selects a future season listed only in seasons[]", () => {
+    const season = selectUpcomingSeason(
+      {
+        currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+        seasons: [{ id: 2500, startDate: "2026-08-15" }],
+      },
+      new Date("2026-08-08")
+    );
+
+    expect(season?.id).toBe(2500);
+  });
+
+  it("picks the nearest future season when more than one is listed", () => {
+    const season = selectUpcomingSeason(
+      {
+        seasons: [
+          { id: 2600, startDate: "2027-08-14" },
+          { id: 2500, startDate: "2026-08-15" },
+        ],
+      },
+      new Date("2026-08-08")
+    );
+
+    expect(season?.id).toBe(2500);
+  });
+
+  it("finds no upcoming season when nothing is future-dated", () => {
+    const season = selectUpcomingSeason(
+      { currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" } },
+      new Date("2026-08-08")
+    );
+
+    expect(season).toBeUndefined();
+  });
+
+  it("never treats an undated season as upcoming", () => {
+    const season = selectUpcomingSeason(
+      {
+        currentSeason: { id: 2403, startDate: "2025-08-15" },
+        seasons: [{ id: 2500 }],
+      },
+      new Date("2026-08-08")
+    );
+
+    expect(season).toBeUndefined();
+  });
+
   it("resolves the season identifier as the start year, not the provider season id", async () => {
     getCachedMock.mockResolvedValue({
       currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
@@ -160,6 +217,18 @@ describe("football-data mapping", () => {
       { seasonId: 2024, label: "2024/25" },
       { seasonId: 2023, label: "2023/24" },
     ]);
+  });
+
+  it("includes an already-published upcoming season ahead of the active one", async () => {
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+      seasons: [{ id: 2600, startDate: "2099-08-15" }],
+    });
+
+    const { activeSeasonId, selectableSeasons } = await getSeasonContext();
+
+    expect(activeSeasonId).toBe(2025);
+    expect(selectableSeasons[0]).toEqual({ seasonId: 2099, label: "2099/00" });
   });
 
   it("ignores the provider's unreachable historical seasons when listing selectable ones", async () => {

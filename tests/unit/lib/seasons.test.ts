@@ -47,6 +47,31 @@ describe("listSelectableSeasons", () => {
   it("offers only the active season when the floor equals it", () => {
     expect(listSelectableSeasons(2025, 2025)).toEqual([{ seasonId: 2025, label: "2025/26" }]);
   });
+
+  it("prepends an upcoming season ahead of the active one", () => {
+    expect(listSelectableSeasons(2025, 2023, 2026)).toEqual([
+      { seasonId: 2026, label: "2026/27" },
+      { seasonId: 2025, label: "2025/26" },
+      { seasonId: 2024, label: "2024/25" },
+      { seasonId: 2023, label: "2023/24" },
+    ]);
+  });
+
+  it("does not duplicate the active season when the upcoming season matches it", () => {
+    expect(listSelectableSeasons(2025, 2023, 2025)).toEqual([
+      { seasonId: 2025, label: "2025/26" },
+      { seasonId: 2024, label: "2024/25" },
+      { seasonId: 2023, label: "2023/24" },
+    ]);
+  });
+
+  it("ignores an upcoming season older than the active one", () => {
+    expect(listSelectableSeasons(2025, 2023, 2020)).toEqual([
+      { seasonId: 2025, label: "2025/26" },
+      { seasonId: 2024, label: "2024/25" },
+      { seasonId: 2023, label: "2023/24" },
+    ]);
+  });
 });
 
 describe("parseSeasonParam", () => {

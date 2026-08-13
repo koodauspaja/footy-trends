@@ -227,4 +227,79 @@ describe("standings integration", () => {
     const teamMatches = await getTeamMatches(9003, seasonId, seasonId);
     expect(teamMatches).toEqual({ status: "ok", matches: [expect.objectContaining(upcoming)] });
   });
+
+  it("getRoundMatches filters stored rows to one round, sorted by kickoff time", async () => {
+    const { synchronizeMatches, getRoundMatches } = await import("@/lib/standings-service");
+    await synchronizeMatches([
+      buildMatch({
+        providerMatchId: 900001,
+        matchday: 1,
+        kickoffAt: new Date("2026-08-02T15:00:00Z"),
+      }),
+      buildMatch({
+        providerMatchId: 900002,
+        matchday: 1,
+        kickoffAt: new Date("2026-08-01T15:00:00Z"),
+      }),
+      buildMatch({
+        providerMatchId: 900003,
+        matchday: 2,
+        kickoffAt: new Date("2026-08-09T15:00:00Z"),
+      }),
+    ]);
+
+    const result = await getRoundMatches(seasonId, 1, seasonId);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.round).toBe(1);
+    expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
+      900002, 900001,
+    ]);
+  });
+
+  it("persists and retrieves an upcoming season's fixture list, all unplayed, through the same sync path", async () => {
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    const upcomingMatches = [
+      buildMatch({
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        matchday: 1,
+        kickoffAt: new Date("2026-08-01T15:00:00Z"),
+      }),
+      buildMatch({
+        providerMatchId: 900002,
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        matchday: 2,
+        kickoffAt: new Date("2026-08-08T15:00:00Z"),
+      }),
+    ];
+    vi.mocked(getSeasonMatches).mockResolvedValue(upcomingMatches);
+
+    const { getRoundMatches, getPremierLeagueStandings } = await import("@/lib/standings-service");
+    // The season being requested is newer than the "active" one passed in,
+    // mirroring how a not-yet-started season (widened into the selector by
+    // this spec) is still just an ordinary season sync from the data layer's
+    // point of view — see specs/005-listing-matches-for-selected-season.md.
+    const earlierActiveSeasonId = seasonId - 1;
+
+    const result = await getRoundMatches(seasonId, undefined, earlierActiveSeasonId);
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
+
+    expect(getSeasonMatches).toHaveBeenCalledWith(seasonId);
+    expect(stored).toHaveLength(2);
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.round).toBe(1);
+
+    const standings = await getPremierLeagueStandings({
+      seasonId,
+      activeSeasonId: earlierActiveSeasonId,
+    });
+    expect(standings).toEqual({ status: "empty", standings: [] });
+  });
 });

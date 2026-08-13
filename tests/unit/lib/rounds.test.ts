@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
+import { listSelectableRounds, parseRoundParam, resolveCurrentRound } from "@/lib/rounds";
 
 describe("listSelectableRounds", () => {
   it("lists every round from 1 to the highest known matchday", () => {
@@ -53,5 +53,36 @@ describe("parseRoundParam", () => {
 
   it("rejects any round when no matchday is known for the season", () => {
     expect(parseRoundParam("1", null)).toEqual({ kind: "invalid" });
+  });
+});
+
+describe("resolveCurrentRound", () => {
+  it("returns the matchday of the chronologically earliest unfinished match", () => {
+    const matches = [
+      { status: "SCHEDULED", matchday: 3, kickoffAt: new Date("2025-09-15") },
+      { status: "SCHEDULED", matchday: 2, kickoffAt: new Date("2025-09-08") },
+      { status: "FINISHED", matchday: 1, kickoffAt: new Date("2025-09-01") },
+    ];
+
+    expect(resolveCurrentRound(matches, 3)).toBe(2);
+  });
+
+  it("returns the highest matchday when every match is finished", () => {
+    const matches = [
+      { status: "FINISHED", matchday: 1, kickoffAt: new Date("2025-09-01") },
+      { status: "FINISHED", matchday: 2, kickoffAt: new Date("2025-09-08") },
+    ];
+
+    expect(resolveCurrentRound(matches, 2)).toBe(2);
+  });
+
+  it("ignores a chronologically earlier match with no known matchday", () => {
+    const matches = [
+      { status: "SCHEDULED", matchday: null, kickoffAt: new Date("2025-09-01") },
+      { status: "SCHEDULED", matchday: 2, kickoffAt: new Date("2025-09-08") },
+      { status: "FINISHED", matchday: 1, kickoffAt: new Date("2025-08-25") },
+    ];
+
+    expect(resolveCurrentRound(matches, 2)).toBe(2);
   });
 });
