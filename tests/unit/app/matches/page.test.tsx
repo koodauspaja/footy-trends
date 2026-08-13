@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { RoundMatchesResult } from "@/lib/standings-service";
@@ -95,9 +95,12 @@ describe("Matches page", () => {
   it("shows a score for a finished match and a dash for an unplayed one", async () => {
     await renderMatchesPage();
 
-    const cells = screen.getAllByRole("cell");
-    expect(cells[2]).toHaveTextContent("2–1");
-    expect(cells[5]).toHaveTextContent("–");
+    const finishedRow = screen.getByText("Arsenal FC").closest("tr");
+    const unplayedRow = screen.getByText("Liverpool FC").closest("tr");
+    if (!finishedRow || !unplayedRow) throw new Error("Expected both match rows to exist");
+
+    expect(within(finishedRow).getAllByRole("cell").at(-1)).toHaveTextContent("2–1");
+    expect(within(unplayedRow).getAllByRole("cell").at(-1)).toHaveTextContent("–");
   });
 
   it("links both team names in a row to their team page for the same season", async () => {

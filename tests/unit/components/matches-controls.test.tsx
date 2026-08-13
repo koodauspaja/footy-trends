@@ -50,6 +50,28 @@ describe("MatchesControls", () => {
     ).toEqual(["Kierros 1", "Kierros 2", "Kierros 3"]);
   });
 
+  it("reflects a round prop change from outside the select, e.g. the page's prev/next links", () => {
+    const { rerender } = render(
+      <MatchesControls
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={1}
+      />
+    );
+
+    rerender(
+      <MatchesControls
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={2}
+      />
+    );
+
+    expect(screen.getByLabelText("Kierros")).toHaveValue("2");
+  });
+
   it("omits the round select when no round is known yet", () => {
     render(
       <MatchesControls
