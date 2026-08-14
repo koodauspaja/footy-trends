@@ -21,38 +21,67 @@ describe("TeamSeasonSelector", () => {
   });
 
   it("labels the control in Finnish and preselects the current season", () => {
-    render(<TeamSeasonSelector teamProviderId={1} seasons={seasons} selectedSeasonId={2024} />);
+    render(
+      <TeamSeasonSelector
+        teamProviderId={1}
+        competitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2024}
+      />
+    );
 
     expect(screen.getByLabelText("Kausi")).toHaveValue("2024");
   });
 
-  it("navigates to the same team's page for the chosen season", () => {
-    render(<TeamSeasonSelector teamProviderId={57} seasons={seasons} selectedSeasonId={2025} />);
+  it("navigates to the same team's page for the chosen season, carrying the competition", () => {
+    render(
+      <TeamSeasonSelector
+        teamProviderId={57}
+        competitionCode="BL1"
+        seasons={seasons}
+        selectedSeasonId={2025}
+      />
+    );
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2023" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/joukkue/57?kausi=2023");
+    expect(pushMock).toHaveBeenCalledWith("/joukkue/57?kilpailu=BL1&kausi=2023");
   });
 
   it("preserves unrelated query params already in the URL", () => {
-    window.history.pushState({}, "", "/joukkue/57?kausi=2025&utm_source=newsletter");
+    window.history.pushState({}, "", "/joukkue/57?kilpailu=PL&kausi=2025&utm_source=newsletter");
 
-    render(<TeamSeasonSelector teamProviderId={57} seasons={seasons} selectedSeasonId={2025} />);
+    render(
+      <TeamSeasonSelector
+        teamProviderId={57}
+        competitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2025}
+      />
+    );
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2024" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/joukkue/57?kausi=2024&utm_source=newsletter");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/joukkue/57?kilpailu=PL&kausi=2024&utm_source=newsletter"
+    );
   });
 
-  it("submits as a plain GET form targeting the public /joukkue/:id URL, so it works without scripting", () => {
+  it("submits as a plain GET form targeting the public /joukkue/:id URL, carrying kilpailu via a hidden field", () => {
     const { container } = render(
-      <TeamSeasonSelector teamProviderId={57} seasons={seasons} selectedSeasonId={2025} />
+      <TeamSeasonSelector
+        teamProviderId={57}
+        competitionCode="BL1"
+        seasons={seasons}
+        selectedSeasonId={2025}
+      />
     );
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
     expect(form).toHaveAttribute("action", "/joukkue/57");
     expect(screen.getByLabelText("Kausi")).toHaveAttribute("name", "kausi");
+    expect(form?.querySelector('input[type="hidden"][name="kilpailu"]')).toHaveValue("BL1");
     expect(container.querySelector("noscript")).not.toBeNull();
   });
 });

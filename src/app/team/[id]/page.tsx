@@ -1,5 +1,10 @@
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
+import {
+  DEFAULT_COMPETITION_CODE,
+  getCompetitionName,
+  parseCompetitionParam,
+} from "@/lib/competitions";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
@@ -7,8 +12,6 @@ import { getTeamMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
-const COMPETITION_CODE = "PL";
-const BASE_HEADING = "Joukkueen ottelut";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -25,11 +28,11 @@ type TeamPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolveSeasonContext(): Promise<SeasonContext | null> {
+async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
   try {
-    return await getSeasonContext(COMPETITION_CODE);
+    return await getSeasonContext(competitionCode);
   } catch (error) {
-    logger.error({ err: error }, "Unable to resolve the selectable seasons");
+    logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
     return null;
   }
 }
@@ -38,23 +41,28 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
   const { id } = await params;
   const teamProviderId = Number(id);
 
-  const context = await resolveSeasonContext();
+  const resolvedParams = (await searchParams) ?? {};
+  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
+  const competitionCode =
+    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
+  const competitionName = getCompetitionName(competitionCode);
+
+  const context = await resolveSeasonContext(competitionCode);
   if (context === null) {
     return (
-      <PageShell heading={BASE_HEADING}>
+      <PageShell heading={competitionName}>
         <p>{ERROR_MESSAGE}</p>
       </PageShell>
     );
   }
 
-  const resolvedParams = (await searchParams) ?? {};
   const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
 
   const result = Number.isNaN(teamProviderId)
     ? ({ status: "not_found" } as const)
-    : await getTeamMatches(COMPETITION_CODE, teamProviderId, seasonId, context.activeSeasonId);
+    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
 
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName =
@@ -63,10 +71,19 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
       : firstMatch.homeTeamProviderId === teamProviderId
         ? firstMatch.homeTeamName
         : firstMatch.awayTeamName;
-  const heading = teamName !== null ? `${teamName} ${seasonLabel}` : BASE_HEADING;
+  const heading =
+    teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 
   return (
     <PageShell heading={heading}>
+      {competitionParam.kind === "invalid" && (
+        <p
+          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
+        </p>
+      )}
       {season.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
@@ -78,6 +95,7 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
       {!Number.isNaN(teamProviderId) && (
         <TeamSeasonSelector
           teamProviderId={teamProviderId}
+          competitionCode={competitionCode}
           seasons={context.selectableSeasons}
           selectedSeasonId={seasonId}
         />

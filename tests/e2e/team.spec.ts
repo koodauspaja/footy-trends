@@ -4,7 +4,7 @@ test.describe("Team match list", () => {
   test("clicking a team name navigates to its team page and shows the match list", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/sarjataulukko");
 
     const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
     const teamName = await firstTeamLink.textContent();
