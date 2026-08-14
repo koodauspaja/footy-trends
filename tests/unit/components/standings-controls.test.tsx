@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SeasonRoundSelector } from "@/components/season-round-selector";
+import { StandingsControls } from "@/components/standings-controls";
 
 const pushMock = vi.fn();
 
@@ -8,21 +8,38 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
+const competitions = [
+  {
+    code: "PL",
+    name: "Valioliiga",
+    flagUrl: "https://crests.football-data.org/770.svg",
+    country: "Englanti",
+  },
+  {
+    code: "BL1",
+    name: "Bundesliga",
+    flagUrl: "https://crests.football-data.org/759.svg",
+    country: "Saksa",
+  },
+];
+
 const seasons = [
   { seasonId: 2025, label: "2025/26" },
   { seasonId: 2024, label: "2024/25" },
   { seasonId: 2023, label: "2023/24" },
 ];
 
-describe("SeasonRoundSelector", () => {
+describe("StandingsControls", () => {
   beforeEach(() => {
     pushMock.mockReset();
-    window.history.pushState({}, "", "/");
+    window.history.pushState({}, "", "/sarjataulukko");
   });
 
-  it("labels both controls in Finnish and associates them with their selects", () => {
+  it("labels all three controls in Finnish and associates them with their selects", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -30,13 +47,16 @@ describe("SeasonRoundSelector", () => {
       />
     );
 
-    expect(screen.getByLabelText("Kausi")).toBe(screen.getAllByRole("combobox")[0]);
-    expect(screen.getByLabelText("Kierros")).toBe(screen.getAllByRole("combobox")[1]);
+    expect(screen.getByLabelText("Kilpailu")).toBe(screen.getAllByRole("combobox")[0]);
+    expect(screen.getByLabelText("Kausi")).toBe(screen.getAllByRole("combobox")[1]);
+    expect(screen.getByLabelText("Kierros")).toBe(screen.getAllByRole("combobox")[2]);
   });
 
   it("lists the seasons newest first", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[]}
@@ -54,7 +74,9 @@ describe("SeasonRoundSelector", () => {
 
   it("lists rounds 1..N with a whole-season option first", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -70,9 +92,11 @@ describe("SeasonRoundSelector", () => {
     ).toEqual(["Koko kausi", "Kierros 1", "Kierros 2", "Kierros 3"]);
   });
 
-  it("preselects the current season and round", () => {
+  it("preselects the current competition, season, and round", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="BL1"
         seasons={seasons}
         selectedSeasonId={2024}
         availableRounds={[1, 2, 3]}
@@ -80,13 +104,16 @@ describe("SeasonRoundSelector", () => {
       />
     );
 
+    expect(screen.getByLabelText("Kilpailu")).toHaveValue("BL1");
     expect(screen.getByLabelText("Kausi")).toHaveValue("2024");
     expect(screen.getByLabelText("Kierros")).toHaveValue("2");
   });
 
   it("preselects the whole-season option when no round is selected", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -97,9 +124,28 @@ describe("SeasonRoundSelector", () => {
     expect(screen.getByLabelText("Kierros")).toHaveValue("");
   });
 
-  it("navigates to the chosen season, keeping the current round", () => {
+  it("navigates to the chosen competition, keeping the current season and round", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={2}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Kilpailu"), { target: { value: "BL1" } });
+
+    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=BL1&kausi=2025&kierros=2");
+  });
+
+  it("navigates to the chosen season, keeping the current competition and round", () => {
+    render(
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -109,12 +155,14 @@ describe("SeasonRoundSelector", () => {
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2023" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/?kausi=2023&kierros=2");
+    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2023&kierros=2");
   });
 
-  it("navigates to the chosen round, keeping the current season", () => {
+  it("navigates to the chosen round, keeping the current competition and season", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -124,14 +172,16 @@ describe("SeasonRoundSelector", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "3" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/?kausi=2025&kierros=3");
+    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2025&kierros=3");
   });
 
   it("preserves unrelated query params already in the URL", () => {
-    window.history.pushState({}, "", "/?kausi=2025&utm_source=newsletter");
+    window.history.pushState({}, "", "/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter");
 
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -141,12 +191,16 @@ describe("SeasonRoundSelector", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "2" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/?kausi=2025&utm_source=newsletter&kierros=2");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter&kierros=2"
+    );
   });
 
   it("clears the round param when switching back to whole season", () => {
     render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -156,12 +210,14 @@ describe("SeasonRoundSelector", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/?kausi=2025");
+    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2025");
   });
 
   it("submits as a plain GET form so it works without scripting", () => {
     const { container } = render(
-      <SeasonRoundSelector
+      <StandingsControls
+        competitions={competitions}
+        selectedCompetitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
         availableRounds={[1, 2, 3]}
@@ -171,7 +227,8 @@ describe("SeasonRoundSelector", () => {
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
-    expect(form).toHaveAttribute("action", "/");
+    expect(form).toHaveAttribute("action", "/sarjataulukko");
+    expect(screen.getByLabelText("Kilpailu")).toHaveAttribute("name", "kilpailu");
     expect(screen.getByLabelText("Kausi")).toHaveAttribute("name", "kausi");
     expect(screen.getByLabelText("Kierros")).toHaveAttribute("name", "kierros");
     expect(container.querySelector("noscript")).not.toBeNull();

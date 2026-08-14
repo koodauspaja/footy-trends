@@ -6,6 +6,7 @@ import { RoundSelect } from "./round-select";
 import { SeasonSelect } from "./season-select";
 
 type MatchesControlsProps = {
+  competitionCode: string;
   seasons: SeasonOption[];
   selectedSeasonId: number;
   availableRounds: number[];
@@ -15,12 +16,15 @@ type MatchesControlsProps = {
 /**
  * Season + round selector for the season-wide match list at `/ottelut`.
  * Plain GET form so both selections still work without JavaScript, same
- * pattern as `SeasonRoundSelector` on the home page. The round select is
+ * pattern as `StandingsControls` on the standings page. The round select is
  * only rendered once a round is actually known — see the "known
  * limitation" note in specs/005-listing-matches-for-selected-season.md for
  * why that can briefly be absent right after a season's first sync.
+ * Carries `kilpailu` forward via a hidden field — there's no competition
+ * selector on this page (see specs/006-other-competitions.md).
  */
 export function MatchesControls({
+  competitionCode,
   seasons,
   selectedSeasonId,
   availableRounds,
@@ -30,6 +34,7 @@ export function MatchesControls({
 
   function navigate(seasonId: number, round: number | undefined) {
     const params = new URLSearchParams(window.location.search);
+    params.set("kilpailu", competitionCode);
     params.set("kausi", String(seasonId));
     if (round === undefined) {
       params.delete("kierros");
@@ -41,6 +46,7 @@ export function MatchesControls({
 
   return (
     <form action="/ottelut" method="get" className="mb-6 flex flex-wrap items-center gap-3">
+      <input type="hidden" name="kilpailu" value={competitionCode} />
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}

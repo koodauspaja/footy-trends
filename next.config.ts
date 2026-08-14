@@ -3,13 +3,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Public URLs stay Finnish; the App Router folders (src/app/team/[id],
-  // src/app/matches) stay English per project convention. These rewrites are
-  // server-side, so the browser always shows /joukkue/:id and /ottelut,
-  // never /team/:id or /matches.
+  // src/app/matches, src/app/standings) stay English per project
+  // convention. These rewrites are server-side, so the browser always shows
+  // /joukkue/:id, /ottelut, and /sarjataulukko, never /team/:id, /matches,
+  // or /standings.
   async rewrites() {
     return [
       { source: "/joukkue/:id", destination: "/team/:id" },
       { source: "/ottelut", destination: "/matches" },
+      { source: "/sarjataulukko", destination: "/standings" },
     ];
   },
 };
