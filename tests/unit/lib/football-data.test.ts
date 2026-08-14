@@ -43,7 +43,8 @@ describe("football-data mapping", () => {
         awayTeam: { id: 61, name: "Chelsea FC" },
         score: { fullTime: { home: 2, away: 1 } },
       },
-      2026
+      2026,
+      "PL"
     );
 
     expect(result).toMatchObject({
@@ -56,6 +57,24 @@ describe("football-data mapping", () => {
     });
   });
 
+  it("stamps the match with whichever competition code it was requested for", () => {
+    const result = normalizeMatch(
+      {
+        id: 123,
+        utcDate: "2026-08-15T14:00:00Z",
+        status: "FINISHED",
+        matchday: 1,
+        homeTeam: { id: 57, name: "Arsenal FC" },
+        awayTeam: { id: 61, name: "Chelsea FC" },
+        score: { fullTime: { home: 2, away: 1 } },
+      },
+      2026,
+      "BL1"
+    );
+
+    expect(result).toMatchObject({ competitionCode: "BL1" });
+  });
+
   it("maps a not-yet-played match to null goals instead of rejecting it", () => {
     const result = normalizeMatch(
       {
@@ -66,7 +85,8 @@ describe("football-data mapping", () => {
         homeTeam: { id: 57, name: "Arsenal FC" },
         awayTeam: { id: 61, name: "Chelsea FC" },
       },
-      2026
+      2026,
+      "PL"
     );
 
     expect(result).toMatchObject({
@@ -78,11 +98,11 @@ describe("football-data mapping", () => {
   });
 
   it("rejects matches missing required fields, regardless of status", () => {
-    expect(normalizeMatch({ status: "FINISHED" }, 2026)).toBeNull();
-    expect(normalizeMatch({ id: 1 }, 2026)).toBeNull();
-    expect(normalizeMatch({ id: 1, status: "FINISHED" }, 2026)).toBeNull();
+    expect(normalizeMatch({ status: "FINISHED" }, 2026, "PL")).toBeNull();
+    expect(normalizeMatch({ id: 1 }, 2026, "PL")).toBeNull();
+    expect(normalizeMatch({ id: 1, status: "FINISHED" }, 2026, "PL")).toBeNull();
     expect(
-      normalizeMatch({ id: 1, status: "FINISHED", utcDate: "2026-08-15T14:00:00Z" }, 2026)
+      normalizeMatch({ id: 1, status: "FINISHED", utcDate: "2026-08-15T14:00:00Z" }, 2026, "PL")
     ).toBeNull();
     expect(
       normalizeMatch(
@@ -92,7 +112,8 @@ describe("football-data mapping", () => {
           utcDate: "2026-08-15T14:00:00Z",
           homeTeam: { id: 57, name: "Arsenal FC" },
         },
-        2026
+        2026,
+        "PL"
       )
     ).toBeNull();
   });
@@ -194,7 +215,7 @@ describe("football-data mapping", () => {
       currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
     });
 
-    const { activeSeasonId } = await getSeasonContext();
+    const { activeSeasonId } = await getSeasonContext("PL");
 
     expect(activeSeasonId).toBe(2025);
     expect(getCachedMock).toHaveBeenCalledWith(
@@ -204,13 +225,23 @@ describe("football-data mapping", () => {
     );
   });
 
+  it("caches each competition's context under its own key", async () => {
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+    });
+
+    await getSeasonContext("BL1");
+
+    expect(getCachedMock.mock.calls[0]?.[0]).toBe("football-data:competition:BL1:v2");
+  });
+
   it("bounds the selectable seasons by the configured floor", async () => {
     vi.stubEnv("FOOTBALL_DATA_EARLIEST_SEASON", "2023");
     getCachedMock.mockResolvedValue({
       currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
     });
 
-    const { selectableSeasons } = await getSeasonContext();
+    const { selectableSeasons } = await getSeasonContext("PL");
 
     expect(selectableSeasons).toEqual([
       { seasonId: 2025, label: "2025/26" },
@@ -225,7 +256,7 @@ describe("football-data mapping", () => {
       seasons: [{ id: 2600, startDate: "2099-08-15" }],
     });
 
-    const { activeSeasonId, selectableSeasons } = await getSeasonContext();
+    const { activeSeasonId, selectableSeasons } = await getSeasonContext("PL");
 
     expect(activeSeasonId).toBe(2025);
     expect(selectableSeasons[0]).toEqual({ seasonId: 2099, label: "2099/00" });
@@ -241,7 +272,7 @@ describe("football-data mapping", () => {
       ],
     });
 
-    const { selectableSeasons } = await getSeasonContext();
+    const { selectableSeasons } = await getSeasonContext("PL");
 
     expect(selectableSeasons.map((season) => season.seasonId)).toEqual([2025, 2024]);
   });
@@ -249,7 +280,7 @@ describe("football-data mapping", () => {
   it("rejects when the provider has no resolvable season", async () => {
     getCachedMock.mockResolvedValue({});
 
-    await expect(getSeasonContext()).rejects.toThrow(
+    await expect(getSeasonContext("PL")).rejects.toThrow(
       "Football data response has no current season"
     );
   });
@@ -257,18 +288,20 @@ describe("football-data mapping", () => {
   it("treats a response with no matches field as no matches", async () => {
     getCachedMock.mockResolvedValue({});
 
-    await expect(getSeasonMatches(2025)).resolves.toEqual([]);
+    await expect(getSeasonMatches("PL", 2025)).resolves.toEqual([]);
   });
 
-  it("caches each season's matches under its own key", async () => {
+  it("caches each season's matches under its own key, scoped by competition", async () => {
     getCachedMock.mockResolvedValue({ matches: [] });
 
-    await getSeasonMatches(2024);
-    await getSeasonMatches(2023);
+    await getSeasonMatches("PL", 2024);
+    await getSeasonMatches("PL", 2023);
+    await getSeasonMatches("BL1", 2024);
 
     expect(getCachedMock.mock.calls.map(([key]) => key)).toEqual([
       "football-data:matches:PL:2024",
       "football-data:matches:PL:2023",
+      "football-data:matches:BL1:2024",
     ]);
   });
 
@@ -294,7 +327,7 @@ describe("football-data mapping", () => {
       ],
     });
 
-    const result = await getSeasonMatches(2025);
+    const result = await getSeasonMatches("PL", 2025);
 
     expect(getCachedMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -343,7 +376,7 @@ describe("football-data mapping", () => {
     vi.stubGlobal("fetch", fetchMock);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await getSeasonContext();
+    await getSeasonContext("PL");
 
     expect(fetchMock).toHaveBeenCalledWith("https://api.football-data.org/v4/competitions/PL", {
       headers: { "X-Auth-Token": "test-api-key" },
@@ -359,7 +392,7 @@ describe("football-data mapping", () => {
     process.env.FOOTBALL_DATA_API_KEY = "";
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await expect(getSeasonContext()).rejects.toThrow("FOOTBALL_DATA_API_KEY is not configured");
+    await expect(getSeasonContext("PL")).rejects.toThrow("FOOTBALL_DATA_API_KEY is not configured");
   });
 
   it("logs and throws when the provider request fails", async () => {
@@ -367,7 +400,7 @@ describe("football-data mapping", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await expect(getSeasonContext()).rejects.toThrow("Football data request failed: 500");
+    await expect(getSeasonContext("PL")).rejects.toThrow("Football data request failed: 500");
     expect(loggerErrorMock).toHaveBeenCalledWith(
       { method: "GET", path: "/competitions/PL", status: 500, durationMs: expect.any(Number) },
       "Football data request failed"
@@ -381,7 +414,7 @@ describe("football-data mapping", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await expect(getSeasonContext()).rejects.toThrow("network unreachable");
+    await expect(getSeasonContext("PL")).rejects.toThrow("network unreachable");
     expect(loggerErrorMock).toHaveBeenCalledWith(
       {
         err: networkError,
@@ -400,10 +433,24 @@ describe("football-data mapping", () => {
     vi.stubGlobal("fetch", fetchMock);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    await getSeasonMatches(2025);
+    await getSeasonMatches("PL", 2025);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.football-data.org/v4/competitions/PL/matches?season=2025",
+      { headers: { "X-Auth-Token": "test-api-key" } }
+    );
+  });
+
+  it("requests a non-PL competition's matches from its own path", async () => {
+    vi.stubEnv("FOOTBALL_DATA_API_KEY", "test-api-key");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    await getSeasonMatches("BL1", 2025);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.football-data.org/v4/competitions/BL1/matches?season=2025",
       { headers: { "X-Auth-Token": "test-api-key" } }
     );
   });

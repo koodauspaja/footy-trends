@@ -76,11 +76,11 @@ export type SeasonContext = {
  * selectable list: it advertises seasons back to 1888 that the API plan rejects
  * with 403. See specs/002-season-selector-and-backfill.md.
  */
-export async function getSeasonContext(): Promise<SeasonContext> {
+export async function getSeasonContext(competitionCode: string): Promise<SeasonContext> {
   const competition = await getCached<CompetitionResponse>(
-    "football-data:competition:PL:v2",
+    `football-data:competition:${competitionCode}:v2`,
     COMPETITION_CACHE_TTL_SECONDS,
-    () => request<CompetitionResponse>("/competitions/PL")
+    () => request<CompetitionResponse>(`/competitions/${competitionCode}`)
   );
   const now = new Date();
   const startDate = selectActiveSeason(competition, now)?.startDate;
@@ -136,14 +136,17 @@ export function selectUpcomingSeason(
 }
 
 /** Returns every match for the season regardless of status — played and upcoming alike. */
-export async function getSeasonMatches(seasonId: number): Promise<NormalizedProviderMatch[]> {
+export async function getSeasonMatches(
+  competitionCode: string,
+  seasonId: number
+): Promise<NormalizedProviderMatch[]> {
   const response = await getCached<MatchesResponse>(
-    `football-data:matches:PL:${seasonId}`,
+    `football-data:matches:${competitionCode}:${seasonId}`,
     MATCHES_CACHE_TTL_SECONDS,
-    () => request<MatchesResponse>(`/competitions/PL/matches?season=${seasonId}`)
+    () => request<MatchesResponse>(`/competitions/${competitionCode}/matches?season=${seasonId}`)
   );
   return (response.matches ?? []).flatMap((match) => {
-    const normalized = normalizeMatch(match, seasonId);
+    const normalized = normalizeMatch(match, seasonId, competitionCode);
     return normalized ? [normalized] : [];
   });
 }
@@ -169,7 +172,8 @@ export type NormalizedProviderMatch = {
 
 export function normalizeMatch(
   match: ProviderMatch,
-  seasonId: number
+  seasonId: number,
+  competitionCode: string
 ): NormalizedProviderMatch | null {
   if (
     match.id === undefined ||
@@ -184,7 +188,7 @@ export function normalizeMatch(
 
   return {
     providerMatchId: match.id,
-    competitionCode: "PL",
+    competitionCode,
     seasonId,
     status: match.status,
     kickoffAt: new Date(match.utcDate),

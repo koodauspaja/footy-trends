@@ -7,7 +7,6 @@ import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./standings";
 
-const COMPETITION_CODE = "PL";
 const FINISHED_STATUS = "FINISHED";
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
@@ -23,6 +22,8 @@ export type StandingsResult =
   | { status: "error"; standings: [] };
 
 export type StandingsRequest = {
+  /** Which competition to show standings for. */
+  competitionCode: string;
   /** The season to show. Must already be validated against the selectable seasons. */
   seasonId: number;
   /** The newest started season, used to decide whether `seasonId` is still being played. */
@@ -75,7 +76,7 @@ type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
 
 /**
  * Reads a season's stored matches and refreshes them from the provider when
- * stale, per `needsRefresh`. Shared by `getPremierLeagueStandings` and
+ * stale, per `needsRefresh`. Shared by `getStandings` and
  * `getTeamMatches` so both see the same season data through one sync path —
  * see specs/004-listing-matches-for-selected-team.md.
  *
@@ -85,13 +86,14 @@ type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
  * error result.
  */
 async function getSyncedSeasonMatches(
+  competitionCode: string,
   seasonId: number,
   activeSeasonId: number
 ): Promise<SyncedSeasonMatches> {
   const storedMatches = await db
     .select()
     .from(matches)
-    .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)))
+    .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)))
     .orderBy(desc(matches.updatedAt));
 
   if (!needsRefresh(seasonId, activeSeasonId, storedMatches)) {
@@ -99,28 +101,33 @@ async function getSyncedSeasonMatches(
   }
 
   try {
-    const providerMatches = await getSeasonMatches(seasonId);
+    const providerMatches = await getSeasonMatches(competitionCode, seasonId);
     await synchronizeMatches(providerMatches);
     return { matches: providerMatches, refreshFailed: false };
   } catch (error) {
-    logger.warn({ err: error, seasonId }, "Premier League refresh failed; using stored matches");
+    logger.warn(
+      { err: error, competitionCode, seasonId },
+      "Competition refresh failed; using stored matches"
+    );
     return { matches: storedMatches, refreshFailed: true };
   }
 }
 
-export async function getPremierLeagueStandings({
+export async function getStandings({
+  competitionCode,
   seasonId,
   activeSeasonId,
   round,
 }: StandingsRequest): Promise<StandingsResult> {
   try {
-    const cacheKey = `standings:${COMPETITION_CODE}:${seasonId}`;
+    const cacheKey = `standings:${competitionCode}:${seasonId}`;
     if (round === undefined) {
       const cached = await readCachedStandings(cacheKey);
       if (cached) return toResult(cached);
     }
 
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
       seasonId,
       activeSeasonId
     );
@@ -136,7 +143,7 @@ export async function getPremierLeagueStandings({
     if (round === undefined && !refreshFailed) await writeCachedStandings(cacheKey, standings);
     return { status: "ok", standings };
   } catch (error) {
-    logger.error({ err: error, seasonId }, "Unable to load Premier League standings");
+    logger.error({ err: error, competitionCode, seasonId }, "Unable to load standings");
     return { status: "error", standings: [] };
   }
 }
@@ -149,12 +156,14 @@ export async function getPremierLeagueStandings({
  * report `"not_found"`).
  */
 export async function getTeamMatches(
+  competitionCode: string,
   teamProviderId: number,
   seasonId: number,
   activeSeasonId: number
 ): Promise<TeamMatchesResult> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
       seasonId,
       activeSeasonId
     );
@@ -173,24 +182,29 @@ export async function getTeamMatches(
     if (teamMatches.length === 0) return { status: "not_found" };
     return { status: "ok", matches: teamMatches };
   } catch (error) {
-    logger.error({ err: error, seasonId, teamProviderId }, "Unable to load team matches");
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to load team matches"
+    );
     return { status: "error" };
   }
 }
 
 /**
  * Every match for one round (matchday) of a season, all teams — shares the
- * same sync path as `getPremierLeagueStandings` and `getTeamMatches`. When
+ * same sync path as `getStandings` and `getTeamMatches`. When
  * `round` is `undefined`, resolves and returns the season's current round
  * instead of requiring the caller to already know it.
  */
 export async function getRoundMatches(
+  competitionCode: string,
   seasonId: number,
   round: number | undefined,
   activeSeasonId: number
 ): Promise<RoundMatchesResult> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
       seasonId,
       activeSeasonId
     );
@@ -212,17 +226,20 @@ export async function getRoundMatches(
 
     return { status: "ok", round: resolvedRound, matches: roundMatches };
   } catch (error) {
-    logger.error({ err: error, seasonId, round }, "Unable to load round matches");
+    logger.error({ err: error, competitionCode, seasonId, round }, "Unable to load round matches");
     return { status: "error" };
   }
 }
 
 /** The highest matchday with at least one stored match for the season, or null if none. */
-export async function getMaxMatchday(seasonId: number): Promise<number | null> {
+export async function getMaxMatchday(
+  competitionCode: string,
+  seasonId: number
+): Promise<number | null> {
   const [row] = await db
     .select({ maxMatchday: sql<number | null>`max(${matches.matchday})` })
     .from(matches)
-    .where(and(eq(matches.competitionCode, COMPETITION_CODE), eq(matches.seasonId, seasonId)));
+    .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
   return row?.maxMatchday ?? null;
 }
 

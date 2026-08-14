@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { MatchesControls } from "@/components/matches-controls";
 import { PageShell } from "@/components/page-shell";
+import {
+  DEFAULT_COMPETITION_CODE,
+  getCompetitionName,
+  parseCompetitionParam,
+} from "@/lib/competitions";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
@@ -9,7 +14,6 @@ import { getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
-const BASE_HEADING = "Ottelut";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 
@@ -24,44 +28,62 @@ type MatchesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolveSeasonContext(): Promise<SeasonContext | null> {
+async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
   try {
-    return await getSeasonContext();
+    return await getSeasonContext(competitionCode);
   } catch (error) {
-    logger.error({ err: error }, "Unable to resolve the selectable seasons");
+    logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
     return null;
   }
 }
 
 export default async function MatchesPage({ searchParams }: MatchesPageProps) {
-  const context = await resolveSeasonContext();
+  const params = (await searchParams) ?? {};
+  const competitionParam = parseCompetitionParam(params.kilpailu);
+  const competitionCode =
+    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
+  const competitionName = getCompetitionName(competitionCode);
+
+  const context = await resolveSeasonContext(competitionCode);
   if (context === null) {
     return (
-      <PageShell heading={BASE_HEADING}>
+      <PageShell heading={competitionName}>
         <p>{ERROR_MESSAGE}</p>
       </PageShell>
     );
   }
 
-  const params = (await searchParams) ?? {};
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
 
-  const maxMatchday = await getMaxMatchday(seasonId);
+  const maxMatchday = await getMaxMatchday(competitionCode, seasonId);
   const roundParam = parseRoundParam(params.kierros, maxMatchday);
   const requestedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
   const availableRounds = listSelectableRounds(maxMatchday);
 
-  const result = await getRoundMatches(seasonId, requestedRound, context.activeSeasonId);
+  const result = await getRoundMatches(
+    competitionCode,
+    seasonId,
+    requestedRound,
+    context.activeSeasonId
+  );
 
   const heading =
     result.status === "ok"
-      ? `${BASE_HEADING} ${seasonLabel}, kierros ${result.round}`
-      : BASE_HEADING;
+      ? `${competitionName} ${seasonLabel}, kierros ${result.round}`
+      : competitionName;
 
   return (
     <PageShell heading={heading}>
+      {competitionParam.kind === "invalid" && (
+        <p
+          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
+        </p>
+      )}
       {season.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
@@ -79,6 +101,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
         </p>
       )}
       <MatchesControls
+        competitionCode={competitionCode}
         seasons={context.selectableSeasons}
         selectedSeasonId={seasonId}
         availableRounds={availableRounds}
@@ -89,7 +112,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
           {result.round > 1 && (
             <Link
               className="hover:underline"
-              href={`/ottelut?kausi=${seasonId}&kierros=${result.round - 1}`}
+              href={`/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round - 1}`}
             >
               ◀ Edellinen kierros
             </Link>
@@ -97,7 +120,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
           {result.round < maxMatchday && (
             <Link
               className="hover:underline"
-              href={`/ottelut?kausi=${seasonId}&kierros=${result.round + 1}`}
+              href={`/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round + 1}`}
             >
               Seuraava kierros ▶
             </Link>
@@ -124,14 +147,14 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
                   <td className="p-3">
                     <Link
                       className="hover:underline"
-                      href={`/joukkue/${match.homeTeamProviderId}?kausi=${seasonId}`}
+                      href={`/joukkue/${match.homeTeamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`}
                     >
                       {match.homeTeamName}
                     </Link>
                     {" – "}
                     <Link
                       className="hover:underline"
-                      href={`/joukkue/${match.awayTeamProviderId}?kausi=${seasonId}`}
+                      href={`/joukkue/${match.awayTeamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`}
                     >
                       {match.awayTeamName}
                     </Link>

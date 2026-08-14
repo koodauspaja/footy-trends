@@ -31,14 +31,18 @@ fallback banners) rather than specific team names or scores — the real
 season's data changes over time, so hardcoding exact content would make
 these tests brittle:
 
-- `home.spec.ts` — standings table loads for the default season; the
+- `picker.spec.ts` — the competition picker at `/` lists competitions and
+  navigates to the chosen one's standings page.
+- `standings.spec.ts` — `/sarjataulukko` loads the standings table for the
+  default season and for a different competition (`kilpailu`); the
   `Kierros` selector narrows standings and updates the URL; invalid
   `kausi`/`kierros` show their Finnish fallback banners.
 - `team.spec.ts` — clicking a team name navigates to `/joukkue/:id` and
   shows its match list; an unknown team id shows the not-found state.
 - `matches.spec.ts` — `/ottelut` shows the current round and round
-  navigation works; a team name links back to `/joukkue/:id`; an invalid
-  `kierros` shows its fallback banner.
+  navigation works for both the default and a different competition; a
+  team name links back to `/joukkue/:id`; an invalid `kierros` shows its
+  fallback banner.
 
 ## Not covered here
 

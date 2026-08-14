@@ -164,32 +164,52 @@ describe("Team page", () => {
     expect(cells[cells.length - 1]).toHaveTextContent("");
   });
 
-  it("defaults to the active season when searchParams is not provided at all", async () => {
+  it("defaults to Premier League and the active season when searchParams is not provided at all", async () => {
     const { default: TeamPage } = await import("@/app/team/[id]/page");
     render(await TeamPage({ params: Promise.resolve({ id: "1" }) }));
 
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getSeasonContextMock).toHaveBeenCalledWith("PL");
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
-  it("renders the season selector and calls getTeamMatches with the resolved season", async () => {
-    await renderTeamPage("1", { kausi: "2024" });
+  it("renders the season selector and calls getTeamMatches with the resolved competition and season", async () => {
+    await renderTeamPage("1", { kilpailu: "BL1", kausi: "2024" });
 
     expect(screen.getByLabelText("Kausi")).toHaveValue("2024");
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2024, 2025);
+    expect(getSeasonContextMock).toHaveBeenCalledWith("BL1");
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("BL1", 1, 2024, 2025);
   });
 
-  it("submits the season selector as a plain GET form targeting the public /joukkue/:id URL", async () => {
-    const { container } = await renderTeamPage("1");
+  it("submits the season selector as a plain GET form targeting the public /joukkue/:id URL, carrying kilpailu", async () => {
+    const { container } = await renderTeamPage("1", { kilpailu: "BL1" });
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
     expect(form).toHaveAttribute("action", "/joukkue/1");
+    expect(form?.querySelector('input[type="hidden"][name="kilpailu"]')).toHaveValue("BL1");
+  });
+
+  it("defaults to Premier League without a kilpailu parameter", async () => {
+    await renderTeamPage("1");
+
+    expect(getSeasonContextMock).toHaveBeenCalledWith("PL");
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("falls back to Premier League with a Finnish banner for an invalid kilpailu", async () => {
+    await renderTeamPage("1", { kilpailu: "XYZ" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kilpailua ei löytynyt. Näytetään Valioliiga."
+    );
+    expect(getSeasonContextMock).toHaveBeenCalledWith("PL");
   });
 
   it("defaults to the active season without a kausi parameter", async () => {
     await renderTeamPage("1");
 
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
   it("falls back to the active season for an invalid kausi parameter", async () => {
@@ -198,7 +218,7 @@ describe("Team page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kautta ei löytynyt. Näytetään kausi 2025/26."
     );
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
   it("shows the not-found message and generic heading for an unknown team id", async () => {
@@ -249,7 +269,7 @@ describe("Team page", () => {
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error) }),
+      expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
     );
   });
