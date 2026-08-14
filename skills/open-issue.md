@@ -36,9 +36,12 @@ Procedure
    - `## Out of scope`: leave blank unless the spec already has a useful note
    - `## Notes`: optional, if helpful
 6. Create the issue with `gh issue create`:
-   - use the `feature` label
+   - use the `enhancement` label
    - do not pass any assignee option
-7. Print the created issue number and URL.
+7. Set the Issue Type field to `Feature` — `gh issue create` has no
+   `--type` flag, so this needs a follow-up REST call:
+   `gh api repos/OWNER/REPO/issues/NUMBER -X PATCH -f type="Feature"`.
+8. Print the created issue number and URL.
 
 Example workflow
 
@@ -92,12 +95,18 @@ $acceptance
 ## Notes
 EOF
 
-gh issue create \
+issue_url="$(gh issue create \
   --title "[FEATURE] $spec_title" \
-  --label feature \
-  --body-file "$tmp_body"
+  --label enhancement \
+  --body-file "$tmp_body")"
 
 rm -f "$tmp_body"
+
+# gh issue create has no --json/--type flag, so the number is parsed from
+# the printed URL. :owner/:repo below are resolved by gh itself from the
+# current repository — no hard-coded placeholder to fill in.
+issue_number="$(basename "$issue_url")"
+gh api "repos/:owner/:repo/issues/$issue_number" -X PATCH -f type="Feature"
 ```
 
 Notes
