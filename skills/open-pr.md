@@ -8,8 +8,11 @@ request using the following steps:
 2. Commit all changes with a conventional commit message, e.g.
    `feat: add standings form table (#NNN)`.
 3. Check the diff size against the PR's base branch before pushing:
-   `git diff <base-branch> | wc -c`. Sourcery skips review entirely — no
-   findings, no automated check — on any PR over 150,000 diff characters.
+   `git diff <base-branch> | wc -c` (counts bytes, not characters — close
+   enough for this check even with the occasional Finnish ä/ö/é in a diff,
+   since Sourcery's own limit is also approximate). Sourcery skips review
+   entirely — no findings, no automated check — on any PR over 150,000
+   diff characters.
    If you're over that, split the feature into smaller, stacked PRs
    (implement and merge one, then branch the next from it) rather than
    opening one oversized PR; see `decisions/006-other-competitions.md` for
