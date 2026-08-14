@@ -2,7 +2,8 @@
 name: Feature
 about: A new feature or user-facing change
 title: "[FEATURE] "
-labels: feature
+labels: enhancement
+type: Feature
 assignees: ''
 ---
 

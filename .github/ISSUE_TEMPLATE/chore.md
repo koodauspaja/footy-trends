@@ -3,6 +3,7 @@ name: Chore
 about: Refactoring, maintenance, infrastructure, or other non-user-facing work
 title: "[CHORE] "
 labels: chore
+type: Task
 assignees: ''
 ---
 

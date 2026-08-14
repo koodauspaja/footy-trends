@@ -3,6 +3,7 @@ name: Bug
 about: Something is not working as the spec describes
 title: "[BUG] "
 labels: bug
+type: Bug
 assignees: ''
 ---
 

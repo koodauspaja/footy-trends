@@ -12,6 +12,12 @@
   decision record (`decisions/NNN-feature-name.md`), per `skills/open-pr.md`.
 - All user-facing UI strings are Finnish. All code, comments, specs, and
   decision records are English. No exceptions in either direction.
+- Every GitHub issue must have both its label and its Issue Type field set,
+  matched to the issue kind: `enhancement` label → `Feature` type, `chore`
+  label → `Task` type, `bug` label → `Bug` type. The `gh` CLI has no
+  `--type` flag for `issue create`/`issue edit`; set it via
+  `gh api repos/OWNER/REPO/issues/NUMBER -X PATCH -f type="Feature"` (or
+  `Task`/`Bug`) right after creating or editing the issue.
 
 ## Required workflow
 
