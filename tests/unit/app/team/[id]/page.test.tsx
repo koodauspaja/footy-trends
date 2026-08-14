@@ -168,14 +168,14 @@ describe("Team page", () => {
     const { default: TeamPage } = await import("@/app/team/[id]/page");
     render(await TeamPage({ params: Promise.resolve({ id: "1" }) }));
 
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
   it("renders the season selector and calls getTeamMatches with the resolved season", async () => {
     await renderTeamPage("1", { kausi: "2024" });
 
     expect(screen.getByLabelText("Kausi")).toHaveValue("2024");
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2024, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("submits the season selector as a plain GET form targeting the public /joukkue/:id URL", async () => {
@@ -189,7 +189,7 @@ describe("Team page", () => {
   it("defaults to the active season without a kausi parameter", async () => {
     await renderTeamPage("1");
 
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
   it("falls back to the active season for an invalid kausi parameter", async () => {
@@ -198,7 +198,7 @@ describe("Team page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kautta ei löytynyt. Näytetään kausi 2025/26."
     );
-    expect(getTeamMatchesMock).toHaveBeenCalledWith(1, 2025, 2025);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("PL", 1, 2025, 2025);
   });
 
   it("shows the not-found message and generic heading for an unknown team id", async () => {

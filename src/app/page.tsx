@@ -5,7 +5,7 @@ import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
 import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
-import { getMaxMatchday, getPremierLeagueStandings } from "@/lib/standings-service";
+import { getMaxMatchday, getStandings } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +20,7 @@ const columns = [
   ["P", "Pisteet"],
 ] as const;
 
+const COMPETITION_CODE = "PL";
 const BASE_HEADING = "Valioliigan sarjataulukko";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi.";
@@ -30,7 +31,7 @@ type HomeProps = {
 
 async function resolveSeasonContext(): Promise<SeasonContext | null> {
   try {
-    return await getSeasonContext();
+    return await getSeasonContext(COMPETITION_CODE);
   } catch (error) {
     logger.error({ err: error }, "Unable to resolve the selectable seasons");
     return null;
@@ -55,12 +56,13 @@ export default async function Home({ searchParams }: HomeProps) {
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
 
-  const maxMatchday = await getMaxMatchday(seasonId);
+  const maxMatchday = await getMaxMatchday(COMPETITION_CODE, seasonId);
   const round = parseRoundParam(params.kierros, maxMatchday);
   const selectedRound = round.kind === "valid" ? round.round : undefined;
   const availableRounds = listSelectableRounds(maxMatchday);
 
-  const result = await getPremierLeagueStandings({
+  const result = await getStandings({
+    competitionCode: COMPETITION_CODE,
     seasonId,
     activeSeasonId: context.activeSeasonId,
     ...(selectedRound !== undefined ? { round: selectedRound } : {}),
