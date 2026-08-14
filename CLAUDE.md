@@ -16,8 +16,9 @@
   matched to the issue kind: `enhancement` label → `Feature` type, `chore`
   label → `Task` type, `bug` label → `Bug` type. The `gh` CLI has no
   `--type` flag for `issue create`/`issue edit`; set it via
-  `gh api repos/OWNER/REPO/issues/NUMBER -X PATCH -f type="Feature"` (or
-  `Task`/`Bug`) right after creating or editing the issue.
+  `gh api repos/:owner/:repo/issues/NUMBER -X PATCH -f type="Feature"` (or
+  `Task`/`Bug`) right after creating or editing the issue — `:owner`/`:repo`
+  are resolved by `gh` itself from the current repository.
 
 ## Required workflow
 

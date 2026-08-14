@@ -102,9 +102,11 @@ issue_url="$(gh issue create \
 
 rm -f "$tmp_body"
 
-# gh issue create has no --type flag; set it via the REST API.
+# gh issue create has no --json/--type flag, so the number is parsed from
+# the printed URL. :owner/:repo below are resolved by gh itself from the
+# current repository — no hard-coded placeholder to fill in.
 issue_number="$(basename "$issue_url")"
-gh api "repos/OWNER/REPO/issues/$issue_number" -X PATCH -f type="Feature"
+gh api "repos/:owner/:repo/issues/$issue_number" -X PATCH -f type="Feature"
 ```
 
 Notes
