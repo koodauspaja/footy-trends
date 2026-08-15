@@ -41,7 +41,12 @@ Procedure
 7. Set the Issue Type field to `Feature` — `gh issue create` has no
    `--type` flag, so this needs a follow-up REST call:
    `gh api repos/OWNER/REPO/issues/NUMBER -X PATCH -f type="Feature"`.
-8. Print the created issue number and URL.
+8. Add the issue to the `Footy Trends` Project board and set its status to
+   `Backlog` — this repo has no auto-add workflow, so a newly created
+   issue never appears on the board on its own. See
+   `docs/setup/002-github-project-board.md` for the exact commands and
+   board/field IDs.
+9. Print the created issue number and URL.
 
 Example workflow
 
@@ -107,6 +112,18 @@ rm -f "$tmp_body"
 # current repository — no hard-coded placeholder to fill in.
 issue_number="$(basename "$issue_url")"
 gh api "repos/:owner/:repo/issues/$issue_number" -X PATCH -f type="Feature"
+
+# No auto-add workflow exists on this project, so every issue has to be
+# added to the board explicitly — see docs/setup/002-github-project-board.md
+# for where these IDs come from and how to re-derive them if they change.
+gh project item-add 2 --owner koodauspaja --url "$issue_url"
+item_id="$(gh project item-list 2 --owner koodauspaja --format json \
+  | jq -r ".items[] | select(.content.number == $issue_number) | .id")"
+gh project item-edit \
+  --id "$item_id" \
+  --project-id PVT_kwDOB7brSc4BZbi_ \
+  --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
+  --single-select-option-id f75ad846
 ```
 
 Notes
