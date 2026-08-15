@@ -119,7 +119,7 @@ describe("Matches page", () => {
   it("calls getRoundMatches with the resolved season, round, and active season", async () => {
     await renderMatchesPage({ kausi: "2024", kierros: "3" });
 
-    expect(getRoundMatchesMock).toHaveBeenCalledWith(2024, 3, 2025);
+    expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2024, 3, 2025);
   });
 
   it("shows both round navigation links between the season's first and last round", async () => {
@@ -169,7 +169,7 @@ describe("Matches page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kautta ei löytynyt. Näytetään kausi 2025/26."
     );
-    expect(getRoundMatchesMock).toHaveBeenCalledWith(2025, undefined, 2025);
+    expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2025, undefined, 2025);
   });
 
   it("falls back to the resolved round for an invalid kierros parameter, naming it in the banner", async () => {
@@ -178,7 +178,7 @@ describe("Matches page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kierrosta ei löytynyt. Näytetään kierros 3."
     );
-    expect(getRoundMatchesMock).toHaveBeenCalledWith(2025, undefined, 2025);
+    expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2025, undefined, 2025);
   });
 
   it("shows both fallback banners when season and round are both invalid", async () => {
@@ -256,6 +256,6 @@ describe("Matches page", () => {
     const { default: MatchesPage } = await import("@/app/matches/page");
     render(await MatchesPage({}));
 
-    expect(getRoundMatchesMock).toHaveBeenCalledWith(2025, undefined, 2025);
+    expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2025, undefined, 2025);
   });
 });

@@ -4,13 +4,13 @@ import Loading from "@/app/loading";
 import type { SeasonContext } from "@/lib/football-data";
 import type { StandingsResult } from "@/lib/standings-service";
 
-const getPremierLeagueStandingsMock = vi.fn<() => Promise<StandingsResult>>();
+const getStandingsMock = vi.fn<() => Promise<StandingsResult>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/standings-service", () => ({
-  getPremierLeagueStandings: getPremierLeagueStandingsMock,
+  getStandings: getStandingsMock,
   getMaxMatchday: getMaxMatchdayMock,
 }));
 
@@ -68,7 +68,7 @@ describe("Home page", () => {
     vi.clearAllMocks();
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
-    getPremierLeagueStandingsMock.mockResolvedValue(standings);
+    getStandingsMock.mockResolvedValue(standings);
     getMaxMatchdayMock.mockResolvedValue(10);
   });
 
@@ -76,7 +76,9 @@ describe("Home page", () => {
     await renderHome();
 
     expect(
-      screen.getByRole("heading", { name: "Valioliigan sarjataulukko 2025/26" })
+      screen.getByRole("heading", {
+        name: "Valioliigan sarjataulukko 2025/26",
+      })
     ).toBeInTheDocument();
     expect(screen.getByTitle("Ottelut")).toBeInTheDocument();
     expect(screen.getByTitle("Voitot")).toBeInTheDocument();
@@ -102,7 +104,7 @@ describe("Home page", () => {
   });
 
   it("does not link team names in the empty standings state", async () => {
-    getPremierLeagueStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
+    getStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
 
     await renderHome();
 
@@ -119,7 +121,7 @@ describe("Home page", () => {
   });
 
   it("shows the Kaikki ottelut link regardless of standings status", async () => {
-    getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
+    getStandingsMock.mockResolvedValue({ status: "error", standings: [] });
 
     await renderHome();
 
@@ -127,7 +129,7 @@ describe("Home page", () => {
   });
 
   it("does not link team names in the error standings state", async () => {
-    getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
+    getStandingsMock.mockResolvedValue({ status: "error", standings: [] });
 
     await renderHome();
 
@@ -137,7 +139,8 @@ describe("Home page", () => {
   it("defaults to the active season without a kausi parameter", async () => {
     await renderHome();
 
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -148,7 +151,8 @@ describe("Home page", () => {
     const { default: Home } = await import("@/app/page");
     render(await Home({}));
 
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -157,12 +161,15 @@ describe("Home page", () => {
   it("shows the season named by a valid kausi parameter", async () => {
     await renderHome({ kausi: "2023" });
 
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2023,
       activeSeasonId: 2025,
     });
     expect(
-      screen.getByRole("heading", { name: "Valioliigan sarjataulukko 2023/24" })
+      screen.getByRole("heading", {
+        name: "Valioliigan sarjataulukko 2023/24",
+      })
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Kausi")).toHaveValue("2023");
   });
@@ -173,7 +180,8 @@ describe("Home page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kautta ei löytynyt. Näytetään kausi 2025/26."
     );
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -196,7 +204,8 @@ describe("Home page", () => {
   it("defaults to the whole season without a kierros parameter", async () => {
     await renderHome();
 
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -206,7 +215,8 @@ describe("Home page", () => {
   it("shows the round named by a valid kierros parameter", async () => {
     await renderHome({ kierros: "5" });
 
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
       round: 5,
@@ -235,7 +245,8 @@ describe("Home page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kierrosta ei löytynyt. Näytetään koko kausi."
     );
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -248,7 +259,8 @@ describe("Home page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kierrosta ei löytynyt. Näytetään koko kausi."
     );
-    expect(getPremierLeagueStandingsMock).toHaveBeenCalledWith({
+    expect(getStandingsMock).toHaveBeenCalledWith({
+      competitionCode: "PL",
       seasonId: 2025,
       activeSeasonId: 2025,
     });
@@ -278,7 +290,7 @@ describe("Home page", () => {
   });
 
   it("keeps the season selector visible in the empty state", async () => {
-    getPremierLeagueStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
+    getStandingsMock.mockResolvedValue({ status: "empty", standings: [] });
 
     await renderHome();
 
@@ -288,7 +300,7 @@ describe("Home page", () => {
   });
 
   it("keeps the season selector visible in the error state", async () => {
-    getPremierLeagueStandingsMock.mockResolvedValue({ status: "error", standings: [] });
+    getStandingsMock.mockResolvedValue({ status: "error", standings: [] });
 
     await renderHome();
 
@@ -308,7 +320,7 @@ describe("Home page", () => {
       screen.getByText("Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
-    expect(getPremierLeagueStandingsMock).not.toHaveBeenCalled();
+    expect(getStandingsMock).not.toHaveBeenCalled();
     expect(getMaxMatchdayMock).not.toHaveBeenCalled();
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),

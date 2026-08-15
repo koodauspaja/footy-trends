@@ -9,6 +9,7 @@ import { getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
+const COMPETITION_CODE = "PL";
 const BASE_HEADING = "Ottelut";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -26,7 +27,7 @@ type MatchesPageProps = {
 
 async function resolveSeasonContext(): Promise<SeasonContext | null> {
   try {
-    return await getSeasonContext();
+    return await getSeasonContext(COMPETITION_CODE);
   } catch (error) {
     logger.error({ err: error }, "Unable to resolve the selectable seasons");
     return null;
@@ -48,12 +49,17 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
 
-  const maxMatchday = await getMaxMatchday(seasonId);
+  const maxMatchday = await getMaxMatchday(COMPETITION_CODE, seasonId);
   const roundParam = parseRoundParam(params.kierros, maxMatchday);
   const requestedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
   const availableRounds = listSelectableRounds(maxMatchday);
 
-  const result = await getRoundMatches(seasonId, requestedRound, context.activeSeasonId);
+  const result = await getRoundMatches(
+    COMPETITION_CODE,
+    seasonId,
+    requestedRound,
+    context.activeSeasonId
+  );
 
   const heading =
     result.status === "ok"

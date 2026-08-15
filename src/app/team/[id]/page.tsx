@@ -7,6 +7,7 @@ import { getTeamMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
+const COMPETITION_CODE = "PL";
 const BASE_HEADING = "Joukkueen ottelut";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
@@ -26,7 +27,7 @@ type TeamPageProps = {
 
 async function resolveSeasonContext(): Promise<SeasonContext | null> {
   try {
-    return await getSeasonContext();
+    return await getSeasonContext(COMPETITION_CODE);
   } catch (error) {
     logger.error({ err: error }, "Unable to resolve the selectable seasons");
     return null;
@@ -53,7 +54,7 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
 
   const result = Number.isNaN(teamProviderId)
     ? ({ status: "not_found" } as const)
-    : await getTeamMatches(teamProviderId, seasonId, context.activeSeasonId);
+    : await getTeamMatches(COMPETITION_CODE, teamProviderId, seasonId, context.activeSeasonId);
 
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName =
