@@ -113,10 +113,63 @@ git push origin main
 
 ---
 
+## Step 5 — Add every new issue to the board manually
+
+This project has **no GitHub-native "auto-add to project" workflow**
+configured — confirmed via `gh api graphql` against the project's
+`workflows` field, which only lists the fixed built-ins (`Item added to
+project`, `Item closed`, `Pull request merged`, `Pull request linked to
+issue`, `Auto-close issue`, `Auto-add sub-issues to project`) and no
+filter-based auto-add rule. A newly created issue does **not** appear on
+the board on its own, regardless of its type (feature, bug, or chore) or
+label.
+
+Every issue must be added right after creation, as its own step — not
+deferred until implementation work on it begins:
+
+```bash
+gh project item-add 2 --owner koodauspaja --url <issue-url>
+```
+
+That adds the item with no status set, which the board view treats as
+outside every column. Set it to `Backlog` explicitly:
+
+```bash
+gh project item-list 2 --owner koodauspaja --format json \
+  | jq -r '.items[] | select(.content.number == <ISSUE_NUMBER>) | .id'
+```
+
+then, with that item ID:
+
+```bash
+gh project item-edit \
+  --id <ITEM_ID> \
+  --project-id PVT_kwDOB7brSc4BZbi_ \
+  --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
+  --single-select-option-id f75ad846
+```
+
+(`PVT_kwDOB7brSc4BZbi_` is this project's ID, `PVTSSF_lADOB7brSc4BZbi_zhUaPJM`
+the Status field ID, and `f75ad846` the `Backlog` option ID — re-verify
+with `gh project field-list 2 --owner koodauspaja` if any of these ever
+stop working, since the board could be restructured.)
+
+An alternative to configuring this by hand every time is enabling a real
+"auto-add to project" workflow from the project's own Workflows settings
+in the GitHub UI (Project → ⋯ → Workflows → Auto-add to project → filter
+`is:issue`), which would make this step unnecessary going forward. Not
+yet done as of this writing — until it is, treat the manual add as
+mandatory.
+
+---
+
 ## Done when
 - [ ] GitHub Project board exists with correct columns
 - [ ] Feature and bug issue templates work
 - [ ] Test issue created and visible on the board
+- [ ] Every issue type (feature, bug, chore) is confirmed to land on the
+      board in `Backlog` immediately after creation, not just at
+      implementation time
 
 ## Next
 → `003-pr-template.md`

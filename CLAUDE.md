@@ -19,6 +19,12 @@
   `gh api repos/:owner/:repo/issues/NUMBER -X PATCH -f type="Feature"` (or
   `Task`/`Bug`) right after creating or editing the issue — `:owner`/`:repo`
   are resolved by `gh` itself from the current repository.
+- Every GitHub issue — feature, bug, or chore alike — must be added to the
+  `Footy Trends` Project board (status `Backlog`) immediately after
+  creation. The repo has no GitHub-native "auto-add to project" workflow
+  configured, so this is a manual step every time, not something that
+  happens on its own. See `docs/setup/002-github-project-board.md` for the
+  exact command and board IDs.
 
 ## Required workflow
 
