@@ -44,7 +44,10 @@ Workflow
    - Keep code, comments, and documentation in English.
 5. Add or update a test that fails before the fix and passes after —
    ideally the exact scenario from the issue's repro steps. A bug fix
-   without a regression test is incomplete.
+   without a regression test is incomplete, unless the bug has no
+   executable behavior to test against (a docs typo, a comment, a
+   config value with no automated check reading it) — in that case, say
+   so explicitly in the PR rather than silently skipping the step.
 6. Run the relevant validation for the changed surface.
    - For TypeScript or application changes, run `npm run typecheck`.
    - For lint-sensitive changes, run `npm run lint`.
