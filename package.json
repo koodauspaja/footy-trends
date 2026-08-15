@@ -57,7 +57,7 @@
     "esbuild@0.25.12": true,
     "esbuild@0.28.0": true,
     "fsevents@2.3.3": true,
-    "sharp@0.34.5": true,
+    "sharp@0.35.3": true,
     "@sentry/cli@2.58.6": true
   },
   "packageManager": "npm@12.0.2"
