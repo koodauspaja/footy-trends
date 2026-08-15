@@ -3,7 +3,7 @@
   "extends": ["config:recommended"],
   "timezone": "Europe/Helsinki",
   "schedule": ["before 7am on Monday"],
-  "prConcurrentLimit": 3,
+  "prConcurrentLimit": 10,
   "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "assignees": ["miikka-niemela"],
