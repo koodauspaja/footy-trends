@@ -62,6 +62,11 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
   render(await StandingsPage({ searchParams: Promise.resolve(searchParams) }));
 }
 
+async function getMetadata(searchParams: Record<string, string | string[] | undefined> = {}) {
+  const { generateMetadata } = await import("@/app/standings/page");
+  return generateMetadata({ searchParams: Promise.resolve(searchParams) });
+}
+
 describe("Standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -350,5 +355,29 @@ describe("Standings page", () => {
       expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
     );
+  });
+
+  it("sets the browser tab title to match the heading", async () => {
+    expect(await getMetadata()).toEqual({ title: "Valioliiga 2025/26" });
+  });
+
+  it("sets the tab title for a different competition", async () => {
+    expect(await getMetadata({ kilpailu: "BL1" })).toEqual({ title: "Bundesliga 2025/26" });
+  });
+
+  it("sets the tab title to just the competition name when the selectable seasons cannot be resolved", async () => {
+    getSeasonContextMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(await getMetadata()).toEqual({ title: "Valioliiga" });
+  });
+
+  it("sets the tab title for a valid kausi parameter", async () => {
+    expect(await getMetadata({ kausi: "2023" })).toEqual({ title: "Valioliiga 2023/24" });
+  });
+
+  it("defaults the tab title when searchParams is not provided at all", async () => {
+    const { generateMetadata } = await import("@/app/standings/page");
+
+    expect(await generateMetadata({})).toEqual({ title: "Valioliiga 2025/26" });
   });
 });

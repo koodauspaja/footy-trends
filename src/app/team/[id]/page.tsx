@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import {
@@ -35,6 +36,40 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
     logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
     return null;
   }
+}
+
+export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const teamProviderId = Number(id);
+
+  const resolvedParams = (await searchParams) ?? {};
+  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
+  const competitionCode =
+    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
+  const competitionName = getCompetitionName(competitionCode);
+
+  const context = await resolveSeasonContext(competitionCode);
+  if (context === null) return { title: competitionName };
+
+  const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
+  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
+  const seasonLabel = formatSeasonLabel(seasonId);
+
+  const result = Number.isNaN(teamProviderId)
+    ? ({ status: "not_found" } as const)
+    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
+
+  const [firstMatch] = result.status === "ok" ? result.matches : [];
+  const teamName =
+    firstMatch === undefined
+      ? null
+      : firstMatch.homeTeamProviderId === teamProviderId
+        ? firstMatch.homeTeamName
+        : firstMatch.awayTeamName;
+
+  return {
+    title: teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName,
+  };
 }
 
 export default async function TeamPage({ params, searchParams }: TeamPageProps) {

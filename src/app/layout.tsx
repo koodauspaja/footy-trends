@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Valioliigan sarjataulukko",
-  description: "Valioliigan ottelutuloksista laskettu sarjataulukko",
+  title: "Sarjataulukko",
+  description: "Jalkapallon sarjataulukot ja ottelut.",
 };
 
 export default function RootLayout({
