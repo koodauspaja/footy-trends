@@ -80,14 +80,22 @@ Key variables:
 - `src/lib` - shared utilities (cache, redis, logger)
 - `docs/setup` - step-by-step infrastructure setup docs
 
-### Premier League standings
+### Competitions and standings
 
-The home page resolves the current Premier League season server-side. It reads
-calculated standings from Redis first, then normalized finished matches from
-PostgreSQL, and refreshes from football-data.org when local data is missing or
-older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS`. Provider responses use
-separate Redis TTLs: one hour for competition metadata and 15 minutes for
-finished matches. The provider API key is never sent to the browser.
+The home page (`/`) is a competition picker; each competition's standings
+live at `/sarjataulukko?kilpailu={code}`. `src/lib/competitions.ts` lists
+the supported competitions — currently the 9 plain league-table
+competitions our football-data.org plan grants access to (Premier League
+and 8 others; cup/knockout competitions and other providers are out of
+scope, see `specs/006-other-competitions.md`).
+
+Standings resolve server-side per competition and season. The app reads
+calculated standings from Redis first, then normalized finished matches
+from PostgreSQL, and refreshes from football-data.org when local data is
+missing or older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS`. Provider
+responses use separate Redis TTLs, keyed per competition: one hour for
+competition metadata and 15 minutes for finished matches. The provider API
+key is never sent to the browser.
 
 ---
 

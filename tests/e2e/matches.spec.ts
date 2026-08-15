@@ -4,7 +4,7 @@ test.describe("Season-wide match list", () => {
   test("shows the current round and navigates between rounds", async ({ page }) => {
     await page.goto("/ottelut");
 
-    await expect(page.getByRole("heading", { name: /Ottelut/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Valioliiga/ })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Ottelu" })).toBeVisible();
 
     const heading = page.getByRole("heading", { level: 1 });
@@ -40,5 +40,11 @@ test.describe("Season-wide match list", () => {
     await page.goto("/ottelut?kierros=999999");
 
     await expect(page.getByRole("status").first()).toContainText("Kierrosta ei löytynyt.");
+  });
+
+  test("shows a different competition's matches when kilpailu is set", async ({ page }) => {
+    await page.goto("/ottelut?kilpailu=BL1");
+
+    await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
   });
 });

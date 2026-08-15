@@ -82,14 +82,25 @@ describe("Matches page", () => {
     getRoundMatchesMock.mockResolvedValue(okResult);
   });
 
-  it("shows the heading with season label and round, and lists both teams' matches", async () => {
+  it("shows the heading with competition, season label and round, and lists both teams' matches", async () => {
     await renderMatchesPage({ kausi: "2025", kierros: "3" });
 
-    expect(screen.getByRole("heading", { name: "Ottelut 2025/26, kierros 3" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Valioliiga 2025/26, kierros 3" })
+    ).toBeInTheDocument();
     expect(screen.getByText("Arsenal FC")).toBeInTheDocument();
     expect(screen.getByText("Chelsea FC")).toBeInTheDocument();
     expect(screen.getByText("Liverpool FC")).toBeInTheDocument();
     expect(screen.getByText("Everton FC")).toBeInTheDocument();
+  });
+
+  it("shows a different competition's name in the heading and calls getSeasonContext with its code", async () => {
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2025", kierros: "3" });
+
+    expect(getSeasonContextMock).toHaveBeenCalledWith("BL1");
+    expect(
+      screen.getByRole("heading", { name: "Bundesliga 2025/26, kierros 3" })
+    ).toBeInTheDocument();
   });
 
   it("shows a score for a finished match and a dash for an unplayed one", async () => {
@@ -103,35 +114,35 @@ describe("Matches page", () => {
     expect(within(unplayedRow).getAllByRole("cell").at(-1)).toHaveTextContent("–");
   });
 
-  it("links both team names in a row to their team page for the same season", async () => {
-    await renderMatchesPage();
+  it("links both team names in a row to their team page, carrying the competition and season", async () => {
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2025" });
 
     expect(screen.getByRole("link", { name: "Arsenal FC" })).toHaveAttribute(
       "href",
-      "/joukkue/1?kausi=2025"
+      "/joukkue/1?kilpailu=BL1&kausi=2025"
     );
     expect(screen.getByRole("link", { name: "Chelsea FC" })).toHaveAttribute(
       "href",
-      "/joukkue/2?kausi=2025"
+      "/joukkue/2?kilpailu=BL1&kausi=2025"
     );
   });
 
-  it("calls getRoundMatches with the resolved season, round, and active season", async () => {
-    await renderMatchesPage({ kausi: "2024", kierros: "3" });
+  it("calls getRoundMatches with the resolved competition, season, round, and active season", async () => {
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2024", kierros: "3" });
 
-    expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2024, 3, 2025);
+    expect(getRoundMatchesMock).toHaveBeenCalledWith("BL1", 2024, 3, 2025);
   });
 
-  it("shows both round navigation links between the season's first and last round", async () => {
-    await renderMatchesPage();
+  it("shows both round navigation links between the season's first and last round, carrying the competition", async () => {
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2025" });
 
     expect(screen.getByRole("link", { name: "◀ Edellinen kierros" })).toHaveAttribute(
       "href",
-      "/ottelut?kausi=2025&kierros=2"
+      "/ottelut?kilpailu=BL1&kausi=2025&kierros=2"
     );
     expect(screen.getByRole("link", { name: "Seuraava kierros ▶" })).toHaveAttribute(
       "href",
-      "/ottelut?kausi=2025&kierros=4"
+      "/ottelut?kilpailu=BL1&kausi=2025&kierros=4"
     );
   });
 
@@ -163,6 +174,22 @@ describe("Matches page", () => {
     ).toEqual(["Kierros 1", "Kierros 2", "Kierros 3", "Kierros 4", "Kierros 5"]);
   });
 
+  it("defaults to Premier League without a kilpailu parameter", async () => {
+    await renderMatchesPage();
+
+    expect(getSeasonContextMock).toHaveBeenCalledWith("PL");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("falls back to Premier League with a Finnish banner for an invalid kilpailu", async () => {
+    await renderMatchesPage({ kilpailu: "XYZ" });
+
+    expect(getSeasonContextMock).toHaveBeenCalledWith("PL");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kilpailua ei löytynyt. Näytetään Valioliiga."
+    );
+  });
+
   it("falls back to the active season for an unselectable kausi parameter", async () => {
     await renderMatchesPage({ kausi: "1999" });
 
@@ -181,11 +208,12 @@ describe("Matches page", () => {
     expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2025, undefined, 2025);
   });
 
-  it("shows both fallback banners when season and round are both invalid", async () => {
-    await renderMatchesPage({ kausi: "1999", kierros: "99" });
+  it("shows all fallback banners when competition, season, and round are all invalid", async () => {
+    await renderMatchesPage({ kilpailu: "XYZ", kausi: "1999", kierros: "99" });
 
     const notices = screen.getAllByRole("status");
     expect(notices.map((notice) => notice.textContent)).toEqual([
+      "Kilpailua ei löytynyt. Näytetään Valioliiga.",
       "Kautta ei löytynyt. Näytetään kausi 2025/26.",
       "Kierrosta ei löytynyt. Näytetään kierros 3.",
     ]);
@@ -197,7 +225,7 @@ describe("Matches page", () => {
 
     await renderMatchesPage();
 
-    expect(screen.getByRole("heading", { name: "Ottelut" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Valioliiga" })).toBeInTheDocument();
     expect(screen.getByText("Otteluita ei ole saatavilla.")).toBeInTheDocument();
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
     expect(screen.queryByLabelText("Kierros")).not.toBeInTheDocument();
@@ -239,7 +267,7 @@ describe("Matches page", () => {
 
     await renderMatchesPage();
 
-    expect(screen.getByRole("heading", { name: "Ottelut" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Valioliiga" })).toBeInTheDocument();
     expect(
       screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
@@ -247,12 +275,12 @@ describe("Matches page", () => {
     expect(getMaxMatchdayMock).not.toHaveBeenCalled();
     expect(getRoundMatchesMock).not.toHaveBeenCalled();
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error) }),
+      expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
     );
   });
 
-  it("defaults to the active season and current round when searchParams is not provided", async () => {
+  it("defaults to Premier League, the active season, and current round when searchParams is not provided", async () => {
     const { default: MatchesPage } = await import("@/app/matches/page");
     render(await MatchesPage({}));
 

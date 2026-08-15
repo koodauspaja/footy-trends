@@ -1,10 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { Competition } from "@/lib/competitions";
 import type { SeasonOption } from "@/lib/seasons";
+import { CompetitionSelect } from "./competition-select";
 import { SeasonSelect } from "./season-select";
 
-type SeasonRoundSelectorProps = {
+type StandingsControlsProps = {
+  competitions: Competition[];
+  selectedCompetitionCode: string;
   seasons: SeasonOption[];
   selectedSeasonId: number;
   availableRounds: number[];
@@ -12,37 +16,46 @@ type SeasonRoundSelectorProps = {
 };
 
 /**
- * Plain GET form so both selections still work without JavaScript; the
+ * Plain GET form so all three selections still work without JavaScript; the
  * `Näytä` button is only shown when scripting is unavailable, because with
- * scripting each change handler navigates immediately. Season and round live
- * in one form so changing either resubmits both `kausi` and `kierros`
- * together — neither selection is lost when the other changes.
+ * scripting each change handler navigates immediately. `Kilpailu`, `Kausi`,
+ * and `Kierros` live in one form so changing any one of them resubmits all
+ * three together — no selection is lost when another changes.
  */
-export function SeasonRoundSelector({
+export function StandingsControls({
+  competitions,
+  selectedCompetitionCode,
   seasons,
   selectedSeasonId,
   availableRounds,
   selectedRound,
-}: SeasonRoundSelectorProps) {
+}: StandingsControlsProps) {
   const router = useRouter();
 
-  function navigate(seasonId: number, round: number | undefined) {
+  function navigate(competitionCode: string, seasonId: number, round: number | undefined) {
     const params = new URLSearchParams(window.location.search);
+    params.set("kilpailu", competitionCode);
     params.set("kausi", String(seasonId));
     if (round === undefined) {
       params.delete("kierros");
     } else {
       params.set("kierros", String(round));
     }
-    router.push(`/?${params.toString()}`);
+    router.push(`/sarjataulukko?${params.toString()}`);
   }
 
   return (
-    <form action="/" method="get" className="mb-6 flex flex-wrap items-center gap-3">
+    <form action="/sarjataulukko" method="get" className="mb-6 flex flex-wrap items-center gap-3">
+      <CompetitionSelect
+        competitions={competitions}
+        selectedCompetitionCode={selectedCompetitionCode}
+        onChange={(code) => navigate(code, selectedSeasonId, selectedRound)}
+      />
+
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
-        onChange={(seasonId) => navigate(seasonId, selectedRound)}
+        onChange={(seasonId) => navigate(selectedCompetitionCode, seasonId, selectedRound)}
       />
 
       <label className="text-sm text-zinc-600" htmlFor="kierros">
@@ -55,7 +68,11 @@ export function SeasonRoundSelector({
         name="kierros"
         onChange={(event) => {
           const { value } = event.target;
-          navigate(selectedSeasonId, value === "" ? undefined : Number(value));
+          navigate(
+            selectedCompetitionCode,
+            selectedSeasonId,
+            value === "" ? undefined : Number(value)
+          );
         }}
       >
         <option value="">Koko kausi</option>

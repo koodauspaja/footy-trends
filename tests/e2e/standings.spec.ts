@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Home page — standings", () => {
+test.describe("Standings page", () => {
   test("loads the standings table for the default season", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/sarjataulukko");
 
-    await expect(page.getByRole("heading", { name: /Valioliigan sarjataulukko/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Valioliiga/ })).toBeVisible();
     await expect(page.getByRole("table")).toBeVisible();
     await expect(page.locator("table tbody tr")).not.toHaveCount(0);
   });
@@ -12,7 +12,7 @@ test.describe("Home page — standings", () => {
   test("filters standings by round via the Kierros selector and updates the URL", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/sarjataulukko");
 
     await page.getByLabel("Kierros").selectOption("1");
     await expect(page).toHaveURL(/kierros=1/);
@@ -27,7 +27,7 @@ test.describe("Home page — standings", () => {
   test("falls back to the active season with a Finnish banner for an invalid kausi", async ({
     page,
   }) => {
-    await page.goto("/?kausi=1999");
+    await page.goto("/sarjataulukko?kausi=1999");
 
     await expect(page.getByRole("status").first()).toContainText("Kautta ei löytynyt.");
   });
@@ -35,8 +35,15 @@ test.describe("Home page — standings", () => {
   test("falls back to the whole season with a Finnish banner for an invalid kierros", async ({
     page,
   }) => {
-    await page.goto("/?kierros=999999");
+    await page.goto("/sarjataulukko?kierros=999999");
 
     await expect(page.getByRole("status").first()).toContainText("Kierrosta ei löytynyt.");
+  });
+
+  test("shows a different competition's standings when kilpailu is set", async ({ page }) => {
+    await page.goto("/sarjataulukko?kilpailu=BL1");
+
+    await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
+    await expect(page.getByLabel("Kilpailu")).toHaveValue("BL1");
   });
 });
