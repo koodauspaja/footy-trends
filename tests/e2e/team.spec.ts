@@ -16,6 +16,20 @@ test.describe("Team match list", () => {
     await expect(page.getByRole("columnheader", { name: "Pvm" })).toBeVisible();
   });
 
+  test("clicking a team name for a non-default competition carries kilpailu to the team page", async ({
+    page,
+  }) => {
+    await page.goto("/sarjataulukko?kilpailu=BL1");
+
+    const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
+    const teamName = await firstTeamLink.textContent();
+    await firstTeamLink.click();
+
+    await expect(page).toHaveURL(/\/joukkue\/\d+\?kilpailu=BL1/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(teamName ?? "");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Bundesliga");
+  });
+
   test("shows the not-found state for an unknown team id, with the season selector still usable", async ({
     page,
   }) => {
