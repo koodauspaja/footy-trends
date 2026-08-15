@@ -322,6 +322,12 @@ describe("Team page", () => {
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
   });
 
+  it("sets the tab title to just the competition name for an ok result with no matches", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [] });
+
+    expect(await getMetadata("1")).toEqual({ title: "Valioliiga" });
+  });
+
   it("derives the tab title's team name from the away side when the team's first match is away", async () => {
     getTeamMatchesMock.mockResolvedValue({
       status: "ok",
