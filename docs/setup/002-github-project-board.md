@@ -125,7 +125,7 @@ the board on its own, regardless of its type (feature, bug, or chore) or
 label.
 
 Every issue must be added right after creation, as its own step — not
-deferred to whenever implementation work on it begins:
+deferred until implementation work on it begins:
 
 ```bash
 gh project item-add 2 --owner koodauspaja --url <issue-url>
