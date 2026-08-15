@@ -25,7 +25,7 @@
     "@sentry/nextjs": "10.70.0",
     "drizzle-orm": "0.45.2",
     "ioredis": "6.0.0",
-    "next": "16.2.12",
+    "next": "16.3.1",
     "pino": "10.3.1",
     "postgres": "3.4.9",
     "react": "19.2.8",
@@ -57,7 +57,7 @@
     "esbuild@0.25.12": true,
     "esbuild@0.28.0": true,
     "fsevents@2.3.3": true,
-    "sharp@0.34.5": true,
+    "sharp@0.35.3": true,
     "@sentry/cli@2.58.6": true
   },
   "packageManager": "npm@12.0.2"
