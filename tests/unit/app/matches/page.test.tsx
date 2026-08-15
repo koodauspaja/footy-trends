@@ -73,6 +73,11 @@ async function renderMatchesPage(searchParams: Record<string, string | string[] 
   return render(await MatchesPage({ searchParams: Promise.resolve(searchParams) }));
 }
 
+async function getMetadata(searchParams: Record<string, string | string[] | undefined> = {}) {
+  const { generateMetadata } = await import("@/app/matches/page");
+  return generateMetadata({ searchParams: Promise.resolve(searchParams) });
+}
+
 describe("Matches page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -285,5 +290,29 @@ describe("Matches page", () => {
     render(await MatchesPage({}));
 
     expect(getRoundMatchesMock).toHaveBeenCalledWith("PL", 2025, undefined, 2025);
+  });
+
+  it("sets the browser tab title to the competition and season", async () => {
+    expect(await getMetadata()).toEqual({ title: "Valioliiga 2025/26" });
+  });
+
+  it("sets the tab title for a different competition", async () => {
+    expect(await getMetadata({ kilpailu: "BL1" })).toEqual({ title: "Bundesliga 2025/26" });
+  });
+
+  it("sets the tab title to just the competition name when the selectable seasons cannot be resolved", async () => {
+    getSeasonContextMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(await getMetadata()).toEqual({ title: "Valioliiga" });
+  });
+
+  it("sets the tab title for a valid kausi parameter", async () => {
+    expect(await getMetadata({ kausi: "2024" })).toEqual({ title: "Valioliiga 2024/25" });
+  });
+
+  it("defaults the tab title when searchParams is not provided at all", async () => {
+    const { generateMetadata } = await import("@/app/matches/page");
+
+    expect(await generateMetadata({})).toEqual({ title: "Valioliiga 2025/26" });
   });
 });

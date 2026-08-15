@@ -78,6 +78,17 @@ async function renderTeamPage(
   );
 }
 
+async function getMetadata(
+  id = "1",
+  searchParams: Record<string, string | string[] | undefined> = {}
+) {
+  const { generateMetadata } = await import("@/app/team/[id]/page");
+  return generateMetadata({
+    params: Promise.resolve({ id }),
+    searchParams: Promise.resolve(searchParams),
+  });
+}
+
 describe("Team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -286,5 +297,80 @@ describe("Team page", () => {
       expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
     );
+  });
+
+  it("sets the browser tab title to the team, competition, and season", async () => {
+    expect(await getMetadata("1", { kausi: "2025" })).toEqual({
+      title: "Arsenal FC – Valioliiga 2025/26",
+    });
+  });
+
+  it("sets the tab title for a different competition", async () => {
+    expect(await getMetadata("1", { kilpailu: "BL1", kausi: "2025" })).toEqual({
+      title: "Arsenal FC – Bundesliga 2025/26",
+    });
+  });
+
+  it("sets the tab title to just the competition name for an unknown team id", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+
+    expect(await getMetadata("999")).toEqual({ title: "Valioliiga" });
+  });
+
+  it("sets the tab title to just the competition name for a non-numeric team id", async () => {
+    expect(await getMetadata("abc")).toEqual({ title: "Valioliiga" });
+    expect(getTeamMatchesMock).not.toHaveBeenCalled();
+  });
+
+  it("sets the tab title to just the competition name for an ok result with no matches", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [] });
+
+    expect(await getMetadata("1")).toEqual({ title: "Valioliiga" });
+  });
+
+  it("derives the tab title's team name from the away side when the team's first match is away", async () => {
+    getTeamMatchesMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        {
+          providerMatchId: 2,
+          competitionCode: "PL",
+          seasonId: 2025,
+          status: "SCHEDULED",
+          kickoffAt: new Date("2025-08-22T14:00:00Z"),
+          matchday: 2,
+          homeTeamProviderId: 3,
+          homeTeamName: "Liverpool FC",
+          awayTeamProviderId: 1,
+          awayTeamName: "Arsenal FC",
+          homeGoals: null,
+          awayGoals: null,
+        },
+      ],
+    });
+
+    expect(await getMetadata("1", { kausi: "2025" })).toEqual({
+      title: "Arsenal FC – Valioliiga 2025/26",
+    });
+  });
+
+  it("sets the tab title to just the competition name when the selectable seasons cannot be resolved", async () => {
+    getSeasonContextMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(await getMetadata("1")).toEqual({ title: "Valioliiga" });
+  });
+
+  it("sets the tab title for a valid kausi parameter", async () => {
+    expect(await getMetadata("1", { kausi: "2024" })).toEqual({
+      title: "Arsenal FC – Valioliiga 2024/25",
+    });
+  });
+
+  it("defaults the tab title when searchParams is not provided at all", async () => {
+    const { generateMetadata } = await import("@/app/team/[id]/page");
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
+      title: "Arsenal FC – Valioliiga 2025/26",
+    });
   });
 });

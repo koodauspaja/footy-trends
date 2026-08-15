@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import Loading from "@/app/loading";
-import Home from "@/app/page";
+import Home, { metadata } from "@/app/page";
 import { SUPPORTED_COMPETITIONS } from "@/lib/competitions";
 
 describe("Home page (competition picker)", () => {
@@ -37,6 +37,10 @@ describe("Home page (competition picker)", () => {
     const flag = link.querySelector("img");
     expect(flag).toHaveAttribute("alt", premierLeague.country);
     expect(flag).toHaveAttribute("src", premierLeague.flagUrl);
+  });
+
+  it("sets the browser tab title to match the heading", () => {
+    expect(metadata.title).toBe("Valitse kilpailu");
   });
 });
 

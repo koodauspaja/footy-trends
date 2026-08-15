@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { SUPPORTED_COMPETITIONS } from "@/lib/competitions";
 
 const HEADING = "Valitse kilpailu";
+
+export const metadata: Metadata = {
+  title: HEADING,
+};
 
 export default function Home() {
   return (

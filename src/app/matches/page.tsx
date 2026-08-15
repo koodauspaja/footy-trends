@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { MatchesControls } from "@/components/matches-controls";
 import { PageShell } from "@/components/page-shell";
@@ -35,6 +36,21 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
     logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
     return null;
   }
+}
+
+export async function generateMetadata({ searchParams }: MatchesPageProps): Promise<Metadata> {
+  const params = (await searchParams) ?? {};
+  const competitionParam = parseCompetitionParam(params.kilpailu);
+  const competitionCode =
+    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
+  const competitionName = getCompetitionName(competitionCode);
+
+  const context = await resolveSeasonContext(competitionCode);
+  if (context === null) return { title: competitionName };
+
+  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
+  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
+  return { title: `${competitionName} ${formatSeasonLabel(seasonId)}` };
 }
 
 export default async function MatchesPage({ searchParams }: MatchesPageProps) {
