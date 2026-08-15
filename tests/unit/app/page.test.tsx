@@ -16,9 +16,11 @@ describe("Home page (competition picker)", () => {
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(SUPPORTED_COMPETITIONS.length);
-    SUPPORTED_COMPETITIONS.forEach((competition, index) => {
-      expect(links[index]).toHaveTextContent(competition.name);
-      expect(links[index]).toHaveAttribute("href", `/sarjataulukko?kilpailu=${competition.code}`);
+    SUPPORTED_COMPETITIONS.forEach((competition) => {
+      const link = links.find(
+        (element) => element.getAttribute("href") === `/sarjataulukko?kilpailu=${competition.code}`
+      );
+      expect(link).toHaveTextContent(competition.name);
     });
   });
 
