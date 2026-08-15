@@ -42,4 +42,8 @@
   read in order — see `docs/setup/README.md`).
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
+- Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.
+- Bug workflow (no new spec; reference the existing one it violates;
+  decision record only if the fix involved a real tradeoff):
+  `skills/bug-workflow.md`.
 - Review rules (also enforced by Sourcery): `REVIEW_RULES.md`.
