@@ -7,6 +7,9 @@
   "prHourlyLimit": 2,
   "labels": ["dependencies"],
   "assignees": ["miikka-niemela"],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch"],
