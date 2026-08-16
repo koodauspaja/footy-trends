@@ -264,6 +264,26 @@ describe("Team page", () => {
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
   });
 
+  it("links back to the standings for the current competition and season", async () => {
+    await renderTeamPage("1", { kilpailu: "BL1", kausi: "2024" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/sarjataulukko?kilpailu=BL1&kausi=2024"
+    );
+  });
+
+  it("shows the standings link for an unknown team id", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+
+    await renderTeamPage("999", { kilpailu: "BL1", kausi: "2024" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/sarjataulukko?kilpailu=BL1&kausi=2024"
+    );
+  });
+
   it("shows the empty-season message when the team has no stored matches", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "empty" });
 

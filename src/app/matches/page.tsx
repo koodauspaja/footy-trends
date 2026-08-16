@@ -92,6 +92,16 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
 
   return (
     <PageShell heading={heading}>
+      <p className="mb-6">
+        <Link
+          className="text-sm hover:underline"
+          href={`/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}${
+            result.status === "ok" ? `&kierros=${result.round}` : ""
+          }`}
+        >
+          Sarjataulukkoon
+        </Link>
+      </p>
       {competitionParam.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"

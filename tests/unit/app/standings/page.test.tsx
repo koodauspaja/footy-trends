@@ -149,6 +149,15 @@ describe("Standings page", () => {
     );
   });
 
+  it("carries the selected round into the season-wide match list link", async () => {
+    await renderStandings({ kilpailu: "BL1", kausi: "2024", kierros: "5" });
+
+    expect(screen.getByRole("link", { name: "Kaikki ottelut" })).toHaveAttribute(
+      "href",
+      "/ottelut?kilpailu=BL1&kausi=2024&kierros=5"
+    );
+  });
+
   it("shows the Kaikki ottelut link regardless of standings status", async () => {
     getStandingsMock.mockResolvedValue({ status: "error", standings: [] });
 

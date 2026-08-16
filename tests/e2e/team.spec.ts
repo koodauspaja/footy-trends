@@ -38,4 +38,16 @@ test.describe("Team match list", () => {
     await expect(page.getByText("Joukkuetta ei löytynyt.")).toBeVisible();
     await expect(page.getByLabel("Kausi")).toBeVisible();
   });
+
+  test("links back to the standings for the current competition", async ({ page }) => {
+    await page.goto("/sarjataulukko?kilpailu=BL1");
+
+    const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
+    await firstTeamLink.click();
+
+    await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
+
+    await expect(page).toHaveURL(/\/sarjataulukko\?kilpailu=BL1/);
+    await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
+  });
 });

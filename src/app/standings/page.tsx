@@ -95,7 +95,9 @@ export default async function StandingsPage({ searchParams }: StandingsPageProps
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"
-          href={`/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          href={`/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}${
+            selectedRound !== undefined ? `&kierros=${selectedRound}` : ""
+          }`}
         >
           Kaikki ottelut
         </Link>
