@@ -3,14 +3,15 @@ import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import {
+  type CompetitionParamResult,
   DEFAULT_COMPETITION_CODE,
   getCompetitionName,
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
-import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
-import { getTeamMatches } from "@/lib/standings-service";
+import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
+import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
@@ -39,20 +40,43 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
   }
 }
 
-export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {
-  const { id } = await params;
-  const teamProviderId = Number(id);
+type PageContext =
+  | { status: "error"; competitionName: string }
+  | {
+      status: "ok";
+      teamProviderId: number;
+      competitionCode: string;
+      competitionParam: CompetitionParamResult;
+      competitionName: string;
+      context: SeasonContext;
+      season: SeasonParamResult;
+      seasonId: number;
+      seasonLabel: string;
+      result: TeamMatchesResult;
+      teamName: string | null;
+    };
 
-  const resolvedParams = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
+/**
+ * Resolves everything both `generateMetadata` and the page itself need —
+ * the competition, season context, resolved team, and its name (for the
+ * title). Called once from each (Next.js invokes them separately), but
+ * `getSeasonContext` and `getTeamMatches` are wrapped in React's `cache()`,
+ * so the underlying fetches only happen once per request regardless.
+ */
+async function resolvePageContext(
+  id: string,
+  params: Record<string, string | string[] | undefined>
+): Promise<PageContext> {
+  const teamProviderId = Number(id);
+  const competitionParam = parseCompetitionParam(params.kilpailu);
   const competitionCode =
     competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
-  if (context === null) return { title: competitionName };
+  if (context === null) return { status: "error", competitionName };
 
-  const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
+  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
 
@@ -69,44 +93,57 @@ export async function generateMetadata({ params, searchParams }: TeamPageProps):
         : firstMatch.awayTeamName;
 
   return {
-    title: teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName,
+    status: "ok",
+    teamProviderId,
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+    result,
+    teamName,
+  };
+}
+
+export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const resolvedParams = (await searchParams) ?? {};
+  const resolved = await resolvePageContext(id, resolvedParams);
+  if (resolved.status === "error") return { title: resolved.competitionName };
+
+  return {
+    title:
+      resolved.teamName !== null
+        ? `${resolved.teamName} – ${resolved.competitionName} ${resolved.seasonLabel}`
+        : resolved.competitionName,
   };
 }
 
 export default async function TeamPage({ params, searchParams }: TeamPageProps) {
   const { id } = await params;
-  const teamProviderId = Number(id);
-
   const resolvedParams = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) {
+  const resolved = await resolvePageContext(id, resolvedParams);
+  if (resolved.status === "error") {
     return (
-      <PageShell heading={competitionName}>
+      <PageShell heading={resolved.competitionName}>
         <p>{ERROR_MESSAGE}</p>
       </PageShell>
     );
   }
-
-  const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
-
-  const result = Number.isNaN(teamProviderId)
-    ? ({ status: "not_found" } as const)
-    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
-
-  const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const teamName =
-    firstMatch === undefined
-      ? null
-      : firstMatch.homeTeamProviderId === teamProviderId
-        ? firstMatch.homeTeamName
-        : firstMatch.awayTeamName;
+  const {
+    teamProviderId,
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+    result,
+    teamName,
+  } = resolved;
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 

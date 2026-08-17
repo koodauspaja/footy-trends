@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchesControls } from "@/components/matches-controls";
 import { PageShell } from "@/components/page-shell";
 import {
+  type CompetitionParamResult,
   DEFAULT_COMPETITION_CODE,
   getCompetitionName,
   parseCompetitionParam,
@@ -10,7 +11,7 @@ import {
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
-import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
+import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
 import { getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -38,40 +39,80 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
   }
 }
 
-export async function generateMetadata({ searchParams }: MatchesPageProps): Promise<Metadata> {
-  const params = (await searchParams) ?? {};
+type PageContext =
+  | { status: "error"; competitionName: string }
+  | {
+      status: "ok";
+      competitionCode: string;
+      competitionParam: CompetitionParamResult;
+      competitionName: string;
+      context: SeasonContext;
+      season: SeasonParamResult;
+      seasonId: number;
+      seasonLabel: string;
+    };
+
+/**
+ * Resolves everything both `generateMetadata` and the page itself need —
+ * the competition, season context, and selected season. Called once from
+ * each (Next.js invokes them separately), but `getSeasonContext` is wrapped
+ * in React's `cache()`, so the underlying fetch only happens once per
+ * request regardless.
+ */
+async function resolvePageContext(
+  params: Record<string, string | string[] | undefined>
+): Promise<PageContext> {
   const competitionParam = parseCompetitionParam(params.kilpailu);
   const competitionCode =
     competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
-  if (context === null) return { title: competitionName };
-
-  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  return { title: `${competitionName} ${formatSeasonLabel(seasonId)}` };
-}
-
-export default async function MatchesPage({ searchParams }: MatchesPageProps) {
-  const params = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(params.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) {
-    return (
-      <PageShell heading={competitionName}>
-        <p>{ERROR_MESSAGE}</p>
-      </PageShell>
-    );
-  }
+  if (context === null) return { status: "error", competitionName };
 
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
   const seasonLabel = formatSeasonLabel(seasonId);
+
+  return {
+    status: "ok",
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+  };
+}
+
+export async function generateMetadata({ searchParams }: MatchesPageProps): Promise<Metadata> {
+  const params = (await searchParams) ?? {};
+  const resolved = await resolvePageContext(params);
+  if (resolved.status === "error") return { title: resolved.competitionName };
+
+  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
+}
+
+export default async function MatchesPage({ searchParams }: MatchesPageProps) {
+  const params = (await searchParams) ?? {};
+  const resolved = await resolvePageContext(params);
+  if (resolved.status === "error") {
+    return (
+      <PageShell heading={resolved.competitionName}>
+        <p>{ERROR_MESSAGE}</p>
+      </PageShell>
+    );
+  }
+  const {
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+  } = resolved;
 
   const maxMatchday = await getMaxMatchday(competitionCode, seasonId);
   const roundParam = parseRoundParam(params.kierros, maxMatchday);

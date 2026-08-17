@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { cache } from "react";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
@@ -154,8 +155,12 @@ export async function getStandings({
  * there is no independent teams table, so a team id that appears in no
  * stored match for the season is indistinguishable from an unknown id (both
  * report `"not_found"`).
+ *
+ * Wrapped in React's `cache()` so the team page's `generateMetadata` (which
+ * needs the team's first match to name the page) and its default export
+ * share one call per request instead of hitting the database twice.
  */
-export async function getTeamMatches(
+export const getTeamMatches = cache(async function getTeamMatches(
   competitionCode: string,
   teamProviderId: number,
   seasonId: number,
@@ -188,7 +193,7 @@ export async function getTeamMatches(
     );
     return { status: "error" };
   }
-}
+});
 
 /**
  * Every match for one round (matchday) of a season, all teams — shares the

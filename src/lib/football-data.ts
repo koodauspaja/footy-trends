@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getCached } from "./cache";
 import { logger } from "./logger";
 import { listSelectableSeasons, resolveEarliestSeason, type SeasonOption } from "./seasons";
@@ -75,8 +76,12 @@ export type SeasonContext = {
  * The provider's `seasons[]` array is deliberately not used to build the
  * selectable list: it advertises seasons back to 1888 that the API plan rejects
  * with 403. See specs/002-season-selector-and-backfill.md.
+ *
+ * Wrapped in React's `cache()` so a page's `generateMetadata` and its default
+ * export — both of which resolve the same competition's season context —
+ * share one call per request instead of hitting Redis/the provider twice.
  */
-export async function getSeasonContext(competitionCode: string): Promise<SeasonContext> {
+export const getSeasonContext = cache(async (competitionCode: string): Promise<SeasonContext> => {
   const competition = await getCached<CompetitionResponse>(
     `football-data:competition:${competitionCode}:v2`,
     COMPETITION_CACHE_TTL_SECONDS,
@@ -98,7 +103,7 @@ export async function getSeasonContext(competitionCode: string): Promise<SeasonC
     activeSeasonId,
     selectableSeasons: listSelectableSeasons(activeSeasonId, earliestSeason, upcomingSeasonId),
   };
-}
+});
 
 export function selectActiveSeason(
   competition: { currentSeason?: ProviderSeason; seasons?: ProviderSeason[] },
