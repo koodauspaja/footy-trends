@@ -95,4 +95,72 @@ describe("calculateStandings", () => {
 
     expect(standings.map((team) => team.teamName)).toEqual(["Arsenal FC", "Brighton FC"]);
   });
+
+  it("shows a team with no finished matches as a zero-stats row when it appears in rosterMatches", () => {
+    const standings = calculateStandings(
+      [match({})],
+      [
+        {
+          homeTeamProviderId: 1,
+          homeTeamName: "Arsenal FC",
+          awayTeamProviderId: 2,
+          awayTeamName: "Chelsea FC",
+        },
+        {
+          homeTeamProviderId: 3,
+          homeTeamName: "Brighton FC",
+          awayTeamProviderId: 1,
+          awayTeamName: "Arsenal FC",
+        },
+      ]
+    );
+
+    const brighton = standings.find((team) => team.teamName === "Brighton FC");
+    expect(brighton).toMatchObject({
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+      form: [],
+    });
+  });
+
+  it("sorts two winless teams alphabetically, below a team with points", () => {
+    const standings = calculateStandings(
+      [match({})],
+      [
+        {
+          homeTeamProviderId: 1,
+          homeTeamName: "Arsenal FC",
+          awayTeamProviderId: 2,
+          awayTeamName: "Chelsea FC",
+        },
+        {
+          homeTeamProviderId: 4,
+          homeTeamName: "Everton FC",
+          awayTeamProviderId: 3,
+          awayTeamName: "Brighton FC",
+        },
+      ]
+    );
+
+    // Chelsea lost (0 points, -1 goal difference), so it ties on points but not goal difference with the unplayed teams.
+    expect(standings.map((team) => team.teamName)).toEqual([
+      "Arsenal FC",
+      "Brighton FC",
+      "Everton FC",
+      "Chelsea FC",
+    ]);
+  });
+
+  it("defaults rosterMatches to the finished-match list, unchanged from before this parameter existed", () => {
+    expect(calculateStandings([match({})]).map((team) => team.teamName)).toEqual([
+      "Arsenal FC",
+      "Chelsea FC",
+    ]);
+  });
 });

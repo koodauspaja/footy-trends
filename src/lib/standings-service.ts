@@ -132,7 +132,10 @@ export async function getStandings({
       seasonId,
       activeSeasonId
     );
-    const standings = calculateStandings(filterByRound(toFinishedMatches(seasonMatches), round));
+    const standings = calculateStandings(
+      filterByRound(toFinishedMatches(seasonMatches), round),
+      seasonMatches
+    );
 
     if (standings.length === 0) {
       return refreshFailed

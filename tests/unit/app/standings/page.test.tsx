@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { StandingsResult } from "@/lib/standings-service";
@@ -92,6 +92,40 @@ describe("Standings page", () => {
         "O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit, ME = maaliero, P = pisteet."
       )
     ).toBeInTheDocument();
+  });
+
+  it("shows a zero-stats row and an empty Vire cell for a team with no finished matches", async () => {
+    getStandingsMock.mockResolvedValue({
+      status: "ok",
+      standings: [
+        ...standings.standings,
+        {
+          position: 2,
+          teamProviderId: 2,
+          teamName: "Brighton FC",
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0,
+          form: [],
+        },
+      ],
+    });
+
+    await renderStandings();
+
+    const row = screen.getByText("Brighton FC").closest("tr");
+    if (!row) throw new Error("Expected the Brighton FC row to exist");
+
+    expect(
+      within(row)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent)
+    ).toEqual(["2", "0", "0", "0", "0", "0", "0", "0", "0", ""]);
   });
 
   it("shows a different competition's heading and calls getSeasonContext with its code", async () => {
