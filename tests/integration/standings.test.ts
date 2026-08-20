@@ -182,7 +182,7 @@ describe("standings integration", () => {
     expect(result.status).toBe("ok");
   });
 
-  it("reports an empty season when the provider has no finished matches", async () => {
+  it("reports an empty season when the provider has no matches at all", async () => {
     const { getSeasonMatches } = await import("@/lib/football-data");
     vi.mocked(getSeasonMatches).mockResolvedValue([]);
 
@@ -196,7 +196,7 @@ describe("standings integration", () => {
     expect(result).toEqual({ status: "empty", standings: [] });
   });
 
-  it("stores a finished and an unplayed match side by side, and excludes the unplayed one from standings", async () => {
+  it("stores a finished and an unplayed match side by side, and shows the unplayed team as a zero-stats row", async () => {
     const { synchronizeMatches, getStandings, getTeamMatches } = await import(
       "@/lib/standings-service"
     );
@@ -224,7 +224,10 @@ describe("standings integration", () => {
 
     const standings = await getStandings({ competitionCode, seasonId, activeSeasonId: seasonId });
     expect(standings.status).toBe("ok");
-    expect(standings.standings.map((team) => team.teamName)).not.toContain("Integration Rovers");
+    const rovers =
+      standings.status === "ok" &&
+      standings.standings.find((team) => team.teamName === "Integration Rovers");
+    expect(rovers).toMatchObject({ played: 0, points: 0 });
 
     const teamMatches = await getTeamMatches(competitionCode, 9003, seasonId, seasonId);
     expect(teamMatches).toEqual({ status: "ok", matches: [expect.objectContaining(upcoming)] });
@@ -259,7 +262,7 @@ describe("standings integration", () => {
     ]);
   });
 
-  it("persists and retrieves an upcoming season's fixture list, all unplayed, through the same sync path", async () => {
+  it("persists and retrieves an upcoming season's fixture list, all unplayed, showing every team at zero stats", async () => {
     const { getSeasonMatches } = await import("@/lib/football-data");
     const upcomingMatches = [
       buildMatch({
@@ -308,7 +311,13 @@ describe("standings integration", () => {
       seasonId,
       activeSeasonId: earlierActiveSeasonId,
     });
-    expect(standings).toEqual({ status: "empty", standings: [] });
+    expect(standings.status).toBe("ok");
+    expect(
+      standings.status === "ok" && standings.standings.every((team) => team.played === 0)
+    ).toBe(true);
+    expect(
+      standings.status === "ok" && standings.standings.map((team) => team.teamName).sort()
+    ).toEqual(["Integration City", "Integration United"]);
   });
 
   it("keeps two competitions' matches and standings for the same season fully separate", async () => {

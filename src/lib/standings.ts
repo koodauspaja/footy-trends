@@ -1,13 +1,20 @@
-export type NormalizedMatch = {
+/** The minimum a match needs to contribute two teams to the standings roster, regardless of status or score. */
+export type RosterMatch = {
+  homeTeamProviderId: number;
+  homeTeamName: string;
+  awayTeamProviderId: number;
+  awayTeamName: string;
+};
+
+// Extends RosterMatch (rather than merely happening to match its shape) so a
+// future change to the roster fields here is a compile error at this
+// declaration, not a silent mismatch discovered only where the two types meet.
+export type NormalizedMatch = RosterMatch & {
   providerMatchId: number;
   competitionCode: string;
   seasonId: number;
   kickoffAt: Date;
   matchday: number | null;
-  homeTeamProviderId: number;
-  homeTeamName: string;
-  awayTeamProviderId: number;
-  awayTeamName: string;
   homeGoals: number;
   awayGoals: number;
 };
@@ -39,8 +46,15 @@ const resultLabels: Record<FormResult, string> = {
   H: "Häviö",
 };
 
-function createTeam(teamProviderId: number, teamName: string): TeamTotals {
-  return {
+function getOrCreateTeam(
+  teams: Map<number, TeamTotals>,
+  teamProviderId: number,
+  teamName: string
+): TeamTotals {
+  const existing = teams.get(teamProviderId);
+  if (existing) return existing;
+
+  const created: TeamTotals = {
     teamProviderId,
     teamName,
     played: 0,
@@ -52,18 +66,32 @@ function createTeam(teamProviderId: number, teamName: string): TeamTotals {
     points: 0,
     results: [],
   };
+  teams.set(teamProviderId, created);
+  return created;
 }
 
-export function calculateStandings(matches: NormalizedMatch[]): TeamStanding[] {
+/**
+ * `rosterMatches` seeds a zero-stats entry for every team that appears in
+ * it, home or away, regardless of match status — defaults to `matches`
+ * itself so a caller only interested in finished-match stats can omit it.
+ * Passing the season's full match list (finished and scheduled alike) is
+ * what makes a winless team with only upcoming fixtures show a 0-played row
+ * instead of being absent — see specs/008-winless-teams-in-standings.md.
+ */
+export function calculateStandings(
+  matches: NormalizedMatch[],
+  rosterMatches: RosterMatch[] = matches
+): TeamStanding[] {
   const teams = new Map<number, TeamTotals>();
 
+  for (const rosterMatch of rosterMatches) {
+    getOrCreateTeam(teams, rosterMatch.homeTeamProviderId, rosterMatch.homeTeamName);
+    getOrCreateTeam(teams, rosterMatch.awayTeamProviderId, rosterMatch.awayTeamName);
+  }
+
   for (const match of matches) {
-    const home =
-      teams.get(match.homeTeamProviderId) ??
-      createTeam(match.homeTeamProviderId, match.homeTeamName);
-    const away =
-      teams.get(match.awayTeamProviderId) ??
-      createTeam(match.awayTeamProviderId, match.awayTeamName);
+    const home = getOrCreateTeam(teams, match.homeTeamProviderId, match.homeTeamName);
+    const away = getOrCreateTeam(teams, match.awayTeamProviderId, match.awayTeamName);
     const homeResult: FormResult =
       match.homeGoals > match.awayGoals ? "V" : match.homeGoals < match.awayGoals ? "H" : "T";
     const awayResult: FormResult = homeResult === "V" ? "H" : homeResult === "H" ? "V" : "T";
@@ -76,8 +104,6 @@ export function calculateStandings(matches: NormalizedMatch[]): TeamStanding[] {
     away.goalsAgainst += match.homeGoals;
     applyResult(home, homeResult, match.providerMatchId, match.kickoffAt);
     applyResult(away, awayResult, match.providerMatchId, match.kickoffAt);
-    teams.set(home.teamProviderId, home);
-    teams.set(away.teamProviderId, away);
   }
 
   return [...teams.values()]
