@@ -533,6 +533,42 @@ describe("getStandings", () => {
     expect(brighton).toMatchObject({ played: 0, points: 0 });
   });
 
+  it("shows a team whose only match is POSTPONED as a zero-stats row, same as any other non-FINISHED status", async () => {
+    mockStoredMatches([
+      storedMatch({
+        providerMatchId: 1,
+        status: "FINISHED",
+        homeTeamProviderId: 1,
+        homeTeamName: "Arsenal FC",
+        awayTeamProviderId: 2,
+        awayTeamName: "Chelsea FC",
+        updatedAt: new Date(0),
+      }),
+      storedMatch({
+        providerMatchId: 2,
+        status: "POSTPONED",
+        homeGoals: null,
+        awayGoals: null,
+        homeTeamProviderId: 3,
+        homeTeamName: "Brighton FC",
+        awayTeamProviderId: 1,
+        awayTeamName: "Arsenal FC",
+        updatedAt: new Date(0),
+      }),
+    ]);
+
+    const result = await getStandings({
+      competitionCode: COMPETITION_CODE,
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+
+    expect(result.status).toBe("ok");
+    const brighton =
+      result.status === "ok" && result.standings.find((team) => team.teamName === "Brighton FC");
+    expect(brighton).toMatchObject({ played: 0, points: 0 });
+  });
+
   it("keeps a winless team in a round-filtered standings view even when its only match falls after that round", async () => {
     mockStoredMatches([
       storedMatch({
