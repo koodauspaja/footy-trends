@@ -2,15 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MatchesControls } from "@/components/matches-controls";
 import { PageShell } from "@/components/page-shell";
-import {
-  DEFAULT_COMPETITION_CODE,
-  getCompetitionName,
-  parseCompetitionParam,
-} from "@/lib/competitions";
-import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
-import { logger } from "@/lib/logger";
+import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
+import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
-import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
 import { getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -29,49 +23,33 @@ type MatchesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
-  try {
-    return await getSeasonContext(competitionCode);
-  } catch (error) {
-    logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
-    return null;
-  }
-}
-
 export async function generateMetadata({ searchParams }: MatchesPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(params.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
+  const resolved = await resolveBasePageContext(params);
+  if (resolved.status === "error") return { title: resolved.competitionName };
 
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) return { title: competitionName };
-
-  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  return { title: `${competitionName} ${formatSeasonLabel(seasonId)}` };
+  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
 export default async function MatchesPage({ searchParams }: MatchesPageProps) {
   const params = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(params.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) {
+  const resolved = await resolveBasePageContext(params);
+  if (resolved.status === "error") {
     return (
-      <PageShell heading={competitionName}>
+      <PageShell heading={resolved.competitionName}>
         <p>{ERROR_MESSAGE}</p>
       </PageShell>
     );
   }
-
-  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
+  const {
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+  } = resolved;
 
   const maxMatchday = await getMaxMatchday(competitionCode, seasonId);
   const roundParam = parseRoundParam(params.kierros, maxMatchday);
@@ -92,6 +70,16 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
 
   return (
     <PageShell heading={heading}>
+      <p className="mb-6">
+        <Link
+          className="text-sm hover:underline"
+          href={`/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}${
+            result.status === "ok" ? `&kierros=${result.round}` : ""
+          }`}
+        >
+          Sarjataulukkoon
+        </Link>
+      </p>
       {competitionParam.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"

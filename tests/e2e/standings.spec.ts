@@ -46,4 +46,24 @@ test.describe("Standings page", () => {
     await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
     await expect(page.getByLabel("Kilpailu")).toHaveValue("BL1");
   });
+
+  test("the Etusivu link in the header returns to the competition picker", async ({ page }) => {
+    await page.goto("/sarjataulukko");
+
+    await page.getByRole("link", { name: "Etusivu" }).click();
+
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { name: "Valitse kilpailu" })).toBeVisible();
+  });
+
+  test("carries the selected round into the Kaikki ottelut link", async ({ page }) => {
+    await page.goto("/sarjataulukko");
+
+    await page.getByLabel("Kierros").selectOption("1");
+    await expect(page).toHaveURL(/kierros=1/);
+
+    await page.getByRole("link", { name: "Kaikki ottelut" }).click();
+
+    await expect(page).toHaveURL(/\/ottelut\?.*kierros=1/);
+  });
 });

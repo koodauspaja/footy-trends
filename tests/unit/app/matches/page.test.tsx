@@ -285,6 +285,26 @@ describe("Matches page", () => {
     );
   });
 
+  it("links back to the standings for the current competition, season, and round", async () => {
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2024", kierros: "3" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/sarjataulukko?kilpailu=BL1&kausi=2024&kierros=3"
+    );
+  });
+
+  it("omits the round from the standings link when there is no resolved round", async () => {
+    getRoundMatchesMock.mockResolvedValue({ status: "empty" });
+
+    await renderMatchesPage({ kilpailu: "BL1", kausi: "2024" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/sarjataulukko?kilpailu=BL1&kausi=2024"
+    );
+  });
+
   it("defaults to Premier League, the active season, and current round when searchParams is not provided", async () => {
     const { default: MatchesPage } = await import("@/app/matches/page");
     render(await MatchesPage({}));

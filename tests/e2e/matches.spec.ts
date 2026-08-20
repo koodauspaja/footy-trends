@@ -47,4 +47,13 @@ test.describe("Season-wide match list", () => {
 
     await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
   });
+
+  test("links back to the standings for the same round", async ({ page }) => {
+    await page.goto("/ottelut?kierros=1");
+
+    await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
+
+    await expect(page).toHaveURL(/\/sarjataulukko\?.*kierros=1/);
+    await expect(page.getByRole("heading", { name: /Valioliiga/ })).toBeVisible();
+  });
 });

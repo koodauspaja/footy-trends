@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import {
-  DEFAULT_COMPETITION_CODE,
-  getCompetitionName,
-  parseCompetitionParam,
-} from "@/lib/competitions";
-import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
-import { logger } from "@/lib/logger";
-import { formatSeasonLabel, parseSeasonParam } from "@/lib/seasons";
-import { getTeamMatches } from "@/lib/standings-service";
+import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
+import { type BasePageContext, resolveBasePageContext } from "@/lib/page-context";
+import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
 
@@ -29,35 +24,38 @@ type TeamPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
-  try {
-    return await getSeasonContext(competitionCode);
-  } catch (error) {
-    logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
-    return null;
-  }
-}
+type PageContext =
+  | { status: "error"; competitionName: string }
+  | (Extract<BasePageContext, { status: "ok" }> & {
+      teamProviderId: number;
+      result: TeamMatchesResult;
+      teamName: string | null;
+    });
 
-export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {
-  const { id } = await params;
+/**
+ * Resolves everything both `generateMetadata` and the page itself need —
+ * the competition, season context, resolved team, and its name (for the
+ * title) — on top of `resolveBasePageContext`. Called once from each
+ * (Next.js invokes them separately), but `getSeasonContext` and
+ * `getTeamMatches` are wrapped in React's `cache()`, so the underlying
+ * fetches only happen once per request regardless.
+ */
+async function resolvePageContext(
+  id: string,
+  params: Record<string, string | string[] | undefined>
+): Promise<PageContext> {
+  const base = await resolveBasePageContext(params);
+  if (base.status === "error") return base;
+
   const teamProviderId = Number(id);
-
-  const resolvedParams = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) return { title: competitionName };
-
-  const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
-
   const result = Number.isNaN(teamProviderId)
     ? ({ status: "not_found" } as const)
-    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
+    : await getTeamMatches(
+        base.competitionCode,
+        teamProviderId,
+        base.seasonId,
+        base.context.activeSeasonId
+      );
 
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName =
@@ -67,50 +65,59 @@ export async function generateMetadata({ params, searchParams }: TeamPageProps):
         ? firstMatch.homeTeamName
         : firstMatch.awayTeamName;
 
+  return { ...base, teamProviderId, result, teamName };
+}
+
+export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const resolvedParams = (await searchParams) ?? {};
+  const resolved = await resolvePageContext(id, resolvedParams);
+  if (resolved.status === "error") return { title: resolved.competitionName };
+
   return {
-    title: teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName,
+    title:
+      resolved.teamName !== null
+        ? `${resolved.teamName} – ${resolved.competitionName} ${resolved.seasonLabel}`
+        : resolved.competitionName,
   };
 }
 
 export default async function TeamPage({ params, searchParams }: TeamPageProps) {
   const { id } = await params;
-  const teamProviderId = Number(id);
-
   const resolvedParams = (await searchParams) ?? {};
-  const competitionParam = parseCompetitionParam(resolvedParams.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) {
+  const resolved = await resolvePageContext(id, resolvedParams);
+  if (resolved.status === "error") {
     return (
-      <PageShell heading={competitionName}>
+      <PageShell heading={resolved.competitionName}>
         <p>{ERROR_MESSAGE}</p>
       </PageShell>
     );
   }
-
-  const season = parseSeasonParam(resolvedParams.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
-
-  const result = Number.isNaN(teamProviderId)
-    ? ({ status: "not_found" } as const)
-    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
-
-  const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const teamName =
-    firstMatch === undefined
-      ? null
-      : firstMatch.homeTeamProviderId === teamProviderId
-        ? firstMatch.homeTeamName
-        : firstMatch.awayTeamName;
+  const {
+    teamProviderId,
+    competitionCode,
+    competitionParam,
+    competitionName,
+    context,
+    season,
+    seasonId,
+    seasonLabel,
+    result,
+    teamName,
+  } = resolved;
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 
   return (
     <PageShell heading={heading}>
+      <p className="mb-6">
+        <Link
+          className="text-sm hover:underline"
+          href={`/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
+        >
+          Sarjataulukkoon
+        </Link>
+      </p>
       {competitionParam.kind === "invalid" && (
         <p
           className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
