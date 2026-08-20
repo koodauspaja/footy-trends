@@ -1,23 +1,22 @@
-export type NormalizedMatch = {
-  providerMatchId: number;
-  competitionCode: string;
-  seasonId: number;
-  kickoffAt: Date;
-  matchday: number | null;
-  homeTeamProviderId: number;
-  homeTeamName: string;
-  awayTeamProviderId: number;
-  awayTeamName: string;
-  homeGoals: number;
-  awayGoals: number;
-};
-
 /** The minimum a match needs to contribute two teams to the standings roster, regardless of status or score. */
 export type RosterMatch = {
   homeTeamProviderId: number;
   homeTeamName: string;
   awayTeamProviderId: number;
   awayTeamName: string;
+};
+
+// Extends RosterMatch (rather than merely happening to match its shape) so a
+// future change to the roster fields here is a compile error at this
+// declaration, not a silent mismatch discovered only where the two types meet.
+export type NormalizedMatch = RosterMatch & {
+  providerMatchId: number;
+  competitionCode: string;
+  seasonId: number;
+  kickoffAt: Date;
+  matchday: number | null;
+  homeGoals: number;
+  awayGoals: number;
 };
 
 export type FormResult = "V" | "T" | "H";

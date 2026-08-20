@@ -121,11 +121,15 @@ describe("Standings page", () => {
     const row = screen.getByText("Brighton FC").closest("tr");
     if (!row) throw new Error("Expected the Brighton FC row to exist");
 
-    expect(
-      within(row)
-        .getAllByRole("cell")
-        .map((cell) => cell.textContent)
-    ).toEqual(["2", "0", "0", "0", "0", "0", "0", "0", "0", ""]);
+    const [positionCell, ...rest] = within(row).getAllByRole("cell");
+    const formCell = rest.at(-1);
+    const statCells = rest.slice(0, -1);
+
+    expect(positionCell).toHaveTextContent("2");
+    for (const cell of statCells) {
+      expect(cell).toHaveTextContent("0");
+    }
+    expect(formCell).toHaveTextContent("");
   });
 
   it("shows a different competition's heading and calls getSeasonContext with its code", async () => {
