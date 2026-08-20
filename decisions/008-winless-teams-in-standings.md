@@ -17,9 +17,13 @@ Issue: #111
 
 The roster-seeding loop and the stats-accumulation loop both need "look up this team, or create and register it" for home and away — four call sites doing the same thing. Extracted into `getOrCreateTeam(teams, id, name)`, which both loops call. Also dropped the two `teams.set(home.teamProviderId, home)` / `teams.set(away.teamProviderId, away)` lines at the end of the accumulation loop — they were already redundant before this change, since `home`/`away` are the same object references already in the map; mutating them doesn't need a re-set.
 
+## Two pre-existing integration tests encoded the old behavior and needed updating
+
+`tests/integration/standings.test.ts` had two tests that asserted the exact behavior this spec changes: one asserted an unplayed team was excluded from standings (`not.toContain("Integration Rovers")`), the other asserted a season with only scheduled matches returned `"empty"`. Both were testing real, intentional consequences of the pre-existing "only teams with a finished match appear" rule — not incidental fixture mistakes — so fixing them wasn't optional cleanup, it was required to make the tests match the spec they're meant to verify. Updated both to assert the new behavior (zero-stats row present; `"ok"` with every team at `played: 0`) and renamed them accordingly. Also renamed a third, adjacent test ("reports an empty season when the provider has no finished matches" → "... no matches at all") for precision — it was already testing the genuinely-still-`"empty"` case (zero matches of any status), just under an imprecise name.
+
 ## Verification
 
 - `npm run typecheck`, `npm run lint` clean.
 - 258 unit tests passing (6 new: 3 in `standings.test.ts` for roster seeding, alphabetical tie-break among winless teams, and the unchanged single-argument default; 2 in `standings-service.test.ts` for a scheduled-only team's zero-stats row and its presence in a round-filtered view; 1 in `standings/page.test.tsx` for the rendered zero-stats row and empty "Vire" cell), 100% statement/branch/function/line coverage.
-- Integration tests (`tests/integration/standings.test.ts`) were not run locally — no PostgreSQL/Redis available in this environment — but call `calculateStandings` with a single argument only, so they exercise the unchanged default-parameter path; CI provisions the service containers to run them for real.
+- 12 integration tests passing locally against real PostgreSQL and Redis (via `docker compose up -d` + `npm run db:migrate`), including the two updated above.
 - No e2e test added: this feature only changes what data renders into the existing standings table (an extra row, zero values, an empty form cell) — no new interaction or navigation to click through, unlike spec 007.
