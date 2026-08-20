@@ -2,15 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import {
-  type CompetitionParamResult,
-  DEFAULT_COMPETITION_CODE,
-  getCompetitionName,
-  parseCompetitionParam,
-} from "@/lib/competitions";
-import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
-import { logger } from "@/lib/logger";
-import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
+import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
+import { type BasePageContext, resolveBasePageContext } from "@/lib/page-context";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -31,58 +24,38 @@ type TeamPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
-  try {
-    return await getSeasonContext(competitionCode);
-  } catch (error) {
-    logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
-    return null;
-  }
-}
-
 type PageContext =
   | { status: "error"; competitionName: string }
-  | {
-      status: "ok";
+  | (Extract<BasePageContext, { status: "ok" }> & {
       teamProviderId: number;
-      competitionCode: string;
-      competitionParam: CompetitionParamResult;
-      competitionName: string;
-      context: SeasonContext;
-      season: SeasonParamResult;
-      seasonId: number;
-      seasonLabel: string;
       result: TeamMatchesResult;
       teamName: string | null;
-    };
+    });
 
 /**
  * Resolves everything both `generateMetadata` and the page itself need —
  * the competition, season context, resolved team, and its name (for the
- * title). Called once from each (Next.js invokes them separately), but
- * `getSeasonContext` and `getTeamMatches` are wrapped in React's `cache()`,
- * so the underlying fetches only happen once per request regardless.
+ * title) — on top of `resolveBasePageContext`. Called once from each
+ * (Next.js invokes them separately), but `getSeasonContext` and
+ * `getTeamMatches` are wrapped in React's `cache()`, so the underlying
+ * fetches only happen once per request regardless.
  */
 async function resolvePageContext(
   id: string,
   params: Record<string, string | string[] | undefined>
 ): Promise<PageContext> {
+  const base = await resolveBasePageContext(params);
+  if (base.status === "error") return base;
+
   const teamProviderId = Number(id);
-  const competitionParam = parseCompetitionParam(params.kilpailu);
-  const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
-  const competitionName = getCompetitionName(competitionCode);
-
-  const context = await resolveSeasonContext(competitionCode);
-  if (context === null) return { status: "error", competitionName };
-
-  const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
-
   const result = Number.isNaN(teamProviderId)
     ? ({ status: "not_found" } as const)
-    : await getTeamMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId);
+    : await getTeamMatches(
+        base.competitionCode,
+        teamProviderId,
+        base.seasonId,
+        base.context.activeSeasonId
+      );
 
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName =
@@ -92,19 +65,7 @@ async function resolvePageContext(
         ? firstMatch.homeTeamName
         : firstMatch.awayTeamName;
 
-  return {
-    status: "ok",
-    teamProviderId,
-    competitionCode,
-    competitionParam,
-    competitionName,
-    context,
-    season,
-    seasonId,
-    seasonLabel,
-    result,
-    teamName,
-  };
+  return { ...base, teamProviderId, result, teamName };
 }
 
 export async function generateMetadata({ params, searchParams }: TeamPageProps): Promise<Metadata> {

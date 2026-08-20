@@ -22,6 +22,12 @@ Discussed and confirmed in chat: a `Kilpailu` selector on `/ottelut`/`/joukkue/:
 
 Unlike `/ottelut`, the team page's back link doesn't carry a round — team pages aren't scoped to a single round the way the matches list is (a team's `/joukkue/:id` view always shows its full season of matches), so there's no round value to carry back to standings.
 
+## Extracted `resolveBasePageContext` in response to Sourcery review
+
+Sourcery flagged that `resolvePageContext` in `/sarjataulukko` and `/ottelut` were near-identical (both pre-date this spec, from PR #114's `generateMetadata`/page-component dedupe). Extracted the shared competition/season resolution into `src/lib/page-context.ts` (`resolveBasePageContext`), which both pages now use directly. `/joukkue/:id`'s `resolvePageContext` builds on the same base, spreading in its team-specific fields (`teamProviderId`, `result`, `teamName`) on top. No behavior change — confirmed by the existing 252 unit tests passing unmodified at 100% coverage, since they mock `getSeasonContext`/`logger` at the same module boundaries the shared helper still calls through.
+
+Sourcery's other suggestion — wrapping page content in `<main>` for a11y landmarks — needed no change: `PageShell`, used by every route, already renders a `<main>`.
+
 ## Verification
 
 - `npm run typecheck`, `npm run lint` clean.
