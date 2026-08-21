@@ -24,6 +24,7 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 018 | [018-health-check.md](018-health-check.md) | Health check endpoint wired into Railway deploy |
 | 019 | [019-railway-config.md](019-railway-config.md) | Railway config as code via railway.toml |
 | 011 | [011-branch-protection.md](011-branch-protection.md) | Protect main branch and enforce status checks before merge |
+| 020 | [020-taso-api-key.md](020-taso-api-key.md) | Scrape the TASO API key and store it in Railway (Veikkausliiga data) |
 
 ## After setup
 
