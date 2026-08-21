@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
 import { type BasePageContext, resolveBasePageContext } from "@/lib/page-context";
-import { formatMatchResult } from "@/lib/standings";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -13,13 +13,6 @@ export const dynamic = "force-dynamic";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
-
-const dateFormatter = new Intl.DateTimeFormat("fi-FI", {
-  timeZone: "Europe/Helsinki",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
 
 type TeamPageProps = {
   params: Promise<{ id: string }>;
@@ -140,28 +133,11 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-zinc-300 text-sm text-zinc-600">
-                <th className="p-3">Pvm</th>
-                <th className="p-3">Ottelu</th>
-                <th className="p-3">Tulos</th>
-                <th className="p-3">Kierros</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.matches.map((match) => (
-                <tr className="border-b border-zinc-200" key={match.providerMatchId}>
-                  <td className="p-3">{dateFormatter.format(match.kickoffAt)}</td>
-                  <td className="p-3">{`${match.homeTeamName} – ${match.awayTeamName}`}</td>
-                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
-                  <td className="p-3">{match.matchday ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <MatchListTable
+          matches={result.matches}
+          teamHref={null}
+          fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
+        />
       )}
     </PageShell>
   );

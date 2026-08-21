@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
-import { formatMatchResult } from "@/lib/standings";
 import { LATEST_TASO_SEASON } from "@/lib/taso";
 import { getSeasonMatchList } from "@/lib/taso-standings-service";
 
@@ -12,13 +12,6 @@ export const dynamic = "force-dynamic";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
-
-const dateFormatter = new Intl.DateTimeFormat("fi-FI", {
-  timeZone: "Europe/Helsinki",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
 
 type KotimaaMatchesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -75,42 +68,13 @@ export default async function KotimaaMatchesPage({
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && result.matches.length === 0 && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "ok" && result.matches.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="border-b border-zinc-300 text-sm text-zinc-600">
-                <th className="p-3">Pvm</th>
-                <th className="p-3">Ottelu</th>
-                <th className="p-3">Tulos</th>
-                <th className="p-3">Sarja</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.matches.map((match) => (
-                <tr className="border-b border-zinc-200" key={match.providerMatchId}>
-                  <td className="p-3">{dateFormatter.format(match.kickoffAt)}</td>
-                  <td className="p-3">
-                    <Link
-                      className="hover:underline"
-                      href={`/kotimaa/joukkue/${match.homeTeamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`}
-                    >
-                      {match.homeTeamName}
-                    </Link>
-                    {" – "}
-                    <Link
-                      className="hover:underline"
-                      href={`/kotimaa/joukkue/${match.awayTeamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`}
-                    >
-                      {match.awayTeamName}
-                    </Link>
-                  </td>
-                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
-                  <td className="p-3">{match.groupName}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <MatchListTable
+          matches={result.matches}
+          teamHref={(teamProviderId) =>
+            `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
+          }
+          fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
+        />
       )}
     </PageShell>
   );

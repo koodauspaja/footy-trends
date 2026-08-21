@@ -14,7 +14,7 @@ type SeasonFormProps = {
  * without JavaScript. `StandingsControls` is the one exception: it shows
  * `Kilpailu` as a visible field, not a hidden one, so it doesn't use this.
  */
-export function SeasonForm({ actionPath, competitionCode, children }: SeasonFormProps) {
+export function SeasonForm({ actionPath, competitionCode, children }: Readonly<SeasonFormProps>) {
   return (
     <form action={actionPath} method="get" className="mb-6 flex flex-wrap items-center gap-3">
       <input type="hidden" name="kilpailu" value={competitionCode} />
