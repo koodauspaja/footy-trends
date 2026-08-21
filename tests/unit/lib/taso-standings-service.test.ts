@@ -176,6 +176,92 @@ describe("getSeasonStandings", () => {
     expect(hjk).toMatchObject({ played: 2, points: 6, goalsFor: 5 });
   });
 
+  it("lists only the continuation group's own teams, not every parent-group team, renumbered from 1", async () => {
+    // Mirrors a real season's shape: 4 teams in Runkosarja, of which only 2
+    // go on to Mestaruussarja. The other 2 must not leak into its table —
+    // and crucially, the 2 that continue keep the points they earned in
+    // Runkosarja *against* the teams that didn't.
+    mockStoredMatches([
+      match({
+        providerMatchId: 1,
+        groupId: 1,
+        matchday: 1,
+        homeTeamProviderId: 1,
+        homeTeamName: "HJK",
+        awayTeamProviderId: 3,
+        awayTeamName: "Relegated A",
+        homeGoals: 1,
+        awayGoals: 0,
+      }),
+      match({
+        providerMatchId: 2,
+        groupId: 1,
+        matchday: 1,
+        homeTeamProviderId: 2,
+        homeTeamName: "KuPS",
+        awayTeamProviderId: 4,
+        awayTeamName: "Relegated B",
+        homeGoals: 2,
+        awayGoals: 0,
+      }),
+      match({
+        providerMatchId: 3,
+        groupId: 2,
+        groupName: "Mestaruussarja",
+        matchday: 23,
+        homeTeamProviderId: 2,
+        homeTeamName: "KuPS",
+        awayTeamProviderId: 1,
+        awayTeamName: "HJK",
+        homeGoals: 1,
+        awayGoals: 0,
+      }),
+    ]);
+
+    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+    const mestaruussarja =
+      result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
+    const standings =
+      mestaruussarja?.kind === "own-calculated" ? mestaruussarja.standings : undefined;
+
+    expect(standings?.map((team) => team.teamName)).toEqual(["KuPS", "HJK"]);
+    // Positions are relative to this group (1-2), not carried over from the
+    // combined table — matching TASO's own final_group_standing.
+    expect(standings?.map((team) => team.position)).toEqual([1, 2]);
+    // KuPS: 3pts beating Relegated B in Runkosarja + 3 beating HJK = 6.
+    expect(standings?.[0]).toMatchObject({ teamName: "KuPS", points: 6, played: 2 });
+    expect(standings?.[1]).toMatchObject({ teamName: "HJK", points: 3, played: 2 });
+  });
+
+  it("leaves the origin group's own table untouched, since it has no parent to filter against", async () => {
+    mockStoredMatches([
+      match({
+        providerMatchId: 1,
+        groupId: 1,
+        homeTeamProviderId: 1,
+        homeTeamName: "HJK",
+        awayTeamProviderId: 3,
+        awayTeamName: "Relegated A",
+      }),
+      match({
+        providerMatchId: 2,
+        groupId: 2,
+        groupName: "Mestaruussarja",
+        matchday: 23,
+        homeTeamProviderId: 1,
+        awayTeamProviderId: 3,
+      }),
+    ]);
+
+    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+    const runkosarja =
+      result.status === "ok" ? result.groups.find((group) => group.groupId === 1) : undefined;
+    const standings = runkosarja?.kind === "own-calculated" ? runkosarja.standings : undefined;
+    expect(standings?.map((team) => team.teamName).sort()).toEqual(["HJK", "Relegated A"]);
+  });
+
   it("filters an own-calculated group's standings by round, spanning both parent and child rounds", async () => {
     mockStoredMatches([
       match({

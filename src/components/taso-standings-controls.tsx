@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
 import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
+import { useSeasonRoundNavigation } from "./use-season-round-navigation";
 
 type TasoStandingsControlsProps = {
   competitionCode: string;
@@ -28,19 +28,7 @@ export function TasoStandingsControls({
   availableRounds,
   selectedRound,
 }: Readonly<TasoStandingsControlsProps>) {
-  const router = useRouter();
-
-  function navigate(seasonId: number, round: number | undefined) {
-    const params = new URLSearchParams(window.location.search);
-    params.set("kilpailu", competitionCode);
-    params.set("kausi", String(seasonId));
-    if (round === undefined) {
-      params.delete("kierros");
-    } else {
-      params.set("kierros", String(round));
-    }
-    router.push(`/kotimaa/sarjataulukko?${params.toString()}`);
-  }
+  const navigate = useSeasonRoundNavigation("/kotimaa/sarjataulukko", competitionCode);
 
   return (
     <SeasonForm actionPath="/kotimaa/sarjataulukko" competitionCode={competitionCode}>

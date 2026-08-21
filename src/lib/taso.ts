@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
@@ -92,13 +93,11 @@ export type NormalizedTasoMatch = {
  * `+0200` in winter, confirmed live across the 2025 DST boundary), so no
  * timezone-database lookup is needed here.
  */
-function parseKickoff(date: string, time: string, offset: string): Date {
+function parseKickoff(date: string, time: string, offset: string): Date | null {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const timeMatch = /^(\d{2}):(\d{2})/.exec(time);
   const offsetMatch = /^([+-])(\d{2})(\d{2})$/.exec(offset);
-  if (!dateMatch || !timeMatch || !offsetMatch) {
-    throw new Error(`Unparseable TASO kickoff: ${date} ${time} ${offset}`);
-  }
+  if (!dateMatch || !timeMatch || !offsetMatch) return null;
   const [, year, month, day] = dateMatch;
   const [, hour, minute] = timeMatch;
   const [, sign, offsetHours, offsetMinutes] = offsetMatch;
@@ -143,6 +142,19 @@ export function normalizeTasoMatch(
   )
     return null;
 
+  // TASO occasionally returns a match with no date/time at all — 2022's
+  // Eurolopputurnausfinaali has one, already played but never given a
+  // kickoff. It is skipped like any other incomplete match rather than
+  // throwing: one unusable row must not take down a whole season's sync.
+  const kickoffAt = parseKickoff(match.date, match.time, match.time_zone_offset);
+  if (kickoffAt === null) {
+    logger.warn(
+      { matchId: match.match_id, date: match.date, time: match.time },
+      "Skipping TASO match with an unparseable kickoff"
+    );
+    return null;
+  }
+
   return {
     providerMatchId: Number(match.match_id),
     competitionCode: competitionId,
@@ -150,7 +162,7 @@ export function normalizeTasoMatch(
     groupId: Number(match.group_id),
     groupName: match.group_name,
     status: normalizeStatus(match.status),
-    kickoffAt: parseKickoff(match.date, match.time, match.time_zone_offset),
+    kickoffAt,
     matchday: match.round_id === undefined ? null : Number(match.round_id),
     homeTeamProviderId: Number(match.team_A_id),
     homeTeamName: match.team_A_name,

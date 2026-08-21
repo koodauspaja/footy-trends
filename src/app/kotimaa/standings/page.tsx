@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
 import { LATEST_TASO_SEASON } from "@/lib/taso";
@@ -13,17 +14,6 @@ import {
 } from "@/lib/taso-standings-service";
 
 export const dynamic = "force-dynamic";
-
-const columns = [
-  ["O", "Ottelut"],
-  ["V", "Voitot"],
-  ["T", "Tasapelit"],
-  ["H", "Häviöt"],
-  ["TM", "Tehdyt maalit"],
-  ["PM", "Päästetyt maalit"],
-  ["ME", "Maaliero"],
-  ["P", "Pisteet"],
-] as const;
 
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Sarjataulukkoa ei ole saatavilla.";
@@ -41,10 +31,6 @@ type KotimaaStandingsPageProps = {
  */
 function displayGroupName(groupName: string): string {
   return groupName === "1" ? "Runkosarja" : groupName;
-}
-
-function cell(value: number | null): string {
-  return value === null ? "–" : String(value);
 }
 
 export async function generateMetadata({
@@ -115,65 +101,15 @@ export default async function KotimaaStandingsPage({
         result.groups.map((group) => (
           <section key={group.groupId} className="mb-10">
             <h2 className="mb-3 text-xl font-semibold">{displayGroupName(group.groupName)}</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-zinc-300 text-sm text-zinc-600">
-                    <th className="p-3">Sija</th>
-                    <th className="p-3">Joukkue</th>
-                    {columns.map(([short, title]) => (
-                      <th className="p-3" key={short} title={title}>
-                        {short}
-                      </th>
-                    ))}
-                    <th className="p-3">Vire</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.standings.map((team) => (
-                    <tr className="border-b border-zinc-200" key={team.teamProviderId}>
-                      <td className="p-3">{team.position}</td>
-                      <th scope="row" className="p-3 font-medium">
-                        {team.teamProviderId === 0 ? (
-                          team.teamName
-                        ) : (
-                          <Link
-                            className="hover:underline"
-                            href={`/kotimaa/joukkue/${team.teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`}
-                          >
-                            {team.teamName}
-                          </Link>
-                        )}
-                      </th>
-                      <td className="p-3">{cell(team.played)}</td>
-                      <td className="p-3">{cell(team.won)}</td>
-                      <td className="p-3">{cell(team.drawn)}</td>
-                      <td className="p-3">{cell(team.lost)}</td>
-                      <td className="p-3">{cell(team.goalsFor)}</td>
-                      <td className="p-3">{cell(team.goalsAgainst)}</td>
-                      <td className="p-3">{cell(team.goalDifference)}</td>
-                      <td className="p-3 font-semibold">{cell(team.points)}</td>
-                      <td
-                        className="p-3"
-                        aria-label={team.form.map((item) => item.label).join(", ")}
-                      >
-                        {team.form.map((item) => (
-                          <span className="mr-1" key={item.matchId} title={item.label}>
-                            {item.result}
-                          </span>
-                        ))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <StandingsTable
+              standings={group.standings}
+              teamHref={(teamProviderId) =>
+                `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
+              }
+            />
           </section>
         ))}
-      <p className="mt-4 text-sm text-zinc-500">
-        O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt
-        maalit, ME = maaliero, P = pisteet.
-      </p>
+      <StandingsLegend />
     </PageShell>
   );
 }
