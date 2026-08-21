@@ -134,6 +134,23 @@ export function calculateStandings(
     }));
 }
 
+/**
+ * A team's matches within a season's full match list, chronological —
+ * shared by every provider's `getTeamMatches` (football-data.org, TASO):
+ * same "find this team's games, oldest first" logic regardless of where
+ * the match list came from.
+ */
+export function selectTeamMatches<
+  T extends { homeTeamProviderId: number; awayTeamProviderId: number; kickoffAt: Date },
+>(seasonMatches: T[], teamProviderId: number): T[] {
+  return seasonMatches
+    .filter(
+      (match) =>
+        match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId
+    )
+    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+}
+
 function applyResult(team: TeamTotals, result: FormResult, matchId: number, kickoffAt: Date): void {
   team.results.push({ matchId, kickoffAt, result, label: resultLabels[result] });
   if (result === "V") {

@@ -6,7 +6,12 @@ import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data"
 import { logger } from "./logger";
 import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
-import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./standings";
+import {
+  calculateStandings,
+  type NormalizedMatch,
+  selectTeamMatches,
+  type TeamStanding,
+} from "./standings";
 
 const FINISHED_STATUS = "FINISHED";
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
@@ -180,12 +185,7 @@ export const getTeamMatches = cache(async function getTeamMatches(
       return refreshFailed ? { status: "error" } : { status: "empty" };
     }
 
-    const teamMatches = seasonMatches
-      .filter(
-        (match) =>
-          match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId
-      )
-      .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+    const teamMatches = selectTeamMatches(seasonMatches, teamProviderId);
 
     if (teamMatches.length === 0) return { status: "not_found" };
     return { status: "ok", matches: teamMatches };
