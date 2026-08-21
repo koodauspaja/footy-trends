@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 
@@ -26,42 +26,13 @@ function apiKey(): string {
   return key;
 }
 
-async function request<T>(path: string): Promise<T> {
-  const startedAt = Date.now();
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: {
-        Accept: `json/${apiKey()}`,
-        Referer: REFERER,
-        Origin: ORIGIN,
-        "User-Agent": USER_AGENT,
-      },
-    });
-  } catch (error) {
-    logger.error(
-      { err: error, method: "GET", path, durationMs: Date.now() - startedAt },
-      "TASO request failed"
-    );
-    throw error;
-  }
-
-  const durationMs = Date.now() - startedAt;
-
-  if (!response.ok) {
-    logger.error(
-      { method: "GET", path, status: response.status, durationMs },
-      "TASO request failed"
-    );
-    throw new Error(`TASO request failed: ${response.status}`);
-  }
-
-  logger.info(
-    { method: "GET", path, status: response.status, durationMs },
-    "TASO request completed"
-  );
-  return (await response.json()) as T;
+function request<T>(path: string): Promise<T> {
+  return fetchProviderJson<T>("TASO", API_BASE_URL, path, () => ({
+    Accept: `json/${apiKey()}`,
+    Referer: REFERER,
+    Origin: ORIGIN,
+    "User-Agent": USER_AGENT,
+  }));
 }
 
 // --- Matches -----------------------------------------------------------
@@ -145,6 +116,13 @@ function parseScore(value: string | undefined): number | null {
   return value === undefined || value === "" ? null : Number(value);
 }
 
+/** Any other status (e.g. "Live") passes through verbatim rather than crashing on the unexpected. */
+function normalizeStatus(status: string): string {
+  if (status === "Played") return "FINISHED";
+  if (status === "Fixture") return "SCHEDULED";
+  return status;
+}
+
 export function normalizeTasoMatch(
   match: TasoProviderMatch,
   competitionId: string,
@@ -171,12 +149,7 @@ export function normalizeTasoMatch(
     seasonId,
     groupId: Number(match.group_id),
     groupName: match.group_name,
-    status:
-      match.status === "Played"
-        ? "FINISHED"
-        : match.status === "Fixture"
-          ? "SCHEDULED"
-          : match.status,
+    status: normalizeStatus(match.status),
     kickoffAt: parseKickoff(match.date, match.time, match.time_zone_offset),
     matchday: match.round_id === undefined ? null : Number(match.round_id),
     homeTeamProviderId: Number(match.team_A_id),

@@ -3,7 +3,12 @@ import { db } from "@/db";
 import { tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import { logger } from "./logger";
-import { calculateStandings, type NormalizedMatch, type TeamStanding } from "./standings";
+import {
+  calculateStandings,
+  type NormalizedMatch,
+  selectTeamMatches,
+  type TeamStanding,
+} from "./standings";
 import {
   getSeasonGroups,
   getSeasonMatches,
@@ -278,7 +283,9 @@ export async function getSeasonStandings(
       const tasoGroups = await getCachedSeasonGroups(competitionId, seasonId, activeSeasonId);
       for (const groupId of passThroughGroupIds) {
         const tasoGroup = tasoGroups.find((group) => Number(group.group_id) === groupId);
-        const standings = (tasoGroup?.teams ?? []).map(toPassThroughStanding);
+        const standings = (tasoGroup?.teams ?? []).map((team, index) =>
+          toPassThroughStanding(team, index)
+        );
         groups.push({
           kind: "pass-through",
           groupId,
@@ -349,12 +356,7 @@ export async function getTeamMatches(
       return refreshFailed ? { status: "error" } : { status: "empty" };
     }
 
-    const teamMatches = seasonMatches
-      .filter(
-        (match) =>
-          match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId
-      )
-      .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+    const teamMatches = selectTeamMatches(seasonMatches, teamProviderId);
 
     if (teamMatches.length === 0) return { status: "not_found" };
     return { status: "ok", matches: teamMatches };

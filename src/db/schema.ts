@@ -1,5 +1,25 @@
 import { index, integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
+/**
+ * Columns identical between `matches` and `tasoMatches` — a function, not a
+ * shared object literal, because Drizzle column builders are stateful and
+ * can't be reused across two `pgTable` calls; each call here builds fresh
+ * instances.
+ */
+function matchTeamColumns() {
+  return {
+    homeTeamProviderId: integer("home_team_provider_id").notNull(),
+    homeTeamName: text("home_team_name").notNull(),
+    awayTeamProviderId: integer("away_team_provider_id").notNull(),
+    awayTeamName: text("away_team_name").notNull(),
+    // Nullable: a not-yet-played match has no final score.
+    homeGoals: integer("home_goals"),
+    awayGoals: integer("away_goals"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  };
+}
+
 export const matches = pgTable(
   "matches",
   {
@@ -12,15 +32,7 @@ export const matches = pgTable(
     // Only ever "FINISHED" until 004-listing-matches-for-selected-team, whose
     // migration backfills the default below so existing rows stay accurate.
     status: text("status").notNull().default("FINISHED"),
-    homeTeamProviderId: integer("home_team_provider_id").notNull(),
-    homeTeamName: text("home_team_name").notNull(),
-    awayTeamProviderId: integer("away_team_provider_id").notNull(),
-    awayTeamName: text("away_team_name").notNull(),
-    // Nullable: a not-yet-played match has no final score.
-    homeGoals: integer("home_goals"),
-    awayGoals: integer("away_goals"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...matchTeamColumns(),
   },
   (table) => [
     uniqueIndex("matches_provider_match_id_idx").on(table.providerMatchId),
@@ -51,14 +63,7 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
-    homeTeamProviderId: integer("home_team_provider_id").notNull(),
-    homeTeamName: text("home_team_name").notNull(),
-    awayTeamProviderId: integer("away_team_provider_id").notNull(),
-    awayTeamName: text("away_team_name").notNull(),
-    homeGoals: integer("home_goals"),
-    awayGoals: integer("away_goals"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...matchTeamColumns(),
   },
   (table) => [
     uniqueIndex("taso_matches_taso_match_id_idx").on(table.providerMatchId),
