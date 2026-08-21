@@ -251,3 +251,83 @@ correctly not producing a nonsensical `/kotimaa/joukkue/0` link if it did).
   2025 Runkosarja team's match list spans more than one `group_name`,
   confirming the carry-over/cross-group team-page behavior end-to-end
   against real data, not just fixtures.
+
+---
+
+## Part 2 review pass: two real bugs found against live data
+
+The UI PR was reviewed end-to-end against the live TASO API before merge.
+Two genuine bugs surfaced, both in part 1's data layer rather than the UI,
+and both invisible to the test suite as it stood.
+
+### A carry-over group listed every parent-group team
+
+`getSeasonStandings` fed a continuation group's combined match list
+(parent + own) to `calculateStandings` as *both* the stats source and the
+roster. The roster argument seeds a row per team, so 2025's Mestaruussarja
+rendered all **12** Runkosarja teams instead of its own 6 — the 6 extras
+sitting at 22 played among teams on 32, which looks plausible enough at a
+glance to survive review.
+
+Fixed by filtering the combined table back down to the teams that actually
+appear in the group's own matches, then renumbering positions from 1 (which
+also matches TASO's own `final_group_standing`, relative to its group per
+the spec's Out of scope). Filtering the *matches* instead would have been
+wrong: a Mestaruussarja team's Runkosarja points include matches against
+teams that went on to Karsintasarja, so dropping those would under-count it
+— KuPS 2025 would lose points off its real 67.
+
+Verified against live 2025 data: Runkosarja/Mestaruussarja/Karsintasarja now
+return 12/6/6 rows with every team's points, matches played, *and* position
+matching TASO's own published numbers — zero mismatches.
+
+### One dateless match took down a whole season
+
+`parseKickoff` threw on an unparseable kickoff. `normalizeTasoMatch` is
+built to return `null` for an unusable row so `getSeasonMatches` can skip
+it, but a throw escaped that and failed the entire season sync. 2022's
+Eurolopputurnausfinaali contains exactly one such match — already played,
+but TASO never recorded a date or time for it — so **the whole 2022 season
+rendered the error state**. An unparseable kickoff is now treated like any
+other incomplete row: skipped, with a warning logged so it stays visible.
+
+### Why the tests missed both
+
+The spec's acceptance criteria call for verifying a season with 5 groups
+(2022) and one with 3 (2025). Neither had any coverage: 2022 was never
+loaded at all, and the 2025 e2e test counted *tables* but not *rows*. Both
+gaps are now closed — plus unit regression tests for the roster fix and the
+skipped-kickoff path, and an e2e assertion that a split group reproduces
+TASO's own published points and positions.
+
+## Duplication and shared components
+
+SonarCloud's duplication gate drove out four shared pieces, each replacing
+markup that had been copy-pasted between the football-data and `/kotimaa`
+sides: `Notice` (the amber fallback banner, also fixing every `role="status"`
+accessibility finding at once by using `<output>`), `MatchListTable`,
+`StandingsTable`/`StandingsLegend`, `SeasonForm`, and a shared
+`useSeasonRoundNavigation` hook. New-code duplication went 15.8% → **0.0%**
+and all 13 code smells are resolved.
+
+## Per-request sync deduplication
+
+`getSyncedSeasonMatches` is now wrapped in React's `cache()`, matching
+`getSeasonContext`/`getTeamMatches` in the football-data services. Without
+it the standings page synced twice per render (once for the round list,
+once for the tables) and the team page twice per request (Next.js invokes
+`generateMetadata` and the default export separately) — on a stale current
+season that meant fetching TASO's ~1 MB season response and re-upserting
+every row twice over.
+
+## Known limitation: the season range is hardcoded
+
+`EARLIEST_TASO_SEASON`/`LATEST_TASO_SEASON` are `2015`/`2026`, matching the
+spec's fixed 2015–2026 range. `LATEST_TASO_SEASON` doubles as the "current
+season" for cache-freshness, so when 2027 starts it needs a one-line bump
+or the new season is neither listed nor refreshed. Deliberately left as-is
+rather than derived from the clock: deriving it would make the app default
+to a `competition_id` TASO may not publish until the season is close, which
+fails worse and less visibly. Worth a follow-up issue before the 2027
+season opens.
+
