@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
 import { type BasePageContext, resolveBasePageContext } from "@/lib/page-context";
+import { formatMatchResult } from "@/lib/standings";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -119,20 +121,12 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
+        <Notice>
           Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </p>
+        </Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
       {!Number.isNaN(teamProviderId) && (
         <TeamSeasonSelector
@@ -161,11 +155,7 @@ export default async function TeamPage({ params, searchParams }: TeamPageProps) 
                 <tr className="border-b border-zinc-200" key={match.providerMatchId}>
                   <td className="p-3">{dateFormatter.format(match.kickoffAt)}</td>
                   <td className="p-3">{`${match.homeTeamName} – ${match.awayTeamName}`}</td>
-                  <td className="p-3">
-                    {match.homeGoals !== null && match.awayGoals !== null
-                      ? `${match.homeGoals}–${match.awayGoals}`
-                      : "–"}
-                  </td>
+                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
                   <td className="p-3">{match.matchday ?? ""}</td>
                 </tr>
               ))}

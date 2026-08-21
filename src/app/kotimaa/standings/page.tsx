@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
@@ -54,7 +55,9 @@ export async function generateMetadata({
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
-export default async function KotimaaStandingsPage({ searchParams }: KotimaaStandingsPageProps) {
+export default async function KotimaaStandingsPage({
+  searchParams,
+}: Readonly<KotimaaStandingsPageProps>) {
   const params = (await searchParams) ?? {};
   const {
     competitionCode,
@@ -93,29 +96,12 @@ export default async function KotimaaStandingsPage({ searchParams }: KotimaaStan
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kilpailua ei löytynyt. Näytetään {competitionName}.
-        </p>
+        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
-      {roundParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          {INVALID_ROUND_MESSAGE}
-        </p>
-      )}
+      {roundParam.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
       <TasoStandingsControls
         competitionCode={competitionCode}
         seasons={selectableSeasons}

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
+import { formatMatchResult } from "@/lib/standings";
 import { LATEST_TASO_SEASON } from "@/lib/taso";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
 
@@ -24,6 +26,13 @@ type KotimaaTeamPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function nameForTeam(
+  match: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string },
+  teamProviderId: number
+): string {
+  return match.homeTeamProviderId === teamProviderId ? match.homeTeamName : match.awayTeamName;
+}
+
 async function resolveTeamName(
   competitionId: string,
   teamProviderId: number,
@@ -31,12 +40,7 @@ async function resolveTeamName(
 ): Promise<{ result: TeamMatchesResult; teamName: string | null }> {
   const result = await getTeamMatches(competitionId, teamProviderId, seasonId, LATEST_TASO_SEASON);
   const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const teamName =
-    firstMatch === undefined
-      ? null
-      : firstMatch.homeTeamProviderId === teamProviderId
-        ? firstMatch.homeTeamName
-        : firstMatch.awayTeamName;
+  const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
   return { result, teamName };
 }
 
@@ -58,7 +62,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function KotimaaTeamPage({ params, searchParams }: KotimaaTeamPageProps) {
+export default async function KotimaaTeamPage({
+  params,
+  searchParams,
+}: Readonly<KotimaaTeamPageProps>) {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
   const {
@@ -91,20 +98,10 @@ export default async function KotimaaTeamPage({ params, searchParams }: KotimaaT
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kilpailua ei löytynyt. Näytetään {competitionName}.
-        </p>
+        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
       {!Number.isNaN(teamProviderId) && (
         <TasoSeasonOnlyControls
@@ -133,11 +130,7 @@ export default async function KotimaaTeamPage({ params, searchParams }: KotimaaT
                 <tr className="border-b border-zinc-200" key={match.providerMatchId}>
                   <td className="p-3">{dateFormatter.format(match.kickoffAt)}</td>
                   <td className="p-3">{`${match.homeTeamName} – ${match.awayTeamName}`}</td>
-                  <td className="p-3">
-                    {match.homeGoals !== null && match.awayGoals !== null
-                      ? `${match.homeGoals}–${match.awayGoals}`
-                      : "–"}
-                  </td>
+                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
                   <td className="p-3">{match.groupName}</td>
                 </tr>
               ))}

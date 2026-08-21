@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
 import {
@@ -84,29 +85,14 @@ export default async function StandingsPage({ searchParams }: StandingsPageProps
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
+        <Notice>
           Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </p>
+        </Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
-      {round.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          {INVALID_ROUND_MESSAGE}
-        </p>
-      )}
+      {round.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
       <StandingsControls
         competitions={SUPPORTED_COMPETITIONS}
         selectedCompetitionCode={competitionCode}

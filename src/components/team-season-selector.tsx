@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
+import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
 
 type TeamSeasonSelectorProps = {
@@ -35,18 +36,8 @@ export function TeamSeasonSelector({
   }
 
   return (
-    <form
-      action={`/joukkue/${teamProviderId}`}
-      method="get"
-      className="mb-6 flex flex-wrap items-center gap-3"
-    >
-      <input type="hidden" name="kilpailu" value={competitionCode} />
+    <SeasonForm actionPath={`/joukkue/${teamProviderId}`} competitionCode={competitionCode}>
       <SeasonSelect seasons={seasons} selectedSeasonId={selectedSeasonId} onChange={navigate} />
-      <noscript>
-        <button className="rounded border border-zinc-300 px-3 py-2" type="submit">
-          Näytä
-        </button>
-      </noscript>
-    </form>
+    </SeasonForm>
   );
 }

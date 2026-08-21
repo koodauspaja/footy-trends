@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MatchesControls } from "@/components/matches-controls";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
 import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
+import { formatMatchResult } from "@/lib/standings";
 import { getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
 
 export const dynamic = "force-dynamic";
@@ -81,28 +83,15 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
+        <Notice>
           Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </p>
+        </Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
       {roundParam.kind === "invalid" && result.status === "ok" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kierrosta ei löytynyt. Näytetään kierros {result.round}.
-        </p>
+        <Notice>Kierrosta ei löytynyt. Näytetään kierros {result.round}.</Notice>
       )}
       <MatchesControls
         competitionCode={competitionCode}
@@ -163,11 +152,7 @@ export default async function MatchesPage({ searchParams }: MatchesPageProps) {
                       {match.awayTeamName}
                     </Link>
                   </td>
-                  <td className="p-3">
-                    {match.homeGoals !== null && match.awayGoals !== null
-                      ? `${match.homeGoals}–${match.awayGoals}`
-                      : "–"}
-                  </td>
+                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
                 </tr>
               ))}
             </tbody>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
+import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
 
 type TasoStandingsControlsProps = {
@@ -26,7 +27,7 @@ export function TasoStandingsControls({
   selectedSeasonId,
   availableRounds,
   selectedRound,
-}: TasoStandingsControlsProps) {
+}: Readonly<TasoStandingsControlsProps>) {
   const router = useRouter();
 
   function navigate(seasonId: number, round: number | undefined) {
@@ -42,12 +43,7 @@ export function TasoStandingsControls({
   }
 
   return (
-    <form
-      action="/kotimaa/sarjataulukko"
-      method="get"
-      className="mb-6 flex flex-wrap items-center gap-3"
-    >
-      <input type="hidden" name="kilpailu" value={competitionCode} />
+    <SeasonForm actionPath="/kotimaa/sarjataulukko" competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
@@ -74,12 +70,6 @@ export function TasoStandingsControls({
           </option>
         ))}
       </select>
-
-      <noscript>
-        <button className="rounded border border-zinc-300 px-3 py-2" type="submit">
-          Näytä
-        </button>
-      </noscript>
-    </form>
+    </SeasonForm>
   );
 }

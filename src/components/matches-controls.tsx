@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
 import { RoundSelect } from "./round-select";
+import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
 
 type MatchesControlsProps = {
@@ -45,8 +46,7 @@ export function MatchesControls({
   }
 
   return (
-    <form action="/ottelut" method="get" className="mb-6 flex flex-wrap items-center gap-3">
-      <input type="hidden" name="kilpailu" value={competitionCode} />
+    <SeasonForm actionPath="/ottelut" competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
@@ -59,11 +59,6 @@ export function MatchesControls({
           onChange={(round) => navigate(selectedSeasonId, round)}
         />
       )}
-      <noscript>
-        <button className="rounded border border-zinc-300 px-3 py-2" type="submit">
-          Näytä
-        </button>
-      </noscript>
-    </form>
+    </SeasonForm>
   );
 }

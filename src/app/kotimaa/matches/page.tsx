@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
+import { formatMatchResult } from "@/lib/standings";
 import { LATEST_TASO_SEASON } from "@/lib/taso";
 import { getSeasonMatchList } from "@/lib/taso-standings-service";
 
@@ -30,7 +32,9 @@ export async function generateMetadata({
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
-export default async function KotimaaMatchesPage({ searchParams }: KotimaaMatchesPageProps) {
+export default async function KotimaaMatchesPage({
+  searchParams,
+}: Readonly<KotimaaMatchesPageProps>) {
   const params = (await searchParams) ?? {};
   const {
     competitionCode,
@@ -56,20 +60,10 @@ export default async function KotimaaMatchesPage({ searchParams }: KotimaaMatche
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kilpailua ei löytynyt. Näytetään {competitionName}.
-        </p>
+        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
       )}
       {season.kind === "invalid" && (
-        <p
-          className="mb-6 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-          role="status"
-        >
-          Kautta ei löytynyt. Näytetään kausi {seasonLabel}.
-        </p>
+        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
       <TasoSeasonOnlyControls
         actionPath="/kotimaa/ottelut"
@@ -110,11 +104,7 @@ export default async function KotimaaMatchesPage({ searchParams }: KotimaaMatche
                       {match.awayTeamName}
                     </Link>
                   </td>
-                  <td className="p-3">
-                    {match.homeGoals !== null && match.awayGoals !== null
-                      ? `${match.homeGoals}–${match.awayGoals}`
-                      : "–"}
-                  </td>
+                  <td className="p-3">{formatMatchResult(match.homeGoals, match.awayGoals)}</td>
                   <td className="p-3">{match.groupName}</td>
                 </tr>
               ))}

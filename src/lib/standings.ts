@@ -19,6 +19,15 @@ export type NormalizedMatch = RosterMatch & {
   awayGoals: number;
 };
 
+/**
+ * "H–A" for a played match, "–" for one with no final score yet — the same
+ * formatting was duplicated across every matches/team page, both
+ * football-data.org's and TASO's.
+ */
+export function formatMatchResult(homeGoals: number | null, awayGoals: number | null): string {
+  return homeGoals !== null && awayGoals !== null ? `${homeGoals}–${awayGoals}` : "–";
+}
+
 export type FormResult = "V" | "T" | "H";
 
 export type TeamStanding = {
