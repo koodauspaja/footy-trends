@@ -13,6 +13,13 @@ import {
 } from "./taso";
 
 const FINISHED_STATUS = "FINISHED";
+/**
+ * Shared by `needsRefresh` (current-season match staleness) and
+ * `getCachedSeasonGroups` (current-season groups cache) — one constant,
+ * not two, since `taso.ts` itself does no caching of its own; both uses
+ * live here where they're actually consumed. See
+ * specs/009-veikkausliiga.md's caching section.
+ */
 const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;

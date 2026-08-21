@@ -1,8 +1,6 @@
 import { logger } from "./logger";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
-export const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
-export const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 // Fixed values, not secrets: TASO 403s without headers matching the real
 // tulospalvelu.palloliitto.fi frontend — server-side origin validation, not

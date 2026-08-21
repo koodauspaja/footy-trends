@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getSeasonGroups,
   getSeasonMatches,
-  MATCHES_CACHE_TTL_SECONDS,
   normalizeTasoMatch,
   seasonFromCompetitionId,
 } from "@/lib/taso";
@@ -404,9 +403,5 @@ describe("taso mapping", () => {
     );
 
     await expect(getSeasonGroups("spljp26")).resolves.toEqual([]);
-  });
-
-  it("exports the matches cache TTL matching the football-data.ts convention", () => {
-    expect(MATCHES_CACHE_TTL_SECONDS).toBe(15 * 60);
   });
 });
