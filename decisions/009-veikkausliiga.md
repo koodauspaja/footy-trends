@@ -148,3 +148,106 @@ TASO-specific (`taso_match_id`, `competition_id`) rather than reusing
   wire-format assumptions before they shipped as bugs.
 - UI layer (three `kotimaa` pages, round selector, group tables, error
   states) not yet built — follows in the stacked PR.
+
+---
+
+## Part 2: the UI layer
+
+Everything below was implemented in the second PR, on branch
+`feature/009-veikkausliiga-ui`, built on top of `main` after part 1 merged
+(not stacked on the now-deleted part-1 branch, since it had already landed).
+
+## Navigation was restructured: a region picker, decided live with the user
+
+The spec's own "linked from `/kotimaa/`" wording turned out to be
+underspecified — neither the acceptance criteria nor Files To Update said
+whether `/kotimaa/` was a real page, and if so, how anyone would reach it
+from the existing home page. Raised with the user mid-implementation. Their
+explicit direction: a "choose your location first" landing page, not one
+long list mixing domestic and international competitions. Decided and built:
+
+- `/` is now a two-choice region picker ("Kotimaa" / "Ulkomaat"), replacing
+  the old direct 9-competition list.
+- The old list moved verbatim to a new `/ulkomaat` page — same content,
+  same links to `/sarjataulukko?kilpailu={code}`. This does **not** violate
+  the spec's explicit out-of-scope note ("don't rename `/sarjataulukko`
+  etc. under `/ulkomaat/`") — that note was about the deep standings/
+  matches/team routes specifically, which are untouched; only the
+  *picker's own* URL moved, from `/` to `/ulkomaat`.
+- A new `/kotimaa` page lists Finnish competitions (`src/lib/kotimaa-competitions.ts`
+  — just Veikkausliiga today, structured the same way as `competitions.ts`
+  but deliberately a separate list, per the spec's "never added to the
+  `/sarjataulukko` picker's `kilpailu=` list" line). Uses the 🇫🇮 emoji
+  rather than a hotlinked flag image — unlike football-data.org's
+  country-flag crests, there's no existing asset source for this, and an
+  emoji sidesteps the consent question the project already avoids on the
+  crests-vs-flags distinction in `decisions/006-other-competitions.md`.
+
+## Route folder structure, exactly as decided in part 1
+
+`src/app/kotimaa/standings|matches|team/[id]/page.tsx` — English folders,
+Finnish public URLs via three new `next.config.ts` rewrites
+(`/kotimaa/sarjataulukko` → `/kotimaa/standings`, etc.), symmetric with the
+existing `standings`/`matches`/`team/[id]` folders. `/kotimaa` and
+`/ulkomaat` themselves needed no rewrite — Finnish words used directly as
+both the folder name and the URL, same reasoning as the `kotimaa/`
+namespace segment itself (not a translatable English word, just routing).
+
+## One page-level round selector, not one per group
+
+`/kotimaa/sarjataulukko` has a single `Kierros` control (via
+`TasoStandingsControls`), not one per own-calculated group. Its option list
+is `listSelectableTasoRounds` — the union of round numbers actually present
+across every own-calculated group, which is why Mestaruussarja's own rounds
+(23+) show up in the *same* dropdown as Runkosarja's (1–22): TASO's
+round_id is one continuous scale for the whole season, never re-indexed per
+group, so one selector reading that scale is both simpler and matches the
+spec's "Kierros 23 onward, not re-indexed" line more literally than
+per-group selectors would have.
+
+## No round selector on `/kotimaa/ottelut` or `/kotimaa/joukkue/:id`
+
+Both list a season's full match set at once (`getSeasonMatchList`/
+`getTeamMatches`, no round filter) rather than paginating by round like the
+football-data.org `/ottelut` does. The spec's acceptance criteria describe
+both as listing "a season's matches"/"a team's matches for a season" with
+no mention of rounds, unlike its `/kotimaa/sarjataulukko` criterion, which
+explicitly calls out "a working round selector." Building round pagination
+here would have been invented scope: TASO's continuous, group-crossing
+round numbering has no natural "next round" boundary the way a single
+group's 1..N numbering does, and nothing in the acceptance criteria asked
+for it.
+
+## Pass-through rows render through the same table markup as own-calculated rows
+
+Per the spec's "same table component" instruction: one `<table>` per group
+either way; `cell(value)` renders `"–"` for a `null` field (the
+`TasoTeamStanding` type from part 1) and the value itself otherwise. A
+pass-through team's name is plain text, not a link, when
+`teamProviderId === 0` (the `toPassThroughStanding` fallback for a team
+missing `team_id` — defensive, not expected to ever actually happen, but
+correctly not producing a nonsensical `/kotimaa/joukkue/0` link if it did).
+
+## Verification
+
+- `npm run typecheck`, `npm run lint` clean.
+- 382 unit tests passing (up from 306 after part 1), 100% statement/branch/
+  function/line coverage on every file this PR touches (the one remaining
+  branch gap, `src/lib/redis.ts`, predates this PR and this feature
+  entirely — confirmed via `git diff main`).
+- 21 integration tests (unchanged from part 1 — no new DB-layer behavior in
+  this PR).
+- **34 e2e tests passing locally against a real dev server, real Postgres/
+  Redis, and both live APIs** (football-data.org and TASO, the latter using
+  the real scraped key) — 16 new (`kotimaa-standings.spec.ts`,
+  `kotimaa-matches.spec.ts`, `kotimaa-team.spec.ts`, plus the extended
+  `picker.spec.ts`), 18 pre-existing (2 of which needed updating for the
+  region-picker restructure: `picker.spec.ts`'s whole flow, and
+  `standings.spec.ts`'s "Etusivu returns to the picker" assertion, which
+  now expects "Valitse alue" instead of "Valitse kilpailu"). Confirmed
+  live, not just asserted: 2025's three-group split (Runkosarja/
+  Mestaruussarja/Karsintasarja) all render; 2015 renders a single table
+  with TASO's `"1"` group_name displayed as "Runkosarja"; a top-of-table
+  2025 Runkosarja team's match list spans more than one `group_name`,
+  confirming the carry-over/cross-group team-page behavior end-to-end
+  against real data, not just fixtures.

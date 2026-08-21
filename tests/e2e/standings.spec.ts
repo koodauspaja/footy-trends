@@ -47,13 +47,13 @@ test.describe("Standings page", () => {
     await expect(page.getByLabel("Kilpailu")).toHaveValue("BL1");
   });
 
-  test("the Etusivu link in the header returns to the competition picker", async ({ page }) => {
+  test("the Etusivu link in the header returns to the region picker", async ({ page }) => {
     await page.goto("/sarjataulukko");
 
     await page.getByRole("link", { name: "Etusivu" }).click();
 
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("heading", { name: "Valitse kilpailu" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Valitse alue" })).toBeVisible();
   });
 
   test("carries the selected round into the Kaikki ottelut link", async ({ page }) => {

@@ -187,6 +187,14 @@ export function seasonFromCompetitionId(competitionId: string): number {
   return 2000 + twoDigitYear;
 }
 
+/** The inverse of `seasonFromCompetitionId` — the season selector's fixed 2015–2026 range. */
+export const EARLIEST_TASO_SEASON = 2015;
+export const LATEST_TASO_SEASON = 2026;
+
+export function competitionIdFromSeason(seasonId: number): string {
+  return `spljp${String(seasonId % 100).padStart(2, "0")}`;
+}
+
 // --- Groups (precomputed standings) ------------------------------------
 
 /**

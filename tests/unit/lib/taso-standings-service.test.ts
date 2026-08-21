@@ -6,6 +6,7 @@ import {
   getTeamMatches,
   listSelectableTasoRounds,
   needsRefresh,
+  parseTasoRoundParam,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
 
@@ -498,6 +499,29 @@ describe("listSelectableTasoRounds", () => {
     ];
 
     expect(listSelectableTasoRounds(matches, COMPETITION_ID)).toEqual([1, 2, 23]);
+  });
+});
+
+describe("parseTasoRoundParam", () => {
+  const availableRounds = [1, 2, 23, 24];
+
+  it("treats an absent or empty value as absent", () => {
+    expect(parseTasoRoundParam(undefined, availableRounds)).toEqual({ kind: "absent" });
+    expect(parseTasoRoundParam("", availableRounds)).toEqual({ kind: "absent" });
+  });
+
+  it("accepts a round present in the available list", () => {
+    expect(parseTasoRoundParam("23", availableRounds)).toEqual({ kind: "valid", round: 23 });
+  });
+
+  it("rejects a round not present in the list, even inside its numeric range", () => {
+    // 3 is between 2 and 23 but was never an actual round_id for this season.
+    expect(parseTasoRoundParam("3", availableRounds)).toEqual({ kind: "invalid" });
+  });
+
+  it("rejects a non-numeric or array value", () => {
+    expect(parseTasoRoundParam("not-a-round", availableRounds)).toEqual({ kind: "invalid" });
+    expect(parseTasoRoundParam(["23"], availableRounds)).toEqual({ kind: "invalid" });
   });
 });
 

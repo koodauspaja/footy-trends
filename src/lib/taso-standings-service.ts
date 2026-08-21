@@ -387,3 +387,27 @@ export function listSelectableTasoRounds(matchList: MatchRow[], competitionId: s
     .map((match) => match.matchday as number);
   return [...new Set(rounds)].sort((left, right) => left - right);
 }
+
+export type TasoRoundParamResult =
+  | { kind: "absent" }
+  | { kind: "valid"; round: number }
+  | { kind: "invalid" };
+
+const POSITIVE_INTEGER = /^\d+$/;
+
+/**
+ * Validates the `kierros` query parameter against the actual round numbers
+ * `listSelectableTasoRounds` returned — a membership check, not a 1..max
+ * range check, since TASO's round scale can start above 1 for a
+ * continuation-only group and isn't guaranteed gap-free.
+ */
+export function parseTasoRoundParam(
+  rawValue: string | string[] | undefined,
+  availableRounds: number[]
+): TasoRoundParamResult {
+  if (rawValue === undefined || rawValue === "") return { kind: "absent" };
+  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
+
+  const round = Number(rawValue);
+  return availableRounds.includes(round) ? { kind: "valid", round } : { kind: "invalid" };
+}
