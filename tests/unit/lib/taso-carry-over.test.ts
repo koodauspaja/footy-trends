@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
-import { getSeasonStandings, listCarryOverEntries } from "@/lib/taso-standings-service";
+import {
+  getSeasonMatchList,
+  getSeasonStandings,
+  listCarryOverEntries,
+  listSelectableTasoRounds,
+} from "@/lib/taso-standings-service";
 import fixture from "../../fixtures/taso-carry-over.json";
 
 /**
@@ -131,6 +136,86 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       });
     }
   }
+
+  // #133: 2019, 2022 and 2023 restart their split groups at round 1 instead
+  // of continuing from Runkosarja's 22, while 2021/2024/2025 continue. The
+  // round filter takes `matchday <= round` across parent + child, so without
+  // renumbering a child round of 5 is indistinguishable from Runkosarja's 5.
+  describe("split groups that restart round numbering", () => {
+    /** Runkosarja pairs all 12 teams per round; a 6-team split group, 3. */
+    function matchesPerRound(groupId: number): number {
+      return groupId === 1 ? 6 : 3;
+    }
+
+    /** Numbers rounds the way TASO does for these seasons: the child restarts at 1. */
+    function withRestartedRounds(rows: NormalizedTasoMatch[]): NormalizedTasoMatch[] {
+      const seen = new Map<number, number>();
+      return rows.map((row) => {
+        const index = (seen.get(row.groupId) ?? 0) + 1;
+        seen.set(row.groupId, index);
+        return { ...row, matchday: Math.ceil(index / matchesPerRound(row.groupId)) };
+      });
+    }
+
+    /** Iterating the typed entries avoids an unchecked index into the fixture. */
+    function fixtureFor(competitionId: string): [string, FixtureSeason] {
+      const [entry] = seasons.filter(([id]) => id === competitionId);
+      expect(entry, `missing fixture for ${competitionId}`).toBeDefined();
+      return entry as [string, FixtureSeason];
+    }
+
+    it("shows 5 played at Kierros 5, not 10 — the issue's repro", async () => {
+      const [competitionId, season] = fixtureFor("spljp22");
+      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+
+      const result = await getSeasonStandings(competitionId, 2022, ACTIVE_SEASON, 5);
+      const mestaruussarja =
+        result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
+      const played =
+        mestaruussarja?.kind === "own-calculated"
+          ? mestaruussarja.standings.map((team) => team.played)
+          : [];
+
+      // Before the fix this was [10,10,10,10,10,10]: Runkosarja rounds 1-5
+      // plus Mestaruussarja rounds 1-5, two stages under one number.
+      expect(played).toEqual([5, 5, 5, 5, 5, 5]);
+    });
+
+    it("puts the split group's rounds above the parent's, so they are reachable", async () => {
+      const [competitionId, season] = fixtureFor("spljp22");
+      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+
+      // The selector reads the same funnel, so it must now offer rounds past
+      // Runkosarja's 22 — it previously stopped there.
+      const result = await getSeasonMatchList(competitionId, 2022, ACTIVE_SEASON);
+      const rounds =
+        result.status === "ok" ? listSelectableTasoRounds(result.matches, competitionId) : [];
+
+      expect(Math.max(...rounds)).toBe(27);
+      expect(rounds).toContain(23);
+    });
+
+    it("leaves a season that already continues its numbering untouched", async () => {
+      // Renumbering a correct season again would double-shift it.
+      const [competitionId, season] = fixtureFor("spljp25");
+      const rows = expandMatches(competitionId, season).map((row, index) => ({
+        ...row,
+        matchday: row.groupId === 1 ? (index % 22) + 1 : 23 + (index % 5),
+      }));
+      mockStoredMatches(rows);
+
+      const result = await getSeasonMatchList(competitionId, 2025, ACTIVE_SEASON);
+      const splitRounds =
+        result.status === "ok"
+          ? result.matches
+              .filter((match) => match.groupId === 2)
+              .flatMap((match) => (match.matchday === null ? [] : [match.matchday]))
+          : [];
+
+      expect(Math.min(...splitRounds)).toBe(23);
+      expect(Math.max(...splitRounds)).toBe(27);
+    });
+  });
 
   it("has a fixture for every configured entry, so none can be added untested", () => {
     // Compared per `competitionId + groupId` against the real config, in

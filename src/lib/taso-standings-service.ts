@@ -273,18 +273,8 @@ export const resolveTasoSeasonContext = cache(
   }
 );
 
-/**
- * Wrapped in React's `cache()` so one request syncs a season at most once,
- * however many times it is asked for — `/kotimaa/sarjataulukko` needs the
- * season's matches both to build the round list and to calculate the
- * tables, and Next.js invokes a page's `generateMetadata` and its default
- * export separately, so the team page would otherwise sync twice per
- * request. Without this, a stale current season re-fetches TASO's ~1 MB
- * season response and re-upserts every row two times over. Same reasoning
- * (and the same fix) as `getSeasonContext`/`getTeamMatches` in
- * football-data.ts and standings-service.ts.
- */
-const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
+/** Stored rows, refreshed from TASO when stale. Round numbers are as TASO sends them. */
+async function loadSeasonMatches(
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
@@ -310,6 +300,87 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
     );
     return { matches: storedMatches, refreshFailed: true };
   }
+}
+
+/** A group's own round numbers, or `null` when it has none. */
+function roundRange(matchList: MatchRow[], groupId: number): { min: number; max: number } | null {
+  const rounds = matchList
+    .filter((match) => match.groupId === groupId && match.matchday !== null)
+    .map((match) => match.matchday as number);
+  return rounds.length === 0 ? null : { min: Math.min(...rounds), max: Math.max(...rounds) };
+}
+
+/**
+ * TASO numbers a split group's rounds inconsistently between seasons: 2021,
+ * 2024 and 2025 continue the season's numbering (Runkosarja 1–22, then 23
+ * onward), while 2019, 2022 and 2023 restart their split groups at 1.
+ *
+ * The round filter depends on the former, which is what spec 009 specifies:
+ * `filterByRound` takes `matchday <= round` across a carry-over group's
+ * combined parent + child matches, so a child round of `5` is
+ * indistinguishable from Runkosarja's round `5`. On 2022, "Kierros 5"
+ * showed every Mestaruussarja team with 10 matches played rather than 5,
+ * and the selector offered nothing above Runkosarja's 22.
+ *
+ * A carry-over group whose rounds overlap its parent's is therefore shifted
+ * to continue from the parent's last round. Derived from the data rather
+ * than a per-season constant, so it self-corrects if TASO changes its
+ * numbering for a future season, and it is a no-op for the seasons that
+ * already continue correctly. See #133.
+ */
+function withContinuedRoundNumbering(matchList: MatchRow[], competitionId: string): MatchRow[] {
+  const offsets = new Map<number, number>();
+
+  for (const groupId of groupIdsIn(matchList)) {
+    const parent = parentGroupId(competitionId, groupId);
+    if (parent === null) continue;
+
+    const childRounds = roundRange(matchList, groupId);
+    const parentRounds = roundRange(matchList, parent);
+    if (childRounds === null || parentRounds === null) continue;
+    // Already continues the parent's numbering — nothing to shift.
+    if (childRounds.min > parentRounds.max) continue;
+
+    offsets.set(groupId, parentRounds.max);
+  }
+
+  if (offsets.size === 0) return matchList;
+
+  return matchList.map((match) => {
+    const offset = offsets.get(match.groupId);
+    return offset === undefined || match.matchday === null
+      ? match
+      : { ...match, matchday: match.matchday + offset };
+  });
+}
+
+/**
+ * The single funnel every `/kotimaa` page reads season matches through, so
+ * the round renumbering above applies uniformly to the standings, the
+ * season match list and a team's match list rather than only where the
+ * filter runs.
+ *
+ * Wrapped in React's `cache()` so one request syncs a season at most once,
+ * however many times it is asked for — `/kotimaa/sarjataulukko` needs the
+ * season's matches both to build the round list and to calculate the
+ * tables, and Next.js invokes a page's `generateMetadata` and its default
+ * export separately, so the team page would otherwise sync twice per
+ * request. Without this, a stale current season re-fetches TASO's ~1 MB
+ * season response and re-upserts every row two times over. Same reasoning
+ * (and the same fix) as `getSeasonContext`/`getTeamMatches` in
+ * football-data.ts and standings-service.ts.
+ */
+const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<{ matches: MatchRow[]; refreshFailed: boolean }> {
+  const { matches, refreshFailed } = await loadSeasonMatches(
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  return { matches: withContinuedRoundNumbering(matches, competitionId), refreshFailed };
 });
 
 export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[]): Promise<void> {
