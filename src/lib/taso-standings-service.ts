@@ -62,11 +62,19 @@ function isOwnCalculated(competitionId: string, groupId: number, allGroupIds: nu
 
 /**
  * A pass-through group's standing, straight from TASO's own `getGroups`
- * numbers — nullable, unlike `TeamStanding`, because a group like
- * Eurolopputurnaus genuinely has no points/stats (confirmed `null` for
- * every team, every year checked). The page renders a null field as "–"
- * rather than coercing it to a misleading `0`. `form` is always empty:
- * pass-through groups have no match-by-match data to derive it from.
+ * numbers — a league group we can't own-calculate, currently only 2019's
+ * Mestaruussarja and Haastajasarja, which split like every other season
+ * but have no `CARRY_OVER_CONFIG` entry.
+ *
+ * Every such group observed does populate every stat field, so the
+ * nullability here is defensive rather than a known case:
+ * `TasoGroupTeam` types each field as both optional and nullable, and a
+ * field that did go missing must render as "–" rather than be coerced to a
+ * misleading `0`. A group with genuinely no stats is a `playoff` group and
+ * has no standings at all — see `isPlayoffGroup`.
+ *
+ * `form` is always empty: pass-through groups have no match-by-match data
+ * to derive it from.
  */
 export type TasoTeamStanding = {
   position: number;

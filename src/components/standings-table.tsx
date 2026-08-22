@@ -13,8 +13,9 @@ const columns = [
 
 /**
  * Nullable stat fields, so this accepts both `TeamStanding` (football-data,
- * always numeric) and `TasoTeamStanding` (a pass-through TASO group like
- * Eurolopputurnaus genuinely has `null` stats). A `null` renders as "–".
+ * always numeric) and `TasoTeamStanding`, whose fields are typed nullable
+ * because TASO reports them optionally. A `null` renders as "–" rather
+ * than a misleading `0`.
  */
 export type StandingsRow = {
   position: number;
