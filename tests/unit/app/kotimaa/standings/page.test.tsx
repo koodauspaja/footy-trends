@@ -209,6 +209,91 @@ describe("Kotimaa standings page", () => {
     expect(screen.getByText("Unknown")).toBeInTheDocument();
   });
 
+  it("renders a playoff group as a match list, with no standings table", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [
+        ownCalculatedGroup,
+        {
+          kind: "playoff",
+          groupId: 4,
+          groupName: "Eurolopputurnaus",
+          matches: [
+            buildMatch({
+              providerMatchId: 10,
+              groupId: 4,
+              groupName: "Eurolopputurnaus",
+              matchday: 1,
+              homeTeamName: "FC Honka",
+              awayTeamName: "FC Inter",
+              homeGoals: 0,
+              awayGoals: 0,
+            }),
+            buildMatch({
+              providerMatchId: 11,
+              groupId: 4,
+              groupName: "Eurolopputurnaus",
+              matchday: 2,
+              homeTeamProviderId: 3,
+              homeTeamName: "FC Honka",
+              awayTeamProviderId: 4,
+              awayTeamName: "AC Oulu",
+              homeGoals: 5,
+              awayGoals: 0,
+            }),
+            // TASO can leave round_id off a match, which normalizes to a
+            // null matchday — the Kierros cell falls back to "–" rather
+            // than printing nothing or "null".
+            buildMatch({
+              providerMatchId: 12,
+              groupId: 4,
+              groupName: "Eurolopputurnaus",
+              matchday: null,
+              homeTeamProviderId: 5,
+              homeTeamName: "SJK",
+              awayTeamProviderId: 6,
+              awayTeamName: "VPS",
+              homeGoals: 1,
+              awayGoals: 1,
+            }),
+          ],
+        },
+      ],
+    });
+
+    await renderStandings();
+
+    expect(screen.getByRole("heading", { name: "Eurolopputurnaus" })).toBeInTheDocument();
+    // The league group keeps its table; the playoff group adds a match
+    // list rather than a second table.
+    const tables = screen.getAllByRole("table");
+    expect(tables).toHaveLength(2);
+    const [leagueTable, playoffTable] = tables as [HTMLElement, HTMLElement];
+    expect(within(playoffTable).getByText("Kierros")).toBeInTheDocument();
+    expect(within(playoffTable).getByText("AC Oulu")).toBeInTheDocument();
+    // A standings table always has a Sija (position) column; a match list
+    // has none — this is what stops the bracket data being tabulated.
+    expect(within(playoffTable).queryByText("Sija")).not.toBeInTheDocument();
+    expect(within(leagueTable).getByText("Sija")).toBeInTheDocument();
+    // Scoped to the Kierros cell: "–" also separates the two team names in
+    // every row's Ottelu column, so a bare getByText matches many nodes.
+    const noRoundRow = within(playoffTable).getByRole("row", { name: /SJK/ });
+    const cells = within(noRoundRow).getAllByRole("cell");
+    expect(cells).toHaveLength(4);
+    expect(cells[3]).toHaveTextContent("–");
+  });
+
+  it("shows the no-matches message for a playoff group with no stored matches", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [{ kind: "playoff", groupId: 4, groupName: "Eurolopputurnaus", matches: [] }],
+    });
+
+    await renderStandings();
+
+    expect(screen.getByText("Otteluita ei ole saatavilla.")).toBeInTheDocument();
+  });
+
   it("links a team's name to its /kotimaa/joukkue page, carrying the season", async () => {
     await renderStandings({ kausi: "2020" });
 

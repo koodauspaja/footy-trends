@@ -320,7 +320,7 @@ describe("getSeasonStandings", () => {
     expect(mariehamn).toMatchObject({ played: 0, points: 0 });
   });
 
-  it("renders an unconfigured non-origin group (Eurolopputurnaus-shaped) via pass-through with null stats", async () => {
+  it("renders an unconfigured non-origin group with some real points via pass-through", async () => {
     mockStoredMatches([
       match({ providerMatchId: 1, groupId: 1 }),
       match({
@@ -390,6 +390,88 @@ describe("getSeasonStandings", () => {
     const eurolopputurnaus =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
     expect(eurolopputurnaus).toMatchObject({ kind: "pass-through", standings: [] });
+  });
+
+  it("classifies a group whose every team has null points as playoff, rendering its matches", async () => {
+    mockStoredMatches([
+      match({ providerMatchId: 1, groupId: 1 }),
+      match({
+        providerMatchId: 3,
+        groupId: 4,
+        groupName: "Eurolopputurnaus",
+        matchday: 2,
+        kickoffAt: new Date("2024-10-28T15:00:00Z"),
+        homeTeamName: "FC Honka",
+        awayTeamName: "AC Oulu",
+      }),
+      match({
+        providerMatchId: 2,
+        groupId: 4,
+        groupName: "Eurolopputurnaus",
+        matchday: 1,
+        kickoffAt: new Date("2024-10-25T15:00:00Z"),
+        homeTeamName: "FC Honka",
+        awayTeamName: "FC Inter",
+      }),
+    ]);
+    // A real Eurolopputurnaus entry: one row per bracket slot, so the
+    // advancing team repeats — and points are null for every row.
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "4",
+        group_name: "Eurolopputurnaus",
+        teams: [
+          // TASO omits `points` entirely on these rows rather than sending
+          // null — an `=== null` check matches nothing, so the real shape
+          // (absent) is the one asserted here. The null variant is kept on
+          // the last row so both paths stay covered.
+          { team_id: "1", team_name: "FC Honka", matches_played: 5 },
+          { team_id: "1", team_name: "FC Honka", matches_played: 0 },
+          { team_id: "2", team_name: "AC Oulu", points: null, matches_played: 2 },
+        ],
+      },
+    ]);
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+    const playoff =
+      result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
+    expect(playoff).toMatchObject({ kind: "playoff", groupName: "Eurolopputurnaus" });
+    // Chronological, not stored order — the group has no table to sort.
+    const matches = playoff?.kind === "playoff" ? playoff.matches : [];
+    expect(matches.map((entry) => entry.providerMatchId)).toEqual([2, 3]);
+  });
+
+  it("keeps a league group with real points as a table even when it is not own-calculated", async () => {
+    // 2019's Mestaruussarja: a genuine league group with carry-over points,
+    // but no CARRY_OVER_CONFIG entry, so it is not own-calculated. It must
+    // not be mistaken for a playoff group — the reason the playoff rule is
+    // a positive test on the data rather than "everything we can't
+    // calculate". See specs/010-playoff-group-match-list.md.
+    mockStoredMatches([
+      match({ providerMatchId: 1, groupId: 1 }),
+      match({ providerMatchId: 2, groupId: 2, groupName: "Mestaruussarja", matchday: 23 }),
+    ]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "2",
+        group_name: "Mestaruussarja",
+        teams: [
+          { team_id: "1", team_name: "KuPS", points: 53, matches_played: 27 },
+          { team_id: "2", team_name: "FC Inter", points: 48, matches_played: 27 },
+        ],
+      },
+    ]);
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+
+    const result = await getSeasonStandings("spljp19", 2019, ACTIVE_SEASON, undefined);
+
+    const mestaruussarja =
+      result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
+    expect(mestaruussarja).toMatchObject({ kind: "pass-through" });
+    const standings = mestaruussarja?.kind === "pass-through" ? mestaruussarja.standings : [];
+    expect(standings[0]).toMatchObject({ teamName: "KuPS", points: 53 });
   });
 
   it("orders groups by group_id ascending regardless of insertion order", async () => {

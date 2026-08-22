@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
@@ -18,6 +19,7 @@ export const dynamic = "force-dynamic";
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Sarjataulukkoa ei ole saatavilla.";
 const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi.";
+const NO_MATCHES_MESSAGE = "Otteluita ei ole saatavilla.";
 
 type KotimaaStandingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -71,6 +73,9 @@ export default async function KotimaaStandingsPage({
     selectedRound
   );
 
+  const teamHref = (teamProviderId: number) =>
+    `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
+
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
       <p className="mb-6">
@@ -101,12 +106,25 @@ export default async function KotimaaStandingsPage({
         result.groups.map((group) => (
           <section key={group.groupId} className="mb-10">
             <h2 className="mb-3 text-xl font-semibold">{displayGroupName(group.groupName)}</h2>
-            <StandingsTable
-              standings={group.standings}
-              teamHref={(teamProviderId) =>
-                `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
-              }
-            />
+            {/* A knockout group has no table: TASO returns one row per
+                bracket slot, so an advancing team would repeat. Its matches
+                are the standings — see specs/010-playoff-group-match-list.md. */}
+            {group.kind === "playoff" ? (
+              group.matches.length === 0 ? (
+                <p>{NO_MATCHES_MESSAGE}</p>
+              ) : (
+                <MatchListTable
+                  matches={group.matches}
+                  teamHref={teamHref}
+                  fourthColumn={{
+                    header: "Kierros",
+                    render: (match) => match.matchday ?? "–",
+                  }}
+                />
+              )
+            ) : (
+              <StandingsTable standings={group.standings} teamHref={teamHref} />
+            )}
           </section>
         ))}
       <StandingsLegend />

@@ -83,9 +83,23 @@ export type TasoTeamStanding = {
   form: [];
 };
 
+/**
+ * A group renders one of three ways:
+ *
+ * - `own-calculated` — `calculateStandings` over the group's own matches
+ *   (plus its parent's, for a carry-over group). Has a round selector.
+ * - `pass-through` — TASO's own precomputed `getGroups` numbers, for a
+ *   league group we can't calculate ourselves. No round selector.
+ * - `playoff` — a knockout group, rendered as its matches rather than a
+ *   table. It has no standings at all: `getGroups` returns one row per
+ *   bracket *slot* rather than per team, so a team that advances appears
+ *   several times and a table built from it repeats that team. See
+ *   specs/010-playoff-group-match-list.md.
+ */
 export type GroupStandingsResult =
   | { kind: "own-calculated"; groupId: number; groupName: string; standings: TeamStanding[] }
-  | { kind: "pass-through"; groupId: number; groupName: string; standings: TasoTeamStanding[] };
+  | { kind: "pass-through"; groupId: number; groupName: string; standings: TasoTeamStanding[] }
+  | { kind: "playoff"; groupId: number; groupName: string; matches: MatchRow[] };
 
 export type SeasonStandingsResult =
   | { status: "ok"; groups: GroupStandingsResult[] }
@@ -237,6 +251,13 @@ function toPassThroughStanding(team: TasoGroupTeam, index: number): TasoTeamStan
   };
 }
 
+/** One group's own matches, chronological — the playoff groups' equivalent of a standings table. */
+function selectGroupMatches(seasonMatches: MatchRow[], groupId: number): MatchRow[] {
+  return seasonMatches
+    .filter((match) => match.groupId === groupId)
+    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+}
+
 /** Every team appearing in a group's own matches — who actually belongs in that group's table. */
 function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number> {
   return new Set(
@@ -284,12 +305,37 @@ function ownCalculatedStandings(
 }
 
 /**
- * Every group TASO returns for the season, each rendered either
- * own-calculated (via `calculateStandings`, including the parent group's
- * matches for a carry-over continuation group) or pass-through (TASO's own
- * precomputed `getGroups` numbers, for a group like Eurolopputurnaus that
- * isn't a points competition at all). Ordered by `group_id` ascending —
- * `phase_number` is confirmed unreliable for ordering.
+ * A knockout group has no points at all — confirmed live for all six such
+ * groups across seasons 2015–2026 (2019's EL-lopputurnaus/EL-finaali,
+ * 2022's Eurolopputurnaus/-finaali, 2023's and 2024's Eurolopputurnaus),
+ * and for no league group in any season, where every team always has a
+ * real `points` value.
+ *
+ * Note TASO **omits the field entirely** for these rows rather than
+ * sending `null`, so an `=== null` test silently matches nothing. Both are
+ * accepted here: `TasoGroupTeam.points` is `number | null | undefined`,
+ * and only a real number means "this group keeps a table".
+ *
+ * Deliberately a positive test on TASO's own data rather than "every group
+ * we can't own-calculate": that complement is only accurate while
+ * `CARRY_OVER_CONFIG` is complete, and a future season that splits without
+ * getting its entry would silently render two league groups as match
+ * lists. See specs/010-playoff-group-match-list.md.
+ */
+function isPlayoffGroup(tasoGroup: TasoGroup | undefined): boolean {
+  const teams = tasoGroup?.teams ?? [];
+  return (
+    teams.length > 0 && teams.every((team) => team.points === null || team.points === undefined)
+  );
+}
+
+/**
+ * Every group TASO returns for the season, each rendered own-calculated
+ * (via `calculateStandings`, including the parent group's matches for a
+ * carry-over continuation group), pass-through (TASO's own precomputed
+ * `getGroups` numbers), or playoff (its matches, no table). Ordered by
+ * `group_id` ascending — `phase_number` is confirmed unreliable for
+ * ordering.
  */
 export async function getSeasonStandings(
   competitionId: string,
@@ -333,14 +379,29 @@ export async function getSeasonStandings(
       const tasoGroups = await getCachedSeasonGroups(competitionId, seasonId, activeSeasonId);
       for (const groupId of passThroughGroupIds) {
         const tasoGroup = tasoGroups.find((group) => Number(group.group_id) === groupId);
-        const standings = (tasoGroup?.teams ?? []).map((team, index) =>
-          toPassThroughStanding(team, index)
-        );
+        const groupName = groupNameOf(seasonMatches, groupId);
+
+        if (isPlayoffGroup(tasoGroup)) {
+          groups.push({
+            kind: "playoff",
+            groupId,
+            groupName,
+            // Chronological, like every other match list in the app. The
+            // two-legged finals' aggregate rows are already absent: TASO
+            // marks them by leaving date/time empty, so they are skipped
+            // at normalization and never stored.
+            matches: selectGroupMatches(seasonMatches, groupId),
+          });
+          continue;
+        }
+
         groups.push({
           kind: "pass-through",
           groupId,
-          groupName: groupNameOf(seasonMatches, groupId),
-          standings,
+          groupName,
+          standings: (tasoGroup?.teams ?? []).map((team, index) =>
+            toPassThroughStanding(team, index)
+          ),
         });
       }
     }
