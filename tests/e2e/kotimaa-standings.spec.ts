@@ -95,6 +95,18 @@ test.describe("Kotimaa standings page (Veikkausliiga)", () => {
     expect(consoleErrors.filter((text) => text.includes("same key"))).toEqual([]);
   });
 
+  test("2024's Eurolopputurnaus also renders as a match list, not a table", async ({ page }) => {
+    // The fourth and last season with a playoff group. Same 8-slots-for-5-
+    // teams shape as 2023, and named in this feature's acceptance criteria,
+    // so it is asserted directly rather than inferred from the shared path.
+    await page.goto("/kotimaa/sarjataulukko?kausi=2024");
+
+    const playoff = page.getByRole("table").nth(3);
+    await expect(playoff.locator("thead")).toContainText("Kierros");
+    await expect(playoff.locator("thead")).not.toContainText("Sija");
+    await expect(page.locator("body")).not.toContainText("null");
+  });
+
   test("2019's split groups stay standings tables while its playoff groups become match lists", async ({
     page,
   }) => {
