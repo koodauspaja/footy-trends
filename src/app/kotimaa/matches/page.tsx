@@ -5,7 +5,6 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
-import { LATEST_TASO_SEASON } from "@/lib/taso";
 import { getSeasonMatchList } from "@/lib/taso-standings-service";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +20,7 @@ export async function generateMetadata({
   searchParams,
 }: KotimaaMatchesPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
-  const resolved = resolveKotimaaPageContext(params);
+  const resolved = await resolveKotimaaPageContext(params);
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
@@ -38,9 +37,10 @@ export default async function KotimaaMatchesPage({
     seasonId,
     seasonLabel,
     competitionId,
-  } = resolveKotimaaPageContext(params);
+    currentSeason,
+  } = await resolveKotimaaPageContext(params);
 
-  const result = await getSeasonMatchList(competitionId, seasonId, LATEST_TASO_SEASON);
+  const result = await getSeasonMatchList(competitionId, seasonId, currentSeason);
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>

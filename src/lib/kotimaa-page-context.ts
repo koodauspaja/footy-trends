@@ -5,25 +5,26 @@ import {
   parseKotimaaCompetitionParam,
 } from "./kotimaa-competitions";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
-import { competitionIdFromSeason, EARLIEST_TASO_SEASON, LATEST_TASO_SEASON } from "./taso";
+import { competitionIdFromSeason, EARLIEST_TASO_SEASON } from "./taso";
+import { resolveTasoSeasonContext } from "./taso-standings-service";
 
 /**
  * Veikkausliiga's season is a single calendar year, not a year-spanning one
  * like the foreign leagues — the label is just the year. Descending,
  * newest first, same convention as `listSelectableSeasons`.
  */
-export function listSelectableTasoSeasons(): SeasonOption[] {
+export function listSelectableTasoSeasons(currentSeason: number): SeasonOption[] {
   const options: SeasonOption[] = [];
-  for (let year = LATEST_TASO_SEASON; year >= EARLIEST_TASO_SEASON; year -= 1) {
+  for (let year = currentSeason; year >= EARLIEST_TASO_SEASON; year -= 1) {
     options.push({ seasonId: year, label: String(year) });
   }
   return options;
 }
 
 /**
- * Validates the `kausi` query parameter against the fixed 2015–2026 range —
- * no live provider call needed (unlike `parseSeasonParam` for
- * football-data.org), since the range is static.
+ * Validates the `kausi` query parameter against the selectable range. The
+ * range's upper end is discovered rather than fixed, so a season that was
+ * invalid last year becomes valid without a deploy.
  */
 export function parseTasoSeasonParam(
   rawValue: string | string[] | undefined,
@@ -39,6 +40,8 @@ export function parseTasoSeasonParam(
 }
 
 export type KotimaaPageContext = {
+  /** The discovered season: the selector ceiling, and what `needsRefresh` treats as current. */
+  currentSeason: number;
   competitionCode: string;
   competitionParam: KotimaaCompetitionParamResult;
   competitionName: string;
@@ -52,25 +55,30 @@ export type KotimaaPageContext = {
 /**
  * Resolves the competition and season context shared by every `/kotimaa`
  * page's `generateMetadata` and page component — the `kilpailu`/`kausi`-param
- * analogue of `resolveBasePageContext`, but synchronous: the season range is
- * a fixed 2015–2026, not fetched from a provider, so there is no `"error"`
- * status to handle here.
+ * analogue of `resolveBasePageContext`.
+ *
+ * Async because the season ceiling now comes from TASO rather than a
+ * constant, but there is still no `"error"` status to handle: discovery
+ * failure falls back inside `resolveTasoSeasonContext` rather than
+ * surfacing here.
  */
-export function resolveKotimaaPageContext(
+export async function resolveKotimaaPageContext(
   params: Record<string, string | string[] | undefined>
-): KotimaaPageContext {
+): Promise<KotimaaPageContext> {
   const competitionParam = parseKotimaaCompetitionParam(params.kilpailu);
   const competitionCode =
     competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_KOTIMAA_COMPETITION_CODE;
   const competitionName = getKotimaaCompetitionName(competitionCode);
 
-  const selectableSeasons = listSelectableTasoSeasons();
+  const { currentSeason, defaultSeason } = await resolveTasoSeasonContext();
+  const selectableSeasons = listSelectableTasoSeasons(currentSeason);
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : LATEST_TASO_SEASON;
+  const seasonId = season.kind === "valid" ? season.seasonId : defaultSeason;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdFromSeason(seasonId);
 
   return {
+    currentSeason,
     competitionCode,
     competitionParam,
     competitionName,

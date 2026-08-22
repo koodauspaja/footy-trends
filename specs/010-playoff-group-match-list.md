@@ -87,7 +87,7 @@ Two rejected alternatives, both recorded so they are not re-proposed:
 
 - **A hand-maintained config**, like `CARRY_OVER_CONFIG`. Rejected: it
   needs a manual entry every time a season adds such a group, which is the
-  same maintenance trap as `LATEST_TASO_SEASON` (#125).
+  same maintenance trap as `LATEST_TASO_SEASON` (#124).
 - **"Playoff = any group that is not own-calculated"**, i.e. the complement
   of the existing classification. Rejected because it depends on
   `CARRY_OVER_CONFIG` being complete, and it is not: **2019's

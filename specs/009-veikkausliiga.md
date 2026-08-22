@@ -3,6 +3,18 @@
 ## Summary
 Adds Veikkausliiga (Finland's top football tier) standings, match lists, and team pages, sourced from TASO (`spl.torneopal.net/taso/rest/`) rather than football-data.org — the first Finnish competition in the app, and the first from a second data provider.
 
+> **Superseded in part.** Two later specs change behaviour described below;
+> this spec is otherwise current.
+>
+> - `specs/010-playoff-group-match-list.md` (#126) — Eurolopputurnaus-shaped
+>   groups render as a match list, **not** a pass-through table with "–"
+>   stats. Affects the Scope, Edge Cases, and Acceptance Criteria mentions
+>   of pass-through for those groups.
+> - `specs/011-current-season-discovery.md` (#124) — the season range is
+>   2015 up to the season **discovered from TASO**, not a fixed 2015–2026.
+>   Affects every "2015–2026" and "2026 down to 2015" mention below, and
+>   the caching section's "current season (2026)".
+
 ## Scope
 
 ### In scope
