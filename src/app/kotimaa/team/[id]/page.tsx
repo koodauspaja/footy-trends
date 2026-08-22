@@ -5,7 +5,6 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
-import { LATEST_TASO_SEASON } from "@/lib/taso";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +28,10 @@ function nameForTeam(
 async function resolveTeamName(
   competitionId: string,
   teamProviderId: number,
-  seasonId: number
+  seasonId: number,
+  currentSeason: number
 ): Promise<{ result: TeamMatchesResult; teamName: string | null }> {
-  const result = await getTeamMatches(competitionId, teamProviderId, seasonId, LATEST_TASO_SEASON);
+  const result = await getTeamMatches(competitionId, teamProviderId, seasonId, currentSeason);
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
   return { result, teamName };
@@ -43,12 +43,17 @@ export async function generateMetadata({
 }: KotimaaTeamPageProps): Promise<Metadata> {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
-  const { competitionName, seasonLabel, seasonId, competitionId } =
-    resolveKotimaaPageContext(resolvedParams);
+  const { competitionName, seasonLabel, seasonId, competitionId, currentSeason } =
+    await resolveKotimaaPageContext(resolvedParams);
   const teamProviderId = Number(id);
 
   if (Number.isNaN(teamProviderId)) return { title: competitionName };
-  const { teamName } = await resolveTeamName(competitionId, teamProviderId, seasonId);
+  const { teamName } = await resolveTeamName(
+    competitionId,
+    teamProviderId,
+    seasonId,
+    currentSeason
+  );
 
   return {
     title: teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName,
@@ -70,12 +75,13 @@ export default async function KotimaaTeamPage({
     seasonId,
     seasonLabel,
     competitionId,
-  } = resolveKotimaaPageContext(resolvedParams);
+    currentSeason,
+  } = await resolveKotimaaPageContext(resolvedParams);
 
   const teamProviderId = Number(id);
   const { result, teamName } = Number.isNaN(teamProviderId)
     ? { result: { status: "not_found" } as TeamMatchesResult, teamName: null }
-    : await resolveTeamName(competitionId, teamProviderId, seasonId);
+    : await resolveTeamName(competitionId, teamProviderId, seasonId, currentSeason);
 
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;

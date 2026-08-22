@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches,
   normalizeTasoMatch,
@@ -518,5 +519,94 @@ describe("taso mapping", () => {
     );
 
     await expect(getSeasonGroups("spljp26")).resolves.toEqual([]);
+  });
+});
+
+describe("getCurrentSeason", () => {
+  function mockCompetitions(competitions: unknown[]) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ competitions }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+  });
+
+  it("requests every competition, unscoped — a competition_id is a season, not a category", async () => {
+    const fetchMock = mockCompetitions([
+      { competition_id: "spljp26", competition_status: "published", season_id: 2026 },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBe(2026);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://spl.torneopal.net/taso/rest/getCompetitions",
+      expect.any(Object)
+    );
+  });
+
+  it("picks the newest published season, so a new competition_id needs no code change", async () => {
+    mockCompetitions([
+      { competition_id: "spljp26", competition_status: "published", season_id: 2026 },
+      { competition_id: "spljp27", competition_status: "published", season_id: 2027 },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBe(2027);
+  });
+
+  // The regression guard for this feature's sharpest edge: spljphhl26 is a
+  // different competition that shares the prefix, the status AND the season,
+  // so only the exact id shape separates them. A prefix test would pass every
+  // other assertion here.
+  it("never picks spljphhl26, which shares the prefix, status and season_id", async () => {
+    mockCompetitions([
+      { competition_id: "spljphhl27", competition_status: "published", season_id: 2027 },
+      { competition_id: "spljp26", competition_status: "published", season_id: 2026 },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBe(2026);
+  });
+
+  it("ignores a competition that is not published", async () => {
+    mockCompetitions([
+      { competition_id: "spljp27", competition_status: "draft", season_id: 2027 },
+      { competition_id: "spljp26", competition_status: "published", season_id: 2026 },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBe(2026);
+  });
+
+  it("returns null when nothing matches, leaving the fallback to the caller", async () => {
+    mockCompetitions([
+      { competition_id: "spljphhl26", competition_status: "published", season_id: 2026 },
+      { competition_id: "salibandy26", competition_status: "published", season_id: 2026 },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBeNull();
+  });
+
+  it("returns null for an empty or absent competitions list", async () => {
+    mockCompetitions([]);
+    await expect(getCurrentSeason()).resolves.toBeNull();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    );
+    await expect(getCurrentSeason()).resolves.toBeNull();
+  });
+
+  it("ignores an entry whose season_id is missing or non-numeric", async () => {
+    mockCompetitions([
+      { competition_id: "spljp27", competition_status: "published" },
+      { competition_id: "spljp28", competition_status: "published", season_id: "not-a-year" },
+      { competition_id: "spljp26", competition_status: "published", season_id: "2026" },
+    ]);
+
+    await expect(getCurrentSeason()).resolves.toBe(2026);
   });
 });

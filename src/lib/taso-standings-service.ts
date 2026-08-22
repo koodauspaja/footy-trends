@@ -11,6 +11,9 @@ import {
   type TeamStanding,
 } from "./standings";
 import {
+  competitionIdFromSeason,
+  EARLIEST_TASO_SEASON,
+  getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches,
   type NormalizedTasoMatch,
@@ -160,6 +163,79 @@ export function needsRefresh(
 
   return Date.now() - newestUpdate.getTime() >= CURRENT_SEASON_CACHE_TTL_SECONDS * 1000;
 }
+
+/** Newest season with any stored match, or `null` on an empty table. */
+async function newestStoredSeason(): Promise<number | null> {
+  const [row] = await db
+    .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
+    .from(tasoMatches);
+  return row?.seasonId ?? null;
+}
+
+/** Discovery is best-effort: a TASO outage must degrade the season range, not break the page. */
+async function discoverCurrentSeason(): Promise<number | null> {
+  try {
+    return await getCurrentSeason();
+  } catch (error) {
+    logger.warn({ err: error }, "TASO season discovery failed; falling back to stored seasons");
+    return null;
+  }
+}
+
+export type TasoSeasonContext = {
+  /** The selector's ceiling, and the season `needsRefresh` treats as refreshable. */
+  currentSeason: number;
+  /** Where a page with no `kausi` param lands — never a season with no matches. */
+  defaultSeason: number;
+};
+
+/**
+ * Replaces spec 009's hardcoded `LATEST_TASO_SEASON`. See
+ * specs/011-current-season-discovery.md.
+ *
+ * `currentSeason` falls back through discovery → newest stored season →
+ * the configured floor, so an outage degrades to stale-but-correct rather
+ * than an error page.
+ *
+ * `defaultSeason` additionally requires the season to *have* matches. TASO
+ * publishes a `competition_id` before that season kicks off, and landing on
+ * a season with none would render the empty state for however long the gap
+ * lasts. Unplayed fixtures are fine — spec 008's roster seeding shows every
+ * team at zero stats, which is a correct pre-season table.
+ *
+ * That check has to sync the season to answer "does it have matches", since
+ * a season absent from the database is indistinguishable from one that is
+ * merely unvisited. It is the same work the page does for whatever season it
+ * renders, deduplicated within a request by `cache()` and bounded across
+ * requests by the 15-minute Redis TTL.
+ */
+export const resolveTasoSeasonContext = cache(
+  async function resolveTasoSeasonContext(): Promise<TasoSeasonContext> {
+    return getCached("taso:season-context", CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
+      const [discovered, newestStored] = await Promise.all([
+        discoverCurrentSeason(),
+        newestStoredSeason(),
+      ]);
+      const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
+
+      try {
+        const { matches } = await getSyncedSeasonMatches(
+          competitionIdFromSeason(currentSeason),
+          currentSeason,
+          currentSeason
+        );
+        if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
+      } catch (error) {
+        logger.warn(
+          { err: error, currentSeason },
+          "Unable to check the current season for matches"
+        );
+      }
+
+      return { currentSeason, defaultSeason: newestStored ?? currentSeason };
+    });
+  }
+);
 
 /**
  * Wrapped in React's `cache()` so one request syncs a season at most once,

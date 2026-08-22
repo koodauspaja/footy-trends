@@ -338,6 +338,14 @@ every row twice over.
 
 ## Known limitation: the season range is hardcoded
 
+> **Superseded by `specs/011-current-season-discovery.md` (#124).**
+> `getCompetitions` turned out to support discovery directly — it returns
+> only currently-published competitions — so the reasoning below (that a
+> derived season would point at a `competition_id` TASO may not publish
+> yet) holds only for a *clock*-derived season, not one read from the
+> provider. The code below is still accurate until #124 ships. Kept for the
+> record.
+
 `EARLIEST_TASO_SEASON`/`LATEST_TASO_SEASON` are `2015`/`2026`, matching the
 spec's fixed 2015–2026 range. `LATEST_TASO_SEASON` doubles as the "current
 season" for cache-freshness, so when 2027 starts it needs a one-line bump

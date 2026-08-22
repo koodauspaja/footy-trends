@@ -224,12 +224,63 @@ export function seasonFromCompetitionId(competitionId: string): number {
   return 2000 + twoDigitYear;
 }
 
-/** The inverse of `seasonFromCompetitionId` — the season selector's fixed 2015–2026 range. */
+/**
+ * The oldest season the app offers. Configured rather than discovered:
+ * `getCompetitions` lists only *currently published* competitions, so it
+ * can answer "what is the current season" but never "what seasons have
+ * existed". Mirrors `FOOTBALL_DATA_EARLIEST_SEASON`.
+ */
 export const EARLIEST_TASO_SEASON = 2015;
-export const LATEST_TASO_SEASON = 2026;
 
+/** The inverse of `seasonFromCompetitionId`. */
 export function competitionIdFromSeason(seasonId: number): string {
   return `spljp${String(seasonId % 100).padStart(2, "0")}`;
+}
+
+// --- Competitions (season discovery) -----------------------------------
+
+export type TasoCompetition = {
+  competition_id?: string;
+  competition_status?: string;
+  season_id?: number | string;
+};
+
+type CompetitionsResponse = { competitions?: TasoCompetition[] };
+
+/**
+ * A `competition_id` identifies a *season of all Finnish football*, not a
+ * single competition: `spljp26` contains 28 categories, among them `VL`
+ * (Veikkausliiga), `M1L` (Ykkösliiga) and `MSC` (Miesten Suomen Cup),
+ * which is why every other call here also passes `category_id`. So this
+ * pattern is competition-agnostic — any Finnish competition added later
+ * shares the same season lookup.
+ *
+ * The `\d{2}` is load-bearing and must not be relaxed to a prefix test.
+ * `spljphhl26` (SPL Huuhkaja-Helmariliiga) is a genuinely separate
+ * competition that shares the `spljp` prefix, the `published` status *and*
+ * `season_id: 2026` — the exact id shape is the only thing that
+ * distinguishes it. See specs/011-current-season-discovery.md.
+ */
+const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
+
+/**
+ * The newest published Finnish football season, or `null` when TASO
+ * publishes none this call can recognize. Callers decide how to fall back —
+ * see `resolveCurrentTasoSeason`.
+ */
+export async function getCurrentSeason(): Promise<number | null> {
+  const response = await request<CompetitionsResponse>("/getCompetitions");
+  const seasons = (response.competitions ?? [])
+    .filter(
+      (competition) =>
+        competition.competition_id !== undefined &&
+        SEASON_COMPETITION_ID.test(competition.competition_id) &&
+        competition.competition_status === "published"
+    )
+    .map((competition) => Number(competition.season_id))
+    .filter((seasonId) => Number.isInteger(seasonId));
+
+  return seasons.length === 0 ? null : Math.max(...seasons);
 }
 
 // --- Groups (precomputed standings) ------------------------------------

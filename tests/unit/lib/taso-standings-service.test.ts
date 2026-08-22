@@ -7,6 +7,7 @@ import {
   listSelectableTasoRounds,
   needsRefresh,
   parseTasoRoundParam,
+  resolveTasoSeasonContext,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
 
@@ -15,6 +16,7 @@ const {
   getCachedMock,
   getSeasonMatchesMock,
   getSeasonGroupsMock,
+  getCurrentSeasonMock,
   loggerWarnMock,
   loggerErrorMock,
 } = vi.hoisted(() => ({
@@ -22,6 +24,7 @@ const {
   getCachedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
+  getCurrentSeasonMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
 }));
@@ -33,6 +36,7 @@ vi.mock("@/lib/taso", async (importOriginal) => {
     ...actual,
     getSeasonMatches: getSeasonMatchesMock,
     getSeasonGroups: getSeasonGroupsMock,
+    getCurrentSeason: getCurrentSeasonMock,
   };
 });
 vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
@@ -713,6 +717,111 @@ describe("synchronizeMatches", () => {
     expect(values).toHaveBeenCalledWith([expect.objectContaining({ updatedAt: expect.any(Date) })]);
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.anything() })
+    );
+  });
+});
+
+describe("resolveTasoSeasonContext", () => {
+  /** `max(season_id)` for the newest-stored fallback, then the season's own rows. */
+  function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
+    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
+      if (fields !== undefined && "seasonId" in fields) {
+        return { from: vi.fn().mockResolvedValue([{ seasonId: newestStored }]) };
+      }
+      const orderBy = vi.fn().mockResolvedValue(seasonMatches);
+      const where = vi.fn().mockReturnValue({ orderBy });
+      return { from: vi.fn().mockReturnValue({ where }) };
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+  });
+
+  it("uses the discovered season when it already has matches", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2027, [match({ seasonId: 2027 })]);
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2027,
+    });
+  });
+
+  it("keeps a published-but-empty season out of the default while still raising the ceiling", async () => {
+    // TASO publishes a competition_id before the season kicks off. Landing
+    // there would render the empty state, so the default lags — but the
+    // season is still selectable.
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+  });
+
+  it("does make an all-fixtures season the default — unplayed is not empty", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockResolvedValue([
+      match({ seasonId: 2027, status: "SCHEDULED", homeGoals: null, awayGoals: null }),
+    ]);
+    mockInsert();
+
+    await expect(resolveTasoSeasonContext()).resolves.toMatchObject({ defaultSeason: 2027 });
+  });
+
+  it("falls back to the newest stored season when discovery fails", async () => {
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(2025, [match({ seasonId: 2025 })]);
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2025,
+      defaultSeason: 2025,
+    });
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "TASO season discovery failed; falling back to stored seasons"
+    );
+  });
+
+  it("falls back to the newest stored season when discovery recognizes nothing", async () => {
+    getCurrentSeasonMock.mockResolvedValue(null);
+    mockDb(2024, [match({ seasonId: 2024 })]);
+
+    await expect(resolveTasoSeasonContext()).resolves.toMatchObject({ currentSeason: 2024 });
+  });
+
+  it("falls back to the configured floor when discovery fails and nothing is stored", async () => {
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(null, []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2015,
+      defaultSeason: 2015,
+    });
+  });
+
+  it("still resolves when the matches check itself throws", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
+      if (fields !== undefined && "seasonId" in fields) {
+        return { from: vi.fn().mockResolvedValue([{ seasonId: 2026 }]) };
+      }
+      throw new Error("database unavailable");
+    });
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ currentSeason: 2027 }),
+      "Unable to check the current season for matches"
     );
   });
 });

@@ -6,7 +6,6 @@ import { PageShell } from "@/components/page-shell";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveKotimaaPageContext } from "@/lib/kotimaa-page-context";
-import { LATEST_TASO_SEASON } from "@/lib/taso";
 import {
   type GroupStandingsResult,
   getSeasonMatchList,
@@ -70,7 +69,7 @@ export async function generateMetadata({
   searchParams,
 }: KotimaaStandingsPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
-  const resolved = resolveKotimaaPageContext(params);
+  const resolved = await resolveKotimaaPageContext(params);
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
@@ -87,9 +86,10 @@ export default async function KotimaaStandingsPage({
     seasonId,
     seasonLabel,
     competitionId,
-  } = resolveKotimaaPageContext(params);
+    currentSeason,
+  } = await resolveKotimaaPageContext(params);
 
-  const matchListResult = await getSeasonMatchList(competitionId, seasonId, LATEST_TASO_SEASON);
+  const matchListResult = await getSeasonMatchList(competitionId, seasonId, currentSeason);
   const availableRounds =
     matchListResult.status === "ok"
       ? listSelectableTasoRounds(matchListResult.matches, competitionId)
@@ -97,12 +97,7 @@ export default async function KotimaaStandingsPage({
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
-  const result = await getSeasonStandings(
-    competitionId,
-    seasonId,
-    LATEST_TASO_SEASON,
-    selectedRound
-  );
+  const result = await getSeasonStandings(competitionId, seasonId, currentSeason, selectedRound);
 
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
