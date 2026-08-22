@@ -112,9 +112,12 @@ test.describe("Kotimaa standings page (Veikkausliiga)", () => {
   }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2019");
 
-    // 2019 is the case that rules out "playoff = anything we can't
-    // own-calculate": Mestaruussarja and Haastajasarja are real league
-    // groups with real points, but have no carry-over config entry.
+    // Mestaruussarja and Haastajasarja are real league groups with real
+    // points, so they render as tables whichever way they are calculated.
+    // (They were the counter-example to "playoff = anything we can't
+    // own-calculate" until #133 gave 2019 a carry-over entry; the rule stays
+    // a positive test on the data precisely so it does not depend on the
+    // config being complete.)
     const mestaruussarja = page.getByRole("table").nth(1);
     await expect(mestaruussarja.locator("thead")).toContainText("Sija");
     await expect(mestaruussarja.locator("tbody tr")).toHaveCount(6);
@@ -124,6 +127,43 @@ test.describe("Kotimaa standings page (Veikkausliiga)", () => {
     // under an older name.
     await expect(page.getByRole("table").nth(3).locator("thead")).toContainText("Kierros");
     await expect(page.getByRole("table").nth(4).locator("thead")).toContainText("Kierros");
+  });
+
+  test("a restarted-numbering season's round filter counts one stage, not two (#133)", async ({
+    page,
+  }) => {
+    // The issue's repro, against live data. 2022's split groups restart at
+    // round 1, so before the fix "Kierros 5" combined Runkosarja rounds 1-5
+    // with Mestaruussarja rounds 1-5 and showed 10 played.
+    await page.goto("/kotimaa/sarjataulukko?kausi=2022&kierros=5");
+
+    // Await the rows before reading them: allTextContents() does not
+    // auto-wait, so it returns [] while the page is still streaming.
+    const playedColumn = page.getByRole("table").nth(1).locator("tbody tr td:nth-child(3)");
+    await expect(playedColumn.first()).toBeVisible();
+
+    const played = await playedColumn.allTextContents();
+    // Exactly 5, not "at most 5": a filter that dropped valid matches, or
+    // returned an empty table, would pass a <= assertion.
+    expect(played.map(Number)).toEqual([5, 5, 5, 5, 5, 5]);
+  });
+
+  test("a restarted-numbering season's split rounds are reachable in the selector (#133)", async ({
+    page,
+  }) => {
+    await page.goto("/kotimaa/sarjataulukko?kausi=2022");
+
+    const options = page.getByLabel("Kierros").locator("option");
+    await expect(options.first()).toBeAttached();
+
+    const values = await options.evaluateAll((all) =>
+      all.map((option) => (option as HTMLOptionElement).value)
+    );
+    const rounds = values.map(Number).filter((round) => Number.isInteger(round) && round > 0);
+
+    // Previously capped at Runkosarja's 22, leaving the split groups' own
+    // rounds unselectable.
+    expect(Math.max(...rounds)).toBeGreaterThan(22);
   });
 
   test("shows a single Runkosarja table for 2015, TASO's own group_name '1' displayed as Runkosarja", async ({
