@@ -112,9 +112,12 @@ test.describe("Kotimaa standings page (Veikkausliiga)", () => {
   }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2019");
 
-    // 2019 is the case that rules out "playoff = anything we can't
-    // own-calculate": Mestaruussarja and Haastajasarja are real league
-    // groups with real points, but have no carry-over config entry.
+    // Mestaruussarja and Haastajasarja are real league groups with real
+    // points, so they render as tables whichever way they are calculated.
+    // (They were the counter-example to "playoff = anything we can't
+    // own-calculate" until #133 gave 2019 a carry-over entry; the rule stays
+    // a positive test on the data precisely so it does not depend on the
+    // config being complete.)
     const mestaruussarja = page.getByRole("table").nth(1);
     await expect(mestaruussarja.locator("thead")).toContainText("Sija");
     await expect(mestaruussarja.locator("tbody tr")).toHaveCount(6);

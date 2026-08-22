@@ -93,11 +93,16 @@ function isOwnCalculated(competitionId: string, groupId: number, allGroupIds: nu
 
 /**
  * A pass-through group's standing, straight from TASO's own `getGroups`
- * numbers — a league group we can't own-calculate, currently only 2019's
- * Mestaruussarja and Haastajasarja, which split like every other season
- * but have no `CARRY_OVER_CONFIG` entry.
+ * numbers — a league group we cannot own-calculate because it has no
+ * `CARRY_OVER_CONFIG` entry yet.
  *
- * Every such group observed does populate every stat field, so the
+ * **No season currently reaches this path.** 2019 was the last one, until
+ * #133 unblocked its entry. It is kept as the correct landing place for the
+ * next season that splits before its carry-over is validated — 2026 will
+ * pass through here first — so that an unvalidated season shows TASO's own
+ * numbers rather than a silently miscalculated table.
+ *
+ * Every group observed on this path did populate every stat field, so the
  * nullability here is defensive rather than a known case:
  * `TasoGroupTeam` types each field as both optional and nullable, and a
  * field that did go missing must render as "–" rather than be coerced to a
