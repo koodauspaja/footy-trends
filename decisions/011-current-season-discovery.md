@@ -90,6 +90,14 @@ leaving `getCompetitions` is normal and already covered by the floor.
 Recorded in the spec's Edge Cases as a deliberate non-guard so it is not
 re-added later as a perceived oversight.
 
+Sourcery then caught the loose end that dropping it left: `defaultSeason`
+came from `newestStored`, which in that same scenario can sit *above*
+`currentSeason` — landing a page on a season its own selector does not
+offer, and one `needsRefresh` would treat as newer than active. The default
+is now clamped to the ceiling. That is the opposite direction to the dropped
+guard: it keeps the fallback inside the range rather than widening the range
+to fit the fallback.
+
 ## `resolveKotimaaPageContext` became async
 
 It was synchronous precisely because the season range was static, which its

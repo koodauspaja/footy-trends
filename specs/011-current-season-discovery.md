@@ -149,12 +149,17 @@ the current-season TTL (`15 * 60` seconds), matching how
   fall back to the configured floor, `2015`, which is guaranteed to be a
   real season. The page then renders whatever that season yields, including
   its own empty state if the database is genuinely empty.
-- **The discovered season is older than a stored one** — deliberately *not*
-  guarded. It requires TASO to unpublish a season we have already synced,
-  which would mean unpublishing an ongoing season; past seasons dropping
-  out of `getCompetitions` is normal and already handled by the configured
-  floor. Guarding it would add a permanent branch for a case that should
-  never occur, so the ceiling is simply the discovered season.
+- **The discovered season is older than a stored one.** The ceiling is
+  *not* raised to cover the stored season: that requires TASO to unpublish
+  a season we have already synced, i.e. an ongoing one, and past seasons
+  dropping out of `getCompetitions` is normal and already handled by the
+  floor. The ceiling is simply the discovered season.
+
+  The **default** is clamped to that ceiling, though. Without it the
+  fallback could return a stored season above the ceiling, landing the page
+  on a season its own selector does not offer and which `needsRefresh`
+  would treat as newer than active. That is a one-line consistency clamp,
+  not the ceiling-raising guard above.
 - **A newly discovered season has no carry-over config entry**, so its split
   groups render pass-through with no round selector until validated. This is
   spec 009's existing, deliberate behaviour and is not changed here — it

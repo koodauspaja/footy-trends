@@ -232,7 +232,15 @@ export const resolveTasoSeasonContext = cache(
         );
       }
 
-      return { currentSeason, defaultSeason: newestStored ?? currentSeason };
+      // Clamped to the ceiling: `newestStored` can exceed `currentSeason` if
+      // TASO stops reporting a season we already synced, and a default above
+      // the ceiling would land the page on a season its own selector does not
+      // offer — and one `needsRefresh` would treat as newer than active.
+      // This is not the dropped "raise the ceiling to cover stored data"
+      // guard; it keeps the fallback inside the range rather than widening
+      // it. See specs/011-current-season-discovery.md.
+      const fallbackDefault = Math.min(newestStored ?? currentSeason, currentSeason);
+      return { currentSeason, defaultSeason: fallbackDefault };
     });
   }
 );

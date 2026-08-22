@@ -806,6 +806,20 @@ describe("resolveTasoSeasonContext", () => {
     });
   });
 
+  it("never defaults above the ceiling, even if a stored season outlives its publication", async () => {
+    // TASO stops reporting 2027 after we synced it. The ceiling follows
+    // discovery down by design, so the default must come down with it —
+    // otherwise the page lands on a season its own selector does not list.
+    getCurrentSeasonMock.mockResolvedValue(2026);
+    mockDb(2027, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+      currentSeason: 2026,
+      defaultSeason: 2026,
+    });
+  });
+
   it("still resolves when the matches check itself throws", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
