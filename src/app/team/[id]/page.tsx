@@ -77,7 +77,7 @@ export async function generateMetadata({ params, searchParams }: TeamPageProps):
   };
 }
 
-export default async function TeamPage({ params, searchParams }: TeamPageProps) {
+export default async function TeamPage({ params, searchParams }: Readonly<TeamPageProps>) {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
   const resolved = await resolvePageContext(id, resolvedParams);

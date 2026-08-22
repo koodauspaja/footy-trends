@@ -30,7 +30,7 @@ export async function generateMetadata({ searchParams }: StandingsPageProps): Pr
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
-export default async function StandingsPage({ searchParams }: StandingsPageProps) {
+export default async function StandingsPage({ searchParams }: Readonly<StandingsPageProps>) {
   const params = (await searchParams) ?? {};
   const resolved = await resolveBasePageContext(params);
   if (resolved.status === "error") {

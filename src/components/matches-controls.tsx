@@ -30,7 +30,7 @@ export function MatchesControls({
   selectedSeasonId,
   availableRounds,
   selectedRound,
-}: MatchesControlsProps) {
+}: Readonly<MatchesControlsProps>) {
   const navigate = useSeasonRoundNavigation("/ottelut", competitionCode);
 
   return (

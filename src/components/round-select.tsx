@@ -15,7 +15,11 @@ type RoundSelectProps = {
  * `onChange` — an uncontrolled select would keep showing the round it was
  * first mounted with after one of those link clicks.
  */
-export function RoundSelect({ availableRounds, selectedRound, onChange }: RoundSelectProps) {
+export function RoundSelect({
+  availableRounds,
+  selectedRound,
+  onChange,
+}: Readonly<RoundSelectProps>) {
   return (
     <>
       <label className="text-sm text-zinc-600" htmlFor="kierros">

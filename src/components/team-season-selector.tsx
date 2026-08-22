@@ -25,7 +25,7 @@ export function TeamSeasonSelector({
   competitionCode,
   seasons,
   selectedSeasonId,
-}: TeamSeasonSelectorProps) {
+}: Readonly<TeamSeasonSelectorProps>) {
   const router = useRouter();
 
   function navigate(seasonId: number) {

@@ -26,7 +26,7 @@ export async function generateMetadata({ searchParams }: MatchesPageProps): Prom
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
-export default async function MatchesPage({ searchParams }: MatchesPageProps) {
+export default async function MatchesPage({ searchParams }: Readonly<MatchesPageProps>) {
   const params = (await searchParams) ?? {};
   const resolved = await resolveBasePageContext(params);
   if (resolved.status === "error") {
