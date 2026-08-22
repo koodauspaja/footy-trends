@@ -42,6 +42,17 @@ type MatchRow = NormalizedTasoMatch;
  * confirmed — via TASO's own `starting_points` and/or a from-scratch
  * `calculateStandings` cross-check — to continue its parent's points gets
  * an entry. See specs/009-veikkausliiga.md.
+ *
+ * Every entry here is asserted against TASO's own published standings in
+ * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
+ * its fixture there fails that file's coverage check, because a wrong entry
+ * is otherwise invisible — the table still renders, with wrong points.
+ *
+ * 2020 is absent because that season never split; 2026 waits until its
+ * split groups exist and can be validated the same way. 2019 splits and its
+ * carry-over validates, but its split groups restart round numbering at 1
+ * instead of continuing from Runkosarja's 22, which the round filter cannot
+ * represent — it is enabled once that is fixed.
  */
 const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
   spljp21: { 2: 1, 3: 1 },
@@ -50,6 +61,16 @@ const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
   spljp24: { 2: 1, 3: 1 },
   spljp25: { 2: 1, 3: 1 },
 };
+
+/**
+ * The competitions with a carry-over entry, for the validation test to
+ * assert against its fixtures. Exported so that adding a season to the
+ * config without adding real TASO numbers for it fails the suite — a wrong
+ * entry is otherwise invisible, since the table still renders.
+ */
+export function listCarryOverCompetitionIds(): string[] {
+  return Object.keys(CARRY_OVER_CONFIG);
+}
 
 function parentGroupId(competitionId: string, groupId: number): number | null {
   return CARRY_OVER_CONFIG[competitionId]?.[groupId] ?? null;
