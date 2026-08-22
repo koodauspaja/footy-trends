@@ -63,13 +63,20 @@ const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
 };
 
 /**
- * The competitions with a carry-over entry, for the validation test to
- * assert against its fixtures. Exported so that adding a season to the
- * config without adding real TASO numbers for it fails the suite — a wrong
- * entry is otherwise invisible, since the table still renders.
+ * Every configured carry-over mapping, flattened to one entry per
+ * `competitionId + groupId`. Exported so the validation test can assert the
+ * config against its fixtures exactly: a wrong entry is invisible in
+ * production, since the table still renders with wrong points.
+ *
+ * Flattened rather than keyed by competition on purpose. Exposing only the
+ * competition ids would let a *new group* be added to an
+ * already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }` — without any
+ * test covering it.
  */
-export function listCarryOverCompetitionIds(): string[] {
-  return Object.keys(CARRY_OVER_CONFIG);
+export function listCarryOverEntries(): { competitionId: string; groupId: number }[] {
+  return Object.entries(CARRY_OVER_CONFIG).flatMap(([competitionId, groups]) =>
+    Object.keys(groups).map((groupId) => ({ competitionId, groupId: Number(groupId) }))
+  );
 }
 
 function parentGroupId(competitionId: string, groupId: number): number | null {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
-import { getSeasonStandings, listCarryOverCompetitionIds } from "@/lib/taso-standings-service";
+import { getSeasonStandings, listCarryOverEntries } from "@/lib/taso-standings-service";
 import fixture from "../../fixtures/taso-carry-over.json";
 
 /**
@@ -132,17 +132,21 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     }
   }
 
-  it("has a fixture for every configured season, so an entry cannot be added untested", () => {
-    // Asserted against the real config, not a hardcoded list: adding a
-    // season to CARRY_OVER_CONFIG without capturing TASO's numbers for it
-    // is the exact gap spec 009 asked this to guard, and a list-vs-list
-    // check would happily pass while it went untested.
-    expect(listCarryOverCompetitionIds().sort()).toEqual(
-      seasons.map(([competitionId]) => competitionId).sort()
-    );
-    // Both split groups per season.
-    expect(seasons.flatMap(([, season]) => Object.keys(season.expected))).toHaveLength(
-      listCarryOverCompetitionIds().length * 2
-    );
+  it("has a fixture for every configured entry, so none can be added untested", () => {
+    // Compared per `competitionId + groupId` against the real config, in
+    // both directions. Matching on competition alone would let a new group
+    // be added to an already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }`
+    // — and go untested, and a count-based check would miss it too. Guarding
+    // exactly this is what spec 009 asked of these tests.
+    const configured = listCarryOverEntries()
+      .map((entry) => `${entry.competitionId}:${entry.groupId}`)
+      .sort();
+    const fixtured = seasons
+      .flatMap(([competitionId, season]) =>
+        Object.keys(season.expected).map((groupId) => `${competitionId}:${groupId}`)
+      )
+      .sort();
+
+    expect(configured).toEqual(fixtured);
   });
 });
