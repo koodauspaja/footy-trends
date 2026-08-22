@@ -141,8 +141,11 @@ export function calculateStandings(
       goalsAgainst: team.goalsAgainst,
       goalDifference: team.goalsFor - team.goalsAgainst,
       points: team.points,
+      // toSorted, not sort: `team.results` is the accumulator's own array,
+      // not a filtered copy, so sorting in place would reorder it as a side
+      // effect of reading the form.
       form: team.results
-        .sort((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime())
+        .toSorted((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime())
         .slice(0, 5)
         .reverse()
         .map(({ matchId, result, label }) => ({ matchId, result, label })),
