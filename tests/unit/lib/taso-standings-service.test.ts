@@ -448,11 +448,16 @@ describe("getSeasonStandings", () => {
   });
 
   it("keeps a league group with real points as a table even when it is not own-calculated", async () => {
-    // 2019's Mestaruussarja: a genuine league group with carry-over points,
-    // but no CARRY_OVER_CONFIG entry, so it is not own-calculated. It must
-    // not be mistaken for a playoff group — the reason the playoff rule is
-    // a positive test on the data rather than "everything we can't
-    // calculate". See specs/010-playoff-group-match-list.md.
+    // A genuine league group with real points but no CARRY_OVER_CONFIG
+    // entry, so it is not own-calculated. It must not be mistaken for a
+    // playoff group — the reason the playoff rule is a positive test on the
+    // data rather than "everything we can't calculate". See
+    // specs/010-playoff-group-match-list.md.
+    //
+    // Uses an id with no entry rather than 2019, the real unconfigured
+    // split season, so the test survives 2019 gaining one: the rule must
+    // hold for any season that lacks an entry, which is exactly why it does
+    // not depend on the config being complete.
     mockStoredMatches([
       match({ providerMatchId: 1, groupId: 1 }),
       match({ providerMatchId: 2, groupId: 2, groupName: "Mestaruussarja", matchday: 23 }),
@@ -469,7 +474,7 @@ describe("getSeasonStandings", () => {
     ]);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    const result = await getSeasonStandings("spljp19", 2019, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings("spljp17", 2017, ACTIVE_SEASON, undefined);
 
     const mestaruussarja =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;

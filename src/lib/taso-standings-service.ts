@@ -42,6 +42,17 @@ type MatchRow = NormalizedTasoMatch;
  * confirmed — via TASO's own `starting_points` and/or a from-scratch
  * `calculateStandings` cross-check — to continue its parent's points gets
  * an entry. See specs/009-veikkausliiga.md.
+ *
+ * Every entry here is asserted against TASO's own published standings in
+ * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
+ * its fixture there fails that file's coverage check, because a wrong entry
+ * is otherwise invisible — the table still renders, with wrong points.
+ *
+ * 2020 is absent because that season never split; 2026 waits until its
+ * split groups exist and can be validated the same way. 2019 splits and its
+ * carry-over validates, but its split groups restart round numbering at 1
+ * instead of continuing from Runkosarja's 22, which the round filter cannot
+ * represent — it is enabled once that is fixed.
  */
 const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
   spljp21: { 2: 1, 3: 1 },
@@ -50,6 +61,23 @@ const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
   spljp24: { 2: 1, 3: 1 },
   spljp25: { 2: 1, 3: 1 },
 };
+
+/**
+ * Every configured carry-over mapping, flattened to one entry per
+ * `competitionId + groupId`. Exported so the validation test can assert the
+ * config against its fixtures exactly: a wrong entry is invisible in
+ * production, since the table still renders with wrong points.
+ *
+ * Flattened rather than keyed by competition on purpose. Exposing only the
+ * competition ids would let a *new group* be added to an
+ * already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }` — without any
+ * test covering it.
+ */
+export function listCarryOverEntries(): { competitionId: string; groupId: number }[] {
+  return Object.entries(CARRY_OVER_CONFIG).flatMap(([competitionId, groups]) =>
+    Object.keys(groups).map((groupId) => ({ competitionId, groupId: Number(groupId) }))
+  );
+}
 
 function parentGroupId(competitionId: string, groupId: number): number | null {
   return CARRY_OVER_CONFIG[competitionId]?.[groupId] ?? null;

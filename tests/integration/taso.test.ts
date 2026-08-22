@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { tasoMatches } from "@/db/schema";
-import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
+import { calculateStandings } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 
 vi.mock("@/lib/taso", async (importOriginal) => {
@@ -248,60 +248,17 @@ describe("taso integration", () => {
 });
 
 /**
- * Regression guard for specs/009-veikkausliiga.md's carry-over config: for
- * every configured continuation group, combining its parent's matches with
- * its own must reproduce the exact numbers captured from TASO. Synthetic
- * fixtures reproducing win/draw/loss counts that add up to a real number
- * independently re-confirmed live against `spljp25` in this session: 2025
- * Mestaruussarja's own `points`/`matches_played` fields for KuPS are `67`/
- * `32` already (TASO's own precomputed, carry-over-inclusive total), and
- * running the actual `normalizeTasoMatch` + `calculateStandings` production
- * code against the real fetched Runkosarja+Mestaruussarja matches
- * reproduced the same `67`/`32` exactly. Fixture-based here (not live-API)
- * so it stays deterministic in CI.
+ * Carry-over config validation lives in
+ * `tests/unit/lib/taso-carry-over.test.ts`, not here.
+ *
+ * A synthetic version of it used to sit in this file, building matches whose
+ * win/draw/loss counts were engineered to total KuPS's real 67 points from
+ * 32 games. That proved `calculateStandings` can add up — which its own
+ * tests already cover — while proving nothing about `CARRY_OVER_CONFIG`,
+ * the thing that actually fails silently when wrong. Removing an entry left
+ * it green.
+ *
+ * The replacement drives the real `getSeasonStandings` over captured TASO
+ * matches and asserts each split group against TASO's own published
+ * standings, for every configured season. See #127.
  */
-describe("carry-over validation (2025 KuPS, Runkosarja + Mestaruussarja)", () => {
-  it("combining Runkosarja and Mestaruussarja matches reproduces TASO's own final points and played count", () => {
-    const runkosarjaMatches: NormalizedMatch[] = Array.from({ length: 22 }, (_, index) => ({
-      providerMatchId: 1000 + index,
-      competitionCode: "spljp25",
-      seasonId: 2025,
-      groupId: 1,
-      groupName: "Runkosarja",
-      status: "FINISHED",
-      kickoffAt: new Date(2025, 3, index + 1),
-      matchday: index + 1,
-      homeTeamProviderId: 1,
-      homeTeamName: "KuPS",
-      awayTeamProviderId: 2 + index,
-      awayTeamName: `Opponent ${index}`,
-      // 16 wins, 4 draws, 2 losses — 16*3+4 = 52 points from Runkosarja.
-      homeGoals: index < 16 ? 2 : index < 20 ? 1 : 0,
-      awayGoals: index < 16 ? 0 : index < 20 ? 1 : 2,
-    }));
-    const mestaruussarjaMatches: NormalizedMatch[] = Array.from({ length: 10 }, (_, index) => ({
-      providerMatchId: 2000 + index,
-      competitionCode: "spljp25",
-      seasonId: 2025,
-      groupId: 2,
-      groupName: "Mestaruussarja",
-      status: "FINISHED",
-      kickoffAt: new Date(2025, 8, index + 1),
-      matchday: 23 + index,
-      homeTeamProviderId: 1,
-      homeTeamName: "KuPS",
-      awayTeamProviderId: 20 + index,
-      awayTeamName: `Mestaruussarja Opponent ${index}`,
-      // 5 wins, 0 draws, 5 losses — 5*3 = 15 points from Mestaruussarja.
-      homeGoals: index < 5 ? 1 : 0,
-      awayGoals: index < 5 ? 0 : 1,
-    }));
-
-    const combined = calculateStandings([...runkosarjaMatches, ...mestaruussarjaMatches]);
-    const kups = combined.find((team) => team.teamName === "KuPS");
-
-    // Matches TASO's own final 2025 Mestaruussarja numbers for KuPS, captured
-    // when this spec was validated: 67 points, 32 matches played.
-    expect(kups).toMatchObject({ points: 67, played: 32 });
-  });
-});
