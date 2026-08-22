@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
       { source: "/joukkue/:id", destination: "/team/:id" },
       { source: "/ottelut", destination: "/matches" },
       { source: "/sarjataulukko", destination: "/standings" },
+      { source: "/kotimaa/joukkue/:id", destination: "/kotimaa/team/:id" },
+      { source: "/kotimaa/ottelut", destination: "/kotimaa/matches" },
+      { source: "/kotimaa/sarjataulukko", destination: "/kotimaa/standings" },
     ];
   },
 };

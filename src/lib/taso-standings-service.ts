@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { cache } from "react";
 import { db } from "@/db";
 import { tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
@@ -138,7 +139,18 @@ export function needsRefresh(
   return Date.now() - newestUpdate.getTime() >= CURRENT_SEASON_CACHE_TTL_SECONDS * 1000;
 }
 
-async function getSyncedSeasonMatches(
+/**
+ * Wrapped in React's `cache()` so one request syncs a season at most once,
+ * however many times it is asked for — `/kotimaa/sarjataulukko` needs the
+ * season's matches both to build the round list and to calculate the
+ * tables, and Next.js invokes a page's `generateMetadata` and its default
+ * export separately, so the team page would otherwise sync twice per
+ * request. Without this, a stale current season re-fetches TASO's ~1 MB
+ * season response and re-upserts every row two times over. Same reasoning
+ * (and the same fix) as `getSeasonContext`/`getTeamMatches` in
+ * football-data.ts and standings-service.ts.
+ */
+const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
@@ -164,7 +176,7 @@ async function getSyncedSeasonMatches(
     );
     return { matches: storedMatches, refreshFailed: true };
   }
-}
+});
 
 export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[]): Promise<void> {
   if (providerMatches.length === 0) return;
@@ -225,6 +237,52 @@ function toPassThroughStanding(team: TasoGroupTeam, index: number): TasoTeamStan
   };
 }
 
+/** Every team appearing in a group's own matches — who actually belongs in that group's table. */
+function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number> {
+  return new Set(
+    seasonMatches
+      .filter((match) => match.groupId === groupId)
+      .flatMap((match) => [match.homeTeamProviderId, match.awayTeamProviderId])
+  );
+}
+
+/**
+ * One own-calculated group's table.
+ *
+ * A carry-over group's points come from its parent's matches *plus* its own
+ * (Mestaruussarja continues from Runkosarja), so both are fed to
+ * `calculateStandings`. But the parent group is bigger than the child — all
+ * 12 Runkosarja teams, not just the 6 that reached Mestaruussarja — so the
+ * result is filtered back down to the child's own teams afterwards, and
+ * positions renumbered from 1. Filtering the *matches* instead would be
+ * wrong: a Mestaruussarja team's Runkosarja points include matches against
+ * teams that later went to Karsintasarja, and dropping those would
+ * under-count it (KuPS 2025 would show 44 - those matches, not its real 67).
+ *
+ * Renumbering matches TASO's own `final_group_standing`, which is relative
+ * to the group (1–6 in both split groups, not offset to 7–12) — see
+ * specs/009-veikkausliiga.md's Out of scope.
+ */
+function ownCalculatedStandings(
+  seasonMatches: MatchRow[],
+  competitionId: string,
+  groupId: number,
+  round: number | undefined
+): TeamStanding[] {
+  const parent = parentGroupId(competitionId, groupId);
+  const contributingMatches = seasonMatches.filter(
+    (match) => match.groupId === groupId || (parent !== null && match.groupId === parent)
+  );
+  const groupTeamIds = teamIdsInGroup(seasonMatches, groupId);
+
+  return calculateStandings(
+    filterByRound(toFinishedMatches(contributingMatches), round),
+    contributingMatches
+  )
+    .filter((team) => groupTeamIds.has(team.teamProviderId))
+    .map((team, index) => ({ ...team, position: index + 1 }));
+}
+
 /**
  * Every group TASO returns for the season, each rendered either
  * own-calculated (via `calculateStandings`, including the parent group's
@@ -262,19 +320,11 @@ export async function getSeasonStandings(
 
     for (const groupId of allGroupIds) {
       if (ownCalculatedGroupIds.has(groupId)) {
-        const parent = parentGroupId(competitionId, groupId);
-        const ownMatches = seasonMatches.filter(
-          (match) => match.groupId === groupId || (parent !== null && match.groupId === parent)
-        );
-        const standings = calculateStandings(
-          filterByRound(toFinishedMatches(ownMatches), round),
-          ownMatches
-        );
         groups.push({
           kind: "own-calculated",
           groupId,
           groupName: groupNameOf(seasonMatches, groupId),
-          standings,
+          standings: ownCalculatedStandings(seasonMatches, competitionId, groupId, round),
         });
       }
     }
@@ -386,4 +436,28 @@ export function listSelectableTasoRounds(matchList: MatchRow[], competitionId: s
     )
     .map((match) => match.matchday as number);
   return [...new Set(rounds)].sort((left, right) => left - right);
+}
+
+export type TasoRoundParamResult =
+  | { kind: "absent" }
+  | { kind: "valid"; round: number }
+  | { kind: "invalid" };
+
+const POSITIVE_INTEGER = /^\d+$/;
+
+/**
+ * Validates the `kierros` query parameter against the actual round numbers
+ * `listSelectableTasoRounds` returned — a membership check, not a 1..max
+ * range check, since TASO's round scale can start above 1 for a
+ * continuation-only group and isn't guaranteed gap-free.
+ */
+export function parseTasoRoundParam(
+  rawValue: string | string[] | undefined,
+  availableRounds: number[]
+): TasoRoundParamResult {
+  if (rawValue === undefined || rawValue === "") return { kind: "absent" };
+  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
+
+  const round = Number(rawValue);
+  return availableRounds.includes(round) ? { kind: "valid", round } : { kind: "invalid" };
 }

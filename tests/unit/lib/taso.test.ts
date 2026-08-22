@@ -6,11 +6,14 @@ import {
   seasonFromCompetitionId,
 } from "@/lib/taso";
 
-const { loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
+const { loggerInfoMock, loggerErrorMock, loggerWarnMock } = vi.hoisted(() => ({
   loggerInfoMock: vi.fn(),
   loggerErrorMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
 }));
-vi.mock("@/lib/logger", () => ({ logger: { info: loggerInfoMock, error: loggerErrorMock } }));
+vi.mock("@/lib/logger", () => ({
+  logger: { info: loggerInfoMock, error: loggerErrorMock, warn: loggerWarnMock },
+}));
 
 describe("taso mapping", () => {
   const originalApiKey = process.env.TASO_API_KEY;
@@ -19,6 +22,7 @@ describe("taso mapping", () => {
     vi.unstubAllEnvs();
     loggerInfoMock.mockReset();
     loggerErrorMock.mockReset();
+    loggerWarnMock.mockReset();
     vi.unstubAllGlobals();
   });
 
@@ -253,18 +257,87 @@ describe("taso mapping", () => {
     expect(result?.kickoffAt).toEqual(new Date("2026-07-01T13:00:00Z"));
   });
 
-  it("throws when the kickoff date, time, or offset cannot be parsed", () => {
-    expect(() =>
-      normalizeTasoMatch(
+  it("skips a match with an empty date/time rather than throwing, so one bad row cannot break a season", () => {
+    // 2022's Eurolopputurnausfinaali really has such a match: already
+    // played, but TASO never gave it a kickoff. Before this was skipped it
+    // threw, and the whole 2022 sync failed.
+    const result = normalizeTasoMatch(
+      {
+        match_id: "2812547",
+        status: "Played",
+        round_id: "1",
+        group_id: "5",
+        group_name: "Eurolopputurnausfinaali",
+        date: "",
+        time: "",
+        time_zone_offset: "+0139",
+        team_A_id: "10",
+        team_A_name: "FC Haka",
+        team_B_id: "20",
+        team_B_name: "HJK",
+        fs_A: "1",
+        fs_B: "0",
+      },
+      "spljp22",
+      2022
+    );
+
+    expect(result).toBeNull();
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ matchId: "2812547" }),
+      "Skipping TASO match with an unparseable kickoff"
+    );
+  });
+
+  it("skips a match whose date is present but malformed, logging it rather than throwing", () => {
+    const result = normalizeTasoMatch(
+      {
+        match_id: "1",
+        status: "Played",
+        round_id: "1",
+        group_id: "1",
+        group_name: "Runkosarja",
+        date: "not-a-date",
+        time: "18:00:00",
+        time_zone_offset: "+0300",
+        team_A_id: "10",
+        team_A_name: "HJK",
+        team_B_id: "20",
+        team_B_name: "KuPS",
+      },
+      "spljp26",
+      2026
+    );
+
+    expect(result).toBeNull();
+    expect(loggerWarnMock).toHaveBeenCalled();
+  });
+
+  // Each of these matches the kickoff regexes but is not a real instant.
+  // `Date.UTC` normalizes them all into valid-but-wrong dates, so without an
+  // explicit range check the match would be stored at a kickoff it never had
+  // instead of being skipped.
+  it.each([
+    ["an out-of-range month", "2026-99-15", "18:00:00", "+0300"],
+    ["a day that does not exist in its month", "2026-02-31", "18:00:00", "+0300"],
+    ["an out-of-range day", "2026-07-99", "18:00:00", "+0300"],
+    ["an out-of-range hour", "2026-07-15", "25:00:00", "+0300"],
+    ["an out-of-range minute", "2026-07-15", "18:99:00", "+0300"],
+    ["out-of-range offset minutes", "2026-07-15", "18:00:00", "+0099"],
+    ["out-of-range offset hours", "2026-07-15", "18:00:00", "+9900"],
+  ])(
+    "skips a match with %s rather than storing a normalized wrong kickoff",
+    (_case, date, time, offset) => {
+      const result = normalizeTasoMatch(
         {
           match_id: "1",
           status: "Played",
           round_id: "1",
           group_id: "1",
           group_name: "Runkosarja",
-          date: "not-a-date",
-          time: "18:00:00",
-          time_zone_offset: "+0300",
+          date,
+          time,
+          time_zone_offset: offset,
           team_A_id: "10",
           team_A_name: "HJK",
           team_B_id: "20",
@@ -272,8 +345,50 @@ describe("taso mapping", () => {
         },
         "spljp26",
         2026
-      )
-    ).toThrow("Unparseable TASO kickoff");
+      );
+
+      expect(result).toBeNull();
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.objectContaining({ matchId: "1" }),
+        "Skipping TASO match with an unparseable kickoff"
+      );
+    }
+  );
+
+  it("keeps every parseable match when one sibling in the same response is unparseable", async () => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          matches: [
+            { match_id: "1", status: "Played", date: "", time: "", time_zone_offset: "+0139" },
+            {
+              match_id: "2",
+              status: "Played",
+              round_id: "1",
+              group_id: "1",
+              group_name: "Runkosarja",
+              date: "2026-05-01",
+              time: "18:00:00",
+              time_zone_offset: "+0300",
+              team_A_id: "10",
+              team_A_name: "HJK",
+              team_B_id: "20",
+              team_B_name: "KuPS",
+              fs_A: "2",
+              fs_B: "1",
+            },
+          ],
+        }),
+      })
+    );
+
+    await expect(getSeasonMatches("spljp22")).resolves.toEqual([
+      expect.objectContaining({ providerMatchId: 2 }),
+    ]);
   });
 
   it("normalizes matches fetched from the provider, dropping incomplete ones", async () => {

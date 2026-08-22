@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import type { SeasonOption } from "@/lib/seasons";
 import { RoundSelect } from "./round-select";
+import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
+import { useSeasonRoundNavigation } from "./use-season-round-navigation";
 
 type MatchesControlsProps = {
   competitionCode: string;
@@ -30,23 +31,10 @@ export function MatchesControls({
   availableRounds,
   selectedRound,
 }: MatchesControlsProps) {
-  const router = useRouter();
-
-  function navigate(seasonId: number, round: number | undefined) {
-    const params = new URLSearchParams(window.location.search);
-    params.set("kilpailu", competitionCode);
-    params.set("kausi", String(seasonId));
-    if (round === undefined) {
-      params.delete("kierros");
-    } else {
-      params.set("kierros", String(round));
-    }
-    router.push(`/ottelut?${params.toString()}`);
-  }
+  const navigate = useSeasonRoundNavigation("/ottelut", competitionCode);
 
   return (
-    <form action="/ottelut" method="get" className="mb-6 flex flex-wrap items-center gap-3">
-      <input type="hidden" name="kilpailu" value={competitionCode} />
+    <SeasonForm actionPath="/ottelut" competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
@@ -59,11 +47,6 @@ export function MatchesControls({
           onChange={(round) => navigate(selectedSeasonId, round)}
         />
       )}
-      <noscript>
-        <button className="rounded border border-zinc-300 px-3 py-2" type="submit">
-          Näytä
-        </button>
-      </noscript>
-    </form>
+    </SeasonForm>
   );
 }

@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
@@ -92,23 +93,43 @@ export type NormalizedTasoMatch = {
  * `+0200` in winter, confirmed live across the 2025 DST boundary), so no
  * timezone-database lookup is needed here.
  */
-function parseKickoff(date: string, time: string, offset: string): Date {
+function parseKickoff(date: string, time: string, offset: string): Date | null {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   const timeMatch = /^(\d{2}):(\d{2})/.exec(time);
   const offsetMatch = /^([+-])(\d{2})(\d{2})$/.exec(offset);
-  if (!dateMatch || !timeMatch || !offsetMatch) {
-    throw new Error(`Unparseable TASO kickoff: ${date} ${time} ${offset}`);
-  }
-  const [, year, month, day] = dateMatch;
-  const [, hour, minute] = timeMatch;
+  if (!dateMatch || !timeMatch || !offsetMatch) return null;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
   const [, sign, offsetHours, offsetMinutes] = offsetMatch;
+
+  // The regexes above only prove the fields are shaped like a timestamp:
+  // `2026-99-99 25:00 +0099` matches all three, and `Date.UTC` would
+  // silently normalize it into a real-but-wrong instant, storing a match at
+  // a kickoff it never had. Out-of-range components are rejected here so
+  // such a row is skipped like any other unusable one.
+  if (hour > 23 || minute > 59 || Number(offsetHours) > 23 || Number(offsetMinutes) > 59) {
+    return null;
+  }
+
+  const localMs = Date.UTC(year, month - 1, day, hour, minute);
+  const local = new Date(localMs);
+  // Catches an out-of-range month and a day that doesn't exist in its month
+  // alike — `Date.UTC` rolls 2026-02-31 forward into March rather than
+  // failing, so the only reliable check is that the date round-trips.
+  if (
+    local.getUTCFullYear() !== year ||
+    local.getUTCMonth() !== month - 1 ||
+    local.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
   const offsetTotalMinutes =
     (sign === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes));
-
-  const utcMs =
-    Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)) -
-    offsetTotalMinutes * 60_000;
-  return new Date(utcMs);
+  return new Date(localMs - offsetTotalMinutes * 60_000);
 }
 
 /** `""` (an unplayed match's score) and `undefined` both mean "no score yet". */
@@ -143,6 +164,19 @@ export function normalizeTasoMatch(
   )
     return null;
 
+  // TASO occasionally returns a match with no date/time at all — 2022's
+  // Eurolopputurnausfinaali has one, already played but never given a
+  // kickoff. It is skipped like any other incomplete match rather than
+  // throwing: one unusable row must not take down a whole season's sync.
+  const kickoffAt = parseKickoff(match.date, match.time, match.time_zone_offset);
+  if (kickoffAt === null) {
+    logger.warn(
+      { matchId: match.match_id, date: match.date, time: match.time },
+      "Skipping TASO match with an unparseable kickoff"
+    );
+    return null;
+  }
+
   return {
     providerMatchId: Number(match.match_id),
     competitionCode: competitionId,
@@ -150,7 +184,7 @@ export function normalizeTasoMatch(
     groupId: Number(match.group_id),
     groupName: match.group_name,
     status: normalizeStatus(match.status),
-    kickoffAt: parseKickoff(match.date, match.time, match.time_zone_offset),
+    kickoffAt,
     matchday: match.round_id === undefined ? null : Number(match.round_id),
     homeTeamProviderId: Number(match.team_A_id),
     homeTeamName: match.team_A_name,
@@ -185,6 +219,14 @@ export function seasonFromCompetitionId(competitionId: string): number {
   const suffix = competitionId.slice(-2);
   const twoDigitYear = Number(suffix);
   return 2000 + twoDigitYear;
+}
+
+/** The inverse of `seasonFromCompetitionId` — the season selector's fixed 2015–2026 range. */
+export const EARLIEST_TASO_SEASON = 2015;
+export const LATEST_TASO_SEASON = 2026;
+
+export function competitionIdFromSeason(seasonId: number): string {
+  return `spljp${String(seasonId % 100).padStart(2, "0")}`;
 }
 
 // --- Groups (precomputed standings) ------------------------------------
