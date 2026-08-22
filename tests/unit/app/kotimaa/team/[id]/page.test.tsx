@@ -5,9 +5,22 @@ import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
+/**
+ * Season discovery is mocked so these page tests stay pure unit tests: the
+ * real `resolveTasoSeasonContext` queries `taso_matches` for its fallback,
+ * which would make them depend on a live database.
+ */
+const resolveTasoSeasonContextMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
+);
+
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
-  return { ...actual, getTeamMatches: getTeamMatchesMock };
+  return {
+    ...actual,
+    getTeamMatches: getTeamMatchesMock,
+    resolveTasoSeasonContext: resolveTasoSeasonContextMock,
+  };
 });
 
 vi.mock("next/navigation", () => ({
