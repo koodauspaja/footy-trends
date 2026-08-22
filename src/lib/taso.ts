@@ -164,10 +164,13 @@ export function normalizeTasoMatch(
   )
     return null;
 
-  // TASO occasionally returns a match with no date/time at all — 2022's
-  // Eurolopputurnausfinaali has one, already played but never given a
-  // kickoff. It is skipped like any other incomplete match rather than
-  // throwing: one unusable row must not take down a whole season's sync.
+  // TASO returns a dateless row for every two-legged playoff final,
+  // holding the tie's aggregate score — confirmed to be exactly the sum of
+  // the two legs in 2019, 2022, 2023 and 2024. It is not a fixture and
+  // must not render as one, and the empty date/time is the only thing
+  // marking it: it carries `status: "Played"` and a real score like any
+  // other row. Skipping it here both hides it and keeps one unusable row
+  // from taking down a whole season's sync.
   const kickoffAt = parseKickoff(match.date, match.time, match.time_zone_offset);
   if (kickoffAt === null) {
     logger.warn(
@@ -235,9 +238,13 @@ export function competitionIdFromSeason(seasonId: number): string {
  * `getGroups`' per-team fields are a mix of native JSON numbers (points,
  * matches_played, etc.) and strings (`team_id`, `final_group_standing`) —
  * confirmed live, an inconsistency with `getMatches`' all-strings
- * convention, not a typo here. `null` for a group like Eurolopputurnaus
- * that isn't a points competition (confirmed live: every stat field except
- * `matches_played` itself is `null` there).
+ * convention, not a typo here.
+ *
+ * Every field is both optional and nullable because a knockout group like
+ * Eurolopputurnaus isn't a points competition: TASO **omits** every stat
+ * field except `matches_played` there rather than sending `null` for it,
+ * so `=== null` alone never detects such a group. That absence is what
+ * `isPlayoffGroup` keys on — see specs/010-playoff-group-match-list.md.
  */
 export type TasoGroupTeam = {
   team_id?: string;
