@@ -140,10 +140,9 @@ test.describe("Kotimaa standings page (Veikkausliiga)", () => {
     await expect(playedColumn.first()).toBeVisible();
 
     const played = await playedColumn.allTextContents();
-    expect(played).toHaveLength(6);
-    for (const count of played) {
-      expect(Number(count)).toBeLessThanOrEqual(5);
-    }
+    // Exactly 5, not "at most 5": a filter that dropped valid matches, or
+    // returned an empty table, would pass a <= assertion.
+    expect(played.map(Number)).toEqual([5, 5, 5, 5, 5, 5]);
   });
 
   test("a restarted-numbering season's split rounds are reachable in the selector (#133)", async ({

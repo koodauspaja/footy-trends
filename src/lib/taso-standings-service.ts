@@ -341,7 +341,11 @@ function withContinuedRoundNumbering(matchList: MatchRow[], competitionId: strin
     // Already continues the parent's numbering — nothing to shift.
     if (childRounds.min > parentRounds.max) continue;
 
-    offsets.set(groupId, parentRounds.max);
+    // Maps the child's *first* round onto the parent's next one. Shifting by
+    // the parent's last round alone would only be correct for a child that
+    // starts at 1: an overlapping range starting at 20 would land on 42
+    // rather than 23.
+    offsets.set(groupId, parentRounds.max - childRounds.min + 1);
   }
 
   if (offsets.size === 0) return matchList;

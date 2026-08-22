@@ -208,6 +208,29 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       expect(Math.max(...rounds)).toBe(27);
     });
 
+    it("maps an overlapping child's first round onto the parent's next, whatever it starts at", async () => {
+      // Every real season restarts at exactly 1, but shifting by the
+      // parent's last round alone only works for that case: a child running
+      // 20-24 would land on 42-46 instead of 23-27.
+      const [competitionId, season] = fixtureFor("spljp22");
+      const rows = expandMatches(competitionId, season).map((row, index) => ({
+        ...row,
+        matchday: row.groupId === 1 ? (index % 22) + 1 : 20 + (index % 5),
+      }));
+      mockStoredMatches(rows);
+
+      const result = await getSeasonMatchList(competitionId, 2022, ACTIVE_SEASON);
+      const splitRounds =
+        result.status === "ok"
+          ? result.matches
+              .filter((match) => match.groupId === 2)
+              .flatMap((match) => (match.matchday === null ? [] : [match.matchday]))
+          : [];
+
+      expect(Math.min(...splitRounds)).toBe(23);
+      expect(Math.max(...splitRounds)).toBe(27);
+    });
+
     it("leaves a season that already continues its numbering untouched", async () => {
       // Renumbering a correct season again would double-shift it.
       const [competitionId, season] = fixtureFor("spljp25");

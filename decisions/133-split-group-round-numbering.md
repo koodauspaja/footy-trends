@@ -55,6 +55,13 @@ continuation group that genuinely starts after its parent is left alone, so
 running the transform twice cannot double-shift a correct season. There is
 a regression test for exactly that.
 
+The shift is `parentRounds.max - childRounds.min + 1`, mapping the child's
+first round onto the parent's next one — not the parent's last round alone.
+Both are identical for every real season, since all three restart at exactly
+`1`, but the simpler form is only correct *because* of that coincidence: an
+overlapping range starting at 20 would land on 42 rather than 23. Caught in
+review, and now covered by its own test.
+
 ## Applied at the funnel, not at the filter
 
 The narrowest fix would renumber inside `ownCalculatedStandings`, where
