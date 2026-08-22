@@ -65,7 +65,7 @@ export default function Page() {
           >
             read our docs
           </a>
-          .
+          {"."}
         </p>
 
         <button
@@ -93,18 +93,16 @@ export default function Page() {
           <span>Throw Sample Error</span>
         </button>
 
-        {hasSentError ? (
-          <p className="success">Error sent to Sentry.</p>
-        ) : !isConnected ? (
+        {hasSentError && <p className="success">Error sent to Sentry.</p>}
+        {!hasSentError && !isConnected && (
           <div className="connectivity-error">
             <p>
               It looks like network requests to Sentry are being blocked, which will prevent errors
               from being captured. Try disabling your ad-blocker to complete the test.
             </p>
           </div>
-        ) : (
-          <div className="success_placeholder" />
         )}
+        {!hasSentError && isConnected && <div className="success_placeholder" />}
 
         <div className="flex-spacer" />
       </main>

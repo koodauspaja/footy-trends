@@ -55,6 +55,13 @@ const resultLabels: Record<FormResult, string> = {
   H: "Häviö",
 };
 
+/** One side's result, from its own goals. Called twice per match, with the arguments swapped. */
+function resultFor(goalsFor: number, goalsAgainst: number): FormResult {
+  if (goalsFor > goalsAgainst) return "V";
+  if (goalsFor < goalsAgainst) return "H";
+  return "T";
+}
+
 function getOrCreateTeam(
   teams: Map<number, TeamTotals>,
   teamProviderId: number,
@@ -101,9 +108,8 @@ export function calculateStandings(
   for (const match of matches) {
     const home = getOrCreateTeam(teams, match.homeTeamProviderId, match.homeTeamName);
     const away = getOrCreateTeam(teams, match.awayTeamProviderId, match.awayTeamName);
-    const homeResult: FormResult =
-      match.homeGoals > match.awayGoals ? "V" : match.homeGoals < match.awayGoals ? "H" : "T";
-    const awayResult: FormResult = homeResult === "V" ? "H" : homeResult === "H" ? "V" : "T";
+    const homeResult = resultFor(match.homeGoals, match.awayGoals);
+    const awayResult = resultFor(match.awayGoals, match.homeGoals);
 
     home.played += 1;
     away.played += 1;
