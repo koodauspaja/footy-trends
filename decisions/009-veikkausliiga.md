@@ -300,6 +300,22 @@ gaps are now closed — plus unit regression tests for the roster fix and the
 skipped-kickoff path, and an e2e assertion that a split group reproduces
 TASO's own published points and positions.
 
+## Sourcery: a shaped-but-invalid kickoff is not a valid one
+
+Making `parseKickoff` return `null` fixed the throw above, but it still
+accepted anything the three regexes matched — `2026-99-99 25:00 +0099`
+passes all of them, and `Date.UTC` silently normalizes each out-of-range
+component into a real, wrong instant. The failure mode is worse than the
+original crash: instead of skipping an unusable provider row the sync would
+store and display a match at a kickoff it never had, with nothing logged.
+
+Ranges are now checked before the `Date` is built. Hour, minute, and both
+offset components get direct bounds; the calendar date is validated by
+round-tripping it through `Date.UTC`, which is the only check that catches
+both an out-of-range month and a day that doesn't exist in its month
+(`2026-02-31` rolls forward into March rather than failing). Seven
+table-driven cases cover it.
+
 ## Duplication and shared components
 
 SonarCloud's duplication gate drove out four shared pieces, each replacing

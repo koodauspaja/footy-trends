@@ -98,16 +98,38 @@ function parseKickoff(date: string, time: string, offset: string): Date | null {
   const timeMatch = /^(\d{2}):(\d{2})/.exec(time);
   const offsetMatch = /^([+-])(\d{2})(\d{2})$/.exec(offset);
   if (!dateMatch || !timeMatch || !offsetMatch) return null;
-  const [, year, month, day] = dateMatch;
-  const [, hour, minute] = timeMatch;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
   const [, sign, offsetHours, offsetMinutes] = offsetMatch;
+
+  // The regexes above only prove the fields are shaped like a timestamp:
+  // `2026-99-99 25:00 +0099` matches all three, and `Date.UTC` would
+  // silently normalize it into a real-but-wrong instant, storing a match at
+  // a kickoff it never had. Out-of-range components are rejected here so
+  // such a row is skipped like any other unusable one.
+  if (hour > 23 || minute > 59 || Number(offsetHours) > 23 || Number(offsetMinutes) > 59) {
+    return null;
+  }
+
+  const localMs = Date.UTC(year, month - 1, day, hour, minute);
+  const local = new Date(localMs);
+  // Catches an out-of-range month and a day that doesn't exist in its month
+  // alike — `Date.UTC` rolls 2026-02-31 forward into March rather than
+  // failing, so the only reliable check is that the date round-trips.
+  if (
+    local.getUTCFullYear() !== year ||
+    local.getUTCMonth() !== month - 1 ||
+    local.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
   const offsetTotalMinutes =
     (sign === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes));
-
-  const utcMs =
-    Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)) -
-    offsetTotalMinutes * 60_000;
-  return new Date(utcMs);
+  return new Date(localMs - offsetTotalMinutes * 60_000);
 }
 
 /** `""` (an unplayed match's score) and `undefined` both mean "no score yet". */

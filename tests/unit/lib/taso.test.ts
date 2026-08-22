@@ -313,6 +313,48 @@ describe("taso mapping", () => {
     expect(loggerWarnMock).toHaveBeenCalled();
   });
 
+  // Each of these matches the kickoff regexes but is not a real instant.
+  // `Date.UTC` normalizes them all into valid-but-wrong dates, so without an
+  // explicit range check the match would be stored at a kickoff it never had
+  // instead of being skipped.
+  it.each([
+    ["an out-of-range month", "2026-99-15", "18:00:00", "+0300"],
+    ["a day that does not exist in its month", "2026-02-31", "18:00:00", "+0300"],
+    ["an out-of-range day", "2026-07-99", "18:00:00", "+0300"],
+    ["an out-of-range hour", "2026-07-15", "25:00:00", "+0300"],
+    ["an out-of-range minute", "2026-07-15", "18:99:00", "+0300"],
+    ["out-of-range offset minutes", "2026-07-15", "18:00:00", "+0099"],
+    ["out-of-range offset hours", "2026-07-15", "18:00:00", "+9900"],
+  ])(
+    "skips a match with %s rather than storing a normalized wrong kickoff",
+    (_case, date, time, offset) => {
+      const result = normalizeTasoMatch(
+        {
+          match_id: "1",
+          status: "Played",
+          round_id: "1",
+          group_id: "1",
+          group_name: "Runkosarja",
+          date,
+          time,
+          time_zone_offset: offset,
+          team_A_id: "10",
+          team_A_name: "HJK",
+          team_B_id: "20",
+          team_B_name: "KuPS",
+        },
+        "spljp26",
+        2026
+      );
+
+      expect(result).toBeNull();
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.objectContaining({ matchId: "1" }),
+        "Skipping TASO match with an unparseable kickoff"
+      );
+    }
+  );
+
   it("keeps every parseable match when one sibling in the same response is unparseable", async () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal(
