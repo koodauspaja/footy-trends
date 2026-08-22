@@ -195,6 +195,19 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       expect(rounds).toContain(23);
     });
 
+    it("makes 2019's own rounds reachable, which is what blocked its config entry", async () => {
+      // 2019 restarts at 1-5 like 2022. Its carry-over validated all along;
+      // the round filter was the only thing keeping it out of the config.
+      const [competitionId, season] = fixtureFor("spljp19");
+      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+
+      const result = await getSeasonMatchList(competitionId, 2019, ACTIVE_SEASON);
+      const rounds =
+        result.status === "ok" ? listSelectableTasoRounds(result.matches, competitionId) : [];
+
+      expect(Math.max(...rounds)).toBe(27);
+    });
+
     it("leaves a season that already continues its numbering untouched", async () => {
       // Renumbering a correct season again would double-shift it.
       const [competitionId, season] = fixtureFor("spljp25");

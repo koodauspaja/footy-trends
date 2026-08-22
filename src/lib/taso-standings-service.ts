@@ -49,12 +49,12 @@ type MatchRow = NormalizedTasoMatch;
  * is otherwise invisible — the table still renders, with wrong points.
  *
  * 2020 is absent because that season never split; 2026 waits until its
- * split groups exist and can be validated the same way. 2019 splits and its
- * carry-over validates, but its split groups restart round numbering at 1
- * instead of continuing from Runkosarja's 22, which the round filter cannot
- * represent — it is enabled once that is fixed.
+ * split groups exist and can be validated the same way. 2019 restarts its
+ * split-group round numbering at 1; `withContinuedRoundNumbering` handles
+ * that, which is what unblocked its entry (#133).
  */
 const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
+  spljp19: { 2: 1, 3: 1 },
   spljp21: { 2: 1, 3: 1 },
   spljp22: { 2: 1, 3: 1 },
   spljp23: { 2: 1, 3: 1 },
