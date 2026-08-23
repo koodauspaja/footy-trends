@@ -88,7 +88,7 @@ export function selectActiveSeason(
   const startedSeasons = seasons.filter(
     (season) => season.startDate === undefined || new Date(season.startDate) <= now
   );
-  return startedSeasons.sort((left, right) => {
+  return startedSeasons.toSorted((left, right) => {
     const leftStart = left.startDate ? new Date(left.startDate).getTime() : 0;
     const rightStart = right.startDate ? new Date(right.startDate).getTime() : 0;
     return rightStart - leftStart;
@@ -108,7 +108,7 @@ export function selectUpcomingSeason(
     (season): season is ProviderSeason & { startDate: string } =>
       season?.id !== undefined && season.startDate !== undefined && new Date(season.startDate) > now
   );
-  return seasons.sort(
+  return seasons.toSorted(
     (left, right) => new Date(left.startDate).getTime() - new Date(right.startDate).getTime()
   )[0];
 }

@@ -18,7 +18,7 @@ export function CompetitionSelect({
   competitions,
   selectedCompetitionCode,
   onChange,
-}: CompetitionSelectProps) {
+}: Readonly<CompetitionSelectProps>) {
   const selected = competitions.find((competition) => competition.code === selectedCompetitionCode);
 
   return (

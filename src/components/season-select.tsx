@@ -12,7 +12,7 @@ type SeasonSelectProps = {
  * the team page (its own, season-only form), so both get the same Finnish
  * label and option list without duplicating the markup.
  */
-export function SeasonSelect({ seasons, selectedSeasonId, onChange }: SeasonSelectProps) {
+export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<SeasonSelectProps>) {
   return (
     <>
       <label className="text-sm text-zinc-600" htmlFor="kausi">

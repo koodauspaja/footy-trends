@@ -29,7 +29,7 @@ export function StandingsControls({
   selectedSeasonId,
   availableRounds,
   selectedRound,
-}: StandingsControlsProps) {
+}: Readonly<StandingsControlsProps>) {
   const router = useRouter();
 
   function navigate(competitionCode: string, seasonId: number, round: number | undefined) {

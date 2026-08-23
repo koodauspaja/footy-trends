@@ -35,6 +35,14 @@ type PageContext =
  * `getTeamMatches` are wrapped in React's `cache()`, so the underlying
  * fetches only happen once per request regardless.
  */
+/** Which side of the match this team played, so its own name can be read off it. */
+function nameForTeam(
+  match: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string },
+  teamProviderId: number
+): string {
+  return match.homeTeamProviderId === teamProviderId ? match.homeTeamName : match.awayTeamName;
+}
+
 async function resolvePageContext(
   id: string,
   params: Record<string, string | string[] | undefined>
@@ -53,12 +61,7 @@ async function resolvePageContext(
       );
 
   const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const teamName =
-    firstMatch === undefined
-      ? null
-      : firstMatch.homeTeamProviderId === teamProviderId
-        ? firstMatch.homeTeamName
-        : firstMatch.awayTeamName;
+  const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
 
   return { ...base, teamProviderId, result, teamName };
 }
@@ -77,7 +80,7 @@ export async function generateMetadata({ params, searchParams }: TeamPageProps):
   };
 }
 
-export default async function TeamPage({ params, searchParams }: TeamPageProps) {
+export default async function TeamPage({ params, searchParams }: Readonly<TeamPageProps>) {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
   const resolved = await resolvePageContext(id, resolvedParams);
