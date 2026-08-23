@@ -133,9 +133,10 @@ git push origin test/ci-check
 
 Open a PR from `test/ci-check` to main. Confirm:
 
-- [ ] `CI / Typecheck, lint, test` appears and passes
-- [ ] `SonarCloud / SonarCloud scan` appears and passes
-- [ ] Both are visible as status checks on the PR
+- [ ] `Typecheck, lint, unit and integration test` appears and passes
+- [ ] `SonarCloud scan` appears and passes
+- [ ] `Sourcery review` appears and passes
+- [ ] All three are visible as status checks on the PR
 
 Once confirmed, close the PR without merging and delete the branch.
 

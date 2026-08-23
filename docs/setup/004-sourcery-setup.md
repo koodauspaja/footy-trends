@@ -98,6 +98,54 @@ Delete the branch and close the PR without merging once confirmed.
 
 ---
 
+## Known limitations
+
+Three behaviours that are easy to misread, and that the merge gate in
+`skills/open-pr.md` depends on.
+
+### Reviews after the first push are lighter
+
+Sourcery reviews thoroughly when a PR opens and reacts to **every** push
+after that — no setting enables this. But those later reactions are
+deliberately lighter: they re-check existing comments, resolve threads the
+new code addressed, and re-run security scans. They do **not** regenerate
+the summary, the reviewer's guide, or the full set of inline comments.
+
+A consequence worth knowing: a light reaction creates no new review object,
+so the latest review's `commit_id` keeps pointing at the first reviewed
+commit even though later commits were seen. Never treat that value as
+"the last commit Sourcery looked at".
+
+To get a complete review of the final state — worth doing after substantive
+fix commits — comment `@sourcery-ai review` on the PR.
+
+### Three separate things cause a skip
+
+The check reports `skipped`, and the causes need telling apart:
+
+| Cause | Limit | Remedy |
+|---|---|---|
+| Per-PR size cap | ~150,000 diff characters | split the work |
+| Weekly rate limit | 500,000 diff characters account-wide (as of 2026-08) | wait for the reset; splitting does not help |
+| Automatic re-review cap | 5 per PR | `@sourcery-ai review` resets the counter |
+
+`@sourcery-ai review` forces a full review but does not create quota, so it
+only clears the third case.
+
+### Read the check-run at the commit, not the PR
+
+`gh pr checks <PR>` reports the *latest* check state, not the state at a
+given commit. A skipped review on an earlier commit is invisible there once
+a later one succeeds. Query the head SHA directly:
+
+```sh
+HEAD=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
+  -q '.check_runs[]|select(.name|test("Sourcery";"i"))|.conclusion'
+```
+
+---
+
 ## Done when
 - [ ] Sourcery installed on repo
 - [ ] `.sourcery.yaml` committed

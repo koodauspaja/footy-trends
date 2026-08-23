@@ -5,6 +5,23 @@ Protect the main branch so nothing merges without passing CI, a SonarCloud
 quality gate, and at least one peer review. Enforces the workflow that
 Sourcery, SonarCloud, and the PR template set up.
 
+> **Status: a ruleset exists but is disabled.** As of 2026-08-22 a
+> repository ruleset named `main` is present (created 2026-06-03) with
+> `enforcement: "disabled"`, so no rule currently applies:
+>
+> ```sh
+> gh api repos/:owner/:repo/rulesets            # -> enforcement: "disabled"
+> gh api repos/:owner/:repo/rules/branches/main # -> []   (nothing applies)
+> ```
+>
+> Check both. `gh api repos/:owner/:repo/branches/main/protection` returns
+> 404 here, but that endpoint only covers *classic* branch protection —
+> a 404 there says nothing about rulesets, which are a separate API.
+>
+> So the steps below are about configuring and **enabling** the existing
+> ruleset rather than creating one. Until that happens the review gate is
+> upheld by process (`skills/open-pr.md`), not mechanically.
+
 ---
 
 ## Step 1 — Enable branch protection
@@ -34,8 +51,9 @@ Enable the following:
   - [x] Require branches to be up to date before merging
   - Add the following required checks (these appear once the workflows have
     run at least once on a PR):
-    - `CI / Typecheck, lint, test`
-    - `SonarCloud / SonarCloud scan`
+    - `Typecheck, lint, unit and integration test`
+    - `SonarCloud scan`
+    - `Sourcery review`
 
 > **Note:** the status check names won't be available to select until each
 > workflow has run on a PR at least once. Come back and add them after
@@ -76,11 +94,31 @@ Enable the following:
 1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
 2. Under **Require status checks to pass**, click **Add checks**
 3. Search for and add:
-   - `CI / Typecheck, lint, test`
-   - `SonarCloud / SonarCloud scan`
+   - `Typecheck, lint, unit and integration test`
+   - `SonarCloud scan`
+   - `Sourcery review`
 4. Save
 
-From this point on, a PR cannot merge unless both checks pass.
+From this point on, a PR cannot merge unless all three checks pass.
+
+> **A required check cannot enforce the Sourcery gate.** GitHub's own
+> documentation is explicit: *"Required status checks must have a
+> `successful`, `skipped`, or `neutral` status before collaborators can
+> make changes to a protected branch."*
+>
+> Sourcery reports exactly `skipped` when it declines a review — over the
+> per-PR size cap, out of weekly quota, or past the five-automatic-re-review
+> cap. A skipped check **satisfies** the requirement, so protection will
+> happily allow a merge with no Sourcery review at all. That is precisely
+> the case the hard block exists for.
+>
+> Adding `Sourcery review` as a required check is still worth doing: it
+> catches an outright *failure*, and it makes the expectation visible. But
+> the skip case is upheld by the process check in `skills/open-pr.md`, not
+> mechanically. Do not treat a green merge box as evidence Sourcery ran.
+>
+> The same caveat applies to any check that can skip itself — a CI job
+> behind a path filter, for example.
 
 ---
 
