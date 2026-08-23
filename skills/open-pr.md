@@ -55,6 +55,12 @@ request using the following steps:
    until a review completes. Do not merge on a stale green check, and do not
    propose merging with a caveat.
 
+   This check cannot be delegated to branch protection. GitHub treats a
+   `skipped` required check as satisfying the requirement, so a protected
+   branch will allow a merge with no Sourcery review at all — see
+   `docs/setup/011-branch-protection.md`. This step is the only thing
+   enforcing it.
+
    Do **not** gate on the review's `commit_id` matching the head. Sourcery's
    reactions to later pushes are deliberately light and create no new review
    object, so that value stays pinned to the first reviewed commit and would
