@@ -298,7 +298,7 @@ describe("Team page", () => {
     await renderTeamPage("1");
 
     expect(
-      screen.getByText("Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
   });
@@ -309,7 +309,7 @@ describe("Team page", () => {
     await renderTeamPage("1");
 
     expect(
-      screen.getByText("Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();

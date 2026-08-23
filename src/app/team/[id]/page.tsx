@@ -10,7 +10,7 @@ import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service"
 
 export const dynamic = "force-dynamic";
 
-const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
+const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 
