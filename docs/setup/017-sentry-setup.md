@@ -151,24 +151,45 @@ fix as of 2026-08.
 ### Re-verifying
 
 If the counts change after a Next or Sentry upgrade, re-measure rather than
-assume. Save this as `probe.cjs` and run
-`NODE_OPTIONS="--require ./probe.cjs" npm run dev`:
+assume. Save the script below as `probe.cjs` and preload it into whichever
+server you are checking — the warning appears in both:
+
+```sh
+NODE_OPTIONS="--require ./probe.cjs" npm run dev
+npm run build && NODE_OPTIONS="--require ./probe.cjs" npm start
+```
+
+The probe dumps once a single response crosses Node's own limit, so **no
+output means the warning is gone** — the listener count has dropped to the
+limit or below and there is nothing left to investigate.
 
 ```js
 const { EventEmitter } = require("node:events");
 const tracked = new WeakMap();
 const original = EventEmitter.prototype.on;
+// Node warns one past its own limit; derived rather than hardcoded to 11 so
+// the probe stays correct if defaultMaxListeners ever changes.
+const threshold = EventEmitter.defaultMaxListeners + 1;
+
 EventEmitter.prototype.on = EventEmitter.prototype.addListener = function (event, listener) {
   if (event === "close" && this?.constructor?.name === "ServerResponse") {
     let stacks = tracked.get(this) ?? [];
     tracked.set(this, stacks);
-    // Next's compiled `compression` overrides res.on, so its frame appears
-    // for every caller routed through it — filter it out or every listener
-    // is misattributed to compression.
+    // Frames are filtered: the probe's own, node internals, and Next's
+    // compiled `compression`, which overrides res.on and would otherwise
+    // appear as the caller for every listener routed through it.
     stacks.push(new Error().stack.split("\n").slice(1)
-      .filter((l) => !l.includes("node:events") && !l.includes("compiled/compression"))
+      .filter((l) => !l.includes(__filename) && !l.includes("node:events"))
+      // Next's compiled `compression` overrides res.on, so its frame appears
+      // for every caller routed through it — see the comment above.
+      .filter((l) => !l.includes("compiled/compression"))
+      .map((l) => l.trim().replace(/^at /, ""))
       .slice(0, 2).join(" <- "));
-    if (stacks.length === 11) console.error(stacks.join("\n"));
+    // Dump once per response, at the threshold, listing every listener so far.
+    if (stacks.length === threshold) {
+      console.error(`--- ${threshold} close listeners on one ServerResponse ---`);
+      stacks.forEach((s, i) => console.error(`  ${i + 1}. ${s}`));
+    }
   }
   return original.call(this, event, listener);
 };
