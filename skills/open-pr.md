@@ -39,7 +39,51 @@ request using the following steps:
    - Link the decisions file path
    - Write a one or two sentence summary of what was built
    - List the steps a reviewer should take to verify the feature works
-6. Do not merge the PR yourself. Leave it for human review.
-7. If the PR merges without the issue auto-closing (for example the closing
+6. Verify Sourcery actually reviewed the commit that would be merged, before
+   handing the PR off. Query the check-run at the PR head — not
+   `gh pr checks`, which reports the *latest* state rather than that
+   commit's:
+
+   ```sh
+   HEAD=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+   gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
+     -q '.check_runs[]|select(.name|test("Sourcery";"i"))|.conclusion'
+   ```
+
+   It must be `success`. A `skipped` conclusion means Sourcery declined —
+   see "When Sourcery skips" below — and is a **hard block**: the PR waits
+   until a review completes. Do not merge on a stale green check, and do not
+   propose merging with a caveat.
+
+   Do **not** gate on the review's `commit_id` matching the head. Sourcery's
+   reactions to later pushes are deliberately light and create no new review
+   object, so that value stays pinned to the first reviewed commit and would
+   block nearly every PR that fixed a finding.
+7. A light re-check is not a full review. Sourcery reviews thoroughly when a
+   PR opens; every push after that gets a lighter pass that re-checks
+   existing comments, resolves addressed threads and re-runs security scans,
+   but does not regenerate the summary or the full set of inline comments.
+   After substantive fix commits, comment `@sourcery-ai review` on the PR to
+   force a complete review of the final state, and wait for it before
+   handing off.
+8. Do not merge the PR yourself. Leave it for human review. **Either Miikka
+   or Kalle** may be that reviewer — the two are interchangeable, so work
+   never waits on one named person being available.
+9. If the PR merges without the issue auto-closing (for example the closing
    keyword was missing or malformed), close the issue manually and note in a
    comment which PR shipped it.
+
+## When Sourcery skips
+
+The check reports `skipped`, and there are three causes worth telling apart:
+
+- **The per-PR size cap** — over ~150,000 diff characters, per step 3.
+- **The weekly rate limit** — diff characters per week across the account
+  (500,000 as of 2026-08), independent of the per-PR cap. Splitting a PR
+  does not avoid it.
+- **The automatic re-review cap** — five automatic re-reviews per PR. Past
+  that Sourcery stops reacting on its own.
+
+`@sourcery-ai review` resets the re-review counter and runs a full review
+from scratch, so it clears the third case. It does not create quota, so for
+the first two the only remedy is to wait.

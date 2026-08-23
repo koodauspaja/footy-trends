@@ -80,6 +80,10 @@ Workflow
      the original bug to confirm it's gone.
    - Move the card to `In Review` once the pull request is open.
 10. Leave the pull request for human review. Do not merge it yourself.
+    Before handing it off, apply the Sourcery review gate in
+    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block, and a
+    light re-check after fix commits is not a full review. Either Miikka or
+    Kalle may be the reviewer.
 
 Important rules
 - This workflow intentionally does not use `skills/write-spec.md` or create a

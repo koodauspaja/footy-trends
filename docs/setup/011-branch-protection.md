@@ -5,6 +5,12 @@ Protect the main branch so nothing merges without passing CI, a SonarCloud
 quality gate, and at least one peer review. Enforces the workflow that
 Sourcery, SonarCloud, and the PR template set up.
 
+> **Status: not enabled.** As of 2026-08-22 `main` has no ruleset —
+> `gh api repos/:owner/:repo/branches/main/protection` returns 404. The
+> review gate is currently upheld by process (`skills/open-pr.md`) rather
+> than mechanically. This document describes how to enable it when that is
+> wanted; nothing here is active.
+
 ---
 
 ## Step 1 — Enable branch protection
@@ -34,8 +40,9 @@ Enable the following:
   - [x] Require branches to be up to date before merging
   - Add the following required checks (these appear once the workflows have
     run at least once on a PR):
-    - `CI / Typecheck, lint, test`
-    - `SonarCloud / SonarCloud scan`
+    - `Typecheck, lint, unit and integration test`
+    - `SonarCloud scan`
+    - `Sourcery review`
 
 > **Note:** the status check names won't be available to select until each
 > workflow has run on a PR at least once. Come back and add them after
@@ -76,11 +83,21 @@ Enable the following:
 1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
 2. Under **Require status checks to pass**, click **Add checks**
 3. Search for and add:
-   - `CI / Typecheck, lint, test`
-   - `SonarCloud / SonarCloud scan`
+   - `Typecheck, lint, unit and integration test`
+   - `SonarCloud scan`
+   - `Sourcery review`
 4. Save
 
-From this point on, a PR cannot merge unless both checks pass.
+From this point on, a PR cannot merge unless all three checks pass.
+
+> **Verify `Sourcery review` before relying on it.** GitHub has historically
+> treated a `skipped` check conclusion as satisfying a required status
+> check. Sourcery reports exactly that when it declines a review — a quota
+> or re-review-cap skip — which is the case the gate in
+> `skills/open-pr.md` exists to catch. If skipped does satisfy the
+> requirement here, protection will not block that case and the process
+> check remains the real gate. Confirm on a throwaway PR rather than
+> assuming.
 
 ---
 
