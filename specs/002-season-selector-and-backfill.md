@@ -1,5 +1,14 @@
 # 002 — Season selector and backfill
 
+> **Routes and names moved by `specs/012-finnish-urls-english-code.md`
+> (#142).** The football-data.org pages are now under `/ulkomaat/` —
+> `/ulkomaat/sarjataulukko`, `/ulkomaat/ottelut`, `/ulkomaat/joukkue/:id`
+> — and the old top-level paths redirect there permanently. English paths
+> such as `/standings` no longer serve a page; they redirect to their
+> Finnish equivalent. In code, `kotimaa`/`ulkomaat` are now
+> `domestic`/`foreign`. Paths named below refer to the pre-012 structure.
+
+
 ## Summary
 Let the user choose which Premier League season the standings table shows, and
 backfill that season's finished matches into PostgreSQL the first time it is

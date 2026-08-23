@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Season-wide match list", () => {
   test("shows the current round and navigates between rounds", async ({ page }) => {
-    await page.goto("/ottelut");
+    await page.goto("/ulkomaat/ottelut");
 
     await expect(page.getByRole("heading", { name: /Valioliiga/ })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Ottelu" })).toBeVisible();
@@ -22,13 +22,13 @@ test.describe("Season-wide match list", () => {
   });
 
   test("links a team name from the match list to its team page", async ({ page }) => {
-    await page.goto("/ottelut");
+    await page.goto("/ulkomaat/ottelut");
 
     const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
     const teamName = await firstTeamLink.textContent();
     await firstTeamLink.click();
 
-    await expect(page).toHaveURL(/\/joukkue\/\d+/);
+    await expect(page).toHaveURL(/\/ulkomaat\/joukkue\/\d+/);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(teamName ?? "");
     await expect(page.getByRole("table")).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Pvm" })).toBeVisible();
@@ -37,23 +37,23 @@ test.describe("Season-wide match list", () => {
   test("falls back to the current round with a Finnish banner for an invalid kierros", async ({
     page,
   }) => {
-    await page.goto("/ottelut?kierros=999999");
+    await page.goto("/ulkomaat/ottelut?kierros=999999");
 
     await expect(page.getByRole("status").first()).toContainText("Kierrosta ei löytynyt.");
   });
 
   test("shows a different competition's matches when kilpailu is set", async ({ page }) => {
-    await page.goto("/ottelut?kilpailu=BL1");
+    await page.goto("/ulkomaat/ottelut?kilpailu=BL1");
 
     await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
   });
 
   test("links back to the standings for the same round", async ({ page }) => {
-    await page.goto("/ottelut?kierros=1");
+    await page.goto("/ulkomaat/ottelut?kierros=1");
 
     await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
 
-    await expect(page).toHaveURL(/\/sarjataulukko\?.*kierros=1/);
+    await expect(page).toHaveURL(/\/ulkomaat\/sarjataulukko\?.*kierros=1/);
     await expect(page.getByRole("heading", { name: /Valioliiga/ })).toBeVisible();
   });
 });

@@ -37,7 +37,7 @@ function cell(value: number | null): string {
 }
 
 /**
- * The Sija/Joukkue/O-V-T-H-TM-PM-ME-P/Vire table shared by `/sarjataulukko`
+ * The Sija/Joukkue/O-V-T-H-TM-PM-ME-P/Vire table shared by `/ulkomaat/sarjataulukko`
  * and `/kotimaa/sarjataulukko` — identical markup and Finnish column
  * headers on both; only the team-link target differs.
  */

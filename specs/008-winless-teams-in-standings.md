@@ -1,5 +1,14 @@
 # 008 — Show winless teams in the standings table with zero stats
 
+> **Routes and names moved by `specs/012-finnish-urls-english-code.md`
+> (#142).** The football-data.org pages are now under `/ulkomaat/` —
+> `/ulkomaat/sarjataulukko`, `/ulkomaat/ottelut`, `/ulkomaat/joukkue/:id`
+> — and the old top-level paths redirect there permanently. English paths
+> such as `/standings` no longer serve a page; they redirect to their
+> Finnish equivalent. In code, `kotimaa`/`ulkomaat` are now
+> `domestic`/`foreign`. Paths named below refer to the pre-012 structure.
+
+
 ## Summary
 Early in a new season, a team with zero finished matches doesn't appear in `/sarjataulukko` at all; it should show up with every stat at zero, alongside teams that have played, as long as it has at least one match (finished or scheduled) synced for the season.
 

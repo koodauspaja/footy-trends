@@ -41,11 +41,15 @@ export function StandingsControls({
     } else {
       params.set("kierros", String(round));
     }
-    router.push(`/sarjataulukko?${params.toString()}`);
+    router.push(`/ulkomaat/sarjataulukko?${params.toString()}`);
   }
 
   return (
-    <form action="/sarjataulukko" method="get" className="mb-6 flex flex-wrap items-center gap-3">
+    <form
+      action="/ulkomaat/sarjataulukko"
+      method="get"
+      className="mb-6 flex flex-wrap items-center gap-3"
+    >
       <CompetitionSelect
         competitions={competitions}
         selectedCompetitionCode={selectedCompetitionCode}
