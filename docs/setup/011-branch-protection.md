@@ -5,11 +5,22 @@ Protect the main branch so nothing merges without passing CI, a SonarCloud
 quality gate, and at least one peer review. Enforces the workflow that
 Sourcery, SonarCloud, and the PR template set up.
 
-> **Status: not enabled.** As of 2026-08-22 `main` has no ruleset —
-> `gh api repos/:owner/:repo/branches/main/protection` returns 404. The
-> review gate is currently upheld by process (`skills/open-pr.md`) rather
-> than mechanically. This document describes how to enable it when that is
-> wanted; nothing here is active.
+> **Status: a ruleset exists but is disabled.** As of 2026-08-22 a
+> repository ruleset named `main` is present (created 2026-06-03) with
+> `enforcement: "disabled"`, so no rule currently applies:
+>
+> ```sh
+> gh api repos/:owner/:repo/rulesets            # -> enforcement: "disabled"
+> gh api repos/:owner/:repo/rules/branches/main # -> []   (nothing applies)
+> ```
+>
+> Check both. `gh api repos/:owner/:repo/branches/main/protection` returns
+> 404 here, but that endpoint only covers *classic* branch protection —
+> a 404 there says nothing about rulesets, which are a separate API.
+>
+> So the steps below are about configuring and **enabling** the existing
+> ruleset rather than creating one. Until that happens the review gate is
+> upheld by process (`skills/open-pr.md`), not mechanically.
 
 ---
 
