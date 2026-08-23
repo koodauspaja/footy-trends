@@ -79,6 +79,16 @@ no custom logging calls needed in application code.
 
 ---
 
+## Known noise
+
+`MaxListenersExceededWarning: ... 11 close listeners added to
+[ServerResponse]` appears in production logs as well as in dev, so it
+reaches Axiom. It comes from Next's own request pipeline plus Sentry, is a
+false positive rather than a leak, and is explained under "Known warning —
+`MaxListenersExceededWarning`" in `017-sentry-setup.md`.
+
+---
+
 ## Done when
 - [ ] Axiom account and dataset ready
 - [ ] API token created with ingest-only permissions
