@@ -79,10 +79,18 @@ fixtures together, in chronological order.
 - Empty state (team has zero stored matches for the season — see Edge
   Cases): **`"Otteluita ei ole saatavilla."`** (mirrors the existing
   standings empty-state copy).
-- Error state (fetch/sync failure): reuse the existing
-  **`"Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen."`**
-  message, since it's already the generic "something went wrong, try
-  later" copy used elsewhere — no new string needed.
+- Error state (fetch/sync failure):
+  **`"Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen."`** —
+  the same message `/ottelut` uses, since this page also renders a match
+  list.
+
+  > **Amended by #128.** This originally specified the `Sarjataulukon`
+  > ("standings table") message, reasoning that it was already the generic
+  > "something went wrong" copy and no new string was needed. That left
+  > this page telling the user the standings table failed to load while it
+  > was showing a match list — the only one of the app's six pages whose
+  > error copy did not name what the page shows. The rule is now: name the
+  > page's primary content.
 - Invalid `kausi` on the team page: same fallback banner pattern as the
   home page (`Kautta ei löytynyt. Näytetään kausi {seasonLabel}.`).
 - Invalid/unknown team id (see Edge Cases):
