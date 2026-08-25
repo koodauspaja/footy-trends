@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
+import { categoryIdForSeason } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -14,6 +15,7 @@ import {
   competitionIdFromSeason,
   EARLIEST_TASO_SEASON,
   getCurrentSeason,
+  getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
   type NormalizedTasoGroupTeam,
@@ -30,20 +32,6 @@ const FINISHED_STATUS = "FINISHED";
  * specs/009-veikkausliiga.md's caching section.
  */
 const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
-
-/**
- * The category `resolveTasoSeasonContext` probes when asking "has the
- * discovered season actually started". TASO publishes a `competition_id` for
- * every category at once, so any category answers "does this season exist" —
- * but *matches* appear per competition, and Finnish competitions do not all
- * kick off together. Once other competitions exist, one that starts before
- * Veikkausliiga would still be defaulted to the previous season by this probe.
- *
- * Unreachable today, with Veikkausliiga the only competition; revisited in the
- * follow-up PR that adds the others, where the probe follows the selected
- * competition instead.
- */
-const SEASON_PROBE_CATEGORY_ID = "VL";
 
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
 type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
@@ -265,11 +253,12 @@ export function needsRefresh(
   return Date.now() - newestUpdate.getTime() >= CURRENT_SEASON_CACHE_TTL_SECONDS * 1000;
 }
 
-/** Newest season with any stored match, or `null` on an empty table. */
-async function newestStoredSeason(): Promise<number | null> {
+/** Newest season with a stored match for this competition, or `null` if it has none. */
+async function newestStoredSeason(categoryId: string): Promise<number | null> {
   const [row] = await db
     .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
-    .from(tasoMatches);
+    .from(tasoMatches)
+    .where(eq(tasoMatches.categoryId, categoryId));
   return row?.seasonId ?? null;
 }
 
@@ -310,42 +299,79 @@ export type TasoSeasonContext = {
  * renders, deduplicated within a request by `cache()` and bounded across
  * requests by the 15-minute Redis TTL.
  */
-export const resolveTasoSeasonContext = cache(
-  async function resolveTasoSeasonContext(): Promise<TasoSeasonContext> {
-    return getCached("taso:season-context", CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
-      const [discovered, newestStored] = await Promise.all([
-        discoverCurrentSeason(),
-        newestStoredSeason(),
-      ]);
-      const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
+export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
+  competitionCode: string
+): Promise<TasoSeasonContext> {
+  const key = `taso:season-context:${competitionCode}`;
+  return getCached(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
+    // Season discovery itself is competition-agnostic — a `competition_id`
+    // is a season of all Finnish football (spec 011) — but the *probe*
+    // below is not, so both the key and the stored fallback are scoped to
+    // the competition being asked about.
+    const discovered = await discoverCurrentSeason();
+    const probeSeason = discovered ?? EARLIEST_TASO_SEASON;
+    const newestStored = await newestStoredSeason(
+      categoryIdForSeason(competitionCode, probeSeason)
+    );
+    const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
 
-      try {
-        const { matches } = await getSyncedSeasonMatches(
-          SEASON_PROBE_CATEGORY_ID,
-          competitionIdFromSeason(currentSeason),
-          currentSeason,
-          currentSeason
-        );
-        if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
-      } catch (error) {
-        logger.warn(
-          { err: error, currentSeason },
-          "Unable to check the current season for matches"
-        );
-      }
+    try {
+      const { matches } = await getSyncedSeasonMatches(
+        categoryIdForSeason(competitionCode, currentSeason),
+        competitionIdFromSeason(currentSeason),
+        currentSeason,
+        currentSeason
+      );
+      if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
+    } catch (error) {
+      logger.warn(
+        { err: error, competitionCode, currentSeason },
+        "Unable to check the current season for matches"
+      );
+    }
 
-      // Clamped to the ceiling: `newestStored` can exceed `currentSeason` if
-      // TASO stops reporting a season we already synced, and a default above
-      // the ceiling would land the page on a season its own selector does not
-      // offer — and one `needsRefresh` would treat as newer than active.
-      // This is not the dropped "raise the ceiling to cover stored data"
-      // guard; it keeps the fallback inside the range rather than widening
-      // it. See specs/011-current-season-discovery.md.
-      const fallbackDefault = Math.min(newestStored ?? currentSeason, currentSeason);
-      return { currentSeason, defaultSeason: fallbackDefault };
-    });
+    // Clamped to the ceiling: `newestStored` can exceed `currentSeason` if
+    // TASO stops reporting a season we already synced, and a default above
+    // the ceiling would land the page on a season its own selector does not
+    // offer — and one `needsRefresh` would treat as newer than active.
+    // This is not the dropped "raise the ceiling to cover stored data"
+    // guard; it keeps the fallback inside the range rather than widening
+    // it. See specs/011-current-season-discovery.md.
+    const fallbackDefault = Math.min(newestStored ?? currentSeason, currentSeason);
+    return { currentSeason, defaultSeason: fallbackDefault };
+  });
+});
+
+/**
+ * The name a competition carried in one season, or `null` when TASO cannot be
+ * asked. Cached like the groups were: a completed season's names never change,
+ * and the current season's are unlikely to.
+ *
+ * Best-effort by design — a name is presentation, so a failure falls back to
+ * the competition's current name rather than breaking the page.
+ */
+export async function getSeasonCategoryName(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<string | null> {
+  const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
+  try {
+    const names = await getCached<Record<string, string>>(
+      `taso:categories:${competitionId}`,
+      ttl,
+      () => getSeasonCategoryNames(competitionId)
+    );
+    return names[categoryId] ?? null;
+  } catch (error) {
+    logger.warn(
+      { err: error, categoryId, competitionId, seasonId },
+      "Unable to read TASO category names; falling back to the configured name"
+    );
+    return null;
   }
-);
+}
 
 /** Stored rows, refreshed from TASO when stale. Round numbers are as TASO sends them. */
 async function loadSeasonMatches(

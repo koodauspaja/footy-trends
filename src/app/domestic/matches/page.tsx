@@ -21,7 +21,7 @@ export async function generateMetadata({
 }: DomesticMatchesPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const resolved = await resolveDomesticPageContext(params);
-  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
+  return { title: `${resolved.seasonCompetitionName} ${resolved.seasonLabel}` };
 }
 
 export default async function DomesticMatchesPage({
@@ -39,12 +39,13 @@ export default async function DomesticMatchesPage({
     competitionId,
     categoryId,
     currentSeason,
+    seasonCompetitionName,
   } = await resolveDomesticPageContext(params);
 
   const result = await getSeasonMatchList(categoryId, competitionId, seasonId, currentSeason);
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

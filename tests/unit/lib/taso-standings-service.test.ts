@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams } from "@/db/schema";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
+  getSeasonCategoryName,
   getSeasonMatchList,
   getSeasonStandings,
   getTeamMatches,
@@ -19,6 +20,7 @@ const {
   getCachedMock,
   getSeasonMatchesMock,
   getSeasonGroupsMock,
+  getSeasonCategoryNamesMock,
   getCurrentSeasonMock,
   loggerWarnMock,
   loggerErrorMock,
@@ -27,6 +29,7 @@ const {
   getCachedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
+  getSeasonCategoryNamesMock: vi.fn(),
   getCurrentSeasonMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
@@ -39,6 +42,7 @@ vi.mock("@/lib/taso", async (importOriginal) => {
     ...actual,
     getSeasonMatches: getSeasonMatchesMock,
     getSeasonGroups: getSeasonGroupsMock,
+    getSeasonCategoryNames: getSeasonCategoryNamesMock,
     getCurrentSeason: getCurrentSeasonMock,
   };
 });
@@ -1426,6 +1430,60 @@ describe("group standings storage", () => {
   });
 });
 
+describe("getSeasonCategoryName", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the name the competition carried that season", async () => {
+    getCachedMock.mockResolvedValue({ NL: "Naisten Liiga", VL: "Veikkausliiga" });
+
+    await expect(getSeasonCategoryName("NL", "spljp16", 2016, 2026)).resolves.toBe("Naisten Liiga");
+  });
+
+  it("returns null for a category the season does not list", async () => {
+    getCachedMock.mockResolvedValue({ VL: "Veikkausliiga" });
+
+    await expect(getSeasonCategoryName("M1L", "spljp16", 2016, 2026)).resolves.toBeNull();
+  });
+
+  it("returns null rather than failing the page when TASO cannot be asked", async () => {
+    // A name is presentation: the caller falls back to the configured one.
+    getCachedMock.mockRejectedValue(new Error("provider unavailable"));
+
+    await expect(getSeasonCategoryName("VL", "spljp26", 2026, 2026)).resolves.toBeNull();
+    expect(loggerWarnMock).toHaveBeenCalled();
+  });
+
+  it("fetches the season's categories once behind the cache", async () => {
+    // The cache key is the season, not the category: one call covers all 28,
+    // so asking for a second competition in the same season is free.
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+    getSeasonCategoryNamesMock.mockResolvedValue({ NL: "Naisten Liiga" });
+
+    await expect(getSeasonCategoryName("NL", "spljp16", 2016, 2026)).resolves.toBe("Naisten Liiga");
+    expect(getSeasonCategoryNamesMock).toHaveBeenCalledWith("spljp16");
+  });
+
+  it("caches a completed season's names for a year and the current season's briefly", async () => {
+    getCachedMock.mockResolvedValue({});
+
+    await getSeasonCategoryName("VL", "spljp20", 2020, 2026);
+    expect(getCachedMock).toHaveBeenCalledWith(
+      "taso:categories:spljp20",
+      60 * 60 * 24 * 365,
+      expect.any(Function)
+    );
+
+    await getSeasonCategoryName("VL", "spljp26", 2026, 2026);
+    expect(getCachedMock).toHaveBeenCalledWith(
+      "taso:categories:spljp26",
+      15 * 60,
+      expect.any(Function)
+    );
+  });
+});
+
 describe("listSeasonRounds", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1566,7 +1624,12 @@ describe("resolveTasoSeasonContext", () => {
   function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
     dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
       if (fields !== undefined && "seasonId" in fields) {
-        return { from: vi.fn().mockResolvedValue([{ seasonId: newestStored }]) };
+        // Scoped to the competition now, so the aggregate has a where clause.
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ seasonId: newestStored }]),
+          }),
+        };
       }
       const orderBy = vi.fn().mockResolvedValue(seasonMatches);
       const where = vi.fn().mockReturnValue({ orderBy });
@@ -1583,7 +1646,7 @@ describe("resolveTasoSeasonContext", () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     mockDb(2027, [match({ seasonId: 2027 })]);
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2027,
       defaultSeason: 2027,
     });
@@ -1597,7 +1660,7 @@ describe("resolveTasoSeasonContext", () => {
     mockDb(2026, []);
     getSeasonMatchesMock.mockResolvedValue([]);
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2027,
       defaultSeason: 2026,
     });
@@ -1611,14 +1674,14 @@ describe("resolveTasoSeasonContext", () => {
     ]);
     mockInsert();
 
-    await expect(resolveTasoSeasonContext()).resolves.toMatchObject({ defaultSeason: 2027 });
+    await expect(resolveTasoSeasonContext("VL")).resolves.toMatchObject({ defaultSeason: 2027 });
   });
 
   it("falls back to the newest stored season when discovery fails", async () => {
     getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
     mockDb(2025, [match({ seasonId: 2025 })]);
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2025,
       defaultSeason: 2025,
     });
@@ -1632,7 +1695,7 @@ describe("resolveTasoSeasonContext", () => {
     getCurrentSeasonMock.mockResolvedValue(null);
     mockDb(2024, [match({ seasonId: 2024 })]);
 
-    await expect(resolveTasoSeasonContext()).resolves.toMatchObject({ currentSeason: 2024 });
+    await expect(resolveTasoSeasonContext("VL")).resolves.toMatchObject({ currentSeason: 2024 });
   });
 
   it("falls back to the configured floor when discovery fails and nothing is stored", async () => {
@@ -1640,7 +1703,7 @@ describe("resolveTasoSeasonContext", () => {
     mockDb(null, []);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2015,
       defaultSeason: 2015,
     });
@@ -1654,7 +1717,7 @@ describe("resolveTasoSeasonContext", () => {
     mockDb(2027, []);
     getSeasonMatchesMock.mockResolvedValue([]);
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2026,
       defaultSeason: 2026,
     });
@@ -1664,12 +1727,16 @@ describe("resolveTasoSeasonContext", () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
       if (fields !== undefined && "seasonId" in fields) {
-        return { from: vi.fn().mockResolvedValue([{ seasonId: 2026 }]) };
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
+          }),
+        };
       }
       throw new Error("database unavailable");
     });
 
-    await expect(resolveTasoSeasonContext()).resolves.toEqual({
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
       currentSeason: 2027,
       defaultSeason: 2026,
     });

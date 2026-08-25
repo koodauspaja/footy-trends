@@ -182,3 +182,75 @@ Worth recording why it appeared at all: #151 re-keyed the fixture to
 those keys are valid JS identifiers — otherwise it falls back to
 `export default JSON.parse("...")`, a module with nothing to cover. The
 exclusion is the right fix either way.
+
+---
+
+## PR 3a — The ten competitions
+
+All ten render, with the nine new ones' split groups falling back to TASO's own
+numbers until PR 3b validates their carry-over entries.
+
+### The split moved again, and the fallback path is why
+
+The plan was one PR for the competitions and their carry-over entries. The
+fixtures those entries need measure **220KB** — 33 competition-seasons, 5,444
+matches — which with the source changes would have sat at Sourcery's 300,000
+cap for a diff whose bulk is unreviewable JSON.
+
+The seam that made a clean split possible is the fallback built in PR 2. A
+carry-over group with no config entry does not render wrongly; it renders
+TASO's own numbers with a Finnish notice. So the competitions can ship first
+and be correct, and the entries upgrade them afterwards from "TASO's table" to
+"our table, with a round selector".
+
+Confirmed live: Miesten Kakkonen 2026 renders its three parallel pools
+own-calculated and its six jatkosarja groups on the fallback path, which is
+exactly the intended state before PR 3b.
+
+### Parallel pools proved the origin-group rule was right to remove
+
+Kakkonen is the case spec 009's heuristic could not express: three pools that
+are each an origin group. Under "the lowest `group_id` is the origin", Lohko B
+and Lohko C would have rendered as pass-through with no round selector. They
+now calculate correctly, which is the first real evidence the result-based rule
+generalises beyond Veikkausliiga.
+
+### A competition's name comes from the season, not the config
+
+`NL` is "Naisten Liiga" 2015–2019, "Kansallinen Liiga" 2020–2024 and "Briotech
+Kansallinen Liiga" from 2025. Heading a 2016 page with today's sponsor name
+would be wrong, so the heading uses TASO's `category_name` for that season and
+adds `nykyisin {current name}` underneath when the two differ.
+
+One `getCategories` call covers all 28 categories in a season, so the cache key
+is the season rather than the competition — asking for a second competition in
+the same season is free. Best-effort throughout: a name is presentation, and a
+failure falls back to the configured name rather than breaking the page.
+
+### The season probe follows the competition, resolving in the right order
+
+Sourcery flagged in PR 1 that `resolveTasoSeasonContext` probed Veikkausliiga
+for every competition, so one that starts earlier would be defaulted to the
+previous season. Fixing it has an ordering constraint: the category to probe
+depends on the season, and the season is what the probe resolves.
+
+Discovery is competition-agnostic by construction (spec 011) — a
+`competition_id` is a season of all Finnish football — so the discovered season
+comes first, and only then does the competition's category for *that* season
+get probed. The Redis key and the stored-season fallback are both scoped to the
+competition.
+
+### Ykkösliiga has no history, and that is not an oversight
+
+It was created in 2024, when the men's second tier was renamed and Ykkönen
+continued separately as a lower one. So it gets a 2024 floor and no predecessor
+entry, while the four junior competitions map back through two ids each. Its
+season selector offers 2024–2026 and rejects 2016 with the existing notice.
+
+### A spec claim was wrong and is corrected
+
+The spec said a seeded carry-over group's `matches_played` counts the child's
+own matches only. It does not: Veikkausliiga 2022's Mestaruussarja reports 27,
+which is Runkosarja's 22 plus its own 5. The two conventions differ only in how
+*points* are expressed. Caught while generating PR 3b's fixtures, where the
+number had to be asserted rather than described.

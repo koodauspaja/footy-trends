@@ -5,10 +5,17 @@ import {
   resolveDomesticPageContext,
 } from "@/lib/domestic-page-context";
 
-const resolveTasoSeasonContextMock = vi.hoisted(() => vi.fn());
+const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock } = vi.hoisted(() => ({
+  resolveTasoSeasonContextMock: vi.fn(),
+  getSeasonCategoryNameMock: vi.fn(),
+}));
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
-  return { ...actual, resolveTasoSeasonContext: resolveTasoSeasonContextMock };
+  return {
+    ...actual,
+    resolveTasoSeasonContext: resolveTasoSeasonContextMock,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
+  };
 });
 
 describe("listSelectableTasoSeasons", () => {
@@ -110,5 +117,50 @@ describe("resolveDomesticPageContext", () => {
 
     expect(context.competitionCode).toBe("VL");
     expect(context.competitionParam).toEqual({ kind: "valid", code: "VL" });
+  });
+});
+
+describe("resolveDomesticPageContext competition naming", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+  });
+
+  it("shows the season's own name and where it has since been renamed to", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Naisten Liiga");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2016" });
+
+    expect(context.seasonCompetitionName).toBe("Naisten Liiga");
+    expect(context.renamedTo).toBe("Briotech Kansallinen Liiga");
+  });
+
+  it("shows no rename line when the season's name is the current one", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Briotech Kansallinen Liiga");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2026" });
+
+    expect(context.seasonCompetitionName).toBe("Briotech Kansallinen Liiga");
+    expect(context.renamedTo).toBeNull();
+  });
+
+  it("falls back to the configured name when TASO cannot be asked", async () => {
+    // A name must never be the reason a page fails.
+    getSeasonCategoryNameMock.mockResolvedValue(null);
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2016" });
+
+    expect(context.seasonCompetitionName).toBe("Briotech Kansallinen Liiga");
+    expect(context.renamedTo).toBeNull();
+  });
+
+  it("asks for the category that season used, not the competition's current one", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("P20 SM");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "P21SM", kausi: "2020" });
+
+    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("P20SM", "spljp20", 2020, 2026);
+    expect(context.categoryId).toBe("P20SM");
+    expect(context.renamedTo).toBe("P21 SM");
   });
 });

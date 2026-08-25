@@ -86,7 +86,7 @@ export async function generateMetadata({
 }: DomesticStandingsPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const resolved = await resolveDomesticPageContext(params);
-  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
+  return { title: `${resolved.seasonCompetitionName} ${resolved.seasonLabel}` };
 }
 
 export default async function DomesticStandingsPage({
@@ -104,6 +104,8 @@ export default async function DomesticStandingsPage({
     competitionId,
     categoryId,
     currentSeason,
+    seasonCompetitionName,
+    renamedTo,
   } = await resolveDomesticPageContext(params);
 
   const availableRounds = await listSeasonRounds(
@@ -127,7 +129,10 @@ export default async function DomesticStandingsPage({
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+      {renamedTo !== null && (
+        <p className="-mt-4 mb-4 text-sm text-zinc-500">nykyisin {renamedTo}</p>
+      )}
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

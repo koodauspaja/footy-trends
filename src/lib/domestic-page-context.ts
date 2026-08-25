@@ -8,7 +8,7 @@ import {
 } from "./domestic-competitions";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
 import { competitionIdFromSeason } from "./taso";
-import { resolveTasoSeasonContext } from "./taso-standings-service";
+import { getSeasonCategoryName, resolveTasoSeasonContext } from "./taso-standings-service";
 
 /**
  * A Finnish season is a single calendar year, not a year-spanning one like the
@@ -61,6 +61,17 @@ export type DomesticPageContext = {
   competitionId: string;
   /** The `category_id` to query for this competition in this season. */
   categoryId: string;
+  /**
+   * The name this competition carried in this season, which is not always the
+   * name it carries now — TASO renamed `NL` twice between 2015 and 2025.
+   * Falls back to the configured current name when TASO cannot be asked.
+   */
+  seasonCompetitionName: string;
+  /**
+   * The current name, but only when it differs from the season's own. Drives
+   * the "nykyisin …" line, which is shown only on a difference.
+   */
+  renamedTo: string | null;
 };
 
 /**
@@ -81,7 +92,7 @@ export async function resolveDomesticPageContext(
     competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_DOMESTIC_COMPETITION_CODE;
   const competitionName = getDomesticCompetitionName(competitionCode);
 
-  const { currentSeason, defaultSeason } = await resolveTasoSeasonContext();
+  const { currentSeason, defaultSeason } = await resolveTasoSeasonContext(competitionCode);
   const selectableSeasons = listSelectableTasoSeasons(
     currentSeason,
     earliestSeasonFor(competitionCode)
@@ -91,6 +102,15 @@ export async function resolveDomesticPageContext(
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdFromSeason(seasonId);
   const categoryId = categoryIdForSeason(competitionCode, seasonId);
+  const publishedName = await getSeasonCategoryName(
+    categoryId,
+    competitionId,
+    seasonId,
+    currentSeason
+  );
+  const seasonCompetitionName = publishedName ?? competitionName;
+  const renamedTo =
+    publishedName !== null && publishedName !== competitionName ? competitionName : null;
 
   return {
     currentSeason,
@@ -103,5 +123,7 @@ export async function resolveDomesticPageContext(
     seasonLabel,
     competitionId,
     categoryId,
+    seasonCompetitionName,
+    renamedTo,
   };
 }
