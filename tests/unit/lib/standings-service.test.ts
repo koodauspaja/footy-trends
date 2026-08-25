@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedProviderMatch } from "@/lib/football-data";
 import {
   getMaxMatchday,
@@ -92,9 +92,22 @@ function mockInsert() {
 
 describe("needsRefresh", () => {
   beforeEach(async () => {
+    // The clock is frozen because these assertions sit *on* the threshold.
+    // `storedAt` reads `Date.now()` to build the timestamp and `needsRefresh`
+    // reads it again to compare, so on a live clock a case one millisecond
+    // below the interval flips to `true` whenever those two reads land in
+    // different milliseconds — which the `vi.resetModules()` and dynamic
+    // `import()` below make entirely possible.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-08-15T12:00:00Z"));
+
     vi.stubEnv("FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS", String(REFRESH_INTERVAL_SECONDS));
     vi.resetModules();
     ({ needsRefresh } = await import("@/lib/standings-service"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("refreshes when nothing is stored for the season", () => {
