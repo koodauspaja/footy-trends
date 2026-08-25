@@ -65,12 +65,18 @@ type CarryOverEntry = {
   parent: number;
   /**
    * Which convention TASO used for this group, which decides what
-   * `starting_points` means — see `adjustmentFor`.
+   * `starting_points` means — see `adjustmentsFor`.
    *
-   * `true`: TASO seeds the child with the parent's points and counts only the
-   * child's own matches in `matches_played` (2015-2024).
-   * `false`: TASO folds the parent's matches into the child's totals and
-   * leaves `starting_points` at 0, or uses it for a deduction (2025 on).
+   * `true` (2015-2024): `starting_points` is the team's points in the parent
+   * group, so TASO's published points are the child's own results plus that
+   * seed.
+   * `false` (2025 on): `starting_points` is 0, or a deduction, and the
+   * parent's results are simply counted in the child's points.
+   *
+   * Only the *points* representation differs. `matches_played` includes the
+   * parent's matches either way — Veikkausliiga 2022's Mestaruussarja reports
+   * 27, which is Runkosarja's 22 plus its own 5 — which is why the summed
+   * calculation is right for both and only the adjustment needs the flag.
    */
   seeded: boolean;
 };
