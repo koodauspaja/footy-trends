@@ -1014,6 +1014,38 @@ describe("standings edge cases", () => {
     ).toBe(3);
   });
 
+  it("falls back when our table omits a team TASO ranks", async () => {
+    // Comparing only the teams we produced would call this a match: every team
+    // we listed agreed, because the one that disagreed was not there to check.
+    // A team with no stored matches at all is exactly that case.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0 }),
+        // TASO ranks a third team we have no matches for, so it cannot appear
+        // in our table — rendering ours would silently drop it.
+        groupTeam({ teamProviderId: 3, teamName: "Ilves", points: 0, currentStanding: 3 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+
+    expect(group?.kind).toBe("pass-through");
+    expect(group?.kind === "pass-through" && group.standings.map((team) => team.teamName)).toEqual([
+      "HJK",
+      "KuPS",
+      "Ilves",
+    ]);
+  });
+
   it("keeps a table when TASO reports points for only some of its teams", async () => {
     // A row without points is not a disagreement — rosters and results can be
     // briefly out of step mid-season.

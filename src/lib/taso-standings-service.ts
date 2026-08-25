@@ -158,24 +158,25 @@ function parentGroupId(categoryId: string, competitionId: string, groupId: numbe
 
 /**
  * A pass-through group's standing, straight from TASO's own `getGroups`
- * numbers — a league group we cannot own-calculate because it has no
- * `CARRY_OVER_CONFIG` entry yet.
+ * numbers — used whenever our own full-season calculation does not reproduce
+ * TASO's published points for the group, whatever the cause. Spec 009 chose
+ * this path by shape (no `CARRY_OVER_CONFIG` entry); it is now chosen by
+ * result. See `reproducesTasoPoints`.
  *
- * **No season currently reaches this path.** 2019 was the last one, until
- * #133 unblocked its entry. It is kept as the correct landing place for the
- * next season that splits before its carry-over is validated — 2026 will
- * pass through here first — so that an unvalidated season shows TASO's own
- * numbers rather than a silently miscalculated table.
+ * **No Veikkausliiga season reaches this path**, confirmed live across
+ * 2015-2026: every group reconciles exactly. It is the landing place for a
+ * group we get wrong — a season that splits before its carry-over entry is
+ * validated, or the two P20 Ykkönen groups spec 013 could not explain — so
+ * that such a group shows TASO's own numbers rather than a silently
+ * miscalculated table.
  *
- * Every group observed on this path did populate every stat field, so the
- * nullability here is defensive rather than a known case:
- * `TasoGroupTeam` types each field as both optional and nullable, and a
- * field that did go missing must render as "–" rather than be coerced to a
- * misleading `0`. A group with genuinely no stats is a `playoff` group and
- * has no standings at all — see `isPlayoffGroup`.
+ * Every field is nullable because TASO's own rows are: a stat it did not
+ * report must render as "–" rather than be coerced to a misleading `0`. A
+ * group with no stats at all has no standings and renders as a match list —
+ * see `keepsATable`.
  *
- * `form` is always empty: pass-through groups have no match-by-match data
- * to derive it from.
+ * `form` is always empty: these numbers are TASO's, with no match-by-match
+ * data behind them to derive it from.
  */
 export type TasoTeamStanding = {
   position: number;
@@ -197,8 +198,9 @@ export type TasoTeamStanding = {
  *
  * - `own-calculated` — `calculateStandings` over the group's own matches
  *   (plus its parent's, for a carry-over group). Has a round selector.
- * - `pass-through` — TASO's own precomputed `getGroups` numbers, for a
- *   league group we can't calculate ourselves. No round selector.
+ * - `pass-through` — TASO's own precomputed `getGroups` numbers, selected
+ *   when our calculated full-season points do not reproduce TASO's published
+ *   ones. No round selector.
  * - `match-list` — a group with no table at all, rendered as its matches.
  *   Two causes: a knockout group, where `getGroups` returns one row per
  *   bracket *slot* rather than per team so a table would repeat an advancing
@@ -799,9 +801,13 @@ function pointsFromGroup(seasonMatches: MatchRow[], groupId: number): Map<number
  * heuristic. Compared over the full season, never a filtered round, since
  * TASO's numbers are always the final ones.
  *
- * A team TASO does not list is not a disagreement: rosters and match data can
- * be briefly out of step mid-season, and a missing row is not evidence of a
- * miscalculation.
+ * Checked in both directions, because each has its own failure. A team *we*
+ * calculate that TASO does not list is not a disagreement — rosters and match
+ * data can be briefly out of step, and TASO not mentioning a team is no
+ * evidence we got it wrong. But a team TASO ranks that we do not produce means
+ * our table is missing a row, and comparing only the teams we happen to have
+ * would call that a match: every team we listed agreed, because the one that
+ * disagreed was not there to check.
  */
 function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTeam[]): boolean {
   // At least one row has points: `buildGroup` returns before calling this
@@ -810,10 +816,14 @@ function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTe
     teamRows.flatMap((row) => (row.points === null ? [] : [[row.teamProviderId, row.points]]))
   );
 
-  return standings.every((team) => {
-    const tasoPoints = published.get(team.teamProviderId);
-    return tasoPoints === undefined || tasoPoints === team.points;
-  });
+  const calculated = new Set(standings.map((team) => team.teamProviderId));
+
+  return (
+    standings.every((team) => {
+      const tasoPoints = published.get(team.teamProviderId);
+      return tasoPoints === undefined || tasoPoints === team.points;
+    }) && [...published.keys()].every((teamProviderId) => calculated.has(teamProviderId))
+  );
 }
 
 /**
