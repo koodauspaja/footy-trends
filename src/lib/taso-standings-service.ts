@@ -130,6 +130,14 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
       8: { parent: 2, seeded: false },
       9: { parent: 3, seeded: false },
     },
+    spljp26: {
+      4: { parent: 1, seeded: false },
+      5: { parent: 2, seeded: false },
+      6: { parent: 3, seeded: false },
+      7: { parent: 1, seeded: false },
+      8: { parent: 2, seeded: false },
+      9: { parent: 3, seeded: false },
+    },
   },
   N1: {
     spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },

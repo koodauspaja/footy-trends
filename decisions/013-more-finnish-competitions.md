@@ -271,10 +271,15 @@ spec: every group in every season was recalculated from its own matches and
 compared against TASO's published points, and the classification that
 reconciled tells us both the parent and the convention.
 
-Distribution: Kansallinen Liiga 20, Kakkonen 18, Veikkausliiga 12, Ykkönen 10,
+Distribution: Kakkonen 24, Kansallinen Liiga 20, Veikkausliiga 12, Ykkönen 10,
 Kansallinen Ykkönen 8, T18 SM 2 (under `BTSM` 2015), Ykkösliiga 1. The three
 P21/P18 competitions need none — every group in their twelve seasons is
 independent.
+
+Kakkonen's 2026 jatkosarja groups appeared between the audit and this PR, so
+they were validated separately against live data — same parent mapping and
+convention as 2025 — rather than left on the fallback path for a season that
+is currently being played.
 
 ### `seeded` varies by season within one competition, which is why it is data
 
