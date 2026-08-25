@@ -33,10 +33,15 @@ const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
  * The category `resolveTasoSeasonContext` probes when asking "has the
- * discovered season actually started". One category is enough and the choice
- * does not matter much: TASO publishes a `competition_id` for every category
- * at once, so any of them answers the question. Veikkausliiga is used because
- * it is the section's default competition and always present.
+ * discovered season actually started". TASO publishes a `competition_id` for
+ * every category at once, so any category answers "does this season exist" —
+ * but *matches* appear per competition, and Finnish competitions do not all
+ * kick off together. Once other competitions exist, one that starts before
+ * Veikkausliiga would still be defaulted to the previous season by this probe.
+ *
+ * Unreachable today, with Veikkausliiga the only competition; revisited in the
+ * follow-up PR that adds the others, where the probe follows the selected
+ * competition instead.
  */
 const SEASON_PROBE_CATEGORY_ID = "VL";
 
@@ -117,8 +122,13 @@ function isOwnCalculated(
   allGroupIds: number[]
 ): boolean {
   if (parentGroupId(categoryId, competitionId, groupId) !== null) return true;
-  // The origin group is whichever group has no parent and is the lowest
-  // group_id present — per spec, group_id=1 in every season checked.
+  // Correct for Veikkausliiga, which is still the only competition here, and
+  // known to be insufficient for the rest: spec 013 confirms parallel pools
+  // (Kakkonen's Lohko A/B/C, each its own origin) and seasons whose group ids
+  // do not include 1 at all (P21 Ykkönen 2026 runs 2-5). The rule becomes "no
+  // carry-over parent means no parent" in the follow-up PR that adds those
+  // competitions; changing it here would be untestable, since no fixture in
+  // this PR has a group it would affect.
   return groupId === Math.min(...allGroupIds);
 }
 
