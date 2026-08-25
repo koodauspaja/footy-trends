@@ -6,7 +6,7 @@ import {
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 
-describe("kotimaa competitions", () => {
+describe("domestic competitions", () => {
   it("defaults to Veikkausliiga", () => {
     expect(DEFAULT_DOMESTIC_COMPETITION_CODE).toBe("VL");
     expect(DOMESTIC_COMPETITIONS.map((c) => c.code)).toContain("VL");
