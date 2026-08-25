@@ -14,11 +14,20 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
 
+/**
+ * Mocked for the same reason: the real one reads TASO's per-season category
+ * names through Redis, which a unit test must not depend on. Returning null is
+ * the "TASO could not be asked" path, so the page falls back to the configured
+ * competition name — what these tests already assert.
+ */
+const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });
@@ -201,5 +210,18 @@ describe("Domestic team page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
       title: "HJK – Veikkausliiga 2026",
     });
+  });
+});
+
+describe("Domestic team page competition naming", () => {
+  it("says what a renamed competition is called now, like the standings page does", async () => {
+    // Each /kotimaa page heads with the season's own name, so each owes the
+    // reader the same explanation.
+    getSeasonCategoryNameMock.mockResolvedValue("Naisten Liiga");
+    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
+
+    await renderTeam("1", { kilpailu: "NL", kausi: "2016" });
+
+    expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
 
 const listSeasonRoundsMock = vi.fn<() => Promise<number[]>>();
+const getSeasonCategoryNameMock = vi.fn<() => Promise<string | null>>();
 const getSeasonStandingsMock = vi.fn<() => Promise<SeasonStandingsResult>>();
 
 /**
@@ -20,6 +21,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     listSeasonRounds: listSeasonRoundsMock,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
     getSeasonStandings: getSeasonStandingsMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -86,6 +88,7 @@ describe("Domestic standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listSeasonRoundsMock.mockResolvedValue([1, 2]);
+    getSeasonCategoryNameMock.mockResolvedValue(null);
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
   });
 
@@ -382,5 +385,26 @@ describe("Domestic standings page", () => {
     const { generateMetadata } = await import("@/app/domestic/standings/page");
 
     expect(await generateMetadata({})).toEqual({ title: "Veikkausliiga 2026" });
+  });
+});
+
+describe("Domestic standings page competition naming", () => {
+  it("heads a past season with the name it carried, and says what it is called now", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Naisten Liiga");
+
+    await renderStandings({ kilpailu: "NL", kausi: "2016" });
+
+    expect(
+      screen.getByRole("heading", { name: "Naisten Liiga 2016", level: 1 })
+    ).toBeInTheDocument();
+    expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
+  });
+
+  it("adds no rename line when the season's name is the current one", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Briotech Kansallinen Liiga");
+
+    await renderStandings({ kilpailu: "NL", kausi: "2026" });
+
+    expect(screen.queryByText(/^nykyisin /)).not.toBeInTheDocument();
   });
 });

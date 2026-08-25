@@ -1,8 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
+import { categoryIdForSeason, categoryIdsFor, earliestSeasonFor } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -14,6 +15,7 @@ import {
   competitionIdFromSeason,
   EARLIEST_TASO_SEASON,
   getCurrentSeason,
+  getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
   type NormalizedTasoGroupTeam,
@@ -31,42 +33,36 @@ const FINISHED_STATUS = "FINISHED";
  */
 const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
-/**
- * The category `resolveTasoSeasonContext` probes when asking "has the
- * discovered season actually started". TASO publishes a `competition_id` for
- * every category at once, so any category answers "does this season exist" —
- * but *matches* appear per competition, and Finnish competitions do not all
- * kick off together. Once other competitions exist, one that starts before
- * Veikkausliiga would still be defaulted to the previous season by this probe.
- *
- * Unreachable today, with Veikkausliiga the only competition; revisited in the
- * follow-up PR that adds the others, where the probe follows the selected
- * competition instead.
- */
-const SEASON_PROBE_CATEGORY_ID = "VL";
-
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
 type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
 /** A match from either the DB or a fresh provider fetch — same duality as football-data.ts. */
 type MatchRow = NormalizedTasoMatch;
 
 /**
- * `competitionId + groupId → parentGroupId`. A group with no entry here
- * (including every season's `group_id=1`) has no carry-over dependency and
- * is always own-calculated directly from its own matches. Only a group
- * confirmed — via TASO's own `starting_points` and/or a from-scratch
- * `calculateStandings` cross-check — to continue its parent's points gets
- * an entry. See specs/009-veikkausliiga.md.
+ * `categoryId + competitionId + groupId → parent group`. An entry says that a
+ * group continues its parent's points, so both groups' matches are fed to
+ * `calculateStandings` rather than the child's alone.
+ *
+ * An entry is not what decides whether a group can be calculated. Every group
+ * with a table is calculated from its own matches plus any configured parent,
+ * and TASO's own numbers are used only when the result does not reconcile with
+ * them — see `reproducesTasoPoints`. So a group with no entry here is not
+ * "the origin group"; it is simply one with nothing to carry over, which is
+ * true of a season's first group and of Kakkonen's three parallel pools alike.
+ *
+ * Only a group confirmed — via TASO's own `starting_points` and/or a
+ * from-scratch `calculateStandings` cross-check — to continue its parent's
+ * points gets an entry. A missing one is therefore visible rather than wrong:
+ * the group falls back to TASO's numbers with a notice.
  *
  * Every entry here is asserted against TASO's own published standings in
  * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
- * its fixture there fails that file's coverage check, because a wrong entry
- * is otherwise invisible — the table still renders, with wrong points.
+ * its fixture there fails that file's coverage check.
  *
- * 2020 is absent because that season never split; 2026 waits until its
- * split groups exist and can be validated the same way. 2019 restarts its
- * split-group round numbering at 1; `withContinuedRoundNumbering` handles
- * that, which is what unblocked its entry (#133).
+ * Veikkausliiga 2020 is absent because that season never split; 2026 waits
+ * until its split groups exist and can be validated the same way. 2019
+ * restarts its split-group round numbering at 1; `withContinuedRoundNumbering`
+ * handles that, which is what unblocked its entry (#133).
  *
  * Keyed by category first: `competition_id` alone is the season umbrella that
  * every Finnish competition shares, so `spljp25: { 2: 1 }` would otherwise
@@ -77,12 +73,18 @@ type CarryOverEntry = {
   parent: number;
   /**
    * Which convention TASO used for this group, which decides what
-   * `starting_points` means — see `adjustmentFor`.
+   * `starting_points` means — see `adjustmentsFor`.
    *
-   * `true`: TASO seeds the child with the parent's points and counts only the
-   * child's own matches in `matches_played` (2015-2024).
-   * `false`: TASO folds the parent's matches into the child's totals and
-   * leaves `starting_points` at 0, or uses it for a deduction (2025 on).
+   * `true` (2015-2024): `starting_points` is the team's points in the parent
+   * group, so TASO's published points are the child's own results plus that
+   * seed.
+   * `false` (2025 on): `starting_points` is 0, or a deduction, and the
+   * parent's results are simply counted in the child's points.
+   *
+   * Only the *points* representation differs. `matches_played` includes the
+   * parent's matches either way — Veikkausliiga 2022's Mestaruussarja reports
+   * 27, which is Runkosarja's 22 plus its own 5 — which is why the summed
+   * calculation is right for both and only the adjustment needs the flag.
    */
   seeded: boolean;
 };
@@ -265,11 +267,20 @@ export function needsRefresh(
   return Date.now() - newestUpdate.getTime() >= CURRENT_SEASON_CACHE_TTL_SECONDS * 1000;
 }
 
-/** Newest season with any stored match, or `null` on an empty table. */
-async function newestStoredSeason(): Promise<number | null> {
+/**
+ * Newest season with a stored match for this competition, or `null` if it has
+ * none.
+ *
+ * Scoped to every category the competition has been published under, not one:
+ * a junior competition's rows are split across two or three ids, and asking
+ * about a single era would miss the rest — a discovery failure would then fall
+ * back to the configured floor rather than to what is actually stored.
+ */
+async function newestStoredSeason(categoryIds: string[]): Promise<number | null> {
   const [row] = await db
     .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
-    .from(tasoMatches);
+    .from(tasoMatches)
+    .where(inArray(tasoMatches.categoryId, categoryIds));
   return row?.seasonId ?? null;
 }
 
@@ -310,42 +321,95 @@ export type TasoSeasonContext = {
  * renders, deduplicated within a request by `cache()` and bounded across
  * requests by the 15-minute Redis TTL.
  */
-export const resolveTasoSeasonContext = cache(
-  async function resolveTasoSeasonContext(): Promise<TasoSeasonContext> {
-    return getCached("taso:season-context", CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
-      const [discovered, newestStored] = await Promise.all([
-        discoverCurrentSeason(),
-        newestStoredSeason(),
-      ]);
-      const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
+export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
+  competitionCode: string
+): Promise<TasoSeasonContext> {
+  const key = `taso:season-context:${competitionCode}`;
+  return getCached(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
+    // Season discovery itself is competition-agnostic — a `competition_id`
+    // is a season of all Finnish football (spec 011) — but the *probe*
+    // below is not, so both the key and the stored fallback are scoped to
+    // the competition being asked about.
+    const [discovered, newestStored] = await Promise.all([
+      discoverCurrentSeason(),
+      newestStoredSeason(categoryIdsFor(competitionCode)),
+    ]);
+    // Floored at the competition's own first season, not the provider-wide
+    // one. Without that, a discovery failure with nothing stored would put
+    // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
+    // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+    // so the selector would come back empty and the page would query a season
+    // the competition never had.
+    const currentSeason = Math.max(
+      discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
+      earliestSeasonFor(competitionCode)
+    );
 
-      try {
-        const { matches } = await getSyncedSeasonMatches(
-          SEASON_PROBE_CATEGORY_ID,
-          competitionIdFromSeason(currentSeason),
-          currentSeason,
-          currentSeason
-        );
-        if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
-      } catch (error) {
-        logger.warn(
-          { err: error, currentSeason },
-          "Unable to check the current season for matches"
-        );
-      }
+    try {
+      const { matches } = await getSyncedSeasonMatches(
+        categoryIdForSeason(competitionCode, currentSeason),
+        competitionIdFromSeason(currentSeason),
+        currentSeason,
+        currentSeason
+      );
+      if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
+    } catch (error) {
+      logger.warn(
+        { err: error, competitionCode, currentSeason },
+        "Unable to check the current season for matches"
+      );
+    }
 
-      // Clamped to the ceiling: `newestStored` can exceed `currentSeason` if
-      // TASO stops reporting a season we already synced, and a default above
-      // the ceiling would land the page on a season its own selector does not
-      // offer — and one `needsRefresh` would treat as newer than active.
-      // This is not the dropped "raise the ceiling to cover stored data"
-      // guard; it keeps the fallback inside the range rather than widening
-      // it. See specs/011-current-season-discovery.md.
-      const fallbackDefault = Math.min(newestStored ?? currentSeason, currentSeason);
-      return { currentSeason, defaultSeason: fallbackDefault };
-    });
+    // Clamped to both ends of the selector's range, because a default outside
+    // it lands the page on a season the selector does not offer.
+    //
+    // Above: `newestStored` can exceed `currentSeason` if TASO stops reporting
+    // a season we already synced, and such a default is also one `needsRefresh`
+    // would treat as newer than active. Below: a stored row older than the
+    // competition's first season — stale data from before its floor was
+    // configured — would otherwise default Ykkösliiga to a season it never had.
+    //
+    // Neither is the dropped "raise the ceiling to cover stored data" guard;
+    // both keep the fallback inside the range rather than widening it. See
+    // specs/011-current-season-discovery.md.
+    const fallbackDefault = Math.max(
+      earliestSeasonFor(competitionCode),
+      Math.min(newestStored ?? currentSeason, currentSeason)
+    );
+    return { currentSeason, defaultSeason: fallbackDefault };
+  });
+});
+
+/**
+ * The name a competition carried in one season, or `null` when TASO cannot be
+ * asked. Cached like the groups were: a completed season's names never change,
+ * and the current season's are unlikely to.
+ *
+ * Best-effort by design — a name is presentation, so a failure falls back to
+ * the competition's current name rather than breaking the page.
+ */
+export async function getSeasonCategoryName(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<string | null> {
+  const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
+  try {
+    const names = await getCached<Record<string, string>>(
+      `taso:categories:${competitionId}`,
+      ttl,
+      () => getSeasonCategoryNames(competitionId)
+    );
+    return names[categoryId] ?? null;
+  } catch (error) {
+    logger.warn(
+      { err: error, categoryId, competitionId, seasonId },
+      "Unable to read TASO category names; falling back to the configured name"
+    );
+    return null;
   }
-);
+}
 
 /** Stored rows, refreshed from TASO when stale. Round numbers are as TASO sends them. */
 async function loadSeasonMatches(

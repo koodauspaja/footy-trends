@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
@@ -86,7 +87,7 @@ export async function generateMetadata({
 }: DomesticStandingsPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const resolved = await resolveDomesticPageContext(params);
-  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
+  return { title: `${resolved.seasonCompetitionName} ${resolved.seasonLabel}` };
 }
 
 export default async function DomesticStandingsPage({
@@ -104,6 +105,8 @@ export default async function DomesticStandingsPage({
     competitionId,
     categoryId,
     currentSeason,
+    seasonCompetitionName,
+    renamedTo,
   } = await resolveDomesticPageContext(params);
 
   const availableRounds = await listSeasonRounds(
@@ -127,7 +130,8 @@ export default async function DomesticStandingsPage({
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+      <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

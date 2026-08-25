@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { getSeasonMatchList } from "@/lib/taso-standings-service";
@@ -21,7 +22,7 @@ export async function generateMetadata({
 }: DomesticMatchesPageProps): Promise<Metadata> {
   const params = (await searchParams) ?? {};
   const resolved = await resolveDomesticPageContext(params);
-  return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
+  return { title: `${resolved.seasonCompetitionName} ${resolved.seasonLabel}` };
 }
 
 export default async function DomesticMatchesPage({
@@ -39,12 +40,15 @@ export default async function DomesticMatchesPage({
     competitionId,
     categoryId,
     currentSeason,
+    seasonCompetitionName,
+    renamedTo,
   } = await resolveDomesticPageContext(params);
 
   const result = await getSeasonMatchList(categoryId, competitionId, seasonId, currentSeason);
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+      <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

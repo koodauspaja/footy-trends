@@ -309,6 +309,40 @@ export async function getCurrentSeason(): Promise<number | null> {
   return seasons.length === 0 ? null : Math.max(...seasons);
 }
 
+// --- Categories (per-season names) --------------------------------------
+
+export type TasoCategory = {
+  category_id?: string;
+  category_name?: string;
+};
+
+type CategoriesResponse = { categories?: TasoCategory[] };
+
+/**
+ * Every category in one season, as `category_id → category_name`.
+ *
+ * A competition's name is not stable across seasons: `NL` is "Naisten Liiga"
+ * 2015-2019, "Kansallinen Liiga" 2020-2024 and "Briotech Kansallinen Liiga"
+ * from 2025, and `M1` alternates between "Ykkönen" and "Miesten Ykkönen". One
+ * call covers all 28 categories in a season, so a page shows the name that
+ * season actually carried. See specs/013-more-finnish-competitions.md.
+ */
+export async function getSeasonCategoryNames(
+  competitionId: string
+): Promise<Record<string, string>> {
+  const response = await request<CategoriesResponse>(
+    `/getCategories?competition_id=${competitionId}`
+  );
+
+  const names: Record<string, string> = {};
+  for (const category of response.categories ?? []) {
+    if (category.category_id !== undefined && category.category_name !== undefined) {
+      names[category.category_id] = category.category_name;
+    }
+  }
+  return names;
+}
+
 // --- Groups (precomputed standings) ------------------------------------
 
 /**

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -50,11 +51,11 @@ export async function generateMetadata({
 }: DomesticTeamPageProps): Promise<Metadata> {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
-  const { competitionName, seasonLabel, seasonId, competitionId, categoryId, currentSeason } =
+  const { seasonCompetitionName, seasonLabel, seasonId, competitionId, categoryId, currentSeason } =
     await resolveDomesticPageContext(resolvedParams);
   const teamProviderId = Number(id);
 
-  if (Number.isNaN(teamProviderId)) return { title: competitionName };
+  if (Number.isNaN(teamProviderId)) return { title: seasonCompetitionName };
   const { teamName } = await resolveTeamName(
     categoryId,
     competitionId,
@@ -64,7 +65,10 @@ export async function generateMetadata({
   );
 
   return {
-    title: teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName,
+    title:
+      teamName !== null
+        ? `${teamName} – ${seasonCompetitionName} ${seasonLabel}`
+        : seasonCompetitionName,
   };
 }
 
@@ -85,6 +89,8 @@ export default async function DomesticTeamPage({
     competitionId,
     categoryId,
     currentSeason,
+    seasonCompetitionName,
+    renamedTo,
   } = await resolveDomesticPageContext(resolvedParams);
 
   const teamProviderId = Number(id);
@@ -93,10 +99,13 @@ export default async function DomesticTeamPage({
     : await resolveTeamName(categoryId, competitionId, teamProviderId, seasonId, currentSeason);
 
   const heading =
-    teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
+    teamName !== null
+      ? `${teamName} – ${seasonCompetitionName} ${seasonLabel}`
+      : seasonCompetitionName;
 
   return (
     <PageShell heading={heading}>
+      <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

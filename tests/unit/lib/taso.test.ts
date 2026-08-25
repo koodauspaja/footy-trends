@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCurrentSeason,
+  getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
   normalizeGroupTeams,
@@ -730,5 +731,58 @@ describe("normalizeGroupTeams", () => {
     );
 
     expect(row?.teamName).toBe("");
+  });
+});
+
+describe("getSeasonCategoryNames", () => {
+  function mockCategories(body: unknown) {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("maps every category in a season to the name it carried then", async () => {
+    // A competition's name is not stable across seasons, so a page cannot use
+    // the configured current one for a past season.
+    mockCategories({
+      categories: [
+        { category_id: "NL", category_name: "Naisten Liiga" },
+        { category_id: "VL", category_name: "Veikkausliiga" },
+      ],
+    });
+
+    await expect(getSeasonCategoryNames("spljp16")).resolves.toEqual({
+      NL: "Naisten Liiga",
+      VL: "Veikkausliiga",
+    });
+  });
+
+  it("asks for the whole season rather than one category, since one call covers all 28", async () => {
+    const fetchMock = mockCategories({ categories: [] });
+
+    await getSeasonCategoryNames("spljp26");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://spl.torneopal.net/taso/rest/getCategories?competition_id=spljp26",
+      expect.any(Object)
+    );
+  });
+
+  it("skips a category missing either half of the mapping", async () => {
+    mockCategories({
+      categories: [
+        { category_name: "No id" },
+        { category_id: "M1" },
+        { category_id: "VL", category_name: "Veikkausliiga" },
+      ],
+    });
+
+    await expect(getSeasonCategoryNames("spljp26")).resolves.toEqual({ VL: "Veikkausliiga" });
+  });
+
+  it("treats a response with no categories as no names", async () => {
+    mockCategories({});
+    await expect(getSeasonCategoryNames("spljp26")).resolves.toEqual({});
   });
 });

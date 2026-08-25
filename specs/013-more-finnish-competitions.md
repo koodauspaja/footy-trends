@@ -71,8 +71,13 @@ Confirmed by recalculating all 262 in-scope groups from their own matches and
 comparing team-by-team against TASO's published points. 260 reconcile exactly:
 
 - **A carry-over seed** (54 groups, the 2015–2024 convention).
-  `starting_points` equals the team's points in the parent group, and
-  `matches_played` counts the child group's own matches only.
+  `starting_points` equals the team's points in the parent group, so TASO's
+  published points are the child's own results plus that seed. Note
+  `matches_played` still counts the parent's matches too — Veikkausliiga 2022's
+  Mestaruussarja reports 27, which is Runkosarja's 22 plus its own 5 — so the
+  two conventions differ only in how *points* are expressed, not in what counts
+  as played. (An earlier draft of this spec claimed otherwise; corrected while
+  building PR 3 against the real figures.)
 - **Deduction or bonus** (46 groups). Negative is a points deduction
   (Veikkausliiga 2016 −6, Ykkösliiga 2025 −2, Ykkönen 2025 −3/−2 and 2026 −3,
   Kansallinen Liiga 2025 −2). Positive 1–3 is a qualifying-series seeding bonus
@@ -222,7 +227,10 @@ renders as a match list, the same as a knockout group.
 - When the season's name differs from the competition's current name, a muted
   line directly under the heading: `nykyisin {current name}` — e.g. under
   `Naisten Liiga 2016`, the line `nykyisin Briotech Kansallinen Liiga`. Shown
-  only on a difference, so the common case has no extra chrome.
+  only on a difference, so the common case has no extra chrome, and shown on
+  **all three** `/kotimaa` pages rather than the standings page alone: each of
+  them heads with the season's own name, so each owes the reader the same
+  explanation.
 - Group headings, table columns (O/V/T/H/TM/PM/ME/P), round selector
   ("Kierros" / "Koko kausi"), season selector and error/empty copy are all
   unchanged from spec 009.
@@ -234,8 +242,10 @@ renders as a match list, the same as a knockout group.
   Ykkönen 2018 use the same literal `"1"`).
 
 ### `/kotimaa/ottelut` and `/kotimaa/joukkue/:id`
-Copy unchanged from spec 009. Both keep the `group_name` column, which now
-matters more: a Kakkonen season spans three parallel pools.
+Copy unchanged from spec 009, except that both head with the season's own
+competition name and carry the same `nykyisin {current name}` line as the
+standings page. Both keep the `group_name` column, which now matters more: a
+Kakkonen season spans three parallel pools.
 
 ### Invalid parameters
 - Unknown `?kilpailu=`: existing `Kilpailua ei löytynyt. Näytetään {name}.`
@@ -368,7 +378,8 @@ selector's floor — 2024 for Ykkösliiga, 2015 for the rest.
 - [ ] A group with matches but no team rows renders as a match list.
 - [ ] A forfeited match counts toward the table.
 - [ ] A past season's heading shows that season's own name, with `nykyisin
-      {current name}` underneath when it differs.
+      {current name}` underneath when it differs — on all three `/kotimaa`
+      pages, not the standings page alone.
 - [ ] `/kotimaa/ottelut` and `/kotimaa/joukkue/:id` work for all ten
       competitions, scoped to the selected one.
 - [ ] A TASO failure shows the existing generic Finnish error copy on all three

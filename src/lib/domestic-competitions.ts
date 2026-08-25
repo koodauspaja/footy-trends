@@ -25,6 +25,10 @@ export type DomesticCompetition = {
  * `competitions.ts`'s `SUPPORTED_COMPETITIONS` (the football-data.org list
  * behind `/ulkomaat/sarjataulukko`'s `kilpailu=`), per specs/009-veikkausliiga.md:
  * this list is never added to that one.
+ *
+ * Ordered by tier rather than grouped by gender or age — confirmed in chat that
+ * the picker stays a flat list, even though TASO supplies a grouping in
+ * `category_group_name`. See specs/013-more-finnish-competitions.md.
  */
 export const DEFAULT_DOMESTIC_COMPETITION_CODE = "VL";
 
@@ -33,6 +37,68 @@ export const DOMESTIC_COMPETITIONS: DomesticCompetition[] = [
     code: "VL",
     name: "Veikkausliiga",
     categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "VL" }],
+  },
+  // Ykkösliiga was created in 2024, when the men's second tier was renamed and
+  // Ykkönen continued separately as a lower one. It has no earlier history to
+  // map, unlike the junior competitions below.
+  { code: "M1L", name: "Ykkösliiga", categories: [{ fromSeason: 2024, categoryId: "M1L" }] },
+  {
+    code: "M1",
+    name: "Ykkönen",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "M1" }],
+  },
+  {
+    code: "M2",
+    name: "Miesten Kakkonen",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "M2" }],
+  },
+  {
+    code: "NL",
+    name: "Briotech Kansallinen Liiga",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "NL" }],
+  },
+  {
+    code: "N1",
+    name: "Kansallinen Ykkönen",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "N1" }],
+  },
+  // The junior competitions changed age group and identifier together, so TASO
+  // publishes each era under a different `category_id`. Confirmed against
+  // `getCategories` for every season 2015-2026.
+  {
+    code: "P21SM",
+    name: "P21 SM",
+    categories: [
+      { fromSeason: 2026, categoryId: "P21SM" },
+      { fromSeason: 2017, categoryId: "P20SM" },
+      { fromSeason: EARLIEST_TASO_SEASON, categoryId: "ASM" },
+    ],
+  },
+  {
+    code: "P211",
+    name: "P21 Ykkönen",
+    categories: [
+      { fromSeason: 2026, categoryId: "P211" },
+      { fromSeason: 2017, categoryId: "P201" },
+      { fromSeason: EARLIEST_TASO_SEASON, categoryId: "APY" },
+    ],
+  },
+  {
+    code: "P18SM",
+    name: "P18 SM",
+    categories: [
+      { fromSeason: 2026, categoryId: "P18SM" },
+      { fromSeason: 2017, categoryId: "P17SM" },
+      { fromSeason: EARLIEST_TASO_SEASON, categoryId: "BSM" },
+    ],
+  },
+  {
+    code: "T18SM",
+    name: "T18 SM",
+    categories: [
+      { fromSeason: 2017, categoryId: "T18SM" },
+      { fromSeason: EARLIEST_TASO_SEASON, categoryId: "BTSM" },
+    ],
   },
 ];
 
@@ -59,6 +125,20 @@ export function categoryIdForSeason(code: string, seasonId: number): string {
   const categories = findCompetition(code)?.categories ?? [];
   const match = categories.find((category) => seasonId >= category.fromSeason) ?? categories.at(-1);
   return match?.categoryId ?? code;
+}
+
+/**
+ * Every `category_id` a competition has ever been published under, newest
+ * first.
+ *
+ * Needed wherever a question spans the competition's whole history rather than
+ * one season — "what is the newest season we have stored for this
+ * competition?" cannot be answered from a single era's id, since a junior
+ * competition's rows are split across two or three of them.
+ */
+export function categoryIdsFor(code: string): string[] {
+  const categories = findCompetition(code)?.categories ?? [];
+  return categories.length === 0 ? [code] : categories.map((category) => category.categoryId);
 }
 
 /**
