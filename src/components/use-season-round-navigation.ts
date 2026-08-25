@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 
 /**
- * The season+round navigation shared by `MatchesControls` (`/ottelut`) and
+ * The season+round navigation shared by `MatchesControls` (`/ulkomaat/ottelut`) and
  * `TasoStandingsControls` (`/kotimaa/sarjataulukko`): copy the current query
  * string forward, overwrite `kilpailu`/`kausi`, and set or clear `kierros`.
  * Reading `window.location.search` (rather than rebuilding from props) is

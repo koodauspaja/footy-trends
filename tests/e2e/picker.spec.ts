@@ -16,7 +16,7 @@ test.describe("Region and competition pickers", () => {
 
     await bundesligaLink.click();
 
-    await expect(page).toHaveURL(/\/sarjataulukko\?kilpailu=BL1/);
+    await expect(page).toHaveURL(/\/ulkomaat\/sarjataulukko\?kilpailu=BL1/);
     await expect(page.getByRole("heading", { name: /Bundesliga/ })).toBeVisible();
   });
 

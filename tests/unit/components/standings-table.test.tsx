@@ -20,7 +20,7 @@ function buildRow(overrides: Partial<StandingsRow> = {}): StandingsRow {
   };
 }
 
-const teamHref = (id: number) => `/joukkue/${id}?kilpailu=PL&kausi=2025`;
+const teamHref = (id: number) => `/ulkomaat/joukkue/${id}?kilpailu=PL&kausi=2025`;
 
 describe("StandingsTable", () => {
   it("renders the Finnish column headers with their full-word titles", () => {
@@ -39,7 +39,7 @@ describe("StandingsTable", () => {
 
     expect(screen.getByRole("link", { name: "HJK" })).toHaveAttribute(
       "href",
-      "/joukkue/1?kilpailu=PL&kausi=2025"
+      "/ulkomaat/joukkue/1?kilpailu=PL&kausi=2025"
     );
     const row = screen.getByRole("link", { name: "HJK" }).closest("tr");
     if (!row) throw new Error("Expected the HJK row to exist");

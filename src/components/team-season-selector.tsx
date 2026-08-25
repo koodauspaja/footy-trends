@@ -13,8 +13,8 @@ type TeamSeasonSelectorProps = {
 };
 
 /**
- * Season-only selector for the team page. Targets the public `/joukkue/:id`
- * URL (not the `/team/:id` App Router folder — see the rewrite in
+ * Season-only selector for the team page. Targets the public `/ulkomaat/joukkue/:id`
+ * URL (not the `/foreign/team/:id` App Router folder — see the rewrite in
  * next.config.ts) so navigation never leaks the internal English route name.
  * Carries `kilpailu` forward via a hidden field — there's no competition
  * selector on this page (see specs/006-other-competitions.md), so it must
@@ -32,11 +32,14 @@ export function TeamSeasonSelector({
     const params = new URLSearchParams(window.location.search);
     params.set("kilpailu", competitionCode);
     params.set("kausi", String(seasonId));
-    router.push(`/joukkue/${teamProviderId}?${params.toString()}`);
+    router.push(`/ulkomaat/joukkue/${teamProviderId}?${params.toString()}`);
   }
 
   return (
-    <SeasonForm actionPath={`/joukkue/${teamProviderId}`} competitionCode={competitionCode}>
+    <SeasonForm
+      actionPath={`/ulkomaat/joukkue/${teamProviderId}`}
+      competitionCode={competitionCode}
+    >
       <SeasonSelect seasons={seasons} selectedSeasonId={selectedSeasonId} onChange={navigate} />
     </SeasonForm>
   );

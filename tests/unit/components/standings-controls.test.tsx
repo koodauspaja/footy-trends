@@ -32,7 +32,7 @@ const seasons = [
 describe("StandingsControls", () => {
   beforeEach(() => {
     pushMock.mockReset();
-    window.history.pushState({}, "", "/sarjataulukko");
+    window.history.pushState({}, "", "/ulkomaat/sarjataulukko");
   });
 
   it("labels all three controls in Finnish and associates them with their selects", () => {
@@ -138,7 +138,9 @@ describe("StandingsControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kilpailu"), { target: { value: "BL1" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=BL1&kausi=2025&kierros=2");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/ulkomaat/sarjataulukko?kilpailu=BL1&kausi=2025&kierros=2"
+    );
   });
 
   it("navigates to the chosen season, keeping the current competition and round", () => {
@@ -155,7 +157,9 @@ describe("StandingsControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2023" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2023&kierros=2");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2023&kierros=2"
+    );
   });
 
   it("navigates to the chosen round, keeping the current competition and season", () => {
@@ -172,11 +176,17 @@ describe("StandingsControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "3" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2025&kierros=3");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2025&kierros=3"
+    );
   });
 
   it("preserves unrelated query params already in the URL", () => {
-    window.history.pushState({}, "", "/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter");
+    window.history.pushState(
+      {},
+      "",
+      "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter"
+    );
 
     render(
       <StandingsControls
@@ -192,7 +202,7 @@ describe("StandingsControls", () => {
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "2" } });
 
     expect(pushMock).toHaveBeenCalledWith(
-      "/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter&kierros=2"
+      "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2025&utm_source=newsletter&kierros=2"
     );
   });
 
@@ -210,7 +220,7 @@ describe("StandingsControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/sarjataulukko?kilpailu=PL&kausi=2025");
+    expect(pushMock).toHaveBeenCalledWith("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2025");
   });
 
   it("submits as a plain GET form so it works without scripting", () => {
@@ -227,7 +237,7 @@ describe("StandingsControls", () => {
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
-    expect(form).toHaveAttribute("action", "/sarjataulukko");
+    expect(form).toHaveAttribute("action", "/ulkomaat/sarjataulukko");
     expect(screen.getByLabelText("Kilpailu")).toHaveAttribute("name", "kilpailu");
     expect(screen.getByLabelText("Kausi")).toHaveAttribute("name", "kausi");
     expect(screen.getByLabelText("Kierros")).toHaveAttribute("name", "kierros");

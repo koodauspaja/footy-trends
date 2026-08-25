@@ -2,19 +2,63 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Public URLs stay Finnish; the App Router folders (src/app/team/[id],
-  // src/app/matches, src/app/standings) stay English per project
-  // convention. These rewrites are server-side, so the browser always shows
-  // /joukkue/:id, /ottelut, and /sarjataulukko, never /team/:id, /matches,
-  // or /standings.
+  // Public URLs are Finnish; the App Router folders are English, per
+  // CLAUDE.md's split. These rewrites are the only place the two meet — the
+  // browser always shows the Finnish path.
   async rewrites() {
     return [
-      { source: "/joukkue/:id", destination: "/team/:id" },
-      { source: "/ottelut", destination: "/matches" },
-      { source: "/sarjataulukko", destination: "/standings" },
-      { source: "/kotimaa/joukkue/:id", destination: "/kotimaa/team/:id" },
-      { source: "/kotimaa/ottelut", destination: "/kotimaa/matches" },
-      { source: "/kotimaa/sarjataulukko", destination: "/kotimaa/standings" },
+      { source: "/kotimaa", destination: "/domestic" },
+      { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
+      { source: "/kotimaa/ottelut", destination: "/domestic/matches" },
+      { source: "/kotimaa/sarjataulukko", destination: "/domestic/standings" },
+      { source: "/ulkomaat", destination: "/foreign" },
+      { source: "/ulkomaat/joukkue/:id", destination: "/foreign/team/:id" },
+      { source: "/ulkomaat/ottelut", destination: "/foreign/matches" },
+      { source: "/ulkomaat/sarjataulukko", destination: "/foreign/standings" },
+    ];
+  },
+
+  /**
+   * Redirects are checked before rewrites, which is what makes pairing them
+   * safe: a Finnish URL matches no redirect and is rewritten internally,
+   * and an internal rewrite never re-enters this table, so the two cannot
+   * bounce off each other. Verified on a running server — see spec 012.
+   *
+   * `permanent: true` emits 308 and preserves the request method. Query
+   * strings are forwarded automatically, so `?kilpailu=` and `?kausi=`
+   * survive without any `:path*` handling.
+   */
+  async redirects() {
+    return [
+      // The foreign pages moved under /ulkomaat.
+      { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/joukkue/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
+      // The English paths that answered 200 before the rename. The folders
+      // they were served from are gone, so without these they 404 rather
+      // than reaching the Finnish page a bookmark or search index expects.
+      { source: "/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/matches", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
+      { source: "/kotimaa/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
+      { source: "/kotimaa/matches", destination: "/kotimaa/ottelut", permanent: true },
+      { source: "/kotimaa/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
+      // The same shape under /ulkomaat. These never answered before the
+      // move, but the spec closes the English spelling of every Finnish URL
+      // that exists now, not only the ones that once resolved.
+      { source: "/ulkomaat/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/ulkomaat/matches", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/ulkomaat/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
+      // English folder paths are not URLs. A rewrite does not block its own
+      // target, so without these every page would answer on two addresses.
+      { source: "/domestic", destination: "/kotimaa", permanent: true },
+      { source: "/domestic/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
+      { source: "/domestic/matches", destination: "/kotimaa/ottelut", permanent: true },
+      { source: "/domestic/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
+      { source: "/foreign", destination: "/ulkomaat", permanent: true },
+      { source: "/foreign/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/foreign/matches", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/foreign/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
     ];
   },
 };

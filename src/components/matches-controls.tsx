@@ -15,7 +15,7 @@ type MatchesControlsProps = {
 };
 
 /**
- * Season + round selector for the season-wide match list at `/ottelut`.
+ * Season + round selector for the season-wide match list at `/ulkomaat/ottelut`.
  * Plain GET form so both selections still work without JavaScript, same
  * pattern as `StandingsControls` on the standings page. The round select is
  * only rendered once a round is actually known — see the "known
@@ -31,10 +31,10 @@ export function MatchesControls({
   availableRounds,
   selectedRound,
 }: Readonly<MatchesControlsProps>) {
-  const navigate = useSeasonRoundNavigation("/ottelut", competitionCode);
+  const navigate = useSeasonRoundNavigation("/ulkomaat/ottelut", competitionCode);
 
   return (
-    <SeasonForm actionPath="/ottelut" competitionCode={competitionCode}>
+    <SeasonForm actionPath="/ulkomaat/ottelut" competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}

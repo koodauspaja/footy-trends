@@ -45,11 +45,15 @@ describe("TeamSeasonSelector", () => {
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2023" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/joukkue/57?kilpailu=BL1&kausi=2023");
+    expect(pushMock).toHaveBeenCalledWith("/ulkomaat/joukkue/57?kilpailu=BL1&kausi=2023");
   });
 
   it("preserves unrelated query params already in the URL", () => {
-    window.history.pushState({}, "", "/joukkue/57?kilpailu=PL&kausi=2025&utm_source=newsletter");
+    window.history.pushState(
+      {},
+      "",
+      "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2025&utm_source=newsletter"
+    );
 
     render(
       <TeamSeasonSelector
@@ -63,11 +67,11 @@ describe("TeamSeasonSelector", () => {
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2024" } });
 
     expect(pushMock).toHaveBeenCalledWith(
-      "/joukkue/57?kilpailu=PL&kausi=2024&utm_source=newsletter"
+      "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024&utm_source=newsletter"
     );
   });
 
-  it("submits as a plain GET form targeting the public /joukkue/:id URL, carrying kilpailu via a hidden field", () => {
+  it("submits as a plain GET form targeting the public /ulkomaat/joukkue/:id URL, carrying kilpailu via a hidden field", () => {
     const { container } = render(
       <TeamSeasonSelector
         teamProviderId={57}
@@ -79,7 +83,7 @@ describe("TeamSeasonSelector", () => {
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
-    expect(form).toHaveAttribute("action", "/joukkue/57");
+    expect(form).toHaveAttribute("action", "/ulkomaat/joukkue/57");
     expect(screen.getByLabelText("Kausi")).toHaveAttribute("name", "kausi");
     expect(form?.querySelector('input[type="hidden"][name="kilpailu"]')).toHaveValue("BL1");
     expect(container.querySelector("noscript")).not.toBeNull();

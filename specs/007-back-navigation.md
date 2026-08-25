@@ -1,5 +1,14 @@
 # 007 — Back navigation between pages
 
+> **Routes and names moved by `specs/012-finnish-urls-english-code.md`
+> (#142).** The football-data.org pages are now under `/ulkomaat/` —
+> `/ulkomaat/sarjataulukko`, `/ulkomaat/ottelut`, `/ulkomaat/joukkue/:id`
+> — and the old top-level paths redirect there permanently. English paths
+> such as `/standings` no longer serve a page; they redirect to their
+> Finnish equivalent. In code, `kotimaa`/`ulkomaat` are now
+> `domestic`/`foreign`. Paths named below refer to the pre-012 structure.
+
+
 ## Summary
 Every link in the app currently only goes forward — the picker links to standings, standings links to matches and team pages, matches links to team pages — and nothing ever links back, so the only way to return to a page you came from is the browser's back button. `/joukkue/:id` has zero outbound links at all today. Adds a persistent site-wide header (home always reachable) plus a "back to standings" link on the two pages that currently dead-end, and fixes an existing gap where the round selected on standings doesn't survive navigating to the matches list and back.
 

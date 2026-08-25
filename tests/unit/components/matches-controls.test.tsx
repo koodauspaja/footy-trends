@@ -16,7 +16,7 @@ const seasons = [
 describe("MatchesControls", () => {
   beforeEach(() => {
     pushMock.mockReset();
-    window.history.pushState({}, "", "/ottelut");
+    window.history.pushState({}, "", "/ulkomaat/ottelut");
   });
 
   it("labels both controls in Finnish and preselects the current season and round", () => {
@@ -91,7 +91,7 @@ describe("MatchesControls", () => {
   });
 
   it("navigates to the chosen season without a round when no round is known yet", () => {
-    window.history.pushState({}, "", "/ottelut?kilpailu=PL&kausi=2025&kierros=1");
+    window.history.pushState({}, "", "/ulkomaat/ottelut?kilpailu=PL&kausi=2025&kierros=1");
 
     render(
       <MatchesControls
@@ -105,7 +105,7 @@ describe("MatchesControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2024" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/ottelut?kilpailu=PL&kausi=2024");
+    expect(pushMock).toHaveBeenCalledWith("/ulkomaat/ottelut?kilpailu=PL&kausi=2024");
   });
 
   it("navigates to the chosen season, keeping the current round and competition", () => {
@@ -121,7 +121,7 @@ describe("MatchesControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2024" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/ottelut?kilpailu=BL1&kausi=2024&kierros=2");
+    expect(pushMock).toHaveBeenCalledWith("/ulkomaat/ottelut?kilpailu=BL1&kausi=2024&kierros=2");
   });
 
   it("navigates to the chosen round, keeping the current season", () => {
@@ -137,14 +137,14 @@ describe("MatchesControls", () => {
 
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "3" } });
 
-    expect(pushMock).toHaveBeenCalledWith("/ottelut?kilpailu=PL&kausi=2025&kierros=3");
+    expect(pushMock).toHaveBeenCalledWith("/ulkomaat/ottelut?kilpailu=PL&kausi=2025&kierros=3");
   });
 
   it("preserves unrelated query params already in the URL", () => {
     window.history.pushState(
       {},
       "",
-      "/ottelut?kilpailu=PL&kausi=2025&kierros=1&utm_source=newsletter"
+      "/ulkomaat/ottelut?kilpailu=PL&kausi=2025&kierros=1&utm_source=newsletter"
     );
 
     render(
@@ -160,11 +160,11 @@ describe("MatchesControls", () => {
     fireEvent.change(screen.getByLabelText("Kierros"), { target: { value: "2" } });
 
     expect(pushMock).toHaveBeenCalledWith(
-      "/ottelut?kilpailu=PL&kausi=2025&kierros=2&utm_source=newsletter"
+      "/ulkomaat/ottelut?kilpailu=PL&kausi=2025&kierros=2&utm_source=newsletter"
     );
   });
 
-  it("submits as a plain GET form targeting /ottelut, carrying kilpailu via a hidden field", () => {
+  it("submits as a plain GET form targeting /ulkomaat/ottelut, carrying kilpailu via a hidden field", () => {
     const { container } = render(
       <MatchesControls
         competitionCode="BL1"
@@ -177,7 +177,7 @@ describe("MatchesControls", () => {
     const form = container.querySelector("form");
 
     expect(form).toHaveAttribute("method", "get");
-    expect(form).toHaveAttribute("action", "/ottelut");
+    expect(form).toHaveAttribute("action", "/ulkomaat/ottelut");
     expect(screen.getByLabelText("Kausi")).toHaveAttribute("name", "kausi");
     expect(screen.getByLabelText("Kierros")).toHaveAttribute("name", "kierros");
     expect(form?.querySelector('input[type="hidden"][name="kilpailu"]')).toHaveValue("BL1");
