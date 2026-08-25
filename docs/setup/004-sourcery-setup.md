@@ -123,14 +123,43 @@ fix commits — comment `@sourcery-ai review` on the PR.
 
 The check reports `skipped`, and the causes need telling apart:
 
-| Cause | Limit | Remedy |
-|---|---|---|
-| Per-PR size cap | ~150,000 diff characters | split the work |
-| Weekly rate limit | 500,000 diff characters account-wide (as of 2026-08) | wait for the reset; splitting does not help |
-| Automatic re-review cap | 5 per PR | `@sourcery-ai review` resets the counter |
+| Cause | Remedy |
+|---|---|
+| Per-PR size cap | split the work; waiting never shrinks a diff |
+| Rolling seven-day budget | wait for enough of the window to expire; splitting spends it faster |
+| Automatic re-review cap (5 per PR) | `@sourcery-ai review` resets the counter |
 
-`@sourcery-ai review` forces a full review but does not create quota, so it
+`@sourcery-ai review` forces a full review but does not create budget, so it
 only clears the third case.
+
+### The two size limits depend on the plan
+
+A fresh setup lands on the **Open Source** plan — Sourcery applies it to public
+repositories by default — so that is what these steps get you:
+
+| Plan | Per PR | Rolling 7 days |
+|---|---|---|
+| **Open Source** (a new setup) | **150,000** | **250,000 per developer** |
+| Pro | 300,000 | 1,500,000 per seat |
+| Team / Enterprise | 500,000 | 2,500,000 per seat |
+
+The second limit is a *rolling seven-day budget*, not a weekly quota: the
+window slides, so there is no reset to wait for.
+
+**This repo is on Pro**, so its working numbers are the middle row.
+`skills/open-pr.md` carries them, and is the file to check before sizing a PR
+— this page describes what setting Sourcery up gives you, not what this repo
+currently has.
+
+Source: <https://docs.sourcery.ai/admin/plans/>, plan confirmed for this
+account on 2026-08-25. If a skip ever disagrees with these numbers, re-check
+that page before assuming the diff was miscounted: the plan is the likelier
+thing to have moved, and the skip message itself states the cap that was
+applied.
+
+Sourcery's docs also state that "a rate limit never blocks a merge": it skips
+the review and the check goes green. That is precisely why the merge gate
+verifies a real review of the head commit rather than the check's colour.
 
 ### Read the check-run at the commit, not the PR
 
