@@ -59,10 +59,15 @@ type MatchRow = NormalizedTasoMatch;
  * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
  * its fixture there fails that file's coverage check.
  *
- * Veikkausliiga 2020 is absent because that season never split; 2026 waits
- * until its split groups exist and can be validated the same way. 2019
- * restarts its split-group round numbering at 1; `withContinuedRoundNumbering`
- * handles that, which is what unblocked its entry (#133).
+ * A current season is configured as soon as its split groups exist and
+ * reconcile, not on a schedule: Kakkonen, Kansallinen Liiga and Kansallinen
+ * Ykkönen have 2026 entries because their continuation groups are already
+ * being played, while Veikkausliiga 2026 has none because it is still a single
+ * Runkosarja. Nothing else distinguishes them.
+ *
+ * Veikkausliiga 2020 is absent because that season never split. 2019 restarts
+ * its split-group round numbering at 1; `withContinuedRoundNumbering` handles
+ * that, which is what unblocked its entry (#133).
  *
  * Keyed by category first: `competition_id` alone is the season umbrella that
  * every Finnish competition shares, so `spljp25: { 2: 1 }` would otherwise
