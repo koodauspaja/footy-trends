@@ -1739,6 +1739,21 @@ describe("resolveTasoSeasonContext", () => {
     });
   });
 
+  it("never defaults to a stored season older than the competition itself", async () => {
+    // Stale rows from before a competition's floor was configured must not
+    // become its default, or the page lands on a season its own selector does
+    // not offer.
+    getCurrentSeasonMock.mockRejectedValue(new Error("provider unavailable"));
+    mockDb(2023, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    await expect(resolveTasoSeasonContext("M1L")).resolves.toEqual({
+      currentSeason: 2024,
+      defaultSeason: 2024,
+    });
+  });
+
   it("still resolves when the matches check itself throws", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {

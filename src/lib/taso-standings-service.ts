@@ -352,14 +352,22 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // Clamped to the ceiling: `newestStored` can exceed `currentSeason` if
-    // TASO stops reporting a season we already synced, and a default above
-    // the ceiling would land the page on a season its own selector does not
-    // offer — and one `needsRefresh` would treat as newer than active.
-    // This is not the dropped "raise the ceiling to cover stored data"
-    // guard; it keeps the fallback inside the range rather than widening
-    // it. See specs/011-current-season-discovery.md.
-    const fallbackDefault = Math.min(newestStored ?? currentSeason, currentSeason);
+    // Clamped to both ends of the selector's range, because a default outside
+    // it lands the page on a season the selector does not offer.
+    //
+    // Above: `newestStored` can exceed `currentSeason` if TASO stops reporting
+    // a season we already synced, and such a default is also one `needsRefresh`
+    // would treat as newer than active. Below: a stored row older than the
+    // competition's first season — stale data from before its floor was
+    // configured — would otherwise default Ykkösliiga to a season it never had.
+    //
+    // Neither is the dropped "raise the ceiling to cover stored data" guard;
+    // both keep the fallback inside the range rather than widening it. See
+    // specs/011-current-season-discovery.md.
+    const fallbackDefault = Math.max(
+      earliestSeasonFor(competitionCode),
+      Math.min(newestStored ?? currentSeason, currentSeason)
+    );
     return { currentSeason, defaultSeason: fallbackDefault };
   });
 });
