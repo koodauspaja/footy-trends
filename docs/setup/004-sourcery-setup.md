@@ -125,12 +125,35 @@ The check reports `skipped`, and the causes need telling apart:
 
 | Cause | Limit | Remedy |
 |---|---|---|
-| Per-PR size cap | ~150,000 diff characters | split the work |
-| Weekly rate limit | 500,000 diff characters account-wide (as of 2026-08) | wait for the reset; splitting does not help |
+| Per-PR size cap | 300,000 diff characters | split the work |
+| Rolling seven-day budget | 1,500,000 diff characters per seat | wait for the reset; splitting does not help |
 | Automatic re-review cap | 5 per PR | `@sourcery-ai review` resets the counter |
 
-`@sourcery-ai review` forces a full review but does not create quota, so it
+`@sourcery-ai review` forces a full review but does not create budget, so it
 only clears the third case.
+
+Both size numbers are **plan-dependent** — the table above is Sourcery Pro,
+which is what this repo is on. For reference, since the plan has changed
+before:
+
+| Plan | Per PR | Rolling 7 days |
+|---|---|---|
+| Open Source | 150,000 | 250,000 per developer |
+| **Pro** (this repo) | **300,000** | **1,500,000 per seat** |
+| Team / Enterprise | 500,000 | 2,500,000 per seat |
+
+Source: <https://docs.sourcery.ai/admin/plans/>. Confirmed for this account on
+2026-08-25, which matters because the repo is public and Sourcery applies the
+Open Source plan to public repositories by default — the pricing page alone
+does not settle which row applies here.
+
+If a skip ever disagrees with these numbers, re-check that page before assuming
+the diff was miscounted: the plan is the likelier thing to have moved, and the
+skip message itself states the cap that was applied.
+
+Sourcery's docs also state that "a rate limit never blocks a merge": it skips
+the review and the check goes green. That is precisely why the merge gate
+verifies a real review of the head commit rather than the check's colour.
 
 ### Read the check-run at the commit, not the PR
 

@@ -107,8 +107,8 @@ From this point on, a PR cannot merge unless all three checks pass.
 > make changes to a protected branch."*
 >
 > Sourcery reports exactly `skipped` when it declines a review — over the
-> per-PR size cap, out of weekly quota, or past the five-automatic-re-review
-> cap. A skipped check **satisfies** the requirement, so protection will
+> per-PR size cap, out of rolling seven-day budget, or past the
+> five-automatic-re-review cap. A skipped check **satisfies** the requirement, so protection will
 > happily allow a merge with no Sourcery review at all. That is precisely
 > the case the hard block exists for.
 >

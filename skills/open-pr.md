@@ -11,19 +11,34 @@ request using the following steps:
    `git diff <base-branch> | wc -c` (counts bytes, not characters — close
    enough for this check even with the occasional Finnish ä/ö/é in a diff,
    since Sourcery's own limit is also approximate). Sourcery skips review
-   entirely — no findings, no automated check — on any PR over 150,000
-   diff characters.
-   If you're over that, split the feature into smaller, stacked PRs
+   entirely — no findings, no automated check — on a PR over its per-PR cap.
+
+   **This repo is on Sourcery Pro: 300,000 diff characters per PR, and a
+   rolling seven-day budget of 1,500,000 per seat.** Both numbers are
+   plan-dependent, so they change if the plan does:
+
+   | Plan | Per PR | Rolling 7 days |
+   |---|---|---|
+   | Open Source | 150,000 | 250,000 per developer |
+   | **Pro** (this repo) | **300,000** | **1,500,000 per seat** |
+   | Team / Enterprise | 500,000 | 2,500,000 per seat |
+
+   Aim comfortably under the per-PR cap (~250,000 characters), not right at
+   the edge. If you're over, split the feature into smaller, stacked PRs
    (implement and merge one, then branch the next from it) rather than
    opening one oversized PR; see `decisions/006-other-competitions.md` for
-   a worked example of this split. Aim comfortably under the limit
-   (~120,000 characters), not right at the edge — Sourcery also enforces a
-   separate weekly account-wide quota (500,000 diff characters as of
-   2026-08), so even an under-the-limit PR can still get skipped if
-   reviews earlier that week already used up the shared budget. There's no
-   way to check remaining quota ahead of time; a `skipped` check-run with
-   a rate-limit message is the only signal, and the fix is to wait, not to
-   split further.
+   a worked example of this split.
+
+   The rolling budget is separate from the per-PR cap, so an under-the-limit
+   PR can still be skipped if reviews earlier in the week used up the shared
+   budget — splitting a PR does not avoid that, it makes it worse. There's no
+   way to check remaining budget ahead of time; a `skipped` check-run with a
+   rate-limit message is the only signal, and the fix is to wait.
+
+   Source: <https://docs.sourcery.ai/admin/plans/>. Confirmed for this account
+   on 2026-08-25 — worth stating, because the repo is public and Sourcery
+   applies the Open Source plan to public repositories by default, so the
+   pricing page alone does not settle which row applies here.
 4. Push the branch and open a PR against main.
 5. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
@@ -83,13 +98,18 @@ request using the following steps:
 
 The check reports `skipped`, and there are three causes worth telling apart:
 
-- **The per-PR size cap** — over ~150,000 diff characters, per step 3.
-- **The weekly rate limit** — diff characters per week across the account
-  (500,000 as of 2026-08), independent of the per-PR cap. Splitting a PR
+- **The per-PR size cap** — over 300,000 diff characters on Pro, per step 3.
+- **The rolling seven-day budget** — diff characters across the account
+  (1,500,000 per seat on Pro), independent of the per-PR cap. Splitting a PR
   does not avoid it.
 - **The automatic re-review cap** — five automatic re-reviews per PR. Past
   that Sourcery stops reacting on its own.
 
 `@sourcery-ai review` resets the re-review counter and runs a full review
-from scratch, so it clears the third case. It does not create quota, so for
+from scratch, so it clears the third case. It does not create budget, so for
 the first two the only remedy is to wait.
+
+Note that Sourcery's own docs are explicit that "a rate limit never blocks a
+merge" — it skips the review and GitHub goes green. That is exactly why the
+merge gate in step 6 checks for a real review of the head commit rather than
+trusting the check's colour.
