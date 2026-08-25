@@ -23,7 +23,7 @@ const {
   loggerWarnMock,
   loggerErrorMock,
 } = vi.hoisted(() => ({
-  dbMock: { select: vi.fn(), insert: vi.fn() },
+  dbMock: { select: vi.fn(), insert: vi.fn(), delete: vi.fn(), transaction: vi.fn() },
   getCachedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
@@ -133,7 +133,16 @@ function mockInsert() {
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
   const values = vi.fn().mockReturnValue({ onConflictDoUpdate });
   dbMock.insert.mockReturnValue({ values });
-  return { values, onConflictDoUpdate };
+
+  // Group standings are replaced as a snapshot inside a transaction, so the
+  // mock has to hand the callback something delete-and-insert shaped.
+  const deleteWhere = vi.fn().mockResolvedValue(undefined);
+  dbMock.delete.mockReturnValue({ where: deleteWhere });
+  dbMock.transaction.mockImplementation(
+    async (run: (tx: typeof dbMock) => Promise<unknown>) => await run(dbMock)
+  );
+
+  return { values, onConflictDoUpdate, deleteWhere };
 }
 
 const CURRENT_SEASON_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -1231,14 +1240,14 @@ describe("group standings storage", () => {
 
   it("writes nothing when TASO returns no group rows", async () => {
     const insert = mockInsert();
-    await synchronizeGroupTeams([]);
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, []);
     expect(insert.values).not.toHaveBeenCalled();
   });
 
   it("upserts group rows on the group-and-team identity", async () => {
     const insert = mockInsert();
 
-    await synchronizeGroupTeams([
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
       {
         categoryId: "VL",
         competitionCode: COMPETITION_ID,
@@ -1267,9 +1276,47 @@ describe("group standings storage", () => {
         updatedAt: expect.any(Date),
       }),
     ]);
-    expect(insert.onConflictDoUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ target: expect.any(Array) })
-    );
+    // Replaced as a snapshot, not merged: a team TASO has dropped must not
+    // survive the refresh carrying an obsolete starting_points.
+    expect(dbMock.delete).toHaveBeenCalled();
+    expect(dbMock.transaction).toHaveBeenCalled();
+  });
+
+  it("clears the season's existing rows before writing the new snapshot", async () => {
+    const insert = mockInsert();
+    const order: string[] = [];
+    dbMock.delete.mockImplementation(() => {
+      order.push("delete");
+      return { where: vi.fn().mockResolvedValue(undefined) };
+    });
+    insert.values.mockImplementation(() => {
+      order.push("insert");
+      return { onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) };
+    });
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
+      {
+        categoryId: CATEGORY_ID,
+        competitionCode: COMPETITION_ID,
+        seasonId: PAST_SEASON,
+        groupId: 1,
+        teamProviderId: 1,
+        teamName: "HJK",
+        startingPoints: 0,
+        points: 3,
+        played: 1,
+        won: 1,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 2,
+        goalsAgainst: 1,
+        goalDifference: 1,
+        currentStanding: 1,
+        finalGroupStanding: null,
+      },
+    ]);
+
+    expect(order).toEqual(["delete", "insert"]);
   });
 
   it("collapses a knockout group's repeated bracket slots to one row per team", async () => {
@@ -1298,7 +1345,11 @@ describe("group standings storage", () => {
       finalGroupStanding: null,
     });
 
-    await synchronizeGroupTeams([slot(1), slot(2), slot(1)]);
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
+      slot(1),
+      slot(2),
+      slot(1),
+    ]);
 
     const values = insert.values.mock.calls[0]?.[0] as { teamProviderId: number }[];
     expect(values.map((row) => row.teamProviderId)).toEqual([1, 2]);

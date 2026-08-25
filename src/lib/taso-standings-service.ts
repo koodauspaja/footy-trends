@@ -526,36 +526,43 @@ function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupT
   return [...seen.values()];
 }
 
-export async function synchronizeGroupTeams(rows: NormalizedTasoGroupTeam[]): Promise<void> {
+/**
+ * Replaces a season's stored group standings with the snapshot TASO just
+ * returned, rather than merging into it.
+ *
+ * Upserting alone would leave behind any team TASO has since dropped from a
+ * group, and a stale row is not inert: it carries an obsolete
+ * `starting_points`, it shows up in a fallback table, and — because
+ * `reproducesTasoPoints` requires every team TASO ranks to appear in our
+ * calculation — a team TASO no longer ranks would quietly push the whole group
+ * onto the fallback path.
+ *
+ * Delete and insert together in a transaction, so a failure mid-way leaves the
+ * previous snapshot intact rather than an empty group.
+ */
+export async function synchronizeGroupTeams(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  rows: NormalizedTasoGroupTeam[]
+): Promise<void> {
   if (rows.length === 0) return;
 
-  await db
-    .insert(tasoGroupTeams)
-    .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })))
-    .onConflictDoUpdate({
-      target: [
-        tasoGroupTeams.categoryId,
-        tasoGroupTeams.competitionCode,
-        tasoGroupTeams.seasonId,
-        tasoGroupTeams.groupId,
-        tasoGroupTeams.teamProviderId,
-      ],
-      set: {
-        teamName: sql`excluded.team_name`,
-        startingPoints: sql`excluded.starting_points`,
-        points: sql`excluded.points`,
-        played: sql`excluded.matches_played`,
-        won: sql`excluded.matches_won`,
-        drawn: sql`excluded.matches_tied`,
-        lost: sql`excluded.matches_lost`,
-        goalsFor: sql`excluded.goals_for`,
-        goalsAgainst: sql`excluded.goals_against`,
-        goalDifference: sql`excluded.goals_diff`,
-        currentStanding: sql`excluded.current_standing`,
-        finalGroupStanding: sql`excluded.final_group_standing`,
-        updatedAt: sql`excluded.updated_at`,
-      },
-    });
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(tasoGroupTeams)
+      .where(
+        and(
+          eq(tasoGroupTeams.categoryId, categoryId),
+          eq(tasoGroupTeams.competitionCode, competitionId),
+          eq(tasoGroupTeams.seasonId, seasonId)
+        )
+      );
+
+    await tx
+      .insert(tasoGroupTeams)
+      .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })));
+  });
 }
 
 /**
@@ -590,7 +597,7 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
   try {
     const groups = await getSeasonGroups(competitionId, categoryId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-    await synchronizeGroupTeams(rows);
+    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows);
     // Re-read rather than returning `rows`: the caller needs full rows, and a
     // group whose teams disappeared upstream must still be served from what is
     // stored rather than vanishing mid-season.
