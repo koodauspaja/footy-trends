@@ -59,10 +59,15 @@ type MatchRow = NormalizedTasoMatch;
  * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
  * its fixture there fails that file's coverage check.
  *
- * Veikkausliiga 2020 is absent because that season never split; 2026 waits
- * until its split groups exist and can be validated the same way. 2019
- * restarts its split-group round numbering at 1; `withContinuedRoundNumbering`
- * handles that, which is what unblocked its entry (#133).
+ * A current season is configured as soon as its split groups exist and
+ * reconcile, not on a schedule: Kakkonen, Kansallinen Liiga and Kansallinen
+ * Ykkönen have 2026 entries because their continuation groups are already
+ * being played, while Veikkausliiga 2026 has none because it is still a single
+ * Runkosarja. Nothing else distinguishes them.
+ *
+ * Veikkausliiga 2020 is absent because that season never split. 2019 restarts
+ * its split-group round numbering at 1; `withContinuedRoundNumbering` handles
+ * that, which is what unblocked its entry (#133).
  *
  * Keyed by category first: `competition_id` alone is the season umbrella that
  * every Finnish competition shares, so `spljp25: { 2: 1 }` would otherwise
@@ -90,6 +95,75 @@ type CarryOverEntry = {
 };
 
 const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverEntry>>> = {
+  BTSM: {
+    spljp15: { 3: { parent: 1, seeded: true }, 4: { parent: 2, seeded: true } },
+  },
+  M1: {
+    spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+  },
+  M1L: {
+    spljp24: { 2: { parent: 1, seeded: false } },
+  },
+  M2: {
+    spljp19: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+    },
+    spljp22: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+    },
+    spljp24: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+      7: { parent: 1, seeded: true },
+      8: { parent: 2, seeded: true },
+      9: { parent: 3, seeded: true },
+    },
+    spljp25: {
+      4: { parent: 1, seeded: false },
+      5: { parent: 2, seeded: false },
+      6: { parent: 3, seeded: false },
+      7: { parent: 1, seeded: false },
+      8: { parent: 2, seeded: false },
+      9: { parent: 3, seeded: false },
+    },
+    spljp26: {
+      4: { parent: 1, seeded: false },
+      5: { parent: 2, seeded: false },
+      6: { parent: 3, seeded: false },
+      7: { parent: 1, seeded: false },
+      8: { parent: 2, seeded: false },
+      9: { parent: 3, seeded: false },
+    },
+  },
+  N1: {
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false } },
+    spljp26: { 2: { parent: 1, seeded: false } },
+  },
+  NL: {
+    spljp15: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp16: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp17: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp18: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp19: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false } },
+    spljp26: { 2: { parent: 1, seeded: false } },
+  },
   VL: {
     spljp19: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },

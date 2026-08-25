@@ -1393,6 +1393,93 @@ describe("group standings storage", () => {
     expect(values.map((row) => row.teamProviderId)).toEqual([1, 2]);
   });
 
+  it("builds a carry-over table for the current season, from a full provider refresh", async () => {
+    // The carry-over fixtures all run as completed seasons, which take the
+    // stored path. A configured *current* season — Kakkonen, Kansallinen Liiga
+    // and Kansallinen Ykkönen all have 2026 entries — refreshes both matches
+    // and group standings from TASO first, and nothing covered that
+    // combination.
+    const synced = [
+      groupTeam({ seasonId: 2022, groupId: 1, teamProviderId: 1, teamName: "HJK", points: 3 }),
+      groupTeam({ seasonId: 2022, groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
+      groupTeam({
+        seasonId: 2022,
+        groupId: 2,
+        teamProviderId: 1,
+        teamName: "HJK",
+        startingPoints: 3,
+        points: 6,
+      }),
+      groupTeam({
+        seasonId: 2022,
+        groupId: 2,
+        teamProviderId: 2,
+        teamName: "KuPS",
+        startingPoints: 0,
+        points: 0,
+      }),
+    ];
+
+    // Nothing stored on the first read, so both syncs run; the second read is
+    // what the freshly written snapshot looks like.
+    let groupReads = 0;
+    dbMock.select.mockReturnValue({
+      from: vi.fn().mockImplementation((table: unknown) => {
+        const rows = table === tasoGroupTeams && groupReads++ > 0 ? synced : [];
+        return {
+          where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue(rows) }),
+        };
+      }),
+    });
+    mockInsert();
+
+    getSeasonMatchesMock.mockResolvedValue([
+      match({ providerMatchId: 1, seasonId: 2022, groupId: 1, homeGoals: 3, awayGoals: 0 }),
+      match({
+        providerMatchId: 2,
+        seasonId: 2022,
+        groupId: 2,
+        groupName: "Mestaruussarja",
+        matchday: 23,
+        homeGoals: 1,
+        awayGoals: 0,
+      }),
+    ]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        group_name: "Runkosarja",
+        teams: [
+          { team_id: "1", team_name: "HJK", points: 3 },
+          { team_id: "2", team_name: "KuPS", points: 0 },
+        ],
+      },
+      {
+        group_id: "2",
+        group_name: "Mestaruussarja",
+        teams: [
+          { team_id: "1", team_name: "HJK", points: 6, starting_points: 3 },
+          { team_id: "2", team_name: "KuPS", points: 0, starting_points: 0 },
+        ],
+      },
+    ]);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp22", 2022, 2022, undefined);
+
+    // Both halves of the season came from TASO, not from storage.
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
+    expect(getSeasonGroupsMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 2) : undefined;
+    expect(group?.kind).toBe("own-calculated");
+    // 6, not 3: the refreshed starting_points reconciled the carry-over.
+    expect(
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamName === "HJK")?.points
+        : undefined
+    ).toBe(6);
+  });
+
   it("refreshes stale group standings from TASO and stores them", async () => {
     mockStoredMatches([match({ seasonId: ACTIVE_SEASON })], []);
     mockInsert();
