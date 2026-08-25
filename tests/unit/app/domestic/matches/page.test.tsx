@@ -14,11 +14,20 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
 
+/**
+ * Mocked for the same reason: the real one reads TASO's per-season category
+ * names through Redis, which a unit test must not depend on. Returning null is
+ * the "TASO could not be asked" path, so the page falls back to the configured
+ * competition name — what these tests already assert.
+ */
+const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
     ...actual,
     getSeasonMatchList: getSeasonMatchListMock,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });

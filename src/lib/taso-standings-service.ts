@@ -1,9 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
-import { categoryIdForSeason } from "./domestic-competitions";
+import { categoryIdForSeason, categoryIdsFor } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -253,12 +253,20 @@ export function needsRefresh(
   return Date.now() - newestUpdate.getTime() >= CURRENT_SEASON_CACHE_TTL_SECONDS * 1000;
 }
 
-/** Newest season with a stored match for this competition, or `null` if it has none. */
-async function newestStoredSeason(categoryId: string): Promise<number | null> {
+/**
+ * Newest season with a stored match for this competition, or `null` if it has
+ * none.
+ *
+ * Scoped to every category the competition has been published under, not one:
+ * a junior competition's rows are split across two or three ids, and asking
+ * about a single era would miss the rest — a discovery failure would then fall
+ * back to the configured floor rather than to what is actually stored.
+ */
+async function newestStoredSeason(categoryIds: string[]): Promise<number | null> {
   const [row] = await db
     .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
     .from(tasoMatches)
-    .where(eq(tasoMatches.categoryId, categoryId));
+    .where(inArray(tasoMatches.categoryId, categoryIds));
   return row?.seasonId ?? null;
 }
 
@@ -308,11 +316,10 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
     // is a season of all Finnish football (spec 011) — but the *probe*
     // below is not, so both the key and the stored fallback are scoped to
     // the competition being asked about.
-    const discovered = await discoverCurrentSeason();
-    const probeSeason = discovered ?? EARLIEST_TASO_SEASON;
-    const newestStored = await newestStoredSeason(
-      categoryIdForSeason(competitionCode, probeSeason)
-    );
+    const [discovered, newestStored] = await Promise.all([
+      discoverCurrentSeason(),
+      newestStoredSeason(categoryIdsFor(competitionCode)),
+    ]);
     const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
 
     try {

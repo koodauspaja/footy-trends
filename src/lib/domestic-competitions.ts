@@ -128,6 +128,20 @@ export function categoryIdForSeason(code: string, seasonId: number): string {
 }
 
 /**
+ * Every `category_id` a competition has ever been published under, newest
+ * first.
+ *
+ * Needed wherever a question spans the competition's whole history rather than
+ * one season — "what is the newest season we have stored for this
+ * competition?" cannot be answered from a single era's id, since a junior
+ * competition's rows are split across two or three of them.
+ */
+export function categoryIdsFor(code: string): string[] {
+  const categories = findCompetition(code)?.categories ?? [];
+  return categories.length === 0 ? [code] : categories.map((category) => category.categoryId);
+}
+
+/**
  * The oldest season a competition can be asked for — the floor of its own
  * season selector, which is not the same for every competition (Ykkösliiga
  * did not exist before 2024). Falls back to the provider-wide floor for an

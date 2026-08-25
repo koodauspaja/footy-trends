@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   categoryIdForSeason,
+  categoryIdsFor,
   DEFAULT_DOMESTIC_COMPETITION_CODE,
   DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
@@ -145,5 +146,20 @@ describe("earliestSeasonFor", () => {
   it("falls back to the provider-wide floor for an unknown competition", () => {
     // A bad `kilpailu` value must not widen the range past what TASO serves.
     expect(earliestSeasonFor("XX")).toBe(2015);
+  });
+});
+
+describe("categoryIdsFor", () => {
+  it("returns every id a competition has been published under, newest first", () => {
+    expect(categoryIdsFor("P21SM")).toEqual(["P21SM", "P20SM", "ASM"]);
+    expect(categoryIdsFor("T18SM")).toEqual(["T18SM", "BTSM"]);
+  });
+
+  it("returns the single id for a competition that never changed", () => {
+    expect(categoryIdsFor("VL")).toEqual(["VL"]);
+  });
+
+  it("falls back to the code itself for an unknown competition", () => {
+    expect(categoryIdsFor("XX")).toEqual(["XX"]);
   });
 });

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -89,6 +90,7 @@ export default async function DomesticTeamPage({
     categoryId,
     currentSeason,
     seasonCompetitionName,
+    renamedTo,
   } = await resolveDomesticPageContext(resolvedParams);
 
   const teamProviderId = Number(id);
@@ -103,6 +105,7 @@ export default async function DomesticTeamPage({
 
   return (
     <PageShell heading={heading}>
+      <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

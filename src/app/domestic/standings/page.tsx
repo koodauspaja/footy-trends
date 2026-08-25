@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
@@ -130,9 +131,7 @@ export default async function DomesticStandingsPage({
 
   return (
     <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
-      {renamedTo !== null && (
-        <p className="-mt-4 mb-4 text-sm text-zinc-500">nykyisin {renamedTo}</p>
-      )}
+      <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"
