@@ -39,22 +39,30 @@ type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
 type MatchRow = NormalizedTasoMatch;
 
 /**
- * `competitionId + groupId → parentGroupId`. A group with no entry here
- * (including every season's `group_id=1`) has no carry-over dependency and
- * is always own-calculated directly from its own matches. Only a group
- * confirmed — via TASO's own `starting_points` and/or a from-scratch
- * `calculateStandings` cross-check — to continue its parent's points gets
- * an entry. See specs/009-veikkausliiga.md.
+ * `categoryId + competitionId + groupId → parent group`. An entry says that a
+ * group continues its parent's points, so both groups' matches are fed to
+ * `calculateStandings` rather than the child's alone.
+ *
+ * An entry is not what decides whether a group can be calculated. Every group
+ * with a table is calculated from its own matches plus any configured parent,
+ * and TASO's own numbers are used only when the result does not reconcile with
+ * them — see `reproducesTasoPoints`. So a group with no entry here is not
+ * "the origin group"; it is simply one with nothing to carry over, which is
+ * true of a season's first group and of Kakkonen's three parallel pools alike.
+ *
+ * Only a group confirmed — via TASO's own `starting_points` and/or a
+ * from-scratch `calculateStandings` cross-check — to continue its parent's
+ * points gets an entry. A missing one is therefore visible rather than wrong:
+ * the group falls back to TASO's numbers with a notice.
  *
  * Every entry here is asserted against TASO's own published standings in
  * `tests/unit/lib/taso-carry-over.test.ts`. Adding a season without adding
- * its fixture there fails that file's coverage check, because a wrong entry
- * is otherwise invisible — the table still renders, with wrong points.
+ * its fixture there fails that file's coverage check.
  *
- * 2020 is absent because that season never split; 2026 waits until its
- * split groups exist and can be validated the same way. 2019 restarts its
- * split-group round numbering at 1; `withContinuedRoundNumbering` handles
- * that, which is what unblocked its entry (#133).
+ * Veikkausliiga 2020 is absent because that season never split; 2026 waits
+ * until its split groups exist and can be validated the same way. 2019
+ * restarts its split-group round numbering at 1; `withContinuedRoundNumbering`
+ * handles that, which is what unblocked its entry (#133).
  *
  * Keyed by category first: `competition_id` alone is the season umbrella that
  * every Finnish competition shares, so `spljp25: { 2: 1 }` would otherwise
