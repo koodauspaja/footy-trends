@@ -36,6 +36,32 @@ Every redirect emits **308** and resolves in exactly one hop. The hop count
 is asserted in `tests/e2e/redirects.spec.ts`, not just the destination: a
 chain that happens to end in the right place is still a bug.
 
+## The first redirect table closed only the new leak
+
+The implementation initially redirected `/domestic/*` and `/foreign/*` — the
+post-rename rewrite targets — and stopped there. That is the correct set for
+the leak this PR *creates*, but it silently dropped every English URL that
+answered before the rename. `/standings`, `/matches`, `/team/:id`,
+`/kotimaa/standings`, `/kotimaa/matches` and `/kotimaa/team/:id` all returned
+200 on main (measured in spec 012) and would have started returning 404,
+against the spec's "every English path stops being reachable".
+
+The distinction that was missed: the English folder names changed in this PR,
+so "the English path for this page" means two different things before and
+after it. Both sets need redirecting, and only the second set is derivable
+from the new tree — the first has to be read off the old one.
+
+Caught by Sourcery on the rebased head. Its inline comment listed the wrong
+six paths (it named `/ulkomaat/standings` and friends as previously
+reachable, which they never were — the foreign pages lived at the top level),
+but the underlying gap was real and larger than reported: nine redirects were
+missing, not six.
+
+`/ulkomaat/standings`, `/ulkomaat/matches` and `/ulkomaat/team/:id` are in
+the table anyway, because the spec's redirect block prescribes them. They
+never resolved before, so they close an English spelling of a Finnish URL
+that exists now rather than restoring an old address.
+
 ## A blanket rename was the wrong tool, three times over
 
 `Kotimaa` → `Domestic` looks like a safe mechanical substitution. It is not,

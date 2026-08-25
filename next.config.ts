@@ -34,6 +34,21 @@ const nextConfig: NextConfig = {
       { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },
       { source: "/joukkue/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
+      // The English paths that answered 200 before the rename. The folders
+      // they were served from are gone, so without these they 404 rather
+      // than reaching the Finnish page a bookmark or search index expects.
+      { source: "/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/matches", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
+      { source: "/kotimaa/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
+      { source: "/kotimaa/matches", destination: "/kotimaa/ottelut", permanent: true },
+      { source: "/kotimaa/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
+      // The same shape under /ulkomaat. These never answered before the
+      // move, but the spec closes the English spelling of every Finnish URL
+      // that exists now, not only the ones that once resolved.
+      { source: "/ulkomaat/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
+      { source: "/ulkomaat/matches", destination: "/ulkomaat/ottelut", permanent: true },
+      { source: "/ulkomaat/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
       // English folder paths are not URLs. A rewrite does not block its own
       // target, so without these every page would answer on two addresses.
       { source: "/domestic", destination: "/kotimaa", permanent: true },

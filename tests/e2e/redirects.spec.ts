@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Only Finnish URLs exist. Two families of address redirect into them:
- * the top-level paths the foreign pages used to live at, and the English
- * App Router folder paths, which a Next rewrite does not block on its own.
+ * Only Finnish URLs exist. Three families of address redirect into them:
+ * the top-level paths the foreign pages used to live at, the English paths
+ * that answered 200 before the folder rename, and the English App Router
+ * folder paths, which a Next rewrite does not block on its own.
  *
  * Asserted against a running server rather than the config, and the hop
  * count is asserted too — a chain that happens to end in the right place is
@@ -14,6 +15,20 @@ const MOVED = [
   ["/sarjataulukko", "/ulkomaat/sarjataulukko"],
   ["/ottelut", "/ulkomaat/ottelut"],
   ["/joukkue/57", "/ulkomaat/joukkue/57"],
+] as const;
+
+// Reachable before the rename, so a bookmark or search index can still ask
+// for them. src/app/standings and src/app/kotimaa/standings are gone.
+const LEGACY = [
+  ["/standings", "/ulkomaat/sarjataulukko"],
+  ["/matches", "/ulkomaat/ottelut"],
+  ["/team/57", "/ulkomaat/joukkue/57"],
+  ["/kotimaa/standings", "/kotimaa/sarjataulukko"],
+  ["/kotimaa/matches", "/kotimaa/ottelut"],
+  ["/kotimaa/team/57", "/kotimaa/joukkue/57"],
+  ["/ulkomaat/standings", "/ulkomaat/sarjataulukko"],
+  ["/ulkomaat/matches", "/ulkomaat/ottelut"],
+  ["/ulkomaat/team/57", "/ulkomaat/joukkue/57"],
 ] as const;
 
 const ENGLISH = [
@@ -28,7 +43,7 @@ const ENGLISH = [
 ] as const;
 
 test.describe("URL redirects", () => {
-  for (const [from, to] of [...MOVED, ...ENGLISH]) {
+  for (const [from, to] of [...MOVED, ...LEGACY, ...ENGLISH]) {
     test(`${from} redirects to ${to}`, async ({ request }) => {
       const response = await request.get(from, { maxRedirects: 0 });
 
