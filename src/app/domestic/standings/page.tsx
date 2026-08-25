@@ -86,18 +86,30 @@ export default async function DomesticStandingsPage({
     seasonId,
     seasonLabel,
     competitionId,
+    categoryId,
     currentSeason,
   } = await resolveDomesticPageContext(params);
 
-  const matchListResult = await getSeasonMatchList(competitionId, seasonId, currentSeason);
+  const matchListResult = await getSeasonMatchList(
+    categoryId,
+    competitionId,
+    seasonId,
+    currentSeason
+  );
   const availableRounds =
     matchListResult.status === "ok"
-      ? listSelectableTasoRounds(matchListResult.matches, competitionId)
+      ? listSelectableTasoRounds(matchListResult.matches, categoryId, competitionId)
       : [];
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
-  const result = await getSeasonStandings(competitionId, seasonId, currentSeason, selectedRound);
+  const result = await getSeasonStandings(
+    categoryId,
+    competitionId,
+    seasonId,
+    currentSeason,
+    selectedRound
+  );
 
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;

@@ -15,11 +15,12 @@ const USER_AGENT =
 // `competition_id` (e.g. "spljp26") alone is the whole SPL Jalkapallo season
 // umbrella — cup, women's, youth, and every other category share it, and
 // their `group_id`s are NOT globally unique across categories (confirmed
-// live: category "KC" also has a `group_id: "1"`, wholly unrelated to
-// Veikkausliiga's own group 1). `category_id=VL` is required on every
-// request to scope to Veikkausliiga only — omitting it silently mixes in
-// other categories' groups/matches under colliding group_ids.
-const CATEGORY_ID = "VL";
+// live: Veikkausliiga, Miesten Kakkonen and Ykkönen each have their own
+// `group_id: "1"` in `spljp26`). `category_id` is required on every request —
+// omitting it silently mixes in other categories' groups/matches under
+// colliding group_ids — and is a parameter rather than a constant now that
+// more than one category is served. See
+// specs/013-more-finnish-competitions.md.
 
 function apiKey(): string {
   const key = process.env.TASO_API_KEY;
@@ -73,6 +74,12 @@ type MatchesResponse = { matches?: TasoProviderMatch[] };
 export type NormalizedTasoMatch = {
   providerMatchId: number;
   competitionCode: string;
+  /**
+   * Which competition inside the season umbrella this match belongs to.
+   * `competitionCode` alone cannot say: every category shares one
+   * `competition_id`, and their `group_id`s collide.
+   */
+  categoryId: string;
   seasonId: number;
   groupId: number;
   groupName: string;
@@ -147,6 +154,7 @@ function normalizeStatus(status: string): string {
 export function normalizeTasoMatch(
   match: TasoProviderMatch,
   competitionId: string,
+  categoryId: string,
   seasonId: number
 ): NormalizedTasoMatch | null {
   if (
@@ -183,6 +191,7 @@ export function normalizeTasoMatch(
   return {
     providerMatchId: Number(match.match_id),
     competitionCode: competitionId,
+    categoryId,
     seasonId,
     groupId: Number(match.group_id),
     groupName: match.group_name,
@@ -198,15 +207,19 @@ export function normalizeTasoMatch(
   };
 }
 
-/** Every match TASO has for the season, regardless of group or status. */
-export async function getSeasonMatches(competitionId: string): Promise<NormalizedTasoMatch[]> {
+/** Every match TASO has for one category's season, regardless of group or status. */
+export async function getSeasonMatches(
+  competitionId: string,
+  categoryId: string
+): Promise<NormalizedTasoMatch[]> {
   const response = await request<MatchesResponse>(
-    `/getMatches?competition_id=${competitionId}&category_id=${CATEGORY_ID}`
+    `/getMatches?competition_id=${competitionId}&category_id=${categoryId}`
   );
   return (response.matches ?? []).flatMap((match) => {
     const normalized = normalizeTasoMatch(
       match,
       competitionId,
+      categoryId,
       seasonFromCompetitionId(competitionId)
     );
     return normalized ? [normalized] : [];
@@ -323,10 +336,13 @@ export type TasoGroup = {
 
 type GroupsResponse = { groups?: TasoGroup[] };
 
-/** Every group TASO currently returns for the season, with its own precomputed standings. */
-export async function getSeasonGroups(competitionId: string): Promise<TasoGroup[]> {
+/** Every group TASO currently returns for one category's season, with its own precomputed standings. */
+export async function getSeasonGroups(
+  competitionId: string,
+  categoryId: string
+): Promise<TasoGroup[]> {
   const response = await request<GroupsResponse>(
-    `/getGroups?competition_id=${competitionId}&category_id=${CATEGORY_ID}`
+    `/getGroups?competition_id=${competitionId}&category_id=${categoryId}`
   );
   return response.groups ?? [];
 }

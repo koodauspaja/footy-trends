@@ -31,6 +31,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   return {
     providerMatchId: 1,
     competitionCode: "spljp26",
+    categoryId: "VL",
     seasonId: 2026,
     groupId: 1,
     groupName: "Runkosarja",

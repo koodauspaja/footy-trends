@@ -1,5 +1,5 @@
 {
-  "spljp19": {
+  "VL/spljp19": {
     "seasonId": 2019,
     "teams": {
       "60506": "FC Honka",
@@ -198,7 +198,7 @@
       ]
     }
   },
-  "spljp21": {
+  "VL/spljp21": {
     "seasonId": 2021,
     "teams": {
       "60493": "AC Oulu",
@@ -397,7 +397,7 @@
       ]
     }
   },
-  "spljp22": {
+  "VL/spljp22": {
     "seasonId": 2022,
     "teams": {
       "60493": "AC Oulu",
@@ -596,7 +596,7 @@
       ]
     }
   },
-  "spljp23": {
+  "VL/spljp23": {
     "seasonId": 2023,
     "teams": {
       "60493": "AC Oulu",
@@ -795,7 +795,7 @@
       ]
     }
   },
-  "spljp24": {
+  "VL/spljp24": {
     "seasonId": 2024,
     "teams": {
       "60493": "AC Oulu",
@@ -994,7 +994,7 @@
       ]
     }
   },
-  "spljp25": {
+  "VL/spljp25": {
     "seasonId": 2025,
     "teams": {
       "60493": "AC Oulu",

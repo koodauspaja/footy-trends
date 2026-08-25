@@ -13,7 +13,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
 
 describe("listSelectableTasoSeasons", () => {
   it("lists 2015 up to the given current season, newest first, labeled as bare years", () => {
-    const seasons = listSelectableTasoSeasons(2026);
+    const seasons = listSelectableTasoSeasons(2026, 2015);
 
     expect(seasons[0]).toEqual({ seasonId: 2026, label: "2026" });
     expect(seasons.at(-1)).toEqual({ seasonId: 2015, label: "2015" });
@@ -21,7 +21,7 @@ describe("listSelectableTasoSeasons", () => {
   });
 
   it("extends the range as the discovered season moves, with no code change", () => {
-    const seasons = listSelectableTasoSeasons(2027);
+    const seasons = listSelectableTasoSeasons(2027, 2015);
 
     expect(seasons[0]).toEqual({ seasonId: 2027, label: "2027" });
     expect(seasons).toHaveLength(13);
@@ -29,7 +29,7 @@ describe("listSelectableTasoSeasons", () => {
 });
 
 describe("parseTasoSeasonParam", () => {
-  const seasons = listSelectableTasoSeasons(2026);
+  const seasons = listSelectableTasoSeasons(2026, 2015);
 
   it("treats an absent value as absent", () => {
     expect(parseTasoSeasonParam(undefined, seasons)).toEqual({ kind: "absent" });

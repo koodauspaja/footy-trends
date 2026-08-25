@@ -31,6 +31,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   return {
     providerMatchId: 1,
     competitionCode: "spljp26",
+    categoryId: "VL",
     seasonId: 2026,
     groupId: 1,
     groupName: "Runkosarja",
@@ -70,7 +71,7 @@ describe("Domestic team page", () => {
     await renderTeam("1");
 
     expect(screen.getByRole("heading", { name: "HJK – Veikkausliiga 2026" })).toBeInTheDocument();
-    expect(getTeamMatchesMock).toHaveBeenCalledWith("spljp26", 1, 2026, 2026);
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("VL", "spljp26", 1, 2026, 2026);
   });
 
   it("resolves the team as the away side too", async () => {

@@ -37,10 +37,11 @@ export default async function DomesticMatchesPage({
     seasonId,
     seasonLabel,
     competitionId,
+    categoryId,
     currentSeason,
   } = await resolveDomesticPageContext(params);
 
-  const result = await getSeasonMatchList(competitionId, seasonId, currentSeason);
+  const result = await getSeasonMatchList(categoryId, competitionId, seasonId, currentSeason);
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>

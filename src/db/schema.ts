@@ -55,6 +55,12 @@ export const tasoMatches = pgTable(
     // The underlying SQL column names stay TASO-specific.
     providerMatchId: integer("taso_match_id").notNull(),
     competitionCode: text("competition_id").notNull(),
+    // Which competition inside the season umbrella. `competition_id` is
+    // shared by every category and `group_id` collides across them
+    // (Veikkausliiga, Kakkonen and Ykkönen each have a group 1 in spljp26),
+    // so this is what actually separates one competition's matches from
+    // another's. See specs/013-more-finnish-competitions.md.
+    categoryId: text("category_id").notNull(),
     seasonId: integer("season_id").notNull(),
     groupId: integer("group_id").notNull(),
     groupName: text("group_name").notNull(),
@@ -66,10 +72,15 @@ export const tasoMatches = pgTable(
     ...matchTeamColumns(),
   },
   (table) => [
+    // Still keyed on the match id alone: TASO's `match_id` is unique across
+    // categories, confirmed live (710 ids across six categories in spljp26,
+    // zero collisions), so `category_id` is a filter and index column rather
+    // than part of uniqueness.
     uniqueIndex("taso_matches_taso_match_id_idx").on(table.providerMatchId),
-    // Standings/match-list reads are always scoped to one competition, season,
-    // and group at a time.
-    index("taso_matches_competition_season_group_idx").on(
+    // Standings/match-list reads are always scoped to one category,
+    // competition, season, and group at a time.
+    index("taso_matches_category_competition_season_group_idx").on(
+      table.categoryId,
       table.competitionCode,
       table.seasonId,
       table.groupId

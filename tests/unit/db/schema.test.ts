@@ -30,11 +30,17 @@ describe("taso_matches table", () => {
     ).toMatchObject({
       unique: true,
     });
-    expect(
-      indexes.find((index) => index.config.name === "taso_matches_competition_season_group_idx")
-        ?.config
-    ).toMatchObject({
-      unique: false,
-    });
+    const lookup = indexes.find(
+      (index) => index.config.name === "taso_matches_category_competition_season_group_idx"
+    )?.config;
+    expect(lookup).toMatchObject({ unique: false });
+    // Category first: it is what separates one competition's rows from
+    // another's, since `competition_id` is shared and `group_id` collides.
+    expect(lookup?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "category_id",
+      "competition_id",
+      "season_id",
+      "group_id",
+    ]);
   });
 });

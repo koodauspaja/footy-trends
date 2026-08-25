@@ -37,6 +37,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   return {
     providerMatchId: 1,
     competitionCode: "spljp26",
+    categoryId: "VL",
     seasonId: 2026,
     groupId: 1,
     groupName: "Runkosarja",
@@ -96,7 +97,7 @@ describe("Domestic standings page", () => {
     await renderStandings();
 
     expect(screen.getByRole("heading", { name: "Veikkausliiga 2026" })).toBeInTheDocument();
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("spljp26", 2026, 2026, undefined);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, undefined);
     expect(screen.getByText("HJK")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
@@ -104,8 +105,8 @@ describe("Domestic standings page", () => {
   it("resolves a valid kausi param to its own competition_id", async () => {
     await renderStandings({ kausi: "2015" });
 
-    expect(getSeasonMatchListMock).toHaveBeenCalledWith("spljp15", 2015, 2026);
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("spljp15", 2015, 2026, undefined);
+    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026, undefined);
     expect(screen.getByRole("heading", { name: "Veikkausliiga 2015" })).toBeInTheDocument();
   });
 
@@ -321,7 +322,7 @@ describe("Domestic standings page", () => {
 
     await renderStandings({ kierros: "1" });
 
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("spljp26", 2026, 2026, 1);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, 1);
     expect(screen.getByLabelText("Kierros")).toHaveValue("1");
   });
 
@@ -331,7 +332,7 @@ describe("Domestic standings page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kierrosta ei löytynyt. Näytetään koko kausi."
     );
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("spljp26", 2026, 2026, undefined);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, undefined);
   });
 
   it("shows the empty message when the season has no matches at all", async () => {

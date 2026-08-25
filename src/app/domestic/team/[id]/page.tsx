@@ -26,12 +26,19 @@ function nameForTeam(
 }
 
 async function resolveTeamName(
+  categoryId: string,
   competitionId: string,
   teamProviderId: number,
   seasonId: number,
   currentSeason: number
 ): Promise<{ result: TeamMatchesResult; teamName: string | null }> {
-  const result = await getTeamMatches(competitionId, teamProviderId, seasonId, currentSeason);
+  const result = await getTeamMatches(
+    categoryId,
+    competitionId,
+    teamProviderId,
+    seasonId,
+    currentSeason
+  );
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
   return { result, teamName };
@@ -43,12 +50,13 @@ export async function generateMetadata({
 }: DomesticTeamPageProps): Promise<Metadata> {
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
-  const { competitionName, seasonLabel, seasonId, competitionId, currentSeason } =
+  const { competitionName, seasonLabel, seasonId, competitionId, categoryId, currentSeason } =
     await resolveDomesticPageContext(resolvedParams);
   const teamProviderId = Number(id);
 
   if (Number.isNaN(teamProviderId)) return { title: competitionName };
   const { teamName } = await resolveTeamName(
+    categoryId,
     competitionId,
     teamProviderId,
     seasonId,
@@ -75,13 +83,14 @@ export default async function DomesticTeamPage({
     seasonId,
     seasonLabel,
     competitionId,
+    categoryId,
     currentSeason,
   } = await resolveDomesticPageContext(resolvedParams);
 
   const teamProviderId = Number(id);
   const { result, teamName } = Number.isNaN(teamProviderId)
     ? { result: { status: "not_found" } as TeamMatchesResult, teamName: null }
-    : await resolveTeamName(competitionId, teamProviderId, seasonId, currentSeason);
+    : await resolveTeamName(categoryId, competitionId, teamProviderId, seasonId, currentSeason);
 
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
