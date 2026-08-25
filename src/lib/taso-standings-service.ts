@@ -959,7 +959,10 @@ function buildGroup(
       // ranked sorts to the top and keeps its input position.
       standings: [...teamRows]
         .sort((left, right) => (publishedPosition(left) ?? 0) - (publishedPosition(right) ?? 0))
-        .map(toPassThroughStanding),
+        // Called explicitly rather than passed by reference: `map` supplies a
+        // third argument this takes no account of, and the index it does use
+        // is a deliberate position fallback, not an accident.
+        .map((team, index) => toPassThroughStanding(team, index)),
     };
   }
 
