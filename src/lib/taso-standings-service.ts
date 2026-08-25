@@ -90,6 +90,67 @@ type CarryOverEntry = {
 };
 
 const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverEntry>>> = {
+  BTSM: {
+    spljp15: { 3: { parent: 1, seeded: true }, 4: { parent: 2, seeded: true } },
+  },
+  M1: {
+    spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+  },
+  M1L: {
+    spljp24: { 2: { parent: 1, seeded: false } },
+  },
+  M2: {
+    spljp19: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+    },
+    spljp22: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+    },
+    spljp24: {
+      4: { parent: 1, seeded: true },
+      5: { parent: 2, seeded: true },
+      6: { parent: 3, seeded: true },
+      7: { parent: 1, seeded: true },
+      8: { parent: 2, seeded: true },
+      9: { parent: 3, seeded: true },
+    },
+    spljp25: {
+      4: { parent: 1, seeded: false },
+      5: { parent: 2, seeded: false },
+      6: { parent: 3, seeded: false },
+      7: { parent: 1, seeded: false },
+      8: { parent: 2, seeded: false },
+      9: { parent: 3, seeded: false },
+    },
+  },
+  N1: {
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false } },
+    spljp26: { 2: { parent: 1, seeded: false } },
+  },
+  NL: {
+    spljp15: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp16: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp17: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp18: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp19: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false } },
+    spljp26: { 2: { parent: 1, seeded: false } },
+  },
   VL: {
     spljp19: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },

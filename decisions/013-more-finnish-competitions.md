@@ -254,3 +254,53 @@ own matches only. It does not: Veikkausliiga 2022's Mestaruussarja reports 27,
 which is Runkosarja's 22 plus its own 5. The two conventions differ only in how
 *points* are expressed. Caught while generating PR 3b's fixtures, where the
 number had to be asserted rather than described.
+
+---
+
+## PR 3b — The carry-over entries
+
+71 entries across seven categories, each validated against TASO's own
+published standings. Every split group in the nine new competitions moves off
+the fallback path onto an own-calculated table with a round selector.
+
+### The entries were derived, not transcribed
+
+Hand-writing 71 entries and their `seeded` flags would have been 71 chances to
+introduce a silent error. They come instead from the audit that produced the
+spec: every group in every season was recalculated from its own matches and
+compared against TASO's published points, and the classification that
+reconciled tells us both the parent and the convention.
+
+Distribution: Kansallinen Liiga 20, Kakkonen 18, Veikkausliiga 12, Ykkönen 10,
+Kansallinen Ykkönen 8, T18 SM 2 (under `BTSM` 2015), Ykkösliiga 1. The three
+P21/P18 competitions need none — every group in their twelve seasons is
+independent.
+
+### `seeded` varies by season within one competition, which is why it is data
+
+Ykkönen is seeded in 2021, 2022 and 2024, and not in 2023 and 2025. Kakkonen is
+seeded through 2024 and not in 2025. There is no rule to infer it from: TASO
+simply changed convention, and not uniformly. A per-entry flag derived from the
+data is the only honest representation.
+
+### The fixtures now carry TASO's numbers, which makes the guard sharper
+
+Previously the fixtures held matches and expected points, with `getGroups`
+mocked empty — so a wrong entry produced wrong points and the assertion caught
+it. Now TASO's own `points` and `starting_points` are fed in as stored group
+rows, so a wrong entry does not merely produce different numbers: it fails to
+reconcile, and the group renders `pass-through` instead of `own-calculated`.
+Both are asserted, so the failure is unmissable either way.
+
+That is also why the fixture grew: it needs every match in the groups a
+carry-over touches, plus those groups' published rows. 33 competition-seasons,
+5,444 matches, ~215KB — the reason this is its own PR rather than part of the
+one that added the competitions.
+
+### Kakkonen is the shape that would have broken the old design twice
+
+Three parallel pools, each an origin, and six continuation groups mapping onto
+them in pairs — `4→1, 7→1` for Ylempi and Alempi jatkosarja A. The old
+"lowest `group_id` is the origin" rule could express neither. Verified against
+TASO for 2024: Reipas 41 points from 23 played, matching exactly, with a seeded
+`starting_points` of 31 behind it.
