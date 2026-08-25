@@ -863,6 +863,47 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
  * `group_id` ascending — `phase_number` is confirmed unreliable for
  * ordering.
  */
+/**
+ * Every group's rendering for the whole season, before any round filter.
+ *
+ * Shared by `getSeasonStandings` and `listSeasonRounds` so the two cannot
+ * disagree about which groups respond to a round — offering a round for a
+ * group that ignores it is a selector that does nothing when used. Wrapped in
+ * `cache()` so asking both questions in one request classifies once; the
+ * underlying reads are already deduplicated the same way.
+ */
+const classifySeasonGroups = cache(async function classifySeasonGroups(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<
+  | { status: "ok"; matches: MatchRow[]; groups: GroupStandingsResult[] }
+  | { status: "empty" | "error" }
+> {
+  const [{ matches: seasonMatches, refreshFailed }, teamRows] = await Promise.all([
+    getSyncedSeasonMatches(categoryId, competitionId, seasonId, activeSeasonId),
+    getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId),
+  ]);
+
+  if (seasonMatches.length === 0) {
+    return refreshFailed ? { status: "error" } : { status: "empty" };
+  }
+
+  if (teamRows.length === 0) {
+    logger.warn(
+      { categoryId, competitionId, seasonId },
+      "No stored TASO group standings; calculating without starting_points adjustments"
+    );
+  }
+
+  const groups = groupIdsIn(seasonMatches)
+    .sort((left, right) => left - right)
+    .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId));
+
+  return { status: "ok", matches: seasonMatches, groups };
+});
+
 export async function getSeasonStandings(
   categoryId: string,
   competitionId: string,
@@ -871,27 +912,33 @@ export async function getSeasonStandings(
   round: number | undefined
 ): Promise<SeasonStandingsResult> {
   try {
-    const [{ matches: seasonMatches, refreshFailed }, teamRows] = await Promise.all([
-      getSyncedSeasonMatches(categoryId, competitionId, seasonId, activeSeasonId),
-      getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId),
-    ]);
+    const classified = await classifySeasonGroups(
+      categoryId,
+      competitionId,
+      seasonId,
+      activeSeasonId
+    );
+    if (classified.status !== "ok") return { status: classified.status, groups: [] };
+    if (round === undefined) return { status: "ok", groups: classified.groups };
 
-    if (seasonMatches.length === 0) {
-      return refreshFailed ? { status: "error", groups: [] } : { status: "empty", groups: [] };
-    }
-
-    if (teamRows.length === 0) {
-      logger.warn(
-        { categoryId, competitionId, seasonId },
-        "No stored TASO group standings; calculating without starting_points adjustments"
-      );
-    }
-
-    const groups = groupIdsIn(seasonMatches)
-      .sort((left, right) => left - right)
-      .map((groupId) =>
-        buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId, round)
-      );
+    // Only an own-calculated group responds to a round; the classification
+    // itself does not change with one, so it is reused rather than redone.
+    const teamRows = await getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId);
+    const groups = classified.groups.map((group) =>
+      group.kind === "own-calculated"
+        ? {
+            ...group,
+            standings: ownCalculatedStandings(
+              classified.matches,
+              groupTeamsFor(teamRows, group.groupId),
+              categoryId,
+              competitionId,
+              group.groupId,
+              round
+            ),
+          }
+        : group
+    );
 
     return { status: "ok", groups };
   } catch (error) {
@@ -921,8 +968,7 @@ function buildGroup(
   allTeamRows: StoredGroupTeam[],
   categoryId: string,
   competitionId: string,
-  groupId: number,
-  round: number | undefined
+  groupId: number
 ): GroupStandingsResult {
   const groupName = groupNameOf(seasonMatches, groupId);
   const teamRows = groupTeamsFor(allTeamRows, groupId);
@@ -944,10 +990,17 @@ function buildGroup(
     };
   }
 
-  const build = (forRound: number | undefined) =>
-    ownCalculatedStandings(seasonMatches, teamRows, categoryId, competitionId, groupId, forRound);
-
-  const fullSeason = build(undefined);
+  // Always the full season: a round filter changes an own-calculated group's
+  // numbers but never its classification, so `getSeasonStandings` applies one
+  // afterwards rather than reclassifying per round.
+  const fullSeason = ownCalculatedStandings(
+    seasonMatches,
+    teamRows,
+    categoryId,
+    competitionId,
+    groupId,
+    undefined
+  );
 
   // Nothing to check ourselves against. Own-calculate rather than fall back to
   // numbers we do not have: every adjustment is zero here, which is already
@@ -958,7 +1011,7 @@ function buildGroup(
       kind: "own-calculated",
       groupId,
       groupName,
-      standings: round === undefined ? fullSeason : build(round),
+      standings: fullSeason,
     };
   }
 
@@ -982,7 +1035,7 @@ function buildGroup(
     kind: "own-calculated",
     groupId,
     groupName,
-    standings: round === undefined ? fullSeason : build(round),
+    standings: fullSeason,
   };
 }
 
@@ -1085,17 +1138,24 @@ export async function listSeasonRounds(
   activeSeasonId: number
 ): Promise<number[]> {
   try {
-    const [{ matches }, teamRows] = await Promise.all([
-      getSyncedSeasonMatches(categoryId, competitionId, seasonId, activeSeasonId),
-      getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId),
-    ]);
-
-    const tableGroupIds = new Set(
-      groupIdsIn(matches).filter(
-        (groupId) => teamRows.length === 0 || keepsATable(groupTeamsFor(teamRows, groupId))
-      )
+    const classified = await classifySeasonGroups(
+      categoryId,
+      competitionId,
+      seasonId,
+      activeSeasonId
     );
-    return listSelectableTasoRounds(matches, tableGroupIds);
+    if (classified.status !== "ok") return [];
+
+    // Own-calculated only. A match-list group has no table to filter, and a
+    // pass-through group shows TASO's final numbers whatever round is picked —
+    // offering either group's rounds would put entries in the selector that
+    // visibly do nothing.
+    const roundedGroupIds = new Set(
+      classified.groups
+        .filter((group) => group.kind === "own-calculated")
+        .map((group) => group.groupId)
+    );
+    return listSelectableTasoRounds(classified.matches, roundedGroupIds);
   } catch (error) {
     logger.warn(
       { err: error, categoryId, competitionId, seasonId },

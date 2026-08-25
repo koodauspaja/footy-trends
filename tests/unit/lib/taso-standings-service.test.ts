@@ -669,6 +669,36 @@ describe("getSeasonStandings", () => {
     expect(loggerWarnMock).toHaveBeenCalled();
   });
 
+  it("leaves a group with no round filtering alone when a round is selected", async () => {
+    // Only an own-calculated group responds to a round; a match-list group
+    // must come through the round path unchanged rather than being rebuilt.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
+        match({ providerMatchId: 2, groupId: 4, groupName: "Eurolopputurnaus", matchday: 1 }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
+        groupTeam({ groupId: 4, teamProviderId: 1, points: null }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      1
+    );
+    const groups = result.status === "ok" ? result.groups : [];
+
+    expect(groups.find((group) => group.groupId === 1)?.kind).toBe("own-calculated");
+    const knockout = groups.find((group) => group.groupId === 4);
+    expect(knockout?.kind).toBe("match-list");
+    expect(knockout?.kind === "match-list" && knockout.matches).toHaveLength(1);
+  });
+
   it("orders groups by group_id ascending regardless of insertion order", async () => {
     mockStoredMatches([
       match({ providerMatchId: 1, groupId: 3, groupName: "Karsintasarja", matchday: 23 }),
@@ -1324,7 +1354,10 @@ describe("listSeasonRounds", () => {
         match({ providerMatchId: 3, groupId: 4, groupName: "Eurolopputurnaus", matchday: 40 }),
       ],
       [
-        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        // Must agree with the two stored wins, or group 1 falls back and stops
+        // responding to a round at all.
+        groupTeam({ groupId: 1, teamProviderId: 1, teamName: "HJK", points: 6 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
         groupTeam({ groupId: 4, teamProviderId: 1, points: null }),
       ]
     );
@@ -1332,6 +1365,39 @@ describe("listSeasonRounds", () => {
     await expect(
       listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
     ).resolves.toEqual([1, 2]);
+  });
+
+  it("offers no rounds for a season with no matches", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    await expect(
+      listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toEqual([]);
+  });
+
+  it("does not offer a fallback group's rounds, which would change nothing", async () => {
+    // A pass-through group shows TASO's final numbers whatever round is
+    // picked, so its rounds in the selector are entries that visibly do
+    // nothing.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
+        match({ providerMatchId: 2, groupId: 2, groupName: "Jatkosarja", matchday: 30 }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
+        // Disagrees with the stored match, so group 2 falls back.
+        groupTeam({ groupId: 2, teamProviderId: 1, teamName: "HJK", points: 99 }),
+        groupTeam({ groupId: 2, teamProviderId: 2, teamName: "KuPS", points: 98 }),
+      ]
+    );
+
+    await expect(
+      listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toEqual([1]);
   });
 
   it("offers every group's rounds when TASO's groups are unknown", async () => {
