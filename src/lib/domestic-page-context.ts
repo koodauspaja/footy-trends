@@ -1,21 +1,30 @@
 import {
+  categoryIdForSeason,
   DEFAULT_DOMESTIC_COMPETITION_CODE,
   type DomesticCompetitionParamResult,
+  earliestSeasonFor,
   getDomesticCompetitionName,
   parseDomesticCompetitionParam,
 } from "./domestic-competitions";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
-import { competitionIdFromSeason, EARLIEST_TASO_SEASON } from "./taso";
+import { competitionIdFromSeason } from "./taso";
 import { resolveTasoSeasonContext } from "./taso-standings-service";
 
 /**
- * Veikkausliiga's season is a single calendar year, not a year-spanning one
- * like the foreign leagues — the label is just the year. Descending,
- * newest first, same convention as `listSelectableSeasons`.
+ * A Finnish season is a single calendar year, not a year-spanning one like the
+ * foreign leagues — the label is just the year. Descending, newest first, same
+ * convention as `listSelectableSeasons`.
+ *
+ * The floor is per competition rather than provider-wide: Ykkösliiga did not
+ * exist before 2024, and offering its 2015 would render an empty page. See
+ * specs/013-more-finnish-competitions.md.
  */
-export function listSelectableTasoSeasons(currentSeason: number): SeasonOption[] {
+export function listSelectableTasoSeasons(
+  currentSeason: number,
+  earliestSeason: number
+): SeasonOption[] {
   const options: SeasonOption[] = [];
-  for (let year = currentSeason; year >= EARLIEST_TASO_SEASON; year -= 1) {
+  for (let year = currentSeason; year >= earliestSeason; year -= 1) {
     options.push({ seasonId: year, label: String(year) });
   }
   return options;
@@ -50,6 +59,8 @@ export type DomesticPageContext = {
   seasonId: number;
   seasonLabel: string;
   competitionId: string;
+  /** The `category_id` to query for this competition in this season. */
+  categoryId: string;
 };
 
 /**
@@ -71,11 +82,15 @@ export async function resolveDomesticPageContext(
   const competitionName = getDomesticCompetitionName(competitionCode);
 
   const { currentSeason, defaultSeason } = await resolveTasoSeasonContext();
-  const selectableSeasons = listSelectableTasoSeasons(currentSeason);
+  const selectableSeasons = listSelectableTasoSeasons(
+    currentSeason,
+    earliestSeasonFor(competitionCode)
+  );
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : defaultSeason;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdFromSeason(seasonId);
+  const categoryId = categoryIdForSeason(competitionCode, seasonId);
 
   return {
     currentSeason,
@@ -87,5 +102,6 @@ export async function resolveDomesticPageContext(
     seasonId,
     seasonLabel,
     competitionId,
+    categoryId,
   };
 }

@@ -31,6 +31,20 @@ const FINISHED_STATUS = "FINISHED";
  */
 const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
+/**
+ * The category `resolveTasoSeasonContext` probes when asking "has the
+ * discovered season actually started". TASO publishes a `competition_id` for
+ * every category at once, so any category answers "does this season exist" —
+ * but *matches* appear per competition, and Finnish competitions do not all
+ * kick off together. Once other competitions exist, one that starts before
+ * Veikkausliiga would still be defaulted to the previous season by this probe.
+ *
+ * Unreachable today, with Veikkausliiga the only competition; revisited in the
+ * follow-up PR that adds the others, where the probe follows the selected
+ * competition instead.
+ */
+const SEASON_PROBE_CATEGORY_ID = "VL";
+
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
 /** A match from either the DB or a fresh provider fetch — same duality as football-data.ts. */
 type MatchRow = NormalizedTasoMatch;
@@ -52,14 +66,21 @@ type MatchRow = NormalizedTasoMatch;
  * split groups exist and can be validated the same way. 2019 restarts its
  * split-group round numbering at 1; `withContinuedRoundNumbering` handles
  * that, which is what unblocked its entry (#133).
+ *
+ * Keyed by category first: `competition_id` alone is the season umbrella that
+ * every Finnish competition shares, so `spljp25: { 2: 1 }` would otherwise
+ * apply Veikkausliiga's carry-over to every other competition's group 2. See
+ * specs/013-more-finnish-competitions.md.
  */
-const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
-  spljp19: { 2: 1, 3: 1 },
-  spljp21: { 2: 1, 3: 1 },
-  spljp22: { 2: 1, 3: 1 },
-  spljp23: { 2: 1, 3: 1 },
-  spljp24: { 2: 1, 3: 1 },
-  spljp25: { 2: 1, 3: 1 },
+const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, number>>> = {
+  VL: {
+    spljp19: { 2: 1, 3: 1 },
+    spljp21: { 2: 1, 3: 1 },
+    spljp22: { 2: 1, 3: 1 },
+    spljp23: { 2: 1, 3: 1 },
+    spljp24: { 2: 1, 3: 1 },
+    spljp25: { 2: 1, 3: 1 },
+  },
 };
 
 /**
@@ -73,21 +94,41 @@ const CARRY_OVER_CONFIG: Record<string, Record<number, number>> = {
  * already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }` — without any
  * test covering it.
  */
-export function listCarryOverEntries(): { competitionId: string; groupId: number }[] {
-  return Object.entries(CARRY_OVER_CONFIG).flatMap(([competitionId, groups]) =>
-    Object.keys(groups).map((groupId) => ({ competitionId, groupId: Number(groupId) }))
+export function listCarryOverEntries(): {
+  categoryId: string;
+  competitionId: string;
+  groupId: number;
+}[] {
+  return Object.entries(CARRY_OVER_CONFIG).flatMap(([categoryId, competitions]) =>
+    Object.entries(competitions).flatMap(([competitionId, groups]) =>
+      Object.keys(groups).map((groupId) => ({
+        categoryId,
+        competitionId,
+        groupId: Number(groupId),
+      }))
+    )
   );
 }
 
-function parentGroupId(competitionId: string, groupId: number): number | null {
-  return CARRY_OVER_CONFIG[competitionId]?.[groupId] ?? null;
+function parentGroupId(categoryId: string, competitionId: string, groupId: number): number | null {
+  return CARRY_OVER_CONFIG[categoryId]?.[competitionId]?.[groupId] ?? null;
 }
 
 /** Own-calculated groups always have a carry-over entry, or are the season's origin group (no group needs the entry to be own-calculated when it has no parent). */
-function isOwnCalculated(competitionId: string, groupId: number, allGroupIds: number[]): boolean {
-  if (parentGroupId(competitionId, groupId) !== null) return true;
-  // The origin group is whichever group has no parent and is the lowest
-  // group_id present — per spec, group_id=1 in every season checked.
+function isOwnCalculated(
+  categoryId: string,
+  competitionId: string,
+  groupId: number,
+  allGroupIds: number[]
+): boolean {
+  if (parentGroupId(categoryId, competitionId, groupId) !== null) return true;
+  // Correct for Veikkausliiga, which is still the only competition here, and
+  // known to be insufficient for the rest: spec 013 confirms parallel pools
+  // (Kakkonen's Lohko A/B/C, each its own origin) and seasons whose group ids
+  // do not include 1 at all (P21 Ykkönen 2026 runs 2-5). The rule becomes "no
+  // carry-over parent means no parent" in the follow-up PR that adds those
+  // competitions; changing it here would be untestable, since no fixture in
+  // this PR has a group it would affect.
   return groupId === Math.min(...allGroupIds);
 }
 
@@ -253,6 +294,7 @@ export const resolveTasoSeasonContext = cache(
 
       try {
         const { matches } = await getSyncedSeasonMatches(
+          SEASON_PROBE_CATEGORY_ID,
           competitionIdFromSeason(currentSeason),
           currentSeason,
           currentSeason
@@ -280,6 +322,7 @@ export const resolveTasoSeasonContext = cache(
 
 /** Stored rows, refreshed from TASO when stale. Round numbers are as TASO sends them. */
 async function loadSeasonMatches(
+  categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
@@ -287,7 +330,13 @@ async function loadSeasonMatches(
   const storedMatches = await db
     .select()
     .from(tasoMatches)
-    .where(and(eq(tasoMatches.competitionCode, competitionId), eq(tasoMatches.seasonId, seasonId)))
+    .where(
+      and(
+        eq(tasoMatches.categoryId, categoryId),
+        eq(tasoMatches.competitionCode, competitionId),
+        eq(tasoMatches.seasonId, seasonId)
+      )
+    )
     .orderBy(desc(tasoMatches.updatedAt));
 
   if (!needsRefresh(seasonId, activeSeasonId, storedMatches)) {
@@ -295,12 +344,12 @@ async function loadSeasonMatches(
   }
 
   try {
-    const providerMatches = await getSeasonMatches(competitionId);
+    const providerMatches = await getSeasonMatches(competitionId, categoryId);
     await synchronizeMatches(providerMatches);
     return { matches: providerMatches, refreshFailed: false };
   } catch (error) {
     logger.warn(
-      { err: error, competitionId, seasonId },
+      { err: error, categoryId, competitionId, seasonId },
       "TASO refresh failed; using stored matches"
     );
     return { matches: storedMatches, refreshFailed: true };
@@ -333,11 +382,15 @@ function roundRange(matchList: MatchRow[], groupId: number): { min: number; max:
  * numbering for a future season, and it is a no-op for the seasons that
  * already continue correctly. See #133.
  */
-function withContinuedRoundNumbering(matchList: MatchRow[], competitionId: string): MatchRow[] {
+function withContinuedRoundNumbering(
+  matchList: MatchRow[],
+  categoryId: string,
+  competitionId: string
+): MatchRow[] {
   const offsets = new Map<number, number>();
 
   for (const groupId of groupIdsIn(matchList)) {
-    const parent = parentGroupId(competitionId, groupId);
+    const parent = parentGroupId(categoryId, competitionId, groupId);
     if (parent === null) continue;
 
     const childRounds = roundRange(matchList, groupId);
@@ -380,16 +433,21 @@ function withContinuedRoundNumbering(matchList: MatchRow[], competitionId: strin
  * football-data.ts and standings-service.ts.
  */
 const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
+  categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
 ): Promise<{ matches: MatchRow[]; refreshFailed: boolean }> {
   const { matches, refreshFailed } = await loadSeasonMatches(
+    categoryId,
     competitionId,
     seasonId,
     activeSeasonId
   );
-  return { matches: withContinuedRoundNumbering(matches, competitionId), refreshFailed };
+  return {
+    matches: withContinuedRoundNumbering(matches, categoryId, competitionId),
+    refreshFailed,
+  };
 });
 
 export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[]): Promise<void> {
@@ -402,6 +460,7 @@ export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[])
       target: tasoMatches.providerMatchId,
       set: {
         competitionCode: sql`excluded.competition_id`,
+        categoryId: sql`excluded.category_id`,
         seasonId: sql`excluded.season_id`,
         groupId: sql`excluded.group_id`,
         groupName: sql`excluded.group_name`,
@@ -486,11 +545,12 @@ function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number>
  */
 function ownCalculatedStandings(
   seasonMatches: MatchRow[],
+  categoryId: string,
   competitionId: string,
   groupId: number,
   round: number | undefined
 ): TeamStanding[] {
-  const parent = parentGroupId(competitionId, groupId);
+  const parent = parentGroupId(categoryId, competitionId, groupId);
   const contributingMatches = seasonMatches.filter(
     (match) => match.groupId === groupId || (parent !== null && match.groupId === parent)
   );
@@ -538,6 +598,7 @@ function isPlayoffGroup(tasoGroup: TasoGroup | undefined): boolean {
  * ordering.
  */
 export async function getSeasonStandings(
+  categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number,
@@ -545,6 +606,7 @@ export async function getSeasonStandings(
 ): Promise<SeasonStandingsResult> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      categoryId,
       competitionId,
       seasonId,
       activeSeasonId
@@ -556,7 +618,9 @@ export async function getSeasonStandings(
 
     const allGroupIds = groupIdsIn(seasonMatches).sort((left, right) => left - right);
     const ownCalculatedGroupIds = new Set(
-      allGroupIds.filter((groupId) => isOwnCalculated(competitionId, groupId, allGroupIds))
+      allGroupIds.filter((groupId) =>
+        isOwnCalculated(categoryId, competitionId, groupId, allGroupIds)
+      )
     );
     const passThroughGroupIds = allGroupIds.filter(
       (groupId) => !ownCalculatedGroupIds.has(groupId)
@@ -570,13 +634,24 @@ export async function getSeasonStandings(
           kind: "own-calculated",
           groupId,
           groupName: groupNameOf(seasonMatches, groupId),
-          standings: ownCalculatedStandings(seasonMatches, competitionId, groupId, round),
+          standings: ownCalculatedStandings(
+            seasonMatches,
+            categoryId,
+            competitionId,
+            groupId,
+            round
+          ),
         });
       }
     }
 
     if (passThroughGroupIds.length > 0) {
-      const tasoGroups = await getCachedSeasonGroups(competitionId, seasonId, activeSeasonId);
+      const tasoGroups = await getCachedSeasonGroups(
+        categoryId,
+        competitionId,
+        seasonId,
+        activeSeasonId
+      );
       for (const groupId of passThroughGroupIds) {
         const tasoGroup = tasoGroups.find((group) => Number(group.group_id) === groupId);
         const groupName = groupNameOf(seasonMatches, groupId);
@@ -609,28 +684,39 @@ export async function getSeasonStandings(
     groups.sort((left, right) => left.groupId - right.groupId);
     return { status: "ok", groups };
   } catch (error) {
-    logger.error({ err: error, competitionId, seasonId }, "Unable to load TASO standings");
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId },
+      "Unable to load TASO standings"
+    );
     return { status: "error", groups: [] };
   }
 }
 
 async function getCachedSeasonGroups(
+  categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
 ): Promise<TasoGroup[]> {
   const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
-  return getCached(`taso:groups:${competitionId}`, ttl, () => getSeasonGroups(competitionId));
+  // The category belongs in the key: every category shares one
+  // `competition_id`, so a single key would serve one competition's groups
+  // to all of them.
+  return getCached(`taso:groups:${categoryId}:${competitionId}`, ttl, () =>
+    getSeasonGroups(competitionId, categoryId)
+  );
 }
 
 /** Every match for the season, across every group, sorted by kickoff time. */
 export async function getSeasonMatchList(
+  categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
 ): Promise<SeasonMatchesResult> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      categoryId,
       competitionId,
       seasonId,
       activeSeasonId
@@ -645,13 +731,17 @@ export async function getSeasonMatchList(
       ),
     };
   } catch (error) {
-    logger.error({ err: error, competitionId, seasonId }, "Unable to load TASO season matches");
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId },
+      "Unable to load TASO season matches"
+    );
     return { status: "error" };
   }
 }
 
 /** A team's matches for the season, across every group it appeared in, chronologically. */
 export async function getTeamMatches(
+  categoryId: string,
   competitionId: string,
   teamProviderId: number,
   seasonId: number,
@@ -659,6 +749,7 @@ export async function getTeamMatches(
 ): Promise<TeamMatchesResult> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      categoryId,
       competitionId,
       seasonId,
       activeSeasonId
@@ -673,7 +764,7 @@ export async function getTeamMatches(
     return { status: "ok", matches: teamMatches };
   } catch (error) {
     logger.error(
-      { err: error, competitionId, seasonId, teamProviderId },
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
       "Unable to load TASO team matches"
     );
     return { status: "error" };
@@ -688,12 +779,17 @@ export async function getTeamMatches(
  * naturally start above 1 (e.g. Mestaruussarja's own matches begin at round
  * 23) since round_id is never re-indexed per group.
  */
-export function listSelectableTasoRounds(matchList: MatchRow[], competitionId: string): number[] {
+export function listSelectableTasoRounds(
+  matchList: MatchRow[],
+  categoryId: string,
+  competitionId: string
+): number[] {
   const allGroupIds = groupIdsIn(matchList);
   const rounds = matchList
     .filter(
       (match) =>
-        match.matchday !== null && isOwnCalculated(competitionId, match.groupId, allGroupIds)
+        match.matchday !== null &&
+        isOwnCalculated(categoryId, competitionId, match.groupId, allGroupIds)
     )
     .map((match) => match.matchday as number);
   return [...new Set(rounds)].sort((left, right) => left - right);

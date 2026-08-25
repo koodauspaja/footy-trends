@@ -42,6 +42,7 @@ vi.mock("@/lib/taso", async (importOriginal) => {
 vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
 
 const COMPETITION_ID = "spljp25";
+const CATEGORY_ID = "VL";
 const ACTIVE_SEASON = 2025;
 const PAST_SEASON = 2024;
 
@@ -57,6 +58,7 @@ function match(
   return {
     providerMatchId: 1,
     competitionCode: COMPETITION_ID,
+    categoryId: CATEGORY_ID,
     seasonId: PAST_SEASON,
     groupId: 1,
     groupName: "Runkosarja",
@@ -143,7 +145,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.groups).toEqual([
@@ -166,7 +174,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     expect(result.status).toBe("ok");
     const mestaruussarja =
@@ -222,7 +236,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     const mestaruussarja =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
@@ -258,7 +278,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     const runkosarja =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 1) : undefined;
@@ -287,7 +313,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, 1);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      1
+    );
 
     const mestaruussarja =
       result.status === "ok" && result.groups.find((group) => group.groupId === 2);
@@ -314,7 +346,13 @@ describe("getSeasonStandings", () => {
       }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     const origin = result.status === "ok" && result.groups[0];
     const mariehamn =
@@ -357,6 +395,7 @@ describe("getSeasonStandings", () => {
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       COMPETITION_ID,
       ACTIVE_SEASON,
       ACTIVE_SEASON,
@@ -389,7 +428,13 @@ describe("getSeasonStandings", () => {
     getSeasonGroupsMock.mockResolvedValue([]);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     const eurolopputurnaus =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
@@ -437,7 +482,13 @@ describe("getSeasonStandings", () => {
     ]);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     const playoff =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
@@ -474,7 +525,7 @@ describe("getSeasonStandings", () => {
     ]);
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
-    const result = await getSeasonStandings("spljp17", 2017, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp17", 2017, ACTIVE_SEASON, undefined);
 
     const mestaruussarja =
       result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
@@ -490,7 +541,13 @@ describe("getSeasonStandings", () => {
       match({ providerMatchId: 3, groupId: 2, groupName: "Mestaruussarja", matchday: 23 }),
     ]);
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     expect(result.status === "ok" && result.groups.map((group) => group.groupId)).toEqual([
       1, 2, 3,
@@ -503,6 +560,7 @@ describe("getSeasonStandings", () => {
     mockInsert();
 
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       COMPETITION_ID,
       ACTIVE_SEASON,
       ACTIVE_SEASON,
@@ -517,6 +575,7 @@ describe("getSeasonStandings", () => {
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       COMPETITION_ID,
       ACTIVE_SEASON,
       ACTIVE_SEASON,
@@ -535,6 +594,7 @@ describe("getSeasonStandings", () => {
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       COMPETITION_ID,
       ACTIVE_SEASON,
       ACTIVE_SEASON,
@@ -550,7 +610,13 @@ describe("getSeasonStandings", () => {
     const from = vi.fn().mockReturnValue({ where });
     dbMock.select.mockReturnValue({ from });
 
-    const result = await getSeasonStandings(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
     expect(result).toEqual({ status: "error", groups: [] });
   });
@@ -567,7 +633,12 @@ describe("getSeasonMatchList", () => {
       match({ providerMatchId: 1, kickoffAt: new Date("2025-04-01T14:00:00Z") }),
     ]);
 
-    const result = await getSeasonMatchList(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
   });
@@ -577,7 +648,12 @@ describe("getSeasonMatchList", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    const result = await getSeasonMatchList(COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result).toEqual({ status: "empty" });
   });
@@ -586,7 +662,12 @@ describe("getSeasonMatchList", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
-    const result = await getSeasonMatchList(COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result).toEqual({ status: "error" });
   });
@@ -597,7 +678,12 @@ describe("getSeasonMatchList", () => {
     const from = vi.fn().mockReturnValue({ where });
     dbMock.select.mockReturnValue({ from });
 
-    const result = await getSeasonMatchList(COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
@@ -618,7 +704,7 @@ describe("getTeamMatches", () => {
       match({ providerMatchId: 1, groupId: 1, kickoffAt: new Date("2025-04-01") }),
     ]);
 
-    const result = await getTeamMatches(COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
+    const result = await getTeamMatches(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
 
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
   });
@@ -626,7 +712,7 @@ describe("getTeamMatches", () => {
   it("reports not_found when the team never appears in the season", async () => {
     mockStoredMatches([match({ homeTeamProviderId: 9, awayTeamProviderId: 8 })]);
 
-    const result = await getTeamMatches(COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
+    const result = await getTeamMatches(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
 
     expect(result).toEqual({ status: "not_found" });
   });
@@ -637,7 +723,7 @@ describe("getTeamMatches", () => {
     const from = vi.fn().mockReturnValue({ where });
     dbMock.select.mockReturnValue({ from });
 
-    const result = await getTeamMatches(COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
+    const result = await getTeamMatches(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON);
 
     expect(result).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
@@ -651,7 +737,13 @@ describe("getTeamMatches", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    const result = await getTeamMatches(COMPETITION_ID, 1, ACTIVE_SEASON, ACTIVE_SEASON);
+    const result = await getTeamMatches(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result).toEqual({ status: "empty" });
   });
@@ -660,7 +752,13 @@ describe("getTeamMatches", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
-    const result = await getTeamMatches(COMPETITION_ID, 1, ACTIVE_SEASON, ACTIVE_SEASON);
+    const result = await getTeamMatches(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
 
     expect(result).toEqual({ status: "error" });
   });
@@ -675,7 +773,7 @@ describe("listSelectableTasoRounds", () => {
       match({ providerMatchId: 4, groupId: 4, groupName: "Eurolopputurnaus", matchday: 40 }),
     ];
 
-    expect(listSelectableTasoRounds(matches, COMPETITION_ID)).toEqual([1, 2, 23]);
+    expect(listSelectableTasoRounds(matches, CATEGORY_ID, COMPETITION_ID)).toEqual([1, 2, 23]);
   });
 });
 

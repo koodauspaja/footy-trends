@@ -15,6 +15,8 @@ const seasonId = 990001;
 /** Makes `seasonId` a completed past season rather than the one being played. */
 const laterActiveSeasonId = seasonId + 1;
 
+const CATEGORY_ID = "VL";
+
 /** Narrows to matches with a final score, mirroring standings-service.ts's own filter. */
 function toFinishedMatches<T extends { homeGoals: number | null; awayGoals: number | null }>(
   rows: T[]
@@ -29,6 +31,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   return {
     providerMatchId: 900001,
     competitionCode: competitionId,
+    categoryId: CATEGORY_ID,
     seasonId,
     groupId: 1,
     groupName: "Runkosarja",
@@ -45,6 +48,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   };
 }
 
+/** Scoped by season + competition, so it clears every category's fixtures alike. */
 async function clearFixtures() {
   await db
     .delete(tasoMatches)
@@ -93,6 +97,72 @@ describe("taso integration", () => {
     expect(stored[0]).toMatchObject({ homeGoals: 1, awayGoals: 1 });
   });
 
+  // The reason `category_id` exists at all: one `competition_id` is the whole
+  // season umbrella, and `group_id` is only unique *within* a category. In
+  // spljp26 Veikkausliiga, Miesten Kakkonen and Ykkönen each have a group 1.
+  // See specs/013-more-finnish-competitions.md.
+  it("keeps two categories' identically-numbered groups apart", async () => {
+    const { synchronizeMatches, getSeasonStandings, getSeasonMatchList } = await import(
+      "@/lib/taso-standings-service"
+    );
+    const otherCategoryId = "M2";
+
+    await synchronizeMatches([
+      buildMatch({ providerMatchId: 900001, groupId: 1, groupName: "Runkosarja" }),
+      buildMatch({
+        providerMatchId: 900002,
+        categoryId: otherCategoryId,
+        groupId: 1,
+        groupName: "Lohko A",
+        homeTeamProviderId: 9101,
+        homeTeamName: "Kakkonen Rovers",
+        awayTeamProviderId: 9102,
+        awayTeamName: "Kakkonen Athletic",
+      }),
+    ]);
+
+    const veikkausliiga = await getSeasonStandings(
+      CATEGORY_ID,
+      competitionId,
+      seasonId,
+      seasonId,
+      undefined
+    );
+    const kakkonen = await getSeasonStandings(
+      otherCategoryId,
+      competitionId,
+      seasonId,
+      seasonId,
+      undefined
+    );
+
+    // One group each, under its own name — not one merged group 1 of four teams.
+    expect(veikkausliiga.status === "ok" && veikkausliiga.groups.map((g) => g.groupName)).toEqual([
+      "Runkosarja",
+    ]);
+    expect(kakkonen.status === "ok" && kakkonen.groups.map((g) => g.groupName)).toEqual([
+      "Lohko A",
+    ]);
+
+    const veikkausliigaTeams =
+      veikkausliiga.status === "ok" && veikkausliiga.groups[0]?.kind === "own-calculated"
+        ? veikkausliiga.groups[0].standings.map((team) => team.teamName).sort()
+        : [];
+    expect(veikkausliigaTeams).toEqual(["Integration City", "Integration United"]);
+
+    // And the match lists stay separate too, not just the tables.
+    const kakkonenMatches = await getSeasonMatchList(
+      otherCategoryId,
+      competitionId,
+      seasonId,
+      seasonId
+    );
+    expect(kakkonenMatches.status === "ok" && kakkonenMatches.matches).toHaveLength(1);
+    expect(kakkonenMatches.status === "ok" && kakkonenMatches.matches[0]?.providerMatchId).toBe(
+      900002
+    );
+  });
+
   it("own-calculates the origin group from stored matches, round-filtered", async () => {
     const { synchronizeMatches, getSeasonStandings } = await import("@/lib/taso-standings-service");
     await synchronizeMatches([
@@ -107,8 +177,14 @@ describe("taso integration", () => {
       }),
     ]);
 
-    const full = await getSeasonStandings(competitionId, seasonId, seasonId, undefined);
-    const roundOne = await getSeasonStandings(competitionId, seasonId, seasonId, 1);
+    const full = await getSeasonStandings(
+      CATEGORY_ID,
+      competitionId,
+      seasonId,
+      seasonId,
+      undefined
+    );
+    const roundOne = await getSeasonStandings(CATEGORY_ID, competitionId, seasonId, seasonId, 1);
 
     expect(full.status).toBe("ok");
     expect(full.status === "ok" && full.groups).toHaveLength(1);
@@ -142,7 +218,13 @@ describe("taso integration", () => {
 
     await synchronizeMatches([finished, upcoming]);
 
-    const standings = await getSeasonStandings(competitionId, seasonId, seasonId, undefined);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      competitionId,
+      seasonId,
+      seasonId,
+      undefined
+    );
     expect(standings.status).toBe("ok");
     const rovers =
       standings.status === "ok" &&
@@ -150,7 +232,7 @@ describe("taso integration", () => {
       standings.groups[0].standings.find((team) => team.teamName === "Integration Rovers");
     expect(rovers).toMatchObject({ played: 0, points: 0 });
 
-    const teamMatches = await getTeamMatches(competitionId, 9003, seasonId, seasonId);
+    const teamMatches = await getTeamMatches(CATEGORY_ID, competitionId, 9003, seasonId, seasonId);
     expect(teamMatches).toEqual({ status: "ok", matches: [expect.objectContaining(upcoming)] });
   });
 
@@ -172,7 +254,7 @@ describe("taso integration", () => {
       }),
     ]);
 
-    const result = await getTeamMatches(competitionId, 9001, seasonId, seasonId);
+    const result = await getTeamMatches(CATEGORY_ID, competitionId, 9001, seasonId, seasonId);
 
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
@@ -197,7 +279,7 @@ describe("taso integration", () => {
       buildMatch({ providerMatchId: 900001, kickoffAt: new Date("2026-08-01T15:00:00Z") }),
     ]);
 
-    const result = await getSeasonMatchList(competitionId, seasonId, seasonId);
+    const result = await getSeasonMatchList(CATEGORY_ID, competitionId, seasonId, seasonId);
 
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
@@ -212,6 +294,7 @@ describe("taso integration", () => {
 
     const { getSeasonStandings } = await import("@/lib/taso-standings-service");
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       competitionId,
       seasonId,
       laterActiveSeasonId,
@@ -225,7 +308,7 @@ describe("taso integration", () => {
         and(eq(tasoMatches.competitionCode, competitionId), eq(tasoMatches.seasonId, seasonId))
       );
 
-    expect(getSeasonMatches).toHaveBeenCalledWith(competitionId);
+    expect(getSeasonMatches).toHaveBeenCalledWith(competitionId, CATEGORY_ID);
     expect(stored).toHaveLength(1);
     expect(result.status).toBe("ok");
   });
@@ -236,6 +319,7 @@ describe("taso integration", () => {
     await synchronizeMatches([buildMatch()]);
 
     const result = await getSeasonStandings(
+      CATEGORY_ID,
       competitionId,
       seasonId,
       laterActiveSeasonId,

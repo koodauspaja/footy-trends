@@ -55,6 +55,7 @@ describe("taso mapping", () => {
         fs_B: "1",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -94,6 +95,7 @@ describe("taso mapping", () => {
         fs_B: "",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -124,6 +126,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -148,6 +151,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp22",
+      "VL",
       2022
     );
 
@@ -155,12 +159,13 @@ describe("taso mapping", () => {
   });
 
   it("rejects matches missing required fields", () => {
-    expect(normalizeTasoMatch({ status: "Played" }, "spljp26", 2026)).toBeNull();
-    expect(normalizeTasoMatch({ match_id: "1" }, "spljp26", 2026)).toBeNull();
+    expect(normalizeTasoMatch({ status: "Played" }, "spljp26", "VL", 2026)).toBeNull();
+    expect(normalizeTasoMatch({ match_id: "1" }, "spljp26", "VL", 2026)).toBeNull();
     expect(
       normalizeTasoMatch(
         { match_id: "1", status: "Played", date: "2026-05-01", time: "18:00:00" },
         "spljp26",
+        "VL",
         2026
       )
     ).toBeNull();
@@ -178,6 +183,7 @@ describe("taso mapping", () => {
           team_A_name: "HJK",
         },
         "spljp26",
+        "VL",
         2026
       )
     ).toBeNull();
@@ -202,6 +208,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -227,6 +234,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -252,6 +260,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -280,6 +289,7 @@ describe("taso mapping", () => {
         fs_B: "0",
       },
       "spljp22",
+      "VL",
       2022
     );
 
@@ -307,6 +317,7 @@ describe("taso mapping", () => {
         team_B_name: "KuPS",
       },
       "spljp26",
+      "VL",
       2026
     );
 
@@ -345,6 +356,7 @@ describe("taso mapping", () => {
           team_B_name: "KuPS",
         },
         "spljp26",
+        "VL",
         2026
       );
 
@@ -387,7 +399,7 @@ describe("taso mapping", () => {
       })
     );
 
-    await expect(getSeasonMatches("spljp22")).resolves.toEqual([
+    await expect(getSeasonMatches("spljp22", "VL")).resolves.toEqual([
       expect.objectContaining({ providerMatchId: 2 }),
     ]);
   });
@@ -423,7 +435,7 @@ describe("taso mapping", () => {
       })
     );
 
-    const result = await getSeasonMatches("spljp26");
+    const result = await getSeasonMatches("spljp26", "VL");
 
     expect(result).toEqual([expect.objectContaining({ providerMatchId: 1, seasonId: 2026 })]);
   });
@@ -435,7 +447,7 @@ describe("taso mapping", () => {
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
     vi.stubGlobal("fetch", fetchMock);
 
-    await getSeasonMatches("spljp26");
+    await getSeasonMatches("spljp26", "VL");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://spl.torneopal.net/taso/rest/getMatches?competition_id=spljp26&category_id=VL",
@@ -461,20 +473,22 @@ describe("taso mapping", () => {
       vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     );
 
-    await expect(getSeasonMatches("spljp26")).resolves.toEqual([]);
+    await expect(getSeasonMatches("spljp26", "VL")).resolves.toEqual([]);
   });
 
   it("throws when the API key is not configured", async () => {
     process.env.TASO_API_KEY = "";
 
-    await expect(getSeasonMatches("spljp26")).rejects.toThrow("TASO_API_KEY is not configured");
+    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow(
+      "TASO_API_KEY is not configured"
+    );
   });
 
   it("logs and throws when the provider request fails", async () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
 
-    await expect(getSeasonMatches("spljp26")).rejects.toThrow("TASO request failed: 403");
+    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow("TASO request failed: 403");
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 403 }),
       "TASO request failed"
@@ -486,7 +500,7 @@ describe("taso mapping", () => {
     const networkError = new Error("network unreachable");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
 
-    await expect(getSeasonMatches("spljp26")).rejects.toThrow("network unreachable");
+    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow("network unreachable");
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: networkError }),
       "TASO request failed"
@@ -502,7 +516,7 @@ describe("taso mapping", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const groups = await getSeasonGroups("spljp26");
+    const groups = await getSeasonGroups("spljp26", "VL");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://spl.torneopal.net/taso/rest/getGroups?competition_id=spljp26&category_id=VL",
@@ -518,7 +532,7 @@ describe("taso mapping", () => {
       vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     );
 
-    await expect(getSeasonGroups("spljp26")).resolves.toEqual([]);
+    await expect(getSeasonGroups("spljp26", "VL")).resolves.toEqual([]);
   });
 });
 

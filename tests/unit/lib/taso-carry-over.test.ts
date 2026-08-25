@@ -52,15 +52,38 @@ type FixtureSeason = {
   >;
 };
 
-const seasons = Object.entries(fixture as unknown as Record<string, FixtureSeason>);
+/**
+ * Fixtures are keyed `categoryId/competitionId`: `competition_id` alone is the
+ * season umbrella every Finnish competition shares, so two competitions'
+ * 2025 fixtures would collide under a bare `spljp25`. See
+ * specs/013-more-finnish-competitions.md.
+ */
+const seasons = Object.entries(fixture as unknown as Record<string, FixtureSeason>).map(
+  ([key, season]) => {
+    // Sliced rather than destructured from `split`, which types both halves
+    // as possibly-undefined under noUncheckedIndexedAccess.
+    const separator = key.indexOf("/");
+    return {
+      key,
+      categoryId: key.slice(0, separator),
+      competitionId: key.slice(separator + 1),
+      season,
+    };
+  }
+);
 
 /** Every fixture season is finished, so none is the active one — no refresh, no provider call. */
 const ACTIVE_SEASON = 2026;
 
-function expandMatches(competitionId: string, season: FixtureSeason): NormalizedTasoMatch[] {
+function expandMatches(
+  categoryId: string,
+  competitionId: string,
+  season: FixtureSeason
+): NormalizedTasoMatch[] {
   return season.matches.map(([groupId, homeId, awayId, homeGoals, awayGoals], index) => ({
     providerMatchId: index + 1,
     competitionCode: competitionId,
+    categoryId,
     seasonId: season.seasonId,
     groupId,
     groupName: `Group ${groupId}`,
@@ -92,12 +115,13 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     getSeasonGroupsMock.mockResolvedValue([]);
   });
 
-  for (const [competitionId, season] of seasons) {
+  for (const { key, categoryId, competitionId, season } of seasons) {
     for (const [groupId, expected] of Object.entries(season.expected)) {
-      it(`${competitionId} group ${groupId}: reproduces every team's points and matches played`, async () => {
-        mockStoredMatches(expandMatches(competitionId, season));
+      it(`${key} group ${groupId}: reproduces every team's points and matches played`, async () => {
+        mockStoredMatches(expandMatches(categoryId, competitionId, season));
 
         const result = await getSeasonStandings(
+          categoryId,
           competitionId,
           season.seasonId,
           ACTIVE_SEASON,
@@ -119,10 +143,7 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
 
         for (const team of expected) {
           const actual = standings.find((entry) => entry.teamProviderId === team.teamProviderId);
-          expect(
-            actual,
-            `${team.teamName} missing from ${competitionId} group ${groupId}`
-          ).toBeDefined();
+          expect(actual, `${team.teamName} missing from ${key} group ${groupId}`).toBeDefined();
           expect({
             teamName: team.teamName,
             points: actual?.points,
@@ -158,17 +179,21 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     }
 
     /** Iterating the typed entries avoids an unchecked index into the fixture. */
-    function fixtureFor(competitionId: string): [string, FixtureSeason] {
-      const [entry] = seasons.filter(([id]) => id === competitionId);
-      expect(entry, `missing fixture for ${competitionId}`).toBeDefined();
-      return entry as [string, FixtureSeason];
+    function fixtureFor(competitionId: string): {
+      categoryId: string;
+      competitionId: string;
+      season: FixtureSeason;
+    } {
+      const [entry] = seasons.filter((candidate) => candidate.competitionId === competitionId);
+      if (entry === undefined) throw new Error(`missing fixture for ${competitionId}`);
+      return entry;
     }
 
     it("shows 5 played at Kierros 5, not 10 — the issue's repro", async () => {
-      const [competitionId, season] = fixtureFor("spljp22");
-      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+      const { categoryId, competitionId, season } = fixtureFor("spljp22");
+      mockStoredMatches(withRestartedRounds(expandMatches(categoryId, competitionId, season)));
 
-      const result = await getSeasonStandings(competitionId, 2022, ACTIVE_SEASON, 5);
+      const result = await getSeasonStandings(categoryId, competitionId, 2022, ACTIVE_SEASON, 5);
       const mestaruussarja =
         result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
       const played =
@@ -182,14 +207,16 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     });
 
     it("puts the split group's rounds above the parent's, so they are reachable", async () => {
-      const [competitionId, season] = fixtureFor("spljp22");
-      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+      const { categoryId, competitionId, season } = fixtureFor("spljp22");
+      mockStoredMatches(withRestartedRounds(expandMatches(categoryId, competitionId, season)));
 
       // The selector reads the same funnel, so it must now offer rounds past
       // Runkosarja's 22 — it previously stopped there.
-      const result = await getSeasonMatchList(competitionId, 2022, ACTIVE_SEASON);
+      const result = await getSeasonMatchList(categoryId, competitionId, 2022, ACTIVE_SEASON);
       const rounds =
-        result.status === "ok" ? listSelectableTasoRounds(result.matches, competitionId) : [];
+        result.status === "ok"
+          ? listSelectableTasoRounds(result.matches, categoryId, competitionId)
+          : [];
 
       expect(Math.max(...rounds)).toBe(27);
       expect(rounds).toContain(23);
@@ -198,12 +225,14 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     it("makes 2019's own rounds reachable, which is what blocked its config entry", async () => {
       // 2019 restarts at 1-5 like 2022. Its carry-over validated all along;
       // the round filter was the only thing keeping it out of the config.
-      const [competitionId, season] = fixtureFor("spljp19");
-      mockStoredMatches(withRestartedRounds(expandMatches(competitionId, season)));
+      const { categoryId, competitionId, season } = fixtureFor("spljp19");
+      mockStoredMatches(withRestartedRounds(expandMatches(categoryId, competitionId, season)));
 
-      const result = await getSeasonMatchList(competitionId, 2019, ACTIVE_SEASON);
+      const result = await getSeasonMatchList(categoryId, competitionId, 2019, ACTIVE_SEASON);
       const rounds =
-        result.status === "ok" ? listSelectableTasoRounds(result.matches, competitionId) : [];
+        result.status === "ok"
+          ? listSelectableTasoRounds(result.matches, categoryId, competitionId)
+          : [];
 
       expect(Math.max(...rounds)).toBe(27);
     });
@@ -212,14 +241,14 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       // Every real season restarts at exactly 1, but shifting by the
       // parent's last round alone only works for that case: a child running
       // 20-24 would land on 42-46 instead of 23-27.
-      const [competitionId, season] = fixtureFor("spljp22");
-      const rows = expandMatches(competitionId, season).map((row, index) => ({
+      const { categoryId, competitionId, season } = fixtureFor("spljp22");
+      const rows = expandMatches(categoryId, competitionId, season).map((row, index) => ({
         ...row,
         matchday: row.groupId === 1 ? (index % 22) + 1 : 20 + (index % 5),
       }));
       mockStoredMatches(rows);
 
-      const result = await getSeasonMatchList(competitionId, 2022, ACTIVE_SEASON);
+      const result = await getSeasonMatchList(categoryId, competitionId, 2022, ACTIVE_SEASON);
       const splitRounds =
         result.status === "ok"
           ? result.matches
@@ -233,14 +262,14 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
 
     it("leaves a season that already continues its numbering untouched", async () => {
       // Renumbering a correct season again would double-shift it.
-      const [competitionId, season] = fixtureFor("spljp25");
-      const rows = expandMatches(competitionId, season).map((row, index) => ({
+      const { categoryId, competitionId, season } = fixtureFor("spljp25");
+      const rows = expandMatches(categoryId, competitionId, season).map((row, index) => ({
         ...row,
         matchday: row.groupId === 1 ? (index % 22) + 1 : 23 + (index % 5),
       }));
       mockStoredMatches(rows);
 
-      const result = await getSeasonMatchList(competitionId, 2025, ACTIVE_SEASON);
+      const result = await getSeasonMatchList(categoryId, competitionId, 2025, ACTIVE_SEASON);
       const splitRounds =
         result.status === "ok"
           ? result.matches
@@ -254,17 +283,17 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
   });
 
   it("has a fixture for every configured entry, so none can be added untested", () => {
-    // Compared per `competitionId + groupId` against the real config, in
+    // Compared per `categoryId + competitionId + groupId` against the real config, in
     // both directions. Matching on competition alone would let a new group
     // be added to an already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }`
     // — and go untested, and a count-based check would miss it too. Guarding
     // exactly this is what spec 009 asked of these tests.
     const configured = listCarryOverEntries()
-      .map((entry) => `${entry.competitionId}:${entry.groupId}`)
+      .map((entry) => `${entry.categoryId}/${entry.competitionId}:${entry.groupId}`)
       .sort();
     const fixtured = seasons
-      .flatMap(([competitionId, season]) =>
-        Object.keys(season.expected).map((groupId) => `${competitionId}:${groupId}`)
+      .flatMap(({ key, season }) =>
+        Object.keys(season.expected).map((groupId) => `${key}:${groupId}`)
       )
       .sort();
 
