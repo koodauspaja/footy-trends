@@ -227,7 +227,10 @@ renders as a match list, the same as a knockout group.
 - When the season's name differs from the competition's current name, a muted
   line directly under the heading: `nykyisin {current name}` — e.g. under
   `Naisten Liiga 2016`, the line `nykyisin Briotech Kansallinen Liiga`. Shown
-  only on a difference, so the common case has no extra chrome.
+  only on a difference, so the common case has no extra chrome, and shown on
+  **all three** `/kotimaa` pages rather than the standings page alone: each of
+  them heads with the season's own name, so each owes the reader the same
+  explanation.
 - Group headings, table columns (O/V/T/H/TM/PM/ME/P), round selector
   ("Kierros" / "Koko kausi"), season selector and error/empty copy are all
   unchanged from spec 009.
@@ -239,8 +242,10 @@ renders as a match list, the same as a knockout group.
   Ykkönen 2018 use the same literal `"1"`).
 
 ### `/kotimaa/ottelut` and `/kotimaa/joukkue/:id`
-Copy unchanged from spec 009. Both keep the `group_name` column, which now
-matters more: a Kakkonen season spans three parallel pools.
+Copy unchanged from spec 009, except that both head with the season's own
+competition name and carry the same `nykyisin {current name}` line as the
+standings page. Both keep the `group_name` column, which now matters more: a
+Kakkonen season spans three parallel pools.
 
 ### Invalid parameters
 - Unknown `?kilpailu=`: existing `Kilpailua ei löytynyt. Näytetään {name}.`
@@ -373,7 +378,8 @@ selector's floor — 2024 for Ykkösliiga, 2015 for the rest.
 - [ ] A group with matches but no team rows renders as a match list.
 - [ ] A forfeited match counts toward the table.
 - [ ] A past season's heading shows that season's own name, with `nykyisin
-      {current name}` underneath when it differs.
+      {current name}` underneath when it differs — on all three `/kotimaa`
+      pages, not the standings page alone.
 - [ ] `/kotimaa/ottelut` and `/kotimaa/joukkue/:id` work for all ten
       competitions, scoped to the selected one.
 - [ ] A TASO failure shows the existing generic Finnish error copy on all three
