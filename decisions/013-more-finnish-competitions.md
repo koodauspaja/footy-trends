@@ -107,7 +107,7 @@ competitions are layered on top.
 ### The split moved after measuring the fixtures
 
 The plan was two PRs: the engine plus the competitions together. Measuring
-first changed it. The carry-over entries need fixtures for 34
+first changed it. The carry-over entries need fixtures for 33
 competition-seasons — 5,444 matches, of which 4,457 are new — and at the
 existing fixture format that is roughly 200KB of JSON before a line of source
 changes. Combined with the engine work it would have sat at Sourcery's 300,000
@@ -302,8 +302,9 @@ Both are asserted, so the failure is unmissable either way.
 
 That is also why the fixture grew: it needs every match in the groups a
 carry-over touches, plus those groups' published rows. 34 competition-seasons
-and roughly 5,700 matches — the reason this is its own PR rather than part of
-the one that added the competitions.
+and roughly 5,700 matches — one more season than the earlier sections measured,
+since Kakkonen 2026 joined late. It is the reason this is its own PR rather
+than part of the one that added the competitions.
 
 ### Kakkonen is the shape that would have broken the old design twice
 
