@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { tasoMatches } from "@/db/schema";
+import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import { logger } from "./logger";
 import {
@@ -16,9 +16,9 @@ import {
   getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches,
+  type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
-  type TasoGroup,
-  type TasoGroupTeam,
+  normalizeGroupTeams,
 } from "./taso";
 
 const FINISHED_STATUS = "FINISHED";
@@ -46,6 +46,7 @@ const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 const SEASON_PROBE_CATEGORY_ID = "VL";
 
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
+type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
 /** A match from either the DB or a fresh provider fetch — same duality as football-data.ts. */
 type MatchRow = NormalizedTasoMatch;
 
@@ -72,14 +73,28 @@ type MatchRow = NormalizedTasoMatch;
  * apply Veikkausliiga's carry-over to every other competition's group 2. See
  * specs/013-more-finnish-competitions.md.
  */
-const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, number>>> = {
+type CarryOverEntry = {
+  parent: number;
+  /**
+   * Which convention TASO used for this group, which decides what
+   * `starting_points` means — see `adjustmentFor`.
+   *
+   * `true`: TASO seeds the child with the parent's points and counts only the
+   * child's own matches in `matches_played` (2015-2024).
+   * `false`: TASO folds the parent's matches into the child's totals and
+   * leaves `starting_points` at 0, or uses it for a deduction (2025 on).
+   */
+  seeded: boolean;
+};
+
+const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverEntry>>> = {
   VL: {
-    spljp19: { 2: 1, 3: 1 },
-    spljp21: { 2: 1, 3: 1 },
-    spljp22: { 2: 1, 3: 1 },
-    spljp23: { 2: 1, 3: 1 },
-    spljp24: { 2: 1, 3: 1 },
-    spljp25: { 2: 1, 3: 1 },
+    spljp19: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp21: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp22: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
+    spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
 };
 
@@ -110,27 +125,36 @@ export function listCarryOverEntries(): {
   );
 }
 
-function parentGroupId(categoryId: string, competitionId: string, groupId: number): number | null {
+function carryOverEntry(
+  categoryId: string,
+  competitionId: string,
+  groupId: number
+): CarryOverEntry | null {
   return CARRY_OVER_CONFIG[categoryId]?.[competitionId]?.[groupId] ?? null;
 }
 
-/** Own-calculated groups always have a carry-over entry, or are the season's origin group (no group needs the entry to be own-calculated when it has no parent). */
-function isOwnCalculated(
-  categoryId: string,
-  competitionId: string,
-  groupId: number,
-  allGroupIds: number[]
-): boolean {
-  if (parentGroupId(categoryId, competitionId, groupId) !== null) return true;
-  // Correct for Veikkausliiga, which is still the only competition here, and
-  // known to be insufficient for the rest: spec 013 confirms parallel pools
-  // (Kakkonen's Lohko A/B/C, each its own origin) and seasons whose group ids
-  // do not include 1 at all (P21 Ykkönen 2026 runs 2-5). The rule becomes "no
-  // carry-over parent means no parent" in the follow-up PR that adds those
-  // competitions; changing it here would be untestable, since no fixture in
-  // this PR has a group it would affect.
-  return groupId === Math.min(...allGroupIds);
+function parentGroupId(categoryId: string, competitionId: string, groupId: number): number | null {
+  return carryOverEntry(categoryId, competitionId, groupId)?.parent ?? null;
 }
+
+/** Own-calculated groups always have a carry-over entry, or are the season's origin group (no group needs the entry to be own-calculated when it has no parent). */
+/**
+ * Spec 009 decided "can we calculate this group ourselves?" by shape: the
+ * lowest `group_id` present was the origin and everything above it was
+ * pass-through. That held only because Veikkausliiga has exactly one origin
+ * group per season, and spec 013 confirms three ways it does not generalise —
+ * Kakkonen runs three parallel pools that are each an origin, P21 Ykkönen 2026
+ * has no group 1 at all (ids run 2-5), and P20 Ykkönen 2024 is non-contiguous
+ * (1, 2, 10, 11, 12).
+ *
+ * So there is no shape test any more. Every group with a table is calculated
+ * from its own matches, plus its parent's where a carry-over entry says so,
+ * and the question becomes one of *result*: `getSeasonStandings` compares the
+ * finished table against TASO's own published points and falls back to TASO's
+ * numbers when they disagree. That keeps spec 009's guarantee — an
+ * unvalidated group never shows silently wrong points — without the
+ * heuristic.
+ */
 
 /**
  * A pass-through group's standing, straight from TASO's own `getGroups`
@@ -175,16 +199,17 @@ export type TasoTeamStanding = {
  *   (plus its parent's, for a carry-over group). Has a round selector.
  * - `pass-through` — TASO's own precomputed `getGroups` numbers, for a
  *   league group we can't calculate ourselves. No round selector.
- * - `playoff` — a knockout group, rendered as its matches rather than a
- *   table. It has no standings at all: `getGroups` returns one row per
- *   bracket *slot* rather than per team, so a team that advances appears
- *   several times and a table built from it repeats that team. See
- *   specs/010-playoff-group-match-list.md.
+ * - `match-list` — a group with no table at all, rendered as its matches.
+ *   Two causes: a knockout group, where `getGroups` returns one row per
+ *   bracket *slot* rather than per team so a table would repeat an advancing
+ *   team (specs/010-playoff-group-match-list.md); and a group TASO returns
+ *   with no teams whatsoever, which is how an unplayed qualifying match
+ *   appears (three of them in 2026).
  */
 export type GroupStandingsResult =
   | { kind: "own-calculated"; groupId: number; groupName: string; standings: TeamStanding[] }
   | { kind: "pass-through"; groupId: number; groupName: string; standings: TasoTeamStanding[] }
-  | { kind: "playoff"; groupId: number; groupName: string; matches: MatchRow[] };
+  | { kind: "match-list"; groupId: number; groupName: string; matches: MatchRow[] };
 
 export type SeasonStandingsResult =
   | { status: "ok"; groups: GroupStandingsResult[] }
@@ -478,6 +503,122 @@ export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[])
     });
 }
 
+/**
+ * A knockout group returns one row per bracket *slot*, not per team, so a team
+ * that advances appears several times in the same group — spec 010 documented
+ * this for the standings table, and it bites the storage layer too: Postgres
+ * rejects a whole `ON CONFLICT DO UPDATE` statement that touches one row
+ * twice ("cannot affect row a second time"), which silently cost Veikkausliiga
+ * 2019 and 2022 their entire stored group standings.
+ *
+ * The first slot wins. Which one is arbitrary and does not matter: a group
+ * with duplicates is a knockout group, it has no points, and it renders as a
+ * match list rather than a table.
+ */
+function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupTeam[] {
+  const seen = new Map<string, NormalizedTasoGroupTeam>();
+  for (const row of rows) {
+    const identity = `${row.categoryId}/${row.competitionCode}/${row.seasonId}/${row.groupId}/${row.teamProviderId}`;
+    if (!seen.has(identity)) seen.set(identity, row);
+  }
+  return [...seen.values()];
+}
+
+export async function synchronizeGroupTeams(rows: NormalizedTasoGroupTeam[]): Promise<void> {
+  if (rows.length === 0) return;
+
+  await db
+    .insert(tasoGroupTeams)
+    .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })))
+    .onConflictDoUpdate({
+      target: [
+        tasoGroupTeams.categoryId,
+        tasoGroupTeams.competitionCode,
+        tasoGroupTeams.seasonId,
+        tasoGroupTeams.groupId,
+        tasoGroupTeams.teamProviderId,
+      ],
+      set: {
+        teamName: sql`excluded.team_name`,
+        startingPoints: sql`excluded.starting_points`,
+        points: sql`excluded.points`,
+        played: sql`excluded.matches_played`,
+        won: sql`excluded.matches_won`,
+        drawn: sql`excluded.matches_tied`,
+        lost: sql`excluded.matches_lost`,
+        goalsFor: sql`excluded.goals_for`,
+        goalsAgainst: sql`excluded.goals_against`,
+        goalDifference: sql`excluded.goals_diff`,
+        currentStanding: sql`excluded.current_standing`,
+        finalGroupStanding: sql`excluded.final_group_standing`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+}
+
+/**
+ * TASO's own group standings, stored rather than only Redis-cached.
+ *
+ * Spec 009 kept these in Redis because they were needed only for the
+ * pass-through path. Own-calculated standings now depend on
+ * `starting_points`, so a cold cache or a TASO outage would silently change a
+ * table's points — a much worse failure than a stale table. Refreshed on the
+ * same rule as matches. See specs/013-more-finnish-competitions.md.
+ */
+const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<StoredGroupTeam[]> {
+  const stored = await db
+    .select()
+    .from(tasoGroupTeams)
+    .where(
+      and(
+        eq(tasoGroupTeams.categoryId, categoryId),
+        eq(tasoGroupTeams.competitionCode, competitionId),
+        eq(tasoGroupTeams.seasonId, seasonId)
+      )
+    )
+    .orderBy(desc(tasoGroupTeams.updatedAt));
+
+  if (!needsRefresh(seasonId, activeSeasonId, stored)) return stored;
+
+  try {
+    const groups = await getSeasonGroups(competitionId, categoryId);
+    const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
+    await synchronizeGroupTeams(rows);
+    // Re-read rather than returning `rows`: the caller needs full rows, and a
+    // group whose teams disappeared upstream must still be served from what is
+    // stored rather than vanishing mid-season.
+    return rows.length === 0
+      ? stored
+      : await db
+          .select()
+          .from(tasoGroupTeams)
+          .where(
+            and(
+              eq(tasoGroupTeams.categoryId, categoryId),
+              eq(tasoGroupTeams.competitionCode, competitionId),
+              eq(tasoGroupTeams.seasonId, seasonId)
+            )
+          )
+          .orderBy(desc(tasoGroupTeams.updatedAt));
+  } catch (error) {
+    logger.warn(
+      { err: error, categoryId, competitionId, seasonId },
+      "TASO group refresh failed; using stored group standings"
+    );
+    return stored;
+  }
+});
+
+/** One group's stored TASO rows. */
+function groupTeamsFor(teamRows: StoredGroupTeam[], groupId: number): StoredGroupTeam[] {
+  return teamRows.filter((row) => row.groupId === groupId);
+}
+
 /** Distinct group ids present in `matchList`, regardless of status. */
 function groupIdsIn(matchList: MatchRow[]): number[] {
   return [...new Set(matchList.map((match) => match.groupId))];
@@ -489,23 +630,28 @@ function groupNameOf(matchList: MatchRow[], groupId: number): string {
   return matchList.find((match) => match.groupId === groupId)!.groupName;
 }
 
-function toPassThroughStanding(team: TasoGroupTeam, index: number): TasoTeamStanding {
-  const finalStanding =
-    team.final_group_standing === undefined || team.final_group_standing === null
-      ? null
-      : Number(team.final_group_standing);
+/**
+ * The position TASO itself published for a row, or `null` when it published
+ * neither. `current_standing` is the live one and `final_group_standing` the
+ * settled one; a completed season has both, an unstarted group neither.
+ */
+function publishedPosition(team: StoredGroupTeam): number | null {
+  return team.currentStanding ?? team.finalGroupStanding;
+}
+
+function toPassThroughStanding(team: StoredGroupTeam, index: number): TasoTeamStanding {
   return {
-    position: team.current_standing ?? finalStanding ?? index + 1,
-    teamProviderId: team.team_id === undefined ? 0 : Number(team.team_id),
-    teamName: team.team_name ?? "",
-    played: team.matches_played ?? null,
-    won: team.matches_won ?? null,
-    drawn: team.matches_tied ?? null,
-    lost: team.matches_lost ?? null,
-    goalsFor: team.goals_for ?? null,
-    goalsAgainst: team.goals_against ?? null,
-    goalDifference: team.goals_diff ?? null,
-    points: team.points ?? null,
+    position: publishedPosition(team) ?? index + 1,
+    teamProviderId: team.teamProviderId,
+    teamName: team.teamName,
+    played: team.played,
+    won: team.won,
+    drawn: team.drawn,
+    lost: team.lost,
+    goalsFor: team.goalsFor,
+    goalsAgainst: team.goalsAgainst,
+    goalDifference: team.goalDifference,
+    points: team.points,
     form: [],
   };
 }
@@ -545,23 +691,127 @@ function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number>
  */
 function ownCalculatedStandings(
   seasonMatches: MatchRow[],
+  teamRows: StoredGroupTeam[],
   categoryId: string,
   competitionId: string,
   groupId: number,
   round: number | undefined
 ): TeamStanding[] {
-  const parent = parentGroupId(categoryId, competitionId, groupId);
+  const entry = carryOverEntry(categoryId, competitionId, groupId);
+  const parent = entry?.parent ?? null;
   const contributingMatches = seasonMatches.filter(
     (match) => match.groupId === groupId || (parent !== null && match.groupId === parent)
   );
   const groupTeamIds = teamIdsInGroup(seasonMatches, groupId);
+  const adjustments = adjustmentsFor(seasonMatches, teamRows, entry);
 
   return calculateStandings(
     filterByRound(toFinishedMatches(contributingMatches), round),
     contributingMatches
   )
     .filter((team) => groupTeamIds.has(team.teamProviderId))
+    .map((team) => {
+      const adjustment = adjustments.get(team.teamProviderId) ?? 0;
+      return adjustment === 0 ? team : { ...team, points: team.points + adjustment };
+    })
+    .sort(byStandingOrder)
     .map((team, index) => ({ ...team, position: index + 1 }));
+}
+
+/**
+ * `calculateStandings` has already ordered the table, but an adjustment moves
+ * a team afterwards — Ykkönen 2025's FC Jazz drops three places on a −3
+ * deduction. Re-sorted on the same keys `calculateStandings` uses, so the two
+ * orderings cannot drift apart.
+ */
+function byStandingOrder(left: TeamStanding, right: TeamStanding): number {
+  return (
+    right.points - left.points ||
+    right.goalDifference - left.goalDifference ||
+    right.goalsFor - left.goalsFor ||
+    left.teamName.localeCompare(right.teamName)
+  );
+}
+
+/**
+ * How many points to add to each team's calculated total, from TASO's
+ * `starting_points`.
+ *
+ * That one field carries three different things, confirmed across 262 groups
+ * and twelve seasons (see specs/013-more-finnish-competitions.md):
+ *
+ * - **A deduction** (negative). Veikkausliiga 2016's PK-35 Vantaa is −6, which
+ *   is why the app showed it on 19 points against TASO's 13 before this.
+ * - **A qualifying bonus** (positive 1–3), which every junior SM season
+ *   carries over from its qualifying series — a different category entirely,
+ *   so there are no matches to derive it from.
+ * - **A carry-over seed** (large positive), where TASO starts a split group on
+ *   its parent's points and counts only the child's own matches.
+ *
+ * Only the first two are ours to add. The seed is already accounted for,
+ * because a carry-over group is calculated over its parent's matches *and* its
+ * own — adding it again would double-count. Subtracting the parent-derived
+ * points rather than ignoring `starting_points` outright means a seeded group
+ * that also carries a deduction still resolves correctly; no such group has
+ * been observed, and this costs nothing to be right about.
+ */
+function adjustmentsFor(
+  seasonMatches: MatchRow[],
+  teamRows: StoredGroupTeam[],
+  entry: CarryOverEntry | null
+): Map<number, number> {
+  // Only a seeded entry has a parent contribution to discount; `entry` is
+  // non-null inside this branch, so there is no parent to guess at.
+  const parentPoints =
+    entry?.seeded === true
+      ? pointsFromGroup(seasonMatches, entry.parent)
+      : new Map<number, number>();
+
+  return new Map(
+    teamRows.map((row) => {
+      const seed = parentPoints.get(row.teamProviderId) ?? 0;
+      return [row.teamProviderId, (row.startingPoints ?? 0) - seed];
+    })
+  );
+}
+
+/**
+ * Points each team earned in one group's own matches, unfiltered by round —
+ * what a seeded `starting_points` encodes, so the two are comparable.
+ */
+function pointsFromGroup(seasonMatches: MatchRow[], groupId: number): Map<number, number> {
+  const groupMatches = seasonMatches.filter((match) => match.groupId === groupId);
+  return new Map(
+    calculateStandings(toFinishedMatches(groupMatches), groupMatches).map((team) => [
+      team.teamProviderId,
+      team.points,
+    ])
+  );
+}
+
+/**
+ * Whether our own calculation reproduces TASO's published points for every
+ * team in the group.
+ *
+ * This is what decides how a group renders, replacing spec 009's shape
+ * heuristic. Compared over the full season, never a filtered round, since
+ * TASO's numbers are always the final ones.
+ *
+ * A team TASO does not list is not a disagreement: rosters and match data can
+ * be briefly out of step mid-season, and a missing row is not evidence of a
+ * miscalculation.
+ */
+function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTeam[]): boolean {
+  // At least one row has points: `buildGroup` returns before calling this
+  // when none does.
+  const published = new Map(
+    teamRows.flatMap((row) => (row.points === null ? [] : [[row.teamProviderId, row.points]]))
+  );
+
+  return standings.every((team) => {
+    const tasoPoints = published.get(team.teamProviderId);
+    return tasoPoints === undefined || tasoPoints === team.points;
+  });
 }
 
 /**
@@ -582,11 +832,15 @@ function ownCalculatedStandings(
  * getting its entry would silently render two league groups as match
  * lists. See specs/010-playoff-group-match-list.md.
  */
-function isPlayoffGroup(tasoGroup: TasoGroup | undefined): boolean {
-  const teams = tasoGroup?.teams ?? [];
-  return (
-    teams.length > 0 && teams.every((team) => team.points === null || team.points === undefined)
-  );
+function keepsATable(teamRows: StoredGroupTeam[]): boolean {
+  // No rows at all means TASO has no table for this group — either a knockout
+  // bracket, or a qualifying match whose group exists with zero teams until it
+  // is played. Three of the latter exist in 2026. Both render as matches.
+  if (teamRows.length === 0) return false;
+  // A knockout group is not a points competition: TASO omits `points` for
+  // every team rather than sending zeroes. A league group always has a real
+  // number for every team.
+  return teamRows.some((team) => team.points !== null);
 }
 
 /**
@@ -605,83 +859,28 @@ export async function getSeasonStandings(
   round: number | undefined
 ): Promise<SeasonStandingsResult> {
   try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      categoryId,
-      competitionId,
-      seasonId,
-      activeSeasonId
-    );
+    const [{ matches: seasonMatches, refreshFailed }, teamRows] = await Promise.all([
+      getSyncedSeasonMatches(categoryId, competitionId, seasonId, activeSeasonId),
+      getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId),
+    ]);
 
     if (seasonMatches.length === 0) {
       return refreshFailed ? { status: "error", groups: [] } : { status: "empty", groups: [] };
     }
 
-    const allGroupIds = groupIdsIn(seasonMatches).sort((left, right) => left - right);
-    const ownCalculatedGroupIds = new Set(
-      allGroupIds.filter((groupId) =>
-        isOwnCalculated(categoryId, competitionId, groupId, allGroupIds)
-      )
-    );
-    const passThroughGroupIds = allGroupIds.filter(
-      (groupId) => !ownCalculatedGroupIds.has(groupId)
-    );
-
-    const groups: GroupStandingsResult[] = [];
-
-    for (const groupId of allGroupIds) {
-      if (ownCalculatedGroupIds.has(groupId)) {
-        groups.push({
-          kind: "own-calculated",
-          groupId,
-          groupName: groupNameOf(seasonMatches, groupId),
-          standings: ownCalculatedStandings(
-            seasonMatches,
-            categoryId,
-            competitionId,
-            groupId,
-            round
-          ),
-        });
-      }
-    }
-
-    if (passThroughGroupIds.length > 0) {
-      const tasoGroups = await getCachedSeasonGroups(
-        categoryId,
-        competitionId,
-        seasonId,
-        activeSeasonId
+    if (teamRows.length === 0) {
+      logger.warn(
+        { categoryId, competitionId, seasonId },
+        "No stored TASO group standings; calculating without starting_points adjustments"
       );
-      for (const groupId of passThroughGroupIds) {
-        const tasoGroup = tasoGroups.find((group) => Number(group.group_id) === groupId);
-        const groupName = groupNameOf(seasonMatches, groupId);
-
-        if (isPlayoffGroup(tasoGroup)) {
-          groups.push({
-            kind: "playoff",
-            groupId,
-            groupName,
-            // Chronological, like every other match list in the app. The
-            // two-legged finals' aggregate rows are already absent: TASO
-            // marks them by leaving date/time empty, so they are skipped
-            // at normalization and never stored.
-            matches: selectGroupMatches(seasonMatches, groupId),
-          });
-          continue;
-        }
-
-        groups.push({
-          kind: "pass-through",
-          groupId,
-          groupName,
-          standings: (tasoGroup?.teams ?? []).map((team, index) =>
-            toPassThroughStanding(team, index)
-          ),
-        });
-      }
     }
 
-    groups.sort((left, right) => left.groupId - right.groupId);
+    const groups = groupIdsIn(seasonMatches)
+      .sort((left, right) => left - right)
+      .map((groupId) =>
+        buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId, round)
+      );
+
     return { status: "ok", groups };
   } catch (error) {
     logger.error(
@@ -692,19 +891,84 @@ export async function getSeasonStandings(
   }
 }
 
-async function getCachedSeasonGroups(
+/**
+ * One group's rendering, decided in this order:
+ *
+ * 1. No table at all — knockout, or a group TASO lists with no teams — so its
+ *    matches are its standings.
+ * 2. Our calculation reproduces TASO's published points, so the table is ours
+ *    and carries a round selector.
+ * 3. It does not, so TASO's own numbers are shown instead, with no round
+ *    selector and a notice on the page.
+ *
+ * Step 3 is what keeps spec 009's guarantee that an unvalidated group never
+ * renders silently wrong points, now that no shape heuristic identifies one.
+ */
+function buildGroup(
+  seasonMatches: MatchRow[],
+  allTeamRows: StoredGroupTeam[],
   categoryId: string,
   competitionId: string,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<TasoGroup[]> {
-  const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
-  // The category belongs in the key: every category shares one
-  // `competition_id`, so a single key would serve one competition's groups
-  // to all of them.
-  return getCached(`taso:groups:${categoryId}:${competitionId}`, ttl, () =>
-    getSeasonGroups(competitionId, categoryId)
-  );
+  groupId: number,
+  round: number | undefined
+): GroupStandingsResult {
+  const groupName = groupNameOf(seasonMatches, groupId);
+  const teamRows = groupTeamsFor(allTeamRows, groupId);
+  // Whether TASO's groups are known for this season *at all*. Without that
+  // distinction, an unreachable `getGroups` with nothing yet stored would make
+  // every group look team-less and turn the whole season into match lists.
+  const seasonHasGroupData = allTeamRows.length > 0;
+
+  if (seasonHasGroupData && !keepsATable(teamRows)) {
+    return {
+      kind: "match-list",
+      groupId,
+      groupName,
+      // Chronological, like every other match list in the app. The two-legged
+      // finals' aggregate rows are already absent: TASO marks them by leaving
+      // date/time empty, so they are skipped at normalization and never
+      // stored.
+      matches: selectGroupMatches(seasonMatches, groupId),
+    };
+  }
+
+  const build = (forRound: number | undefined) =>
+    ownCalculatedStandings(seasonMatches, teamRows, categoryId, competitionId, groupId, forRound);
+
+  const fullSeason = build(undefined);
+
+  // Nothing to check ourselves against. Own-calculate rather than fall back to
+  // numbers we do not have: every adjustment is zero here, which is already
+  // correct for the majority of groups that have none, and a stale-but-real
+  // table beats an empty one. See specs/013-more-finnish-competitions.md.
+  if (!teamRows.some((row) => row.points !== null)) {
+    return {
+      kind: "own-calculated",
+      groupId,
+      groupName,
+      standings: round === undefined ? fullSeason : build(round),
+    };
+  }
+
+  if (!reproducesTasoPoints(fullSeason, teamRows)) {
+    return {
+      kind: "pass-through",
+      groupId,
+      groupName,
+      // TASO's own order, since these are TASO's own numbers. A row it never
+      // ranked sorts to the top and keeps its input position.
+      standings: [...teamRows]
+        .sort((left, right) => (publishedPosition(left) ?? 0) - (publishedPosition(right) ?? 0))
+        .map(toPassThroughStanding),
+    };
+  }
+
+  return {
+    kind: "own-calculated",
+    groupId,
+    groupName,
+    standings: round === undefined ? fullSeason : build(round),
+  };
 }
 
 /** Every match for the season, across every group, sorted by kickoff time. */
@@ -781,18 +1045,49 @@ export async function getTeamMatches(
  */
 export function listSelectableTasoRounds(
   matchList: MatchRow[],
-  categoryId: string,
-  competitionId: string
+  tableGroupIds: Set<number>
 ): number[] {
-  const allGroupIds = groupIdsIn(matchList);
   const rounds = matchList
-    .filter(
-      (match) =>
-        match.matchday !== null &&
-        isOwnCalculated(categoryId, competitionId, match.groupId, allGroupIds)
-    )
+    .filter((match) => match.matchday !== null && tableGroupIds.has(match.groupId))
     .map((match) => match.matchday as number);
   return [...new Set(rounds)].sort((left, right) => left - right);
+}
+
+/**
+ * The rounds a page's selector offers, for the season as a whole.
+ *
+ * Groups with no table are excluded, and that is not cosmetic: Veikkausliiga
+ * 2022's Eurolopputurnausfinaali numbers its rounds from **0**, so including
+ * it would put a "Kierros 0" in the selector that filters nothing.
+ *
+ * Reads the same two cached sources as `getSeasonStandings`, so asking for the
+ * rounds before the standings costs no extra fetch.
+ */
+export async function listSeasonRounds(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<number[]> {
+  try {
+    const [{ matches }, teamRows] = await Promise.all([
+      getSyncedSeasonMatches(categoryId, competitionId, seasonId, activeSeasonId),
+      getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId),
+    ]);
+
+    const tableGroupIds = new Set(
+      groupIdsIn(matches).filter(
+        (groupId) => teamRows.length === 0 || keepsATable(groupTeamsFor(teamRows, groupId))
+      )
+    );
+    return listSelectableTasoRounds(matches, tableGroupIds);
+  } catch (error) {
+    logger.warn(
+      { err: error, categoryId, competitionId, seasonId },
+      "Unable to list TASO rounds; offering none"
+    );
+    return [];
+  }
 }
 
 export type TasoRoundParamResult =

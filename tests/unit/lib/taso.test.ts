@@ -3,6 +3,7 @@ import {
   getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches,
+  normalizeGroupTeams,
   normalizeTasoMatch,
   seasonFromCompetitionId,
 } from "@/lib/taso";
@@ -622,5 +623,112 @@ describe("getCurrentSeason", () => {
     ]);
 
     await expect(getCurrentSeason()).resolves.toBe(2026);
+  });
+});
+
+describe("normalizeGroupTeams", () => {
+  it("flattens groups into one row per team, parsing TASO's mixed string/number fields", () => {
+    const rows = normalizeGroupTeams(
+      [
+        {
+          group_id: "2",
+          group_name: "Mestaruussarja",
+          teams: [
+            {
+              team_id: "60731",
+              team_name: "HJK",
+              // getGroups sends these as native numbers, unlike getMatches'
+              // all-strings convention.
+              points: 67,
+              matches_played: 32,
+              matches_won: 20,
+              matches_tied: 7,
+              matches_lost: 5,
+              goals_for: 60,
+              goals_against: 30,
+              goals_diff: 30,
+              starting_points: -2,
+              current_standing: 1,
+              // …but final_group_standing is a string.
+              final_group_standing: "1",
+            },
+          ],
+        },
+      ],
+      "VL",
+      "spljp25",
+      2025
+    );
+
+    expect(rows).toEqual([
+      {
+        categoryId: "VL",
+        competitionCode: "spljp25",
+        seasonId: 2025,
+        groupId: 2,
+        teamProviderId: 60731,
+        teamName: "HJK",
+        startingPoints: -2,
+        points: 67,
+        played: 32,
+        won: 20,
+        drawn: 7,
+        lost: 5,
+        goalsFor: 60,
+        goalsAgainst: 30,
+        goalDifference: 30,
+        currentStanding: 1,
+        finalGroupStanding: 1,
+      },
+    ]);
+  });
+
+  it("keeps a knockout group's absent stat fields as null rather than coercing them to 0", () => {
+    // TASO omits the fields entirely for a bracket. Coercing to 0 would make
+    // it look like a points competition everyone lost.
+    const [row] = normalizeGroupTeams(
+      [{ group_id: "4", teams: [{ team_id: "1", team_name: "HJK" }] }],
+      "VL",
+      "spljp22",
+      2022
+    );
+
+    expect(row?.points).toBeNull();
+    expect(row?.startingPoints).toBeNull();
+    expect(row?.played).toBeNull();
+    expect(row?.finalGroupStanding).toBeNull();
+  });
+
+  it("contributes no rows for a group TASO lists with no teams", () => {
+    // An unplayed qualifying match. Having no rows is what marks the group as
+    // having no table at all.
+    expect(normalizeGroupTeams([{ group_id: "2", teams: [] }], "VL", "spljp26", 2026)).toEqual([]);
+    expect(normalizeGroupTeams([{ group_id: "2" }], "VL", "spljp26", 2026)).toEqual([]);
+  });
+
+  it("skips rows it cannot identify rather than storing them under a wrong key", () => {
+    const rows = normalizeGroupTeams(
+      [
+        { group_name: "no group id", teams: [{ team_id: "1" }] },
+        { group_id: "not-a-number", teams: [{ team_id: "1" }] },
+        { group_id: "1", teams: [{ team_name: "no team id" }, { team_id: "", team_name: "" }] },
+      ],
+      "VL",
+      "spljp25",
+      2025
+    );
+
+    expect(rows).toEqual([]);
+  });
+
+  it("defaults a missing team name to an empty string, since the column is not nullable", () => {
+    const [row] = normalizeGroupTeams(
+      [{ group_id: "1", teams: [{ team_id: "7" }] }],
+      "VL",
+      "spljp25",
+      2025
+    );
+
+    expect(row?.teamName).toBe("");
   });
 });

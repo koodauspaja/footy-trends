@@ -95,3 +95,90 @@ Kakkonen group 1 in the same season and asserts each competition sees only
 its own group, teams and matches. Since a test like that can easily pass for
 the wrong reason, it was confirmed to fail with the `category_id` filter
 removed from the query, and pass with it restored.
+
+---
+
+## PR 2 — The standings engine
+
+Everything behavioural, with Veikkausliiga still the only competition, so each
+change is observable against twelve seasons of known-good data before nine more
+competitions are layered on top.
+
+### The split moved after measuring the fixtures
+
+The plan was two PRs: the engine plus the competitions together. Measuring
+first changed it. The 71 carry-over entries need fixtures for 33
+competition-seasons — 5,444 matches, of which 4,457 are new — and at the
+existing fixture format that is roughly 200KB of JSON before a line of source
+changes. Combined with the engine work it would have sat at Sourcery's 300,000
+per-PR cap and been unreviewable regardless.
+
+So the fixture bulk moves to PR 3 with the competitions that need it, and this
+PR carries the engine alone at ~98,000 characters.
+
+### `starting_points` decides how a group is calculated, so it had to be stored
+
+Spec 009 kept `getGroups` in Redis because only the pass-through path used it.
+Own-calculated standings now depend on `starting_points`, which changes the
+failure mode entirely: a cold cache would no longer mean a stale table, it
+would mean *wrong points, silently*. `taso_group_teams` stores it on the same
+freshness rule as matches, and the Redis groups cache is gone.
+
+### A knockout group broke the insert, and only a real database said so
+
+`ON CONFLICT DO UPDATE command cannot affect row a second time`. Spec 010
+already documented that a knockout group returns one row per bracket *slot*
+rather than per team, so an advancing team appears several times — and Postgres
+rejects a whole upsert statement that touches one row twice. Veikkausliiga 2019
+and 2022 lost their entire stored group standings to it.
+
+The unit tests could not have caught this: they mock the insert. It surfaced by
+running the app against a real database and noticing two seasons missing from
+`taso_group_teams`. Rows are now de-duplicated by identity before insert, first
+slot winning — arbitrary and harmless, since a group with duplicates is a
+knockout group that renders as a match list and has no points at all.
+
+### The origin-group rule is gone, replaced by a result
+
+Spec 009 decided "can we calculate this ourselves?" by shape: lowest
+`group_id` is the origin, everything above it is pass-through. That is not a
+rule, it is a description of Veikkausliiga, and spec 013 lists three
+counterexamples among the competitions still to come.
+
+There is no shape test now. Every group with a table is calculated, and the
+question becomes whether the result reproduces TASO's published points. Match:
+our table, with a round selector. Mismatch: TASO's numbers, no round selector,
+and a Finnish notice saying so. That keeps spec 009's guarantee — an
+unvalidated group never shows silently wrong points — and makes the two P20
+Ykkönen groups this audit could not explain render visibly rather than wrongly.
+
+Confirmed across all twelve Veikkausliiga seasons: zero groups fall back, so
+the calculation reproduces TASO exactly everywhere, including 2016's deduction.
+
+### Missing group data degrades to own-calculated, not to nothing
+
+The first cut made "no stored team rows" mean "no table", which would have
+turned an entire season into match lists the first time `getGroups` was
+unreachable on a cold store. The distinction that fixes it is whether the
+*season* has any group data at all: none means degraded — calculate everything,
+adjustments all zero, and log it — while a season that has data but no rows for
+one group means that group genuinely has no table.
+
+### Round 0 is why the selector filters by group
+
+Veikkausliiga 2022's Eurolopputurnausfinaali numbers its rounds from **0**.
+With the round list taken from every group, the selector would offer a
+"Kierros 0" that filters nothing. `listSeasonRounds` therefore excludes groups
+with no table, which is also why the page now asks the service for its rounds
+rather than deriving them from a match list.
+
+### Coverage measures `src/`, not test data
+
+`tests/**` is excluded from coverage. A JSON fixture has no statements, so it
+could only ever report 0% and drag the totals down, hiding a real regression.
+
+Worth recording why it appeared at all: #151 re-keyed the fixture to
+`VL/spljp19`, and Vite emits a named export per top-level JSON key only when
+those keys are valid JS identifiers — otherwise it falls back to
+`export default JSON.parse("...")`, a module with nothing to cover. The
+exclusion is the right fix either way.

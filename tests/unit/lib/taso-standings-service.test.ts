@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { tasoGroupTeams } from "@/db/schema";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
   getSeasonMatchList,
   getSeasonStandings,
   getTeamMatches,
+  listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
   parseTasoRoundParam,
   resolveTasoSeasonContext,
+  synchronizeGroupTeams,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
 
@@ -83,10 +86,46 @@ function storedAt(msAgo: number) {
   return { updatedAt: new Date(Date.now() - msAgo) };
 }
 
-function mockStoredMatches(rows: unknown[]) {
-  const orderBy = vi.fn().mockResolvedValue(rows);
-  const where = vi.fn().mockReturnValue({ orderBy });
-  const from = vi.fn().mockReturnValue({ where });
+/**
+ * A team row as `taso_group_teams` stores it. Points default to whatever the
+ * matches produce, because most tests only care that TASO agrees — a test
+ * about disagreement passes `points` explicitly.
+ */
+function groupTeam(overrides: Partial<typeof tasoGroupTeams.$inferSelect> = {}) {
+  return {
+    categoryId: CATEGORY_ID,
+    competitionCode: COMPETITION_ID,
+    seasonId: PAST_SEASON,
+    groupId: 1,
+    teamProviderId: 1,
+    teamName: "HJK",
+    startingPoints: 0,
+    points: 0,
+    played: 0,
+    won: 0,
+    drawn: 0,
+    lost: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    goalDifference: 0,
+    currentStanding: 1,
+    finalGroupStanding: null,
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+/**
+ * The service reads two tables now, so the mock dispatches on which one.
+ * `groupTeams` defaults to empty, which is the "TASO groups unavailable"
+ * path — own-calculated with no adjustment, and no comparison to fall back on.
+ */
+function mockStoredMatches(rows: unknown[], groupTeams: unknown[] = []) {
+  const from = vi.fn().mockImplementation((table: unknown) => {
+    const rowsForTable = table === tasoGroupTeams ? groupTeams : rows;
+    const orderBy = vi.fn().mockResolvedValue(rowsForTable);
+    return { where: vi.fn().mockReturnValue({ orderBy }) };
+  });
   dbMock.select.mockReturnValue({ from });
 }
 
@@ -362,71 +401,23 @@ describe("getSeasonStandings", () => {
     expect(mariehamn).toMatchObject({ played: 0, points: 0 });
   });
 
-  it("renders an unconfigured non-origin group with some real points via pass-through", async () => {
-    mockStoredMatches([
-      match({ providerMatchId: 1, groupId: 1 }),
-      match({
-        providerMatchId: 2,
-        groupId: 4,
-        groupName: "Eurolopputurnaus",
-        matchday: null,
-        homeGoals: 1,
-        awayGoals: 0,
-      }),
-    ]);
-    getSeasonGroupsMock.mockResolvedValue([
-      {
-        group_id: "4",
-        group_name: "Eurolopputurnaus",
-        teams: [
-          { team_id: "1", team_name: "HJK", points: null, matches_played: null },
-          // Missing team_id/team_name entirely, and a group TASO doesn't
-          // return standings for (no matching group_id) — both defensive,
-          // shouldn't-happen-in-practice cases the mapper must not crash on.
-          { goals_for: 3, goals_against: 1, goals_diff: 2, points: 9 },
-          // Explicit null (as opposed to simply absent) and a real
-          // final_group_standing value used as the position fallback when
-          // current_standing itself is absent.
-          { team_id: "2", team_name: "KuPS", final_group_standing: null },
-          { team_id: "3", team_name: "Ilves", final_group_standing: "5" },
-        ],
-      },
-    ]);
-    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
-
-    const result = await getSeasonStandings(
-      CATEGORY_ID,
-      COMPETITION_ID,
-      ACTIVE_SEASON,
-      ACTIVE_SEASON,
-      undefined
+  it("renders TASO's own numbers, not ours, when the two disagree", async () => {
+    // The replacement for spec 009's shape heuristic: a group we cannot
+    // reproduce is identified by result, not by its group_id.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        // TASO says HJK has 9 points; the single stored match gives it 3.
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 9, played: 3, currentStanding: 1 }),
+        groupTeam({
+          teamProviderId: 2,
+          teamName: "KuPS",
+          points: 0,
+          played: 3,
+          currentStanding: 2,
+        }),
+      ]
     );
-
-    expect(result.status).toBe("ok");
-    const eurolopputurnaus =
-      result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
-    expect(eurolopputurnaus).toMatchObject({ kind: "pass-through", groupName: "Eurolopputurnaus" });
-    const standings = eurolopputurnaus?.kind === "pass-through" ? eurolopputurnaus.standings : [];
-    expect(standings[0]).toMatchObject({ points: null, played: null });
-    expect(standings[1]).toMatchObject({
-      teamProviderId: 0,
-      teamName: "",
-      points: 9,
-      goalsFor: 3,
-      goalsAgainst: 1,
-      goalDifference: 2,
-    });
-    expect(standings[2]).toMatchObject({ teamName: "KuPS", position: 3 });
-    expect(standings[3]).toMatchObject({ teamName: "Ilves", position: 5 });
-  });
-
-  it("renders an empty pass-through table when TASO's getGroups has no entry for the group at all", async () => {
-    mockStoredMatches([
-      match({ providerMatchId: 1, groupId: 1 }),
-      match({ providerMatchId: 2, groupId: 4, groupName: "Eurolopputurnaus", matchday: null }),
-    ]);
-    getSeasonGroupsMock.mockResolvedValue([]);
-    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
 
     const result = await getSeasonStandings(
       CATEGORY_ID,
@@ -436,51 +427,28 @@ describe("getSeasonStandings", () => {
       undefined
     );
 
-    const eurolopputurnaus =
-      result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
-    expect(eurolopputurnaus).toMatchObject({ kind: "pass-through", standings: [] });
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind).toBe("pass-through");
+    const standings = group?.kind === "pass-through" ? group.standings : [];
+    expect(standings.map((team) => [team.teamName, team.points])).toEqual([
+      ["HJK", 9],
+      ["KuPS", 0],
+    ]);
   });
 
-  it("classifies a group whose every team has null points as playoff, rendering its matches", async () => {
-    mockStoredMatches([
-      match({ providerMatchId: 1, groupId: 1 }),
-      match({
-        providerMatchId: 3,
-        groupId: 4,
-        groupName: "Eurolopputurnaus",
-        matchday: 2,
-        kickoffAt: new Date("2024-10-28T15:00:00Z"),
-        homeTeamName: "FC Honka",
-        awayTeamName: "AC Oulu",
-      }),
-      match({
-        providerMatchId: 2,
-        groupId: 4,
-        groupName: "Eurolopputurnaus",
-        matchday: 1,
-        kickoffAt: new Date("2024-10-25T15:00:00Z"),
-        homeTeamName: "FC Honka",
-        awayTeamName: "FC Inter",
-      }),
-    ]);
-    // A real Eurolopputurnaus entry: one row per bracket slot, so the
-    // advancing team repeats — and points are null for every row.
-    getSeasonGroupsMock.mockResolvedValue([
-      {
-        group_id: "4",
-        group_name: "Eurolopputurnaus",
-        teams: [
-          // TASO omits `points` entirely on these rows rather than sending
-          // null — an `=== null` check matches nothing, so the real shape
-          // (absent) is the one asserted here. The null variant is kept on
-          // the last row so both paths stay covered.
-          { team_id: "1", team_name: "FC Honka", matches_played: 5 },
-          { team_id: "1", team_name: "FC Honka", matches_played: 0 },
-          { team_id: "2", team_name: "AC Oulu", points: null, matches_played: 2 },
-        ],
-      },
-    ]);
-    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+  it("renders a group TASO lists with no teams as a match list", async () => {
+    // An unplayed qualifying match: the group exists with zero team rows.
+    // Three of these exist in 2026.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1 }),
+        match({ providerMatchId: 2, groupId: 2, groupName: "Karsintaottelu", matchday: 1 }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+      ]
+    );
 
     const result = await getSeasonStandings(
       CATEGORY_ID,
@@ -490,48 +458,154 @@ describe("getSeasonStandings", () => {
       undefined
     );
 
-    const playoff =
-      result.status === "ok" ? result.groups.find((group) => group.groupId === 4) : undefined;
-    expect(playoff).toMatchObject({ kind: "playoff", groupName: "Eurolopputurnaus" });
-    // Chronological, not stored order — the group has no table to sort.
-    const matches = playoff?.kind === "playoff" ? playoff.matches : [];
-    expect(matches.map((entry) => entry.providerMatchId)).toEqual([2, 3]);
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 2) : undefined;
+    expect(group?.kind).toBe("match-list");
+    expect(group?.kind === "match-list" && group.matches).toHaveLength(1);
   });
 
-  it("keeps a league group with real points as a table even when it is not own-calculated", async () => {
-    // A genuine league group with real points but no CARRY_OVER_CONFIG
-    // entry, so it is not own-calculated. It must not be mistaken for a
-    // playoff group — the reason the playoff rule is a positive test on the
-    // data rather than "everything we can't calculate". See
-    // specs/010-playoff-group-match-list.md.
-    //
-    // Uses an id with no entry rather than 2019, the real unconfigured
-    // split season, so the test survives 2019 gaining one: the rule must
-    // hold for any season that lacks an entry, which is exactly why it does
-    // not depend on the config being complete.
-    mockStoredMatches([
-      match({ providerMatchId: 1, groupId: 1 }),
-      match({ providerMatchId: 2, groupId: 2, groupName: "Mestaruussarja", matchday: 23 }),
-    ]);
-    getSeasonGroupsMock.mockResolvedValue([
-      {
-        group_id: "2",
-        group_name: "Mestaruussarja",
-        teams: [
-          { team_id: "1", team_name: "KuPS", points: 53, matches_played: 27 },
-          { team_id: "2", team_name: "FC Inter", points: 48, matches_played: 27 },
-        ],
-      },
-    ]);
-    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+  it("renders a knockout group as a match list, since it keeps no points at all", async () => {
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1 }),
+        match({ providerMatchId: 2, groupId: 4, groupName: "Eurolopputurnaus", matchday: null }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+        // TASO omits points entirely for a bracket — not zero, absent.
+        groupTeam({ groupId: 4, teamProviderId: 1, points: null }),
+        groupTeam({ groupId: 4, teamProviderId: 2, points: null }),
+      ]
+    );
 
-    const result = await getSeasonStandings(CATEGORY_ID, "spljp17", 2017, ACTIVE_SEASON, undefined);
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
 
-    const mestaruussarja =
-      result.status === "ok" ? result.groups.find((group) => group.groupId === 2) : undefined;
-    expect(mestaruussarja).toMatchObject({ kind: "pass-through" });
-    const standings = mestaruussarja?.kind === "pass-through" ? mestaruussarja.standings : [];
-    expect(standings[0]).toMatchObject({ teamName: "KuPS", points: 53 });
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 4) : undefined;
+    expect(group?.kind).toBe("match-list");
+  });
+
+  it("subtracts a points deduction carried in starting_points", async () => {
+    // Veikkausliiga 2016's PK-35 Vantaa, in miniature: TASO's published points
+    // are the calculated total minus 6, and the app showed the wrong one until
+    // this was applied. See specs/013-more-finnish-competitions.md.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", startingPoints: -6, points: -3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", startingPoints: 0, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind).toBe("own-calculated");
+    const standings = group?.kind === "own-calculated" ? group.standings : [];
+    // 3 for the win, minus the 6-point deduction.
+    expect(standings.find((team) => team.teamName === "HJK")?.points).toBe(-3);
+  });
+
+  it("adds a qualifying bonus and re-sorts the table around it", async () => {
+    // Junior SM series bring 1-3 points from their qualifying series, which is
+    // a different category entirely — there are no matches to derive it from.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, homeGoals: 0, awayGoals: 0 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", startingPoints: 0, points: 1 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", startingPoints: 3, points: 4 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind).toBe("own-calculated");
+    const standings = group?.kind === "own-calculated" ? group.standings : [];
+    // The draw leaves both on 1; the bonus puts KuPS top, so the adjustment
+    // has to reorder the table rather than only change a number.
+    expect(standings.map((team) => [team.position, team.teamName, team.points])).toEqual([
+      [1, "KuPS", 4],
+      [2, "HJK", 1],
+    ]);
+  });
+
+  it("does not double-count a seeded carry-over group's starting_points", async () => {
+    // 2015-2024's convention: TASO seeds the child with the parent's points
+    // and counts only the child's own matches. We already fold the parent's
+    // matches in, so adding starting_points again would double them.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, homeGoals: 3, awayGoals: 0 }),
+        match({
+          providerMatchId: 2,
+          groupId: 2,
+          groupName: "Mestaruussarja",
+          matchday: 23,
+          homeGoals: 1,
+          awayGoals: 0,
+        }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
+        // starting_points is HJK's 3 Runkosarja points, plus 3 for its
+        // Mestaruussarja win = 6 published.
+        groupTeam({ groupId: 2, teamProviderId: 1, teamName: "HJK", startingPoints: 3, points: 6 }),
+        groupTeam({
+          groupId: 2,
+          teamProviderId: 2,
+          teamName: "KuPS",
+          startingPoints: 0,
+          points: 0,
+        }),
+      ]
+    );
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp22", 2022, ACTIVE_SEASON, undefined);
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 2) : undefined;
+    expect(group?.kind).toBe("own-calculated");
+    const standings = group?.kind === "own-calculated" ? group.standings : [];
+    // 6, not 9 — the parent's 3 counted once.
+    expect(standings.find((team) => team.teamName === "HJK")?.points).toBe(6);
+  });
+
+  it("own-calculates without adjustments when TASO's groups are unavailable", async () => {
+    // A cold store plus an unreachable getGroups must not turn every group
+    // into a match list, nor render an empty table.
+    mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind).toBe("own-calculated");
+    expect(group?.kind === "own-calculated" && group.standings).toHaveLength(2);
+    expect(loggerWarnMock).toHaveBeenCalled();
   });
 
   it("orders groups by group_id ascending regardless of insertion order", async () => {
@@ -765,7 +839,7 @@ describe("getTeamMatches", () => {
 });
 
 describe("listSelectableTasoRounds", () => {
-  it("lists only own-calculated groups' rounds, continuing the season's real numbering", () => {
+  it("lists only the rounds of groups that have a table, continuing the season's real numbering", () => {
     const matches = [
       match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
       match({ providerMatchId: 2, groupId: 1, matchday: 2 }),
@@ -773,7 +847,426 @@ describe("listSelectableTasoRounds", () => {
       match({ providerMatchId: 4, groupId: 4, groupName: "Eurolopputurnaus", matchday: 40 }),
     ];
 
-    expect(listSelectableTasoRounds(matches, CATEGORY_ID, COMPETITION_ID)).toEqual([1, 2, 23]);
+    expect(listSelectableTasoRounds(matches, new Set([1, 2]))).toEqual([1, 2, 23]);
+  });
+
+  it("excludes a knockout group's round 0, which would filter nothing", () => {
+    // Veikkausliiga 2022's Eurolopputurnausfinaali really does number from 0.
+    const matches = [
+      match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
+      match({ providerMatchId: 2, groupId: 5, groupName: "Eurolopputurnausfinaali", matchday: 0 }),
+    ];
+
+    expect(listSelectableTasoRounds(matches, new Set([1]))).toEqual([1]);
+    // …and keeps it when that group does have a table, so the exclusion is
+    // driven by the group, not by the number.
+    expect(listSelectableTasoRounds(matches, new Set([1, 5]))).toEqual([0, 1]);
+  });
+});
+
+describe("standings edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("breaks a points tie on goal difference, then goals scored, then name", async () => {
+    // An adjustment can move a team, so the table is re-sorted afterwards —
+    // on the same keys calculateStandings uses, or the two would disagree.
+    mockStoredMatches(
+      [
+        match({
+          providerMatchId: 1,
+          homeTeamProviderId: 1,
+          homeTeamName: "AAA",
+          awayTeamProviderId: 2,
+          awayTeamName: "Loser1",
+          homeGoals: 3,
+          awayGoals: 0,
+        }),
+        match({
+          providerMatchId: 2,
+          homeTeamProviderId: 3,
+          homeTeamName: "ZZZ",
+          awayTeamProviderId: 4,
+          awayTeamName: "Loser2",
+          homeGoals: 1,
+          awayGoals: 0,
+        }),
+        match({
+          providerMatchId: 3,
+          homeTeamProviderId: 5,
+          homeTeamName: "BBB",
+          awayTeamProviderId: 6,
+          awayTeamName: "Loser3",
+          homeGoals: 1,
+          awayGoals: 0,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "AAA", points: 3 }),
+        groupTeam({ teamProviderId: 3, teamName: "ZZZ", points: 3 }),
+        groupTeam({ teamProviderId: 5, teamName: "BBB", points: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "Loser1", points: 0 }),
+        groupTeam({ teamProviderId: 4, teamName: "Loser2", points: 0 }),
+        groupTeam({ teamProviderId: 6, teamName: "Loser3", points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const standings =
+      result.status === "ok" && result.groups[0]?.kind === "own-calculated"
+        ? result.groups[0].standings
+        : [];
+
+    // AAA first on goal difference (+3). ZZZ and BBB both +1 and 1 scored, so
+    // the name breaks it: BBB before ZZZ.
+    expect(standings.slice(0, 3).map((team) => team.teamName)).toEqual(["AAA", "BBB", "ZZZ"]);
+  });
+
+  it("treats a missing starting_points as no adjustment", async () => {
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", startingPoints: null, points: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", startingPoints: null, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(
+      result.status === "ok" && result.groups[0]?.kind === "own-calculated"
+        ? result.groups[0].standings[0]?.points
+        : undefined
+    ).toBe(3);
+  });
+
+  it("keeps a table when TASO reports points for only some of its teams", async () => {
+    // A row without points is not a disagreement — rosters and results can be
+    // briefly out of step mid-season.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: null }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups[0]?.kind).toBe("own-calculated");
+  });
+
+  it("still filters an own-calculated group by round when TASO's numbers agree", async () => {
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, matchday: 1, homeGoals: 2, awayGoals: 1 }),
+        match({
+          providerMatchId: 2,
+          matchday: 2,
+          homeTeamProviderId: 2,
+          awayTeamProviderId: 1,
+          homeGoals: 1,
+          awayGoals: 0,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 3 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      1
+    );
+    const standings =
+      result.status === "ok" && result.groups[0]?.kind === "own-calculated"
+        ? result.groups[0].standings
+        : [];
+
+    // Round 1 only: HJK has its win, KuPS has not played its own yet.
+    expect(standings.map((team) => [team.teamName, team.played])).toEqual([
+      ["HJK", 1],
+      ["KuPS", 1],
+    ]);
+  });
+
+  it("orders a fallback table by TASO's own standing, falling back through to input order", async () => {
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        // Disagrees with the single stored match, so this group falls back.
+        // Ordered so the comparator meets an unranked row on both sides.
+        groupTeam({
+          teamProviderId: 2,
+          teamName: "First",
+          points: 98,
+          currentStanding: 1,
+          finalGroupStanding: null,
+        }),
+        groupTeam({
+          teamProviderId: 3,
+          teamName: "Unranked",
+          points: 97,
+          currentStanding: null,
+          finalGroupStanding: null,
+        }),
+        groupTeam({
+          teamProviderId: 1,
+          teamName: "Third",
+          points: 99,
+          currentStanding: null,
+          finalGroupStanding: 3,
+        }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind).toBe("pass-through");
+    const standings = group?.kind === "pass-through" ? group.standings : [];
+
+    // current_standing wins; final_group_standing is the fallback; a team with
+    // neither sorts as 0 and keeps its position from the row order.
+    expect(standings.map((team) => [team.teamName, team.position])).toEqual([
+      ["Unranked", 1],
+      ["First", 1],
+      ["Third", 3],
+    ]);
+  });
+
+  it("lists a match-list group's matches chronologically, whatever order they are stored in", async () => {
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1 }),
+        match({
+          providerMatchId: 2,
+          groupId: 4,
+          groupName: "Eurolopputurnaus",
+          kickoffAt: new Date("2025-09-01T15:00:00Z"),
+        }),
+        match({
+          providerMatchId: 3,
+          groupId: 4,
+          groupName: "Eurolopputurnaus",
+          kickoffAt: new Date("2025-08-01T15:00:00Z"),
+        }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 4, teamProviderId: 1, points: null }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 4) : undefined;
+
+    expect(group?.kind === "match-list" && group.matches.map((m) => m.providerMatchId)).toEqual([
+      3, 2,
+    ]);
+  });
+});
+
+describe("group standings storage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("writes nothing when TASO returns no group rows", async () => {
+    const insert = mockInsert();
+    await synchronizeGroupTeams([]);
+    expect(insert.values).not.toHaveBeenCalled();
+  });
+
+  it("upserts group rows on the group-and-team identity", async () => {
+    const insert = mockInsert();
+
+    await synchronizeGroupTeams([
+      {
+        categoryId: "VL",
+        competitionCode: COMPETITION_ID,
+        seasonId: PAST_SEASON,
+        groupId: 1,
+        teamProviderId: 1,
+        teamName: "HJK",
+        startingPoints: -2,
+        points: 10,
+        played: 4,
+        won: 3,
+        drawn: 1,
+        lost: 0,
+        goalsFor: 8,
+        goalsAgainst: 2,
+        goalDifference: 6,
+        currentStanding: 1,
+        finalGroupStanding: null,
+      },
+    ]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        teamProviderId: 1,
+        startingPoints: -2,
+        updatedAt: expect.any(Date),
+      }),
+    ]);
+    expect(insert.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ target: expect.any(Array) })
+    );
+  });
+
+  it("collapses a knockout group's repeated bracket slots to one row per team", async () => {
+    // Postgres rejects an ON CONFLICT DO UPDATE that touches the same row
+    // twice, and a team that advances occupies several slots — which cost
+    // Veikkausliiga 2019 and 2022 their whole stored group standings before
+    // this. Caught by a real database, not by a mocked insert.
+    const insert = mockInsert();
+    const slot = (teamProviderId: number) => ({
+      categoryId: "VL",
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+      groupId: 5,
+      teamProviderId,
+      teamName: "HJK",
+      startingPoints: null,
+      points: null,
+      played: null,
+      won: null,
+      drawn: null,
+      lost: null,
+      goalsFor: null,
+      goalsAgainst: null,
+      goalDifference: null,
+      currentStanding: null,
+      finalGroupStanding: null,
+    });
+
+    await synchronizeGroupTeams([slot(1), slot(2), slot(1)]);
+
+    const values = insert.values.mock.calls[0]?.[0] as { teamProviderId: number }[];
+    expect(values.map((row) => row.teamProviderId)).toEqual([1, 2]);
+  });
+
+  it("refreshes stale group standings from TASO and stores them", async () => {
+    mockStoredMatches([match({ seasonId: ACTIVE_SEASON })], []);
+    mockInsert();
+    getSeasonGroupsMock.mockResolvedValue([
+      { group_id: "1", group_name: "Runkosarja", teams: [{ team_id: "1", points: 3 }] },
+    ]);
+
+    await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON, undefined);
+
+    expect(getSeasonGroupsMock).toHaveBeenCalledWith(COMPETITION_ID, CATEGORY_ID);
+  });
+
+  it("keeps serving stored group standings when the refresh fails", async () => {
+    // The reason these are stored rather than only cached: losing them would
+    // silently drop every starting_points adjustment.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", startingPoints: -6, points: -3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0 }),
+      ]
+    );
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    expect(group?.kind === "own-calculated" && group.standings[1]?.points).toBe(-3);
+  });
+});
+
+describe("listSeasonRounds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("offers the rounds of groups that have a table, and not those of one that has none", async () => {
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
+        match({ providerMatchId: 2, groupId: 1, matchday: 2 }),
+        match({ providerMatchId: 3, groupId: 4, groupName: "Eurolopputurnaus", matchday: 40 }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 4, teamProviderId: 1, points: null }),
+      ]
+    );
+
+    await expect(
+      listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toEqual([1, 2]);
+  });
+
+  it("offers every group's rounds when TASO's groups are unknown", async () => {
+    // Degraded, not broken: without group data every group still renders a
+    // table, so every group's rounds are selectable.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, matchday: 1 }),
+        match({ providerMatchId: 2, groupId: 2, matchday: 23 }),
+      ],
+      []
+    );
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    await expect(
+      listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toEqual([1, 23]);
+  });
+
+  it("offers no rounds rather than failing the page when the query throws", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database unavailable");
+    });
+
+    await expect(
+      listSeasonRounds(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalled();
   });
 });
 

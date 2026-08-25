@@ -8,9 +8,8 @@ import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
   type GroupStandingsResult,
-  getSeasonMatchList,
   getSeasonStandings,
-  listSelectableTasoRounds,
+  listSeasonRounds,
   parseTasoRoundParam,
 } from "@/lib/taso-standings-service";
 
@@ -20,6 +19,14 @@ const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin 
 const EMPTY_MESSAGE = "Sarjataulukkoa ei ole saatavilla.";
 const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi.";
 const NO_MATCHES_MESSAGE = "Otteluita ei ole saatavilla.";
+/**
+ * Shown under a group whose own-calculated table did not reproduce TASO's
+ * published points, so TASO's numbers are rendered instead. Naming
+ * Palloliitto rather than "TASO" because that is the name a reader knows.
+ */
+const TASO_FALLBACK_MESSAGE =
+  "Näytetään Palloliiton omat pisteet: ne poikkeavat otteluista lasketuista. " +
+  "Kierrosvalitsin ei ole käytössä tässä ryhmässä.";
 
 type DomesticStandingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -36,10 +43,14 @@ function displayGroupName(groupName: string): string {
 }
 
 /**
- * One group's body. A knockout group has no table at all: TASO returns one
- * row per bracket slot, so an advancing team would repeat itself down the
- * rows. Its matches are its standings — see
- * specs/010-playoff-group-match-list.md.
+ * One group's body. A group with no table renders as its matches — a knockout
+ * group, where TASO returns one row per bracket slot so an advancing team
+ * would repeat itself down the rows (specs/010-playoff-group-match-list.md),
+ * or a group TASO lists with no teams at all.
+ *
+ * A pass-through group additionally carries a notice: its numbers are TASO's,
+ * not ours, because the two disagreed. See
+ * specs/013-more-finnish-competitions.md.
  */
 function GroupBody({
   group,
@@ -48,8 +59,13 @@ function GroupBody({
   group: GroupStandingsResult;
   teamHref: (teamProviderId: number) => string;
 }>) {
-  if (group.kind !== "playoff") {
-    return <StandingsTable standings={group.standings} teamHref={teamHref} />;
+  if (group.kind !== "match-list") {
+    return (
+      <>
+        {group.kind === "pass-through" && <Notice>{TASO_FALLBACK_MESSAGE}</Notice>}
+        <StandingsTable standings={group.standings} teamHref={teamHref} />
+      </>
+    );
   }
 
   if (group.matches.length === 0) {
@@ -90,16 +106,12 @@ export default async function DomesticStandingsPage({
     currentSeason,
   } = await resolveDomesticPageContext(params);
 
-  const matchListResult = await getSeasonMatchList(
+  const availableRounds = await listSeasonRounds(
     categoryId,
     competitionId,
     seasonId,
     currentSeason
   );
-  const availableRounds =
-    matchListResult.status === "ok"
-      ? listSelectableTasoRounds(matchListResult.matches, categoryId, competitionId)
-      : [];
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
