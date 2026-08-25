@@ -691,7 +691,8 @@ function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number>
  */
 function ownCalculatedStandings(
   seasonMatches: MatchRow[],
-  teamRows: StoredGroupTeam[],
+  /** Scoped to this group already — a season-wide list would let one group's `starting_points` overwrite another's, since adjustments are keyed by team. */
+  groupTeamRows: StoredGroupTeam[],
   categoryId: string,
   competitionId: string,
   groupId: number,
@@ -703,7 +704,7 @@ function ownCalculatedStandings(
     (match) => match.groupId === groupId || (parent !== null && match.groupId === parent)
   );
   const groupTeamIds = teamIdsInGroup(seasonMatches, groupId);
-  const adjustments = adjustmentsFor(seasonMatches, teamRows, entry);
+  const adjustments = adjustmentsFor(seasonMatches, groupTeamRows, entry);
 
   return calculateStandings(
     filterByRound(toFinishedMatches(contributingMatches), round),
@@ -757,7 +758,8 @@ function byStandingOrder(left: TeamStanding, right: TeamStanding): number {
  */
 function adjustmentsFor(
   seasonMatches: MatchRow[],
-  teamRows: StoredGroupTeam[],
+  /** One group's rows. Keyed by team, so rows from another group would collide. */
+  groupTeamRows: StoredGroupTeam[],
   entry: CarryOverEntry | null
 ): Map<number, number> {
   // Only a seeded entry has a parent contribution to discount; `entry` is
@@ -768,7 +770,7 @@ function adjustmentsFor(
       : new Map<number, number>();
 
   return new Map(
-    teamRows.map((row) => {
+    groupTeamRows.map((row) => {
       const seed = parentPoints.get(row.teamProviderId) ?? 0;
       return [row.teamProviderId, (row.startingPoints ?? 0) - seed];
     })

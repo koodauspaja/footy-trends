@@ -588,6 +588,67 @@ describe("getSeasonStandings", () => {
     expect(standings.find((team) => team.teamName === "HJK")?.points).toBe(6);
   });
 
+  it("scopes starting_points to the group being calculated, not the whole season", async () => {
+    // Adjustments are keyed by team, so a team that plays in both a parent and
+    // a child group has a row in each — with different starting_points. Feed
+    // the season's rows in unscoped and the last one wins, handing Runkosarja
+    // the Mestaruussarja seed and breaking its reconciliation.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, groupId: 1, homeGoals: 3, awayGoals: 0 }),
+        match({
+          providerMatchId: 2,
+          groupId: 2,
+          groupName: "Mestaruussarja",
+          matchday: 23,
+          homeGoals: 1,
+          awayGoals: 0,
+        }),
+      ],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, teamName: "HJK", startingPoints: 0, points: 3 }),
+        groupTeam({
+          groupId: 1,
+          teamProviderId: 2,
+          teamName: "KuPS",
+          startingPoints: 0,
+          points: 0,
+        }),
+        // The same team, a different group, a different starting_points.
+        groupTeam({ groupId: 2, teamProviderId: 1, teamName: "HJK", startingPoints: 3, points: 6 }),
+        groupTeam({
+          groupId: 2,
+          teamProviderId: 2,
+          teamName: "KuPS",
+          startingPoints: 0,
+          points: 0,
+        }),
+      ]
+    );
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp22", 2022, ACTIVE_SEASON, undefined);
+    const groups = result.status === "ok" ? result.groups : [];
+
+    const runkosarja = groups.find((group) => group.groupId === 1);
+    const mestaruussarja = groups.find((group) => group.groupId === 2);
+
+    // Runkosarja keeps its own 3 — it must not pick up Mestaruussarja's seed,
+    // which would make it 6 and force the whole group to fall back.
+    expect(runkosarja?.kind).toBe("own-calculated");
+    expect(
+      runkosarja?.kind === "own-calculated"
+        ? runkosarja.standings.find((team) => team.teamName === "HJK")?.points
+        : undefined
+    ).toBe(3);
+
+    expect(mestaruussarja?.kind).toBe("own-calculated");
+    expect(
+      mestaruussarja?.kind === "own-calculated"
+        ? mestaruussarja.standings.find((team) => team.teamName === "HJK")?.points
+        : undefined
+    ).toBe(6);
+  });
+
   it("own-calculates without adjustments when TASO's groups are unavailable", async () => {
     // A cold store plus an unreachable getGroups must not turn every group
     // into a match list, nor render an empty table.
