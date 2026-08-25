@@ -14,7 +14,7 @@ type TeamSeasonSelectorProps = {
 
 /**
  * Season-only selector for the team page. Targets the public `/ulkomaat/joukkue/:id`
- * URL (not the `/team/:id` App Router folder — see the rewrite in
+ * URL (not the `/foreign/team/:id` App Router folder — see the rewrite in
  * next.config.ts) so navigation never leaks the internal English route name.
  * Carries `kilpailu` forward via a hidden field — there's no competition
  * selector on this page (see specs/006-other-competitions.md), so it must
