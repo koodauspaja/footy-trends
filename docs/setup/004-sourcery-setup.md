@@ -126,7 +126,7 @@ The check reports `skipped`, and the causes need telling apart:
 | Cause | Limit | Remedy |
 |---|---|---|
 | Per-PR size cap | 300,000 diff characters | split the work |
-| Rolling seven-day budget | 1,500,000 diff characters per seat | wait for the reset; splitting does not help |
+| Rolling seven-day budget | 1,500,000 diff characters per seat | wait for enough of the seat's rolling window to expire; splitting spends it faster |
 | Automatic re-review cap | 5 per PR | `@sourcery-ai review` resets the counter |
 
 `@sourcery-ai review` forces a full review but does not create budget, so it

@@ -106,8 +106,10 @@ The check reports `skipped`, and there are three causes worth telling apart:
   that Sourcery stops reacting on its own.
 
 `@sourcery-ai review` resets the re-review counter and runs a full review
-from scratch, so it clears the third case. It does not create budget, so for
-the first two the only remedy is to wait.
+from scratch, so it clears the third case. It does not create budget, and the
+other two need different fixes: an oversized PR must be **split**, since
+waiting never shrinks its diff, while an exhausted budget can only be
+**waited** out, since splitting spends it faster.
 
 Note that Sourcery's own docs are explicit that "a rate limit never blocks a
 merge" — it skips the review and GitHub goes green. That is exactly why the
