@@ -3,7 +3,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
-import { categoryIdForSeason, categoryIdsFor } from "./domestic-competitions";
+import { categoryIdForSeason, categoryIdsFor, earliestSeasonFor } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -320,7 +320,16 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       discoverCurrentSeason(),
       newestStoredSeason(categoryIdsFor(competitionCode)),
     ]);
-    const currentSeason = discovered ?? newestStored ?? EARLIEST_TASO_SEASON;
+    // Floored at the competition's own first season, not the provider-wide
+    // one. Without that, a discovery failure with nothing stored would put
+    // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
+    // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+    // so the selector would come back empty and the page would query a season
+    // the competition never had.
+    const currentSeason = Math.max(
+      discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
+      earliestSeasonFor(competitionCode)
+    );
 
     try {
       const { matches } = await getSyncedSeasonMatches(

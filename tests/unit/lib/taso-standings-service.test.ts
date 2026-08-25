@@ -1723,6 +1723,22 @@ describe("resolveTasoSeasonContext", () => {
     });
   });
 
+  it("never puts a competition's ceiling below its own first season", async () => {
+    // Ykkösliiga starts in 2024. With discovery down and nothing stored, an
+    // unfloored ceiling of 2015 makes listSelectableTasoSeasons count down
+    // from 2015 to 2024 — an empty selector, and a query for a season the
+    // competition never had.
+    getCurrentSeasonMock.mockRejectedValue(new Error("provider unavailable"));
+    mockDb(null, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    await expect(resolveTasoSeasonContext("M1L")).resolves.toEqual({
+      currentSeason: 2024,
+      defaultSeason: 2024,
+    });
+  });
+
   it("still resolves when the matches check itself throws", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
