@@ -107,7 +107,7 @@ competitions are layered on top.
 ### The split moved after measuring the fixtures
 
 The plan was two PRs: the engine plus the competitions together. Measuring
-first changed it. The 71 carry-over entries need fixtures for 33
+first changed it. The carry-over entries need fixtures for 34
 competition-seasons — 5,444 matches, of which 4,457 are new — and at the
 existing fixture format that is roughly 200KB of JSON before a line of source
 changes. Combined with the engine work it would have sat at Sourcery's 300,000
@@ -259,17 +259,20 @@ number had to be asserted rather than described.
 
 ## PR 3b — The carry-over entries
 
-71 entries across seven categories, each validated against TASO's own
-published standings. Every split group in the nine new competitions moves off
+77 entries across seven categories, each validated against TASO's own
+published standings — 71 derived from the audit, plus six for Kakkonen 2026
+that appeared afterwards. Every split group in the nine new competitions moves off
 the fallback path onto an own-calculated table with a round selector.
 
 ### The entries were derived, not transcribed
 
-Hand-writing 71 entries and their `seeded` flags would have been 71 chances to
+Hand-writing 77 entries and their `seeded` flags would have been 77 chances to
 introduce a silent error. They come instead from the audit that produced the
 spec: every group in every season was recalculated from its own matches and
 compared against TASO's published points, and the classification that
-reconciled tells us both the parent and the convention.
+reconciled tells us both the parent and the convention. The six added later
+went through the same process against live data rather than being assumed from
+the neighbouring seasons.
 
 Distribution: Kakkonen 24, Kansallinen Liiga 20, Veikkausliiga 12, Ykkönen 10,
 Kansallinen Ykkönen 8, T18 SM 2 (under `BTSM` 2015), Ykkösliiga 1. The three
@@ -298,9 +301,9 @@ reconcile, and the group renders `pass-through` instead of `own-calculated`.
 Both are asserted, so the failure is unmissable either way.
 
 That is also why the fixture grew: it needs every match in the groups a
-carry-over touches, plus those groups' published rows. 33 competition-seasons,
-5,444 matches, ~215KB — the reason this is its own PR rather than part of the
-one that added the competitions.
+carry-over touches, plus those groups' published rows. 34 competition-seasons
+and roughly 5,700 matches — the reason this is its own PR rather than part of
+the one that added the competitions.
 
 ### Kakkonen is the shape that would have broken the old design twice
 
