@@ -144,10 +144,23 @@ function parseScore(value: string | undefined): number | null {
   return value === undefined || value === "" ? null : Number(value);
 }
 
-/** Any other status (e.g. "Live") passes through verbatim rather than crashing on the unexpected. */
+/**
+ * `Forfeited` is a walkover, and TASO counts it: the row carries the awarded
+ * result (3-0 in every case observed) and the team's `matches_played`
+ * includes it. Mapping it to anything but `FINISHED` drops it from the table
+ * while TASO's own numbers still count it, which is how three P20 Ykkönen
+ * groups failed to reconcile before this. 36 such matches exist across the
+ * competitions spec 013 covers.
+ *
+ * `Planned` is a fixture whose date is not yet fixed — a scheduled match by
+ * any other name, and it must not fall through as an unknown status.
+ *
+ * Any other status (e.g. "Live") still passes through verbatim rather than
+ * crashing on the unexpected. See specs/013-more-finnish-competitions.md.
+ */
 function normalizeStatus(status: string): string {
-  if (status === "Played") return "FINISHED";
-  if (status === "Fixture") return "SCHEDULED";
+  if (status === "Played" || status === "Forfeited") return "FINISHED";
+  if (status === "Fixture" || status === "Planned") return "SCHEDULED";
   return status;
 }
 
@@ -335,6 +348,85 @@ export type TasoGroup = {
 };
 
 type GroupsResponse = { groups?: TasoGroup[] };
+
+/**
+ * One `getGroups` team row, flattened and typed for storage.
+ *
+ * `startingPoints` is the field this whole shape exists for: TASO uses it for
+ * three different things — a carry-over seed, a points deduction, and a junior
+ * qualifying bonus — and standings are wrong without it. See
+ * specs/013-more-finnish-competitions.md.
+ */
+export type NormalizedTasoGroupTeam = {
+  categoryId: string;
+  competitionCode: string;
+  seasonId: number;
+  groupId: number;
+  teamProviderId: number;
+  teamName: string;
+  startingPoints: number | null;
+  points: number | null;
+  played: number | null;
+  won: number | null;
+  drawn: number | null;
+  lost: number | null;
+  goalsFor: number | null;
+  goalsAgainst: number | null;
+  goalDifference: number | null;
+  currentStanding: number | null;
+  finalGroupStanding: number | null;
+};
+
+/** `undefined` and `null` both mean "TASO did not report this"; a knockout group omits the field entirely. */
+function optionalNumber(value: number | string | null | undefined): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Flattens `getGroups` into one row per team per group. A group with no teams
+ * (TASO returns these for a qualifying match that has not been played yet)
+ * contributes no rows, which is what marks it as having no table at all.
+ */
+export function normalizeGroupTeams(
+  groups: TasoGroup[],
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): NormalizedTasoGroupTeam[] {
+  return groups.flatMap((group) => {
+    const groupId = optionalNumber(group.group_id);
+    if (groupId === null) return [];
+
+    return (group.teams ?? []).flatMap((team) => {
+      const teamProviderId = optionalNumber(team.team_id);
+      if (teamProviderId === null) return [];
+
+      return [
+        {
+          categoryId,
+          competitionCode: competitionId,
+          seasonId,
+          groupId,
+          teamProviderId,
+          teamName: team.team_name ?? "",
+          startingPoints: optionalNumber(team.starting_points),
+          points: optionalNumber(team.points),
+          played: optionalNumber(team.matches_played),
+          won: optionalNumber(team.matches_won),
+          drawn: optionalNumber(team.matches_tied),
+          lost: optionalNumber(team.matches_lost),
+          goalsFor: optionalNumber(team.goals_for),
+          goalsAgainst: optionalNumber(team.goals_against),
+          goalDifference: optionalNumber(team.goals_diff),
+          currentStanding: optionalNumber(team.current_standing),
+          finalGroupStanding: optionalNumber(team.final_group_standing),
+        },
+      ];
+    });
+  });
+}
 
 /** Every group TASO currently returns for one category's season, with its own precomputed standings. */
 export async function getSeasonGroups(

@@ -432,7 +432,18 @@ season coverage matrix) is at
 <https://claude.ai/code/artifact/6dc7be6a-9867-4ed2-bcd1-cb4a35dacfcc>.
 
 ## Open Questions
-None. Two known unknowns were raised and both are accepted rather than left
+
+**A season whose groups all have zero teams is indistinguishable from a season
+whose group data is unavailable.** Both leave `taso_group_teams` empty, and the
+two want opposite handling: no data means degrade to own-calculated, while
+groups that genuinely have no teams should render as match lists. Raised by
+Sourcery on PR #154 and deferred there, because it cannot occur for
+Veikkausliiga — every season has team rows — but it becomes reachable with the
+junior competitions, where an entire season can sit unplayed early in the year.
+Fixing it means persisting group presence separately from team rows, so it is a
+schema question rather than a one-line guard. Decide it while building PR 3.
+
+Two further known unknowns were raised and both are accepted rather than left
 open, confirmed in chat:
 
 - **Why P20 Ykkönen 2019 group 4 and 2022 group 4 do not reconcile.** The only

@@ -19,7 +19,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["lcov", "text"],
-      exclude: ["node_modules", ".next", "vitest.config.ts"],
+      // Everything under tests/ is test code or test data, neither of which
+      // is a subject of coverage. Without this a JSON fixture is reported as a
+      // permanently 0%-covered file, which both adds noise and drags the
+      // totals down — hiding a real regression in src/.
+      exclude: ["node_modules", ".next", "vitest.config.ts", "tests/**"],
     },
   },
   resolve: {

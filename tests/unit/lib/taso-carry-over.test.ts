@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { tasoGroupTeams } from "@/db/schema";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
   getSeasonMatchList,
@@ -99,11 +100,20 @@ function expandMatches(
   }));
 }
 
+/**
+ * Only matches are stored here: these fixtures assert that our own
+ * calculation reproduces TASO's published numbers, so feeding TASO's numbers
+ * back in as group rows would let the fallback path mask a wrong result.
+ * An empty group table means every group is own-calculated and compared
+ * against nothing, which is exactly what this file wants to measure.
+ */
 function mockStoredMatches(rows: NormalizedTasoMatch[]): void {
   const stored = rows.map((row) => ({ ...row, updatedAt: new Date() }));
-  const orderBy = vi.fn().mockResolvedValue(stored);
-  const where = vi.fn().mockReturnValue({ orderBy });
-  dbMock.select.mockReturnValue({ from: vi.fn().mockReturnValue({ where }) });
+  const from = vi.fn().mockImplementation((table: unknown) => {
+    const orderBy = vi.fn().mockResolvedValue(table === tasoGroupTeams ? [] : stored);
+    return { where: vi.fn().mockReturnValue({ orderBy }) };
+  });
+  dbMock.select.mockReturnValue({ from });
 }
 
 describe("CARRY_OVER_CONFIG validated against TASO's published standings", () => {
@@ -215,7 +225,7 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       const result = await getSeasonMatchList(categoryId, competitionId, 2022, ACTIVE_SEASON);
       const rounds =
         result.status === "ok"
-          ? listSelectableTasoRounds(result.matches, categoryId, competitionId)
+          ? listSelectableTasoRounds(result.matches, new Set(result.matches.map((m) => m.groupId)))
           : [];
 
       expect(Math.max(...rounds)).toBe(27);
@@ -231,7 +241,7 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       const result = await getSeasonMatchList(categoryId, competitionId, 2019, ACTIVE_SEASON);
       const rounds =
         result.status === "ok"
-          ? listSelectableTasoRounds(result.matches, categoryId, competitionId)
+          ? listSelectableTasoRounds(result.matches, new Set(result.matches.map((m) => m.groupId)))
           : [];
 
       expect(Math.max(...rounds)).toBe(27);
@@ -292,8 +302,8 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       .map((entry) => `${entry.categoryId}/${entry.competitionId}:${entry.groupId}`)
       .sort();
     const fixtured = seasons
-      .flatMap(({ key, season }) =>
-        Object.keys(season.expected).map((groupId) => `${key}:${groupId}`)
+      .flatMap(({ categoryId, competitionId, season }) =>
+        Object.keys(season.expected).map((groupId) => `${categoryId}/${competitionId}:${groupId}`)
       )
       .sort();
 

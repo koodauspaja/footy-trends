@@ -1,13 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
-import type {
-  GroupStandingsResult,
-  SeasonMatchesResult,
-  SeasonStandingsResult,
-} from "@/lib/taso-standings-service";
+import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
 
-const getSeasonMatchListMock = vi.fn<() => Promise<SeasonMatchesResult>>();
+const listSeasonRoundsMock = vi.fn<() => Promise<number[]>>();
 const getSeasonStandingsMock = vi.fn<() => Promise<SeasonStandingsResult>>();
 
 /**
@@ -23,7 +19,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
     ...actual,
-    getSeasonMatchList: getSeasonMatchListMock,
+    listSeasonRounds: listSeasonRoundsMock,
     getSeasonStandings: getSeasonStandingsMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -89,7 +85,7 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
 describe("Domestic standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getSeasonMatchListMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
+    listSeasonRoundsMock.mockResolvedValue([1, 2]);
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
   });
 
@@ -105,7 +101,7 @@ describe("Domestic standings page", () => {
   it("resolves a valid kausi param to its own competition_id", async () => {
     await renderStandings({ kausi: "2015" });
 
-    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026);
+    expect(listSeasonRoundsMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026);
     expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026, undefined);
     expect(screen.getByRole("heading", { name: "Veikkausliiga 2015" })).toBeInTheDocument();
   });
@@ -226,7 +222,7 @@ describe("Domestic standings page", () => {
       groups: [
         ownCalculatedGroup,
         {
-          kind: "playoff",
+          kind: "match-list",
           groupId: 4,
           groupName: "Eurolopputurnaus",
           matches: [
@@ -297,7 +293,7 @@ describe("Domestic standings page", () => {
   it("shows the no-matches message for a playoff group with no stored matches", async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
-      groups: [{ kind: "playoff", groupId: 4, groupName: "Eurolopputurnaus", matches: [] }],
+      groups: [{ kind: "match-list", groupId: 4, groupName: "Eurolopputurnaus", matches: [] }],
     });
 
     await renderStandings();
@@ -315,11 +311,6 @@ describe("Domestic standings page", () => {
   });
 
   it("shows the round selector and passes the selected round through to getSeasonStandings", async () => {
-    getSeasonMatchListMock.mockResolvedValue({
-      status: "ok",
-      matches: [buildMatch({ matchday: 1 }), buildMatch({ providerMatchId: 2, matchday: 2 })],
-    });
-
     await renderStandings({ kierros: "1" });
 
     expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, 1);
@@ -336,7 +327,7 @@ describe("Domestic standings page", () => {
   });
 
   it("shows the empty message when the season has no matches at all", async () => {
-    getSeasonMatchListMock.mockResolvedValue({ status: "empty" });
+    listSeasonRoundsMock.mockResolvedValue([]);
     getSeasonStandingsMock.mockResolvedValue({ status: "empty", groups: [] });
 
     await renderStandings();
@@ -345,7 +336,7 @@ describe("Domestic standings page", () => {
   });
 
   it("shows the error message on a TASO failure", async () => {
-    getSeasonMatchListMock.mockResolvedValue({ status: "error" });
+    listSeasonRoundsMock.mockResolvedValue([]);
     getSeasonStandingsMock.mockResolvedValue({ status: "error", groups: [] });
 
     await renderStandings();

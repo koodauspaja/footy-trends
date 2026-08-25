@@ -87,3 +87,55 @@ export const tasoMatches = pgTable(
     ),
   ]
 );
+
+/**
+ * `getGroups`' per-team rows, stored rather than only Redis-cached.
+ *
+ * Own-calculated standings depend on `starting_points` — TASO's carrier for
+ * points deductions and junior qualifying bonuses — so a cold cache or a TASO
+ * outage must not silently change a table's points. This also serves the
+ * numbers a group falls back to when our calculation disagrees with TASO's.
+ * See specs/013-more-finnish-competitions.md.
+ *
+ * Every stat column is nullable: a knockout group has no points competition at
+ * all and TASO omits the fields entirely rather than sending zeroes.
+ */
+export const tasoGroupTeams = pgTable(
+  "taso_group_teams",
+  {
+    id: serial("id").primaryKey(),
+    categoryId: text("category_id").notNull(),
+    competitionCode: text("competition_id").notNull(),
+    seasonId: integer("season_id").notNull(),
+    groupId: integer("group_id").notNull(),
+    teamProviderId: integer("team_provider_id").notNull(),
+    teamName: text("team_name").notNull(),
+    // The whole reason this table exists. Negative is a deduction; a large
+    // positive under a seeded carry-over entry is the parent's points.
+    startingPoints: integer("starting_points"),
+    points: integer("points"),
+    played: integer("matches_played"),
+    won: integer("matches_won"),
+    drawn: integer("matches_tied"),
+    lost: integer("matches_lost"),
+    goalsFor: integer("goals_for"),
+    goalsAgainst: integer("goals_against"),
+    goalDifference: integer("goals_diff"),
+    currentStanding: integer("current_standing"),
+    finalGroupStanding: integer("final_group_standing"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // A team appears once per group. Unlike `taso_matches`, there is no
+    // provider-side id to key on — the group and the team together are the
+    // identity.
+    uniqueIndex("taso_group_teams_identity_idx").on(
+      table.categoryId,
+      table.competitionCode,
+      table.seasonId,
+      table.groupId,
+      table.teamProviderId
+    ),
+  ]
+);
