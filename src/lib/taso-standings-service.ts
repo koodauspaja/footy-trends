@@ -546,8 +546,11 @@ export async function synchronizeGroupTeams(
   seasonId: number,
   rows: NormalizedTasoGroupTeam[]
 ): Promise<void> {
-  if (rows.length === 0) return;
-
+  // No early return on an empty snapshot: TASO answering "this season has no
+  // group standings" is an answer, not a non-answer, and keeping the previous
+  // rows would leave every dropped team in place. A failed *request* is the
+  // case that preserves what is stored, and that is handled by the caller's
+  // catch rather than here.
   await db.transaction(async (tx) => {
     await tx
       .delete(tasoGroupTeams)
@@ -558,6 +561,8 @@ export async function synchronizeGroupTeams(
           eq(tasoGroupTeams.seasonId, seasonId)
         )
       );
+
+    if (rows.length === 0) return;
 
     await tx
       .insert(tasoGroupTeams)
@@ -598,22 +603,19 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
     const groups = await getSeasonGroups(competitionId, categoryId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
     await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows);
-    // Re-read rather than returning `rows`: the caller needs full rows, and a
-    // group whose teams disappeared upstream must still be served from what is
-    // stored rather than vanishing mid-season.
-    return rows.length === 0
-      ? stored
-      : await db
-          .select()
-          .from(tasoGroupTeams)
-          .where(
-            and(
-              eq(tasoGroupTeams.categoryId, categoryId),
-              eq(tasoGroupTeams.competitionCode, competitionId),
-              eq(tasoGroupTeams.seasonId, seasonId)
-            )
-          )
-          .orderBy(desc(tasoGroupTeams.updatedAt));
+    // Re-read rather than returning `rows`: the caller needs full stored rows,
+    // and the snapshot has just replaced whatever was there.
+    return await db
+      .select()
+      .from(tasoGroupTeams)
+      .where(
+        and(
+          eq(tasoGroupTeams.categoryId, categoryId),
+          eq(tasoGroupTeams.competitionCode, competitionId),
+          eq(tasoGroupTeams.seasonId, seasonId)
+        )
+      )
+      .orderBy(desc(tasoGroupTeams.updatedAt));
   } catch (error) {
     logger.warn(
       { err: error, categoryId, competitionId, seasonId },
@@ -644,13 +646,23 @@ function groupNameOf(matchList: MatchRow[], groupId: number): string {
  * neither. `current_standing` is the live one and `final_group_standing` the
  * settled one; a completed season has both, an unstarted group neither.
  */
+/** Sorts a row TASO never ranked to the end rather than the front. */
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
 function publishedPosition(team: StoredGroupTeam): number | null {
   return team.currentStanding ?? team.finalGroupStanding;
 }
 
+/**
+ * `position` is the row's place in TASO's own order rather than TASO's literal
+ * `current_standing`. The two agree whenever TASO ranks every team 1..n, which
+ * is the normal case; they differ only where its numbering has a gap or a row
+ * it never ranked, and there a literal copy produces duplicates — two rows both
+ * numbered 1 in the rendered table.
+ */
 function toPassThroughStanding(team: StoredGroupTeam, index: number): TasoTeamStanding {
   return {
-    position: publishedPosition(team) ?? index + 1,
+    position: index + 1,
     teamProviderId: team.teamProviderId,
     teamName: team.teamName,
     played: team.played,
@@ -1028,12 +1040,16 @@ function buildGroup(
       groupId,
       groupName,
       // TASO's own order, since these are TASO's own numbers. A row it never
-      // ranked sorts to the top and keeps its input position.
+      // ranked sorts last, in the order TASO listed it — sorting those to the
+      // top on a 0 would put an unranked team above the group winner.
       standings: [...teamRows]
-        .sort((left, right) => (publishedPosition(left) ?? 0) - (publishedPosition(right) ?? 0))
+        .sort(
+          (left, right) =>
+            (publishedPosition(left) ?? UNRANKED) - (publishedPosition(right) ?? UNRANKED)
+        )
         // Called explicitly rather than passed by reference: `map` supplies a
         // third argument this takes no account of, and the index it does use
-        // is a deliberate position fallback, not an accident.
+        // is deliberate, not an accident.
         .map((team, index) => toPassThroughStanding(team, index)),
     };
   }

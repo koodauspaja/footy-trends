@@ -1188,11 +1188,39 @@ describe("standings edge cases", () => {
 
     // current_standing wins; final_group_standing is the fallback; a team with
     // neither sorts as 0 and keeps its position from the row order.
+    // Ranked rows in TASO's order, the unranked one last — not sorted to the
+    // top on a 0 and numbered 1 alongside the actual leader.
     expect(standings.map((team) => [team.teamName, team.position])).toEqual([
-      ["Unranked", 1],
       ["First", 1],
-      ["Third", 3],
+      ["Third", 2],
+      ["Unranked", 3],
     ]);
+  });
+
+  it("gives every fallback row a distinct position even when TASO's numbering has gaps", async () => {
+    // Copying `current_standing` verbatim produced duplicates here.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "A", points: 99, currentStanding: 1 }),
+        groupTeam({ teamProviderId: 2, teamName: "B", points: 98, currentStanding: 5 }),
+        groupTeam({ teamProviderId: 3, teamName: "C", points: 97, currentStanding: null }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = result.status === "ok" ? result.groups[0] : undefined;
+    const positions =
+      group?.kind === "pass-through" ? group.standings.map((team) => team.position) : [];
+
+    expect(positions).toEqual([1, 2, 3]);
+    expect(new Set(positions).size).toBe(positions.length);
   });
 
   it("lists a match-list group's matches chronologically, whatever order they are stored in", async () => {
@@ -1238,10 +1266,16 @@ describe("group standings storage", () => {
     vi.clearAllMocks();
   });
 
-  it("writes nothing when TASO returns no group rows", async () => {
+  it("clears the season even when TASO returns no group rows", async () => {
+    // "This season has no group standings" is an answer, not a non-answer:
+    // keeping the previous rows would leave every dropped team in place. A
+    // failed request is the case that preserves what is stored.
     const insert = mockInsert();
+
     await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, []);
+
     expect(insert.values).not.toHaveBeenCalled();
+    expect(dbMock.delete).toHaveBeenCalled();
   });
 
   it("upserts group rows on the group-and-team identity", async () => {
