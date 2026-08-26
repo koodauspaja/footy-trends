@@ -131,8 +131,15 @@ Enable the following:
    - `Sourcery review`
 4. Save
 
-From this point on, a PR cannot merge unless all four checks pass — the two CI
-jobs, SonarCloud, and Sourcery.
+From this point on GitHub blocks a merge until all four checks — the two CI
+jobs, SonarCloud, and Sourcery — *satisfy* the requirement.
+
+Satisfy, not pass: GitHub accepts `success`, `skipped` and `neutral` alike.
+That distinction is the whole reason for the note below, because Sourcery
+reports exactly `skipped` when it declines a review. Only the two CI jobs and
+SonarCloud are genuinely gated by this rule; Sourcery's real gate is the
+head-commit check in `skills/open-pr.md`, which requires a `success`
+conclusion before handoff.
 
 > **A required check cannot enforce the Sourcery gate.** GitHub's own
 > documentation is explicit: *"Required status checks must have a
