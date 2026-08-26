@@ -18,7 +18,25 @@ export type DomesticCompetition = {
   name: string;
   /** Newest first, so the first entry at or below a season wins. */
   categories: CompetitionCategory[];
+  /**
+   * The `competition_id` prefix, when the competition is not inside the
+   * `spljp{YY}` season umbrella.
+   *
+   * Almost every Finnish competition is a *category* within that umbrella.
+   * Ykkösliigacup is not: it is its own competition, published as
+   * `M1LCUP{YY}`. Omitted means the umbrella. See specs/015-finnish-cups.md.
+   */
+  competitionIdPrefix?: string;
+  /**
+   * Cup competitions render differently: a bracket, and rounds the reader can
+   * collapse. Omitted means a league, so no existing entry changes behaviour.
+   * See specs/015-finnish-cups.md.
+   */
+  format?: "league" | "cup";
 };
+
+/** The season umbrella every competition belongs to unless it says otherwise. */
+const SEASON_UMBRELLA_PREFIX = "spljp";
 
 /**
  * Finnish competitions, shown on the `/kotimaa` picker — separate from
@@ -100,6 +118,31 @@ export const DOMESTIC_COMPETITIONS: DomesticCompetition[] = [
       { fromSeason: EARLIEST_TASO_SEASON, categoryId: "BTSM" },
     ],
   },
+  // The cups close the list rather than slotting into the tier order above:
+  // a cup is not a tier, and every competition in it also plays a league.
+  // Added in specs/015-finnish-cups.md.
+  {
+    code: "MSC",
+    name: "Miesten Suomen Cup",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "MSC" }],
+    format: "cup",
+  },
+  {
+    code: "NSC",
+    name: "Naisten Suomen Cup",
+    categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "NSC" }],
+    format: "cup",
+  },
+  // Its own competition rather than a category in the umbrella, and reachable
+  // only from 2024 — M1LCUP22, M1LCUP23 and M1LCUP27 all return zero
+  // categories.
+  {
+    code: "M1LCUP",
+    name: "Ykkösliigacup",
+    categories: [{ fromSeason: 2024, categoryId: "M1LCUP" }],
+    competitionIdPrefix: "M1LCUP",
+    format: "cup",
+  },
 ];
 
 function findCompetition(code: string): DomesticCompetition | undefined {
@@ -151,6 +194,31 @@ export function earliestSeasonFor(code: string): number {
   const categories = findCompetition(code)?.categories ?? [];
   const seasons = categories.map((category) => category.fromSeason);
   return seasons.length === 0 ? EARLIEST_TASO_SEASON : Math.min(...seasons);
+}
+
+/**
+ * The `competition_id` to query for one competition in one season.
+ *
+ * Almost always the season umbrella (`spljp26`); a competition that declares
+ * its own prefix gets that instead (`M1LCUP26`). The two-digit year is shared,
+ * so only the prefix varies.
+ *
+ * An unknown code answers with the umbrella, which is what every competition
+ * used before Ykkösliigacup existed — a bad `kilpailu` value cannot reach a
+ * competition id nothing validates.
+ */
+export function competitionIdForSeason(code: string, seasonId: number): string {
+  const prefix = findCompetition(code)?.competitionIdPrefix ?? SEASON_UMBRELLA_PREFIX;
+  return `${prefix}${String(seasonId % 100).padStart(2, "0")}`;
+}
+
+/**
+ * Whether a competition is a cup. An unknown code answers `false`: the league
+ * rendering is the one that has always existed, so a bad `kilpailu` value
+ * cannot route into the newer path.
+ */
+export function isDomesticCup(code: string): boolean {
+  return findCompetition(code)?.format === "cup";
 }
 
 export type DomesticCompetitionParamResult =

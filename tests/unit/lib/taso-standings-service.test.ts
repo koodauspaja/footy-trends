@@ -78,6 +78,7 @@ function match(
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    winner: null,
     // Fresh, not stale — a mockStoredMatches-based test is about the
     // matches themselves, not needsRefresh's staleness threshold (covered
     // separately below), so this should never trigger an unmocked refetch.

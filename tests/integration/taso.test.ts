@@ -44,6 +44,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     awayTeamName: "Integration City",
     homeGoals: 2,
     awayGoals: 1,
+    winner: null,
     ...overrides,
   };
 }

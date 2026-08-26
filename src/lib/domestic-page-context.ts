@@ -1,5 +1,6 @@
 import {
   categoryIdForSeason,
+  competitionIdForSeason,
   DEFAULT_DOMESTIC_COMPETITION_CODE,
   type DomesticCompetitionParamResult,
   earliestSeasonFor,
@@ -7,7 +8,6 @@ import {
   parseDomesticCompetitionParam,
 } from "./domestic-competitions";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
-import { competitionIdFromSeason } from "./taso";
 import { getSeasonCategoryName, resolveTasoSeasonContext } from "./taso-standings-service";
 
 /**
@@ -100,7 +100,7 @@ export async function resolveDomesticPageContext(
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : defaultSeason;
   const seasonLabel = String(seasonId);
-  const competitionId = competitionIdFromSeason(seasonId);
+  const competitionId = competitionIdForSeason(competitionCode, seasonId);
   const categoryId = categoryIdForSeason(competitionCode, seasonId);
   const publishedName = await getSeasonCategoryName(
     categoryId,

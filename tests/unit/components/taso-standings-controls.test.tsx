@@ -87,3 +87,22 @@ describe("TasoStandingsControls", () => {
     );
   });
 });
+
+describe("TasoStandingsControls with no rounds", () => {
+  it("hides the round select when the season has no round-aware group", () => {
+    // A cup's groups are all knockout rounds, so the select would offer only
+    // "Koko kausi" and do nothing.
+    render(
+      <TasoStandingsControls
+        competitionCode="MSC"
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[]}
+        selectedRound={undefined}
+      />
+    );
+
+    expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Kierros")).not.toBeInTheDocument();
+  });
+});

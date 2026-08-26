@@ -1,5 +1,11 @@
 import Link from "next/link";
-import type { BracketLeg, BracketRound, BracketTie, TieDecision } from "@/lib/cup-bracket";
+import {
+  type BracketLeg,
+  type BracketRound,
+  type BracketTie,
+  orderRoundsForTree,
+  type TieDecision,
+} from "@/lib/cup-bracket";
 import { getStageName, isDrawnStage } from "@/lib/cup-stages";
 import { formatMatchResult } from "@/lib/standings";
 import { matchDateFormatter } from "./match-list-table";
@@ -13,6 +19,9 @@ const DECISION_SUFFIX: Record<TieDecision, string> = {
   regular: "",
   extra_time: " (ja)",
   penalties: " (rp)",
+  // The provider named the winner without saying how — the bold name carries
+  // it, and a "(rp)" here would assert a shootout the data does not record.
+  declared: "",
 };
 
 const NO_BRACKET_MESSAGE = "Pudotuspelit eivät ole vielä alkaneet.";
@@ -145,18 +154,30 @@ function TieCard({
   );
 }
 
-/** The drawn tree: one column per round, later rounds centred against their feeders. */
-function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
+/**
+ * The drawn tree: one column per round, later rounds centred against their
+ * feeders.
+ *
+ * Exported because the Finnish cups use the tree alone: their page already
+ * lists every round below, so it needs the drawing without `CupBracket`'s
+ * listed-vs-drawn split, which keys on football-data stage names those rounds
+ * do not have. See specs/015-finnish-cups.md.
+ */
+export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
+  // Aligned so each tie sits against the two that feed it; a round's own
+  // kickoff order says nothing about who plays whom next.
+  const aligned = orderRoundsForTree(rounds);
+
   return (
     <div className="overflow-x-auto pr-1">
       <div className="flex w-max gap-8">
-        {rounds.map((round, index) => (
+        {aligned.map((round, index) => (
           <section className="flex w-56 shrink-0 flex-col" key={round.stage}>
             <h3 className="mb-3 font-medium text-sm text-zinc-600">{getStageName(round.stage)}</h3>
             <ul className="flex flex-1 flex-col justify-around gap-4">
               {round.ties.map((tie) => (
                 <TieCard
-                  isLastRound={index === rounds.length - 1}
+                  isLastRound={index === aligned.length - 1}
                   key={tie.key}
                   teamHref={teamHref}
                   tie={tie}

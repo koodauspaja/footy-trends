@@ -786,3 +786,47 @@ describe("getSeasonCategoryNames", () => {
     await expect(getSeasonCategoryNames("spljp26")).resolves.toEqual({});
   });
 });
+
+describe("TASO winner", () => {
+  function normalize(winner?: string) {
+    return normalizeTasoMatch(
+      {
+        match_id: "1",
+        status: "Played",
+        ...(winner === undefined ? {} : { winner }),
+        date: "2025-06-11",
+        time: "19:00",
+        time_zone_offset: "+0300",
+        group_id: "1",
+        group_name: "Puolivälierät",
+        round_id: "1",
+        team_A_id: "10",
+        team_A_name: "FC Haka",
+        team_B_id: "20",
+        team_B_name: "KuPS",
+        fs_A: "1",
+        fs_B: "1",
+      },
+      "spljp25",
+      "MSC",
+      2025
+    )?.winner;
+  }
+
+  it("carries TASO's verdict, lowercased", () => {
+    // A cup only ever reports Home or Away: MSC 2025 returns one of the two
+    // for all 419 matches, including the 55 that finished level.
+    expect(normalize("Home")).toBe("home");
+    expect(normalize("Away")).toBe("away");
+  });
+
+  it("carries a league draw as a tie", () => {
+    // VL 2025 returns Tie for exactly its 40 level matches.
+    expect(normalize("Tie")).toBe("tie");
+  });
+
+  it("has no winner before the match is played", () => {
+    expect(normalize()).toBeNull();
+    expect(normalize("Something else")).toBeNull();
+  });
+});

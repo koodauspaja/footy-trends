@@ -1,4 +1,5 @@
 import { index, integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import type { TasoWinner } from "@/lib/taso";
 
 /**
  * Columns identical between `matches` and `tasoMatches` — a function, not a
@@ -91,6 +92,14 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
+    // TASO's own verdict on who went through: "home" | "away" | "tie", null
+    // until played. A cup tie level after normal time is decided on penalties
+    // TASO does not itemise, so the score cannot answer this and the bracket
+    // has nothing else to go on. See specs/015-finnish-cups.md.
+    // Typed as the union rather than plain text, so a selected row keeps
+    // satisfying `NormalizedTasoMatch` structurally — the same reason every
+    // other column here mirrors that type's field names.
+    winner: text("winner").$type<TasoWinner>(),
     ...matchTeamColumns(),
   },
   (table) => [

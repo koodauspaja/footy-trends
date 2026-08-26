@@ -48,6 +48,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    winner: null,
     ...overrides,
   };
 }
@@ -406,5 +407,132 @@ describe("Domestic standings page competition naming", () => {
     await renderStandings({ kilpailu: "NL", kausi: "2026" });
 
     expect(screen.queryByText(/^nykyisin /)).not.toBeInTheDocument();
+  });
+});
+
+describe("Domestic standings page, cup competitions", () => {
+  /** One knockout match, TASO-shaped. */
+  function cupMatch(
+    id: number,
+    home: [number, string],
+    away: [number, string],
+    score: [number, number],
+    winner: "home" | "away",
+    day: number
+  ) {
+    return buildMatch({
+      providerMatchId: id,
+      categoryId: "MSC",
+      status: "FINISHED",
+      kickoffAt: new Date(`2025-06-${String(day).padStart(2, "0")}T16:00:00Z`),
+      homeTeamProviderId: home[0],
+      homeTeamName: home[1],
+      awayTeamProviderId: away[0],
+      awayTeamName: away[1],
+      homeGoals: score[0],
+      awayGoals: score[1],
+      winner,
+    });
+  }
+
+  function knockoutGroup(
+    groupId: number,
+    groupName: string,
+    matches: ReturnType<typeof cupMatch>[]
+  ): GroupStandingsResult {
+    return {
+      kind: "match-list",
+      groupId,
+      groupName,
+      matches: matches.map((entry) => ({ ...entry, groupId, groupName })),
+    };
+  }
+
+  /** The closing rounds of MSC 2025. */
+  const closingRounds = [
+    knockoutGroup(2, "Puolivälierät", [
+      cupMatch(1, [1, "HJK Klubi 04"], [2, "HJK"], [0, 4], "away", 11),
+      cupMatch(2, [3, "FC Haka"], [4, "KuPS"], [1, 1], "away", 11),
+      cupMatch(3, [5, "AC Oulu"], [6, "SJK"], [2, 0], "home", 12),
+      cupMatch(4, [7, "EIF"], [8, "FF Jaro"], [2, 4], "away", 12),
+    ]),
+    knockoutGroup(3, "Välierät", [
+      cupMatch(5, [2, "HJK"], [5, "AC Oulu"], [1, 0], "home", 20),
+      cupMatch(6, [4, "KuPS"], [8, "FF Jaro"], [2, 0], "home", 20),
+    ]),
+    knockoutGroup(4, "Finaali", [cupMatch(7, [2, "HJK"], [4, "KuPS"], [1, 0], "home", 25)]),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listSeasonRoundsMock.mockResolvedValue([]);
+    getSeasonCategoryNameMock.mockResolvedValue(null);
+  });
+
+  it("draws the bracket above the round lists", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings[0]).toBe("Pudotuspelit");
+    // Each drawn round still keeps its own list below.
+    expect(headings).toContain("Puolivälierät");
+    expect(headings).toContain("Loppuottelu");
+  });
+
+  it("normalises Finaali to Loppuottelu in both the tree and the list", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    expect(screen.queryByText("Finaali")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Loppuottelu" }).length).toBeGreaterThan(1);
+  });
+
+  it("marks the winner of a level tie that TASO settled", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    // FC Haka 1-1 KuPS, KuPS through.
+    const winners = screen.getAllByRole("link", { name: "KuPS" });
+    expect(winners.some((link) => link.className.includes("font-semibold"))).toBe(true);
+  });
+
+  it("shows no Pudotuspelit section for a season with no closing rounds", async () => {
+    // MSC 2021: a wide knockout group and nothing that halves down to a final.
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [
+        knockoutGroup(
+          1,
+          "Cup-vaihe",
+          Array.from({ length: 12 }, (_, index) =>
+            cupMatch(
+              index + 1,
+              [index + 1, `A${index}`],
+              [index + 40, `B${index}`],
+              [1, 0],
+              "home",
+              1
+            )
+          )
+        ),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2021" });
+
+    expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cup-vaihe" })).toBeInTheDocument();
+  });
+
+  it("shows no Pudotuspelit section for a league competition", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
+
+    await renderStandings();
+
+    expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
   });
 });

@@ -53,6 +53,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    winner: null,
     ...overrides,
   };
 }
