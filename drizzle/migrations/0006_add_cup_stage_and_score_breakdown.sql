@@ -1,0 +1,9 @@
+ALTER TABLE "matches" ADD COLUMN "stage" text;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "group_name" text;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "regular_time_home" integer;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "regular_time_away" integer;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "extra_time_home" integer;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "extra_time_away" integer;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "penalties_home" integer;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "penalties_away" integer;--> statement-breakpoint
+CREATE INDEX "matches_competition_season_stage_idx" ON "matches" USING btree ("competition_code","season_id","stage");

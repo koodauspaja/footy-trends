@@ -1,11 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
-import type { RoundMatchesResult } from "@/lib/standings-service";
+import type { CupSeasonResult, RoundMatchesResult } from "@/lib/standings-service";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getRoundMatchesMock = vi.fn<() => Promise<RoundMatchesResult>>();
+const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/football-data", () => ({
@@ -15,6 +16,7 @@ vi.mock("@/lib/football-data", () => ({
 vi.mock("@/lib/standings-service", () => ({
   getMaxMatchday: getMaxMatchdayMock,
   getRoundMatches: getRoundMatchesMock,
+  getCupSeason: getCupSeasonMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -50,6 +52,14 @@ const okResult: RoundMatchesResult = {
       awayTeamName: "Chelsea FC",
       homeGoals: 2,
       awayGoals: 1,
+      stage: null,
+      groupName: null,
+      regularTimeHome: null,
+      regularTimeAway: null,
+      extraTimeHome: null,
+      extraTimeAway: null,
+      penaltiesHome: null,
+      penaltiesAway: null,
     },
     {
       providerMatchId: 2,
@@ -64,6 +74,14 @@ const okResult: RoundMatchesResult = {
       awayTeamName: "Everton FC",
       homeGoals: null,
       awayGoals: null,
+      stage: null,
+      groupName: null,
+      regularTimeHome: null,
+      regularTimeAway: null,
+      extraTimeHome: null,
+      extraTimeAway: null,
+      penaltiesHome: null,
+      penaltiesAway: null,
     },
   ],
 };
@@ -85,6 +103,9 @@ describe("Matches page", () => {
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getMaxMatchdayMock.mockResolvedValue(5);
     getRoundMatchesMock.mockResolvedValue(okResult);
+    // The default fixtures are all Premier League, which never takes the cup
+    // path; a cup test overrides this.
+    getCupSeasonMock.mockResolvedValue({ status: "empty" });
   });
 
   it("shows the heading with competition, season label and round, and lists both teams' matches", async () => {
@@ -334,5 +355,196 @@ describe("Matches page", () => {
     const { generateMetadata } = await import("@/app/foreign/matches/page");
 
     expect(await generateMetadata({})).toEqual({ title: "Valioliiga 2025/26" });
+  });
+});
+
+function cupMatch(options: {
+  id: number;
+  stage: string;
+  matchday: number | null;
+  home: [number, string];
+  away: [number, string];
+  score?: [number, number];
+  kickoffAt?: string;
+}) {
+  return {
+    providerMatchId: options.id,
+    competitionCode: "CL",
+    seasonId: 2024,
+    status: "FINISHED",
+    kickoffAt: new Date(options.kickoffAt ?? "2025-04-08T19:00:00Z"),
+    matchday: options.matchday,
+    stage: options.stage,
+    groupName: null,
+    homeTeamProviderId: options.home[0],
+    homeTeamName: options.home[1],
+    awayTeamProviderId: options.away[0],
+    awayTeamName: options.away[1],
+    homeGoals: options.score?.[0] ?? null,
+    awayGoals: options.score?.[1] ?? null,
+    regularTimeHome: null,
+    regularTimeAway: null,
+    extraTimeHome: null,
+    extraTimeAway: null,
+    penaltiesHome: null,
+    penaltiesAway: null,
+  };
+}
+
+describe("Matches page, cup competitions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getMaxMatchdayMock.mockResolvedValue(5);
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "LEAGUE_STAGE",
+          matchday: 1,
+          home: [1, "Arsenal FC"],
+          away: [2, "Inter"],
+          score: [2, 0],
+          kickoffAt: "2024-09-17T19:00:00Z",
+        }),
+        cupMatch({
+          id: 2,
+          stage: "QUARTER_FINALS",
+          matchday: 1,
+          home: [3, "PSG"],
+          away: [4, "Aston Villa FC"],
+          score: [3, 1],
+        }),
+        cupMatch({
+          id: 3,
+          stage: "QUARTER_FINALS",
+          matchday: 2,
+          home: [4, "Aston Villa FC"],
+          away: [3, "PSG"],
+          score: [3, 2],
+          kickoffAt: "2025-04-15T19:00:00Z",
+        }),
+      ],
+    });
+  });
+
+  it("offers a stage selector instead of a round selector", async () => {
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    expect(screen.getByLabelText("Vaihe")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Kierros")).not.toBeInTheDocument();
+  });
+
+  it("lists the stages in progression order, with Finnish names", async () => {
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    const options = within(screen.getByLabelText("Vaihe")).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual(["Liigavaihe", "Puolivälierät"]);
+  });
+
+  it("defaults to the last stage once the season is complete", async () => {
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    expect(
+      screen.getByRole("heading", { name: "Mestarien liiga 2025/26, puolivälierät" })
+    ).toBeInTheDocument();
+    // Both quarter-final legs are listed, so PSG appears twice.
+    expect(screen.getAllByText("PSG")).toHaveLength(2);
+  });
+
+  it("shows the requested stage and labels knockout matchdays as legs", async () => {
+    await renderMatchesPage({ kilpailu: "CL", vaihe: "QUARTER_FINALS" });
+
+    expect(screen.getByText("Osaottelu")).toBeInTheDocument();
+    expect(screen.queryByText("Kierros")).not.toBeInTheDocument();
+  });
+
+  it("labels the league phase's matchdays as rounds", async () => {
+    await renderMatchesPage({ kilpailu: "CL", vaihe: "LEAGUE_STAGE" });
+
+    expect(screen.getByText("Kierros")).toBeInTheDocument();
+    expect(screen.queryByText("Osaottelu")).not.toBeInTheDocument();
+  });
+
+  it("falls back with a notice when the stage does not exist in this season", async () => {
+    await renderMatchesPage({ kilpailu: "CL", vaihe: "LAST_32" });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Vaihetta ei löytynyt. Näytetään puolivälierät."
+    );
+  });
+
+  it("reports an error when the cup season could not be loaded", async () => {
+    getCupSeasonMock.mockResolvedValue({ status: "error" });
+
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Otteluita ei ole saatavilla.")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state, and a heading without a stage, for an empty season", async () => {
+    getCupSeasonMock.mockResolvedValue({ status: "empty" });
+
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    expect(screen.getByRole("heading", { name: "Mestarien liiga 2025/26" })).toBeInTheDocument();
+    expect(screen.getByText("Otteluita ei ole saatavilla.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Vaihe")).not.toBeInTheDocument();
+  });
+
+  it("leaves the leg number blank for a final, which carries matchday 0", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 9,
+          stage: "FINAL",
+          matchday: 0,
+          home: [1, "PSG"],
+          away: [2, "Inter"],
+          score: [5, 0],
+          kickoffAt: "2025-05-31T19:00:00Z",
+        }),
+      ],
+    });
+
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    const row = screen.getByRole("row", { name: /PSG/ });
+    expect(within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+  });
+
+  it("leaves the leg number blank when the provider reports no matchday", async () => {
+    // World Cup and Euro knockout matches carry a null matchday.
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 9,
+          stage: "FINAL",
+          matchday: null,
+          home: [1, "Spain"],
+          away: [2, "Argentina"],
+          score: [1, 0],
+        }),
+      ],
+    });
+
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    const row = screen.getByRole("row", { name: /Spain/ });
+    expect(within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+  });
+
+  it("has no previous/next round links on a cup page", async () => {
+    await renderMatchesPage({ kilpailu: "CL" });
+
+    expect(screen.queryByText("◀ Edellinen kierros")).not.toBeInTheDocument();
+    expect(screen.queryByText("Seuraava kierros ▶")).not.toBeInTheDocument();
   });
 });

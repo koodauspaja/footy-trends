@@ -1,16 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
-import type { StandingsResult } from "@/lib/standings-service";
+import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
 
 const getStandingsMock = vi.fn<() => Promise<StandingsResult>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
+const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/standings-service", () => ({
   getStandings: getStandingsMock,
   getMaxMatchday: getMaxMatchdayMock,
+  getCupSeason: getCupSeasonMock,
 }));
 
 vi.mock("@/lib/football-data", () => ({
@@ -74,6 +76,9 @@ describe("Standings page", () => {
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getStandingsMock.mockResolvedValue(standings);
     getMaxMatchdayMock.mockResolvedValue(10);
+    // The default fixtures are all Premier League, which never takes the cup
+    // path; the cup tests override this.
+    getCupSeasonMock.mockResolvedValue({ status: "empty" });
   });
 
   it("shows the Finnish heading, column labels, and calculated standings", async () => {
@@ -426,5 +431,206 @@ describe("Standings page", () => {
     const { generateMetadata } = await import("@/app/foreign/standings/page");
 
     expect(await generateMetadata({})).toEqual({ title: "Valioliiga 2025/26" });
+  });
+});
+
+type CupMatchOptions = {
+  id: number;
+  stage: string;
+  group?: string | null;
+  home: [number, string];
+  away: [number, string];
+  score?: [number, number];
+  regularTime?: [number, number];
+  extraTime?: [number, number];
+  penalties?: [number, number];
+  kickoffAt?: string;
+};
+
+function cupMatch(options: CupMatchOptions) {
+  return {
+    providerMatchId: options.id,
+    competitionCode: "CL",
+    seasonId: 2024,
+    status: "FINISHED",
+    kickoffAt: new Date(options.kickoffAt ?? "2024-09-17T19:00:00Z"),
+    matchday: 1,
+    stage: options.stage,
+    groupName: options.group ?? null,
+    homeTeamProviderId: options.home[0],
+    homeTeamName: options.home[1],
+    awayTeamProviderId: options.away[0],
+    awayTeamName: options.away[1],
+    homeGoals: options.score?.[0] ?? null,
+    awayGoals: options.score?.[1] ?? null,
+    regularTimeHome: options.regularTime?.[0] ?? null,
+    regularTimeAway: options.regularTime?.[1] ?? null,
+    extraTimeHome: options.extraTime?.[0] ?? null,
+    extraTimeAway: options.extraTime?.[1] ?? null,
+    penaltiesHome: options.penalties?.[0] ?? null,
+    penaltiesAway: options.penalties?.[1] ?? null,
+  };
+}
+
+describe("Standings page, cup competitions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getMaxMatchdayMock.mockResolvedValue(10);
+  });
+
+  it("renders one Liigavaihe table for a league-phase season", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "LEAGUE_STAGE",
+          home: [1, "Arsenal FC"],
+          away: [2, "Inter"],
+          score: [2, 0],
+        }),
+        cupMatch({
+          id: 2,
+          stage: "LEAGUE_STAGE",
+          home: [3, "PSG"],
+          away: [4, "Barcelona"],
+          score: [1, 1],
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByRole("heading", { name: "Mestarien liiga 2025/26" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Liigavaihe" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^Lohko/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Arsenal FC")).toBeInTheDocument();
+  });
+
+  it("renders one table per group for a group-stage season", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "GROUP_STAGE",
+          group: "GROUP_B",
+          home: [3, "C"],
+          away: [4, "D"],
+          score: [1, 0],
+        }),
+        cupMatch({
+          id: 2,
+          stage: "GROUP_STAGE",
+          group: "GROUP_A",
+          home: [1, "A"],
+          away: [2, "B"],
+          score: [1, 0],
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL", kausi: "2023" });
+
+    expect(screen.getByRole("heading", { name: "Lohko A" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Lohko B" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Liigavaihe" })).not.toBeInTheDocument();
+  });
+
+  it("shows no round selector on a cup page", async () => {
+    getCupSeasonMock.mockResolvedValue({ status: "empty" });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByLabelText("Kilpailu")).toBeInTheDocument();
+    expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Kierros")).not.toBeInTheDocument();
+  });
+
+  it("renders the bracket, marking the winner and how the tie was settled", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 10,
+          stage: "FINAL",
+          home: [1, "Paris Saint-Germain FC"],
+          away: [2, "Inter"],
+          score: [5, 0],
+          kickoffAt: "2025-05-31T19:00:00Z",
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByRole("heading", { name: "Pudotuspelit" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
+    // The final is drawn as a card, so each side carries its own aggregate.
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Paris Saint-Germain FC" })).toHaveClass(
+      "font-semibold"
+    );
+  });
+
+  it("lists Pudotuspelikarsinta above the drawn tree rather than hiding it", async () => {
+    // The round existed only as a `Vaihe` option on the match list before; a
+    // round the season has must be visible on the standings page.
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "PLAYOFFS",
+          home: [1, "Club Brugge KV"],
+          away: [2, "Atalanta BC"],
+          score: [2, 1],
+          kickoffAt: "2025-02-11T19:00:00Z",
+        }),
+        cupMatch({
+          id: 2,
+          stage: "FINAL",
+          home: [3, "Paris Saint-Germain FC"],
+          away: [4, "Inter"],
+          score: [5, 0],
+          kickoffAt: "2025-05-31T19:00:00Z",
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByRole("heading", { name: "Pudotuspelikarsinta" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
+    // The listed round keeps a table; the drawn final does not add one.
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getByText("Ottelupari")).toBeInTheDocument();
+  });
+
+  it("tells the user when the knockout rounds have not started", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({ id: 1, stage: "LEAGUE_STAGE", home: [1, "A"], away: [2, "B"], score: [1, 0] }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByText("Pudotuspelit eivät ole vielä alkaneet.")).toBeInTheDocument();
+  });
+
+  it("reports an error without claiming the standings are merely missing", async () => {
+    getCupSeasonMock.mockResolvedValue({ status: "error" });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(
+      screen.getByText("Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Pudotuspelit eivät ole vielä alkaneet.")).not.toBeInTheDocument();
   });
 });

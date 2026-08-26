@@ -1,19 +1,22 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CompetitionSelect } from "@/components/competition-select";
+import type { Competition } from "@/lib/competitions";
 
-const competitions = [
+const competitions: Competition[] = [
   {
     code: "PL",
     name: "Valioliiga",
     flagUrl: "https://crests.football-data.org/770.svg",
     country: "Englanti",
+    format: "league",
   },
   {
     code: "BL1",
     name: "Bundesliga",
     flagUrl: "https://crests.football-data.org/759.svg",
     country: "Saksa",
+    format: "league",
   },
 ];
 

@@ -32,12 +32,34 @@ export const matches = pgTable(
     // Only ever "FINISHED" until 004-listing-matches-for-selected-team, whose
     // migration backfills the default below so existing rows stay accurate.
     status: text("status").notNull().default("FINISHED"),
+    // Cup competitions only, added in specs/014-champions-league.md. Null for
+    // all nine league competitions, so the migration needs no backfill.
+    stage: text("stage"),
+    // "group" is reserved in SQL, hence the column name. Null outside a group
+    // stage, including every match of a LEAGUE_STAGE season.
+    groupName: text("group_name"),
+    // The score breakdown behind a knockout tie. `home_goals`/`away_goals`
+    // stay the provider's `fullTime`, which INCLUDES a penalty shootout and is
+    // therefore useless for aggregating a two-legged tie — see
+    // `ProviderMatch` in src/lib/football-data.ts.
+    regularTimeHome: integer("regular_time_home"),
+    regularTimeAway: integer("regular_time_away"),
+    extraTimeHome: integer("extra_time_home"),
+    extraTimeAway: integer("extra_time_away"),
+    penaltiesHome: integer("penalties_home"),
+    penaltiesAway: integer("penalties_away"),
     ...matchTeamColumns(),
   },
   (table) => [
     uniqueIndex("matches_provider_match_id_idx").on(table.providerMatchId),
     // Standings are always read for one competition and season at a time.
     index("matches_competition_season_idx").on(table.competitionCode, table.seasonId),
+    // Every cup read is scoped to one competition, season and stage.
+    index("matches_competition_season_stage_idx").on(
+      table.competitionCode,
+      table.seasonId,
+      table.stage
+    ),
   ]
 );
 

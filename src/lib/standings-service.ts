@@ -8,12 +8,11 @@ import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import {
   calculateStandings,
-  type NormalizedMatch,
   selectTeamMatches,
   type TeamStanding,
+  toFinishedMatches,
 } from "./standings";
 
-const FINISHED_STATUS = "FINISHED";
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const parsedRefreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS);
@@ -64,18 +63,6 @@ function filterByRound<T extends { matchday: number | null }>(
 ): T[] {
   if (round === undefined) return matchList;
   return matchList.filter((match) => match.matchday !== null && match.matchday <= round);
-}
-
-/**
- * Narrows to matches with a final score, which is what `calculateStandings`
- * requires. A match with `status !== "FINISHED"` is excluded even if it
- * happens to carry goals (defensive — the provider should never do this).
- */
-function toFinishedMatches(matchList: MatchRow[]): NormalizedMatch[] {
-  return matchList.filter(
-    (match): match is MatchRow & { homeGoals: number; awayGoals: number } =>
-      match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
-  );
 }
 
 type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
@@ -239,6 +226,44 @@ export async function getRoundMatches(
   }
 }
 
+export type CupSeasonResult =
+  | { status: "ok"; matches: NormalizedProviderMatch[] }
+  | { status: "empty" }
+  | { status: "error" };
+
+/**
+ * A cup season's full match list — every stage, played and upcoming alike.
+ *
+ * Cup pages derive everything (phase tables, stage list, bracket) from one
+ * match list rather than from three separate queries, because all three answer
+ * questions about the same season and the provider returns it in a single
+ * response anyway.
+ *
+ * Wrapped in React's `cache()` for the same reason as `getTeamMatches`: a
+ * page's `generateMetadata` and its default export both resolve it.
+ */
+export const getCupSeason = cache(async function getCupSeason(
+  competitionCode: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<CupSeasonResult> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+
+    if (seasonMatches.length === 0) {
+      return refreshFailed ? { status: "error" } : { status: "empty" };
+    }
+    return { status: "ok", matches: seasonMatches };
+  } catch (error) {
+    logger.error({ err: error, competitionCode, seasonId }, "Unable to load cup season");
+    return { status: "error" };
+  }
+});
+
 /** The highest matchday with at least one stored match for the season, or null if none. */
 export async function getMaxMatchday(
   competitionCode: string,
@@ -296,6 +321,14 @@ export async function synchronizeMatches(
         awayTeamName: sql`excluded.away_team_name`,
         homeGoals: sql`excluded.home_goals`,
         awayGoals: sql`excluded.away_goals`,
+        stage: sql`excluded.stage`,
+        groupName: sql`excluded.group_name`,
+        regularTimeHome: sql`excluded.regular_time_home`,
+        regularTimeAway: sql`excluded.regular_time_away`,
+        extraTimeHome: sql`excluded.extra_time_home`,
+        extraTimeAway: sql`excluded.extra_time_away`,
+        penaltiesHome: sql`excluded.penalties_home`,
+        penaltiesAway: sql`excluded.penalties_away`,
         updatedAt: sql`excluded.updated_at`,
       },
     });

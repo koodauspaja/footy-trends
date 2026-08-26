@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedProviderMatch } from "@/lib/football-data";
 import {
+  getCupSeason,
   getMaxMatchday,
   getRoundMatches,
   getStandings,
@@ -63,6 +64,14 @@ const match: NormalizedProviderMatch = {
   awayTeamName: "Chelsea FC",
   homeGoals: 2,
   awayGoals: 1,
+  stage: null,
+  groupName: null,
+  regularTimeHome: null,
+  regularTimeAway: null,
+  extraTimeHome: null,
+  extraTimeAway: null,
+  penaltiesHome: null,
+  penaltiesAway: null,
 };
 
 function storedMatch(overrides: Partial<NormalizedProviderMatch> & { updatedAt: Date }) {
@@ -935,5 +944,71 @@ describe("synchronizeMatches", () => {
     expect(onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.anything() })
     );
+  });
+});
+
+describe("getCupSeason", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the season's full match list, every stage included", async () => {
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, stage: "LEAGUE_STAGE", updatedAt: new Date(0) }),
+      storedMatch({ providerMatchId: 2, stage: "FINAL", updatedAt: new Date(0) }),
+    ]);
+
+    const result = await getCupSeason("CL", PAST_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.matches).toHaveLength(2);
+    expect(result.status === "ok" && result.matches.map((row) => row.stage)).toEqual([
+      "LEAGUE_STAGE",
+      "FINAL",
+    ]);
+  });
+
+  it("reports an empty season when nothing is stored and the refresh succeeded", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    const result = await getCupSeason("CL", PAST_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("empty");
+  });
+
+  it("reports an error when the refresh failed and nothing was stored", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    const result = await getCupSeason("CL", ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("error");
+    expect(loggerWarnMock).toHaveBeenCalled();
+  });
+
+  it("serves stored matches when the refresh failed but data is present", async () => {
+    // The bracket must still render from the database when the provider is
+    // unreachable — the reason the score breakdown is stored at all.
+    mockStoredMatches([
+      storedMatch({ providerMatchId: 1, stage: "FINAL", updatedAt: new Date(0) }),
+    ]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    const result = await getCupSeason("CL", ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.matches).toHaveLength(1);
+  });
+
+  it("reports an error and logs when the database itself throws", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("connection refused");
+    });
+
+    const result = await getCupSeason("CL", PAST_SEASON, ACTIVE_SEASON);
+
+    expect(result.status).toBe("error");
+    expect(loggerErrorMock).toHaveBeenCalled();
   });
 });
