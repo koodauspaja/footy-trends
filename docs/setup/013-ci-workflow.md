@@ -53,6 +53,18 @@ jobs:
         run: npm test
 ```
 
+> **The committed workflow has moved on from this scaffold.** It now runs two
+> jobs rather than one: `Typecheck, lint and unit tests`, which deliberately
+> has **no** service containers, and `Integration tests`, which has Postgres
+> and Redis.
+>
+> The split is not for speed. With the services attached to a single job, a
+> unit test that reaches Postgres or Redis passes CI, and the only workflow
+> that notices is SonarCloud — which has no services either and reports it as
+> "SonarCloud scan failed", naming the wrong thing. Keeping the unit job free
+> of services makes such a test fail where the job name says what broke. See
+> issue #158, and `.github/workflows/ci.yml` for the current file.
+
 ---
 
 ## Step 2 — Confirm the SonarCloud workflow is up to date
@@ -133,10 +145,11 @@ git push origin test/ci-check
 
 Open a PR from `test/ci-check` to main. Confirm:
 
-- [ ] `Typecheck, lint, unit and integration test` appears and passes
+- [ ] `Typecheck, lint and unit tests` appears and passes
+- [ ] `Integration tests` appears and passes
 - [ ] `SonarCloud scan` appears and passes
 - [ ] `Sourcery review` appears and passes
-- [ ] All three are visible as status checks on the PR
+- [ ] All four are visible as status checks on the PR
 
 Once confirmed, close the PR without merging and delete the branch.
 

@@ -5,22 +5,27 @@ Protect the main branch so nothing merges without passing CI, a SonarCloud
 quality gate, and at least one peer review. Enforces the workflow that
 Sourcery, SonarCloud, and the PR template set up.
 
-> **Status: a ruleset exists but is disabled.** As of 2026-08-22 a
-> repository ruleset named `main` is present (created 2026-06-03) with
-> `enforcement: "disabled"`, so no rule currently applies:
+> **Status: the ruleset is active.** The repository ruleset named `main` was
+> `enforcement: "disabled"` as of 2026-08-22; it is enabled as of 2026-08-26,
+> and a direct push to `main` is now rejected with "push declined due to
+> repository rule violations".
 >
 > ```sh
-> gh api repos/:owner/:repo/rulesets            # -> enforcement: "disabled"
-> gh api repos/:owner/:repo/rules/branches/main # -> []   (nothing applies)
+> gh api repos/:owner/:repo/rulesets            # -> enforcement: "active"
+> gh api repos/:owner/:repo/rulesets/<id>       # -> the required checks
+> gh api repos/:owner/:repo/rules/branches/main # -> what applies to main
 > ```
 >
-> Check both. `gh api repos/:owner/:repo/branches/main/protection` returns
-> 404 here, but that endpoint only covers *classic* branch protection —
-> a 404 there says nothing about rulesets, which are a separate API.
+> Check those, not `gh api repos/:owner/:repo/branches/main/protection`, which
+> returns **404** here: that endpoint covers only *classic* branch protection,
+> and a 404 there says nothing about rulesets. Reading the 404 as
+> "`main` is unprotected" is the mistake this note exists to prevent.
 >
-> So the steps below are about configuring and **enabling** the existing
-> ruleset rather than creating one. Until that happens the review gate is
-> upheld by process (`skills/open-pr.md`), not mechanically.
+> **Renaming a CI job is the case that bites.** A required check that stops
+> reporting never turns green, so it blocks every merge until the ruleset is
+> updated to the new name. That happened when `Typecheck, lint, unit and
+> integration test` became two checks (#158); the ruleset was updated in the
+> same change.
 
 ---
 
@@ -51,7 +56,8 @@ Enable the following:
   - [x] Require branches to be up to date before merging
   - Add the following required checks (these appear once the workflows have
     run at least once on a PR):
-    - `Typecheck, lint, unit and integration test`
+    - `Typecheck, lint and unit tests`
+    - `Integration tests`
     - `SonarCloud scan`
     - `Sourcery review`
 
@@ -94,7 +100,8 @@ Enable the following:
 1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
 2. Under **Require status checks to pass**, click **Add checks**
 3. Search for and add:
-   - `Typecheck, lint, unit and integration test`
+   - `Typecheck, lint and unit tests`
+   - `Integration tests`
    - `SonarCloud scan`
    - `Sourcery review`
 4. Save
