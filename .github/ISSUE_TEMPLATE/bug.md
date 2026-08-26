@@ -20,9 +20,8 @@ Spec: `specs/NNN-feature-name.md`
 3.
 
 ## Acceptance criteria
-<!-- How do we know this is fixed? Include the reproduction going green, and
-     the regression test that stops it coming back. -->
-- [ ]
-- [ ]
+<!-- How do we know this is fixed? Replace or extend these as the bug needs. -->
+- [ ] The steps above no longer reproduce the bug
+- [ ] A regression test covers it, and fails without the fix
 
 ## Notes

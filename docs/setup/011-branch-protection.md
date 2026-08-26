@@ -1,12 +1,17 @@
 # 011 — Branch protection
 
 ## Goal
-Protect the main branch so nothing merges without passing CI and a SonarCloud
-quality gate, and so history stays linear and force-pushes are impossible.
+Protect the main branch: nothing merges without CI and the SonarCloud quality
+gate reporting success, history stays linear, and force-pushes are impossible.
 
-Human review is part of the workflow (`skills/open-pr.md`) but is deliberately
-**not** a merge prerequisite — required approvals are 0, for the reasons in
-Step 2.
+Two things this deliberately does **not** guarantee, both explained below:
+
+- **Human approval.** Required approvals are 0 — see Step 2 for why.
+- **That every required check actually ran.** GitHub accepts `skipped` and
+  `neutral` alongside `success`, so a satisfied requirement is not proof of
+  execution. Sourcery in particular reports `skipped` when it declines a
+  review, which is why its real gate lives in `skills/open-pr.md` rather than
+  here.
 
 > **Status: the ruleset is active.** The repository ruleset named `main` was
 > `enforcement: "disabled"` as of 2026-08-22; it is enabled as of 2026-08-26,
