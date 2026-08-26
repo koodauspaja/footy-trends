@@ -1,9 +1,12 @@
 # 011 — Branch protection
 
 ## Goal
-Protect the main branch so nothing merges without passing CI, a SonarCloud
-quality gate, and at least one peer review. Enforces the workflow that
-Sourcery, SonarCloud, and the PR template set up.
+Protect the main branch so nothing merges without passing CI and a SonarCloud
+quality gate, and so history stays linear and force-pushes are impossible.
+
+Human review is part of the workflow (`skills/open-pr.md`) but is deliberately
+**not** a merge prerequisite — required approvals are 0, for the reasons in
+Step 2.
 
 > **Status: the ruleset is active.** The repository ruleset named `main` was
 > `enforcement: "disabled"` as of 2026-08-22; it is enabled as of 2026-08-26,
@@ -53,10 +56,15 @@ Enable the following:
 
   Zero is deliberate, not an oversight. On a two-person repo a required
   approval means nobody can land their own work, including small chores and
-  Renovate bumps, and the review that matters here is already enforced
-  mechanically: four required status checks, one of which is a Sourcery review
-  of the head commit. Human review happens — see `skills/open-pr.md` — it just
-  is not what gates the merge button.
+  Renovate bumps.
+
+  What replaces it is a *process* gate, not a mechanical one, and the
+  difference matters: Sourcery reports `skipped` when it declines a review, and
+  GitHub treats a skipped required check as satisfied. So a PR can show four
+  green checks with no Sourcery review at all. `skills/open-pr.md` therefore
+  requires querying the check-run at the head commit and confirming a real
+  review before handing off — that step, not the merge button, is what actually
+  enforces review here. See the note under Step 4.
 
   Raise it to 1 if the repo grows past two people. Note that
   `require_extra_approval_for_unattributed_changes` is on and currently inert:
