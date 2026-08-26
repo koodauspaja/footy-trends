@@ -348,6 +348,14 @@ describe("football-data mapping", () => {
         awayTeamName: "Chelsea FC",
         homeGoals: 2,
         awayGoals: 1,
+        stage: null,
+        groupName: null,
+        regularTimeHome: null,
+        regularTimeAway: null,
+        extraTimeHome: null,
+        extraTimeAway: null,
+        penaltiesHome: null,
+        penaltiesAway: null,
       },
       {
         providerMatchId: 2,
@@ -362,8 +370,74 @@ describe("football-data mapping", () => {
         awayTeamName: "Arsenal FC",
         homeGoals: null,
         awayGoals: null,
+        stage: null,
+        groupName: null,
+        regularTimeHome: null,
+        regularTimeAway: null,
+        extraTimeHome: null,
+        extraTimeAway: null,
+        penaltiesHome: null,
+        penaltiesAway: null,
       },
     ]);
+  });
+
+  it("carries a cup match's stage, group and score breakdown", () => {
+    const result = normalizeMatch(
+      {
+        id: 999,
+        utcDate: "2025-03-11T20:00:00Z",
+        status: "FINISHED",
+        matchday: 2,
+        stage: "LAST_16",
+        group: null,
+        homeTeam: { id: 64, name: "Liverpool FC" },
+        awayTeam: { id: 524, name: "Paris Saint-Germain FC" },
+        score: {
+          fullTime: { home: 1, away: 5 },
+          regularTime: { home: 0, away: 1 },
+          extraTime: { home: 0, away: 0 },
+          penalties: { home: 1, away: 4 },
+        },
+      },
+      2024,
+      "CL"
+    );
+
+    expect(result).toMatchObject({
+      stage: "LAST_16",
+      groupName: null,
+      regularTimeHome: 0,
+      regularTimeAway: 1,
+      extraTimeHome: 0,
+      extraTimeAway: 0,
+      penaltiesHome: 1,
+      penaltiesAway: 4,
+    });
+    // `homeGoals`/`awayGoals` stay the provider's shootout-inflated `fullTime`
+    // deliberately: changing them would move every league's standings. The
+    // bracket reads the breakdown above instead.
+    expect(result).toMatchObject({ homeGoals: 1, awayGoals: 5 });
+  });
+
+  it("maps a group-stage match's group", () => {
+    const result = normalizeMatch(
+      {
+        id: 1000,
+        utcDate: "2023-09-19T19:00:00Z",
+        status: "FINISHED",
+        matchday: 1,
+        stage: "GROUP_STAGE",
+        group: "GROUP_A",
+        homeTeam: { id: 1, name: "A" },
+        awayTeam: { id: 2, name: "B" },
+        score: { fullTime: { home: 1, away: 0 } },
+      },
+      2023,
+      "CL"
+    );
+
+    expect(result).toMatchObject({ stage: "GROUP_STAGE", groupName: "GROUP_A" });
   });
 
   it("requests the provider with the configured API key and base URL, and logs the call", async () => {

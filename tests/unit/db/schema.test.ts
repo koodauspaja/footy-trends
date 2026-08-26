@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { matches, tasoMatches } from "@/db/schema";
 
 describe("matches table", () => {
-  it("declares a unique index on the provider match id and a composite lookup index", () => {
+  it("declares a unique index on the provider match id and two composite lookup indexes", () => {
     const { indexes } = getTableConfig(matches);
 
-    expect(indexes).toHaveLength(2);
+    expect(indexes).toHaveLength(3);
     expect(
       indexes.find((index) => index.config.name === "matches_provider_match_id_idx")?.config
     ).toMatchObject({
@@ -17,6 +17,32 @@ describe("matches table", () => {
     ).toMatchObject({
       unique: false,
     });
+    // Added for cup pages, which read one competition, season and stage at a time.
+    expect(
+      indexes.find((index) => index.config.name === "matches_competition_season_stage_idx")?.config
+    ).toMatchObject({
+      unique: false,
+    });
+  });
+
+  it("carries the cup columns, all nullable so league rows need no backfill", () => {
+    const { columns } = getTableConfig(matches);
+    const cupColumns = [
+      "stage",
+      "group_name",
+      "regular_time_home",
+      "regular_time_away",
+      "extra_time_home",
+      "extra_time_away",
+      "penalties_home",
+      "penalties_away",
+    ];
+
+    for (const name of cupColumns) {
+      const column = columns.find((candidate) => candidate.name === name);
+      expect(column, `missing column ${name}`).toBeDefined();
+      expect(column?.notNull, `${name} must be nullable`).toBe(false);
+    }
   });
 });
 

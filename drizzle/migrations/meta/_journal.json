@@ -43,6 +43,13 @@
       "when": 1787683514259,
       "tag": "0005_add_taso_group_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787753354607,
+      "tag": "0006_add_cup_stage_and_score_breakdown",
+      "breakpoints": true
     }
   ]
 }

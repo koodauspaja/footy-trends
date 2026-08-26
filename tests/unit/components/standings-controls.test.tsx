@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StandingsControls } from "@/components/standings-controls";
+import type { Competition } from "@/lib/competitions";
 
 const pushMock = vi.fn();
 
@@ -8,18 +9,20 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
-const competitions = [
+const competitions: Competition[] = [
   {
     code: "PL",
     name: "Valioliiga",
     flagUrl: "https://crests.football-data.org/770.svg",
     country: "Englanti",
+    format: "league",
   },
   {
     code: "BL1",
     name: "Bundesliga",
     flagUrl: "https://crests.football-data.org/759.svg",
     country: "Saksa",
+    format: "league",
   },
 ];
 

@@ -1,3 +1,5 @@
+const FINISHED_STATUS = "FINISHED";
+
 /** The minimum a match needs to contribute two teams to the standings roster, regardless of status or score. */
 export type RosterMatch = {
   homeTeamProviderId: number;
@@ -26,6 +28,23 @@ export type NormalizedMatch = RosterMatch & {
  */
 export function formatMatchResult(homeGoals: number | null, awayGoals: number | null): string {
   return homeGoals !== null && awayGoals !== null ? `${homeGoals}–${awayGoals}` : "–";
+}
+
+/**
+ * Narrows to matches with a final score, which is what `calculateStandings`
+ * requires. A match with `status !== "FINISHED"` is excluded even if it
+ * happens to carry goals (defensive — the provider should never do this).
+ *
+ * Lives here rather than in `standings-service` so the cup phase tables can
+ * apply the same rule without importing the database.
+ */
+export function toFinishedMatches<
+  T extends { status: string; homeGoals: number | null; awayGoals: number | null },
+>(matchList: T[]): Array<T & { homeGoals: number; awayGoals: number }> {
+  return matchList.filter(
+    (match): match is T & { homeGoals: number; awayGoals: number } =>
+      match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
+  );
 }
 
 export type FormResult = "V" | "T" | "H";

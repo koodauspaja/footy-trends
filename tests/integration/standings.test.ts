@@ -31,6 +31,14 @@ function buildMatch(overrides: Partial<NormalizedProviderMatch> = {}): Normalize
     awayTeamName: "Integration City",
     homeGoals: 2,
     awayGoals: 1,
+    stage: null,
+    groupName: null,
+    regularTimeHome: null,
+    regularTimeAway: null,
+    extraTimeHome: null,
+    extraTimeAway: null,
+    penaltiesHome: null,
+    penaltiesAway: null,
     ...overrides,
   };
 }
