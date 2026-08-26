@@ -27,7 +27,10 @@ request using the following steps:
    the edge. If you're over, split the feature into smaller, stacked PRs
    (implement and merge one, then branch the next from it) rather than
    opening one oversized PR; see `decisions/006-other-competitions.md` for
-   a worked example of this split.
+   a worked example of this split. A stacked series references its issue
+   differently from a single PR — read the *stacked series* rule in step 5
+   before writing the first PR body, because getting the timing wrong there
+   either closes the issue early or leaves three of four PRs unlinked.
 
    The rolling budget is separate from the per-PR cap, so an under-the-limit
    PR can still be skipped if reviews earlier in the week used up the shared
@@ -50,6 +53,61 @@ request using the following steps:
      cross-reference. The link is mandatory. That it also auto-closes the
      issue on merge is an accepted side effect, not a reason to avoid it —
      do not omit or reword the keyword to dodge it.
+   - **A stacked series defers the keyword; it never drops it.** Only the PR
+     carrying a closing keyword appears in the Development panel, so a
+     stacked series written the obvious way shows one PR out of four. Use
+     this timing instead:
+
+     1. While stacking, write `Part of #NNN` on every PR **but the last**, so
+        merging an early one does not close the issue prematurely.
+     2. The final PR carries `Closes #NNN` as normal.
+     3. **After each earlier PR merges**, edit its body to `Closes #NNN`.
+        GitHub adds it to the Development panel retroactively and does *not*
+        close the issue — the close fires at merge time, not on a body edit.
+
+     This does not contradict the rule above. That rule forbids rewording the
+     keyword to *dodge* the auto-close; here every PR in the series ends up
+     carrying it and the issue still closes exactly once, on the final merge.
+     The keyword is deferred by a few minutes, not avoided.
+
+     `gh pr edit --body` silently no-ops in this repo — it exits zero and
+     changes nothing — so that retroactive edit needs the REST API:
+
+     ```sh
+     gh api repos/:owner/:repo/pulls/<PR> -X PATCH -f body="$(cat body.md)"
+     ```
+
+     Verify the result with `closedByPullRequestsReferences`, **not** the
+     issue timeline, which renders a bare cross-reference and a real closing
+     link indistinguishably:
+
+     ```sh
+     gh api graphql -f query='
+     {
+       repository(owner: "koodauspaja", name: "footy-trends") {
+         issue(number: NNN) {
+           closedByPullRequestsReferences(first: 50, includeClosedPrs: true) {
+             nodes { number title }
+           }
+         }
+       }
+     }'
+     ```
+
+     `includeClosedPrs: true` is required — without it the already-merged
+     earlier PRs are omitted and the series looks broken. Count the returned
+     nodes against the number of PRs you opened rather than skimming the
+     list, and raise `first` if a series ever exceeds it: the connection
+     truncates silently, so a short answer reads the same as a complete one.
+     Every PR in the series must appear once the last one has merged.
+   - **A closing keyword in a squash commit body closes the issue too**, and
+     backticks or surrounding prose do not exempt it. #141 was closed by a
+     commit body reading "`Closes #141` lands on the follow-up" — a sentence
+     written to say the keyword belonged somewhere else. When a merge must
+     not close the issue, the phrase cannot appear in the commit body in any
+     form; write "the closing keyword lands on the follow-up" instead. GitHub
+     scans the squash commit message as well as the PR body, so a clean PR
+     body does not protect you.
    - Link the spec file path
    - Link the decisions file path
    - Write a one or two sentence summary of what was built
@@ -92,7 +150,10 @@ request using the following steps:
    never waits on one named person being available.
 9. If the PR merges without the issue auto-closing (for example the closing
    keyword was missing or malformed), close the issue manually and note in a
-   comment which PR shipped it.
+   comment which PR shipped it. This does not apply to the earlier PRs of a
+   stacked series, which are *meant* to merge without closing — there, do the
+   retroactive body edit from step 5 instead and leave the issue open until
+   the last PR merges.
 
 ## When Sourcery skips
 
