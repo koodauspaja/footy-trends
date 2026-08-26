@@ -15,18 +15,23 @@ export const GROUP_STAGE = "GROUP_STAGE";
  * round of 16 is `Neljännesvälierät` (a quarter of a quarter-final), not a
  * transliteration of "last 16".
  *
- * `LAST_32` and `THIRD_PLACE` are not in this map: no Champions League season
- * has them, and naming stages we cannot see would be guesswork. They fall
- * through to the raw provider value, which is the deliberate behaviour for any
- * stage a future competition introduces — visible, not silently blank.
+ * `LAST_32` and `THIRD_PLACE` occur in no Champions League season but are named
+ * here anyway: the World Cup has both, and leaving them out would put a raw
+ * `THIRD_PLACE` in front of a Finnish reader the moment #165 lands. Naming them
+ * now costs two lines; discovering them untranslated in production does not.
+ *
+ * The passthrough in `getStageName` is the last resort for a stage no one has
+ * seen yet. Every stage the provider is known to emit belongs in this map.
  */
 const STAGE_NAMES: Record<string, string> = {
   LEAGUE_STAGE: "Liigavaihe",
   GROUP_STAGE: "Lohkovaihe",
   PLAYOFFS: "Pudotuspelikarsinta",
+  LAST_32: "Kahdeksannesvälierät",
   LAST_16: "Neljännesvälierät",
   QUARTER_FINALS: "Puolivälierät",
   SEMI_FINALS: "Välierät",
+  THIRD_PLACE: "Pronssiottelu",
   FINAL: "Loppuottelu",
 };
 
@@ -50,6 +55,12 @@ const STAGE_ORDER = [
 /** The knockout rounds a bracket is drawn for, in order. */
 export const BRACKET_STAGES = ["QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
+/**
+ * The Finnish name for a stage. An unmapped stage falls through to its raw
+ * provider value: a format change stays visible rather than rendering blank or
+ * under a wrong Finnish label. Add any newly observed stage to `STAGE_NAMES`
+ * rather than relying on this.
+ */
 export function getStageName(stage: string): string {
   return STAGE_NAMES[stage] ?? stage;
 }
@@ -68,7 +79,15 @@ function stageRank(stage: string): number {
   return index === -1 ? STAGE_ORDER.length : index;
 }
 
-/** Every stage present in the season's matches, in presentation order. */
+/**
+ * Every stage present in the season's matches, in **progression** order.
+ *
+ * Deliberately not the provider's own array order. The two coincide in every
+ * response checked, so relying on the provider buys nothing and costs
+ * determinism: a reordered response would silently reshuffle the `Vaihe`
+ * selector. `STAGE_ORDER` states the progression once, and an unrecognised
+ * stage sorts last rather than disappearing. See decisions/014-champions-league.md.
+ */
 export function listSeasonStages(matches: StagedMatch[]): string[] {
   const stages = new Set<string>();
   for (const match of matches) {

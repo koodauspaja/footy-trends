@@ -68,13 +68,20 @@ bracket. Finnish knockout naming is by fraction, so the round of 16 is
 | `LEAGUE_STAGE` | `Liigavaihe` |
 | `GROUP_STAGE` | `Lohkovaihe` |
 | `PLAYOFFS` | `Pudotuspelikarsinta` |
+| `LAST_32` | `Kahdeksannesvälierät` |
 | `LAST_16` | `Neljännesvälierät` |
 | `QUARTER_FINALS` | `Puolivälierät` |
 | `SEMI_FINALS` | `Välierät` |
+| `THIRD_PLACE` | `Pronssiottelu` |
 | `FINAL` | `Loppuottelu` |
 
-An unmapped stage renders its raw provider value rather than an empty string,
-so a format change is visible instead of silent.
+`LAST_32` and `THIRD_PLACE` occur in no Champions League season. They are named
+here anyway because the World Cup has both, and an unnamed stage would put a
+raw `THIRD_PLACE` in front of a Finnish reader the moment #165 lands.
+
+A stage no one has seen yet renders its raw provider value rather than an empty
+string or a wrong Finnish label, so a format change is visible instead of
+silent. Every stage the provider is known to emit belongs in the table above.
 
 ### Standings page (`/ulkomaat/sarjataulukko?kilpailu=CL`)
 
@@ -107,7 +114,10 @@ time appends **`(ja)`**.
 ### Matches page (`/ulkomaat/ottelut?kilpailu=CL`)
 
 - The `Kierros` select is replaced by a `Vaihe` select listing the season's
-  stages in provider order, labelled with the Finnish names above.
+  stages in **progression** order, labelled with the Finnish names above.
+  Progression rather than the provider's array order: the two coincide in
+  every response checked, so following the provider buys nothing and costs
+  determinism — a reordered response would silently reshuffle the selector.
 - Default selection: the stage of the earliest not-yet-finished match, or the
   last stage when the season is complete — the cup analogue of
   `resolveCurrentRound`.

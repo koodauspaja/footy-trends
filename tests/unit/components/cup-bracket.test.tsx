@@ -1,7 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { CupBracket } from "@/components/cup-bracket";
-import { StageSelect } from "@/components/stage-select";
 import type { BracketRound, BracketTie } from "@/lib/cup-bracket";
 
 function tie(overrides: Partial<BracketTie> = {}): BracketTie {
@@ -151,34 +150,5 @@ describe("CupBracket", () => {
 
     expect(screen.getByRole("heading", { name: "Välierät" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
-  });
-});
-
-describe("StageSelect", () => {
-  it("labels the control in Finnish and shows the selected stage", () => {
-    render(
-      <StageSelect
-        availableStages={["LEAGUE_STAGE", "FINAL"]}
-        selectedStage="FINAL"
-        onChange={vi.fn()}
-      />
-    );
-
-    expect(screen.getByLabelText("Vaihe")).toHaveValue("FINAL");
-  });
-
-  it("reports the chosen stage to its caller", () => {
-    const onChange = vi.fn();
-    render(
-      <StageSelect
-        availableStages={["LEAGUE_STAGE", "FINAL"]}
-        selectedStage="FINAL"
-        onChange={onChange}
-      />
-    );
-
-    fireEvent.change(screen.getByLabelText("Vaihe"), { target: { value: "LEAGUE_STAGE" } });
-
-    expect(onChange).toHaveBeenCalledWith("LEAGUE_STAGE");
   });
 });

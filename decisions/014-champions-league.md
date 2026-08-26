@@ -120,10 +120,27 @@ so the round of 16 is a quarter of a quarter-final. `PLAYOFFS` is
 `Pudotuspelikarsinta`, confirmed in chat; UEFA's own Finnish materials are
 inconsistent there.
 
-`LAST_32` and `THIRD_PLACE` are deliberately **not** in the map even though
-#165 will need them: no CL season has them, and an unmapped stage falls
-through to its raw provider value, which keeps a format change visible instead
-of blank.
+`LAST_32` (`Kahdeksannesvälierät`) and `THIRD_PLACE` (`Pronssiottelu`) occur in
+no CL season and were initially left unmapped, on the reasoning that an
+unmapped stage falls through to its raw value and keeps a format change
+visible. Sourcery pointed out that this collides with the project's hard rule
+that all user-facing strings are Finnish: the World Cup has both stages, so
+#165 would have shipped a raw `THIRD_PLACE` to a Finnish reader. They are named
+now. The passthrough remains, but only as a last resort for a stage nobody has
+seen — showing the raw code still beats inventing a wrong Finnish label.
+`Pronssiottelu` is worth revisiting in #164, where TASO's own data uses
+`Pikkufinaali` for the same fixture.
+
+## Stage order is progression, not provider order
+
+The spec first said the `Vaihe` selector lists stages "in provider order". The
+implementation sorts by an explicit `STAGE_ORDER` instead, and the spec has
+been corrected to match rather than the other way round.
+
+The two orders coincide in every response checked, so following the provider
+buys nothing and costs determinism: a reordered response would silently
+reshuffle the selector. An unrecognised stage sorts last, so it stays visible.
+Sourcery flagged the mismatch as spec drift, which it was — in the spec.
 
 ## Verification
 

@@ -30,10 +30,15 @@ describe("stage names", () => {
     expect(getStageName("FINAL")).toBe("Loppuottelu");
   });
 
-  it("passes an unmapped stage through rather than blanking it", () => {
-    // A format change must be visible on the page, not silently empty.
-    expect(getStageName("LAST_32")).toBe("LAST_32");
-    expect(getStageName("THIRD_PLACE")).toBe("THIRD_PLACE");
+  it("names the stages the World Cup adds, before that feature needs them", () => {
+    expect(getStageName("LAST_32")).toBe("Kahdeksannesvälierät");
+    expect(getStageName("THIRD_PLACE")).toBe("Pronssiottelu");
+  });
+
+  it("passes a genuinely unknown stage through rather than blanking it", () => {
+    // A format change must be visible on the page, not silently empty or shown
+    // under a Finnish label that is wrong.
+    expect(getStageName("MYSTERY_ROUND")).toBe("MYSTERY_ROUND");
   });
 
   it("renders group names in Finnish, and passes an unknown shape through", () => {
