@@ -108,6 +108,14 @@ tree does not. `(ja)` is jatkoaika, `(rp)` rangaistuspotkut; a tie settled in
 normal time gets no suffix. The decision is derived from the stored breakdown
 rather than the provider's `duration`, which is therefore not stored.
 
+A leg's displayed score is the same `regularTime + extraTime` the aggregate is
+built from, not the provider's `fullTime`. Sourcery caught this after the first
+fix round: the tie header was already correct, but the legs beneath it still
+printed `fullTime`, so the 2023/24 quarter-final showed
+`Manchester City 4-5 Real Madrid` under an aggregate of `4-4 (rp)` — a leg
+score contradicting the tie it belonged to. The shootout is now stated
+separately, as `1-1 (rp 3-4)`.
+
 Two defensive branches were removed rather than left untested: the pairings
 map is typed as a non-empty tuple, and the first leg is found with a seedless
 `reduce` instead of an index access with a fallback. Both existed only to

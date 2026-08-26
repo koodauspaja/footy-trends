@@ -109,6 +109,14 @@ describe("buildBracket", () => {
     expect(tie.aggregateAway).toBe(1);
     expect(tie.winnerTeamProviderId).toBe(524);
     expect(tie.decision).toBe("penalties");
+
+    // The leg must report 0-1, not the provider's shootout-inflated 1-5, or it
+    // would contradict the 1-1 aggregate directly above it.
+    const secondLeg = tie.legs[1];
+    expect(secondLeg?.homeGoals).toBe(0);
+    expect(secondLeg?.awayGoals).toBe(1);
+    expect(secondLeg?.penaltiesHome).toBe(1);
+    expect(secondLeg?.penaltiesAway).toBe(4);
   });
 
   it("credits a shootout to the right side when the deciding leg is reversed", () => {

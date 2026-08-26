@@ -19,6 +19,8 @@ function tie(overrides: Partial<BracketTie> = {}): BracketTie {
         awayTeamName: "FC Internazionale Milano",
         homeGoals: 5,
         awayGoals: 0,
+        penaltiesHome: null,
+        penaltiesAway: null,
       },
     ],
     startsAt: new Date("2025-05-31T19:00:00Z"),
@@ -139,6 +141,29 @@ describe("CupBracket", () => {
 
     expect(
       screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano –")
+    ).toBeInTheDocument();
+  });
+
+  it("states a shootout separately from the leg's own score", () => {
+    // The leg score must not be the provider's `fullTime`, which folds the
+    // shootout in and would contradict the aggregate beside it.
+    const base = tie({ decision: "penalties", aggregateHome: 1, aggregateAway: 1 });
+    const [leg] = base.legs;
+    if (leg === undefined) throw new Error("expected a leg");
+    renderBracket([
+      {
+        stage: "FINAL",
+        ties: [
+          {
+            ...base,
+            legs: [{ ...leg, homeGoals: 0, awayGoals: 1, penaltiesHome: 1, penaltiesAway: 4 }],
+          },
+        ],
+      },
+    ]);
+
+    expect(
+      screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 0–1 (rp 1–4)")
     ).toBeInTheDocument();
   });
 

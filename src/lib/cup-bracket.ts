@@ -33,8 +33,17 @@ export type BracketLeg = {
   homeTeamName: string;
   awayTeamProviderId: number;
   awayTeamName: string;
+  /**
+   * Normal time plus extra time — **not** the provider's `fullTime`, which
+   * includes the shootout. Displaying `fullTime` here would print Liverpool
+   * 1-5 Paris Saint-Germain beside an aggregate of 1-1 (rp): a leg score that
+   * contradicts the tie it belongs to.
+   */
   homeGoals: number | null;
   awayGoals: number | null;
+  /** The shootout, shown separately from the score above. Null when there was none. */
+  penaltiesHome: number | null;
+  penaltiesAway: number | null;
 };
 
 /** How a decided tie was settled — drives the `(ja)` / `(rp)` suffix. */
@@ -92,6 +101,9 @@ function pairKey(left: number, right: number): string {
 }
 
 function toLeg(match: BracketSourceMatch): BracketLeg {
+  // The same score the aggregate is built from, so a leg can never contradict
+  // the tie above it.
+  const score = legScore(match);
   return {
     providerMatchId: match.providerMatchId,
     kickoffAt: match.kickoffAt,
@@ -99,8 +111,10 @@ function toLeg(match: BracketSourceMatch): BracketLeg {
     homeTeamName: match.homeTeamName,
     awayTeamProviderId: match.awayTeamProviderId,
     awayTeamName: match.awayTeamName,
-    homeGoals: match.homeGoals,
-    awayGoals: match.awayGoals,
+    homeGoals: score?.home ?? null,
+    awayGoals: score?.away ?? null,
+    penaltiesHome: match.penaltiesHome,
+    penaltiesAway: match.penaltiesAway,
   };
 }
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { BracketRound, BracketTie, TieDecision } from "@/lib/cup-bracket";
+import type { BracketLeg, BracketRound, BracketTie, TieDecision } from "@/lib/cup-bracket";
 import { getStageName } from "@/lib/cup-stages";
 import { formatMatchResult } from "@/lib/standings";
 import { matchDateFormatter } from "./match-list-table";
@@ -22,6 +22,17 @@ type CupBracketProps = {
   /** Builds a team's link href, matching how the standings table links its rows. */
   teamHref: (teamProviderId: number) => string;
 };
+
+/**
+ * A leg's own result: normal time plus extra time, with the shootout stated
+ * separately rather than folded in. `formatMatchResult` alone would print
+ * 0-1 for a shootout leg and lose the fact that it went to penalties.
+ */
+function formatLeg(leg: BracketLeg): string {
+  const score = formatMatchResult(leg.homeGoals, leg.awayGoals);
+  if (leg.penaltiesHome === null || leg.penaltiesAway === null) return score;
+  return `${score} (rp ${leg.penaltiesHome}–${leg.penaltiesAway})`;
+}
 
 function formatAggregate(tie: BracketTie): string {
   if (tie.aggregateHome === null || tie.aggregateAway === null) return "–";
@@ -97,7 +108,7 @@ export function CupBracket({ rounds, teamHref }: Readonly<CupBracketProps>) {
                     <td className="p-3 text-sm text-zinc-600">
                       {tie.legs.map((leg) => (
                         <div key={leg.providerMatchId}>
-                          {`${matchDateFormatter.format(leg.kickoffAt)} ${leg.homeTeamName} – ${leg.awayTeamName} ${formatMatchResult(leg.homeGoals, leg.awayGoals)}`}
+                          {`${matchDateFormatter.format(leg.kickoffAt)} ${leg.homeTeamName} – ${leg.awayTeamName} ${formatLeg(leg)}`}
                         </div>
                       ))}
                     </td>
