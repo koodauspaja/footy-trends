@@ -359,6 +359,79 @@ describe("buildBracket", () => {
     expect(rounds[0]?.ties.map((tie) => tie.home.teamName)).toEqual(["A", "C"]);
   });
 
+  it("includes a knockout stage nobody has hardcoded", () => {
+    // The round must reach the standings page on the strength of being in the
+    // data, not on being in a list someone remembered to update.
+    const rounds = buildBracket([
+      leg({
+        stage: "LAST_64",
+        home: [1, "A"],
+        away: [2, "B"],
+        kickoffAt: "2026-02-01T19:00:00Z",
+        fullTime: [1, 0],
+      }),
+      leg({
+        stage: "FINAL",
+        home: [3, "C"],
+        away: [4, "D"],
+        kickoffAt: "2026-05-31T19:00:00Z",
+        fullTime: [2, 0],
+      }),
+    ]);
+
+    // Sorted last rather than in its true chronological place: `STAGE_ORDER`
+    // cannot rank a name it has never seen. Visible-but-last is the deliberate
+    // trade — the alternative was being dropped from the page entirely.
+    expect(rounds.map((round) => round.stage)).toEqual(["FINAL", "LAST_64"]);
+  });
+
+  it("omits an explicitly requested stage the season does not have", () => {
+    // Only reachable through the `stages` override; the derived default never
+    // names a stage with no matches behind it.
+    const rounds = buildBracket(
+      [
+        leg({
+          stage: "FINAL",
+          home: [1, "A"],
+          away: [2, "B"],
+          kickoffAt: "2026-05-31T19:00:00Z",
+          fullTime: [1, 0],
+        }),
+      ],
+      ["SEMI_FINALS", "FINAL"]
+    );
+
+    expect(rounds.map((round) => round.stage)).toEqual(["FINAL"]);
+  });
+
+  it("leaves the table phases out of the knockout rounds", () => {
+    const rounds = buildBracket([
+      leg({
+        stage: "LEAGUE_STAGE",
+        home: [1, "A"],
+        away: [2, "B"],
+        kickoffAt: "2024-09-17T19:00:00Z",
+        fullTime: [1, 0],
+      }),
+      leg({
+        stage: "GROUP_STAGE",
+        home: [3, "C"],
+        away: [4, "D"],
+        kickoffAt: "2023-09-19T19:00:00Z",
+        fullTime: [1, 0],
+      }),
+      leg({
+        stage: "FINAL",
+        home: [5, "E"],
+        away: [6, "F"],
+        kickoffAt: "2024-06-01T19:00:00Z",
+        fullTime: [1, 0],
+      }),
+    ]);
+
+    expect(rounds.map((round) => round.stage)).toEqual(["FINAL"]);
+  });
+
   it("ignores matches outside the bracket stages", () => {
     const rounds = buildBracket([
       leg({

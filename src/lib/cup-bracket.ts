@@ -3,7 +3,7 @@
  * two legs aggregated. See specs/014-champions-league.md.
  */
 
-import { KNOCKOUT_STAGES } from "./cup-stages";
+import { listKnockoutStages } from "./cup-stages";
 
 export type BracketSourceMatch = {
   providerMatchId: number;
@@ -320,13 +320,14 @@ function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketR
 /**
  * A season's knockout rounds as ties, in progression order.
  *
- * Defaults to *every* knockout round rather than only the drawn ones: a round
- * the season has must be visible on the standings page, and the caller decides
- * which are drawn into the tree and which are listed above it.
+ * The rounds are derived from the matches themselves rather than from a fixed
+ * list, so a stage the provider introduces later shows up here as readily as it
+ * shows up in the match list's `Vaihe` options. `stages` is an override for
+ * tests that want to inspect a single round.
  */
 export function buildBracket(
   matches: BracketSourceMatch[],
-  stages: string[] = KNOCKOUT_STAGES
+  stages: string[] = listKnockoutStages(matches)
 ): BracketRound[] {
   return stages.flatMap((stage) => {
     const stageMatches = matches.filter((match) => match.stage === stage);

@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContextNotices } from "@/components/context-notices";
 import { CupBracket } from "@/components/cup-bracket";
 import { CupStandingsControls } from "@/components/cup-standings-controls";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
-import {
-  DEFAULT_COMPETITION_CODE,
-  getCompetitionName,
-  isCupCompetition,
-  SUPPORTED_COMPETITIONS,
-} from "@/lib/competitions";
+import { isCupCompetition, SUPPORTED_COMPETITIONS } from "@/lib/competitions";
 import { buildBracket } from "@/lib/cup-bracket";
 import { buildCupPhaseStandings } from "@/lib/cup-standings";
 import type { BasePageContext } from "@/lib/page-context";
@@ -38,22 +34,6 @@ export async function generateMetadata({ searchParams }: StandingsPageProps): Pr
   if (resolved.status === "error") return { title: resolved.competitionName };
 
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
-}
-
-/** Shared by both page shapes: the invalid-`kilpailu` and invalid-`kausi` notices. */
-function ContextNotices({ resolved }: Readonly<{ resolved: ResolvedContext }>) {
-  return (
-    <>
-      {resolved.competitionParam.kind === "invalid" && (
-        <Notice>
-          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </Notice>
-      )}
-      {resolved.season.kind === "invalid" && (
-        <Notice>Kautta ei löytynyt. Näytetään kausi {resolved.seasonLabel}.</Notice>
-      )}
-    </>
-  );
 }
 
 /**

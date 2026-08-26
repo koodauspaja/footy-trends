@@ -95,7 +95,7 @@ function TieSide({
         />
       </span>
       <span className={`shrink-0 text-sm tabular-nums${isWinner ? " font-semibold" : ""}`}>
-        {goals === null ? "–" : goals}
+        {goals ?? "–"}
         {penalties !== null && (
           <span className="ml-1 font-normal text-zinc-500">{`(${penalties})`}</span>
         )}

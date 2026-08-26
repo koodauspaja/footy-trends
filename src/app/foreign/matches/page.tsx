@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContextNotices } from "@/components/context-notices";
 import { CupMatchesControls } from "@/components/cup-matches-controls";
 import { MatchListTable } from "@/components/match-list-table";
 import { MatchesControls } from "@/components/matches-controls";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
-import { DEFAULT_COMPETITION_CODE, getCompetitionName, isCupCompetition } from "@/lib/competitions";
+import { isCupCompetition } from "@/lib/competitions";
 import {
   getStageName,
   listSeasonStages,
@@ -35,21 +36,6 @@ export async function generateMetadata({ searchParams }: MatchesPageProps): Prom
   if (resolved.status === "error") return { title: resolved.competitionName };
 
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
-}
-
-function ContextNotices({ resolved }: Readonly<{ resolved: ResolvedContext }>) {
-  return (
-    <>
-      {resolved.competitionParam.kind === "invalid" && (
-        <Notice>
-          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </Notice>
-      )}
-      {resolved.season.kind === "invalid" && (
-        <Notice>Kautta ei löytynyt. Näytetään kausi {resolved.seasonLabel}.</Notice>
-      )}
-    </>
-  );
 }
 
 /**

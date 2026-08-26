@@ -59,27 +59,26 @@ const STAGE_ORDER = [
  */
 export const BRACKET_STAGES = ["QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
-/**
- * Every knockout round, in progression order — the rounds above plus the ones
- * that are listed rather than drawn.
- *
- * `THIRD_PLACE` is here but deliberately absent from `BRACKET_STAGES`: it
- * hangs off the semi-finals and does not feed the final, so it has no position
- * in a tree.
- */
-export const KNOCKOUT_STAGES = [
-  "PLAYOFFS",
-  "LAST_32",
-  "LAST_16",
-  "QUARTER_FINALS",
-  "SEMI_FINALS",
-  "THIRD_PLACE",
-  "FINAL",
-];
-
 /** Whether a round is drawn into the tree rather than listed above it. */
 export function isDrawnStage(stage: string): boolean {
   return BRACKET_STAGES.includes(stage);
+}
+
+/** The stages that produce a standings table rather than knockout ties. */
+const TABLE_PHASE_STAGES = new Set([LEAGUE_STAGE, GROUP_STAGE]);
+
+/**
+ * The season's knockout rounds, in progression order — **derived from the
+ * data**, as everything a knockout round is defined by: not a table phase.
+ *
+ * Deliberately not a hardcoded list of stage names. `listSeasonStages` already
+ * derives the match list's `Vaihe` options from the season's own matches, so a
+ * fixed list here would let a stage the provider adds appear in the dropdown
+ * and vanish from the standings page — which is precisely how
+ * `Pudotuspelikarsinta` came to be invisible in the first version.
+ */
+export function listKnockoutStages(matches: StagedMatch[]): string[] {
+  return listSeasonStages(matches).filter((stage) => !TABLE_PHASE_STAGES.has(stage));
 }
 
 /**
