@@ -86,7 +86,7 @@ request using the following steps:
      {
        repository(owner: "koodauspaja", name: "footy-trends") {
          issue(number: NNN) {
-           closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
+           closedByPullRequestsReferences(first: 50, includeClosedPrs: true) {
              nodes { number title }
            }
          }
@@ -95,8 +95,11 @@ request using the following steps:
      ```
 
      `includeClosedPrs: true` is required — without it the already-merged
-     earlier PRs are omitted and the series looks broken. Every PR in the
-     series must appear in that list once the last one has merged.
+     earlier PRs are omitted and the series looks broken. Count the returned
+     nodes against the number of PRs you opened rather than skimming the
+     list, and raise `first` if a series ever exceeds it: the connection
+     truncates silently, so a short answer reads the same as a complete one.
+     Every PR in the series must appear once the last one has merged.
    - **A closing keyword in a squash commit body closes the issue too**, and
      backticks or surrounding prose do not exempt it. #141 was closed by a
      commit body reading "`Closes #141` lands on the follow-up" — a sentence
