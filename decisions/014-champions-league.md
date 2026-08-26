@@ -84,6 +84,35 @@ both team ids and names, so a to-be-determined fixture never becomes a row.
 Adding a string that can never render would be worse than omitting it. A stage
 with no known ties shows the empty state instead.
 
+## Knockout rounds are derived, not listed
+
+`buildBracket` first iterated a hardcoded `KNOCKOUT_STAGES`. Sourcery pointed
+out that the match list's `Vaihe` options are derived from the season's own
+matches, so the two would disagree the moment the provider introduced a stage:
+visible in the dropdown, absent from the standings page. That is exactly how
+`Pudotuspelikarsinta` came to be invisible in the first place, one refactor on.
+
+A knockout round is now defined by what it is not — anything that is not
+`LEAGUE_STAGE` or `GROUP_STAGE` — so the list cannot fall behind the data. An
+unrecognised stage sorts last, because `STAGE_ORDER` cannot rank a name it has
+never seen; visible-but-last is the deliberate trade against being dropped.
+
+## Group headings keep the Finnish noun
+
+`getGroupName` originally passed a non-`GROUP_*` value through verbatim, by
+analogy with `getStageName`. The analogy was wrong: a stage name is a whole
+translated phrase, whereas a group heading is the Finnish noun *lohko* plus an
+identifier. Passing the raw value through therefore produced a heading with no
+Finnish in it at all, against the project's hard rule. It now always reads
+`Lohko X` — `Lohko 1` for an unrecognised value rather than a bare `1`.
+
+## `ContextNotices`
+
+The invalid-`kilpailu` and invalid-`kausi` banners were copy-pasted into both
+pages when each grew a league and a cup branch — 21 duplicated lines, which
+Sonar flagged. They live in `src/components/context-notices.tsx` now; four
+render paths share one copy.
+
 ## Sonar and complexity
 
 Sonar flagged `buildTie` and `buildBracket` at cognitive complexity 17 and 19
