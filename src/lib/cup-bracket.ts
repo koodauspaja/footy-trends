@@ -22,6 +22,17 @@ export type BracketSourceMatch = {
   extraTimeAway: number | null;
   penaltiesHome: number | null;
   penaltiesAway: number | null;
+  /**
+   * The provider's own verdict on who went through, stated from *this match's*
+   * home side. Used only to break a level tie, and only when the provider
+   * supplies it.
+   *
+   * TASO does: a Finnish cup tie level after normal time is settled on
+   * penalties it never itemises, so the score alone would leave the tie
+   * looking drawn. football-data does not, and omits this. See
+   * specs/015-finnish-cups.md.
+   */
+  declaredWinner?: "home" | "away" | null;
 };
 
 export type BracketTeam = { teamProviderId: number; teamName: string };
@@ -46,8 +57,15 @@ export type BracketLeg = {
   penaltiesAway: number | null;
 };
 
-/** How a decided tie was settled — drives the `(ja)` / `(rp)` suffix. */
-export type TieDecision = "regular" | "extra_time" | "penalties";
+/**
+ * How a decided tie was settled — drives the `(ja)` / `(rp)` suffix.
+ *
+ * `declared` means the provider named the winner without saying how, which is
+ * all TASO gives for a cup tie settled on penalties. It carries no suffix: the
+ * winner is shown in bold, and inventing "(rp)" would assert a shootout the
+ * data does not actually record.
+ */
+export type TieDecision = "regular" | "extra_time" | "penalties" | "declared";
 
 export type BracketTie = {
   /**
@@ -193,6 +211,7 @@ function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatc
 
   const shootout = ordered.find((leg) => leg.penaltiesHome !== null && leg.penaltiesAway !== null);
   const penalties = shootoutScore(shootout, home.teamProviderId);
+  const declared = declaredWinnerId(ordered, home, away);
 
   return {
     key: `${stage}:${pairKey(home.teamProviderId, away.teamProviderId)}:${first.providerMatchId}`,
@@ -213,6 +232,7 @@ function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatc
       away,
       wentToExtraTime,
       penalties,
+      declared,
     }),
   };
 }
@@ -225,6 +245,7 @@ function resolveWinner({
   away,
   wentToExtraTime,
   penalties,
+  declared,
 }: {
   complete: boolean;
   aggregateHome: number;
@@ -233,6 +254,7 @@ function resolveWinner({
   away: BracketTeam;
   wentToExtraTime: boolean;
   penalties: TieScore | null;
+  declared: number | null;
 }): { winnerTeamProviderId: number | null; decision: TieDecision | null } {
   if (!complete) return { winnerTeamProviderId: null, decision: null };
 
@@ -247,13 +269,39 @@ function resolveWinner({
   // Level on aggregate. UEFA abolished the away-goals rule in 2021, so the
   // shootout is the only tiebreaker left.
   if (penalties === null || penalties.home === penalties.away) {
-    return { winnerTeamProviderId: null, decision: null };
+    // No itemised shootout. A provider that names the winner anyway settles it;
+    // otherwise the tie genuinely has no winner to show.
+    return declared === null
+      ? { winnerTeamProviderId: null, decision: null }
+      : { winnerTeamProviderId: declared, decision: "declared" };
   }
   return {
     winnerTeamProviderId:
       penalties.home > penalties.away ? home.teamProviderId : away.teamProviderId,
     decision: "penalties",
   };
+}
+
+/**
+ * The team the provider says went through, or null when it does not say.
+ *
+ * Each leg states its verdict from its own home side, so a second leg with the
+ * teams reversed has to be flipped — the same conversion `shootoutScore` makes
+ * for penalties. The last leg that declares a winner is the deciding one.
+ */
+function declaredWinnerId(
+  legs: BracketSourceMatch[],
+  home: BracketTeam,
+  away: BracketTeam
+): number | null {
+  const decider = legs.findLast(
+    (leg) => leg.declaredWinner === "home" || leg.declaredWinner === "away"
+  );
+  if (decider === undefined) return null;
+
+  const legHomeIsTieHome = decider.homeTeamProviderId === home.teamProviderId;
+  const tieHomeWon = decider.declaredWinner === (legHomeIsTieHome ? "home" : "away");
+  return tieHomeWon ? home.teamProviderId : away.teamProviderId;
 }
 
 type TieScore = { home: number; away: number };
@@ -333,4 +381,54 @@ export function buildBracket(
     const stageMatches = matches.filter((match) => match.stage === stage);
     return stageMatches.length === 0 ? [] : [buildRound(stage, stageMatches)];
   });
+}
+
+/**
+ * Reorders each round's ties so the drawn tree actually reads as a tree.
+ *
+ * A round's ties arrive in kickoff order, which says nothing about who plays
+ * whom next. Drawn as-is, a team can win the *top* quarter-final and appear in
+ * the *bottom* semi-final, so the connectors imply a pairing that never
+ * happened — the real MSC 2025 bracket does exactly this.
+ *
+ * Works backwards from the last round, taking its order as given: for each tie
+ * there, find the earlier ties its two participants came from and put them
+ * next to each other, in that order. A tie whose participants are not in the
+ * later round — an unplayed round, or a third-place match that feeds nothing —
+ * keeps its relative order at the end rather than being dropped.
+ *
+ * Presentation only, so `buildBracket` stays chronological for the round lists
+ * that render beside the tree.
+ */
+export function orderRoundsForTree(rounds: BracketRound[]): BracketRound[] {
+  const ordered: BracketRound[] = [];
+  let later: BracketRound | undefined;
+
+  // Backwards, so each round is aligned against the one it feeds — which has
+  // itself already been aligned.
+  for (const round of [...rounds].reverse()) {
+    const aligned = later === undefined ? round : alignAgainst(round, later);
+    ordered.unshift(aligned);
+    later = aligned;
+  }
+
+  return ordered;
+}
+
+/** `earlier`'s ties, reordered to follow the participants of `later`'s. */
+function alignAgainst(earlier: BracketRound, later: BracketRound): BracketRound {
+  const remaining = [...earlier.ties];
+  const aligned: BracketTie[] = [];
+
+  for (const tie of later.ties) {
+    for (const teamId of [tie.home.teamProviderId, tie.away.teamProviderId]) {
+      const at = remaining.findIndex(
+        (candidate) =>
+          candidate.home.teamProviderId === teamId || candidate.away.teamProviderId === teamId
+      );
+      if (at !== -1) aligned.push(...remaining.splice(at, 1));
+    }
+  }
+
+  return { ...earlier, ties: [...aligned, ...remaining] };
 }

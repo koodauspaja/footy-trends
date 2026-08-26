@@ -38,26 +38,34 @@ export function TasoStandingsControls({
         onChange={(seasonId) => navigate(seasonId, selectedRound)}
       />
 
-      <label className="text-sm text-zinc-600" htmlFor="kierros">
-        Kierros
-      </label>
-      <select
-        className="rounded border border-zinc-300 px-3 py-2"
-        defaultValue={selectedRound ?? ""}
-        id="kierros"
-        name="kierros"
-        onChange={(event) => {
-          const { value } = event.target;
-          navigate(selectedSeasonId, value === "" ? undefined : Number(value));
-        }}
-      >
-        <option value="">Koko kausi</option>
-        {availableRounds.map((round) => (
-          <option key={round} value={round}>
-            {`Kierros ${round}`}
-          </option>
-        ))}
-      </select>
+      {/* A season with no round-aware group has nothing to filter: a cup's
+          groups are all knockout rounds, and the select would offer only
+          "Koko kausi" and do nothing. `MatchesControls` already guards the
+          same way. */}
+      {availableRounds.length > 0 && (
+        <>
+          <label className="text-sm text-zinc-600" htmlFor="kierros">
+            Kierros
+          </label>
+          <select
+            className="rounded border border-zinc-300 px-3 py-2"
+            defaultValue={selectedRound ?? ""}
+            id="kierros"
+            name="kierros"
+            onChange={(event) => {
+              const { value } = event.target;
+              navigate(selectedSeasonId, value === "" ? undefined : Number(value));
+            }}
+          >
+            <option value="">Koko kausi</option>
+            {availableRounds.map((round) => (
+              <option key={round} value={round}>
+                {`Kierros ${round}`}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
     </SeasonForm>
   );
 }

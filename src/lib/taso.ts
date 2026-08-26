@@ -48,6 +48,7 @@ function request<T>(path: string): Promise<T> {
 export type TasoProviderMatch = {
   match_id?: string;
   status?: string; // "Played" | "Fixture" | "Live", confirmed against live data
+  winner?: string; // "Home" | "Away" | "Tie", absent until the match is played
   round_id?: string;
   group_id?: string;
   group_name?: string;
@@ -92,7 +93,27 @@ export type NormalizedTasoMatch = {
   awayTeamName: string;
   homeGoals: number | null;
   awayGoals: number | null;
+  /**
+   * Who TASO says went through, which the score alone cannot answer for a cup:
+   * a knockout tie level after normal time is decided on penalties that TASO
+   * does not itemise, and it reports the outcome here instead.
+   *
+   * `"tie"` only ever appears in a league — verified live: `MSC` 2025 returns
+   * `Home`/`Away` for all 419 matches including the 55 level ones, while `VL`
+   * 2025 returns `Tie` for exactly its 40 level matches.
+   */
+  winner: TasoWinner;
 };
+
+/** TASO's own `winner`, lowercased. Null when the match has not been played. */
+export type TasoWinner = "home" | "away" | "tie" | null;
+
+function normalizeWinner(winner: string | undefined): TasoWinner {
+  if (winner === "Home") return "home";
+  if (winner === "Away") return "away";
+  if (winner === "Tie") return "tie";
+  return null;
+}
 
 /**
  * Combines `date` + `time` using the match's own `time_zone_offset` — TASO
@@ -217,6 +238,7 @@ export function normalizeTasoMatch(
     awayTeamName: match.team_B_name,
     homeGoals: parseScore(match.fs_A),
     awayGoals: parseScore(match.fs_B),
+    winner: normalizeWinner(match.winner),
   };
 }
 

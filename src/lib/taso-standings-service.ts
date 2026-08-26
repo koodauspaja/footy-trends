@@ -632,6 +632,7 @@ export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[])
         kickoffAt: sql`excluded.kickoff_at`,
         matchday: sql`excluded.matchday`,
         status: sql`excluded.status`,
+        winner: sql`excluded.winner`,
         homeTeamProviderId: sql`excluded.home_team_provider_id`,
         homeTeamName: sql`excluded.home_team_name`,
         awayTeamProviderId: sql`excluded.away_team_provider_id`,

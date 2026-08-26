@@ -50,6 +50,13 @@
       "when": 1787753354607,
       "tag": "0006_add_cup_stage_and_score_breakdown",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787770284829,
+      "tag": "0007_add_taso_match_winner",
+      "breakpoints": true
     }
   ]
 }
