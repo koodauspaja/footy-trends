@@ -52,8 +52,35 @@ const STAGE_ORDER = [
   "FINAL",
 ];
 
-/** The knockout rounds a bracket is drawn for, in order. */
+/**
+ * The rounds drawn as a tree, in order. Stops at the quarter-finals because
+ * that is the widest round a tree can show and still be read on a phone:
+ * `LAST_16` is eight ties across, `LAST_32` sixteen.
+ */
 export const BRACKET_STAGES = ["QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
+
+/**
+ * Every knockout round, in progression order — the rounds above plus the ones
+ * that are listed rather than drawn.
+ *
+ * `THIRD_PLACE` is here but deliberately absent from `BRACKET_STAGES`: it
+ * hangs off the semi-finals and does not feed the final, so it has no position
+ * in a tree.
+ */
+export const KNOCKOUT_STAGES = [
+  "PLAYOFFS",
+  "LAST_32",
+  "LAST_16",
+  "QUARTER_FINALS",
+  "SEMI_FINALS",
+  "THIRD_PLACE",
+  "FINAL",
+];
+
+/** Whether a round is drawn into the tree rather than listed above it. */
+export function isDrawnStage(stage: string): boolean {
+  return BRACKET_STAGES.includes(stage);
+}
 
 /**
  * The Finnish name for a stage. An unmapped stage falls through to its raw

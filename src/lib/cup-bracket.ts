@@ -3,7 +3,7 @@
  * two legs aggregated. See specs/014-champions-league.md.
  */
 
-import { BRACKET_STAGES } from "./cup-stages";
+import { KNOCKOUT_STAGES } from "./cup-stages";
 
 export type BracketSourceMatch = {
   providerMatchId: number;
@@ -66,6 +66,13 @@ export type BracketTie = {
   /** Null until every leg has a score. */
   aggregateHome: number | null;
   aggregateAway: number | null;
+  /**
+   * The shootout that settled the tie, stated from the **tie's** home side
+   * rather than the deciding leg's — the two differ whenever the second leg
+   * is the one that went to penalties. Null when there was no shootout.
+   */
+  penaltiesHome: number | null;
+  penaltiesAway: number | null;
   winnerTeamProviderId: number | null;
   decision: TieDecision | null;
 };
@@ -118,6 +125,42 @@ function toLeg(match: BracketSourceMatch): BracketLeg {
   };
 }
 
+type TieTotals = {
+  aggregateHome: number;
+  aggregateAway: number;
+  complete: boolean;
+  wentToExtraTime: boolean;
+};
+
+/**
+ * Sums the legs from the tie's home side. Each leg is stated from its *own*
+ * home team, so a second leg with the teams reversed contributes the other way
+ * round. A leg with no score, or one not yet finished, leaves the tie
+ * incomplete rather than counting as 0-0.
+ */
+function accumulate(legs: BracketSourceMatch[], tieHomeTeamId: number): TieTotals {
+  const totals: TieTotals = {
+    aggregateHome: 0,
+    aggregateAway: 0,
+    complete: true,
+    wentToExtraTime: false,
+  };
+
+  for (const leg of legs) {
+    const score = legScore(leg);
+    if (score === null || leg.status !== FINISHED_STATUS) {
+      totals.complete = false;
+      continue;
+    }
+    const legHomeIsTieHome = leg.homeTeamProviderId === tieHomeTeamId;
+    totals.aggregateHome += legHomeIsTieHome ? score.home : score.away;
+    totals.aggregateAway += legHomeIsTieHome ? score.away : score.home;
+    if (leg.extraTimeHome !== null || leg.extraTimeAway !== null) totals.wentToExtraTime = true;
+  }
+
+  return totals;
+}
+
 /**
  * Builds one tie from the legs of a single pairing. Works for one leg as well
  * as two: the World Cup and the European Championship play single-leg
@@ -143,26 +186,13 @@ function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatc
     teamName: first.awayTeamName,
   };
 
-  let aggregateHome = 0;
-  let aggregateAway = 0;
-  let complete = true;
-  let wentToExtraTime = false;
-
-  for (const leg of ordered) {
-    const score = legScore(leg);
-    if (score === null || leg.status !== FINISHED_STATUS) {
-      complete = false;
-      continue;
-    }
-    // Each leg is stated from its own home side, so a second leg with the
-    // teams reversed contributes the other way round.
-    const legHomeIsTieHome = leg.homeTeamProviderId === home.teamProviderId;
-    aggregateHome += legHomeIsTieHome ? score.home : score.away;
-    aggregateAway += legHomeIsTieHome ? score.away : score.home;
-    if (leg.extraTimeHome !== null || leg.extraTimeAway !== null) wentToExtraTime = true;
-  }
+  const { aggregateHome, aggregateAway, complete, wentToExtraTime } = accumulate(
+    ordered,
+    home.teamProviderId
+  );
 
   const shootout = ordered.find((leg) => leg.penaltiesHome !== null && leg.penaltiesAway !== null);
+  const penalties = shootoutScore(shootout, home.teamProviderId);
 
   return {
     key: `${stage}:${pairKey(home.teamProviderId, away.teamProviderId)}:${first.providerMatchId}`,
@@ -173,6 +203,8 @@ function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatc
     startsAt: first.kickoffAt,
     aggregateHome: complete ? aggregateHome : null,
     aggregateAway: complete ? aggregateAway : null,
+    penaltiesHome: penalties?.home ?? null,
+    penaltiesAway: penalties?.away ?? null,
     ...resolveWinner({
       complete,
       aggregateHome,
@@ -180,7 +212,7 @@ function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatc
       home,
       away,
       wentToExtraTime,
-      shootout,
+      penalties,
     }),
   };
 }
@@ -192,7 +224,7 @@ function resolveWinner({
   home,
   away,
   wentToExtraTime,
-  shootout,
+  penalties,
 }: {
   complete: boolean;
   aggregateHome: number;
@@ -200,7 +232,7 @@ function resolveWinner({
   home: BracketTeam;
   away: BracketTeam;
   wentToExtraTime: boolean;
-  shootout: BracketSourceMatch | undefined;
+  penalties: TieScore | null;
 }): { winnerTeamProviderId: number | null; decision: TieDecision | null } {
   if (!complete) return { winnerTeamProviderId: null, decision: null };
 
@@ -214,28 +246,38 @@ function resolveWinner({
 
   // Level on aggregate. UEFA abolished the away-goals rule in 2021, so the
   // shootout is the only tiebreaker left.
-  if (
-    shootout !== undefined &&
-    shootout.penaltiesHome !== null &&
-    shootout.penaltiesAway !== null
-  ) {
-    const shootoutHomeIsTieHome = shootout.homeTeamProviderId === home.teamProviderId;
-    const tieHomePenalties = shootoutHomeIsTieHome
-      ? shootout.penaltiesHome
-      : shootout.penaltiesAway;
-    const tieAwayPenalties = shootoutHomeIsTieHome
-      ? shootout.penaltiesAway
-      : shootout.penaltiesHome;
-    if (tieHomePenalties !== tieAwayPenalties) {
-      return {
-        winnerTeamProviderId:
-          tieHomePenalties > tieAwayPenalties ? home.teamProviderId : away.teamProviderId,
-        decision: "penalties",
-      };
-    }
+  if (penalties === null || penalties.home === penalties.away) {
+    return { winnerTeamProviderId: null, decision: null };
   }
+  return {
+    winnerTeamProviderId:
+      penalties.home > penalties.away ? home.teamProviderId : away.teamProviderId,
+    decision: "penalties",
+  };
+}
 
-  return { winnerTeamProviderId: null, decision: null };
+type TieScore = { home: number; away: number };
+
+/**
+ * The shootout stated from the **tie's** home side, or null when there was
+ * none or the provider recorded only one side of it.
+ *
+ * The deciding leg may be the one where the tie's away team played at home, so
+ * its `penaltiesHome` is not necessarily the tie's home team's score.
+ */
+function shootoutScore(
+  shootout: BracketSourceMatch | undefined,
+  tieHomeTeamId: number
+): TieScore | null {
+  const scoredHome = shootout?.penaltiesHome ?? null;
+  const scoredAway = shootout?.penaltiesAway ?? null;
+  if (shootout === undefined || scoredHome === null || scoredAway === null) return null;
+
+  const legHomeIsTieHome = shootout.homeTeamProviderId === tieHomeTeamId;
+  return {
+    home: legHomeIsTieHome ? scoredHome : scoredAway,
+    away: legHomeIsTieHome ? scoredAway : scoredHome,
+  };
 }
 
 /**
@@ -245,36 +287,49 @@ function resolveWinner({
  * its matches becomes its own single-match tie rather than being silently
  * folded together or dropped — a provider oddity stays visible.
  */
+/** Groups one round's matches by the unordered pair of teams that played them. */
+function pairLegs(
+  stageMatches: BracketSourceMatch[]
+): Array<[BracketSourceMatch, ...BracketSourceMatch[]]> {
+  const pairings = new Map<string, [BracketSourceMatch, ...BracketSourceMatch[]]>();
+  for (const match of stageMatches) {
+    const key = pairKey(match.homeTeamProviderId, match.awayTeamProviderId);
+    const existing = pairings.get(key);
+    if (existing) existing.push(match);
+    else pairings.set(key, [match]);
+  }
+  return [...pairings.values()];
+}
+
+/**
+ * One round's ties, earliest first.
+ *
+ * A pairing with more than two matches cannot be a two-legged tie, so each of
+ * its matches becomes its own single-match tie rather than being silently
+ * folded together or dropped — a provider oddity stays visible.
+ */
+function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketRound {
+  const ties = pairLegs(stageMatches).flatMap((legs) =>
+    legs.length > 2 ? legs.map((leg) => buildTie(stage, [leg])) : [buildTie(stage, legs)]
+  );
+
+  ties.sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+  return { stage, ties };
+}
+
+/**
+ * A season's knockout rounds as ties, in progression order.
+ *
+ * Defaults to *every* knockout round rather than only the drawn ones: a round
+ * the season has must be visible on the standings page, and the caller decides
+ * which are drawn into the tree and which are listed above it.
+ */
 export function buildBracket(
   matches: BracketSourceMatch[],
-  stages: string[] = BRACKET_STAGES
+  stages: string[] = KNOCKOUT_STAGES
 ): BracketRound[] {
-  const rounds: BracketRound[] = [];
-
-  for (const stage of stages) {
+  return stages.flatMap((stage) => {
     const stageMatches = matches.filter((match) => match.stage === stage);
-    if (stageMatches.length === 0) continue;
-
-    const pairings = new Map<string, [BracketSourceMatch, ...BracketSourceMatch[]]>();
-    for (const match of stageMatches) {
-      const key = pairKey(match.homeTeamProviderId, match.awayTeamProviderId);
-      const existing = pairings.get(key);
-      if (existing) existing.push(match);
-      else pairings.set(key, [match]);
-    }
-
-    const ties: BracketTie[] = [];
-    for (const legs of pairings.values()) {
-      if (legs.length > 2) {
-        for (const leg of legs) ties.push(buildTie(stage, [leg]));
-      } else {
-        ties.push(buildTie(stage, legs));
-      }
-    }
-
-    ties.sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
-    rounds.push({ stage, ties });
-  }
-
-  return rounds;
+    return stageMatches.length === 0 ? [] : [buildRound(stage, stageMatches)];
+  });
 }

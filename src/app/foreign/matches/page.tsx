@@ -128,10 +128,10 @@ async function renderCupMatches({
   );
 }
 
-const TABLE_PRODUCING_STAGES = ["LEAGUE_STAGE", "GROUP_STAGE"];
+const TABLE_PRODUCING_STAGES = new Set(["LEAGUE_STAGE", "GROUP_STAGE"]);
 
 function isLegNumbered(stage: string | undefined): boolean {
-  return stage !== undefined && !TABLE_PRODUCING_STAGES.includes(stage);
+  return stage !== undefined && !TABLE_PRODUCING_STAGES.has(stage);
 }
 
 /** The league shape: one round at a time, with ◀/▶ navigation. */

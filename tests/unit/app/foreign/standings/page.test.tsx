@@ -568,7 +568,46 @@ describe("Standings page, cup competitions", () => {
 
     expect(screen.getByRole("heading", { name: "Pudotuspelit" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
-    expect(screen.getByText("5–0")).toBeInTheDocument();
+    // The final is drawn as a card, so each side carries its own aggregate.
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Paris Saint-Germain FC" })).toHaveClass(
+      "font-semibold"
+    );
+  });
+
+  it("lists Pudotuspelikarsinta above the drawn tree rather than hiding it", async () => {
+    // The round existed only as a `Vaihe` option on the match list before; a
+    // round the season has must be visible on the standings page.
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "PLAYOFFS",
+          home: [1, "Club Brugge KV"],
+          away: [2, "Atalanta BC"],
+          score: [2, 1],
+          kickoffAt: "2025-02-11T19:00:00Z",
+        }),
+        cupMatch({
+          id: 2,
+          stage: "FINAL",
+          home: [3, "Paris Saint-Germain FC"],
+          away: [4, "Inter"],
+          score: [5, 0],
+          kickoffAt: "2025-05-31T19:00:00Z",
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(screen.getByRole("heading", { name: "Pudotuspelikarsinta" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
+    // The listed round keeps a table; the drawn final does not add one.
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getByText("Ottelupari")).toBeInTheDocument();
   });
 
   it("tells the user when the knockout rounds have not started", async () => {

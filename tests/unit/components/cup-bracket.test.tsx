@@ -26,9 +26,19 @@ function tie(overrides: Partial<BracketTie> = {}): BracketTie {
     startsAt: new Date("2025-05-31T19:00:00Z"),
     aggregateHome: 5,
     aggregateAway: 0,
+    penaltiesHome: null,
+    penaltiesAway: null,
     winnerTeamProviderId: 1,
     decision: "regular",
     ...overrides,
+  };
+}
+
+/** A round that is listed rather than drawn. */
+function listedRound(stage = "LAST_16"): BracketRound {
+  return {
+    stage,
+    ties: [tie({ key: `${stage}:1-2:1`, stage })],
   };
 }
 
@@ -43,137 +53,258 @@ describe("CupBracket", () => {
     expect(screen.getByText("Pudotuspelit eivät ole vielä alkaneet.")).toBeInTheDocument();
   });
 
-  it("names the round in Finnish and labels its columns", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie()] }]);
+  describe("rounds drawn as a tree", () => {
+    it("names each round in Finnish, one column per round", () => {
+      renderBracket([
+        { stage: "QUARTER_FINALS", ties: [tie({ key: "QF:1-2:1", stage: "QUARTER_FINALS" })] },
+        { stage: "SEMI_FINALS", ties: [tie({ key: "SF:1-2:2", stage: "SEMI_FINALS" })] },
+        { stage: "FINAL", ties: [tie()] },
+      ]);
 
-    expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
-    expect(screen.getByText("Ottelupari")).toBeInTheDocument();
-    expect(screen.getByText("Yhteistulos")).toBeInTheDocument();
-    expect(screen.getByText("Osaottelut")).toBeInTheDocument();
-  });
-
-  it("marks the winner and links both teams", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie()] }]);
-
-    const winner = screen.getByRole("link", { name: "Paris Saint-Germain FC" });
-    const loser = screen.getByRole("link", { name: "FC Internazionale Milano" });
-    expect(winner).toHaveClass("font-semibold");
-    expect(loser).not.toHaveClass("font-semibold");
-    expect(winner).toHaveAttribute("href", "/ulkomaat/joukkue/1");
-  });
-
-  it("shows no aggregate for a tie that is not finished", () => {
-    renderBracket([
-      {
-        stage: "FINAL",
-        ties: [
-          tie({
-            aggregateHome: null,
-            aggregateAway: null,
-            winnerTeamProviderId: null,
-            decision: null,
-          }),
-        ],
-      },
-    ]);
-
-    // The team cell also contains a " – " separator, so target the aggregate
-    // cell by position rather than by text.
-    const row = screen.getByRole("row", { name: /Paris Saint-Germain FC/ });
-    expect(within(row).getAllByRole("cell")[1]).toHaveTextContent("–");
-  });
-
-  it("appends (ja) for a tie settled in extra time", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie({ decision: "extra_time" })] }]);
-
-    expect(screen.getByText("5–0 (ja)")).toBeInTheDocument();
-  });
-
-  it("appends (rp) for a tie settled on penalties", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie({ decision: "penalties" })] }]);
-
-    expect(screen.getByText("5–0 (rp)")).toBeInTheDocument();
-  });
-
-  it("appends nothing for a tie settled in normal time", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie()] }]);
-
-    expect(screen.getByText("5–0")).toBeInTheDocument();
-  });
-
-  it("shows a finished tie with no winner without a suffix", () => {
-    // Level on aggregate with no shootout recorded: undecided, not a draw.
-    renderBracket([
-      {
-        stage: "FINAL",
-        ties: [
-          tie({ aggregateHome: 2, aggregateAway: 2, winnerTeamProviderId: null, decision: null }),
-        ],
-      },
-    ]);
-
-    expect(screen.getByText("2–2")).toBeInTheDocument();
-  });
-
-  it("lists each leg with its own date and result", () => {
-    renderBracket([{ stage: "FINAL", ties: [tie()] }]);
-
-    expect(
-      screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 5–0")
-    ).toBeInTheDocument();
-  });
-
-  it("shows a leg with no score yet as a dash", () => {
-    const unplayed = tie({
-      aggregateHome: null,
-      aggregateAway: null,
-      winnerTeamProviderId: null,
-      decision: null,
+      expect(screen.getByRole("heading", { name: "Puolivälierät" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Välierät" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
     });
-    const [leg] = unplayed.legs;
-    if (leg === undefined) throw new Error("expected a leg");
-    renderBracket([
-      {
-        stage: "FINAL",
-        ties: [{ ...unplayed, legs: [{ ...leg, homeGoals: null, awayGoals: null }] }],
-      },
-    ]);
 
-    expect(
-      screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano –")
-    ).toBeInTheDocument();
+    it("stacks both teams with their aggregate goals, winner in bold", () => {
+      renderBracket([{ stage: "FINAL", ties: [tie()] }]);
+
+      const winner = screen.getByRole("link", { name: "Paris Saint-Germain FC" });
+      const loser = screen.getByRole("link", { name: "FC Internazionale Milano" });
+      expect(winner).toHaveClass("font-semibold");
+      expect(loser).not.toHaveClass("font-semibold");
+      expect(winner).toHaveAttribute("href", "/ulkomaat/joukkue/1");
+      expect(screen.getByText("5")).toBeInTheDocument();
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("does not render a table for a drawn round", () => {
+      renderBracket([{ stage: "FINAL", ties: [tie()] }]);
+
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(screen.queryByText("Ottelupari")).not.toBeInTheDocument();
+    });
+
+    it("shows dashes for a tie that has not been played", () => {
+      renderBracket([
+        {
+          stage: "FINAL",
+          ties: [
+            tie({
+              aggregateHome: null,
+              aggregateAway: null,
+              winnerTeamProviderId: null,
+              decision: null,
+            }),
+          ],
+        },
+      ]);
+
+      expect(screen.getAllByText("–")).toHaveLength(2);
+    });
+
+    it("labels a tie settled in extra time", () => {
+      renderBracket([{ stage: "FINAL", ties: [tie({ decision: "extra_time" })] }]);
+
+      expect(screen.getByText("(ja)")).toBeInTheDocument();
+    });
+
+    it("labels a tie settled on penalties", () => {
+      renderBracket([{ stage: "FINAL", ties: [tie({ decision: "penalties" })] }]);
+
+      expect(screen.getByText("(rp)")).toBeInTheDocument();
+    });
+
+    it("shows each side's shootout score beside its aggregate", () => {
+      // The football convention: 1 (4) over 1 (3).
+      renderBracket([
+        {
+          stage: "FINAL",
+          ties: [
+            tie({
+              aggregateHome: 1,
+              aggregateAway: 1,
+              penaltiesHome: 4,
+              penaltiesAway: 3,
+              decision: "penalties",
+            }),
+          ],
+        },
+      ]);
+
+      expect(screen.getByText("(4)")).toBeInTheDocument();
+      expect(screen.getByText("(3)")).toBeInTheDocument();
+      expect(screen.getAllByText("1")).toHaveLength(2);
+    });
+
+    it("labels nothing for a tie settled in normal time", () => {
+      renderBracket([{ stage: "FINAL", ties: [tie()] }]);
+
+      expect(screen.queryByText("(ja)")).not.toBeInTheDocument();
+      expect(screen.queryByText("(rp)")).not.toBeInTheDocument();
+    });
+
+    it("labels nothing for a finished tie with no winner", () => {
+      renderBracket([
+        {
+          stage: "FINAL",
+          ties: [
+            tie({ aggregateHome: 2, aggregateAway: 2, winnerTeamProviderId: null, decision: null }),
+          ],
+        },
+      ]);
+
+      expect(screen.getAllByText("2")).toHaveLength(2);
+      expect(screen.queryByText("(rp)")).not.toBeInTheDocument();
+    });
   });
 
-  it("states a shootout separately from the leg's own score", () => {
-    // The leg score must not be the provider's `fullTime`, which folds the
-    // shootout in and would contradict the aggregate beside it.
-    const base = tie({ decision: "penalties", aggregateHome: 1, aggregateAway: 1 });
-    const [leg] = base.legs;
-    if (leg === undefined) throw new Error("expected a leg");
-    renderBracket([
-      {
-        stage: "FINAL",
-        ties: [
-          {
-            ...base,
-            legs: [{ ...leg, homeGoals: 0, awayGoals: 1, penaltiesHome: 1, penaltiesAway: 4 }],
-          },
-        ],
-      },
-    ]);
+  describe("rounds listed above the tree", () => {
+    it("renders an earlier round as a table with Finnish column headers", () => {
+      renderBracket([listedRound("PLAYOFFS")]);
 
-    expect(
-      screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 0–1 (rp 1–4)")
-    ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Pudotuspelikarsinta" })).toBeInTheDocument();
+      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByText("Ottelupari")).toBeInTheDocument();
+      expect(screen.getByText("Yhteistulos")).toBeInTheDocument();
+      expect(screen.getByText("Osaottelut")).toBeInTheDocument();
+    });
+
+    it("states the shootout score on the aggregate", () => {
+      renderBracket([
+        {
+          stage: "LAST_16",
+          ties: [
+            tie({
+              key: "L16:1-2:1",
+              stage: "LAST_16",
+              aggregateHome: 1,
+              aggregateAway: 1,
+              penaltiesHome: 4,
+              penaltiesAway: 2,
+              decision: "penalties",
+            }),
+          ],
+        },
+      ]);
+
+      expect(screen.getByText("1–1 (rp 4–2)")).toBeInTheDocument();
+    });
+
+    it("labels an extra-time tie without inventing a shootout", () => {
+      renderBracket([
+        {
+          stage: "LAST_16",
+          ties: [tie({ key: "L16:1-2:1", stage: "LAST_16", decision: "extra_time" })],
+        },
+      ]);
+
+      expect(screen.getByText("5–0 (ja)")).toBeInTheDocument();
+    });
+
+    it("shows no aggregate for a tie that is not finished", () => {
+      renderBracket([
+        {
+          stage: "LAST_16",
+          ties: [
+            tie({
+              key: "L16:1-2:1",
+              stage: "LAST_16",
+              aggregateHome: null,
+              aggregateAway: null,
+              winnerTeamProviderId: null,
+              decision: null,
+            }),
+          ],
+        },
+      ]);
+
+      const row = screen.getByRole("row", { name: /Paris Saint-Germain FC/ });
+      expect(within(row).getAllByRole("cell")[1]).toHaveTextContent("–");
+    });
+
+    it("lists each leg with its own date and result", () => {
+      renderBracket([listedRound()]);
+
+      expect(
+        screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 5–0")
+      ).toBeInTheDocument();
+    });
+
+    it("states a shootout separately from the leg's own score", () => {
+      // The leg score must not be the provider's `fullTime`, which folds the
+      // shootout in and would contradict the aggregate beside it.
+      const base = listedRound();
+      const [leg] = base.ties[0]?.legs ?? [];
+      if (leg === undefined) throw new Error("expected a leg");
+      renderBracket([
+        {
+          ...base,
+          ties: [
+            {
+              ...tie({ key: "L16:1-2:1", stage: "LAST_16" }),
+              legs: [{ ...leg, homeGoals: 0, awayGoals: 1, penaltiesHome: 1, penaltiesAway: 4 }],
+            },
+          ],
+        },
+      ]);
+
+      expect(
+        screen.getByText(
+          "31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 0–1 (rp 1–4)"
+        )
+      ).toBeInTheDocument();
+    });
+
+    it("shows a leg with no score yet as a dash", () => {
+      const base = listedRound();
+      const [leg] = base.ties[0]?.legs ?? [];
+      if (leg === undefined) throw new Error("expected a leg");
+      renderBracket([
+        {
+          ...base,
+          ties: [
+            {
+              ...tie({
+                key: "L16:1-2:1",
+                stage: "LAST_16",
+                aggregateHome: null,
+                aggregateAway: null,
+                winnerTeamProviderId: null,
+                decision: null,
+              }),
+              legs: [{ ...leg, homeGoals: null, awayGoals: null }],
+            },
+          ],
+        },
+      ]);
+
+      expect(
+        screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano –")
+      ).toBeInTheDocument();
+    });
   });
 
-  it("renders every round it is given", () => {
+  it("lists the earlier rounds and draws the later ones in the same view", () => {
     renderBracket([
-      { stage: "SEMI_FINALS", ties: [tie({ key: "SEMI_FINALS:1-2:1", stage: "SEMI_FINALS" })] },
+      listedRound("PLAYOFFS"),
+      listedRound("LAST_16"),
+      { stage: "QUARTER_FINALS", ties: [tie({ key: "QF:1-2:9", stage: "QUARTER_FINALS" })] },
       { stage: "FINAL", ties: [tie()] },
     ]);
 
-    expect(screen.getByRole("heading", { name: "Välierät" })).toBeInTheDocument();
+    // Two listed rounds keep their tables; the two drawn rounds do not add any.
+    expect(screen.getAllByRole("table")).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "Pudotuspelikarsinta" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Neljännesvälierät" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Puolivälierät" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
+  });
+
+  it("draws the tree even when the season has no listed rounds", () => {
+    renderBracket([{ stage: "FINAL", ties: [tie()] }]);
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
   });
 });

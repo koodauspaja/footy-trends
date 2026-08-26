@@ -84,13 +84,13 @@ both team ids and names, so a to-be-determined fixture never becomes a row.
 Adding a string that can never render would be worse than omitting it. A stage
 with no known ties shows the empty state instead.
 
-## The `LAST_16` acceptance criterion is verified by test, not on the page
+## Sonar and complexity
 
-Acceptance criterion 7 names the Liverpool–PSG aggregate, but `LAST_16` is
-explicitly *not* in the bracket — it renders as a match list, per the spec's
-own scope. `buildBracket` takes the stages as a parameter, so the criterion is
-verified in `tests/unit/lib/cup-bracket.test.ts` against that exact fixture,
-which is what the criterion is actually about: the aggregation being right.
+Sonar flagged `buildTie` and `buildBracket` at cognitive complexity 17 and 19
+against a limit of 15. Both were split rather than exempted: `accumulate` walks
+the legs, `shootoutScore` orients the shootout, `pairLegs` groups by team pair
+and `buildRound` builds one round's ties. `TABLE_PRODUCING_STAGES` became a
+`Set`, and the shootout guard an optional chain.
 
 ## Page sections are awaited functions, not async components
 
@@ -100,13 +100,54 @@ pipeline, so every page test failed with "is an async Client Component". They
 are plain async functions the route awaits and returns — same structure, no
 test-only shim.
 
-## Bracket rendering
+## Bracket rendering: two shapes, and why
 
-Rendered as one table per round rather than a drawn tree. The rounds it covers
-are at most eight ties wide, and a table stays readable on a phone where a
-tree does not. `(ja)` is jatkoaika, `(rp)` rangaistuspotkut; a tie settled in
-normal time gets no suffix. The decision is derived from the stored breakdown
-rather than the provider's `duration`, which is therefore not stored.
+The knockout phase renders in two parts, revised during review after the first
+version proved to hide a whole round.
+
+**Everything before the quarter-finals is listed** as a table of resolved ties.
+**Quarter-finals onward are drawn** as a left-to-right tree: one column per
+round, cards of a fixed width, later rounds vertically centred against the pair
+that feeds them, with decorative connector stubs (`aria-hidden`, since the
+round headings already carry the structure).
+
+The split is a readability limit rather than a preference. `LAST_16` is eight
+ties across and `LAST_32` sixteen; no tree survives either on a phone. From the
+quarter-finals it is three columns and shows the one thing a list cannot — who
+plays whom next.
+
+The first version drew nothing and listed only the last three rounds, which
+meant `Pudotuspelikarsinta` existed solely as an option in the match list's
+`Vaihe` dropdown — invisible on the standings page. Every knockout round the
+season has is now on the page.
+
+`THIRD_PLACE` is listed rather than drawn wherever it occurs: it hangs off the
+semi-finals and does not feed the final, so it has no position in the tree.
+
+### Mobile
+
+Columns are fixed-width and the row scrolls inside its own `overflow-x-auto`
+container; the page itself never scrolls horizontally, verified at 375px. The
+first attempt used `flex-1` inside a `min-w-[640px]` row, which squeezed the
+columns until long club names wrapped mid-card and pushed the score out of the
+box. Fixed widths with `min-w-0` on the name and `shrink-0` on the score keep
+every card identical.
+
+### Scores in the tree
+
+Each side shows its aggregate, and its shootout score in parentheses after it
+when the tie went to penalties — `Real Madrid CF 4 (4)` over
+`Manchester City FC 4 (3)`, the usual football convention. `(ja)` is jatkoaika,
+`(rp)` rangaistuspotkut; a tie settled in normal time carries no label.
+
+That required the tie to expose penalties **oriented to the tie's own home
+side**, not the deciding leg's: the second leg is frequently the one that goes
+to penalties, and its `penaltiesHome` then belongs to the tie's *away* team.
+`shootoutScore` does that conversion once and both the winner logic and the
+display read the result.
+
+The decision is derived from the stored breakdown rather than the provider's
+`duration`, which is therefore not stored.
 
 A leg's displayed score is the same `regularTime + extraTime` the aggregate is
 built from, not the provider's `fullTime`. Sourcery caught this after the first

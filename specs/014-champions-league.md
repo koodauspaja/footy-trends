@@ -20,9 +20,13 @@ rendered as a match list, and a drawn bracket for the last three rounds.
 - `/ulkomaat/ottelut?kilpailu=CL&kausi={season}` gains a **stage** selector in
   place of the round selector, since a cup's `matchday` is a leg number, not a
   round.
-- A **bracket** for `QUARTER_FINALS` → `SEMI_FINALS` → `FINAL`, rendered on the
-  standings page below the tables, with two-legged ties resolved to a single
-  aggregate result per tie.
+- A **drawn bracket** for `QUARTER_FINALS` → `SEMI_FINALS` → `FINAL`, rendered
+  on the standings page below the tables as a left-to-right tree, with
+  two-legged ties resolved to a single aggregate result per tie.
+- **Every other knockout round of the season** — `PLAYOFFS`, `LAST_32`,
+  `LAST_16`, `THIRD_PLACE` — listed above the tree, also as resolved ties.
+  A round the season has must be visible on the standings page; a round that
+  only appears in the match list's `Vaihe` dropdown is effectively hidden.
 - `/ulkomaat/joukkue/{id}?kilpailu=CL` continues to work unchanged — a team's
   match list needs no cup awareness.
 - Finnish names for every stage the provider emits.
@@ -41,8 +45,10 @@ rendered as a match list, and a drawn bracket for the last three rounds.
   bracket, no standings.
 - **Copa Libertadores (`CLI`)** — available on our plan, deliberately excluded
   (confirmed in chat).
-- A bracket for `PLAYOFFS` or `LAST_16`. They stay match lists; see **Edge
-  Cases** for why.
+- Drawing `PLAYOFFS`, `LAST_32`, `LAST_16` or `THIRD_PLACE` into the tree.
+  They are listed, not drawn: `LAST_16` alone is eight ties wide, and a
+  third-place match hangs off the semi-finals rather than feeding the final,
+  so neither fits a tree that has to stay readable on a phone.
 - Changing anything about the nine existing league competitions. Their pages,
   their round selector, and their standings must be byte-identical after this
   change.
@@ -98,18 +104,37 @@ silent. Every stage the provider is known to emit belongs in the table above.
   two controls answering the same question; the stage selector on
   `/ulkomaat/ottelut` covers it.
 
-### Bracket
+### Knockout phase
 
-Below the standings, under an `<h2>` reading **`Pudotuspelit`**. Each tie is
-one row showing both teams, the aggregate score, and the two legs' individual
-results. A tie decided on penalties appends **`(rp)`**; one decided in extra
-time appends **`(ja)`**.
+Below the standings, under an `<h2>` reading **`Pudotuspelit`**, in two parts.
 
+**1. Earlier rounds, listed.** Every knockout round before the quarter-finals
+that the season actually has — `Pudotuspelikarsinta`, `Kahdeksannesvälierät`,
+`Neljännesvälierät` — each under its own `<h3>`, as a list of resolved ties.
+One row per tie: both teams, the aggregate, and each leg's own result. This is
+what makes `Pudotuspelikarsinta` visible at all; before this it existed only as
+an option in the match list's `Vaihe` dropdown.
+
+**2. Quarter-finals onward, drawn.** `Puolivälierät` → `Välierät` →
+`Loppuottelu` as a left-to-right tree: one column per round, each tie a card
+with its two teams stacked and the aggregate beside them, later rounds
+vertically centred against the pair that feeds them. Connector stubs join a
+card to the round on its right. The tree scrolls horizontally inside its own
+container rather than making the page scroll.
+
+`THIRD_PLACE` is listed rather than drawn wherever it occurs: it hangs off the
+semi-finals and does not feed the final, so it has no place in the tree.
+
+Common to both parts:
+
+- The winner of a decided tie is shown in **bold**; the loser is not.
+- A tie decided on penalties appends **`(rp)`** to the aggregate; one decided
+  in extra time appends **`(ja)`**.
+- A leg's own score is normal time plus extra time, with any shootout stated
+  separately as `(rp 3–4)` — never the provider's `fullTime`, which folds the
+  shootout in and would contradict the aggregate above it.
 - Not-yet-played ties render the team names with `–` in place of a score.
-- A tie whose participants are not yet known renders **`Ratkeamatta`** in
-  place of each unknown team name.
-- Empty bracket (no knockout matches stored yet): **`Pudotuspelit eivät ole
-  vielä alkaneet.`**
+- No knockout matches at all: **`Pudotuspelit eivät ole vielä alkaneet.`**
 
 ### Matches page (`/ulkomaat/ottelut?kilpailu=CL`)
 
@@ -263,8 +288,14 @@ A tie is the unordered pair of team ids appearing in a stage, `matchday` 1 and
       headed `Lohko A` … `Lohko H`, four teams each.
 - [ ] The season selector for `CL` offers exactly 2023, 2024, 2025.
 - [ ] `/ulkomaat/ottelut?kilpailu=CL` shows a `Vaihe` selector, not `Kierros`.
-- [ ] The bracket shows Puolivälierät, Välierät and Loppuottelu for 2024, with
-      PSG as the 2024 winner.
+- [ ] The drawn bracket shows Puolivälierät, Välierät and Loppuottelu for 2024
+      as a left-to-right tree, with PSG as the 2024 winner shown in bold.
+- [ ] `Pudotuspelikarsinta` is visible on the 2024 standings page, listed above
+      the tree — not only as a `Vaihe` option on the match list.
+- [ ] Every knockout round the season has appears on the standings page: 2024
+      shows Pudotuspelikarsinta, Neljännesvälierät, Puolivälierät, Välierät and
+      Loppuottelu; 2023 shows Neljännesvälierät onward and no
+      Pudotuspelikarsinta, which that season did not have.
 - [ ] The 2024 `LAST_16` tie Liverpool–Paris Saint-Germain reports an aggregate
       of **1–1** with PSG advancing on penalties (`rp`), **not** 1–5.
 - [ ] `/ulkomaat/sarjataulukko?kilpailu=PL` is visually and numerically
@@ -278,6 +309,10 @@ A tie is the unordered pair of team ids appearing in a stage, `matchday` 1 and
 - `tests/unit/lib/football-data.test.ts`
   - `normalizeMatch` carries `stage` and `group`; both null when absent.
   - A `PENALTY_SHOOTOUT` match keeps `fullTime` in `homeGoals`/`awayGoals`.
+- `tests/unit/components/cup-bracket.test.tsx`
+  - The drawn tree renders one column per round, with the winner in bold.
+  - Earlier rounds render as lists, above the tree.
+  - A season with knockout matches but no table phase still renders the tree.
 - `tests/unit/lib/cup-bracket.test.ts` (new)
   - Two legs pair into one tie, aggregate summed from `regularTime` + `extraTime`.
   - Liverpool–PSG fixture → aggregate 1–1, winner PSG, suffix `rp`.
