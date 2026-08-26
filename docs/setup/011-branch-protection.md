@@ -1,17 +1,21 @@
 # 011 — Branch protection
 
 ## Goal
-Protect the main branch: nothing merges without CI and the SonarCloud quality
-gate reporting success, history stays linear, and force-pushes are impossible.
+Protect the main branch: the required status checks must satisfy the ruleset
+before a merge, history stays linear, and force-pushes are impossible.
 
-Two things this deliberately does **not** guarantee, both explained below:
+*Satisfy*, not *pass* — the distinction runs through this whole page. GitHub
+accepts `skipped` and `neutral` alongside `success`, so a satisfied requirement
+is **not** proof that a check ran. Two consequences to know before relying on
+this page:
 
-- **Human approval.** Required approvals are 0 — see Step 2 for why.
-- **That every required check actually ran.** GitHub accepts `skipped` and
-  `neutral` alongside `success`, so a satisfied requirement is not proof of
-  execution. Sourcery in particular reports `skipped` when it declines a
-  review, which is why its real gate lives in `skills/open-pr.md` rather than
-  here.
+- **Human approval is not required.** Required approvals are 0 — Step 2
+  explains why, and what stands in for it.
+- **A green merge box is not proof of review, or even of CI.** Sourcery reports
+  `skipped` when it declines a review. The CI jobs skip entirely for any actor
+  other than `OWNER_USERNAME`, `COLLABORATOR_USERNAME` or `renovate[bot]`, and
+  a skipped job satisfies the requirement just as a passing one does. Sourcery's
+  real gate is the head-commit check in `skills/open-pr.md`.
 
 > **Status: the ruleset is active.** The repository ruleset named `main` was
 > `enforcement: "disabled"` as of 2026-08-22; it is enabled as of 2026-08-26,
