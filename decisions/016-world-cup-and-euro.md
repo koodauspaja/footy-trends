@@ -126,6 +126,17 @@ the numbers strung across roughly 700px of gap, so a row could not be followed
 across. The component is shared, so every league table gets the same fix.
 Recorded here rather than pretended away.
 
+## Duplication the refactor introduced
+
+Sonar caught 25 duplicated lines: `/maajoukkueet`'s picker was a copy of
+`/ulkomaat`'s, which is how it was written. Both are now
+`CompetitionPicker`, taking a region and a base path — the same shape the three
+page bodies already use.
+
+A second, smaller copy went with it: `localiseIfNationalTeams` existed in both
+the standings and matches modules. Below Sonar's threshold, but the same
+mistake, so it moved into `country-names.ts` as `localiseForRegion`.
+
 ## Verification
 
 Checked against the running app, not only tests:

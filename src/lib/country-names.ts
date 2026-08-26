@@ -1,3 +1,5 @@
+import type { CompetitionRegion } from "./competitions";
+
 /**
  * Finnish names for the national teams football-data.org reports in English.
  *
@@ -100,4 +102,18 @@ export function toFinnishTeamNames<T extends { homeTeamName: string; awayTeamNam
     homeTeamName: toFinnishCountryName(match.homeTeamName),
     awayTeamName: toFinnishCountryName(match.awayTeamName),
   }));
+}
+
+/**
+ * The match list a region should render: translated for national teams, left
+ * alone everywhere else.
+ *
+ * Club names are proper nouns — `Paris Saint-Germain FC` stays as it is — so
+ * the region, not the competition, decides.
+ */
+export function localiseForRegion<T extends { homeTeamName: string; awayTeamName: string }>(
+  matches: T[],
+  region: CompetitionRegion
+): T[] {
+  return region === "national-teams" ? toFinnishTeamNames(matches) : matches;
 }

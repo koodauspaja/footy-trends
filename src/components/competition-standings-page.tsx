@@ -7,8 +7,8 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
-import { type CompetitionRegion, competitionsInRegion, isCupCompetition } from "@/lib/competitions";
-import { toFinnishTeamNames } from "@/lib/country-names";
+import { competitionsInRegion, isCupCompetition } from "@/lib/competitions";
+import { localiseForRegion } from "@/lib/country-names";
 import { buildBracket } from "@/lib/cup-bracket";
 import { buildCupPhaseStandings } from "@/lib/cup-standings";
 import type { BasePageContext, CompetitionPageOptions } from "@/lib/page-context";
@@ -56,10 +56,7 @@ async function renderCupStandings({
   const season = await getCupSeason(competitionCode, seasonId, context.activeSeasonId);
   // National teams are countries, and this app is Finnish. Translated once
   // here so the tables, the bracket and every link below read the same.
-  const seasonMatches = localiseIfNationalTeams(
-    season.status === "ok" ? season.matches : [],
-    region
-  );
+  const seasonMatches = localiseForRegion(season.status === "ok" ? season.matches : [], region);
   const phases = buildCupPhaseStandings(seasonMatches);
   const bracket = buildBracket(seasonMatches);
   const teamHref = (teamProviderId: number) =>
@@ -105,17 +102,6 @@ async function renderCupStandings({
       )}
     </PageShell>
   );
-}
-
-/**
- * Club names are proper nouns and stay as the provider gives them; a national
- * team is a country, and this app is Finnish.
- */
-function localiseIfNationalTeams<T extends { homeTeamName: string; awayTeamName: string }>(
-  matches: T[],
-  region: CompetitionRegion
-): T[] {
-  return region === "national-teams" ? toFinnishTeamNames(matches) : matches;
 }
 
 /** The league shape: one table for the whole season, with a round filter. */

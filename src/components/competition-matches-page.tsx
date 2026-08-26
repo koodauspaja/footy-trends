@@ -7,7 +7,7 @@ import { MatchesControls } from "@/components/matches-controls";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { type CompetitionRegion, isCupCompetition } from "@/lib/competitions";
-import { toFinnishTeamNames } from "@/lib/country-names";
+import { localiseForRegion } from "@/lib/country-names";
 import {
   getStageName,
   isTwoLeggedRound,
@@ -37,18 +37,6 @@ export async function matchesMetadata({
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
-/**
- * A cup's match list, chunked by stage rather than by round: a cup's
- * `matchday` is a leg number (1 or 2, and 0 for a final), so it cannot drive
- * the ◀/▶ navigation the league page uses.
- */
-function localiseIfNationalTeams<T extends { homeTeamName: string; awayTeamName: string }>(
-  matches: T[],
-  region: CompetitionRegion
-): T[] {
-  return region === "national-teams" ? toFinnishTeamNames(matches) : matches;
-}
-
 async function renderCupMatches({
   resolved,
   params,
@@ -62,10 +50,7 @@ async function renderCupMatches({
 }>) {
   const { competitionCode, competitionName, context, seasonId, seasonLabel } = resolved;
   const season = await getCupSeason(competitionCode, seasonId, context.activeSeasonId);
-  const seasonMatches = localiseIfNationalTeams(
-    season.status === "ok" ? season.matches : [],
-    region
-  );
+  const seasonMatches = localiseForRegion(season.status === "ok" ? season.matches : [], region);
   const availableStages = listSeasonStages(seasonMatches);
 
   const stageParam = parseStageParam(params.vaihe, availableStages);
