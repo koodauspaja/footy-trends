@@ -47,6 +47,17 @@ Enable the following:
   - [ ] Require review from Code Owners — leave off for now
 
 ### Require status checks to pass
+> **This repo enforces `main` through a *ruleset*, not classic branch
+> protection.** They are separate features with separate APIs, and
+> `gh api repos/:owner/:repo/branches/main/protection` returns **404** here
+> even though `main` is protected — which is easy to misread as "unprotected".
+> Use `gh api repos/:owner/:repo/rulesets` instead, and
+> `gh api repos/:owner/:repo/rulesets/<id>` to see the required checks.
+>
+> This matters whenever a CI job is renamed: a required check that stops
+> reporting never turns green, so it blocks every merge until the ruleset is
+> updated to the new name.
+
 - [x] **Require status checks to pass before merging**
   - [x] Require branches to be up to date before merging
   - Add the following required checks (these appear once the workflows have
