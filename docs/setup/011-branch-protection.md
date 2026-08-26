@@ -51,7 +51,8 @@ Enable the following:
   - [x] Require branches to be up to date before merging
   - Add the following required checks (these appear once the workflows have
     run at least once on a PR):
-    - `Typecheck, lint, unit and integration test`
+    - `Typecheck, lint and unit tests`
+    - `Integration tests`
     - `SonarCloud scan`
     - `Sourcery review`
 
@@ -94,7 +95,8 @@ Enable the following:
 1. Go to repo → **Settings** → **Branches** → your `main` ruleset → **Edit**
 2. Under **Require status checks to pass**, click **Add checks**
 3. Search for and add:
-   - `Typecheck, lint, unit and integration test`
+   - `Typecheck, lint and unit tests`
+   - `Integration tests`
    - `SonarCloud scan`
    - `Sourcery review`
 4. Save
