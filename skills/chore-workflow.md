@@ -62,13 +62,30 @@ Workflow
    - Mark the Spec and Decision record sections as `Not applicable - chore`.
    - Do not create placeholder files in `specs/` or `decisions/`.
    - Move the card to `In Review` once the pull request is open.
-9. Leave the pull request for human review. Do not merge it yourself.
-   Before handing it off, apply the Sourcery review gate in
-   `skills/open-pr.md` — a `skipped` Sourcery check is a hard block, and a
-   light re-check after fix commits is not a full review. Either Miikka or
-   Kalle may be the reviewer.
+9. **Tick the issue's checkboxes before handing the PR off.** Go through the
+   issue's checklist sections — Acceptance criteria always, plus Scope
+   where the template has it — and mark each box that is done.
+
+   A box is ticked because the outcome was **verified**, not because the code
+   was written — if a criterion says a page renders something, load it and
+   look. Where a criterion cannot be ticked honestly, say so on the issue
+   rather than leaving it silently blank or ticking it anyway.
+
+   This is as much a check on the work as a record of it: a criterion that
+   resists ticking usually means something was missed. It is easy to skip
+   because nothing fails when you do — #158 was implemented, verified, merged
+   and closed with all eight boxes empty.
+
+10. Leave the pull request for human review. Do not merge it yourself.
+    Before handing it off, apply the Sourcery review gate in
+    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block, and a
+    light re-check after fix commits is not a full review. Either Miikka or
+    Kalle may be the reviewer.
 
 Important rules
+- Never hand off or merge a pull request while its issue still has unticked
+  boxes that are in fact done. Ticking them is part of finishing the work,
+  not paperwork afterwards.
 - This workflow intentionally does not use `skills/write-spec.md` or create a
   file under `specs/`.
 - This workflow intentionally does not create a file under `decisions/`.

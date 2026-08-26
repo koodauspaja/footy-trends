@@ -1,9 +1,21 @@
 # 011 — Branch protection
 
 ## Goal
-Protect the main branch so nothing merges without passing CI, a SonarCloud
-quality gate, and at least one peer review. Enforces the workflow that
-Sourcery, SonarCloud, and the PR template set up.
+Protect the main branch: the required status checks must satisfy the ruleset
+before a merge, history stays linear, and force-pushes are impossible.
+
+*Satisfy*, not *pass* — the distinction runs through this whole page. GitHub
+accepts `skipped` and `neutral` alongside `success`, so a satisfied requirement
+is **not** proof that a check ran. Two consequences to know before relying on
+this page:
+
+- **Human approval is not required.** Required approvals are 0 — Step 2
+  explains why, and what stands in for it.
+- **A green merge box is not proof of review, or even of CI.** Sourcery reports
+  `skipped` when it declines a review. The CI jobs skip entirely for any actor
+  other than `OWNER_USERNAME`, `COLLABORATOR_USERNAME` or `renovate[bot]`, and
+  a skipped job satisfies the requirement just as a passing one does. Sourcery's
+  real gate is the head-commit check in `skills/open-pr.md`.
 
 > **Status: the ruleset is active.** The repository ruleset named `main` was
 > `enforcement: "disabled"` as of 2026-08-22; it is enabled as of 2026-08-26,
@@ -47,9 +59,26 @@ Enable the following:
 
 ### Require a pull request before merging
 - [x] **Require a pull request before merging**
-  - Required approvals: **1**
+  - Required approvals: **0**
   - [x] Dismiss stale pull request approvals when new commits are pushed
   - [ ] Require review from Code Owners — leave off for now
+
+  Zero is deliberate, not an oversight. On a two-person repo a required
+  approval means nobody can land their own work, including small chores and
+  Renovate bumps.
+
+  What replaces it is a *process* gate, not a mechanical one, and the
+  difference matters: Sourcery reports `skipped` when it declines a review, and
+  GitHub treats a skipped required check as satisfied. So a PR can show four
+  green checks with no Sourcery review at all. `skills/open-pr.md` therefore
+  requires querying the check-run at the head commit and confirming a real
+  review before handing off — that step, not the merge button, is what actually
+  enforces review here. See the note under Step 4.
+
+  Raise it to 1 if the repo grows past two people. Note that
+  `require_extra_approval_for_unattributed_changes` is on and currently inert:
+  at 1 approval it would additionally demand a second approval for commits not
+  attributed to a GitHub account.
 
 ### Require status checks to pass
 - [x] **Require status checks to pass before merging**
@@ -64,6 +93,11 @@ Enable the following:
 > **Note:** the status check names won't be available to select until each
 > workflow has run on a PR at least once. Come back and add them after
 > completing `013-ci-workflow.md` and opening the test PR there.
+
+> **Merge methods.** The ruleset still allows `merge` alongside `squash` and
+> `rebase`, which linear history rejects anyway — so a merge commit is blocked
+> by the rule below rather than by the method list. Harmless, but narrowing the
+> allowed methods to squash and rebase would make the intent explicit.
 
 ### Block force pushes
 - [x] **Block force pushes** — prevents rewriting history on main
@@ -106,7 +140,15 @@ Enable the following:
    - `Sourcery review`
 4. Save
 
-From this point on, a PR cannot merge unless all three checks pass.
+From this point on GitHub blocks a merge until all four checks — the two CI
+jobs, SonarCloud, and Sourcery — *satisfy* the requirement.
+
+Satisfy, not pass: GitHub accepts `success`, `skipped` and `neutral` alike.
+That distinction is the whole reason for the note below, because Sourcery
+reports exactly `skipped` when it declines a review. Only the two CI jobs and
+SonarCloud are genuinely gated by this rule; Sourcery's real gate is the
+head-commit check in `skills/open-pr.md`, which requires a `success`
+conclusion before handoff.
 
 > **A required check cannot enforce the Sourcery gate.** GitHub's own
 > documentation is explicit: *"Required status checks must have a
