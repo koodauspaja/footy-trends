@@ -10,6 +10,13 @@
   intentional in review.
 - Every PR must reference its spec (`specs/NNN-feature-name.md`) and write a
   decision record (`decisions/NNN-feature-name.md`), per `skills/open-pr.md`.
+- Before handing off or merging any PR, tick the boxes on its issue — Scope
+  and Acceptance criteria alike. A box is ticked because the outcome was
+  **verified**, not because the code was written; if a criterion says a page
+  renders something, load it and look. A criterion that cannot be ticked
+  honestly gets said out loud on the issue rather than left blank or ticked
+  anyway. This is skipped easily, because nothing fails when it is: #158 was
+  implemented, verified, merged and closed with all eight boxes empty.
 - All user-facing UI strings are Finnish. All code, comments, specs, and
   decision records are English. No exceptions in either direction.
 - Every GitHub issue must have both its label and its Issue Type field set,
@@ -38,9 +45,9 @@
    building the feature.
 5. Add or update tests, run them, and verify the implementation matches the
    spec and acceptance criteria.
-6. Open a PR that references the spec and decision record, then leave it for
-   human review; the code is considered published only after it is merged to
-   main.
+6. Open a PR that references the spec and decision record, tick the issue's
+   boxes, then leave it for human review; the code is considered published
+   only after it is merged to main.
 
 ## Reference
 

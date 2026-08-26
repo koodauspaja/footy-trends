@@ -47,9 +47,21 @@ Enable the following:
 
 ### Require a pull request before merging
 - [x] **Require a pull request before merging**
-  - Required approvals: **1**
+  - Required approvals: **0**
   - [x] Dismiss stale pull request approvals when new commits are pushed
   - [ ] Require review from Code Owners — leave off for now
+
+  Zero is deliberate, not an oversight. On a two-person repo a required
+  approval means nobody can land their own work, including small chores and
+  Renovate bumps, and the review that matters here is already enforced
+  mechanically: four required status checks, one of which is a Sourcery review
+  of the head commit. Human review happens — see `skills/open-pr.md` — it just
+  is not what gates the merge button.
+
+  Raise it to 1 if the repo grows past two people. Note that
+  `require_extra_approval_for_unattributed_changes` is on and currently inert:
+  at 1 approval it would additionally demand a second approval for commits not
+  attributed to a GitHub account.
 
 ### Require status checks to pass
 - [x] **Require status checks to pass before merging**
@@ -64,6 +76,11 @@ Enable the following:
 > **Note:** the status check names won't be available to select until each
 > workflow has run on a PR at least once. Come back and add them after
 > completing `013-ci-workflow.md` and opening the test PR there.
+
+> **Merge methods.** The ruleset still allows `merge` alongside `squash` and
+> `rebase`, which linear history rejects anyway — so a merge commit is blocked
+> by the rule below rather than by the method list. Harmless, but narrowing the
+> allowed methods to squash and rebase would make the intent explicit.
 
 ### Block force pushes
 - [x] **Block force pushes** — prevents rewriting history on main

@@ -46,7 +46,17 @@ Workflow
 8. AI opens a pull request.
    - Use `skills/open-pr.md` for the PR workflow.
    - Move the card to `In Review` once the pull request is open.
-9. Human reviewers approve and merge.
+9. AI ticks the issue's checkboxes before handing the PR off.
+   - Go through the issue's Acceptance criteria and mark each box that is
+     done. A box is ticked because the outcome was **verified**, not because
+     the code was written — if a criterion says a page renders something, load
+     it and look.
+   - Where a criterion cannot be ticked honestly, say so on the issue rather
+     than leaving it silently blank or ticking it anyway. A criterion that
+     resists ticking usually means something was missed.
+   - Easy to skip, because nothing fails when you do: #158 was implemented,
+     verified, merged and closed with all eight boxes empty.
+10. Human reviewers approve and merge.
    - The AI supports the process, but humans own the review and merge decision
      in GitHub.
 
