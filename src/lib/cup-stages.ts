@@ -92,12 +92,18 @@ export function getStageName(stage: string): string {
 }
 
 /**
- * `GROUP_A` → `Lohko A`. An unrecognised group value is returned unchanged,
- * for the same reason `getStageName` passes through an unknown stage.
+ * `GROUP_A` → `Lohko A`.
+ *
+ * A group is always a *lohko* whatever the provider calls it, so an
+ * unrecognised value keeps the Finnish word and carries the raw identifier as
+ * its label — `Lohko 1`, not a bare `1`. Unlike `getStageName`, there is
+ * nothing to translate here beyond the noun itself, so no value ever reaches a
+ * heading without it: a raw provider token alone would be a user-facing string
+ * that is not Finnish.
  */
 export function getGroupName(group: string): string {
   const match = /^GROUP_(.+)$/.exec(group);
-  return match ? `Lohko ${match[1]}` : group;
+  return `Lohko ${match ? match[1] : group}`;
 }
 
 function stageRank(stage: string): number {

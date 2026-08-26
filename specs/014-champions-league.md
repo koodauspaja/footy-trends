@@ -89,6 +89,11 @@ A stage no one has seen yet renders its raw provider value rather than an empty
 string or a wrong Finnish label, so a format change is visible instead of
 silent. Every stage the provider is known to emit belongs in the table above.
 
+Group headings are always `Lohko X`. An unrecognised group value keeps the
+Finnish noun and carries the raw identifier as its label (`Lohko 1`), never a
+bare provider token — a heading is user-facing, and user-facing strings are
+Finnish.
+
 ### Standings page (`/ulkomaat/sarjataulukko?kilpailu=CL`)
 
 - Heading: the existing `{competitionName} {seasonLabel}` pattern, e.g.

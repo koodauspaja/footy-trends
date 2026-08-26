@@ -41,10 +41,16 @@ describe("stage names", () => {
     expect(getStageName("MYSTERY_ROUND")).toBe("MYSTERY_ROUND");
   });
 
-  it("renders group names in Finnish, and passes an unknown shape through", () => {
+  it("renders group names in Finnish", () => {
     expect(getGroupName("GROUP_A")).toBe("Lohko A");
     expect(getGroupName("GROUP_H")).toBe("Lohko H");
-    expect(getGroupName("SOMETHING_ELSE")).toBe("SOMETHING_ELSE");
+  });
+
+  it("keeps the Finnish noun for an unrecognised group value", () => {
+    // A heading must never be a bare provider token: it is user-facing, and
+    // user-facing strings are Finnish.
+    expect(getGroupName("SOMETHING_ELSE")).toBe("Lohko SOMETHING_ELSE");
+    expect(getGroupName("1")).toBe("Lohko 1");
   });
 });
 
