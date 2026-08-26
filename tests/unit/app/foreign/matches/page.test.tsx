@@ -33,6 +33,7 @@ const seasonContext: SeasonContext = {
     { seasonId: 2025, label: "2025/26" },
     { seasonId: 2024, label: "2024/25" },
   ],
+  spansCalendarYears: true,
 };
 
 const okResult: RoundMatchesResult = {
@@ -497,48 +498,142 @@ describe("Matches page, cup competitions", () => {
     expect(screen.queryByLabelText("Vaihe")).not.toBeInTheDocument();
   });
 
-  it("leaves the leg number blank for a final, which carries matchday 0", async () => {
-    getCupSeasonMock.mockResolvedValue({
-      status: "ok",
-      matches: [
-        cupMatch({
-          id: 9,
-          stage: "FINAL",
-          matchday: 0,
-          home: [1, "PSG"],
-          away: [2, "Inter"],
-          score: [5, 0],
-          kickoffAt: "2025-05-31T19:00:00Z",
-        }),
-      ],
-    });
+  it("shows no leg column for a single-leg final", () => {
+    // One match, one tie: `matchday` is not a leg number, whatever it holds.
+    return (async () => {
+      getCupSeasonMock.mockResolvedValue({
+        status: "ok",
+        matches: [
+          cupMatch({
+            id: 9,
+            stage: "FINAL",
+            matchday: 0,
+            home: [1, "PSG"],
+            away: [2, "Inter"],
+            score: [5, 0],
+            kickoffAt: "2025-05-31T19:00:00Z",
+          }),
+        ],
+      });
 
-    await renderMatchesPage({ kilpailu: "CL" });
+      await renderMatchesPage({ kilpailu: "CL" });
 
-    const row = screen.getByRole("row", { name: /PSG/ });
-    expect(within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+      expect(screen.queryByRole("columnheader", { name: "Osaottelu" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: "Kierros" })).not.toBeInTheDocument();
+    })();
   });
 
-  it("leaves the leg number blank when the provider reports no matchday", async () => {
-    // World Cup and Euro knockout matches carry a null matchday.
-    getCupSeasonMock.mockResolvedValue({
-      status: "ok",
-      matches: [
-        cupMatch({
-          id: 9,
-          stage: "FINAL",
-          matchday: null,
-          home: [1, "Spain"],
-          away: [2, "Argentina"],
-          score: [1, 0],
-        }),
-      ],
-    });
+  it("shows no leg column when the provider reports no matchday", () => {
+    // The World Cup shape: knockout `matchday` is null.
+    return (async () => {
+      getCupSeasonMock.mockResolvedValue({
+        status: "ok",
+        matches: [
+          cupMatch({
+            id: 9,
+            stage: "FINAL",
+            matchday: null,
+            home: [1, "Spain"],
+            away: [2, "Argentina"],
+            score: [1, 0],
+          }),
+        ],
+      });
 
-    await renderMatchesPage({ kilpailu: "CL" });
+      await renderMatchesPage({ kilpailu: "CL" });
 
-    const row = screen.getByRole("row", { name: /Spain/ });
-    expect(within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+      expect(screen.queryByRole("columnheader", { name: "Osaottelu" })).not.toBeInTheDocument();
+    })();
+  });
+
+  it("blanks the leg cell when a two-legged round has no matchday", () => {
+    return (async () => {
+      getCupSeasonMock.mockResolvedValue({
+        status: "ok",
+        matches: [
+          cupMatch({
+            id: 1,
+            stage: "SEMI_FINALS",
+            matchday: null,
+            home: [1, "A"],
+            away: [2, "B"],
+            score: [1, 0],
+          }),
+          cupMatch({
+            id: 2,
+            stage: "SEMI_FINALS",
+            matchday: 0,
+            home: [2, "B"],
+            away: [1, "A"],
+            score: [1, 0],
+            kickoffAt: "2025-05-10T19:00:00Z",
+          }),
+        ],
+      });
+
+      await renderMatchesPage({ kilpailu: "CL", vaihe: "SEMI_FINALS" });
+
+      expect(screen.getByRole("columnheader", { name: "Osaottelu" })).toBeInTheDocument();
+      const rows = screen.getAllByRole("row").slice(1);
+      for (const row of rows) {
+        expect(within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+      }
+    })();
+  });
+
+  it("blanks the round cell when a group-phase match has no matchday", () => {
+    return (async () => {
+      getCupSeasonMock.mockResolvedValue({
+        status: "ok",
+        matches: [
+          cupMatch({
+            id: 1,
+            stage: "GROUP_STAGE",
+            matchday: null,
+            home: [1, "A"],
+            away: [2, "B"],
+            score: [1, 0],
+          }),
+        ],
+      });
+
+      await renderMatchesPage({ kilpailu: "CL", vaihe: "GROUP_STAGE" });
+
+      expect(screen.getByRole("columnheader", { name: "Kierros" })).toBeInTheDocument();
+      const row = screen.getAllByRole("row")[1];
+      expect(row && within(row).getAllByRole("cell").at(-1)).toHaveTextContent("");
+    })();
+  });
+
+  it("shows the leg column for a genuinely two-legged round", () => {
+    return (async () => {
+      getCupSeasonMock.mockResolvedValue({
+        status: "ok",
+        matches: [
+          cupMatch({
+            id: 1,
+            stage: "SEMI_FINALS",
+            matchday: 1,
+            home: [1, "A"],
+            away: [2, "B"],
+            score: [1, 0],
+          }),
+          cupMatch({
+            id: 2,
+            stage: "SEMI_FINALS",
+            matchday: 2,
+            home: [2, "B"],
+            away: [1, "A"],
+            score: [1, 0],
+            kickoffAt: "2025-05-10T19:00:00Z",
+          }),
+        ],
+      });
+
+      await renderMatchesPage({ kilpailu: "CL", vaihe: "SEMI_FINALS" });
+
+      expect(screen.getByRole("columnheader", { name: "Osaottelu" })).toBeInTheDocument();
+    })();
   });
 
   it("has no previous/next round links on a cup page", async () => {

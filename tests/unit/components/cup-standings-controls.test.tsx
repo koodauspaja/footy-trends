@@ -16,6 +16,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/770.svg",
     country: "Englanti",
     format: "league",
+    region: "foreign",
   },
   {
     code: "CL",
@@ -23,6 +24,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/EUR.svg",
     country: "Eurooppa",
     format: "cup",
+    region: "foreign",
   },
 ];
 
@@ -35,6 +37,8 @@ const seasons = [
 function renderControls() {
   render(
     <CupStandingsControls
+      basePath="/ulkomaat"
+      showCompetitionSelect
       competitions={competitions}
       selectedCompetitionCode="CL"
       seasons={seasons}
@@ -104,5 +108,25 @@ describe("CupStandingsControls", () => {
     expect(pushMock).toHaveBeenCalledWith(
       "/ulkomaat/sarjataulukko?kilpailu=CL&kausi=2023&muu=arvo"
     );
+  });
+});
+
+describe("CupStandingsControls without a competition select", () => {
+  it("shows only the season, for a region of separate tournaments", () => {
+    // The World Cup and the Euro are not views of one another, so a dropdown
+    // between them would read as if one were a variant of the other.
+    render(
+      <CupStandingsControls
+        basePath="/maajoukkueet"
+        competitions={competitions}
+        selectedCompetitionCode="WC"
+        seasons={seasons}
+        selectedSeasonId={2026}
+        showCompetitionSelect={false}
+      />
+    );
+
+    expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Kilpailu")).not.toBeInTheDocument();
   });
 });

@@ -1,12 +1,39 @@
 import {
   type CompetitionParamResult,
-  DEFAULT_COMPETITION_CODE,
+  type CompetitionRegion,
+  defaultCompetitionFor,
   getCompetitionName,
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
+
+/**
+ * What a route file supplies to make a shared page one region's.
+ *
+ * `/ulkomaat` and `/maajoukkueet` render the same pages and differ only in the
+ * competitions they offer and the prefix on their links, so the pages take
+ * both as arguments rather than existing twice. See
+ * specs/016-world-cup-and-euro.md.
+ */
+export type CompetitionPageOptions = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> | undefined;
+  /** Which competitions the page offers, and what `kilpailu` is validated against. */
+  region: CompetitionRegion;
+  /** The Finnish URL prefix every link and form action on the page uses. */
+  basePath: string;
+  /**
+   * Whether the page offers a `Kilpailu` select.
+   *
+   * `/ulkomaat`'s competitions are interchangeable views of the same kind of
+   * thing, so switching between them mid-page is useful. The World Cup and the
+   * European Championship are not: they are separate tournaments reached from
+   * the region picker, and a dropdown between them reads as if one were a
+   * variant of the other.
+   */
+  showCompetitionSelect: boolean;
+};
 
 export type BasePageContext =
   | { status: "error"; competitionName: string }
@@ -38,11 +65,12 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
  * per request regardless.
  */
 export async function resolveBasePageContext(
-  params: Record<string, string | string[] | undefined>
+  params: Record<string, string | string[] | undefined>,
+  region: CompetitionRegion
 ): Promise<BasePageContext> {
-  const competitionParam = parseCompetitionParam(params.kilpailu);
+  const competitionParam = parseCompetitionParam(params.kilpailu, region);
   const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_COMPETITION_CODE;
+    competitionParam.kind === "valid" ? competitionParam.code : defaultCompetitionFor(region);
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
@@ -50,7 +78,7 @@ export async function resolveBasePageContext(
 
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
-  const seasonLabel = formatSeasonLabel(seasonId);
+  const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 
   return {
     status: "ok",

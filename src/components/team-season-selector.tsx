@@ -6,6 +6,8 @@ import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";
 
 type TeamSeasonSelectorProps = {
+  /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
+  basePath: string;
   teamProviderId: number;
   competitionCode: string;
   seasons: SeasonOption[];
@@ -21,6 +23,7 @@ type TeamSeasonSelectorProps = {
  * survive both the JS-driven navigation and the plain GET form fallback.
  */
 export function TeamSeasonSelector({
+  basePath,
   teamProviderId,
   competitionCode,
   seasons,
@@ -32,12 +35,12 @@ export function TeamSeasonSelector({
     const params = new URLSearchParams(window.location.search);
     params.set("kilpailu", competitionCode);
     params.set("kausi", String(seasonId));
-    router.push(`/ulkomaat/joukkue/${teamProviderId}?${params.toString()}`);
+    router.push(`${basePath}/joukkue/${teamProviderId}?${params.toString()}`);
   }
 
   return (
     <SeasonForm
-      actionPath={`/ulkomaat/joukkue/${teamProviderId}`}
+      actionPath={`${basePath}/joukkue/${teamProviderId}`}
       competitionCode={competitionCode}
     >
       <SeasonSelect seasons={seasons} selectedSeasonId={selectedSeasonId} onChange={navigate} />

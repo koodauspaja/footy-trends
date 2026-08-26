@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import Foreign, { metadata } from "@/app/foreign/page";
-import { SUPPORTED_COMPETITIONS } from "@/lib/competitions";
+import { competitionsInRegion } from "@/lib/competitions";
 
 describe("Foreign page (competition picker)", () => {
   it("shows the Finnish heading", () => {
@@ -14,8 +14,9 @@ describe("Foreign page (competition picker)", () => {
     render(<Foreign />);
 
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(SUPPORTED_COMPETITIONS.length);
-    SUPPORTED_COMPETITIONS.forEach((competition) => {
+    // Its own region only: the national-team competitions live on /maajoukkueet.
+    expect(links).toHaveLength(competitionsInRegion("foreign").length);
+    competitionsInRegion("foreign").forEach((competition) => {
       const link = links.find(
         (element) =>
           element.getAttribute("href") === `/ulkomaat/sarjataulukko?kilpailu=${competition.code}`
@@ -27,7 +28,9 @@ describe("Foreign page (competition picker)", () => {
   it("shows each competition's national flag with the country as alt text", () => {
     render(<Foreign />);
 
-    const premierLeague = SUPPORTED_COMPETITIONS.find((competition) => competition.code === "PL");
+    const premierLeague = competitionsInRegion("foreign").find(
+      (competition) => competition.code === "PL"
+    );
     if (!premierLeague) throw new Error("Expected Premier League to be a supported competition");
 
     const link = screen

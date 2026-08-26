@@ -18,6 +18,7 @@ const stages = ["LEAGUE_STAGE", "QUARTER_FINALS", "FINAL"];
 function renderControls(selectedStage: string | undefined) {
   render(
     <CupMatchesControls
+      basePath="/ulkomaat"
       competitionCode="CL"
       seasons={seasons}
       selectedSeasonId={2024}
@@ -94,6 +95,7 @@ describe("CupMatchesControls", () => {
   it("hides the stage select when the season has no stages at all", () => {
     render(
       <CupMatchesControls
+        basePath="/ulkomaat"
         competitionCode="CL"
         seasons={seasons}
         selectedSeasonId={2024}

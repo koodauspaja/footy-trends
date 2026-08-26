@@ -9,15 +9,15 @@ export const metadata: Metadata = {
   title: HEADING,
 };
 
-export default function Foreign() {
+export default function NationalTeams() {
   return (
     <PageShell heading={HEADING}>
       <ul className="flex flex-col gap-3">
-        {competitionsInRegion("foreign").map((competition) => (
+        {competitionsInRegion("national-teams").map((competition) => (
           <li key={competition.code}>
             <Link
               className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 hover:bg-zinc-50"
-              href={`/ulkomaat/sarjataulukko?kilpailu=${competition.code}`}
+              href={`/maajoukkueet/sarjataulukko?kilpailu=${competition.code}`}
             >
               {/* biome-ignore lint/performance/noImgElement: a tiny SVG flag, not worth next/image's overhead */}
               <img

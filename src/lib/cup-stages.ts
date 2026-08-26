@@ -188,3 +188,29 @@ export function resolveCurrentStage(
 
   return nextUnplayed?.stage ?? availableStages.at(-1);
 }
+
+/**
+ * Whether a round's matches are two-legged ties, decided from the data: some
+ * team pair plays twice.
+ *
+ * `matchday` cannot answer this. Champions League numbers its legs 1 and 2,
+ * the World Cup leaves knockout `matchday` null, and the European Championship
+ * continues the group-stage counter — its quarter-finals are matchday 5, which
+ * is neither a leg nor a round. Printing that under `Osaottelu` claims a
+ * second leg that was never played. See specs/016-world-cup-and-euro.md.
+ */
+export function isTwoLeggedRound(
+  matches: Array<{ homeTeamProviderId: number; awayTeamProviderId: number }>
+): boolean {
+  const seen = new Set<string>();
+  for (const match of matches) {
+    const [low, high] =
+      match.homeTeamProviderId < match.awayTeamProviderId
+        ? [match.homeTeamProviderId, match.awayTeamProviderId]
+        : [match.awayTeamProviderId, match.homeTeamProviderId];
+    const key = `${low}-${high}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}

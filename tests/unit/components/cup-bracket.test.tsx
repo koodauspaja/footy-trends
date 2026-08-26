@@ -34,6 +34,22 @@ function tie(overrides: Partial<BracketTie> = {}): BracketTie {
   };
 }
 
+/** A listed round whose tie has two legs. */
+function twoLeggedRound(stage = "LAST_16"): BracketRound {
+  const base = tie({ key: `${stage}:1-2:1`, stage });
+  const [leg] = base.legs;
+  if (leg === undefined) throw new Error("expected a leg");
+  return {
+    stage,
+    ties: [
+      {
+        ...base,
+        legs: [leg, { ...leg, providerMatchId: 101, kickoffAt: new Date("2025-06-07T19:00:00Z") }],
+      },
+    ],
+  };
+}
+
 /** A round that is listed rather than drawn. */
 function listedRound(stage = "LAST_16"): BracketRound {
   return {
@@ -160,14 +176,41 @@ describe("CupBracket", () => {
   });
 
   describe("rounds listed above the tree", () => {
-    it("renders an earlier round as a table with Finnish column headers", () => {
+    it("renders a single-leg round as date, pairing and final result", () => {
       renderBracket([listedRound("PLAYOFFS")]);
 
       expect(screen.getByRole("heading", { name: "Pudotuspelikarsinta" })).toBeInTheDocument();
       expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByText("Pvm")).toBeInTheDocument();
       expect(screen.getByText("Ottelupari")).toBeInTheDocument();
+      // The tie *is* the match, so there is no aggregate and no per-leg column.
+      expect(screen.getByText("Lopputulos")).toBeInTheDocument();
+      expect(screen.queryByText("Yhteistulos")).not.toBeInTheDocument();
+      expect(screen.queryByText("Osaottelut")).not.toBeInTheDocument();
+    });
+
+    it("renders a two-legged round with the aggregate and both legs", () => {
+      const base = tie({ key: "L16:1-2:1", stage: "LAST_16" });
+      const [leg] = base.legs;
+      if (leg === undefined) throw new Error("expected a leg");
+      renderBracket([
+        {
+          stage: "LAST_16",
+          ties: [
+            {
+              ...base,
+              legs: [
+                leg,
+                { ...leg, providerMatchId: 101, kickoffAt: new Date("2025-06-07T19:00:00Z") },
+              ],
+            },
+          ],
+        },
+      ]);
+
       expect(screen.getByText("Yhteistulos")).toBeInTheDocument();
       expect(screen.getByText("Osaottelut")).toBeInTheDocument();
+      expect(screen.queryByText("Lopputulos")).not.toBeInTheDocument();
     });
 
     it("states the shootout score on the aggregate", () => {
@@ -224,7 +267,7 @@ describe("CupBracket", () => {
     });
 
     it("lists each leg with its own date and result", () => {
-      renderBracket([listedRound()]);
+      renderBracket([twoLeggedRound()]);
 
       expect(
         screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 5–0")
@@ -232,18 +275,21 @@ describe("CupBracket", () => {
     });
 
     it("states a shootout separately from the leg's own score", () => {
-      // The leg score must not be the provider's `fullTime`, which folds the
-      // shootout in and would contradict the aggregate beside it.
-      const base = listedRound();
-      const [leg] = base.ties[0]?.legs ?? [];
-      if (leg === undefined) throw new Error("expected a leg");
+      // The per-leg column only exists on a two-legged round, and the leg score
+      // must not be the provider's `fullTime`, which folds the shootout in.
+      const base = twoLeggedRound();
+      const [first, second] = base.ties[0]?.legs ?? [];
+      if (first === undefined || second === undefined) throw new Error("expected two legs");
       renderBracket([
         {
           ...base,
           ties: [
             {
-              ...tie({ key: "L16:1-2:1", stage: "LAST_16" }),
-              legs: [{ ...leg, homeGoals: 0, awayGoals: 1, penaltiesHome: 1, penaltiesAway: 4 }],
+              ...(base.ties[0] as (typeof base.ties)[number]),
+              legs: [
+                first,
+                { ...second, homeGoals: 0, awayGoals: 1, penaltiesHome: 1, penaltiesAway: 4 },
+              ],
             },
           ],
         },
@@ -251,36 +297,29 @@ describe("CupBracket", () => {
 
       expect(
         screen.getByText(
-          "31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano 0–1 (rp 1–4)"
+          "07.06.2025 Paris Saint-Germain FC – FC Internazionale Milano 0–1 (rp 1–4)"
         )
       ).toBeInTheDocument();
     });
 
     it("shows a leg with no score yet as a dash", () => {
-      const base = listedRound();
-      const [leg] = base.ties[0]?.legs ?? [];
-      if (leg === undefined) throw new Error("expected a leg");
+      const base = twoLeggedRound();
+      const [first, second] = base.ties[0]?.legs ?? [];
+      if (first === undefined || second === undefined) throw new Error("expected two legs");
       renderBracket([
         {
           ...base,
           ties: [
             {
-              ...tie({
-                key: "L16:1-2:1",
-                stage: "LAST_16",
-                aggregateHome: null,
-                aggregateAway: null,
-                winnerTeamProviderId: null,
-                decision: null,
-              }),
-              legs: [{ ...leg, homeGoals: null, awayGoals: null }],
+              ...(base.ties[0] as (typeof base.ties)[number]),
+              legs: [first, { ...second, homeGoals: null, awayGoals: null }],
             },
           ],
         },
       ]);
 
       expect(
-        screen.getByText("31.05.2025 Paris Saint-Germain FC – FC Internazionale Milano –")
+        screen.getByText("07.06.2025 Paris Saint-Germain FC – FC Internazionale Milano –")
       ).toBeInTheDocument();
     });
   });

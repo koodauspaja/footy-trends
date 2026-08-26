@@ -29,6 +29,7 @@ const seasonContext: SeasonContext = {
     { seasonId: 2025, label: "2025/26" },
     { seasonId: 2024, label: "2024/25" },
   ],
+  spansCalendarYears: true,
 };
 
 const okResult: TeamMatchesResult = {

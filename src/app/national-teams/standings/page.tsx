@@ -6,7 +6,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const REGION = { region: "foreign", basePath: "/ulkomaat", showCompetitionSelect: true } as const;
+const REGION = {
+  region: "national-teams",
+  basePath: "/maajoukkueet",
+  showCompetitionSelect: false,
+} as const;
 
 type PageProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 

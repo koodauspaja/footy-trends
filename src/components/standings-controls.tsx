@@ -7,6 +7,8 @@ import { CompetitionSelect } from "./competition-select";
 import { SeasonSelect } from "./season-select";
 
 type StandingsControlsProps = {
+  /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
+  basePath: string;
   competitions: Competition[];
   selectedCompetitionCode: string;
   seasons: SeasonOption[];
@@ -23,6 +25,7 @@ type StandingsControlsProps = {
  * three together — no selection is lost when another changes.
  */
 export function StandingsControls({
+  basePath,
   competitions,
   selectedCompetitionCode,
   seasons,
@@ -41,12 +44,12 @@ export function StandingsControls({
     } else {
       params.set("kierros", String(round));
     }
-    router.push(`/ulkomaat/sarjataulukko?${params.toString()}`);
+    router.push(`${basePath}/sarjataulukko?${params.toString()}`);
   }
 
   return (
     <form
-      action="/ulkomaat/sarjataulukko"
+      action={`${basePath}/sarjataulukko`}
       method="get"
       className="mb-6 flex flex-wrap items-center gap-3"
     >

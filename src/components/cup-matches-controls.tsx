@@ -7,6 +7,8 @@ import { SeasonSelect } from "./season-select";
 import { StageSelect } from "./stage-select";
 
 type CupMatchesControlsProps = {
+  /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
+  basePath: string;
   competitionCode: string;
   seasons: SeasonOption[];
   selectedSeasonId: number;
@@ -23,6 +25,7 @@ type CupMatchesControlsProps = {
  * the stage select only renders once a stage is actually known.
  */
 export function CupMatchesControls({
+  basePath,
   competitionCode,
   seasons,
   selectedSeasonId,
@@ -41,11 +44,11 @@ export function CupMatchesControls({
     } else {
       params.set("vaihe", stage);
     }
-    router.push(`/ulkomaat/ottelut?${params.toString()}`);
+    router.push(`${basePath}/ottelut?${params.toString()}`);
   }
 
   return (
-    <SeasonForm actionPath="/ulkomaat/ottelut" competitionCode={competitionCode}>
+    <SeasonForm actionPath={`${basePath}/ottelut`} competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
