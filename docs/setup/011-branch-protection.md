@@ -123,7 +123,8 @@ Enable the following:
    - `Sourcery review`
 4. Save
 
-From this point on, a PR cannot merge unless all three checks pass.
+From this point on, a PR cannot merge unless all four checks pass — the two CI
+jobs, SonarCloud, and Sourcery.
 
 > **A required check cannot enforce the Sourcery gate.** GitHub's own
 > documentation is explicit: *"Required status checks must have a
