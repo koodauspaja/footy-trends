@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { logger } from "@/lib/logger";
 import { redis } from "@/lib/redis";
-import { competitionIdFromSeason, getSeasonCategoryNames } from "@/lib/taso";
+import { getCurrentSeason } from "@/lib/taso";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +38,13 @@ export async function GET() {
   try {
     // A real request to the provider, not a ping: TASO sits behind Cloudflare
     // and requires an API key plus Referer/Origin/User-Agent, so only a
-    // genuine call proves the whole path works. The competition asked for is
-    // the current domestic season, which every page already depends on.
-    await getSeasonCategoryNames(competitionIdFromSeason(new Date().getFullYear()));
+    // genuine call proves the whole path works.
+    //
+    // `getCurrentSeason` asks TASO which seasons it publishes, so nothing here
+    // has to name a competition. Deriving one from the calendar year would
+    // report a false failure every January, between the year turning over and
+    // TASO publishing that season.
+    await getCurrentSeason();
     checks.taso = "ok";
   } catch (error: unknown) {
     checks.taso = "error";

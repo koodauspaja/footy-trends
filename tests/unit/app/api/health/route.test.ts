@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 const pingMock = vi.fn();
-const getSeasonCategoryNamesMock = vi.fn();
+const getCurrentSeasonMock = vi.fn();
 const loggerErrorMock = vi.fn();
 const loggerWarnMock = vi.fn();
 const loggerInfoMock = vi.fn();
@@ -20,8 +20,7 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 vi.mock("@/lib/taso", () => ({
-  getSeasonCategoryNames: getSeasonCategoryNamesMock,
-  competitionIdFromSeason: (season: number) => `spljp${String(season % 100)}`,
+  getCurrentSeason: getCurrentSeasonMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -41,7 +40,7 @@ describe("GET /api/health", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    getSeasonCategoryNamesMock.mockResolvedValue({ VL: "Veikkausliiga" });
+    getCurrentSeasonMock.mockResolvedValue(2026);
   });
 
   it("returns healthy response and logs one info entry when database and redis checks pass", async () => {
@@ -171,8 +170,22 @@ describe("GET /api/health — provider check", () => {
     pingMock.mockResolvedValue("PONG");
   });
 
+  /**
+   * The season is discovered from TASO rather than derived from the clock: a
+   * calendar-year guess would report a false failure every January, before
+   * TASO publishes the new season.
+   */
+  it("asks the provider which season it publishes, naming no competition", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2026);
+    const GET = await loadGetRoute();
+
+    await GET();
+
+    expect(getCurrentSeasonMock).toHaveBeenCalledWith();
+  });
+
   it("reports the provider as ok when it answers", async () => {
-    getSeasonCategoryNamesMock.mockResolvedValue({ VL: "Veikkausliiga" });
+    getCurrentSeasonMock.mockResolvedValue(2026);
     const GET = await loadGetRoute();
 
     const body = await (await GET()).json();
@@ -186,7 +199,7 @@ describe("GET /api/health — provider check", () => {
    * reachable short of probing pages one at a time.
    */
   it("reports the provider as error when it cannot be reached", async () => {
-    getSeasonCategoryNamesMock.mockRejectedValue(new Error("TASO request failed: 403"));
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO request failed: 403"));
     const GET = await loadGetRoute();
 
     const response = await GET();
@@ -202,7 +215,7 @@ describe("GET /api/health — provider check", () => {
    * health probe.
    */
   it("stays 200 when only the provider is unreachable", async () => {
-    getSeasonCategoryNamesMock.mockRejectedValue(new Error("TASO request failed: 403"));
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO request failed: 403"));
     const GET = await loadGetRoute();
 
     const response = await GET();

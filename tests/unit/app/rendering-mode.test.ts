@@ -8,6 +8,16 @@ const APP_DIR = path.join(process.cwd(), "src", "app");
 /** Modules that reach a database or a provider, rather than rendering constants. */
 const DATA_IMPORT = /from "@\/(db|lib\/[a-z-]*(service|football-data|taso|page-context))/;
 
+/**
+ * Comments are stripped before anything is matched. Without this the checks
+ * read prose: this very page's comment explains that other pages take
+ * `searchParams`, which was enough to make the guard skip it — so the guard
+ * was passing on the page it exists to protect.
+ */
+function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 async function pageFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const found: string[] = [];
@@ -40,11 +50,16 @@ describe("data-backed pages are never prerendered", () => {
     const offenders: string[] = [];
 
     for (const file of await pageFiles(APP_DIR)) {
-      const source = readFileSync(file, "utf8");
+      const source = withoutComments(readFileSync(file, "utf8"));
       if (!DATA_IMPORT.test(source)) continue;
 
       const takesRequestInput = /\b(searchParams|params)\b/.test(source);
-      const optsOut = /export const (dynamic|revalidate)\s*=/.test(source);
+      // Only these two actually keep a page out of the build. `revalidate` with
+      // a positive interval is still prerendered — it just re-renders later —
+      // so accepting any `revalidate` would let the original bug through.
+      const optsOut =
+        /export const dynamic\s*=\s*"force-dynamic"/.test(source) ||
+        /export const revalidate\s*=\s*0\b/.test(source);
       if (!takesRequestInput && !optsOut) {
         offenders.push(path.relative(process.cwd(), file));
       }
@@ -54,14 +69,15 @@ describe("data-backed pages are never prerendered", () => {
   });
 
   it("recognises a paramless data page that has opted out", async () => {
-    const source = readFileSync(
-      path.join(APP_DIR, "national-teams", "mens-team", "page.tsx"),
-      "utf8"
+    const source = withoutComments(
+      readFileSync(path.join(APP_DIR, "national-teams", "mens-team", "page.tsx"), "utf8")
     );
 
-    // Guards the guard: if this page stopped matching DATA_IMPORT, the check
-    // above would pass by simply not looking at anything.
+    // Guards the guard: if this page stopped matching DATA_IMPORT, or started
+    // mentioning request params anywhere, the check above would pass by simply
+    // not looking at it.
     expect(DATA_IMPORT.test(source)).toBe(true);
+    expect(/\b(searchParams|params)\b/.test(source)).toBe(false);
     expect(/export const dynamic\s*=\s*"force-dynamic"/.test(source)).toBe(true);
   });
 });
