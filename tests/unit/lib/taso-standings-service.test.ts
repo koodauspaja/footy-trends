@@ -1469,7 +1469,7 @@ describe("group standings storage", () => {
     const result = await getSeasonStandings(CATEGORY_ID, "spljp22", 2022, 2022, undefined);
 
     // Both halves of the season came from TASO, not from storage.
-    expect(getSeasonMatchesMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID, 2022);
     expect(getSeasonGroupsMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
 
     const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 2) : undefined;

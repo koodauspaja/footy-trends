@@ -20,21 +20,15 @@ test.describe("Huuhkajat", () => {
 
     await expect(page.getByLabel("Kausi")).toHaveCount(0);
     await expect(page.getByLabel("Kilpailu")).toHaveCount(0);
-    // Exact, not a count: a loose assertion would pass with 2022 or 2023
+    // Named years, not a count: a loose assertion would pass with 2022 or 2023
     // silently absent, which is the bug class this page is most exposed to.
-    // 2019-2026 is settled history; a ninth year only appears when a bucket is
-    // added to MENS_TEAM_SEASONS by hand, and updating this line is part of
-    // that change.
-    expect(await page.locator("details h2").allTextContents()).toEqual([
-      "2026",
-      "2025",
-      "2024",
-      "2023",
-      "2022",
-      "2021",
-      "2020",
-      "2019",
-    ]);
+    //
+    // 2019-2025 are finished seasons and cannot become empty, so they must all
+    // be present. The current year is deliberately left out of this list: the
+    // page omits a year with no matches, so pinning it would fail every
+    // January for an application behaving exactly as specified.
+    const years = (await page.locator("details h2").allTextContents()).map(Number);
+    expect(years).toEqual(expect.arrayContaining([2025, 2024, 2023, 2022, 2021, 2020, 2019]));
   });
 
   test("orders the years newest first", async ({ page }) => {

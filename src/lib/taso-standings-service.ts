@@ -529,7 +529,7 @@ async function loadSeasonMatches(
   }
 
   try {
-    const providerMatches = await getSeasonMatches(competitionId, categoryId);
+    const providerMatches = await getSeasonMatches(competitionId, categoryId, seasonId);
     await synchronizeMatches(providerMatches);
     return { matches: providerMatches, refreshFailed: false };
   } catch (error) {
