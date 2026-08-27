@@ -34,11 +34,12 @@ function YearSection({ year }: Readonly<{ year: MensTeamYear }>) {
 }
 
 /**
- * Every Huuhkajat match from 2021, on one page.
+ * Every Huuhkajat match from 2019 onward, on one page.
  *
  * No season selector: the whole history is 85 matches, so a reader scrolls
- * rather than stepping through six dropdown choices. See
- * specs/017-huuhkajat.md.
+ * rather than stepping through a dropdown. Sections are calendar years, which
+ * is not the same as the provider's season buckets — `maajp18` alone spans
+ * 2019, 2020 and 2021. See specs/017-huuhkajat.md.
  */
 export default async function MensTeam() {
   const result = await getMensTeamYears();
