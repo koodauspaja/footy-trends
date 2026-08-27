@@ -10,6 +10,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/770.svg",
     country: "Englanti",
     format: "league",
+    region: "foreign",
   },
   {
     code: "BL1",
@@ -17,6 +18,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/759.svg",
     country: "Saksa",
     format: "league",
+    region: "foreign",
   },
 ];
 

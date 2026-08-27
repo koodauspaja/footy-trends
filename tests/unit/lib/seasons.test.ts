@@ -100,3 +100,29 @@ describe("parseSeasonParam", () => {
     expect(parseSeasonParam(["2024", "2023"], selectable)).toEqual({ kind: "invalid" });
   });
 });
+
+describe("seasons that do not span two calendar years", () => {
+  it("labels a tournament by its single year", () => {
+    // The 2026 World Cup is played inside one summer; "2026/27" would claim a
+    // season it never had.
+    expect(formatSeasonLabel(2026, false)).toBe("2026");
+    expect(formatSeasonLabel(2024, false)).toBe("2024");
+  });
+
+  it("still labels a league across two years", () => {
+    expect(formatSeasonLabel(2024, true)).toBe("2024/25");
+    expect(formatSeasonLabel(2024)).toBe("2024/25");
+  });
+
+  it("labels every selectable season the same way", () => {
+    const options = listSelectableSeasons(2026, 2026, undefined, false);
+
+    expect(options).toEqual([{ seasonId: 2026, label: "2026" }]);
+  });
+
+  it("labels an upcoming season the same way too", () => {
+    const options = listSelectableSeasons(2024, 2024, 2025, false);
+
+    expect(options.map((option) => option.label)).toEqual(["2025", "2024"]);
+  });
+});

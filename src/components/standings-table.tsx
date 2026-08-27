@@ -54,7 +54,11 @@ export function StandingsTable({
         <thead>
           <tr className="border-b border-zinc-300 text-sm text-zinc-600">
             <th className="p-3">Sija</th>
-            <th className="p-3">Joukkue</th>
+            {/* Absorbs the leftover width, so the numeric columns stay grouped
+                instead of being strung across the table. A four-team group is
+                where this bites: without it, `3 3 0 0 6 0 6 9` spreads over
+                700px and a row is hard to follow. */}
+            <th className="w-full p-3">Joukkue</th>
             {columns.map(([short, title]) => (
               <th className="p-3" key={short} title={title}>
                 {short}
@@ -67,7 +71,7 @@ export function StandingsTable({
           {standings.map((team) => (
             <tr className="border-b border-zinc-200" key={team.teamProviderId}>
               <td className="p-3">{team.position}</td>
-              <th scope="row" className="p-3 font-medium">
+              <th className="w-full p-3 font-medium" scope="row">
                 {/* A pass-through group's team can lack an id (see toPassThroughStanding); no id, no link. */}
                 {team.teamProviderId === 0 ? (
                   team.teamName
@@ -77,14 +81,14 @@ export function StandingsTable({
                   </Link>
                 )}
               </th>
-              <td className="p-3">{cell(team.played)}</td>
-              <td className="p-3">{cell(team.won)}</td>
-              <td className="p-3">{cell(team.drawn)}</td>
-              <td className="p-3">{cell(team.lost)}</td>
-              <td className="p-3">{cell(team.goalsFor)}</td>
-              <td className="p-3">{cell(team.goalsAgainst)}</td>
-              <td className="p-3">{cell(team.goalDifference)}</td>
-              <td className="p-3 font-semibold">{cell(team.points)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.played)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.won)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.drawn)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.lost)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.goalsFor)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.goalsAgainst)}</td>
+              <td className="whitespace-nowrap p-3">{cell(team.goalDifference)}</td>
+              <td className="whitespace-nowrap p-3 font-semibold">{cell(team.points)}</td>
               <td className="p-3" aria-label={team.form.map((item) => item.label).join(", ")}>
                 {team.form.map((item) => (
                   <span className="mr-1" key={item.matchId} title={item.label}>

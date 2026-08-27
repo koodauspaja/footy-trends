@@ -7,6 +7,8 @@ import { SeasonSelect } from "./season-select";
 import { useSeasonRoundNavigation } from "./use-season-round-navigation";
 
 type MatchesControlsProps = {
+  /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
+  basePath: string;
   competitionCode: string;
   seasons: SeasonOption[];
   selectedSeasonId: number;
@@ -25,16 +27,17 @@ type MatchesControlsProps = {
  * selector on this page (see specs/006-other-competitions.md).
  */
 export function MatchesControls({
+  basePath,
   competitionCode,
   seasons,
   selectedSeasonId,
   availableRounds,
   selectedRound,
 }: Readonly<MatchesControlsProps>) {
-  const navigate = useSeasonRoundNavigation("/ulkomaat/ottelut", competitionCode);
+  const navigate = useSeasonRoundNavigation(`${basePath}/ottelut`, competitionCode);
 
   return (
-    <SeasonForm actionPath="/ulkomaat/ottelut" competitionCode={competitionCode}>
+    <SeasonForm actionPath={`${basePath}/ottelut`} competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}

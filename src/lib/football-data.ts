@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getCached } from "./cache";
+import { earliestSeasonFor } from "./competitions";
 import { fetchProviderJson } from "./provider-request";
 import { listSelectableSeasons, resolveEarliestSeason, type SeasonOption } from "./seasons";
 
@@ -56,6 +57,13 @@ export type SeasonContext = {
   activeSeasonId: number;
   /** Newest first, bounded by `FOOTBALL_DATA_EARLIEST_SEASON`. */
   selectableSeasons: SeasonOption[];
+  /**
+   * Whether a season runs across two calendar years, read from the provider's
+   * own dates rather than assumed. A league does; a tournament played inside
+   * one summer does not, and labelling the 2026 World Cup "2026/27" would
+   * claim a season it never had.
+   */
+  spansCalendarYears: boolean;
 };
 
 /**
@@ -77,22 +85,44 @@ export const getSeasonContext = cache(async (competitionCode: string): Promise<S
     () => request<CompetitionResponse>(`/competitions/${competitionCode}`)
   );
   const now = new Date();
-  const startDate = selectActiveSeason(competition, now)?.startDate;
+  const activeSeason = selectActiveSeason(competition, now);
+  const startDate = activeSeason?.startDate;
   if (startDate === undefined) throw new Error("Football data response has no current season");
   // The matches endpoint's `season` query parameter is the season's start year
   // (e.g. 2025), not the season object's `id` field (e.g. 2403) — confirmed
   // against the live API, which 404s when passed the `id`.
   const activeSeasonId = new Date(startDate).getUTCFullYear();
-  const earliestSeason = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
+  const earliestSeason = earliestSeasonFor(
+    competitionCode,
+    resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON)
+  );
   const upcomingStartDate = selectUpcomingSeason(competition, now)?.startDate;
   const upcomingSeasonId =
     upcomingStartDate === undefined ? undefined : new Date(upcomingStartDate).getUTCFullYear();
 
+  const spansCalendarYears = seasonSpansCalendarYears(activeSeason);
+
   return {
     activeSeasonId,
-    selectableSeasons: listSelectableSeasons(activeSeasonId, earliestSeason, upcomingSeasonId),
+    selectableSeasons: listSelectableSeasons(
+      activeSeasonId,
+      earliestSeason,
+      upcomingSeasonId,
+      spansCalendarYears
+    ),
+    spansCalendarYears,
   };
 });
+
+/**
+ * Whether the season's own dates cross a calendar-year boundary. A season with
+ * no end date is treated as spanning, which is what every league does and what
+ * the app assumed before tournaments existed.
+ */
+export function seasonSpansCalendarYears(season: ProviderSeason | undefined): boolean {
+  if (season?.startDate === undefined || season.endDate === undefined) return true;
+  return new Date(season.startDate).getUTCFullYear() !== new Date(season.endDate).getUTCFullYear();
+}
 
 export function selectActiveSeason(
   competition: { currentSeason?: ProviderSeason; seasons?: ProviderSeason[] },

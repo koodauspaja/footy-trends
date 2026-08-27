@@ -23,6 +23,7 @@ describe("TeamSeasonSelector", () => {
   it("labels the control in Finnish and preselects the current season", () => {
     render(
       <TeamSeasonSelector
+        basePath="/ulkomaat"
         teamProviderId={1}
         competitionCode="PL"
         seasons={seasons}
@@ -36,6 +37,7 @@ describe("TeamSeasonSelector", () => {
   it("navigates to the same team's page for the chosen season, carrying the competition", () => {
     render(
       <TeamSeasonSelector
+        basePath="/ulkomaat"
         teamProviderId={57}
         competitionCode="BL1"
         seasons={seasons}
@@ -57,6 +59,7 @@ describe("TeamSeasonSelector", () => {
 
     render(
       <TeamSeasonSelector
+        basePath="/ulkomaat"
         teamProviderId={57}
         competitionCode="PL"
         seasons={seasons}
@@ -74,6 +77,7 @@ describe("TeamSeasonSelector", () => {
   it("submits as a plain GET form targeting the public /ulkomaat/joukkue/:id URL, carrying kilpailu via a hidden field", () => {
     const { container } = render(
       <TeamSeasonSelector
+        basePath="/ulkomaat"
         teamProviderId={57}
         competitionCode="BL1"
         seasons={seasons}

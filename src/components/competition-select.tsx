@@ -29,11 +29,11 @@ export function CompetitionSelect({
       {selected && (
         // biome-ignore lint/performance/noImgElement: a tiny external SVG flag, not worth next/image's overhead
         <img
-          src={selected.flagUrl}
           alt={selected.country}
-          className="h-4 w-6"
-          width={24}
+          className="h-4 w-6 object-contain"
           height={16}
+          src={selected.flagUrl}
+          width={24}
         />
       )}
       <select

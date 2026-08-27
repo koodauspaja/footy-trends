@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
       { source: "/ulkomaat/joukkue/:id", destination: "/foreign/team/:id" },
       { source: "/ulkomaat/ottelut", destination: "/foreign/matches" },
       { source: "/ulkomaat/sarjataulukko", destination: "/foreign/standings" },
+      { source: "/maajoukkueet", destination: "/national-teams" },
+      { source: "/maajoukkueet/joukkue/:id", destination: "/national-teams/team/:id" },
+      { source: "/maajoukkueet/ottelut", destination: "/national-teams/matches" },
+      { source: "/maajoukkueet/sarjataulukko", destination: "/national-teams/standings" },
     ];
   },
 
@@ -55,6 +59,30 @@ const nextConfig: NextConfig = {
       { source: "/domestic/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
       { source: "/domestic/matches", destination: "/kotimaa/ottelut", permanent: true },
       { source: "/domestic/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
+      // The same shape for the third region, added in specs/016.
+      {
+        source: "/maajoukkueet/standings",
+        destination: "/maajoukkueet/sarjataulukko",
+        permanent: true,
+      },
+      { source: "/maajoukkueet/matches", destination: "/maajoukkueet/ottelut", permanent: true },
+      {
+        source: "/maajoukkueet/team/:id",
+        destination: "/maajoukkueet/joukkue/:id",
+        permanent: true,
+      },
+      { source: "/national-teams", destination: "/maajoukkueet", permanent: true },
+      {
+        source: "/national-teams/standings",
+        destination: "/maajoukkueet/sarjataulukko",
+        permanent: true,
+      },
+      { source: "/national-teams/matches", destination: "/maajoukkueet/ottelut", permanent: true },
+      {
+        source: "/national-teams/team/:id",
+        destination: "/maajoukkueet/joukkue/:id",
+        permanent: true,
+      },
       { source: "/foreign", destination: "/ulkomaat", permanent: true },
       { source: "/foreign/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/foreign/matches", destination: "/ulkomaat/ottelut", permanent: true },

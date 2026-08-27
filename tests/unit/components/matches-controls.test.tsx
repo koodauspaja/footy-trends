@@ -22,6 +22,7 @@ describe("MatchesControls", () => {
   it("labels both controls in Finnish and preselects the current season and round", () => {
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -37,6 +38,7 @@ describe("MatchesControls", () => {
   it("lists rounds 1..N with no whole-season option", () => {
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -55,6 +57,7 @@ describe("MatchesControls", () => {
   it("reflects a round prop change from outside the select, e.g. the page's prev/next links", () => {
     const { rerender } = render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -65,6 +68,7 @@ describe("MatchesControls", () => {
 
     rerender(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -79,6 +83,7 @@ describe("MatchesControls", () => {
   it("omits the round select when no round is known yet", () => {
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -95,6 +100,7 @@ describe("MatchesControls", () => {
 
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -111,6 +117,7 @@ describe("MatchesControls", () => {
   it("navigates to the chosen season, keeping the current round and competition", () => {
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="BL1"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -127,6 +134,7 @@ describe("MatchesControls", () => {
   it("navigates to the chosen round, keeping the current season", () => {
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -149,6 +157,7 @@ describe("MatchesControls", () => {
 
     render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="PL"
         seasons={seasons}
         selectedSeasonId={2025}
@@ -167,6 +176,7 @@ describe("MatchesControls", () => {
   it("submits as a plain GET form targeting /ulkomaat/ottelut, carrying kilpailu via a hidden field", () => {
     const { container } = render(
       <MatchesControls
+        basePath="/ulkomaat"
         competitionCode="BL1"
         seasons={seasons}
         selectedSeasonId={2025}

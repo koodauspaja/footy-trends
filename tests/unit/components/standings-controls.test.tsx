@@ -16,6 +16,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/770.svg",
     country: "Englanti",
     format: "league",
+    region: "foreign",
   },
   {
     code: "BL1",
@@ -23,6 +24,7 @@ const competitions: Competition[] = [
     flagUrl: "https://crests.football-data.org/759.svg",
     country: "Saksa",
     format: "league",
+    region: "foreign",
   },
 ];
 
@@ -41,6 +43,7 @@ describe("StandingsControls", () => {
   it("labels all three controls in Finnish and associates them with their selects", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -58,6 +61,7 @@ describe("StandingsControls", () => {
   it("lists the seasons newest first", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -78,6 +82,7 @@ describe("StandingsControls", () => {
   it("lists rounds 1..N with a whole-season option first", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -98,6 +103,7 @@ describe("StandingsControls", () => {
   it("preselects the current competition, season, and round", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="BL1"
         seasons={seasons}
@@ -115,6 +121,7 @@ describe("StandingsControls", () => {
   it("preselects the whole-season option when no round is selected", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -130,6 +137,7 @@ describe("StandingsControls", () => {
   it("navigates to the chosen competition, keeping the current season and round", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -149,6 +157,7 @@ describe("StandingsControls", () => {
   it("navigates to the chosen season, keeping the current competition and round", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -168,6 +177,7 @@ describe("StandingsControls", () => {
   it("navigates to the chosen round, keeping the current competition and season", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -193,6 +203,7 @@ describe("StandingsControls", () => {
 
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -212,6 +223,7 @@ describe("StandingsControls", () => {
   it("clears the round param when switching back to whole season", () => {
     render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}
@@ -229,6 +241,7 @@ describe("StandingsControls", () => {
   it("submits as a plain GET form so it works without scripting", () => {
     const { container } = render(
       <StandingsControls
+        basePath="/ulkomaat"
         competitions={competitions}
         selectedCompetitionCode="PL"
         seasons={seasons}

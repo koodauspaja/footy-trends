@@ -21,8 +21,19 @@ export type SeasonParamResult =
 
 const POSITIVE_INTEGER = /^\d+$/;
 
-/** Formats a season start year as `2024/25`, zero-padding a century rollover. */
-export function formatSeasonLabel(seasonId: number): string {
+/**
+ * Formats a season start year as `2024/25`, zero-padding a century rollover —
+ * or as plain `2026` for a competition whose season does not span two calendar
+ * years.
+ *
+ * A league runs autumn to spring; a tournament is played inside one summer.
+ * Verified against the provider's own dates: the World Cup runs
+ * 2026-06-11 → 2026-07-19 and the Euro 2024-06-14 → 2024-07-14, while
+ * Champions League runs 2025-09-16 → 2026-05-30. Labelling a World Cup
+ * "2026/27" claims a season it never had. See specs/016-world-cup-and-euro.md.
+ */
+export function formatSeasonLabel(seasonId: number, spansCalendarYears = true): string {
+  if (!spansCalendarYears) return String(seasonId);
   const nextYear = String((seasonId + 1) % 100).padStart(2, "0");
   return `${seasonId}/${nextYear}`;
 }
@@ -42,15 +53,19 @@ export function resolveEarliestSeason(rawValue: string | undefined): number {
 export function listSelectableSeasons(
   activeSeasonId: number,
   earliestSeason: number,
-  upcomingSeasonId?: number
+  upcomingSeasonId?: number,
+  spansCalendarYears = true
 ): SeasonOption[] {
   const oldest = Math.min(earliestSeason, activeSeasonId);
   const options: SeasonOption[] = [];
   if (upcomingSeasonId !== undefined && upcomingSeasonId > activeSeasonId) {
-    options.push({ seasonId: upcomingSeasonId, label: formatSeasonLabel(upcomingSeasonId) });
+    options.push({
+      seasonId: upcomingSeasonId,
+      label: formatSeasonLabel(upcomingSeasonId, spansCalendarYears),
+    });
   }
   for (let seasonId = activeSeasonId; seasonId >= oldest; seasonId -= 1) {
-    options.push({ seasonId, label: formatSeasonLabel(seasonId) });
+    options.push({ seasonId, label: formatSeasonLabel(seasonId, spansCalendarYears) });
   }
   return options;
 }

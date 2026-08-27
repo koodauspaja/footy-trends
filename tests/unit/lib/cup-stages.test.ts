@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getGroupName,
   getStageName,
+  isTwoLeggedRound,
   listSeasonStages,
   parseStageParam,
   resolveCurrentStage,
@@ -156,5 +157,30 @@ describe("resolveCurrentStage", () => {
 
   it("has no current stage when the season has none", () => {
     expect(resolveCurrentStage([], [])).toBeUndefined();
+  });
+});
+
+describe("isTwoLeggedRound", () => {
+  function tie(home: number, away: number) {
+    return { homeTeamProviderId: home, awayTeamProviderId: away };
+  }
+
+  it("reports a round where a pair plays twice", () => {
+    // Champions League: home and away, the teams reversed in the second leg.
+    expect(isTwoLeggedRound([tie(1, 2), tie(3, 4), tie(2, 1), tie(4, 3)])).toBe(true);
+  });
+
+  it("reports a single-leg round, whatever its matchdays are", () => {
+    // The World Cup leaves knockout matchday null, the Euro continues the
+    // group counter at 5 — neither is a leg, and neither pair repeats.
+    expect(isTwoLeggedRound([tie(1, 2), tie(3, 4), tie(5, 6), tie(7, 8)])).toBe(false);
+  });
+
+  it("treats an empty round as single-leg", () => {
+    expect(isTwoLeggedRound([])).toBe(false);
+  });
+
+  it("matches a pair regardless of which side was at home", () => {
+    expect(isTwoLeggedRound([tie(2, 1), tie(1, 2)])).toBe(true);
   });
 });

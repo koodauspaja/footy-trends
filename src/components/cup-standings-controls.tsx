@@ -7,7 +7,11 @@ import { CompetitionSelect } from "./competition-select";
 import { SeasonSelect } from "./season-select";
 
 type CupStandingsControlsProps = {
+  /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
+  basePath: string;
   competitions: Competition[];
+  /** False where the region's competitions are separate tournaments, not views. */
+  showCompetitionSelect: boolean;
   selectedCompetitionCode: string;
   seasons: SeasonOption[];
   selectedSeasonId: number;
@@ -26,7 +30,9 @@ type CupStandingsControlsProps = {
  * competition cannot survive the switch into a cup.
  */
 export function CupStandingsControls({
+  basePath,
   competitions,
+  showCompetitionSelect,
   selectedCompetitionCode,
   seasons,
   selectedSeasonId,
@@ -38,20 +44,22 @@ export function CupStandingsControls({
     params.set("kilpailu", competitionCode);
     params.set("kausi", String(seasonId));
     params.delete("kierros");
-    router.push(`/ulkomaat/sarjataulukko?${params.toString()}`);
+    router.push(`${basePath}/sarjataulukko?${params.toString()}`);
   }
 
   return (
     <form
-      action="/ulkomaat/sarjataulukko"
+      action={`${basePath}/sarjataulukko`}
       method="get"
       className="mb-6 flex flex-wrap items-center gap-3"
     >
-      <CompetitionSelect
-        competitions={competitions}
-        selectedCompetitionCode={selectedCompetitionCode}
-        onChange={(code) => navigate(code, selectedSeasonId)}
-      />
+      {showCompetitionSelect && (
+        <CompetitionSelect
+          competitions={competitions}
+          onChange={(code) => navigate(code, selectedSeasonId)}
+          selectedCompetitionCode={selectedCompetitionCode}
+        />
+      )}
 
       <SeasonSelect
         seasons={seasons}

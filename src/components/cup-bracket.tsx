@@ -191,23 +191,42 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
   );
 }
 
-/** An earlier knockout round, as a table of resolved ties. */
+/**
+ * An earlier knockout round, as a table of resolved ties.
+ *
+ * A single-leg round has no aggregate to speak of — the tie *is* the match — so
+ * it reads `Lopputulos` and drops the per-leg column, whose one row would only
+ * repeat the date already in the first column. A two-legged round keeps both.
+ */
 function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHref: TeamHref }>) {
+  const twoLegged = round.ties.some((tie) => tie.legs.length > 1);
+
   return (
     <section>
       <h3 className="mb-2 font-medium">{getStageName(round.stage)}</h3>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] border-collapse text-left">
+        {/* Fixed layout with explicit widths: consecutive rounds are separate
+            tables, and letting each size its own columns leaves them visibly
+            out of step down the page. */}
+        <table className="w-full min-w-[560px] table-fixed border-collapse text-left">
+          <colgroup>
+            <col className="w-28" />
+            <col />
+            <col className="w-32" />
+            {twoLegged && <col className="w-[38%]" />}
+          </colgroup>
           <thead>
             <tr className="border-zinc-300 border-b text-sm text-zinc-600">
+              <th className="p-3">Pvm</th>
               <th className="p-3">Ottelupari</th>
-              <th className="p-3">Yhteistulos</th>
-              <th className="p-3">Osaottelut</th>
+              <th className="p-3">{twoLegged ? "Yhteistulos" : "Lopputulos"}</th>
+              {twoLegged && <th className="p-3">Osaottelut</th>}
             </tr>
           </thead>
           <tbody>
             {round.ties.map((tie) => (
               <tr className="border-zinc-200 border-b" key={tie.key}>
+                <td className="p-3">{matchDateFormatter.format(tie.startsAt)}</td>
                 <td className="p-3">
                   <TeamName
                     isWinner={tie.winnerTeamProviderId === tie.home.teamProviderId}
@@ -224,13 +243,15 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
                   />
                 </td>
                 <td className="p-3">{formatAggregate(tie)}</td>
-                <td className="p-3 text-sm text-zinc-600">
-                  {tie.legs.map((leg) => (
-                    <div key={leg.providerMatchId}>
-                      {`${matchDateFormatter.format(leg.kickoffAt)} ${leg.homeTeamName} – ${leg.awayTeamName} ${formatLeg(leg)}`}
-                    </div>
-                  ))}
-                </td>
+                {twoLegged && (
+                  <td className="p-3 text-sm text-zinc-600">
+                    {tie.legs.map((leg) => (
+                      <div key={leg.providerMatchId}>
+                        {`${matchDateFormatter.format(leg.kickoffAt)} ${leg.homeTeamName} – ${leg.awayTeamName} ${formatLeg(leg)}`}
+                      </div>
+                    ))}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

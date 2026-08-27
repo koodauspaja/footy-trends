@@ -3,7 +3,11 @@ import { CompetitionTeamPage, teamMetadata } from "@/components/competition-team
 
 export const dynamic = "force-dynamic";
 
-const REGION = { region: "foreign", basePath: "/ulkomaat", showCompetitionSelect: true } as const;
+const REGION = {
+  region: "national-teams",
+  basePath: "/maajoukkueet",
+  showCompetitionSelect: false,
+} as const;
 
 type PageProps = {
   params: Promise<{ id: string }>;
