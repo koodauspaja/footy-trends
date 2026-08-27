@@ -549,6 +549,31 @@ describe("getCurrentSeason", () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
   });
 
+  /**
+   * `/api/health?providers=1` bounds this call, because a health endpoint that
+   * hangs until the platform probe times out is worse than one reporting a
+   * provider as unreachable. See #182.
+   */
+  it("passes an abort signal through to the request when given one", async () => {
+    const fetchMock = mockCompetitions([]);
+    const signal = AbortSignal.timeout(1000);
+
+    await getCurrentSeason(signal);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://spl.torneopal.net/taso/rest/getCompetitions",
+      expect.objectContaining({ signal })
+    );
+  });
+
+  it("sends no signal key at all when none is given, leaving page requests unchanged", async () => {
+    const fetchMock = mockCompetitions([]);
+
+    await getCurrentSeason();
+
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("signal");
+  });
+
   it("requests every competition, unscoped — a competition_id is a season, not a category", async () => {
     const fetchMock = mockCompetitions([
       { competition_id: "spljp26", competition_status: "published", season_id: 2026 },

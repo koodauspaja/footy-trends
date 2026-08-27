@@ -246,6 +246,36 @@ share a pass between `generateMetadata` and the page body, but this page
 exports static `metadata` and has no `generateMetadata` — with one caller the
 wrapper did nothing, and the comment described behaviour that did not exist.
 
+## The page must not be prerendered
+
+Found in production, after merge (#182).
+
+Dropping the season selector removed the page's `searchParams`, and with it the
+thing that made every other data-backed page dynamic without anyone deciding it.
+Next duly prerendered this one at build time. Railway's private network is
+runtime-only — `*.railway.internal` does not resolve in a build container — so
+all 28 queries failed with `ENOTFOUND postgres.railway.internal`, the page
+rendered its error state, and that error was **baked into the static output**.
+
+Every symptom followed from that. The failure was permanent rather than
+transient, because the HTML never changed. `/api/health` reported the database
+healthy, because at runtime it was. Every other page worked, because every
+other page is dynamic. And the build exited 0, because the page catches its own
+errors and renders a message rather than throwing — so nothing failed loudly.
+
+`export const dynamic = "force-dynamic"` fixes it. Reproduced both ways
+locally by building against an unresolvable `postgres.railway.internal`:
+without the export the route builds as `○` static with 28 `ENOTFOUND` errors in
+the log and exit 0; with it the route is `ƒ` and the log is clean.
+
+Two things are worth carrying forward. The first is that a paramless
+data-backed page is a trap in this app, so `tests/unit/app/rendering-mode.test.ts`
+now fails any page that imports a data module while taking neither request
+params nor an opt-out — #167 is the same shape. The second is that
+`/api/health` checked the database and Redis but not the providers, which is
+why it could report a healthy service while a page was broken; it now makes a
+real TASO call.
+
 ## Verification
 
 Checked against the running app, not only tests:
