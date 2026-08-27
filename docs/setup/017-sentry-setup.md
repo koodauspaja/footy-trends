@@ -201,9 +201,22 @@ NODE_OPTIONS="--require ./probe.cjs" npm run dev
 npm run build && NODE_OPTIONS="--require ./probe.cjs" npm start
 ```
 
-The probe dumps once a single response crosses Node's own limit, so **no
-output means the warning is gone** — the listener count has dropped to the
-limit or below and there is nothing left to investigate.
+The probe dumps once a single response crosses Node's own limit of 10, which
+it derives independently of `SERVER_RESPONSE_MAX_LISTENERS`. Since the app now
+allows 20, **output is expected and is not a problem** — a healthy response
+still attaches 11, which trips the probe but not the app.
+
+Read the count in the dump, not its presence: it lists every listener on that
+one response. Compare that number with `SERVER_RESPONSE_MAX_LISTENERS` in
+`src/instrumentation.ts`.
+
+- **11, or anything below 20** — as measured, nothing to do.
+- **20 or more** — the listener count has grown past the limit, the warning is
+  back in production, and the constant needs raising. Record the new
+  measurement in the table above.
+
+(Before #174 raised the limit, no output meant the warning was gone. That is no
+longer true: the probe's threshold and the app's are now different numbers.)
 
 ```js
 const { EventEmitter } = require("node:events");

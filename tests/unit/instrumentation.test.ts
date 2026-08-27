@@ -42,13 +42,22 @@ describe("instrumentation", () => {
     vi.stubEnv("NEXT_RUNTIME", runtime);
     const instrumentation = await import("@/instrumentation");
     await instrumentation.register();
+    return instrumentation.SERVER_RESPONSE_MAX_LISTENERS;
   }
 
   it("raises the listener limit for ServerResponse on the Node runtime", async () => {
-    await register("nodejs");
+    const limit = await register("nodejs");
 
-    // Eleven is what Next plus Sentry actually attach; the limit must clear it.
-    expect(serverResponse().getMaxListeners()).toBeGreaterThan(11);
+    expect(serverResponse().getMaxListeners()).toBe(limit);
+  });
+
+  it("keeps the limit clear of the eleven Next and Sentry actually attach", async () => {
+    // Pinning the number, not just "more than the default": dropping it to 12
+    // would pass a `> 11` assertion and still put production one listener from
+    // the warning coming back.
+    const limit = await register("nodejs");
+
+    expect(limit).toBe(20);
   });
 
   it("leaves every other emitter on Node's default, so a real leak still warns", async () => {
@@ -62,13 +71,13 @@ describe("instrumentation", () => {
    * there is no per-event API, and this is the accepted cost of the trade.
    */
   it("raises the limit for every response event, not only close", async () => {
-    await register("nodejs");
+    const limit = await register("nodejs");
     const response = serverResponse();
 
     for (let i = 0; i < 15; i++) response.on("finish", () => {});
 
     expect(response.listenerCount("finish")).toBe(15);
-    expect(response.getMaxListeners()).toBeGreaterThan(15);
+    expect(response.getMaxListeners()).toBe(limit);
   });
 
   it("does not touch the limit on the edge runtime, which has no ServerResponse", async () => {

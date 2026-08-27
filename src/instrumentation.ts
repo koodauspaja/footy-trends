@@ -27,7 +27,7 @@ import * as Sentry from "@sentry/nextjs";
  * static import of a Node builtin makes that bundle warn on every request —
  * which is the same noise this is meant to remove.
  */
-const SERVER_RESPONSE_MAX_LISTENERS = 20;
+export const SERVER_RESPONSE_MAX_LISTENERS = 20;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
