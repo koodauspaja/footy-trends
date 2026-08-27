@@ -15,18 +15,25 @@ import * as Sentry from "@sentry/nextjs";
  * for re-measuring after a Next or Sentry upgrade is in
  * docs/setup/017-sentry-setup.md.
  *
+ * Node's limit is per emitter, not per event name, so this raises the
+ * threshold for every event a `ServerResponse` emits — not only `close`. That
+ * is accepted deliberately: Node offers no per-event limit, and the
+ * alternatives (a global default, or `--no-warnings`) give up more. The cost
+ * is that a leak of 11–20 listeners of some other response event would go
+ * unwarned; past 20 it still warns.
+ *
  * `node:events` and `node:http` are imported inside the branch, not at the top
  * of the file: this module is bundled for the edge runtime as well, and a
  * static import of a Node builtin makes that bundle warn on every request —
  * which is the same noise this is meant to remove.
  */
-const SERVER_RESPONSE_CLOSE_LISTENERS = 20;
+const SERVER_RESPONSE_MAX_LISTENERS = 20;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { setMaxListeners } = await import("node:events");
     const { ServerResponse } = await import("node:http");
-    setMaxListeners(SERVER_RESPONSE_CLOSE_LISTENERS, ServerResponse.prototype);
+    setMaxListeners(SERVER_RESPONSE_MAX_LISTENERS, ServerResponse.prototype);
     await import("../sentry.server.config");
   }
 

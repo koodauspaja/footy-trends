@@ -108,12 +108,18 @@ MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
 for `ServerResponse.prototype` only:
 
 ```ts
-setMaxListeners(SERVER_RESPONSE_CLOSE_LISTENERS, ServerResponse.prototype);
+setMaxListeners(SERVER_RESPONSE_MAX_LISTENERS, ServerResponse.prototype);
 ```
 
 Every other emitter keeps Node's default of 10, so a genuine listener leak
 anywhere else still warns — `tests/unit/instrumentation.test.ts` asserts both
 halves of that.
+
+Node's limit is per emitter, not per event name, so this raises the threshold
+for every event a `ServerResponse` emits, not only `close`. Node offers no
+per-event limit; the cost is that a leak of 11–20 listeners of some other
+response event would go unwarned, and past 20 it still warns. Pinned by a test
+so the breadth is deliberate rather than incidental.
 
 ### Where the 11 listeners come from
 
@@ -173,9 +179,19 @@ whose listener count is Next's to decide and which are discarded per request.
 
 The probe still works and is still worth running after a Next or Sentry
 upgrade — it reports the counts directly, which the silenced warning no longer
-does. Note that the fix raises the threshold the probe compares against, so run
-it with `SERVER_RESPONSE_CLOSE_LISTENERS` temporarily lowered, or read the
-counts it dumps rather than waiting for it to trip.
+does.
+
+It is not affected by the fix and needs no change to run: it derives its own
+threshold from `EventEmitter.defaultMaxListeners` and patches `on` directly,
+rather than reading the application's limit. `SERVER_RESPONSE_MAX_LISTENERS` is
+a constant in `src/instrumentation.ts` and is **not** read from the
+environment, so there is nothing to set on the command line — to check against
+the raised limit rather than Node's default, edit that constant and restart.
+
+Read the counts it dumps. The number to compare against
+`SERVER_RESPONSE_MAX_LISTENERS` is how many listeners one response accumulates;
+if that has grown past it, raise the constant and record the new measurement
+here.
 
 Save the script below as `probe.cjs` and preload it into whichever server you
 are checking:
