@@ -162,9 +162,12 @@ export function groupByPlayedYear<T extends { kickoffAt: Date; providerMatchId: 
     else bucket.push(match);
   }
 
+  // `toSorted` rather than `sort`: these arrays are the map's own values, and
+  // sorting them in place inside a `.map()` reads as a pure transformation
+  // while mutating what it walks over.
   return [...byYear.entries()]
-    .sort(([left], [right]) => right - left)
-    .map(([year, yearMatches]) => ({ year, matches: yearMatches.sort(byKickoffThenId) }));
+    .toSorted(([left], [right]) => right - left)
+    .map(([year, yearMatches]) => ({ year, matches: yearMatches.toSorted(byKickoffThenId) }));
 }
 
 /** `1 ottelu`, `10 ottelua` — the count in a year's summary line. */
