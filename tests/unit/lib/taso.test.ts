@@ -32,7 +32,6 @@ describe("taso mapping", () => {
     process.env.TASO_API_KEY = originalApiKey;
   });
 
-
   it("maps a played match, treating team_A as home, converting every string field to its real type", () => {
     const result = normalizeTasoMatch(
       {
@@ -485,7 +484,9 @@ describe("taso mapping", () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
 
-    await expect(getSeasonMatches("spljp26", "VL", 2026)).rejects.toThrow("TASO request failed: 403");
+    await expect(getSeasonMatches("spljp26", "VL", 2026)).rejects.toThrow(
+      "TASO request failed: 403"
+    );
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 403 }),
       "TASO request failed"
