@@ -93,17 +93,27 @@ wizard's test event, confirming the integration is working.
 
 ---
 
-## Known warning — `MaxListenersExceededWarning`
+## Silenced warning — `MaxListenersExceededWarning`
 
-The server logs this repeatedly, once or more per page load:
+The server used to log this repeatedly, once or more per page load, in dev
+and in production alike:
 
 ```
 MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
 11 close listeners added to [ServerResponse]. MaxListeners is 10.
 ```
 
-**It is not ours, it is not a leak, and it is not dev-only.** Documented
-here so it is not re-investigated — see #129.
+**It is not ours, it is not a leak, and it was not dev-only.** Measured in
+#129, silenced in #174. `src/instrumentation.ts` now raises the limit to 20
+for `ServerResponse.prototype` only:
+
+```ts
+setMaxListeners(SERVER_RESPONSE_CLOSE_LISTENERS, ServerResponse.prototype);
+```
+
+Every other emitter keeps Node's default of 10, so a genuine listener leak
+anywhere else still warns — `tests/unit/instrumentation.test.ts` asserts both
+halves of that.
 
 ### Where the 11 listeners come from
 
@@ -138,10 +148,21 @@ close-listener count, crossing the limit once an APM SDK is present. It was
 for a new issue to be opened. Related: PR #93158 and discussion #96973, no
 fix as of 2026-08.
 
-### Deliberately not done
+### Why the limit, and why only here
 
-- **Raising `setMaxListeners`** — silences the symptom without addressing
-  the cause, and would hide a genuine listener leak later.
+#129 originally rejected raising the limit, on the grounds that it silences a
+symptom and could hide a real leak later. #174 reversed that: the listeners
+were measured, the diagnosis has not changed, and a false positive on every
+single request costs more than leak detection on one emitter type — it buried
+the request log locally and shipped noise to Axiom.
+
+The reversal is narrow. Raising `EventEmitter.defaultMaxListeners` globally, or
+running with `--no-warnings`, would have given up leak detection everywhere;
+scoping it to `ServerResponse.prototype` gives it up only for HTTP responses,
+whose listener count is Next's to decide and which are discarded per request.
+
+### Still deliberately not done
+
 - **Changing Sentry's `tracesSampleRate`** — Sentry is 2 of 11; this would
   not get under the limit and would cost production tracing.
 - **Disabling Next's compression or proxying** — the listeners come from
@@ -150,9 +171,14 @@ fix as of 2026-08.
 
 ### Re-verifying
 
-If the counts change after a Next or Sentry upgrade, re-measure rather than
-assume. Save the script below as `probe.cjs` and preload it into whichever
-server you are checking — the warning appears in both:
+The probe still works and is still worth running after a Next or Sentry
+upgrade — it reports the counts directly, which the silenced warning no longer
+does. Note that the fix raises the threshold the probe compares against, so run
+it with `SERVER_RESPONSE_CLOSE_LISTENERS` temporarily lowered, or read the
+counts it dumps rather than waiting for it to trip.
+
+Save the script below as `probe.cjs` and preload it into whichever server you
+are checking:
 
 ```sh
 NODE_OPTIONS="--require ./probe.cjs" npm run dev
