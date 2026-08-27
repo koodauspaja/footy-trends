@@ -212,7 +212,12 @@ describe("getMensTeamYears", () => {
 
     const result = await load();
 
-    expect(result.status === "ok" && result.incomplete).toBe(false);
+    // Asserting the status first: `result.status === "ok" && result.incomplete`
+    // is false for `empty` and `error` too, so it would pass on exactly the
+    // regressions this exists to catch.
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.incomplete).toBe(false);
   });
 
   /**
