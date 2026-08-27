@@ -138,9 +138,9 @@ Only a page with nothing at all to show is an error.
 
 The original argument — that a year missing from a page showing every year
 leaves no gap a reader could notice — still holds, and the notice is what
-answers it. What the original missed is exposure: this page issues up to 28
-queries where every other page in the app issues one, so it is roughly 28 times
-more likely to meet a transient failure, and it converted every one of them
+answers it. What the original missed is exposure. Every other page in the app
+issues one such query per render; this one issues up to 28, so it has 28 times
+as many chances to meet a transient failure — and it turned every one of them
 into a blank page. A production incident did exactly that.
 
 The notice deliberately names no year, because a failed bucket's matches were
