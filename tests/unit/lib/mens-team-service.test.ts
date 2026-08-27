@@ -175,13 +175,56 @@ describe("getMensTeamYears", () => {
    * A year silently missing from a page that shows every year is invisible —
    * nothing on screen would say which one went absent.
    */
-  it("fails the whole page when a year's categories cannot be read", async () => {
+  it("fails the page only when every bucket fails", async () => {
     getSeasonCategoryNameMapMock.mockRejectedValue(new Error("TASO request failed: 500"));
 
     await expect(load()).resolves.toEqual({ status: "error" });
   });
 
-  it("fails the whole page when one category's matches fail", async () => {
+  /**
+   * The behaviour #180 changed. Failing everything because one of up to 28
+   * queries failed blanked eight years of history in production.
+   */
+  it("renders the buckets that loaded when another fails, and says it is incomplete", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) => {
+      if (competitionId === "maajp18") throw new Error("Failed query");
+      return competitionId === "maajp2026" ? { UNL: "UEFA Nations League Huuhkajat" } : {};
+    });
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Albania")],
+    });
+
+    const result = await load();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.years).toHaveLength(1);
+    expect(result.incomplete).toBe(true);
+  });
+
+  it("is not incomplete when every bucket loaded", async () => {
+    onlyIn2026({ UNL: "UEFA Nations League Huuhkajat" });
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Albania")],
+    });
+
+    const result = await load();
+
+    // Asserting the status first: `result.status === "ok" && result.incomplete`
+    // is false for `empty` and `error` too, so it would pass on exactly the
+    // regressions this exists to catch.
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.incomplete).toBe(false);
+  });
+
+  /**
+   * "Empty" must mean there are no matches, not that we could not read them —
+   * otherwise the reader is told something false.
+   */
+  it("reports error, not empty, when nothing loaded and something failed", async () => {
     onlyIn2026({ UNL: "UEFA Nations League Huuhkajat", WCQ: "MM-karsinnat Huuhkajat" });
     getSeasonMatchListMock.mockImplementation(async (categoryId: string) =>
       categoryId === "UNL"

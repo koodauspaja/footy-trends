@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
 import { MatchListTable } from "@/components/match-list-table";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { matchCountLabel } from "@/lib/mens-team";
 import { getMensTeamYears, type MensTeamYear } from "@/lib/mens-team-service";
 
 const HEADING = "Huuhkajat";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
+/**
+ * Deliberately names no year. A failed bucket's matches were never read, and a
+ * bucket is not one year — `maajp18` spans 2019 to 2021 — so which years are
+ * missing is exactly what we do not know. Saying so beats naming a year that
+ * might be complete. See #180.
+ */
+const INCOMPLETE_MESSAGE = "Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 
 export const metadata: Metadata = { title: HEADING };
@@ -48,6 +56,7 @@ export default async function MensTeam() {
     <PageShell heading={HEADING}>
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
+      {result.status === "ok" && result.incomplete && <Notice>{INCOMPLETE_MESSAGE}</Notice>}
       {result.status === "ok" &&
         result.years.map((year) => <YearSection key={year.year} year={year} />)}
     </PageShell>

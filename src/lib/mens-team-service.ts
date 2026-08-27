@@ -17,7 +17,8 @@ export type MensTeamMatch = NormalizedTasoMatch & { competitionName: string };
 export type MensTeamYear = { year: number; matches: MensTeamMatch[] };
 
 export type MensTeamResult =
-  | { status: "ok"; years: MensTeamYear[] }
+  /** `incomplete` when some buckets loaded and others failed. */
+  | { status: "ok"; years: MensTeamYear[]; incomplete: boolean }
   | { status: "empty" }
   | { status: "error" };
 
@@ -100,20 +101,30 @@ async function loadSeason(
  * actually played in, because a bucket is not a calendar year — `maajp18`
  * holds matches from 2019, 2020 and 2021.
  *
- * A bucket that cannot be served fails the whole page, for the reason given on
- * `loadSeason` — which is a narrower condition than any failure.
+ * A bucket that fails no longer takes the page with it. The first version
+ * failed the whole page on any failure, reasoning that a year missing from a
+ * page showing every year leaves no gap a reader could notice. Production
+ * proved the trade wrong: this page issues up to 28 queries where every other
+ * issues one, so a single transient failure blanked eight years of history
+ * (#180).
+ *
+ * What loaded is rendered, and `incomplete` tells the page to say so — which
+ * has no silent hole either. Only a page with nothing to show at all is an
+ * error.
  */
 export async function getMensTeamYears(): Promise<MensTeamResult> {
   const loaded = await Promise.all(
     MENS_TEAM_SEASONS.map(({ year, competitionId }) => loadSeason(year, competitionId))
   );
-  const matches: MensTeamMatch[] = [];
-  for (const seasonMatches of loaded) {
-    if (seasonMatches === null) return { status: "error" };
-    matches.push(...seasonMatches);
-  }
 
-  const years = groupByPlayedYear(matches);
+  const succeeded = loaded.filter((matches): matches is MensTeamMatch[] => matches !== null);
+  const failedCount = loaded.length - succeeded.length;
+  const years = groupByPlayedYear(succeeded.flat());
 
-  return years.length === 0 ? { status: "empty" } : { status: "ok", years };
+  if (years.length > 0) return { status: "ok", years, incomplete: failedCount > 0 };
+
+  // Nothing to show. "Empty" only when that is the truth rather than the
+  // consequence of a failure — otherwise the reader would be told there are no
+  // matches when there are, and we simply could not read them.
+  return failedCount === 0 ? { status: "empty" } : { status: "error" };
 }
