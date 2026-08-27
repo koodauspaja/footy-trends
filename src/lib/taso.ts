@@ -28,13 +28,19 @@ function apiKey(): string {
   return key;
 }
 
-function request<T>(path: string): Promise<T> {
-  return fetchProviderJson<T>("TASO", API_BASE_URL, path, () => ({
-    Accept: `json/${apiKey()}`,
-    Referer: REFERER,
-    Origin: ORIGIN,
-    "User-Agent": USER_AGENT,
-  }));
+function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return fetchProviderJson<T>(
+    "TASO",
+    API_BASE_URL,
+    path,
+    () => ({
+      Accept: `json/${apiKey()}`,
+      Referer: REFERER,
+      Origin: ORIGIN,
+      "User-Agent": USER_AGENT,
+    }),
+    signal
+  );
 }
 
 // --- Matches -----------------------------------------------------------
@@ -311,8 +317,8 @@ const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
  * publishes none this call can recognize. Callers decide how to fall back —
  * see `resolveCurrentTasoSeason`.
  */
-export async function getCurrentSeason(): Promise<number | null> {
-  const response = await request<CompetitionsResponse>("/getCompetitions");
+export async function getCurrentSeason(signal?: AbortSignal): Promise<number | null> {
+  const response = await request<CompetitionsResponse>("/getCompetitions", signal);
   const seasons = (response.competitions ?? [])
     .filter(
       (competition) =>
