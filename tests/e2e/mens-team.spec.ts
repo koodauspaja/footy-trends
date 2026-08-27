@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { MENS_TEAM_YEARS } from "@/lib/mens-team";
 
 /**
  * Structure and labels only — scores and future fixtures change with the real
@@ -26,13 +27,19 @@ test.describe("Huuhkajat", () => {
     // a year with no matches and January would otherwise fail an application
     // behaving exactly as specified.
     const years = (await page.locator("details h2").allTextContents()).map(Number);
-    const currentYear = new Date().getFullYear();
-    expect(years.filter((year) => year !== currentYear)).toEqual([
+
+    // The only year that may legitimately be absent is the newest *configured*
+    // bucket, whose season may not have started. That is deliberately not
+    // `new Date().getFullYear()`: the buckets are added by hand, so in 2027
+    // the newest configured year is still 2026, and filtering on the clock
+    // would leave 2026 in the list below and fail a correct page.
+    const newestConfigured = Math.max(...MENS_TEAM_YEARS);
+    expect(years.filter((year) => year !== newestConfigured)).toEqual([
       2025, 2024, 2023, 2022, 2021, 2020, 2019,
     ]);
-    // Present or not, the current year can only be the newest section.
-    expect(years.filter((year) => year === currentYear).length).toBeLessThanOrEqual(1);
-    if (years.includes(currentYear)) expect(years[0]).toBe(currentYear);
+    // Present or not, it can only be the newest section.
+    expect(years.filter((year) => year === newestConfigured).length).toBeLessThanOrEqual(1);
+    if (years.includes(newestConfigured)) expect(years[0]).toBe(newestConfigured);
   });
 
   test("orders the years newest first", async ({ page }) => {
