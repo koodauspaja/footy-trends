@@ -388,10 +388,21 @@ There is no invalid-season notice, because there is no season parameter.
    *Other teams' matches*. 2023 is the case that proves it.
 3. **Placeholder rows with empty team names and dates** — dropped by the
    existing kickoff guard. Two exist in 2021 `Miehet-A`.
-4. **`getCategories` fails for one year** — the whole page shows the
-   load-failure string. A page silently missing a year, with no indication
-   which, is worse than an honest error, because nothing on it would reveal the
-   gap.
+4. **`getCategories` fails for one bucket** — the years that loaded are
+   rendered, above the Finnish notice `Kaikkia otteluita ei voitu ladata. Osa
+   kausista voi puuttua.` Only a page with nothing at all to show is an error.
+
+   This reverses the first version, which failed the whole page on any failure
+   on the grounds that a missing year leaves no gap a reader could notice. The
+   reasoning was sound and the trade was wrong: this page issues up to 28
+   queries where every other page issues one, so a single transient failure
+   blanked eight years of history in production (#180). The notice removes the
+   silent hole without removing the page.
+
+   The notice names **no year**. A failed bucket's matches were never read, and
+   a bucket is not a calendar year — `maajp18` spans 2019 to 2021 — so which
+   years are missing is precisely what cannot be known. Naming one that might
+   be complete would be worse than saying plainly that something is missing.
 5. **One category's `getMatches` fails while others succeed** — if the database
    holds that category's rows they are served, matching every other page in the
    app. Only a category with nothing stored **and** a failed refresh renders

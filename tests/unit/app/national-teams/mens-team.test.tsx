@@ -43,6 +43,7 @@ describe("Huuhkajat page", () => {
     vi.resetModules();
     getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
+      incomplete: false,
       years: [year(2026, [match(1, "UEFA Nations League", true)])],
     });
   });
@@ -72,6 +73,7 @@ describe("Huuhkajat page", () => {
   it("shows an unplayed match without a score rather than as 0–0", async () => {
     getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
+      incomplete: false,
       years: [year(2026, [match(1, "UEFA Nations League", false)])],
     });
 
@@ -84,6 +86,7 @@ describe("Huuhkajat page", () => {
   it("puts each year in a section that starts open", async () => {
     getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
+      incomplete: false,
       years: [
         year(2026, [match(1, "UEFA Nations League", true)]),
         year(2021, [match(2, "EM-lopputurnaus", true)]),
@@ -100,6 +103,7 @@ describe("Huuhkajat page", () => {
   it("summarises a year by its match count", async () => {
     getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
+      incomplete: false,
       years: [
         year(
           2023,
@@ -123,6 +127,7 @@ describe("Huuhkajat page", () => {
   it("keeps the years in the order the service returns them", async () => {
     getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
+      incomplete: false,
       years: [
         year(2026, [match(1, "UEFA Nations League", true)]),
         year(2021, [match(2, "EM-lopputurnaus", true)]),
@@ -133,6 +138,28 @@ describe("Huuhkajat page", () => {
 
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings.map((heading) => heading.textContent)).toEqual(["2026", "2021"]);
+  });
+
+  it("warns in Finnish when some of the history could not be loaded", async () => {
+    getMensTeamYearsMock.mockResolvedValue({
+      status: "ok",
+      incomplete: true,
+      years: [year(2026, [match(1, "UEFA Nations League", true)])],
+    });
+
+    await renderPage();
+
+    // The years that loaded still render — the point of #180.
+    expect(document.querySelectorAll("details")).toHaveLength(1);
+    expect(
+      screen.getByText("Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows no warning when the whole history loaded", async () => {
+    await renderPage();
+
+    expect(screen.queryByText(/Kaikkia otteluita ei voitu ladata/)).not.toBeInTheDocument();
   });
 
   it("shows the Finnish empty message when there is nothing to list", async () => {

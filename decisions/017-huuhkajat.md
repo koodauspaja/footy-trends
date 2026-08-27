@@ -126,7 +126,28 @@ categories, and TASO publishes names in Finnish already.
 empty team names and dates, already dropped by `normalizeTasoMatch`'s kickoff
 guard. Two causes, one number; recorded so they are not conflated later.
 
-## A bucket that cannot be served fails the whole page
+## A bucket that cannot be served no longer fails the whole page
+
+**Reversed after production, see #180.** What follows is the original
+reasoning, kept because it was right about the problem and wrong about the
+remedy.
+
+The page now renders the buckets that loaded and shows
+`Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.` above them.
+Only a page with nothing at all to show is an error.
+
+The original argument — that a year missing from a page showing every year
+leaves no gap a reader could notice — still holds, and the notice is what
+answers it. What the original missed is exposure: this page issues up to 28
+queries where every other page in the app issues one, so it is roughly 28 times
+more likely to meet a transient failure, and it converted every one of them
+into a blank page. A production incident did exactly that.
+
+The notice deliberately names no year, because a failed bucket's matches were
+never read and a bucket is not a calendar year — which years went missing is
+the one thing that cannot be known at that point.
+
+### The original reasoning
 
 `loadSeason` returns `null` rather than an empty list, and any `null` makes the
 page an error.
