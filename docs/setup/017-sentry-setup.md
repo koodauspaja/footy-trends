@@ -177,7 +177,22 @@ whose listener count is Next's to decide and which are discarded per request.
 
 ### Re-verifying
 
-The probe still works and is still worth running after a Next or Sentry
+> **The probe did not reproduce on Next 16.3.2 (measured 2026-08-27, #174).**
+> Run exactly as documented below, it printed nothing against either
+> `npm run dev` or `npm run build && npm start`, even though the warning itself
+> was still reproducible on dev at the time (four occurrences across four page
+> loads with the fix reverted). It was confirmed loaded into the serving
+> process — a `--require` wrapper logged the `next start` pid — and it works
+> standalone: given a hand-built `ServerResponse` with 11 `close` listeners it
+> dumps them with correct attribution. So the patch of
+> `EventEmitter.prototype.on` is not observing the attachments Next actually
+> makes on this version. It was last verified working on Next 16.3.0 in #129.
+>
+> Treat the instructions below as needing repair before they can be relied on.
+> They are kept because the approach is sound and the earlier measurement was
+> made with them.
+
+The probe is still the intended way to re-measure after a Next or Sentry
 upgrade — it reports the counts directly, which the silenced warning no longer
 does.
 
