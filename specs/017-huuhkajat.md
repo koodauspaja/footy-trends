@@ -245,9 +245,31 @@ on across categories, and TASO publishes the name in Finnish.
 }
 ```
 
-Team names arrive **already in Finnish** — `Tanska`, `Uusi-Seelanti`,
-`Kap Verde`, `Valko-Venäjä`. `toFinnishCountryName` from #165 is for
-football-data only and must not be applied here.
+Team names arrive **mostly** in Finnish — `Tanska`, `Uusi-Seelanti`,
+`Kap Verde`, `Valko-Venäjä` — but not entirely, and the exception is the point.
+
+Every `maajp{YYYY}` bucket is Finnish throughout. `maajp18` is not: its 2019
+Euro qualifiers and 2020 Nations League name four opponents in English, across
+eight rows.
+
+| TASO sends | Rendered as |
+|---|---|
+| `Greece` | `Kreikka` |
+| `Italy` | `Italia` |
+| `Bosnia and Herzegovina` | `Bosnia-Hertsegovina` |
+| `Republic of Ireland` | `Irlanti` |
+
+The mapping targets **TASO's own Finnish spelling**, not
+`FINNISH_COUNTRY_NAMES`'s. The defect is not merely English text: `Greece` and
+`Kreikka` were both appearing, so one country read two ways on one page. Using
+#165's map would have kept that, since it renders Bosnia as `Bosnia ja
+Hertsegovina` while TASO's Finnish rows say `Bosnia-Hertsegovina`.
+
+`toFinnishCountryName` from #165 stays football-data's; `toFinnishTasoTeamName`
+is TASO's. Helmarit (#167) reads the same buckets and will need the latter.
+
+Finland itself is always `Suomi`, verified across every bucket — the Finland
+filter cannot miss a row because of this.
 
 ### Statuses
 
@@ -438,6 +460,8 @@ are small enough that this is the cheaper side of the trade.
       every section starts open.
 - [ ] Each section's summary reads `<year> (<n> ottelua)`, with `ottelu`
       singular for one.
+- [ ] Every opponent is named in Finnish, including the four TASO sends in
+      English, and no country appears under two spellings.
 - [ ] Each row names its competition — `MM-karsinnat`, `UEFA Nations League`,
       `EM-karsinnat`, `EM-lopputurnaus` or `Muut A-maaottelut` — with no
       trailing ` Huuhkajat` left on any label.

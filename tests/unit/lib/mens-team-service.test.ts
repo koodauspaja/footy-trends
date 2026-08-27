@@ -90,6 +90,28 @@ describe("getMensTeamYears", () => {
     expect(result.years[0]?.matches.map((m) => m.providerMatchId)).toEqual([1]);
   });
 
+  /**
+   * `maajp18`'s 2019 and 2020 categories name opponents in English, unlike
+   * every later bucket. See specs/017-huuhkajat.md.
+   */
+  it("renders an English TASO name in Finnish", async () => {
+    onlyIn2026({ ECQ: "EM-karsinnat Huuhkajat" });
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Greece"), match(2, "Italy", "Suomi")],
+    });
+
+    const result = await load();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    const names = result.years[0]?.matches.flatMap((m) => [m.homeTeamName, m.awayTeamName]);
+    expect(names).toContain("Kreikka");
+    expect(names).toContain("Italia");
+    expect(names).not.toContain("Greece");
+    expect(names).not.toContain("Italy");
+  });
+
   it("ignores categories that are not the men's A team", async () => {
     onlyIn2026({ WWCQ: "MM-karsinnat Helmarit", U21ECQ: "EM-karsinnat U21-miehet" });
 

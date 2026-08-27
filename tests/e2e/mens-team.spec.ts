@@ -98,6 +98,28 @@ test.describe("Huuhkajat", () => {
     await expect(section2019.getByText("EM-karsinnat").first()).toBeVisible();
   });
 
+  /**
+   * TASO names opponents in English in the 2019 and 2020 categories only, so
+   * these rows are the ones that regress if the mapping is dropped.
+   */
+  test("names every opponent in Finnish, including the English ones TASO sends", async ({
+    page,
+  }) => {
+    await page.goto("/maajoukkueet/huuhkajat");
+
+    // Read the rendered text rather than locating a name: a cell holds the
+    // whole pairing, "Suomi – Kreikka", so no single name is its own node.
+    const rendered = await page.locator("main").innerText();
+
+    for (const english of ["Greece", "Italy", "Bosnia and Herzegovina", "Republic of Ireland"]) {
+      expect(rendered).not.toContain(english);
+    }
+    expect(rendered).toContain("Kreikka");
+    expect(rendered).toContain("Italia");
+    expect(rendered).toContain("Bosnia-Hertsegovina");
+    expect(rendered).toContain("Irlanti");
+  });
+
   test("lists only Finland's matches", async ({ page }) => {
     await page.goto("/maajoukkueet/huuhkajat");
 

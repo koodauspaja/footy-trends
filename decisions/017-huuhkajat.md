@@ -76,6 +76,33 @@ needed a `?? categoryId` fallback for a key that had come out of that very map
 — a branch that could not be taken, and which coverage duly flagged as dead.
 Pairing removes the question.
 
+## TASO is mostly Finnish, and the exception is what matters
+
+The spec asserted that TASO publishes Finnish names and that this page needed
+no translation layer. That came from reading a handful of rows, all of which
+happened to be Finnish, and it was wrong.
+
+`maajp18` names four opponents in English — `Greece`, `Italy`, `Bosnia and
+Herzegovina`, `Republic of Ireland` — across the eight rows of its 2019 Euro
+qualifiers and 2020 Nations League. Every `maajp{YYYY}` bucket is Finnish
+throughout, which is exactly why it was easy to miss.
+
+The defect was not only English text. `Greece` and `Kreikka` both appeared, as
+did `Bosnia and Herzegovina` and `Bosnia-Hertsegovina`, so **one country read
+two ways on one page**. That is what decided the mapping's target: it
+translates to the spelling TASO itself uses elsewhere, not to
+`FINNISH_COUNTRY_NAMES`'s, which says `Bosnia ja Hertsegovina` and would have
+preserved the split.
+
+`toFinnishTasoTeamName` therefore lives beside `toFinnishCountryName` in
+`country-names.ts` rather than replacing it: one map per provider, in the file
+that already exists for the purpose. That file's own comment claimed TASO
+needed none; it now says otherwise.
+
+Names are normalised before the Finland filter runs, so a row can never be
+matched on one spelling and displayed as another. Finland itself is always
+`Suomi`, verified across every bucket, so the filter cannot miss a row.
+
 ## A category is not only Finland's matches
 
 The finding the issue did not have. Season 2023's `ECQ` returns **30** matches
@@ -207,6 +234,9 @@ Checked against the running app, not only tests:
 - Counts match the measurements exactly: **2023 `(12 ottelua)`**, **2021
   `(15 ottelua)`**, **2020 `(6 ottelua)`**, **2019 `(12 ottelua)`** — 85 in
   total, the same 85 as before the regrouping, correctly distributed.
+- Every opponent renders in Finnish. The four names TASO sends in English are
+  gone from the page, and no country appears under two spellings — checked by
+  listing all 41 distinct opponents the page renders.
 - 2019 holds `EM-karsinnat`, 2020 holds `UEFA Nations League`, 2021 holds
   `EM-lopputurnaus` — the three years `maajp18` spans, each under its own
   heading.

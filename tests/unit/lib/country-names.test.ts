@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import {
+  toFinnishCountryName,
+  toFinnishTasoTeamName,
+  toFinnishTasoTeamNames,
+  toFinnishTeamNames,
+} from "@/lib/country-names";
 
 describe("toFinnishCountryName", () => {
   it("translates the names that actually differ", () => {
@@ -61,5 +66,63 @@ describe("toFinnishTeamNames", () => {
 
   it("handles an empty list", () => {
     expect(toFinnishTeamNames([])).toEqual([]);
+  });
+});
+
+describe("toFinnishTasoTeamName", () => {
+  /**
+   * TASO is mostly Finnish, and only the older `maajp18` content — the 2019
+   * Euro qualifiers and the 2020 Nations League — carries English. Eight rows,
+   * four countries. See specs/017-huuhkajat.md.
+   */
+  it("translates the four names TASO reports in English", () => {
+    expect(toFinnishTasoTeamName("Greece")).toBe("Kreikka");
+    expect(toFinnishTasoTeamName("Italy")).toBe("Italia");
+    expect(toFinnishTasoTeamName("Republic of Ireland")).toBe("Irlanti");
+    expect(toFinnishTasoTeamName("Bosnia and Herzegovina")).toBe("Bosnia-Hertsegovina");
+  });
+
+  /**
+   * The defect this fixes was one country reading two ways on one page:
+   * `Greece` in 2019 and `Kreikka` in a later year. Mapping to TASO's own
+   * Finnish spelling is what keeps them identical — `FINNISH_COUNTRY_NAMES`
+   * would have produced `Bosnia ja Hertsegovina` here and reintroduced it.
+   */
+  it("matches the spelling TASO itself uses elsewhere", () => {
+    expect(toFinnishTasoTeamName("Bosnia and Herzegovina")).toBe(
+      toFinnishTasoTeamName("Bosnia-Hertsegovina")
+    );
+    expect(toFinnishTasoTeamName("Republic of Ireland")).toBe(toFinnishTasoTeamName("Irlanti"));
+  });
+
+  it("leaves a name TASO already publishes in Finnish alone", () => {
+    expect(toFinnishTasoTeamName("Valko-Venäjä")).toBe("Valko-Venäjä");
+    expect(toFinnishTasoTeamName("Suomi")).toBe("Suomi");
+  });
+
+  it("passes an unmapped name through rather than mangling it", () => {
+    expect(toFinnishTasoTeamName("Wales")).toBe("Wales");
+  });
+});
+
+describe("toFinnishTasoTeamNames", () => {
+  it("translates both sides of every match", () => {
+    const matches = [
+      { homeTeamName: "Suomi", awayTeamName: "Greece" },
+      { homeTeamName: "Italy", awayTeamName: "Suomi" },
+    ];
+
+    expect(toFinnishTasoTeamNames(matches)).toEqual([
+      { homeTeamName: "Suomi", awayTeamName: "Kreikka" },
+      { homeTeamName: "Italia", awayTeamName: "Suomi" },
+    ]);
+  });
+
+  it("keeps every other field on the row", () => {
+    const [row] = toFinnishTasoTeamNames([
+      { homeTeamName: "Greece", awayTeamName: "Suomi", providerMatchId: 7 },
+    ]);
+
+    expect(row?.providerMatchId).toBe(7);
   });
 });

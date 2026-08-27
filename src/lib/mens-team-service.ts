@@ -1,3 +1,4 @@
+import { toFinnishTasoTeamNames } from "./country-names";
 import { logger } from "./logger";
 import {
   groupByPlayedYear,
@@ -82,7 +83,9 @@ async function loadSeason(
     }
     if (result.status !== "ok") continue;
 
-    for (const match of result.matches) {
+    // Names are normalised before the filter, not after, so a row can never be
+    // matched on one spelling and displayed as another.
+    for (const match of toFinnishTasoTeamNames(result.matches)) {
       if (isFinlandMatch(match)) matches.push({ ...match, competitionName });
     }
   }
