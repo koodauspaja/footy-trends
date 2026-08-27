@@ -82,10 +82,13 @@ no custom logging calls needed in application code.
 ## Known noise
 
 `MaxListenersExceededWarning: ... 11 close listeners added to
-[ServerResponse]` appears in production logs as well as in dev, so it
-reaches Axiom. It comes from Next's own request pipeline plus Sentry, is a
-false positive rather than a leak, and is explained under "Known warning —
-`MaxListenersExceededWarning`" in `017-sentry-setup.md`.
+[ServerResponse]` used to appear in production logs as well as in dev, so it
+reached Axiom. It came from Next's own request pipeline plus Sentry and was a
+false positive rather than a leak. Silenced in #174 by raising the limit for
+`ServerResponse` only — see "Silenced warning —
+`MaxListenersExceededWarning`" in `017-sentry-setup.md`. If it reappears in
+Axiom after a Next or Sentry upgrade, the listener count has grown past the
+new limit and the probe in that document will say by how much.
 
 ---
 

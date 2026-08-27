@@ -93,17 +93,33 @@ wizard's test event, confirming the integration is working.
 
 ---
 
-## Known warning — `MaxListenersExceededWarning`
+## Silenced warning — `MaxListenersExceededWarning`
 
-The server logs this repeatedly, once or more per page load:
+The server used to log this repeatedly, once or more per page load, in dev
+and in production alike:
 
 ```
 MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
 11 close listeners added to [ServerResponse]. MaxListeners is 10.
 ```
 
-**It is not ours, it is not a leak, and it is not dev-only.** Documented
-here so it is not re-investigated — see #129.
+**It is not ours, it is not a leak, and it was not dev-only.** Measured in
+#129, silenced in #174. `src/instrumentation.ts` now raises the limit to 20
+for `ServerResponse.prototype` only:
+
+```ts
+setMaxListeners(SERVER_RESPONSE_MAX_LISTENERS, ServerResponse.prototype);
+```
+
+Every other emitter keeps Node's default of 10, so a genuine listener leak
+anywhere else still warns — `tests/unit/instrumentation.test.ts` asserts both
+halves of that.
+
+Node's limit is per emitter, not per event name, so this raises the threshold
+for every event a `ServerResponse` emits, not only `close`. Node offers no
+per-event limit; the cost is that a leak of 11–20 listeners of some other
+response event would go unwarned, and past 20 it still warns. Pinned by a test
+so the breadth is deliberate rather than incidental.
 
 ### Where the 11 listeners come from
 
@@ -138,10 +154,21 @@ close-listener count, crossing the limit once an APM SDK is present. It was
 for a new issue to be opened. Related: PR #93158 and discussion #96973, no
 fix as of 2026-08.
 
-### Deliberately not done
+### Why the limit, and why only here
 
-- **Raising `setMaxListeners`** — silences the symptom without addressing
-  the cause, and would hide a genuine listener leak later.
+#129 originally rejected raising the limit, on the grounds that it silences a
+symptom and could hide a real leak later. #174 reversed that: the listeners
+were measured, the diagnosis has not changed, and a false positive on every
+single request costs more than leak detection on one emitter type — it buried
+the request log locally and shipped noise to Axiom.
+
+The reversal is narrow. Raising `EventEmitter.defaultMaxListeners` globally, or
+running with `--no-warnings`, would have given up leak detection everywhere;
+scoping it to `ServerResponse.prototype` gives it up only for HTTP responses,
+whose listener count is Next's to decide and which are discarded per request.
+
+### Still deliberately not done
+
 - **Changing Sentry's `tracesSampleRate`** — Sentry is 2 of 11; this would
   not get under the limit and would cost production tracing.
 - **Disabling Next's compression or proxying** — the listeners come from
@@ -150,18 +177,61 @@ fix as of 2026-08.
 
 ### Re-verifying
 
-If the counts change after a Next or Sentry upgrade, re-measure rather than
-assume. Save the script below as `probe.cjs` and preload it into whichever
-server you are checking — the warning appears in both:
+> **The probe did not reproduce on Next 16.3.2 (measured 2026-08-27, #174).**
+> Run exactly as documented below, it printed nothing against either
+> `npm run dev` or `npm run build && npm start`, even though the warning itself
+> was still reproducible on dev at the time (four occurrences across four page
+> loads with the fix reverted). It was confirmed loaded into the serving
+> process — a `--require` wrapper logged the `next start` pid — and it works
+> standalone: given a hand-built `ServerResponse` with 11 `close` listeners it
+> dumps them with correct attribution. So the patch of
+> `EventEmitter.prototype.on` is not observing the attachments Next actually
+> makes on this version. It was last verified working on Next 16.3.0 in #129.
+>
+> Treat the instructions below as needing repair before they can be relied on.
+> They are kept because the approach is sound and the earlier measurement was
+> made with them.
+
+The probe is still the intended way to re-measure after a Next or Sentry
+upgrade — it reports the counts directly, which the silenced warning no longer
+does.
+
+It is not affected by the fix and needs no change to run: it derives its own
+threshold from `EventEmitter.defaultMaxListeners` and patches `on` directly,
+rather than reading the application's limit. `SERVER_RESPONSE_MAX_LISTENERS` is
+a constant in `src/instrumentation.ts` and is **not** read from the
+environment, so there is nothing to set on the command line — to check against
+the raised limit rather than Node's default, edit that constant and restart.
+
+Read the counts it dumps. The number to compare against
+`SERVER_RESPONSE_MAX_LISTENERS` is how many listeners one response accumulates;
+if that has grown past it, raise the constant and record the new measurement
+here.
+
+Save the script below as `probe.cjs` and preload it into whichever server you
+are checking:
 
 ```sh
 NODE_OPTIONS="--require ./probe.cjs" npm run dev
 npm run build && NODE_OPTIONS="--require ./probe.cjs" npm start
 ```
 
-The probe dumps once a single response crosses Node's own limit, so **no
-output means the warning is gone** — the listener count has dropped to the
-limit or below and there is nothing left to investigate.
+The probe dumps once a single response crosses Node's own limit of 10, which
+it derives independently of `SERVER_RESPONSE_MAX_LISTENERS`. Since the app now
+allows 20, **output is expected and is not a problem** — a healthy response
+still attaches 11, which trips the probe but not the app.
+
+Read the count in the dump, not its presence: it lists every listener on that
+one response. Compare that number with `SERVER_RESPONSE_MAX_LISTENERS` in
+`src/instrumentation.ts`.
+
+- **11, or anything up to and including 20** — within the limit, nothing to do.
+- **21 or more** — Node warns only past the configured limit, so this is the
+  point where the warning is back in production and the constant needs raising.
+  Record the new measurement in the table above.
+
+(Before #174 raised the limit, no output meant the warning was gone. That is no
+longer true: the probe's threshold and the app's are now different numbers.)
 
 ```js
 const { EventEmitter } = require("node:events");
