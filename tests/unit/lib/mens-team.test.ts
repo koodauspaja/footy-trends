@@ -3,12 +3,14 @@ import {
   byKickoffThenId,
   competitionIdForYear,
   competitionLabel,
-  HUUHKAJAT_ACTIVE_YEAR,
-  HUUHKAJAT_YEARS,
-  huuhkajatCategories,
+  groupByPlayedYear,
   isFinlandMatch,
+  MENS_TEAM_ACTIVE_YEAR,
+  MENS_TEAM_YEARS,
   matchCountLabel,
-} from "@/lib/huuhkajat";
+  mensTeamCategories,
+  playedYear,
+} from "@/lib/mens-team";
 
 describe("competitionIdForYear", () => {
   it("maps 2026 to the year-shaped id", () => {
@@ -30,15 +32,15 @@ describe("competitionIdForYear", () => {
   });
 
   it("covers exactly 2021 through 2026, newest first", () => {
-    expect(HUUHKAJAT_YEARS).toEqual([2026, 2025, 2024, 2023, 2022, 2021]);
+    expect(MENS_TEAM_YEARS).toEqual([2026, 2025, 2024, 2023, 2022, 2021]);
   });
 
   it("treats the newest year as the active one", () => {
-    expect(HUUHKAJAT_ACTIVE_YEAR).toBe(2026);
+    expect(MENS_TEAM_ACTIVE_YEAR).toBe(2026);
   });
 });
 
-describe("huuhkajatCategories", () => {
+describe("mensTeamCategories", () => {
   it("selects only the men's A team, by name suffix", () => {
     const names = {
       WCQ: "MM-karsinnat Huuhkajat",
@@ -49,18 +51,18 @@ describe("huuhkajatCategories", () => {
     };
 
     expect(
-      huuhkajatCategories(names)
+      mensTeamCategories(names)
         .map((c) => c.categoryId)
         .sort()
     ).toEqual(["UNL", "WCQ"]);
   });
 
   it("is empty for a season with no Huuhkajat categories", () => {
-    expect(huuhkajatCategories({ NA: "Naisten A-maaottelut" })).toEqual([]);
+    expect(mensTeamCategories({ NA: "Naisten A-maaottelut" })).toEqual([]);
   });
 
   it("carries each category's display label, so no second lookup is needed", () => {
-    expect(huuhkajatCategories({ Miehet: "Muut A-maaottelut Huuhkajat" })).toEqual([
+    expect(mensTeamCategories({ Miehet: "Muut A-maaottelut Huuhkajat" })).toEqual([
       { categoryId: "Miehet", competitionName: "Muut A-maaottelut" },
     ]);
   });
@@ -142,5 +144,59 @@ describe("matchCountLabel", () => {
     expect(matchCountLabel(0)).toBe("0 ottelua");
     expect(matchCountLabel(12)).toBe("12 ottelua");
     expect(matchCountLabel(33)).toBe("33 ottelua");
+  });
+});
+
+describe("playedYear", () => {
+  it("reads the year in Finnish local time", () => {
+    expect(playedYear(new Date("2021-06-12T19:00:00Z"))).toBe(2021);
+  });
+
+  /**
+   * A late-December kick-off is already the next year in Helsinki, which is
+   * the timezone the date column renders in — the section heading and the
+   * date beside it must not disagree.
+   */
+  it("files a late kick-off under the year Helsinki was already in", () => {
+    expect(playedYear(new Date("2020-12-31T23:30:00Z"))).toBe(2021);
+  });
+});
+
+describe("groupByPlayedYear", () => {
+  const match = (providerMatchId: number, iso: string) => ({
+    providerMatchId,
+    kickoffAt: new Date(iso),
+  });
+
+  /**
+   * The bug this exists to prevent: `maajp18` is one provider bucket holding
+   * Euro 2020 qualifying played in 2019, the 2020-21 Nations League played in
+   * 2020, and 2021's own matches. Filing all of them under the bucket's
+   * nominal season put a 2019 qualifier under a 2021 heading.
+   */
+  it("splits one bucket's matches across the years they were played in", () => {
+    const grouped = groupByPlayedYear([
+      match(1, "2019-09-05T19:00:00Z"),
+      match(2, "2020-10-11T19:00:00Z"),
+      match(3, "2021-06-12T19:00:00Z"),
+    ]);
+
+    expect(grouped.map((group) => group.year)).toEqual([2021, 2020, 2019]);
+    expect(grouped.map((group) => group.matches.length)).toEqual([1, 1, 1]);
+  });
+
+  it("orders years newest first and matches chronologically within one", () => {
+    const grouped = groupByPlayedYear([
+      match(2, "2021-09-05T19:00:00Z"),
+      match(1, "2021-03-05T19:00:00Z"),
+      match(3, "2022-03-05T19:00:00Z"),
+    ]);
+
+    expect(grouped[0]?.year).toBe(2022);
+    expect(grouped[1]?.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
+  });
+
+  it("produces no group for a year with no matches", () => {
+    expect(groupByPlayedYear([]).map((group) => group.year)).toEqual([]);
   });
 });

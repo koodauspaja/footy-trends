@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { HuuhkajatResult, HuuhkajatYear } from "@/lib/huuhkajat-service";
+import type { MensTeamResult, MensTeamYear } from "@/lib/mens-team-service";
 
-const getHuuhkajatYearsMock = vi.fn<() => Promise<HuuhkajatResult>>();
+const getMensTeamYearsMock = vi.fn<() => Promise<MensTeamResult>>();
 
-vi.mock("@/lib/huuhkajat-service", () => ({ getHuuhkajatYears: getHuuhkajatYearsMock }));
+vi.mock("@/lib/mens-team-service", () => ({ getMensTeamYears: getMensTeamYearsMock }));
 
 function match(providerMatchId: number, competitionName: string, played: boolean) {
   return {
@@ -28,12 +28,12 @@ function match(providerMatchId: number, competitionName: string, played: boolean
   };
 }
 
-function year(y: number, matches: ReturnType<typeof match>[]): HuuhkajatYear {
-  return { year: y, matches } as HuuhkajatYear;
+function year(y: number, matches: ReturnType<typeof match>[]): MensTeamYear {
+  return { year: y, matches } as MensTeamYear;
 }
 
 async function renderPage() {
-  const { default: Page } = await import("@/app/national-teams/huuhkajat/page");
+  const { default: Page } = await import("@/app/national-teams/mens-team/page");
   render(await Page());
 }
 
@@ -41,7 +41,7 @@ describe("Huuhkajat page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    getHuuhkajatYearsMock.mockResolvedValue({
+    getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
       years: [year(2026, [match(1, "UEFA Nations League", true)])],
     });
@@ -70,7 +70,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("shows an unplayed match without a score rather than as 0–0", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({
+    getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
       years: [year(2026, [match(1, "UEFA Nations League", false)])],
     });
@@ -82,7 +82,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("puts each year in a section that starts open", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({
+    getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
       years: [
         year(2026, [match(1, "UEFA Nations League", true)]),
@@ -98,7 +98,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("summarises a year by its match count", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({
+    getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
       years: [
         year(
@@ -121,7 +121,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("keeps the years in the order the service returns them", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({
+    getMensTeamYearsMock.mockResolvedValue({
       status: "ok",
       years: [
         year(2026, [match(1, "UEFA Nations League", true)]),
@@ -136,7 +136,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("shows the Finnish empty message when there is nothing to list", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({ status: "empty" });
+    getMensTeamYearsMock.mockResolvedValue({ status: "empty" });
 
     await renderPage();
 
@@ -145,7 +145,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("shows the Finnish error message rather than a page missing a year", async () => {
-    getHuuhkajatYearsMock.mockResolvedValue({ status: "error" });
+    getMensTeamYearsMock.mockResolvedValue({ status: "error" });
 
     await renderPage();
 
@@ -156,7 +156,7 @@ describe("Huuhkajat page", () => {
   });
 
   it("titles the browser tab with the team", async () => {
-    const { metadata } = await import("@/app/national-teams/huuhkajat/page");
+    const { metadata } = await import("@/app/national-teams/mens-team/page");
 
     expect(metadata.title).toBe("Huuhkajat");
   });

@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  * `SUPPORTED_COMPETITIONS` nor linked to `/sarjataulukko` like the two
  * football-data tournaments beside it. See specs/017-huuhkajat.md.
  */
-const HUUHKAJAT: PickerEntry = {
-  key: "huuhkajat",
+const MENS_TEAM: PickerEntry = {
+  key: "mens-team",
   name: "Huuhkajat",
   flagUrl: "/finland.svg",
   country: "Suomi",
@@ -26,7 +26,7 @@ export default function NationalTeams() {
   return (
     <CompetitionPicker
       basePath="/maajoukkueet"
-      extraEntries={[HUUHKAJAT]}
+      extraEntries={[MENS_TEAM]}
       region="national-teams"
     />
   );

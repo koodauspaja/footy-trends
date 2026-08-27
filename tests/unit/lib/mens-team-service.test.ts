@@ -45,11 +45,11 @@ function onlyIn2026(names: Record<string, string>) {
 }
 
 async function load() {
-  const { getHuuhkajatYears } = await import("@/lib/huuhkajat-service");
-  return getHuuhkajatYears();
+  const { getMensTeamYears } = await import("@/lib/mens-team-service");
+  return getMensTeamYears();
 }
 
-describe("getHuuhkajatYears", () => {
+describe("getMensTeamYears", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
@@ -168,6 +168,31 @@ describe("getHuuhkajatYears", () => {
     );
 
     await expect(load()).resolves.toEqual({ status: "error" });
+  });
+
+  /**
+   * `maajp18` is one bucket holding three calendar years. The page must file
+   * each match under the year it was played, not under the bucket's season.
+   */
+  it("splits a bucket that spans calendar years into a section each", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp18" ? { ECQ: "EM-karsinnat Huuhkajat" } : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        match(1, "Suomi", "Liechtenstein", "2019-09-05T19:00:00Z"),
+        match(2, "Suomi", "Kreikka", "2020-10-11T19:00:00Z"),
+        match(3, "Tanska", "Suomi", "2021-06-12T19:00:00Z"),
+      ],
+    });
+
+    const result = await load();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.years.map((y) => y.year)).toEqual([2021, 2020, 2019]);
+    expect(result.years.map((y) => y.matches.length)).toEqual([1, 1, 1]);
   });
 
   it("asks for each year with its own competition id", async () => {

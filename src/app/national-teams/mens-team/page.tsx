@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
-import { matchCountLabel } from "@/lib/huuhkajat";
-import { getHuuhkajatYears, type HuuhkajatYear } from "@/lib/huuhkajat-service";
+import { matchCountLabel } from "@/lib/mens-team";
+import { getMensTeamYears, type MensTeamYear } from "@/lib/mens-team-service";
 
 const HEADING = "Huuhkajat";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: HEADING };
  * use for rounds — and open by default for the same reason: nothing is hidden
  * until the reader chooses to hide it. See specs/017-huuhkajat.md.
  */
-function YearSection({ year }: Readonly<{ year: HuuhkajatYear }>) {
+function YearSection({ year }: Readonly<{ year: MensTeamYear }>) {
   return (
     <details className="mb-10 border-zinc-200 border-b pb-4" open>
       <summary className="mb-3 cursor-pointer list-none">
@@ -40,8 +40,8 @@ function YearSection({ year }: Readonly<{ year: HuuhkajatYear }>) {
  * rather than stepping through six dropdown choices. See
  * specs/017-huuhkajat.md.
  */
-export default async function Huuhkajat() {
-  const result = await getHuuhkajatYears();
+export default async function MensTeam() {
+  const result = await getMensTeamYears();
 
   return (
     <PageShell heading={HEADING}>

@@ -8,14 +8,42 @@ below was measured against TASO on 2026-08-27, not carried over from #166.
 #166 described the 2015–2019 era mapping as "the bulk of the work" and left
 2020–2021 as an unresolved gap. Both dissolved once `maajp18` was identified.
 
-`maajp18` **is season 2021**, not 2018: its categories report
-`season_id: 2021` and include `EC | EM-lopputurnaus Huuhkajat`, the Euro 2020
-finals played that June. The issue had flagged two-digit ids as suspect without
-working out what they were.
+`maajp18` reports `season_id: 2021`, not 2018, and includes
+`EC | EM-lopputurnaus Huuhkajat` — the Euro 2020 finals played that June. The
+issue had flagged two-digit ids as suspect without working out what they were.
+(It is not *only* 2021 either; see the section below.)
 
 With the floor at 2021 — confirmed in chat — there is no gap to explain, every
 year shares one modern category set, and the two-era mapping is unnecessary.
 The feature became substantially smaller than the issue estimated.
+
+## A bucket is not a calendar year
+
+Caught on the running page during review, not by the spec or the tests: 2019's
+and 2020's matches were sitting under a 2021 heading.
+
+`maajp18` is not one season's football. It holds Euro 2020 qualifying played in
+**2019** (10 matches), two 2019 friendlies, the 2020–21 Nations League played in
+**2020** (6), and 2021's own 15. The first implementation filed all 33 under the
+bucket's nominal season, because that is what the id table says the bucket is.
+
+The page now groups by **each match's own kickoff date**, in Europe/Helsinki —
+the timezone the date column already renders in, so a late kick-off cannot be
+filed under one year and displayed under another. The bucket's season survives
+only as the input to the cache TTL.
+
+Every `maajp{YYYY}` bucket does hold just its own year today, verified across
+all six, so this changes nothing for them. But that is a property of the current
+data, not a guarantee, and the match's own date is the only thing that stays
+true when a bucket spans again.
+
+Two consequences worth stating. The page now reaches back to **2019**: those
+matches were always in the data, filed under a bucket named for a different
+year — the years #166 believed were missing entirely. And 2021 drops from 33 to
+15, which is the correct count for what Finland played that calendar year.
+
+`groupByPlayedYear` is deliberately team-agnostic, because Helmarit (#167) reads
+the same shaped data from the same buckets and needs the same correction.
 
 ## Year → competition id is a hand-written table
 
@@ -24,7 +52,7 @@ The feature became substantially smaller than the issue estimated.
 **2018**. Reusing it would have silently mislabelled 2021 — a wrong heading
 over correct data, which is the kind of bug that survives review.
 
-So `HUUHKAJAT_SEASONS` pairs each year with its id explicitly, and the year is
+So `MENS_TEAM_SEASONS` pairs each bucket with its id explicitly, and the year is
 carried alongside rather than parsed back out. New years are added by hand:
 `getCompetitions` lists only currently published competitions and cannot
 enumerate history, so there is nothing to discover from.
@@ -42,7 +70,7 @@ as TASO spells them**. Normalising would mean reintroducing exactly the
 id→name table the suffix rule exists to avoid, to paper over a difference the
 provider considers real.
 
-`huuhkajatCategories` returns each category already paired with its label
+`mensTeamCategories` returns each category already paired with its label
 rather than just an id. The first version looked the name up a second time and
 needed a `?? categoryId` fallback for a key that had come out of that very map
 — a branch that could not be taken, and which coverage duly flagged as dead.
@@ -71,9 +99,9 @@ categories, and TASO publishes names in Finnish already.
 empty team names and dates, already dropped by `normalizeTasoMatch`'s kickoff
 guard. Two causes, one number; recorded so they are not conflated later.
 
-## One failed year fails the whole page
+## One failed bucket fails the whole page
 
-`loadYear` returns `null` on failure rather than an empty list, and any `null`
+`loadSeason` returns `null` on failure rather than an empty list, and any `null`
 makes the page an error.
 
 The alternative — render the years that loaded — is worse specifically because
@@ -136,20 +164,44 @@ so this is pre-existing rather than introduced here, and changing it would
 touch every page's loading state. Flagged rather than fixed; it wants its own
 chore.
 
+## Finnish names, English code
+
+Sourcery flagged five identifiers carrying `Huuhkajat`, and it was right about
+something larger than style: `src/app/national-teams/huuhkajat/` was the only
+Finnish folder in an App Router whose folders are otherwise all English
+(`domestic`, `foreign`, `national-teams`), and there is no precedent for a
+Finnish identifier anywhere in `src/`. Spec 012 set that split and CLAUDE.md
+allows "no exceptions in either direction".
+
+So the module is `mens-team.ts`, the route folder is `mens-team/`, and the
+identifiers are `MENS_TEAM_SEASONS`, `mensTeamCategories`, `getMensTeamYears`.
+`Huuhkajat` survives in exactly the two places it belongs: the string displayed
+to readers, and the provider's own ` Huuhkajat` category suffix. The public URL
+stays `/maajoukkueet/huuhkajat`. #167 becomes `womens-team`.
+
+`cache()` was also removed from `getMensTeamYears`. Its comment claimed to
+share a pass between `generateMetadata` and the page body, but this page
+exports static `metadata` and has no `generateMetadata` — with one caller the
+wrapper did nothing, and the comment described behaviour that did not exist.
+
 ## Verification
 
 Checked against the running app, not only tests:
 
 - `/maajoukkueet` lists `MM-kisat`, `EM-kisat`, `Huuhkajat`, in that order.
-- `/maajoukkueet/huuhkajat` renders six sections, 2026 down to 2021.
-- Counts match the measurements exactly: **2023 `(12 ottelua)`** and **2021
-  `(33 ottelua)`**, the two years the filter and the id mapping decide.
+- `/maajoukkueet/huuhkajat` renders eight sections, 2026 down to 2019.
+- Counts match the measurements exactly: **2023 `(12 ottelua)`**, **2021
+  `(15 ottelua)`**, **2020 `(6 ottelua)`**, **2019 `(12 ottelua)`** — 85 in
+  total, the same 85 as before the regrouping, correctly distributed.
+- 2019 holds `EM-karsinnat`, 2020 holds `UEFA Nations League`, 2021 holds
+  `EM-lopputurnaus` — the three years `maajp18` spans, each under its own
+  heading.
 - Unplayed 2026 Nations League fixtures show an empty result, not `0–0`.
 - Labels read `A-maaottelut`, `MM-karsinnat`, `UEFA Nations League`,
   `EM-karsinnat`, `EM-lopputurnaus` — no ` Huuhkajat` left anywhere.
 - Every rendered row contains `Suomi`.
 
-Unit tests: **832 passing, 100% statements, branches, functions and lines.**
-Integration 21. Playwright 93, including 7 new specs, run with `--workers=1`
+Unit tests: **100% statements, branches, functions and lines.**
+Integration 21. Playwright includes 8 new specs, run with `--workers=1`
 because the parallel default exhausts football-data.org's quota on the
 neighbouring pages.

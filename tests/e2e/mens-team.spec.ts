@@ -64,6 +64,23 @@ test.describe("Huuhkajat", () => {
     await expect(section.getByText("EM-lopputurnaus").first()).toBeVisible();
   });
 
+  /**
+   * `maajp18` is one provider bucket holding 2019, 2020 and 2021 matches, so
+   * these two years only appear if the page files a match by its own date.
+   */
+  test("files a bucket's matches under the year they were played", async ({ page }) => {
+    await page.goto("/maajoukkueet/huuhkajat");
+
+    const years = await page.locator("details h2").allTextContents();
+    expect(years).toContain("2019");
+    expect(years).toContain("2020");
+
+    const section2019 = page
+      .locator("details")
+      .filter({ has: page.getByRole("heading", { name: "2019" }) });
+    await expect(section2019.getByText("EM-karsinnat").first()).toBeVisible();
+  });
+
   test("lists only Finland's matches", async ({ page }) => {
     await page.goto("/maajoukkueet/huuhkajat");
 

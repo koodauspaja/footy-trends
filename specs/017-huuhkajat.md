@@ -11,6 +11,9 @@ pattern the Finnish cups already use for rounds.
 No season selector and no `?kausi=`: the whole history is 85 matches, which is
 a page, not a paginated archive. Confirmed in chat 2026-08-27.
 
+A year on this page is **the year a match was played**, not the provider bucket
+it came from — see *A bucket is not a calendar year*.
+
 Backed by TASO, not football-data. This is the first football-data-free page in
 a region that currently holds two football-data competitions.
 
@@ -19,8 +22,9 @@ a region that currently holds two football-data competitions.
 ### In scope
 
 - A `Huuhkajat` entry in the `/maajoukkueet` picker.
-- A page at `/maajoukkueet/huuhkajat` listing every match from 2021 onward.
-- Matches grouped by year, newest year first, chronological within a year.
+- A page at `/maajoukkueet/huuhkajat` listing every match from 2019 onward.
+- Matches grouped by the year they were played, newest first, chronological
+  within a year.
 - Each year collapsible via `<details>`, open by default.
 - The competition named per row.
 - Finnish strings throughout.
@@ -57,7 +61,37 @@ through a dropdown.
 The cost is that the page fetches all six years on every cold render rather
 than one; see *Performance & Limits*, where that is bounded.
 
-## Why 2021 is the floor
+## A bucket is not a calendar year
+
+Found on the running page: 2019's and 2020's matches were appearing under a
+2021 heading.
+
+`maajp18` is not one season's worth of football. It holds **three calendar
+years**:
+
+| Category | Played | Matches |
+|---|---|---|
+| `ECQ` — Euro 2020 qualifying | **2019** | 10 |
+| `Miehet-A` — friendlies | **2019** | 2 |
+| `UNL` — 2020–21 Nations League | **2020** | 6 |
+| `EC` — Euro 2020 finals | 2021 | 3 |
+| `WCQ` — WC 2022 qualifying | 2021 | 8 |
+| `Miehet-A` — friendlies | 2021 | 4 |
+
+Every `maajp{YYYY}` bucket does hold only its own year today, so `maajp18` is
+the only one affected — but that is a fact about the current data, not a rule
+the provider guarantees.
+
+So the page groups by **each match's own kickoff date**, in Europe/Helsinki,
+which is the timezone the date column renders in. The bucket's nominal season
+is used only to pick a cache TTL.
+
+This also means the page reaches back to **2019**, not 2021: the earlier
+matches were always in the data, filed under a bucket whose id names a
+different year. The floor below is about which buckets are read, not about
+which years appear.
+
+## Why 2021 is the floor for reading
 
 #166 proposed 2015 with a gap at 2020–2021, having found `maajp2020` and
 `maajp2021` empty. Both observations were right; the conclusion was wrong.
@@ -68,8 +102,11 @@ than one; see *Performance & Limits*, where that is bounded.
 `tulospalvelu.palloliitto.fi/category/WCQ!maajp18/group/1`, which renders
 `KAUSI 2021`.
 
-So the floor is 2021, there is **no gap to explain**, and every season from
-2021 shares one modern category set. The two-era mapping is not needed.
+So the bucket floor is 2021, there is **no gap to explain**, and every season
+from 2021 shares one modern category set. The two-era mapping is not needed.
+
+Because `maajp18` reaches back to 2019, the page displays 2019 and 2020 as
+well — the years #166 believed were missing entirely.
 
 ## API & Data
 
@@ -162,6 +199,20 @@ unchanged.
 | 2025 | 10 | 10 | — |
 | 2026 | 10 | 10 | — |
 | **Total** | **85** | 109 | |
+
+Those are per **bucket**. Grouped by the year each match was played, the same
+85 fall out as:
+
+| Year | Matches |
+|---|---|
+| 2026 | 10 |
+| 2025 | 10 |
+| 2024 | 10 |
+| 2023 | 12 |
+| 2022 | 10 |
+| 2021 | 15 |
+| 2020 | 6 |
+| 2019 | 12 |
 
 2023's `ECQ` returns the whole Euro 2024 qualifying group — `Kazakstan -
 Slovenia`, `San Marino - Pohjois-Irlanti` and so on. Listing those on a page
@@ -266,7 +317,9 @@ The summary reads as the year and the match count, matching the cups' existing
 2024 (10 ottelua)
 2023 (12 ottelua)
 2022 (10 ottelua)
-2021 (33 ottelua)
+2021 (15 ottelua)
+2020 (6 ottelua)
+2019 (12 ottelua)
 ```
 
 A year with exactly one match reads `(1 ottelu)`, singular.
@@ -365,10 +418,14 @@ are small enough that this is the cheaper side of the trade.
 - [ ] `/maajoukkueet` lists `Huuhkajat` alongside `MM-kisat` and `EM-kisat`.
 - [ ] The `Huuhkajat` entry links to `/maajoukkueet/huuhkajat`, and the other
       two still link to their standings pages.
-- [ ] `/maajoukkueet/huuhkajat` shows every year from 2021 on one page, with no
-      season selector and no `Kilpailu` selector.
-- [ ] Years descend — 2026 first, 2021 last — and matches ascend by date within
+- [ ] `/maajoukkueet/huuhkajat` shows every year on one page, with no season
+      selector and no `Kilpailu` selector.
+- [ ] Years descend — 2026 first, 2019 last — and matches ascend by date within
       each year.
+- [ ] A match is filed under the year it was **played**: `maajp18`'s 2019 and
+      2020 matches appear under `2019` and `2020`, not under `2021`.
+- [ ] `2019` reads `(12 ottelua)` and holds `EM-karsinnat`; `2020` reads
+      `(6 ottelua)` and holds `UEFA Nations League`.
 - [ ] Each year is a collapsible section that opens and closes on click, and
       every section starts open.
 - [ ] Each section's summary reads `<year> (<n> ottelua)`, with `ottelu`
@@ -378,7 +435,7 @@ are small enough that this is the cheaper side of the trade.
       trailing ` Huuhkajat` left on any label.
 - [ ] 2021 renders from `maajp18` and is labelled `2021`, not `2018`.
 - [ ] 2021 includes the three `EM-lopputurnaus` matches and reads
-      `(33 ottelua)`.
+      `(15 ottelua)`.
 - [ ] 2023 reads `(12 ottelua)`, not 32: no match without Finland appears, and
       `Kazakstan - Slovenia` specifically does not.
 - [ ] A match not yet played shows an empty result, not `0–0`.

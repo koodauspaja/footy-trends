@@ -2,7 +2,7 @@
  * The Huuhkajat page's data rules — see specs/017-huuhkajat.md.
  *
  * Pure functions only: the mapping, the category rule, the label rule and the
- * Finland filter. Fetching lives in `huuhkajat-service.ts`, so every rule here
+ * Finland filter. Fetching lives in `mens-team-service.ts`, so every rule here
  * is testable without a provider.
  */
 
@@ -33,25 +33,30 @@ const COMPETITION_IDS: ReadonlyArray<readonly [year: number, competitionId: stri
   [2021, "maajp18"],
 ];
 
-/** Every year the page covers with its id, newest first. */
-export const HUUHKAJAT_SEASONS: ReadonlyArray<{ year: number; competitionId: string }> =
+/**
+ * Every provider bucket the page reads, newest first.
+ *
+ * `year` is the bucket's nominal season, used to pick a cache TTL. It is **not**
+ * the year a match is filed under on the page — see `groupByPlayedYear`.
+ */
+export const MENS_TEAM_SEASONS: ReadonlyArray<{ year: number; competitionId: string }> =
   COMPETITION_IDS.map(([year, competitionId]) => ({ year, competitionId }));
 
 /** Every year the page covers, newest first. */
-export const HUUHKAJAT_YEARS: readonly number[] = COMPETITION_IDS.map(([year]) => year);
+export const MENS_TEAM_YEARS: readonly number[] = COMPETITION_IDS.map(([year]) => year);
 
 /**
  * The newest year in the table, which drives the cache TTL split: it is
  * treated as still changing, every older year as immutable.
  */
-export const HUUHKAJAT_ACTIVE_YEAR = Math.max(...HUUHKAJAT_YEARS);
+export const MENS_TEAM_ACTIVE_YEAR = Math.max(...MENS_TEAM_YEARS);
 
 export function competitionIdForYear(year: number): string | null {
   return COMPETITION_IDS.find(([candidate]) => candidate === year)?.[1] ?? null;
 }
 
 /** A men's A-team category, paired with the label its rows will show. */
-export type HuuhkajatCategory = { categoryId: string; competitionName: string };
+export type MensTeamCategory = { categoryId: string; competitionName: string };
 
 /**
  * The categories in one year that belong to the men's A team, each already
@@ -69,7 +74,7 @@ export type HuuhkajatCategory = { categoryId: string; competitionName: string };
  * again later — a second lookup would need a fallback for a key that came out
  * of this very map, which cannot be missing.
  */
-export function huuhkajatCategories(categoryNames: Record<string, string>): HuuhkajatCategory[] {
+export function mensTeamCategories(categoryNames: Record<string, string>): MensTeamCategory[] {
   return Object.entries(categoryNames)
     .filter(([, name]) => name.endsWith(CATEGORY_SUFFIX))
     .map(([categoryId, name]) => ({ categoryId, competitionName: competitionLabel(name) }));
@@ -114,6 +119,52 @@ export function byKickoffThenId<T extends { kickoffAt: Date; providerMatchId: nu
 ): number {
   const byKickoff = left.kickoffAt.getTime() - right.kickoffAt.getTime();
   return byKickoff === 0 ? left.providerMatchId - right.providerMatchId : byKickoff;
+}
+
+/**
+ * The calendar year a match was played in, in Finnish local time — which is
+ * the timezone the date column is rendered in, so a late kick-off cannot be
+ * filed under one year and displayed under another.
+ */
+export function playedYear(kickoffAt: Date): number {
+  return Number(
+    new Intl.DateTimeFormat("fi-FI", {
+      timeZone: "Europe/Helsinki",
+      year: "numeric",
+    }).format(kickoffAt)
+  );
+}
+
+/**
+ * Matches grouped by the year they were **played**, newest year first,
+ * chronological within a year.
+ *
+ * Grouping by the provider bucket instead would be wrong, because a bucket is
+ * not a calendar year: `maajp18` holds Euro 2020 qualifying played in 2019,
+ * the 2020–21 Nations League played in 2020, and 2021's own matches. Filing
+ * all 33 under 2021 put a 2019 qualifier under a 2021 heading.
+ *
+ * Every `maajp{YYYY}` bucket happens to hold only its own year today, so this
+ * changes nothing for them — but it is the match's own date that decides,
+ * which is the only thing that stays true when a bucket spans again.
+ *
+ * Team-agnostic on purpose: Helmarit (#167) reads the same shaped data from
+ * the same buckets and needs the same correction.
+ */
+export function groupByPlayedYear<T extends { kickoffAt: Date; providerMatchId: number }>(
+  matches: readonly T[]
+): { year: number; matches: T[] }[] {
+  const byYear = new Map<number, T[]>();
+  for (const match of matches) {
+    const year = playedYear(match.kickoffAt);
+    const bucket = byYear.get(year);
+    if (bucket === undefined) byYear.set(year, [match]);
+    else bucket.push(match);
+  }
+
+  return [...byYear.entries()]
+    .sort(([left], [right]) => right - left)
+    .map(([year, yearMatches]) => ({ year, matches: yearMatches.sort(byKickoffThenId) }));
 }
 
 /** `1 ottelu`, `10 ottelua` — the count in a year's summary line. */
