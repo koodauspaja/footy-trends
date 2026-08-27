@@ -485,6 +485,26 @@ export async function getSeasonCategoryName(
   }
 }
 
+/**
+ * Every category name in one season, sharing `getSeasonCategoryName`'s cache
+ * entry and TTL.
+ *
+ * Unlike that function this one lets a failure through. Its caller discovers
+ * which competitions a season contains rather than dressing up one it already
+ * knows about, so a swallowed error would silently produce a season with no
+ * competitions instead of an error state. See specs/017-huuhkajat.md.
+ */
+export function getSeasonCategoryNameMap(
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<Record<string, string>> {
+  const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
+  return getCached<Record<string, string>>(`taso:categories:${competitionId}`, ttl, () =>
+    getSeasonCategoryNames(competitionId)
+  );
+}
+
 /** Stored rows, refreshed from TASO when stale. Round numbers are as TASO sends them. */
 async function loadSeasonMatches(
   categoryId: string,
@@ -509,7 +529,7 @@ async function loadSeasonMatches(
   }
 
   try {
-    const providerMatches = await getSeasonMatches(competitionId, categoryId);
+    const providerMatches = await getSeasonMatches(competitionId, categoryId, seasonId);
     await synchronizeMatches(providerMatches);
     return { matches: providerMatches, refreshFailed: false };
   } catch (error) {

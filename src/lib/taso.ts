@@ -242,34 +242,29 @@ export function normalizeTasoMatch(
   };
 }
 
-/** Every match TASO has for one category's season, regardless of group or status. */
+/**
+ * Every match TASO has for one category's season, regardless of group or
+ * status.
+ *
+ * `seasonId` is passed in rather than derived from `competitionId`. The
+ * derivation — an id's last two digits — is right for `spljp26` and wrong for
+ * `maajp18`, which is season 2021. Deriving it here stored that bucket's rows
+ * under 2018 while every read asked for 2021, so the database never answered
+ * and all five of its categories refetched on each request. The caller knows
+ * the season; nothing here has to guess it. See specs/017-huuhkajat.md.
+ */
 export async function getSeasonMatches(
   competitionId: string,
-  categoryId: string
+  categoryId: string,
+  seasonId: number
 ): Promise<NormalizedTasoMatch[]> {
   const response = await request<MatchesResponse>(
     `/getMatches?competition_id=${competitionId}&category_id=${categoryId}`
   );
   return (response.matches ?? []).flatMap((match) => {
-    const normalized = normalizeTasoMatch(
-      match,
-      competitionId,
-      categoryId,
-      seasonFromCompetitionId(competitionId)
-    );
+    const normalized = normalizeTasoMatch(match, competitionId, categoryId, seasonId);
     return normalized ? [normalized] : [];
   });
-}
-
-/**
- * TASO's `competition_id`s encode the season as a two-digit year suffix
- * (`spljp26` → 2026, `spljp15` → 2015) — there is no separate season field
- * in the matches response to read it from.
- */
-export function seasonFromCompetitionId(competitionId: string): number {
-  const suffix = competitionId.slice(-2);
-  const twoDigitYear = Number(suffix);
-  return 2000 + twoDigitYear;
 }
 
 /**
@@ -280,7 +275,7 @@ export function seasonFromCompetitionId(competitionId: string): number {
  */
 export const EARLIEST_TASO_SEASON = 2015;
 
-/** The inverse of `seasonFromCompetitionId`. */
+/** A season's `competition_id` in the domestic `spljpNN` scheme. */
 export function competitionIdFromSeason(seasonId: number): string {
   return `spljp${String(seasonId % 100).padStart(2, "0")}`;
 }

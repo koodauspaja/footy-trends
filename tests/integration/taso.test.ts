@@ -309,7 +309,7 @@ describe("taso integration", () => {
         and(eq(tasoMatches.competitionCode, competitionId), eq(tasoMatches.seasonId, seasonId))
       );
 
-    expect(getSeasonMatches).toHaveBeenCalledWith(competitionId, CATEGORY_ID);
+    expect(getSeasonMatches).toHaveBeenCalledWith(competitionId, CATEGORY_ID, seasonId);
     expect(stored).toHaveLength(1);
     expect(result.status).toBe("ok");
   });

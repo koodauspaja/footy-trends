@@ -3,6 +3,7 @@ import { tasoGroupTeams } from "@/db/schema";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
   getSeasonCategoryName,
+  getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
   getTeamMatches,
@@ -837,6 +838,31 @@ describe("getSeasonMatchList", () => {
     expect(result).toEqual({ status: "empty" });
   });
 
+  /**
+   * The bar for an error is "nothing to serve", not "the refresh failed".
+   * `/maajoukkueet/huuhkajat` depends on this: a failed refresh of a finished
+   * season must not blank a page whose stored rows are already complete. See
+   * specs/017-huuhkajat.md.
+   */
+  it("serves stored matches when the refresh fails, rather than reporting error", async () => {
+    // `updatedAt: 0` makes the row stale, so a refresh is attempted at all.
+    mockStoredMatches([match({ providerMatchId: 1, updatedAt: new Date(0) })]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
+
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(result.status).toBe("ok");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "TASO refresh failed; using stored matches"
+    );
+  });
+
   it("reports error when a refresh fails and nothing is stored", async () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
@@ -1468,7 +1494,7 @@ describe("group standings storage", () => {
     const result = await getSeasonStandings(CATEGORY_ID, "spljp22", 2022, 2022, undefined);
 
     // Both halves of the season came from TASO, not from storage.
-    expect(getSeasonMatchesMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
+    expect(getSeasonMatchesMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID, 2022);
     expect(getSeasonGroupsMock).toHaveBeenCalledWith("spljp22", CATEGORY_ID);
 
     const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 2) : undefined;
@@ -1515,6 +1541,66 @@ describe("group standings storage", () => {
 
     const group = result.status === "ok" ? result.groups[0] : undefined;
     expect(group?.kind === "own-calculated" && group.standings[1]?.points).toBe(-3);
+  });
+});
+
+describe("getSeasonCategoryNameMap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns every category name in the season", async () => {
+    getCachedMock.mockResolvedValue({ WCQ: "MM-karsinnat Huuhkajat", NA: "Naisten A-maaottelut" });
+
+    await expect(getSeasonCategoryNameMap("maajp2026", 2026, 2026)).resolves.toEqual({
+      WCQ: "MM-karsinnat Huuhkajat",
+      NA: "Naisten A-maaottelut",
+    });
+  });
+
+  it("shares the per-season cache key with the single-name lookup", async () => {
+    getCachedMock.mockResolvedValue({});
+
+    await getSeasonCategoryNameMap("maajp18", 2021, 2026);
+
+    expect(getCachedMock).toHaveBeenCalledWith(
+      "taso:categories:maajp18",
+      expect.any(Number),
+      expect.any(Function)
+    );
+  });
+
+  it("caches a past season for a year and the current one for fifteen minutes", async () => {
+    getCachedMock.mockResolvedValue({});
+
+    await getSeasonCategoryNameMap("maajp18", 2021, 2026);
+    await getSeasonCategoryNameMap("maajp2026", 2026, 2026);
+
+    expect(getCachedMock.mock.calls[0]?.[1]).toBe(60 * 60 * 24 * 365);
+    expect(getCachedMock.mock.calls[1]?.[1]).toBe(15 * 60);
+  });
+
+  it("asks TASO for the season's categories on a cache miss", async () => {
+    getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+    getSeasonCategoryNamesMock.mockResolvedValue({ WCQ: "MM-karsinnat Huuhkajat" });
+
+    await expect(getSeasonCategoryNameMap("maajp2026", 2026, 2026)).resolves.toEqual({
+      WCQ: "MM-karsinnat Huuhkajat",
+    });
+    expect(getSeasonCategoryNamesMock).toHaveBeenCalledWith("maajp2026");
+  });
+
+  /**
+   * Unlike `getSeasonCategoryName`, this one lets a failure through: its
+   * caller discovers which competitions a season holds, so a swallowed error
+   * would look like a season with none. See specs/017-huuhkajat.md.
+   */
+  it("propagates a failure rather than returning an empty map", async () => {
+    getCachedMock.mockRejectedValue(new Error("provider unavailable"));
+
+    await expect(getSeasonCategoryNameMap("maajp2026", 2026, 2026)).rejects.toThrow(
+      "provider unavailable"
+    );
   });
 });
 

@@ -23,7 +23,11 @@ export default defineConfig({
       // is a subject of coverage. Without this a JSON fixture is reported as a
       // permanently 0%-covered file, which both adds noise and drags the
       // totals down — hiding a real regression in src/.
-      exclude: ["node_modules", ".next", "vitest.config.ts", "tests/**"],
+      //
+      // Stylesheets are not executable code and have nothing to cover. Vite
+      // processes `import "./globals.css"` in the root layout, so once that
+      // layout gained a test the file appeared in the report as a 0/0 entry.
+      exclude: ["node_modules", ".next", "vitest.config.ts", "tests/**", "**/*.css"],
     },
   },
   resolve: {

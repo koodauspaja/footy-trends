@@ -6,7 +6,6 @@ import {
   getSeasonMatches,
   normalizeGroupTeams,
   normalizeTasoMatch,
-  seasonFromCompetitionId,
 } from "@/lib/taso";
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock } = vi.hoisted(() => ({
@@ -31,11 +30,6 @@ describe("taso mapping", () => {
 
   afterEach(() => {
     process.env.TASO_API_KEY = originalApiKey;
-  });
-
-  it("derives the season year from the competition_id's two-digit suffix", () => {
-    expect(seasonFromCompetitionId("spljp26")).toBe(2026);
-    expect(seasonFromCompetitionId("spljp15")).toBe(2015);
   });
 
   it("maps a played match, treating team_A as home, converting every string field to its real type", () => {
@@ -401,7 +395,7 @@ describe("taso mapping", () => {
       })
     );
 
-    await expect(getSeasonMatches("spljp22", "VL")).resolves.toEqual([
+    await expect(getSeasonMatches("spljp22", "VL", 2022)).resolves.toEqual([
       expect.objectContaining({ providerMatchId: 2 }),
     ]);
   });
@@ -437,7 +431,7 @@ describe("taso mapping", () => {
       })
     );
 
-    const result = await getSeasonMatches("spljp26", "VL");
+    const result = await getSeasonMatches("spljp26", "VL", 2026);
 
     expect(result).toEqual([expect.objectContaining({ providerMatchId: 1, seasonId: 2026 })]);
   });
@@ -449,7 +443,7 @@ describe("taso mapping", () => {
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
     vi.stubGlobal("fetch", fetchMock);
 
-    await getSeasonMatches("spljp26", "VL");
+    await getSeasonMatches("spljp26", "VL", 2026);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://spl.torneopal.net/taso/rest/getMatches?competition_id=spljp26&category_id=VL",
@@ -475,13 +469,13 @@ describe("taso mapping", () => {
       vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     );
 
-    await expect(getSeasonMatches("spljp26", "VL")).resolves.toEqual([]);
+    await expect(getSeasonMatches("spljp26", "VL", 2026)).resolves.toEqual([]);
   });
 
   it("throws when the API key is not configured", async () => {
     process.env.TASO_API_KEY = "";
 
-    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow(
+    await expect(getSeasonMatches("spljp26", "VL", 2026)).rejects.toThrow(
       "TASO_API_KEY is not configured"
     );
   });
@@ -490,7 +484,9 @@ describe("taso mapping", () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
 
-    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow("TASO request failed: 403");
+    await expect(getSeasonMatches("spljp26", "VL", 2026)).rejects.toThrow(
+      "TASO request failed: 403"
+    );
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 403 }),
       "TASO request failed"
@@ -502,7 +498,7 @@ describe("taso mapping", () => {
     const networkError = new Error("network unreachable");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(networkError));
 
-    await expect(getSeasonMatches("spljp26", "VL")).rejects.toThrow("network unreachable");
+    await expect(getSeasonMatches("spljp26", "VL", 2026)).rejects.toThrow("network unreachable");
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: networkError }),
       "TASO request failed"

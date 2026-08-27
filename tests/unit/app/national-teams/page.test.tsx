@@ -11,12 +11,41 @@ describe("National teams page (competition picker)", () => {
     expect(metadata.title).toBe("Valitse kilpailu");
   });
 
-  it("lists only the national-team competitions", () => {
+  it("lists only the national-team competitions, with Huuhkajat last", () => {
     render(<NationalTeams />);
 
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(2);
-    expect(links.map((link) => link.textContent)).toEqual(["MM-kisat", "EM-kisat"]);
+    expect(links).toHaveLength(3);
+    expect(links.map((link) => link.textContent)).toEqual(["MM-kisat", "EM-kisat", "Huuhkajat"]);
+  });
+
+  /**
+   * Huuhkajat is TASO-backed and has no standings page, so it is neither in
+   * `SUPPORTED_COMPETITIONS` nor linked like the two football-data
+   * tournaments. See specs/017-huuhkajat.md.
+   */
+  it("links Huuhkajat to its own page rather than to a standings page", () => {
+    render(<NationalTeams />);
+
+    // The icon's alt text joins the accessible name, so match on the label.
+    const huuhkajat = screen.getByRole("link", { name: /Huuhkajat$/ });
+    expect(huuhkajat).toHaveAttribute("href", "/maajoukkueet/huuhkajat");
+    expect(huuhkajat.getAttribute("href")).not.toContain("kilpailu=");
+  });
+
+  it("keeps Huuhkajat out of the football-data competition list", () => {
+    expect(competitionsInRegion("national-teams").map((c) => c.name)).toEqual([
+      "MM-kisat",
+      "EM-kisat",
+    ]);
+  });
+
+  it("gives Huuhkajat the Finnish flag", () => {
+    render(<NationalTeams />);
+
+    const icon = screen.getByRole("link", { name: /Huuhkajat$/ }).querySelector("img");
+    expect(icon).toHaveAttribute("src", "/finland.svg");
+    expect(icon).toHaveAttribute("alt", "Suomi");
   });
 
   it("links each one into its own region, not into Ulkomaat", () => {
