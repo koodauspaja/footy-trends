@@ -23,9 +23,15 @@ function serverResponse(): ServerResponse {
  */
 describe("instrumentation", () => {
   let original: PropertyDescriptor | undefined;
+  let nodeDefault: number;
 
   beforeEach(() => {
     original = Object.getOwnPropertyDescriptor(ServerResponse.prototype, "_maxListeners");
+    // Captured before `register` runs. Asserting against the live
+    // `EventEmitter.defaultMaxListeners` would read the same global the
+    // assertion is meant to protect, and would still pass if `register` raised
+    // it globally instead of scoping the change to responses.
+    nodeDefault = EventEmitter.defaultMaxListeners;
     vi.resetModules();
     vi.unstubAllEnvs();
   });
@@ -63,7 +69,7 @@ describe("instrumentation", () => {
   it("leaves every other emitter on Node's default, so a real leak still warns", async () => {
     await register("nodejs");
 
-    expect(new EventEmitter().getMaxListeners()).toBe(EventEmitter.defaultMaxListeners);
+    expect(new EventEmitter().getMaxListeners()).toBe(nodeDefault);
   });
 
   /**
@@ -83,6 +89,6 @@ describe("instrumentation", () => {
   it("does not touch the limit on the edge runtime, which has no ServerResponse", async () => {
     await register("edge");
 
-    expect(serverResponse().getMaxListeners()).toBe(EventEmitter.defaultMaxListeners);
+    expect(serverResponse().getMaxListeners()).toBe(nodeDefault);
   });
 });

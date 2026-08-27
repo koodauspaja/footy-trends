@@ -210,10 +210,10 @@ Read the count in the dump, not its presence: it lists every listener on that
 one response. Compare that number with `SERVER_RESPONSE_MAX_LISTENERS` in
 `src/instrumentation.ts`.
 
-- **11, or anything below 20** — as measured, nothing to do.
-- **20 or more** — the listener count has grown past the limit, the warning is
-  back in production, and the constant needs raising. Record the new
-  measurement in the table above.
+- **11, or anything up to and including 20** — within the limit, nothing to do.
+- **21 or more** — Node warns only past the configured limit, so this is the
+  point where the warning is back in production and the constant needs raising.
+  Record the new measurement in the table above.
 
 (Before #174 raised the limit, no output meant the warning was gone. That is no
 longer true: the probe's threshold and the app's are now different numbers.)
