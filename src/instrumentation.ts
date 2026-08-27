@@ -1,5 +1,3 @@
-import { setMaxListeners } from "node:events";
-import { ServerResponse } from "node:http";
 import * as Sentry from "@sentry/nextjs";
 
 /**
@@ -16,11 +14,18 @@ import * as Sentry from "@sentry/nextjs";
  * still warns at Node's default. Measured in #129, silenced in #174; the probe
  * for re-measuring after a Next or Sentry upgrade is in
  * docs/setup/017-sentry-setup.md.
+ *
+ * `node:events` and `node:http` are imported inside the branch, not at the top
+ * of the file: this module is bundled for the edge runtime as well, and a
+ * static import of a Node builtin makes that bundle warn on every request —
+ * which is the same noise this is meant to remove.
  */
 const SERVER_RESPONSE_CLOSE_LISTENERS = 20;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { setMaxListeners } = await import("node:events");
+    const { ServerResponse } = await import("node:http");
     setMaxListeners(SERVER_RESPONSE_CLOSE_LISTENERS, ServerResponse.prototype);
     await import("../sentry.server.config");
   }
