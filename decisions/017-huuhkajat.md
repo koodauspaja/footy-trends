@@ -99,10 +99,10 @@ categories, and TASO publishes names in Finnish already.
 empty team names and dates, already dropped by `normalizeTasoMatch`'s kickoff
 guard. Two causes, one number; recorded so they are not conflated later.
 
-## One failed bucket fails the whole page
+## A bucket that cannot be served fails the whole page
 
-`loadSeason` returns `null` on failure rather than an empty list, and any `null`
-makes the page an error.
+`loadSeason` returns `null` rather than an empty list, and any `null` makes the
+page an error.
 
 The alternative — render the years that loaded — is worse specifically because
 this page shows every year at once. A missing year leaves no gap a reader could
@@ -110,8 +110,22 @@ notice: there is no selector entry greyed out, no empty section, nothing on
 screen that says 2023 should have been there. A page that is quietly
 incomplete is worse than one that admits it failed.
 
-An **empty** category is not a failure and does not trigger this:
-`maajp2025/UNL` genuinely exists with zero matches.
+**But the bar is "cannot be served", not "anything went wrong",** and an
+earlier draft of this document overstated it. `getSeasonMatchList` answers `ok`
+with stored rows when a TASO refresh fails, so an outage serves the database's
+copy; only a category with nothing stored *and* a failed refresh reaches
+`null`.
+
+That is the app-wide behaviour and it is the right one here. Every year but the
+current one is a finished season, so its stored rows are complete and a failed
+refresh changes nothing a reader could see — "stale" has no meaning for 2019.
+Only the current year can lag, by one refresh interval, which is the exposure
+every page in the app already carries. Failing the whole page because a
+finished season could not be re-fetched would trade correct data for a blank
+screen.
+
+An **empty** category is not a failure either: `maajp2025/UNL` genuinely exists
+with zero matches.
 
 ## `getSeasonCategoryNameMap`, and why it throws
 

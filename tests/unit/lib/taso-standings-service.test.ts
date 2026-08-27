@@ -838,6 +838,31 @@ describe("getSeasonMatchList", () => {
     expect(result).toEqual({ status: "empty" });
   });
 
+  /**
+   * The bar for an error is "nothing to serve", not "the refresh failed".
+   * `/maajoukkueet/huuhkajat` depends on this: a failed refresh of a finished
+   * season must not blank a page whose stored rows are already complete. See
+   * specs/017-huuhkajat.md.
+   */
+  it("serves stored matches when the refresh fails, rather than reporting error", async () => {
+    // `updatedAt: 0` makes the row stale, so a refresh is attempted at all.
+    mockStoredMatches([match({ providerMatchId: 1, updatedAt: new Date(0) })]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
+
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(result.status).toBe("ok");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "TASO refresh failed; using stored matches"
+    );
+  });
+
   it("reports error when a refresh fails and nothing is stored", async () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));

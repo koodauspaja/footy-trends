@@ -370,8 +370,16 @@ There is no invalid-season notice, because there is no season parameter.
    load-failure string. A page silently missing a year, with no indication
    which, is worse than an honest error, because nothing on it would reveal the
    gap.
-5. **One category's `getMatches` fails while others succeed** — same: the
-   load-failure string, not a partial list.
+5. **One category's `getMatches` fails while others succeed** — if the database
+   holds that category's rows they are served, matching every other page in the
+   app. Only a category with nothing stored **and** a failed refresh renders
+   the load-failure string.
+
+   A lower bar than "any failure fails the page", and deliberately so: every
+   year but the current one is a finished season, so its stored rows are
+   complete and a failed refresh changes nothing a reader would see. The
+   current year can lag by one refresh interval, which is the exposure every
+   page in the app already carries.
 6. **A `?kausi=` query string** — ignored, not an error. Old links from any
    draft, and hand-typed params, render the normal page.
 7. **A category name not ending ` Huuhkajat`** — cannot appear, since that
@@ -473,8 +481,10 @@ are small enough that this is the cheaper side of the trade.
 - No matches at all renders `Otteluita ei ole saatavilla.`
 - A failing `getCategories` for any year renders the load-failure string, not a
   page missing one year.
-- One failing category renders the load-failure string rather than a partial
-  list.
+- A category with nothing stored and a failed refresh renders the load-failure
+  string.
+- A category whose refresh fails but whose rows are stored renders those rows,
+  rather than failing the page.
 - `?kausi=2023` renders the same page as no query string.
 - Metadata: the title carries `Huuhkajat`.
 

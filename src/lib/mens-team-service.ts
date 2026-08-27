@@ -21,13 +21,22 @@ export type MensTeamResult =
   | { status: "error" };
 
 /**
- * One provider bucket's Finland matches, or `null` if any part of it failed.
+ * One provider bucket's Finland matches, or `null` if the bucket cannot be
+ * served at all.
  *
  * `null` rather than an empty list precisely because the two must not be
  * confused: an empty category is normal (2025's `UNL` exists and holds no
- * matches), while a failed one has to reach the reader as an error. A year
- * quietly missing from a page that shows all of them is invisible — nothing on
- * screen would say which one went absent.
+ * matches), while a category that cannot be read has to reach the reader as an
+ * error. A year quietly missing from a page that shows all of them is
+ * invisible — nothing on screen would say which one went absent.
+ *
+ * "Cannot be served at all" is the exact bar, and it is lower than it sounds.
+ * `getSeasonMatchList` answers `ok` with stored rows when a refresh fails, so
+ * a TASO outage serves the database's copy rather than an error, and only a
+ * category with nothing stored *and* a failed refresh reaches `null`. That is
+ * the app-wide behaviour and it is right here: every year but the current one
+ * is a finished season whose stored rows are complete, so "stale" has no
+ * meaning for them. Only the current year can lag, by one refresh interval.
  *
  * The returned matches are not yet grouped: which year each belongs to is
  * decided by its own date, not by this bucket's nominal season.
@@ -88,8 +97,8 @@ async function loadSeason(
  * actually played in, because a bucket is not a calendar year — `maajp18`
  * holds matches from 2019, 2020 and 2021.
  *
- * Any single failure fails the whole page, for the reason given on
- * `loadSeason`.
+ * A bucket that cannot be served fails the whole page, for the reason given on
+ * `loadSeason` — which is a narrower condition than any failure.
  */
 export async function getMensTeamYears(): Promise<MensTeamResult> {
   const loaded = await Promise.all(

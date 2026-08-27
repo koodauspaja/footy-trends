@@ -20,15 +20,19 @@ test.describe("Huuhkajat", () => {
 
     await expect(page.getByLabel("Kausi")).toHaveCount(0);
     await expect(page.getByLabel("Kilpailu")).toHaveCount(0);
-    // Named years, not a count: a loose assertion would pass with 2022 or 2023
-    // silently absent, which is the bug class this page is most exposed to.
-    //
-    // 2019-2025 are finished seasons and cannot become empty, so they must all
-    // be present. The current year is deliberately left out of this list: the
-    // page omits a year with no matches, so pinning it would fail every
-    // January for an application behaving exactly as specified.
+    // Exact on the finished seasons, which cannot gain or lose matches: a
+    // missing 2022, or an unexpected extra section, both fail here. The
+    // current year is filtered out rather than pinned, because the page omits
+    // a year with no matches and January would otherwise fail an application
+    // behaving exactly as specified.
     const years = (await page.locator("details h2").allTextContents()).map(Number);
-    expect(years).toEqual(expect.arrayContaining([2025, 2024, 2023, 2022, 2021, 2020, 2019]));
+    const currentYear = new Date().getFullYear();
+    expect(years.filter((year) => year !== currentYear)).toEqual([
+      2025, 2024, 2023, 2022, 2021, 2020, 2019,
+    ]);
+    // Present or not, the current year can only be the newest section.
+    expect(years.filter((year) => year === currentYear).length).toBeLessThanOrEqual(1);
+    if (years.includes(currentYear)) expect(years[0]).toBe(currentYear);
   });
 
   test("orders the years newest first", async ({ page }) => {
