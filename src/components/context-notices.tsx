@@ -1,4 +1,3 @@
-import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
 import type { BasePageContext } from "@/lib/page-context";
 import { Notice } from "./notice";
 
@@ -16,9 +15,7 @@ export function ContextNotices({ resolved }: Readonly<{ resolved: ResolvedContex
   return (
     <>
       {resolved.competitionParam.kind === "invalid" && (
-        <Notice>
-          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </Notice>
+        <Notice>Kilpailua ei löytynyt. Näytetään {resolved.competitionName}.</Notice>
       )}
       {resolved.season.kind === "invalid" && (
         <Notice>Kautta ei löytynyt. Näytetään kausi {resolved.seasonLabel}.</Notice>

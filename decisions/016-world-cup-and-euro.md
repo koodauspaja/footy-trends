@@ -137,6 +137,29 @@ A second, smaller copy went with it: `localiseIfNationalTeams` existed in both
 the standings and matches modules. Below Sonar's threshold, but the same
 mistake, so it moved into `country-names.ts` as `localiseForRegion`.
 
+## A region default the notice did not follow
+
+Sourcery's review round caught a real one. `resolveBasePageContext` falls back
+to `defaultCompetitionFor(region)` when `kilpailu` is missing or names a
+competition from another region — that is the whole point of the per-region
+default. The banner announcing the fallback did not: it formatted
+`DEFAULT_COMPETITION_CODE` directly, which is `PL`.
+
+So `/maajoukkueet/sarjataulukko?kilpailu=PL` rendered the heading `MM-kisat
+2026` above the notice *"Kilpailua ei löytynyt. Näytetään Valioliiga."* — the
+page contradicting itself about which competition it was showing.
+
+Five render sites, not one: `ContextNotices` is used twice each by the
+standings and matches pages (league shape and cup shape), plus the team page's
+own copy. Both now interpolate the already-resolved `competitionName`, which
+every caller had in hand — a smaller change than passing the region down, and
+the shape `/kotimaa`'s pages already used.
+
+The test that should have caught it asserted
+`toHaveTextContent("Kilpailua ei löytynyt.")` — a substring match that stops
+one word before the mistake. It now asserts the whole sentence, and the two
+other national-team pages assert it too, so all five sites are pinned.
+
 ## Verification
 
 Checked against the running app, not only tests:
@@ -151,6 +174,6 @@ Checked against the running app, not only tests:
 - No leg column on either; Champions League still shows `Osaottelu`.
 - Headings read `MM-kisat 2026` and `EM-kisat 2024`; CL still `2024/25`.
 
-Unit tests: **773 passing, 100% statements, branches, functions and lines.**
+Unit tests: **780 passing, 100% statements, branches, functions and lines.**
 Integration 21. Eight new Playwright specs pass locally, alongside the existing
 `/ulkomaat` suite as the refactor's regression test.

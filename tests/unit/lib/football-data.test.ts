@@ -5,6 +5,7 @@ import {
   getSeasonMatches,
   MATCHES_CACHE_TTL_SECONDS,
   normalizeMatch,
+  seasonSpansCalendarYears,
   selectActiveSeason,
   selectUpcomingSeason,
 } from "@/lib/football-data";
@@ -527,5 +528,31 @@ describe("football-data mapping", () => {
       "https://api.football-data.org/v4/competitions/BL1/matches?season=2025",
       { headers: { "X-Auth-Token": "test-api-key" } }
     );
+  });
+});
+
+describe("seasonSpansCalendarYears", () => {
+  it("is false for a tournament played inside one calendar year", () => {
+    expect(
+      seasonSpansCalendarYears({ id: 2026, startDate: "2026-06-11", endDate: "2026-07-19" })
+    ).toBe(false);
+  });
+
+  it("is true for a league season crossing the new year", () => {
+    expect(
+      seasonSpansCalendarYears({ id: 2024, startDate: "2024-08-16", endDate: "2025-05-25" })
+    ).toBe(true);
+  });
+
+  it("treats a season with no end date as spanning, which is what leagues do", () => {
+    expect(seasonSpansCalendarYears({ id: 2025, startDate: "2025-08-15" })).toBe(true);
+  });
+
+  it("treats a season with no start date as spanning", () => {
+    expect(seasonSpansCalendarYears({ id: 2025, endDate: "2026-05-24" })).toBe(true);
+  });
+
+  it("treats a missing season as spanning", () => {
+    expect(seasonSpansCalendarYears(undefined)).toBe(true);
   });
 });

@@ -104,7 +104,12 @@ describe("National-teams standings page", () => {
     await renderStandings({ kilpailu: "PL" });
 
     expect(screen.getByRole("heading", { name: "MM-kisat 2026" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Kilpailua ei löytynyt.");
+    // The whole sentence, not just its opening: the notice has to name the
+    // competition actually being shown, which is the region's default rather
+    // than the app-wide one.
+    expect(screen.getByRole("status").textContent).toBe(
+      "Kilpailua ei löytynyt. Näytetään MM-kisat."
+    );
   });
 });
 
@@ -123,6 +128,15 @@ describe("National-teams matches page", () => {
     expect(screen.getByRole("link", { name: "Alankomaat" })).toHaveAttribute(
       "href",
       "/maajoukkueet/joukkue/1?kilpailu=WC&kausi=2026"
+    );
+  });
+
+  it("names the region's own default in the invalid-competition notice", async () => {
+    const { default: Page } = await import("@/app/national-teams/matches/page");
+    render(await Page({ searchParams: Promise.resolve({ kilpailu: "PL", vaihe: "FINAL" }) }));
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Kilpailua ei löytynyt. Näytetään MM-kisat."
     );
   });
 });
@@ -145,6 +159,20 @@ describe("National-teams team page", () => {
     );
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("Alankomaat");
+  });
+
+  it("names the region's own default in the invalid-competition notice", async () => {
+    const { default: Page } = await import("@/app/national-teams/team/[id]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ id: "1" }),
+        searchParams: Promise.resolve({ kilpailu: "PL" }),
+      })
+    );
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Kilpailua ei löytynyt. Näytetään MM-kisat."
+    );
   });
 });
 

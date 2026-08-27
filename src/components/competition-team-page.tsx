@@ -4,7 +4,6 @@ import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { DEFAULT_COMPETITION_CODE, getCompetitionName } from "@/lib/competitions";
 import { toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
@@ -140,9 +139,7 @@ export async function CompetitionTeamPage({
         </Link>
       </p>
       {competitionParam.kind === "invalid" && (
-        <Notice>
-          Kilpailua ei löytynyt. Näytetään {getCompetitionName(DEFAULT_COMPETITION_CODE)}.
-        </Notice>
+        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
       )}
       {season.kind === "invalid" && (
         <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
