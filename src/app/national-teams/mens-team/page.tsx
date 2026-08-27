@@ -19,6 +19,22 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
 export const metadata: Metadata = { title: HEADING };
 
 /**
+ * Rendered per request, never prerendered.
+ *
+ * Every other data-backed page reads `searchParams`, which makes it dynamic on
+ * its own. This one takes no parameters — it has no season selector — so Next
+ * prerendered it at build time, where Railway's private network does not exist:
+ * `*.railway.internal` is runtime-only, so the build container cannot resolve
+ * the database at all.
+ *
+ * The prerender therefore failed every bucket and **baked the error page into
+ * the static output**, which was then served to every visitor regardless of
+ * runtime health. `/api/health` reported the database as fine throughout,
+ * because it is dynamic and was genuinely fine. See #182.
+ */
+export const dynamic = "force-dynamic";
+
+/**
  * One year, collapsible.
  *
  * `<details>` rather than client-side state, the same shape the Finnish cups

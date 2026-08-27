@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 const pingMock = vi.fn();
+const getSeasonCategoryNamesMock = vi.fn();
 const loggerErrorMock = vi.fn();
 const loggerWarnMock = vi.fn();
 const loggerInfoMock = vi.fn();
@@ -16,6 +17,11 @@ vi.mock("@/lib/redis", () => ({
   redis: {
     ping: pingMock,
   },
+}));
+
+vi.mock("@/lib/taso", () => ({
+  getSeasonCategoryNames: getSeasonCategoryNamesMock,
+  competitionIdFromSeason: (season: number) => `spljp${String(season % 100)}`,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -35,6 +41,7 @@ describe("GET /api/health", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    getSeasonCategoryNamesMock.mockResolvedValue({ VL: "Veikkausliiga" });
   });
 
   it("returns healthy response and logs one info entry when database and redis checks pass", async () => {
@@ -50,6 +57,7 @@ describe("GET /api/health", () => {
     expect(body.checks).toEqual({
       database: "ok",
       redis: "ok",
+      taso: "ok",
     });
     expect(loggerErrorMock).not.toHaveBeenCalled();
     expect(loggerWarnMock).not.toHaveBeenCalled();
@@ -59,7 +67,7 @@ describe("GET /api/health", () => {
         method: "GET",
         path: "/api/health",
         status: 200,
-        checks: { database: "ok", redis: "ok" },
+        checks: { database: "ok", redis: "ok", taso: "ok" },
       }),
       "API request completed"
     );
@@ -79,12 +87,16 @@ describe("GET /api/health", () => {
     expect(body.checks).toEqual({
       database: "error",
       redis: "ok",
+      taso: "ok",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith({ err: dbError }, "Database health check failed");
     expect(loggerWarnMock).not.toHaveBeenCalled();
     expect(loggerInfoMock).toHaveBeenCalledTimes(1);
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 503, checks: { database: "error", redis: "ok" } }),
+      expect.objectContaining({
+        status: 503,
+        checks: { database: "error", redis: "ok", taso: "ok" },
+      }),
       "API request completed"
     );
   });
@@ -102,6 +114,7 @@ describe("GET /api/health", () => {
     expect(body.checks).toEqual({
       database: "ok",
       redis: "error",
+      taso: "ok",
     });
     expect(loggerWarnMock).toHaveBeenCalledWith(
       { err: { error: "redis unavailable" } },
@@ -110,7 +123,10 @@ describe("GET /api/health", () => {
     expect(loggerErrorMock).not.toHaveBeenCalled();
     expect(loggerInfoMock).toHaveBeenCalledTimes(1);
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 200, checks: { database: "ok", redis: "error" } }),
+      expect.objectContaining({
+        status: 200,
+        checks: { database: "ok", redis: "error", taso: "ok" },
+      }),
       "API request completed"
     );
   });
@@ -129,6 +145,7 @@ describe("GET /api/health", () => {
     expect(body.checks).toEqual({
       database: "error",
       redis: "error",
+      taso: "ok",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith({ err: dbError }, "Database health check failed");
     expect(loggerWarnMock).toHaveBeenCalledWith(
@@ -137,8 +154,60 @@ describe("GET /api/health", () => {
     );
     expect(loggerInfoMock).toHaveBeenCalledTimes(1);
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 503, checks: { database: "error", redis: "error" } }),
+      expect.objectContaining({
+        status: 503,
+        checks: { database: "error", redis: "error", taso: "ok" },
+      }),
       "API request completed"
     );
+  });
+});
+
+describe("GET /api/health — provider check", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    executeMock.mockResolvedValue(undefined);
+    pingMock.mockResolvedValue("PONG");
+  });
+
+  it("reports the provider as ok when it answers", async () => {
+    getSeasonCategoryNamesMock.mockResolvedValue({ VL: "Veikkausliiga" });
+    const GET = await loadGetRoute();
+
+    const body = await (await GET()).json();
+
+    expect(body.checks.taso).toBe("ok");
+  });
+
+  /**
+   * The gap #182 exposed: every page but one was fine, the endpoint reported
+   * everything healthy, and there was no way to ask whether the provider was
+   * reachable short of probing pages one at a time.
+   */
+  it("reports the provider as error when it cannot be reached", async () => {
+    getSeasonCategoryNamesMock.mockRejectedValue(new Error("TASO request failed: 403"));
+    const GET = await loadGetRoute();
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.checks.taso).toBe("error");
+    expect(loggerWarnMock).toHaveBeenCalledWith(expect.anything(), "TASO health check failed");
+  });
+
+  /**
+   * Non-fatal on purpose: pages backed by stored rows keep serving, so a
+   * provider outage must not make the whole service look down to a platform
+   * health probe.
+   */
+  it("stays 200 when only the provider is unreachable", async () => {
+    getSeasonCategoryNamesMock.mockRejectedValue(new Error("TASO request failed: 403"));
+    const GET = await loadGetRoute();
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe("ok");
   });
 });

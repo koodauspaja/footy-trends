@@ -445,6 +445,24 @@ are small enough that this is the cheaper side of the trade.
 - The e2e suite must run with `--workers=1`; the parallel default exhausts
   football-data.org's free-tier quota on the neighbouring pages.
 
+## Rendering mode
+
+The page must be **dynamic**, via `export const dynamic = "force-dynamic"`.
+
+Every other data-backed page in the app reads `searchParams` and is therefore
+dynamic without saying so. This one takes no parameters — that is what dropping
+the season selector bought — so Next prerenders it at build time unless told
+otherwise.
+
+That is not a preference. Railway's private network is runtime-only:
+`*.railway.internal` does not resolve in a build container. A prerender there
+fails every query with `ENOTFOUND postgres.railway.internal`, the page renders
+its error state, and that error is **baked into the static output** and served
+to every visitor afterwards. The build exits 0 and the health endpoint reports
+the database as fine, because at runtime it is. See #182.
+
+Helmarit (#167) is the same shape and needs the same export.
+
 ## Security & Secrets
 
 - `TASO_API_KEY` only, already configured, already in `.env.example`. No new

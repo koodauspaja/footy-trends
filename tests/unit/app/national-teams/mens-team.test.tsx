@@ -182,6 +182,20 @@ describe("Huuhkajat page", () => {
     expect(document.querySelectorAll("details")).toHaveLength(0);
   });
 
+  /**
+   * The bug in #182. This page takes no `searchParams`, so nothing makes it
+   * dynamic implicitly the way every other data-backed page is. Next
+   * prerendered it, the build container could not resolve
+   * `postgres.railway.internal` — Railway's private network is runtime-only —
+   * and the error page was baked into the static output and served to
+   * everyone.
+   */
+  it("is rendered per request, never prerendered", async () => {
+    const { dynamic } = await import("@/app/national-teams/mens-team/page");
+
+    expect(dynamic).toBe("force-dynamic");
+  });
+
   it("titles the browser tab with the team", async () => {
     const { metadata } = await import("@/app/national-teams/mens-team/page");
 
