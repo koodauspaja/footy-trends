@@ -1,0 +1,200 @@
+# Runs the full suite against the release branch, which is what production
+# deploys from. Separate from ci.yml deliberately: this is the only place e2e
+# runs (see #81), and static analysis is *not* repeated here because a release
+# PR carries commits already reviewed on their way into main.
+#
+# The `push` trigger is not optional. Railway only offers its "Wait for CI"
+# setting when a workflow has a push trigger for the tracked branch, and that
+# setting is what stops a deploy whose tests failed. `pull_request` alone would
+# gate the merge but leave the deploy ungated.
+#
+# `workflow_dispatch` exists so this can be exercised without cutting a
+# release — the first real release should not be the first time it runs.
+name: Release
+
+on:
+  pull_request:
+    branches:
+      - release
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - release
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: Release — typecheck, lint and unit tests
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == vars.OWNER_USERNAME ||
+      github.actor == vars.COLLABORATOR_USERNAME ||
+      github.actor == 'renovate[bot]'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+  integration:
+    name: Release — integration tests
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == vars.OWNER_USERNAME ||
+      github.actor == vars.COLLABORATOR_USERNAME ||
+      github.actor == 'renovate[bot]'
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: footy-trends
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      - name: Integration tests
+        run: npm run test:integration
+
+  e2e:
+    name: Release — end-to-end tests
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == vars.OWNER_USERNAME ||
+      github.actor == vars.COLLABORATOR_USERNAME ||
+      github.actor == 'renovate[bot]'
+
+    # Longer than the other jobs by design: 86 specs run serially against live
+    # providers. The default 360 minutes would let a rate-limit stall burn an
+    # hour before anyone noticed.
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: footy-trends
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
+      REDIS_URL: redis://localhost:6379
+      # tests/e2e/global-setup.ts fails fast without these rather than letting
+      # every spec time out against a generic error page.
+      FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+      TASO_API_KEY: ${{ secrets.TASO_API_KEY }}
+      # Literals rather than `vars.*`: an undefined repository variable expands
+      # to an empty string, both of these fall back to a default when unparseable,
+      # and the suite would then run against a season floor nobody chose. These
+      # match .env.example.
+      FOOTBALL_DATA_EARLIEST_SEASON: "2023"
+      FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS: "3600"
+      # Switches playwright.config.ts's webServer from `next dev` to `npm start`.
+      E2E_TARGET: build
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Chromium only, per #81. `--with-deps` because the runner has none of
+      # the shared libraries a headless browser needs.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run database migrations
+        run: npm run db:migrate
+
+      # Built here rather than by Playwright's webServer: a release gate should
+      # exercise what ships, and `webServer` runs a single command with a
+      # start-up timeout that a full build would blow through.
+      - name: Build
+        run: npm run build
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

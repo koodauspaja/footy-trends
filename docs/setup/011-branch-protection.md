@@ -171,11 +171,44 @@ conclusion before handoff.
 
 ---
 
+## The `release` ruleset
+
+`release` is the branch production deploys from — see
+`021-production-environment.md`. It carries its own ruleset, and it differs
+from `main`'s in ways that are deliberate rather than oversights.
+
+| Rule | `main` | `release` | Why they differ |
+|---|---|---|---|
+| Required approvals | **0** | **1** | Zero on `main` so a two-person repo can land its own chores. One on `release` because a release is exactly the case where you want the second pair of eyes — and GitHub forbids approving your own PR, so it takes both people |
+| `require_extra_approval_for_unattributed_changes` | on (inert) | **off** | Inert at 0 approvals. At 1 it demands a *second* approval, which two people cannot satisfy when one of them is the author. Left on, it would deadlock every release |
+| Merge methods | merge, squash, rebase | **merge only** | A merge commit preserves `main`'s SHAs on `release`, so the deployed commit's ancestry maps back to commits that exist on `main`. Squash and rebase mint new SHAs and break that mapping — and the mapping is the point of wanting a known version in production |
+| Linear history | required | **not required** | Follows from merge-commit-only. Requiring both would leave no legal way to merge |
+| Required status checks | four | **none yet** | `release.yml` does not exist until #85. A required check that never reports blocks every merge — the failure this document already records from #158 |
+
+Restrict deletions and block force pushes are on for both.
+
+Create it the same way as `main`'s, targeting `refs/heads/release` instead of
+the default branch, or with the API:
+
+```sh
+gh api repos/:owner/:repo/rulesets -X POST --input release-ruleset.json
+gh api repos/:owner/:repo/rules/branches/release   # verify what applies
+```
+
+**Add the required checks once `release.yml` has reported.** Until then the
+merge box goes green on the approval alone, which is the human gate without the
+mechanical one. The same is true of Railway's *Wait for CI*: it cannot be
+enabled until a workflow has a `push` trigger for `release`.
+
+---
+
 ## Done when
 - [ ] Branch ruleset active on main
 - [ ] Direct push to main rejected
 - [ ] Required status checks added (after `013-ci-workflow.md`)
+- [ ] `release` ruleset active, with 1 required approval and merge commits only
+- [ ] `release`'s required status checks added (after `release.yml` first reports)
 
 ## Next
-→ Setup complete. All eighteen infrastructure steps are done.
-  Start with the first feature spec: `specs/001-standings-form-table.md`
+→ Setup continues in `021-production-environment.md`, which stands up the
+  environment this branch deploys to.
