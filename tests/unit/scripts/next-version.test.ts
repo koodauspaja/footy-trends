@@ -5,6 +5,7 @@ import {
   isMergeSubject,
   isStableVersionTag,
   parseVersion,
+  selectPreviousTag,
 } from "../../../scripts/next-version";
 
 const c = (subject: string, body?: string) =>
@@ -35,6 +36,28 @@ describe("isStableVersionTag", () => {
     expect(isStableVersionTag("v2-old")).toBe(false);
     expect(isStableVersionTag("v1.0")).toBe(false);
     expect(isStableVersionTag("version-one")).toBe(false);
+  });
+});
+
+describe("selectPreviousTag", () => {
+  it("takes the newest tag when nothing is on HEAD", () => {
+    expect(selectPreviousTag(["v1.2.0", "v1.1.0"], [])).toBe("v1.2.0");
+  });
+
+  it("skips a tag already on HEAD, so a rerun reproduces the same range", () => {
+    // The tag was pushed but publishing the notes failed. Treating it as the
+    // previous tag would compute an empty range and strand the release with no
+    // notes and no way to recover by rerunning.
+    expect(selectPreviousTag(["v1.2.0", "v1.1.0"], ["v1.2.0"])).toBe("v1.1.0");
+  });
+
+  it("ignores non-stable tags on the way", () => {
+    expect(selectPreviousTag(["v2.0.0-rc.1", "v1.1.0"], [])).toBe("v1.1.0");
+  });
+
+  it("returns null when nothing usable remains", () => {
+    expect(selectPreviousTag(["v1.0.0"], ["v1.0.0"])).toBeNull();
+    expect(selectPreviousTag([], [])).toBeNull();
   });
 });
 

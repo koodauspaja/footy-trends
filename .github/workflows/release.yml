@@ -28,21 +28,25 @@ on:
       - release
   workflow_dispatch:
 
-# Grouped per event, not shared. Sharing one group would serialise pull-request
-# runs against the post-merge push run and so protect football-data.org's rate
-# limit — but GitHub keeps only one *pending* run per group, and a newly queued
-# run evicts the pending one even with `cancel-in-progress: false`. A pull
-# request opened at the wrong moment could therefore evict the push run that
-# Railway's Wait for CI is waiting on, silently removing the deploy gate.
+# Concurrency here protects the *gate*, not the provider — those turn out to be
+# incompatible goals with this mechanism, and the gate wins.
 #
-# The trade is deliberate. Overlapping provider traffic costs a false failure,
-# which blocks a deploy that should have proceeded; an evicted push run costs
-# the gate itself. Failing safe beats failing open.
+# GitHub keeps one running and one pending run per group, and a newly queued run
+# evicts the pending one even with `cancel-in-progress: false`. So any group two
+# runs can share is a group in which a push run's status can be silently
+# dropped, and that status is what Railway's Wait for CI is waiting on. Push
+# runs therefore get a group per commit: never queued behind anything, never
+# evicted, never cancelled.
 #
-# Pull-request runs supersede their own predecessors — a stale run for an
-# earlier push to the same PR is worth nothing. Push runs are never cancelled.
+# That means overlapping live-provider load is possible, and this workflow does
+# not pretend otherwise. If football-data.org's rate limit starts producing
+# false failures, the fix is a CI-only provider key rather than a shared
+# concurrency group — a rate-limited run fails safe by blocking a deploy, while
+# an evicted push run removes the gate entirely.
+#
+# Pull-request runs supersede their own predecessors, which is only ever useful.
 concurrency:
-  group: release-${{ github.event_name }}-${{ github.ref }}
+  group: release-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

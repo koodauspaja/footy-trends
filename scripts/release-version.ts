@@ -10,7 +10,13 @@
  *   npm run release:version -- --print=notes     # markdown release notes
  */
 import { execFileSync } from "node:child_process";
-import { type Commit, decideVersion, formatReleaseNotes, isStableVersionTag } from "./next-version";
+import {
+  type Commit,
+  decideVersion,
+  formatReleaseNotes,
+  isStableVersionTag,
+  selectPreviousTag,
+} from "./next-version";
 
 // ASCII record/unit separators: a commit body can contain anything, including
 // blank lines and any punctuation a delimiter might otherwise use.
@@ -27,12 +33,17 @@ function git(args: string[]): string {
 const out = (line = ""): void => void process.stdout.write(`${line}\n`);
 const err = (line = ""): void => void process.stderr.write(`${line}\n`);
 
+// Sorted by version, not by date: a patch tagged after a minor must not win.
+function stableTags(): string[] {
+  return git(["tag", "--list", "v*", "--sort=-v:refname"]).split("\n").filter(isStableVersionTag);
+}
+
+function tagsAtHead(): string[] {
+  return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
+}
+
 function latestVersionTag(): string | null {
-  // Sorted by version, not by date: a patch tagged after a minor must not win.
-  const tags = git(["tag", "--list", "v*", "--sort=-v:refname"])
-    .split("\n")
-    .filter(isStableVersionTag);
-  return tags[0] ?? null;
+  return stableTags()[0] ?? null;
 }
 
 function commitsBetween(from: string | null, to: string): Commit[] {
@@ -58,7 +69,13 @@ const printMode = args.find((a) => a.startsWith("--print="))?.split("=")[1] ?? "
 const sinceLastTag = args.includes("--since-last-tag");
 const positional = args.filter((a) => !a.startsWith("--"));
 
-const previousTag = latestVersionTag();
+// Under --since-last-tag the range is read from the release branch after the
+// merge, where a rerun may find HEAD already tagged. Skipping a tag that is on
+// HEAD reproduces the original range, so a rerun recomputes the same version
+// and can publish notes that failed to publish the first time.
+const previousTag = sinceLastTag
+  ? selectPreviousTag(stableTags(), tagsAtHead())
+  : latestVersionTag();
 
 // After a release merge, `origin/release..origin/main` is empty — everything is
 // on release. The tagging job therefore asks for "since the last tag" instead,

@@ -52,6 +52,22 @@ export function isStableVersionTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+$/.test(tag.trim());
 }
 
+/**
+ * The newest stable tag that is *not* already on the commit being released.
+ *
+ * Ordinarily that is simply the newest tag. It matters on a rerun: if the tag
+ * was pushed but publishing the release notes failed, the tag now points at
+ * HEAD, and treating it as the previous tag would compute an empty range and
+ * strand the release with no notes and no way to recover by rerunning. Skipping
+ * it reproduces the original range, and therefore the same version.
+ *
+ * `tags` must be newest-first; `tagsAtHead` is whatever points at HEAD.
+ */
+export function selectPreviousTag(tags: string[], tagsAtHead: string[]): string | null {
+  const atHead = new Set(tagsAtHead);
+  return tags.filter(isStableVersionTag).find((tag) => !atHead.has(tag)) ?? null;
+}
+
 export function parseVersion(tag: string): [number, number, number] {
   const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(tag.trim());
   if (!match) throw new Error(`Not a version tag: ${tag}`);
