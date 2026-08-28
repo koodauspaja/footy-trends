@@ -98,17 +98,6 @@ export type DecideVersionOptions = {
    * Applied only when `hasReleasedBefore` is false.
    */
   firstReleaseVersion?: string | undefined;
-  /**
-   * Whether the project has ever released, which is **not** the same question
-   * as `previousTag` being null. The caller skips a tag pointing at HEAD, so
-   * that a rerun reproduces its original range — and it filters out
-   * pre-release tags. Either can leave `previousTag` null on a project that has
-   * plainly released before, and treating that as a first release would let
-   * `firstReleaseVersion` rename an existing release.
-   *
-   * Defaults to `previousTag !== null` for callers that do no such filtering.
-   */
-  hasReleasedBefore?: boolean | undefined;
 };
 
 export class InvalidFirstReleaseVersion extends Error {
@@ -136,7 +125,7 @@ export function decideVersion(
     .filter((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix")
     .map((c) => c.subject);
 
-  const isFirstRelease = !(options.hasReleasedBefore ?? previousTag !== null);
+  const isFirstRelease = previousTag === null;
   const previous = previousTag ?? "v0.0.0";
   const [major, minor, patch] = parseVersion(previous);
   const reasons: string[] = [];

@@ -51,20 +51,17 @@ Three rules worth knowing before the number surprises you:
   1.0.0 is a statement about stability rather than a fact about the commits,
   which is why it is the one thing the tool will not decide.
 
-  It is honoured **only when the project has never released** — a question asked
-  of every stable tag, not of the promotion range. That distinction matters: the
-  range's previous tag is deliberately empty on a rerun whose only tag points at
-  HEAD, and that is a repeat of a release that already happened rather than a
-  first one.
+  It is honoured only when the promotion range finds no previous tag — that is,
+  on a genuine first release. Two things keep it from touching anything later:
 
-  So it is self-limiting: once **any** `v*` tag exists — stable or pre-release —
-  it is ignored entirely, and a variable left set cannot turn the next patch
-  release into a major one. There is no need to unset it. A mistyped value fails
-  loudly rather than falling back to the default.
+  - Once a release is tagged, the next promotion finds that tag and derives from
+    it, so the override is never consulted. There is no need to unset it.
+  - A **rerun** never consults it either. If the commit is already tagged, that
+    tag *is* the version — the job reuses it rather than deriving a second
+    answer that could disagree with the tag it is about to publish notes for.
+    That holds even if the variable has since been changed, or made invalid.
 
-  A rerun does not consult it at all. If the commit is already tagged, that tag
-  *is* the version: the tagging job reuses it rather than deriving a second
-  answer that could disagree with the tag it is about to publish notes for.
+  A mistyped value fails loudly rather than falling back to the default.
 
 Merge commits are excluded — a release produces one, and it carries no type.
 

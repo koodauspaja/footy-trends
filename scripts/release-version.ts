@@ -42,28 +42,6 @@ function tagsAtHead(): string[] {
   return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
 }
 
-/**
- * Pre-release tags are refused rather than interpreted.
- *
- * This tool has no semantics for them: `parseVersion` cannot read one, the
- * ranging deliberately skips them, and every attempt to treat them as "tagged
- * for one purpose but not the other" produced a contradiction — a repository
- * holding only `v1.0.0-rc.1` counting as released for the override while
- * counting as unreleased for the range. Saying so is better than picking one of
- * two wrong answers silently.
- */
-function refusePreReleaseTags(): void {
-  const unsupported = git(["tag", "--list", "v*"])
-    .split("\n")
-    .filter(Boolean)
-    .filter((tag) => !isStableVersionTag(tag));
-  if (unsupported.length === 0) return;
-  err(`Unsupported version tags: ${unsupported.join(", ")}`);
-  err("This tool only understands vMAJOR.MINOR.PATCH. Remove them, or extend");
-  err("isStableVersionTag and the bump rules to cover pre-releases deliberately.");
-  process.exit(1);
-}
-
 /** The stable version already on HEAD, if this is a rerun of a release. */
 function stableTagOnHead(): string | null {
   const onHead = new Set(tagsAtHead());
@@ -101,8 +79,6 @@ const positional = args.filter((a) => !a.startsWith("--"));
 // merge, where a rerun may find HEAD already tagged. Skipping a tag that is on
 // HEAD reproduces the original range, so a rerun recomputes the same version
 // and can publish notes that failed to publish the first time.
-refusePreReleaseTags();
-
 const previousTag = sinceLastTag
   ? selectPreviousTag(stableTags(), tagsAtHead())
   : latestVersionTag();
@@ -145,11 +121,6 @@ let decision: ReturnType<typeof decideVersion>;
 try {
   decision = decideVersion(commits, previousTag, {
     firstReleaseVersion: alreadyTagged === null ? process.env.FIRST_RELEASE_VERSION : undefined,
-    // Any `v*` tag counts, stable or not. "Has this ever been tagged" is the
-    // question the override should be inert after, and a pre-release tag is
-    // still a tag — treating a repository holding only `v1.0.0-rc.1` as
-    // unreleased would let the override rename a later release.
-    hasReleasedBefore: stableTags().length > 0,
   });
 } catch (error) {
   // A mistyped override is an operator error, not a crash. A stack trace here
@@ -165,10 +136,13 @@ if (alreadyTagged !== null) {
   // The whole decision is replaced, not just the number. Leaving `previous`,
   // `isFirstRelease` and the reasons describing a derivation that was discarded
   // would have the report explain how it reached a version it is not using.
+  // Only the version and the explanation change. `isFirstRelease` stays as
+  // computed, because a rerun of the *first* release is still a first release —
+  // forcing it false made the notes say "Changes since v0.0.0." instead of
+  // "First release."
   decision = {
     ...decision,
     next: alreadyTagged,
-    isFirstRelease: false,
     reasons: [`HEAD is already tagged ${alreadyTagged}: reusing it rather than deriving a version`],
   };
 }

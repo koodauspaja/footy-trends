@@ -139,19 +139,6 @@ describe("decideVersion", () => {
     expect(d.next).toBe("v0.1.1");
   });
 
-  it("ignores the override when the project has released, even with previousTag null", () => {
-    // `previousTag` is deliberately null on a rerun whose only tag points at
-    // HEAD, and for a project with only pre-release tags. Neither is a first
-    // release, and treating them as one would let FIRST_RELEASE_VERSION rename
-    // a release that already happened.
-    const d = decideVersion([c("fix: x")], null, {
-      firstReleaseVersion: "v9.9.9",
-      hasReleasedBefore: true,
-    });
-    expect(d.isFirstRelease).toBe(false);
-    expect(d.next).toBe("v0.0.1");
-  });
-
   it("throws on a mistyped override rather than quietly using the default", () => {
     expect(() =>
       decideVersion([c("docs: x")], null, { firstReleaseVersion: "one-point-oh" })
