@@ -128,9 +128,9 @@ jobs:
   e2e:
     name: Release — end-to-end tests
     runs-on: ubuntu-latest
-    # Longer than the other jobs by design: 86 specs run serially against live
-    # providers. The default 360 minutes would let a rate-limit stall burn an
-    # hour before anyone noticed.
+    # Longer than the other jobs by design: 105 specs run serially against live
+    # providers. The default 360 minutes would let a stall burn an hour before
+    # anyone noticed.
     timeout-minutes: 30
 
     services:
