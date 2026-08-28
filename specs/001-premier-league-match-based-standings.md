@@ -37,7 +37,10 @@ analysis without depending on the provider's precomputed standings endpoint.
   legend or title attributes for these abbreviations.
 - Form uses `V`, `T`, and `H` for win, draw, and loss. Each result has an
   accessible label such as `Voitto`, `Tasapeli`, or `Häviö`.
-- While data is loading, show `Ladataan sarjataulukkoa...`.
+- While data is loading, show `Ladataan...`. *(Was `Ladataan sarjataulukkoa...`
+  until #179. `loading.tsx` is the App Router's root loading state, so it also
+  covers match lists, team pages and the region pickers, none of which render a
+  standings table.)*
 - If no finished matches are available, show `Sarjataulukkoa ei ole saatavilla.`
 - If the API, database, or cache fails and no usable stored data exists, show
   `Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.`.

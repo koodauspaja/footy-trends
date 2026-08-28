@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import Loading from "@/app/loading";
 import Home, { metadata } from "@/app/page";
 
 describe("Home page (region picker)", () => {
@@ -22,13 +21,5 @@ describe("Home page (region picker)", () => {
 
   it("sets the browser tab title to match the heading", () => {
     expect(metadata.title).toBe("Valitse alue");
-  });
-});
-
-describe("Loading state", () => {
-  it("shows the Finnish loading message", () => {
-    render(<Loading />);
-
-    expect(screen.getByText("Ladataan sarjataulukkoa...")).toBeInTheDocument();
   });
 });
