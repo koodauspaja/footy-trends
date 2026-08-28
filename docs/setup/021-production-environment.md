@@ -158,6 +158,32 @@ application code change this environment work implies.
 | `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts yet, so almost nothing is gained, and it is a GDPR question that should be answered deliberately rather than inherited from a wizard default. |
 | `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two log destinations, two bills, and two places to search. Keep Axiom for logs and Sentry for errors. |
 
+### These cannot be applied from the Railway dashboard yet
+
+Setting a variable in Railway does nothing on its own: `sentry.server.config.ts`
+hardcodes all three, so production runs the development defaults regardless of
+what is set. **Do not tick the Sentry item in *Done when* until the code below
+exists** — otherwise the checklist reads as complete while production traces
+100% of requests and ships PII.
+
+The change is small and value-neutral — it reads each setting from the
+environment, keeping today's behaviour as the fallback, so nothing changes until
+a variable is actually set:
+
+```ts
+tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 1),
+enableLogs: process.env.SENTRY_ENABLE_LOGS !== "false",
+sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII !== "false",
+```
+
+Then production sets:
+
+| Variable | Value |
+|---|---|
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` |
+| `SENTRY_ENABLE_LOGS` | `false` |
+| `SENTRY_SEND_DEFAULT_PII` | `false` |
+
 Record the values actually chosen here, with the reasoning, once agreed —
 the reasoning is the part that stops the next person re-litigating it.
 
@@ -170,14 +196,21 @@ the reasoning is the part that stops the next person re-litigating it.
 **Recommended: `info`.** It is worth understanding why this is safe rather than
 assuming it, because "info in production" is usually the wrong answer.
 
-Only one code path logs at `info` per operation: `src/lib/provider-request.ts`,
-once per *outbound provider request*. Every provider response is cached, so
-that volume is bounded by **cache misses, not by user traffic** — a busy day
-does not multiply it. Everything else in `src/` logs at `warn` or `error`.
+Three paths in `src/` log at `info` through the Pino logger. None of them
+scales with user traffic:
 
-The health endpoint also logs at `info`, but Railway probes `healthcheckPath`
-only while gating a new deployment and stops once the deploy is live, so it
-contributes per-deploy volume, not per-request volume.
+- `src/lib/provider-request.ts`, once per *outbound provider request*. Every
+  provider response is cached, so this is bounded by **cache misses, not user
+  traffic** — a busy day does not multiply it.
+- `src/app/api/health/route.ts`, once per request to it. Railway probes
+  `healthcheckPath` only while gating a new deployment and stops once the
+  deploy is live, so this is per-deploy volume plus whatever hits it by hand.
+- `src/app/api/sentry-example-api/route.ts` and
+  `src/app/sentry-example-page/page.tsx`, the Sentry wizard's scaffolding.
+  These are reachable in production and worth deleting rather than tuning —
+  they exist to prove the integration once, not to ship.
+
+Everything else in `src/` logs at `warn` or `error`.
 
 If Axiom volume does become a cost, the lever is the provider-request log line,
 not the global level — dropping to `warn` would also discard the warnings that
@@ -222,7 +255,8 @@ production incident rather than during it.
 curl -s https://<production-domain>/api/health | jq
 ```
 
-Expect `status: "ok"` with `database: "ok"` and `redis: "ok"`. Add
+Expect `status: "ok"` with `checks.database: "ok"` and `checks.redis: "ok"`
+— both sit under `checks`, not at the top level. Add
 `?providers=1` to include a live TASO check — it is opt-in precisely because a
 probe should not call a provider on every request.
 
@@ -276,6 +310,8 @@ trigger branch and the variable values — everything else comes from
 - [ ] Its trigger branch is `release`; a push to `main` deploys staging only
 - [ ] All ten required variables are set, with no value shared with staging
 - [ ] The auth variables are deliberately left unset
+- [ ] `sentry.server.config.ts` reads its three settings from the environment
+      (prerequisite — without it the next box cannot be true)
 - [ ] Sentry `tracesSampleRate`, `sendDefaultPii` and `enableLogs` are decided,
       applied, and recorded above with reasoning
 - [ ] `LOG_LEVEL` is decided and recorded
