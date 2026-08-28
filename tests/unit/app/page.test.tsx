@@ -29,7 +29,7 @@ describe("Loading state", () => {
   it("shows the Finnish loading message", () => {
     render(<Loading />);
 
-    expect(screen.getByText("Ladataan…")).toBeInTheDocument();
+    expect(screen.getByText("Ladataan...")).toBeInTheDocument();
   });
 
   /**
