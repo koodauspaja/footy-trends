@@ -203,3 +203,70 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Only after every gate is green, and only on the merge itself — never on a
+  # pull request. A tag is effectively permanent and public, so it must not be
+  # possible to create one for a release that was rejected or that failed its
+  # tests.
+  tag:
+    name: Release — tag and publish
+    runs-on: ubuntu-latest
+    needs: [unit, integration, e2e]
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The version is derived from the commits since the last tag, so a
+          # shallow clone without tags would compute the wrong one.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Work out the version
+        id: version
+        run: |
+          version="$(npm run release:version --silent -- --since-last-tag --print=version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          npm run release:version --silent -- --since-last-tag --print=notes > /tmp/release-notes.md
+          echo "Version: $version"
+
+      - name: Skip if it is already tagged
+        id: exists
+        run: |
+          if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.version }}" >/dev/null; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.version.outputs.version }} already exists — nothing to tag."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag the merge commit
+        if: steps.exists.outputs.already == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Annotated, so the tag records who cut the release and when.
+          git tag -a "${{ steps.version.outputs.version }}" \
+            -m "${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Publish the release notes
+        if: steps.exists.outputs.already == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes-file /tmp/release-notes.md
