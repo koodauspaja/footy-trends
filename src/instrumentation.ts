@@ -2,12 +2,16 @@ import * as Sentry from "@sentry/nextjs";
 
 /**
  * Node warns once a single emitter passes ten listeners of one type, as a
- * rough leak heuristic. Next attaches nine `close` listeners to every
- * `ServerResponse` on its own — seven from its bundled `httpxy` proxy, two
- * from `requestHandlerImpl` and `createAbortController` — and Sentry adds two
- * more, so every request crosses the threshold and logs
- * `MaxListenersExceededWarning`. Nothing accumulates: the listeners belong to
- * one response object that is discarded when the request ends.
+ * rough leak heuristic. Next and Sentry together attach enough `close`
+ * listeners to every `ServerResponse` to cross it: eleven on Next 16.3.0,
+ * where this was diagnosed in #129 and silenced in #174. Nothing accumulates —
+ * the listeners belong to one response object that is discarded when the
+ * request ends — so the warning was a false positive throughout.
+ *
+ * The count is Next's to decide and it moves between releases. On 16.3.2 it
+ * fell to eight in dev and seven in production, below Node's default, so the
+ * warning does not currently fire at all; re-measured in #176. Treat the
+ * numbers here as history and the document below as current.
  *
  * Raising the limit on `ServerResponse.prototype` covers every response
  * without touching any other emitter, so a genuine listener leak elsewhere
