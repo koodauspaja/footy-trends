@@ -6,6 +6,7 @@
  * settled — importing `src/db` fixes the connection, so nothing here may be
  * loaded before then.
  */
+import { sql } from "drizzle-orm";
 import { closeDatabase, db } from "../src/db";
 import { matches, tasoGroupTeams, tasoMatches } from "../src/db/schema";
 import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions";
@@ -68,6 +69,17 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
   const startedAt = Date.now();
 
   try {
+    // One round trip before any provider is called. Without it, an unreachable
+    // database still costs a full run: every competition-season is fetched, at
+    // the providers' pace, and then fails to store — eleven minutes and 329
+    // requests of rate limit spent to discover the database was never there.
+    try {
+      await db.execute(sql`SELECT 1`);
+    } catch (error) {
+      err(`Cannot reach the database: ${describeError(error)}`);
+      return 1;
+    }
+
     if (reset) {
       out("\nResetting — deleting every row in matches, taso_matches, taso_group_teams");
       // One transaction, so a reset is all or nothing. Three separate deletes
