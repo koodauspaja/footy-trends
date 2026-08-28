@@ -203,14 +203,26 @@ export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, items: string[]): string =>
     items.length === 0 ? "" : `## ${title}\n\n${items.map((i) => `- ${i}`).join("\n")}\n\n`;
 
+  // Headings say what the list is. On a first release it is a tail, not a
+  // changelog, and calling it "Features" would restate the very claim the
+  // preamble just corrected.
+  const since = decision.isFirstRelease ? " since the branch point" : "";
   const body =
-    section("Breaking changes", decision.breaking) +
-    section("Features", decision.features) +
-    section("Fixes", decision.fixes) +
-    section("Other", decision.other);
+    section(`Breaking changes${since}`, decision.breaking) +
+    section(`Features${since}`, decision.features) +
+    section(`Fixes${since}`, decision.fixes) +
+    section(`Other${since}`, decision.other);
 
+  // A first release is the whole application reaching production, not the
+  // commits in the promotion range — `release` was branched from `main` and
+  // already carried everything before it. Presenting that range as the release
+  // contents understates it by two orders of magnitude, and does so on the one
+  // release where a reader is least able to tell.
   const preamble = decision.isFirstRelease
-    ? "First release.\n\n"
+    ? "First release: the whole application reaching production for the first time.\n\n" +
+      "The commits below are **not** the contents of this release — they are only what\n" +
+      "landed after `release` was branched from `main`. Everything before that branch\n" +
+      "point is in this release too, and is not listed.\n\n"
     : `Changes since ${decision.previous}.\n\n`;
 
   // A release with nothing to list would otherwise publish an empty body,
