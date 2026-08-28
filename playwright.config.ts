@@ -2,8 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 // Locally: requires Postgres/Redis running (docker compose up -d) and a
 // configured FOOTBALL_DATA_API_KEY and TASO_API_KEY in .env, same as npm run
-// dev. In CI this runs from .github/workflows/release.yml against the release
-// branch only — never per-PR, per #81.
+// dev. In CI this runs only from .github/workflows/release.yml — on pull
+// requests targeting `release` and on pushes to it, never on a pull request
+// targeting `main`, per #81.
 
 /**
  * `build` runs the suite against a production build, which is what

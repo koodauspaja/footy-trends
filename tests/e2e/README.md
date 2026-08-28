@@ -8,8 +8,11 @@ football-data.org API — the same setup used for local development
 ## Prerequisites
 
 - `docker compose up -d` (Postgres + Redis running locally)
-- A configured `.env` with a working `FOOTBALL_DATA_API_KEY` (see
-  `README.md`'s Quick Start)
+- A configured `.env` with a working `FOOTBALL_DATA_API_KEY` **and**
+  `TASO_API_KEY` (see `README.md`'s Quick Start and
+  `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
+  being missing, rather than letting every spec time out against a generic
+  error page
 - Chromium installed for Playwright: `npx playwright install chromium`
   (one-time, not run automatically on `npm install`)
 
@@ -22,6 +25,17 @@ npm run test:e2e
 `playwright.config.ts` starts `next dev` for you if nothing is already
 listening on `http://localhost:3000`, and reuses an already-running dev
 server otherwise — so `npm run dev` in another terminal works too.
+
+To run them the way the release gate does, against a production build:
+
+```bash
+npm run build
+E2E_TARGET=build npm run test:e2e
+```
+
+Worth doing before cutting a release, and worth reaching for when a spec
+passes locally but fails in CI: `dev` and a production build do not always
+behave the same, which is how #189 was found.
 
 ## What's covered
 
@@ -46,8 +60,8 @@ these tests brittle:
 
 ## Not covered here
 
-- Running in CI — this suite is local-only for now. It's expected to move
-  into a separate release workflow once one exists, not the regular PR CI
-  pipeline (`.github/workflows/ci.yml`, which stays typecheck/lint/unit/
-  integration only).
+- Running on every pull request. This suite runs in
+  `.github/workflows/release.yml` only — on pull requests targeting `release`
+  and on pushes to it. `.github/workflows/ci.yml` stays typecheck/lint/unit/
+  integration and is scoped to `main`.
 - Cross-browser coverage — Chromium only.
