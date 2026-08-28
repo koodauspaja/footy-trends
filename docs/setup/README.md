@@ -26,8 +26,9 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 011 | [011-branch-protection.md](011-branch-protection.md) | Protect main branch and enforce status checks before merge |
 | 020 | [020-taso-api-key.md](020-taso-api-key.md) | Scrape the TASO API key and store it in Railway (Veikkausliiga data) |
 | 021 | [021-production-environment.md](021-production-environment.md) | Production Railway environment, separate from staging, deploying from `release` |
+| 022 | [022-production-backfill.md](022-production-backfill.md) | Fill production with the full competition history, once, at the providers' rate limits |
 
 ## After setup
 
-Once all twenty-one steps are done, start with the first feature spec:
+Once all twenty-two steps are done, start with the first feature spec:
 `specs/001-standings-form-table.md`
