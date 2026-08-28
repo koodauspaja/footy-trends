@@ -95,7 +95,15 @@ export type DecideVersionOptions = {
    * make, since whether a project's first tag is 0.x or 1.0.0 is a statement
    * about stability rather than a fact about its changes.
    *
-   * Applied only when `hasReleasedBefore` is false.
+   * Applied only when `previousTag` is null — a genuine first release.
+   *
+   * Known limitation, accepted rather than guarded: a repository whose only
+   * tags are pre-release or malformed also has no previous tag, so a stale
+   * override would apply there. Guarding it needs a second definition of "has
+   * this been tagged", and having two produced six rounds of contradictions
+   * before they were reduced back to one. The variable is set once for a first
+   * release, and a rerun never reads it, so the case needs both an unused
+   * override and a tagging convention this repository does not use.
    */
   firstReleaseVersion?: string | undefined;
 };
