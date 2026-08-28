@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { tasoMatches } from "@/db/schema";
+import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { calculateStandings } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
+import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
 
 vi.mock("@/lib/taso", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso")>();
@@ -347,3 +348,43 @@ describe("taso integration", () => {
  * matches and asserts each split group against TASO's own published
  * standings, for every configured season. See #127.
  */
+
+describe("synchronizeGroupTeams concurrency", () => {
+  it("survives concurrent syncs against an empty table", async () => {
+    // Regression for #196. The delete inside the transaction locks nothing when
+    // the season has no rows yet, so two concurrent syncs both find it clear and
+    // both insert — and one dies on the identity index. Only reachable on a cold
+    // database, which is exactly a first deploy, and exactly when there is no
+    // stored data for the caller's catch to fall back to.
+    const seasonId = 990002;
+    const rows = [1, 2, 3].map((id) => ({
+      categoryId: "VL",
+      competitionCode: "spljp99",
+      seasonId,
+      groupId: 1,
+      teamProviderId: id,
+      teamName: `Team ${id}`,
+      points: 0,
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+    })) as Parameters<typeof synchronizeGroupTeams>[3];
+
+    const results = await Promise.allSettled([
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
+    ]);
+
+    expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+
+    const stored = await db
+      .select()
+      .from(tasoGroupTeams)
+      .where(eq(tasoGroupTeams.seasonId, seasonId));
+    expect(stored).toHaveLength(3);
+  });
+});

@@ -723,9 +723,39 @@ export async function synchronizeGroupTeams(
 
     if (rows.length === 0) return;
 
+    // Upsert rather than a plain insert. The delete above locks nothing when
+    // the table is empty for this season, so two concurrent syncs both find it
+    // clear and both insert — and one dies on the identity index. That is only
+    // reachable on a cold database, which is precisely a first deploy: the very
+    // moment the page has no stored rows to fall back to, so the caller's catch
+    // renders an empty table instead of standings.
     await tx
       .insert(tasoGroupTeams)
-      .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })));
+      .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })))
+      .onConflictDoUpdate({
+        target: [
+          tasoGroupTeams.categoryId,
+          tasoGroupTeams.competitionCode,
+          tasoGroupTeams.seasonId,
+          tasoGroupTeams.groupId,
+          tasoGroupTeams.teamProviderId,
+        ],
+        set: {
+          teamName: sql`excluded.team_name`,
+          startingPoints: sql`excluded.starting_points`,
+          points: sql`excluded.points`,
+          played: sql`excluded.matches_played`,
+          won: sql`excluded.matches_won`,
+          drawn: sql`excluded.matches_tied`,
+          lost: sql`excluded.matches_lost`,
+          goalsFor: sql`excluded.goals_for`,
+          goalsAgainst: sql`excluded.goals_against`,
+          goalDifference: sql`excluded.goals_diff`,
+          currentStanding: sql`excluded.current_standing`,
+          finalGroupStanding: sql`excluded.final_group_standing`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
   });
 }
 
