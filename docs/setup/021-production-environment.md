@@ -90,6 +90,12 @@ Then confirm the separation holds in both directions:
 - a push to `main` deploys **staging only**
 - a merge to `release` deploys **production only**
 
+Both statements assume the change touches a watched path. `railway.toml`'s
+`build.watchPatterns` covers `src/`, `public/`, `drizzle/`, the lockfile and a
+few config files — so documentation-, spec-, decision-, test- and
+`.github/`-only changes deploy **nothing**, by design. A docs-only merge to
+`release` producing no deployment is correct behaviour, not a broken trigger.
+
 ---
 
 ## Step 4 — Set the environment variables
@@ -228,12 +234,24 @@ assuming it, because "info in production" is usually the wrong answer.
 Exactly two paths log at `info` through the Pino logger, and neither scales
 with user traffic:
 
-- `src/lib/provider-request.ts`, once per *outbound provider request*. Every
-  provider response is cached, so this is bounded by **cache misses, not user
-  traffic** — a busy day does not multiply it.
+- `src/lib/provider-request.ts`, once per *outbound provider request*. This is
+  bounded by **cache misses rather than user traffic** — a busy day does not
+  multiply it — but the bound lives in the service layer, not here.
+  `src/lib/taso.ts` and `src/lib/football-data.ts` call the helper directly
+  with no caching of their own; `standings-service.ts` and
+  `taso-standings-service.ts` are what bound them, through Redis TTL caches,
+  matches stored in Postgres and refreshed only when `needsRefresh` says so,
+  and React `cache()` for per-request deduplication.
 - `src/app/api/health/route.ts`, once per request to it. Railway probes
   `healthcheckPath` only while gating a new deployment and stops once the
   deploy is live, so this is per-deploy volume plus whatever hits it by hand.
+
+  Note the one deliberate hole in the paragraph above: `?providers=1` calls
+  `getCurrentSeason` straight from `taso.ts`, bypassing the service-layer
+  cache, so each such request is a real uncached TASO call and its own info
+  log. That is why it is opt-in rather than part of the default probe — but it
+  does mean a scripted monitor hitting `?providers=1` on a short interval would
+  turn an unbounded provider call into a per-interval one.
 
 Everything else in `src/` logs at `warn` or `error`.
 
@@ -276,7 +294,10 @@ production incident rather than during it.
 
 ## Step 8 — First deploy and verify
 
-1. Merge something into `release` through a pull request (the 1-approval gate)
+1. Merge something into `release` through a pull request (the 1-approval gate).
+   It must touch a watched path — `src/`, `public/`, `drizzle/`, the lockfile
+   or a listed config file. A documentation-only merge deploys nothing, so
+   verifying with one means watching for a deploy that correctly never starts.
 2. Watch the production deploy log
 3. Confirm `npm run db:migrate` runs before the server starts
 4. Confirm the health check passes and the deploy goes live
@@ -329,9 +350,12 @@ domains/DNS/TLS.
 6. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
 
-Nothing here depends on state that exists only in the dashboard except the
-trigger branch and the variable values — everything else comes from
-`railway.toml` in the repo.
+Only deploy *behaviour* is recreated from the repo. The environment itself, the
+app service, the PostgreSQL and Redis instances, the trigger branch and every
+variable value are dashboard-managed prerequisites — steps 1 to 4 above cannot
+be replayed from `railway.toml`, which is why they are written out rather than
+pointed at. Keep the variable values somewhere recoverable; nothing in this
+repository can reproduce them.
 
 ---
 
