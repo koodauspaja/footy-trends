@@ -1,4 +1,34 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+/**
+ * Opens the cup season and waits for its rounds to be on the page.
+ *
+ * `page.goto` resolves on `load`, but the standings are streamed by a React
+ * Server Component and arrive afterwards, so a measurement taken straight
+ * after it can read an empty document. Both geometry tests below did, and both
+ * were wrong for it — in opposite directions.
+ *
+ * The fold test failed intermittently: `scrollHeight` was 812, exactly the
+ * viewport, so `closed < open / 5` compared 812 against 162.
+ *
+ * The horizontal-overflow test **passed** in the same state, because an empty
+ * document does not overflow. It was not flaky; it was silently vacuous, which
+ * is worse — it would have reported no horizontal scroll on a page that had
+ * rendered nothing at all.
+ *
+ * Reproduced deterministically with `waitUntil: "commit"`, which returns as
+ * soon as the response begins: `{ scrollHeight: 812, overflows: false,
+ * details: 0 }`. See #178.
+ */
+async function openCupSeason(page: Page) {
+  await page.goto("/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025");
+
+  // The rounds themselves, not merely "some element": these are what both
+  // measurements are about, and waiting for them is what makes the numbers
+  // mean anything.
+  await expect(page.locator("details").first()).toBeVisible();
+  await expect(page.locator("details table").first()).toBeVisible();
+}
 
 test.describe("Finnish cups", () => {
   test("lists the three cups in the competition picker", async ({ page }) => {
@@ -62,7 +92,7 @@ test.describe("Finnish cups", () => {
 
   test("folds a round away on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025");
+    await openCupSeason(page);
 
     const open = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.evaluate(() => {
@@ -84,7 +114,7 @@ test.describe("Finnish cups", () => {
 
   test("does not scroll the page horizontally on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025");
+    await openCupSeason(page);
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
