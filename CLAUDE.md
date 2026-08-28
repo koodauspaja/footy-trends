@@ -57,6 +57,7 @@
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
 - Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.
+- Release workflow (promoting `main` to `release`): `skills/release.md`.
 - Bug workflow (no new spec; reference the existing one it violates;
   decision record only if the fix involved a real tradeoff):
   `skills/bug-workflow.md`.

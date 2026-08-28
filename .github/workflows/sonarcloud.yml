@@ -4,7 +4,12 @@ on:
   push:
     branches:
       - main
+  # Scoped to main deliberately. Without a branch filter this also runs on pull
+  # requests targeting `release`, re-checking commits already reviewed on their
+  # way into main. release.yml covers those, and adds e2e. See #85.
   pull_request:
+    branches:
+      - main
     types: [opened, synchronize, reopened]
 
 jobs:
