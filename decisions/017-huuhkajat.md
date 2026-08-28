@@ -226,7 +226,7 @@ list would read as an accident.
 
 ## Out of scope, and left alone
 
-`src/app/loading.tsx` reads `Ladataan sarjataulukkoa...` — "loading the
+**Fixed in #179.** `src/app/loading.tsx` read `Ladataan sarjataulukkoa...` — "loading the
 standings table" — and is app-wide, so it appears while this match-list page
 streams. It is already inaccurate on `/ulkomaat/ottelut` and the team pages,
 so this is pre-existing rather than introduced here, and changing it would

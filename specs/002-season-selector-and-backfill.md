@@ -64,7 +64,8 @@ otherwise.
   `Kautta ei löytynyt. Näytetään kausi 2025/26.`, where the label is the active
   season. The notice is exposed as `role="status"` and is absent for a valid
   season.
-- While data is loading, show `Ladataan sarjataulukkoa...` (unchanged).
+- While data is loading, show `Ladataan...`. *(Was `Ladataan sarjataulukkoa...`
+  until #179 — see specs/001.)*
 - If the selected season has no finished matches, show
   `Sarjataulukkoa ei ole saatavilla.` (unchanged).
 - If the provider, database, and cache all fail with no usable stored data,
