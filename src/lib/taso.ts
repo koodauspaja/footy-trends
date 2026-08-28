@@ -1,7 +1,13 @@
+import { getCached } from "./cache";
 import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
+
+/** Mirrors football-data's match cache. Long enough to stop a page re-asking
+ * the same question, short enough that a live result is not stale for long. */
+const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
+const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 // Fixed values, not secrets: TASO 403s without headers matching the real
 // tulospalvelu.palloliitto.fi frontend — server-side origin validation, not
@@ -264,8 +270,19 @@ export async function getSeasonMatches(
   categoryId: string,
   seasonId: number
 ): Promise<NormalizedTasoMatch[]> {
-  const response = await request<MatchesResponse>(
-    `/getMatches?competition_id=${competitionId}&category_id=${categoryId}`
+  // Cached like football-data's equivalent, and for a reason this provider
+  // makes sharper: a bucket/category pair with no matches stores no rows, so
+  // `getSyncedSeasonMatches` cannot tell "never fetched" from "fetched, and
+  // there is nothing there" and refreshes on every single request. The national
+  // team pages ask about every year × category combination and most are empty,
+  // which made one such pair account for 18 requests in a single test run.
+  const response = await getCached<MatchesResponse>(
+    `taso:matches:${competitionId}:${categoryId}`,
+    MATCHES_CACHE_TTL_SECONDS,
+    () =>
+      request<MatchesResponse>(
+        `/getMatches?competition_id=${competitionId}&category_id=${categoryId}`
+      )
   );
   return (response.matches ?? []).flatMap((match) => {
     const normalized = normalizeTasoMatch(match, competitionId, categoryId, seasonId);
@@ -490,8 +507,13 @@ export async function getSeasonGroups(
   competitionId: string,
   categoryId: string
 ): Promise<TasoGroup[]> {
-  const response = await request<GroupsResponse>(
-    `/getGroups?competition_id=${competitionId}&category_id=${categoryId}`
+  const response = await getCached<GroupsResponse>(
+    `taso:groups:${competitionId}:${categoryId}`,
+    GROUPS_CACHE_TTL_SECONDS,
+    () =>
+      request<GroupsResponse>(
+        `/getGroups?competition_id=${competitionId}&category_id=${categoryId}`
+      )
   );
   return response.groups ?? [];
 }
