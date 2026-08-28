@@ -243,8 +243,16 @@ const { EventEmitter } = require("node:events");
 
 /** Highest number of `close` listeners seen on a single response. */
 let peak = 0;
-/** listener function -> where it was attached. */
-const origin = new WeakMap();
+/**
+ * response -> (listener function -> the sites that attached it, in order).
+ *
+ * Keyed by response first, so a handler reused across requests does not
+ * accumulate an entry per request forever and then report sites belonging to
+ * some earlier response. A list per function because the same callback can be
+ * registered more than once, from different places, and one slot would
+ * attribute both to whichever attached last.
+ */
+const origins = new WeakMap();
 
 function caller() {
   return (new Error().stack || "")
@@ -278,7 +286,9 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
     try {
       const where = caller();
       const result = original.call(this, event, listener);
-      origin.set(listener, where);
+      const forResponse = origins.get(this) ?? new Map();
+      forResponse.set(listener, [...(forResponse.get(listener) ?? []), where]);
+      origins.set(this, forResponse);
 
       // Node's own count, not a tally of our calls.
       const now = this.listenerCount("close");
@@ -288,9 +298,14 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
         // Read the listeners still registered, rather than a history of
         // attachments: a `once` listener removes itself when it fires, and a
         // cumulative list would print sources no longer present.
+        // One queue per function, drained in registration order, so a
+        // function attached twice reports both of its sites.
+        const forResponse = origins.get(this) ?? new Map();
+        const remaining = new Map();
         this.rawListeners("close").forEach((registered, i) => {
           const target = registered.listener ?? registered;
-          console.error(`  ${i + 1}. ${origin.get(target) ?? "(unknown)"}`);
+          if (!remaining.has(target)) remaining.set(target, [...(forResponse.get(target) ?? [])]);
+          console.error(`  ${i + 1}. ${remaining.get(target).shift() ?? "(unknown)"}`);
         });
       }
       return result;
@@ -309,7 +324,10 @@ cumulative list would print sources that are no longer there and would not add
 up to the peak Node warns on.
 
 `rawListeners` returns the `once` wrapper rather than the function passed in,
-which is why the lookup falls back through `registered.listener`.
+which is why the lookup falls back through `registered.listener`. Sites are recorded per response,
+and per function within it, drained in registration order — so the same callback
+registered from two places reports both, and a handler Next reuses across
+requests never reports a site belonging to an earlier response.
 
 ---
 
