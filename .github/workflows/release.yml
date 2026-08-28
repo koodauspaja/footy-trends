@@ -28,19 +28,22 @@ on:
       - release
   workflow_dispatch:
 
-# One release suite at a time, across every trigger. The e2e job runs against
-# the live football-data.org API, and two overlapping runs exhaust its rate
-# limit between them — which surfaces as a failed gate that nothing in the code
-# caused.
+# Grouped per event, not shared. Sharing one group would serialise pull-request
+# runs against the post-merge push run and so protect football-data.org's rate
+# limit — but GitHub keeps only one *pending* run per group, and a newly queued
+# run evicts the pending one even with `cancel-in-progress: false`. A pull
+# request opened at the wrong moment could therefore evict the push run that
+# Railway's Wait for CI is waiting on, silently removing the deploy gate.
 #
-# Queued rather than cancelling: these runs share one group, and
-# `cancel-in-progress` cancels *others* in the group, so a pull-request run
-# updated mid-flight would be free to cancel the post-merge push run — the one
-# Railway's Wait for CI is waiting on. A superseded pull-request run finishing
-# first costs a few minutes; a cancelled push run costs the deploy gate.
+# The trade is deliberate. Overlapping provider traffic costs a false failure,
+# which blocks a deploy that should have proceeded; an evicted push run costs
+# the gate itself. Failing safe beats failing open.
+#
+# Pull-request runs supersede their own predecessors — a stale run for an
+# earlier push to the same PR is worth nothing. Push runs are never cancelled.
 concurrency:
-  group: release-suite
-  cancel-in-progress: false
+  group: release-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   unit:
@@ -242,18 +245,30 @@ jobs:
           npm run release:version --silent -- --since-last-tag --print=notes > /tmp/release-notes.md
           echo "Version: $version"
 
-      - name: Skip if it is already tagged
+      # Checked independently: if the tag push succeeded once but publishing
+      # the notes did not, a rerun must still be able to publish them rather
+      # than skip both and leave a tagged commit with no release.
+      - name: What already exists
         id: exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.version }}" >/dev/null; then
-            echo "already=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ steps.version.outputs.version }} already exists — nothing to tag."
+          version="${{ steps.version.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "tag=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag $version already exists."
           else
-            echo "already=false" >> "$GITHUB_OUTPUT"
+            echo "tag=false" >> "$GITHUB_OUTPUT"
+          fi
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release $version already published."
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Tag the merge commit
-        if: steps.exists.outputs.already == 'false'
+        if: steps.exists.outputs.tag == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -263,7 +278,7 @@ jobs:
           git push origin "${{ steps.version.outputs.version }}"
 
       - name: Publish the release notes
-        if: steps.exists.outputs.already == 'false'
+        if: steps.exists.outputs.release == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -3,6 +3,7 @@ import {
   decideVersion,
   formatReleaseNotes,
   isMergeSubject,
+  isStableVersionTag,
   parseVersion,
 } from "../../../scripts/next-version";
 
@@ -18,6 +19,22 @@ describe("parseVersion", () => {
   it("rejects anything that is not a three-part version", () => {
     expect(() => parseVersion("v1.2")).toThrow(/Not a version tag/);
     expect(() => parseVersion("release-2")).toThrow(/Not a version tag/);
+  });
+});
+
+describe("isStableVersionTag", () => {
+  it("accepts a plain three-part version, with or without the v", () => {
+    expect(isStableVersionTag("v1.2.3")).toBe(true);
+    expect(isStableVersionTag("1.2.3")).toBe(true);
+  });
+
+  it("rejects the tags that would otherwise crash the release workflow", () => {
+    // `git tag --list v*` matches all of these, and parseVersion throws on
+    // them — one hand-made tag would take the whole release down.
+    expect(isStableVersionTag("v1.0.0-rc.1")).toBe(false);
+    expect(isStableVersionTag("v2-old")).toBe(false);
+    expect(isStableVersionTag("v1.0")).toBe(false);
+    expect(isStableVersionTag("version-one")).toBe(false);
   });
 });
 

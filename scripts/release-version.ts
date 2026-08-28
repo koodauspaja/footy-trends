@@ -10,7 +10,7 @@
  *   npm run release:version -- --print=notes     # markdown release notes
  */
 import { execFileSync } from "node:child_process";
-import { type Commit, decideVersion, formatReleaseNotes } from "./next-version";
+import { type Commit, decideVersion, formatReleaseNotes, isStableVersionTag } from "./next-version";
 
 // ASCII record/unit separators: a commit body can contain anything, including
 // blank lines and any punctuation a delimiter might otherwise use.
@@ -29,7 +29,9 @@ const err = (line = ""): void => void process.stderr.write(`${line}\n`);
 
 function latestVersionTag(): string | null {
   // Sorted by version, not by date: a patch tagged after a minor must not win.
-  const tags = git(["tag", "--list", "v*", "--sort=-v:refname"]).split("\n").filter(Boolean);
+  const tags = git(["tag", "--list", "v*", "--sort=-v:refname"])
+    .split("\n")
+    .filter(isStableVersionTag);
   return tags[0] ?? null;
 }
 

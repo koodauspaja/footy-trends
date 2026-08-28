@@ -43,6 +43,15 @@ function typeOf(commit: Commit): string | undefined {
   return CONVENTIONAL.exec(commit.subject)?.groups?.type;
 }
 
+/**
+ * `git tag --list v*` also matches things like `v1.0.0-rc.1` or `v2-old`, and
+ * `parseVersion` would throw on them — taking the whole release workflow down
+ * because somebody once created a tag by hand.
+ */
+export function isStableVersionTag(tag: string): boolean {
+  return /^v?\d+\.\d+\.\d+$/.test(tag.trim());
+}
+
 export function parseVersion(tag: string): [number, number, number] {
   const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(tag.trim());
   if (!match) throw new Error(`Not a version tag: ${tag}`);
