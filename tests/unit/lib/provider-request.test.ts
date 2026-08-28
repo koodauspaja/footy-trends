@@ -44,6 +44,10 @@ describe("backoffSecondsFrom", () => {
     expect(backoffSecondsFrom(headers({}))).toBe(10);
   });
 
+  it("ignores a header that is neither a number nor a date", () => {
+    expect(backoffSecondsFrom(headers({ "retry-after": "soon" }))).toBe(10);
+  });
+
   it("caps a wait no page render should sit through", () => {
     expect(backoffSecondsFrom(headers({ "retry-after": "3600" }))).toBe(35);
   });
@@ -88,6 +92,16 @@ describe("fetchProviderJson rate limiting", () => {
       "Test request failed: 404"
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not begin a backoff for a signal that is already aborted", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(rateLimited({ "retry-after": "30" }));
+    const controller = new AbortController();
+    controller.abort(new Error("already gone"));
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal)
+    ).rejects.toThrow();
   });
 
   it("lets a caller's timeout cut a backoff short", async () => {

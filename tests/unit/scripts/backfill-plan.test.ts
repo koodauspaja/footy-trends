@@ -89,6 +89,10 @@ describe("describeTarget", () => {
     expect(described).not.toContain("someuser");
   });
 
+  it("says so when the string parses but names no database", () => {
+    expect(describeTarget("postgresql://user:pw@host:5432/")).toBe("host:5432/(no database)");
+  });
+
   it("says so rather than throwing on an unparseable value", () => {
     expect(describeTarget("nonsense")).toBe("(unparseable DATABASE_URL)");
   });
