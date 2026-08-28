@@ -224,14 +224,18 @@ provider dependency for a page that otherwise has none. `/kotimaa` uses the 🇫
 emoji, but this picker renders `<img>` for every row and mixing the two in one
 list would read as an accident.
 
-## Out of scope, and left alone
+## Out of scope here, fixed later in #179
 
-**Fixed in #179.** `src/app/loading.tsx` read `Ladataan sarjataulukkoa...` — "loading the
-standings table" — and is app-wide, so it appears while this match-list page
-streams. It is already inaccurate on `/ulkomaat/ottelut` and the team pages,
-so this is pre-existing rather than introduced here, and changing it would
-touch every page's loading state. Flagged rather than fixed; it wants its own
-chore.
+`src/app/loading.tsx` read `Ladataan sarjataulukkoa...` — "loading the standings
+table" — and is app-wide, so it appeared while this match-list page streamed. It
+was already inaccurate on `/ulkomaat/ottelut` and the team pages, so it was
+pre-existing rather than introduced here, and changing it touched every page's
+loading state.
+
+It was therefore flagged rather than fixed at the time, and filed as #179. That
+chore has since landed: the copy is now `Ladataan...`, true of every page it can
+appear over. `specs/001` and `specs/002`, which mandated the old string, were
+updated with it.
 
 ## Finnish names, English code
 
