@@ -105,7 +105,16 @@ if (commits.length === 0) {
   process.exit(printMode === "report" ? 0 : 1);
 }
 
-const decision = decideVersion(commits, previousTag);
+// Only ever consulted when nothing is tagged yet — see `decideVersion`.
+let decision: ReturnType<typeof decideVersion>;
+try {
+  decision = decideVersion(commits, previousTag, process.env.FIRST_RELEASE_VERSION);
+} catch (error) {
+  // A mistyped override is an operator error, not a crash. A stack trace here
+  // would bury the one line saying what to put in the variable.
+  err(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
 
 if (printMode === "version") {
   out(decision.next);

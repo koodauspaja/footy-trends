@@ -243,6 +243,12 @@ jobs:
 
       - name: Work out the version
         id: version
+        env:
+          # Names the first release, and only the first: `decideVersion` ignores
+          # it entirely once any tag exists, so a variable left set here cannot
+          # affect the second release. Set it as a repository variable before
+          # the first release; there is no need to unset it afterwards.
+          FIRST_RELEASE_VERSION: ${{ vars.FIRST_RELEASE_VERSION }}
         run: |
           version="$(npm run release:version --silent -- --since-last-tag --print=version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"

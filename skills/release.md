@@ -46,6 +46,16 @@ Three rules worth knowing before the number surprises you:
   point — one docs commit would otherwise name the first production release
   `v0.0.1`. The tool defaults to `v0.1.0` and says it is doing so.
 
+  To name it something else — going straight to `v1.0.0`, say — set the
+  repository variable `FIRST_RELEASE_VERSION`. Whether a first tag is 0.x or
+  1.0.0 is a statement about stability rather than a fact about the commits,
+  which is why it is the one thing the tool will not decide.
+
+  It is honoured **only when no tag exists**, so it is self-limiting: once
+  anything is tagged it is ignored entirely, and a variable left set cannot turn
+  the next patch release into a major one. There is no need to unset it. A
+  mistyped value fails loudly rather than falling back to the default.
+
 Merge commits are excluded — a release produces one, and it carries no type.
 
 ## Steps
