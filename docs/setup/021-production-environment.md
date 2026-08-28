@@ -138,19 +138,24 @@ until someone repeats the scrape by hand.
 
 ## Step 5 — Settle the Sentry configuration
 
-`sentry.server.config.ts` currently ships three development defaults into every
-environment:
+**Three** config files ship the same development defaults into every
+environment — server, edge and client:
 
-```ts
-tracesSampleRate: 1,
-enableLogs: true,
-sendDefaultPii: true,
-```
+| File | Runs on |
+|---|---|
+| `sentry.server.config.ts` | Node server |
+| `sentry.edge.config.ts` | middleware and edge routes |
+| `src/instrumentation-client.ts` | the user's browser |
+
+Each sets `tracesSampleRate: 1`, `enableLogs: true` and `sendDefaultPii: true`.
+Changing only the server file leaves edge and browser traffic on the
+development defaults, which is easy to miss because the server file is the one
+everybody looks at.
 
 These are **code**, not configuration, so staging and production get the same
 values. Differing per environment requires reading them from environment
-variables first — a small change to `sentry.server.config.ts`, and the one
-application code change this environment work implies.
+variables first — the one application code change this environment work
+implies.
 
 | Setting | Now | Recommended in production | Why |
 |---|---|---|---|
@@ -158,31 +163,55 @@ application code change this environment work implies.
 | `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts yet, so almost nothing is gained, and it is a GDPR question that should be answered deliberately rather than inherited from a wizard default. |
 | `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two log destinations, two bills, and two places to search. Keep Axiom for logs and Sentry for errors. |
 
+### Session Replay records real users' browsing
+
+`src/instrumentation-client.ts` also enables `Sentry.replayIntegration()` with
+`replaysSessionSampleRate: 0.1` and `replaysOnErrorSampleRate: 1.0` — one in ten
+sessions recorded as a matter of course, and every session in which an error
+occurs.
+
+Combined with `sendDefaultPii: true` this is the most consequential privacy
+setting in the repository, and it is the one nothing has documented so far. It
+is a deliberate decision to take before real users arrive, not after. If replay
+is kept, `maskAllText` and `blockAllMedia` are the settings to review with it.
+
 ### These cannot be applied from the Railway dashboard yet
 
-Setting a variable in Railway does nothing on its own: `sentry.server.config.ts`
-hardcodes all three, so production runs the development defaults regardless of
-what is set. **Do not tick the Sentry item in *Done when* until the code below
-exists** — otherwise the checklist reads as complete while production traces
-100% of requests and ships PII.
+Setting a variable in Railway does nothing on its own: all three config files
+hardcode their values, so production runs the development defaults regardless
+of what is set. **Do not tick the Sentry item in *Done when* until the code
+below exists** — otherwise the checklist reads as complete while production
+traces 100% of requests, ships PII, and records sessions.
 
-The change is small and value-neutral — it reads each setting from the
-environment, keeping today's behaviour as the fallback, so nothing changes until
-a variable is actually set:
+The change is value-neutral — each setting is read from the environment with
+today's behaviour as the fallback, so nothing moves until a variable is set:
 
 ```ts
+// sentry.server.config.ts and sentry.edge.config.ts
 tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 1),
 enableLogs: process.env.SENTRY_ENABLE_LOGS !== "false",
 sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII !== "false",
 ```
 
+The client file needs its own variables. Anything read in the browser must be
+`NEXT_PUBLIC_`-prefixed and is **inlined into the bundle at build time**, so a
+server-only variable silently reads as `undefined` there — which is exactly how
+a client would keep tracing at 100% while the server behaved:
+
+```ts
+// src/instrumentation-client.ts
+tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 1),
+```
+
 Then production sets:
 
-| Variable | Value |
-|---|---|
-| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` |
-| `SENTRY_ENABLE_LOGS` | `false` |
-| `SENTRY_SEND_DEFAULT_PII` | `false` |
+| Variable | Value | Applies to |
+|---|---|---|
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | server, edge |
+| `SENTRY_ENABLE_LOGS` | `false` | server, edge |
+| `SENTRY_SEND_DEFAULT_PII` | `false` | server, edge |
+| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` | browser |
+| `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII` | `false` | browser |
 
 Record the values actually chosen here, with the reasoning, once agreed —
 the reasoning is the part that stops the next person re-litigating it.
@@ -196,8 +225,8 @@ the reasoning is the part that stops the next person re-litigating it.
 **Recommended: `info`.** It is worth understanding why this is safe rather than
 assuming it, because "info in production" is usually the wrong answer.
 
-Three paths in `src/` log at `info` through the Pino logger. None of them
-scales with user traffic:
+Exactly two paths log at `info` through the Pino logger, and neither scales
+with user traffic:
 
 - `src/lib/provider-request.ts`, once per *outbound provider request*. Every
   provider response is cached, so this is bounded by **cache misses, not user
@@ -205,12 +234,14 @@ scales with user traffic:
 - `src/app/api/health/route.ts`, once per request to it. Railway probes
   `healthcheckPath` only while gating a new deployment and stops once the
   deploy is live, so this is per-deploy volume plus whatever hits it by hand.
-- `src/app/api/sentry-example-api/route.ts` and
-  `src/app/sentry-example-page/page.tsx`, the Sentry wizard's scaffolding.
-  These are reachable in production and worth deleting rather than tuning —
-  they exist to prove the integration once, not to ship.
 
 Everything else in `src/` logs at `warn` or `error`.
+
+The Sentry wizard's example routes — `src/app/api/sentry-example-api/route.ts`
+and `src/app/sentry-example-page/page.tsx` — also log at info level, but through
+`Sentry.logger.info`, not Pino. **`LOG_LEVEL` does not control them**; Step 5's
+`enableLogs` does. They are reachable in production and exist to prove the
+integration once, so deleting them is a better answer than tuning either knob.
 
 If Axiom volume does become a cost, the lever is the provider-request log line,
 not the global level — dropping to `warn` would also discard the warnings that
@@ -310,8 +341,9 @@ trigger branch and the variable values — everything else comes from
 - [ ] Its trigger branch is `release`; a push to `main` deploys staging only
 - [ ] All ten required variables are set, with no value shared with staging
 - [ ] The auth variables are deliberately left unset
-- [ ] `sentry.server.config.ts` reads its three settings from the environment
-      (prerequisite — without it the next box cannot be true)
+- [ ] All three Sentry configs — server, edge and client — read their settings
+      from the environment (prerequisite; without it the next box cannot be true)
+- [ ] Session Replay is decided: kept with masking reviewed, or disabled
 - [ ] Sentry `tracesSampleRate`, `sendDefaultPii` and `enableLogs` are decided,
       applied, and recorded above with reasoning
 - [ ] `LOG_LEVEL` is decided and recorded
