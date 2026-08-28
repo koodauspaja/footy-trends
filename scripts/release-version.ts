@@ -37,7 +37,11 @@ function latestVersionTag(): string | null {
 
 function commitsBetween(from: string | null, to: string): Commit[] {
   const range = from ? `${from}..${to}` : to;
-  const raw = git(["log", range, `--format=%s${FIELD}%b${RECORD}`]);
+  // `--no-merges` asks git for the topology rather than guessing from the
+  // subject line. A release produces a merge commit, and its subject can be
+  // edited to anything, so matching on "Merge pull request" is a heuristic
+  // where an authoritative answer is available.
+  const raw = git(["log", "--no-merges", range, `--format=%s${FIELD}%b${RECORD}`]);
   if (!raw) return [];
   return raw
     .split(RECORD)

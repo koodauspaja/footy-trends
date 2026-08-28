@@ -255,8 +255,19 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            # An existing tag is only acceptable if it names *this* commit —
+            # a rerun. Pointing anywhere else means the version was already
+            # used for something else, and publishing notes against it would
+            # break the one guarantee the tag carries: that it identifies the
+            # commit the tests ran on.
+            tagged="$(git rev-list -n 1 "refs/tags/$version")"
+            if [ "$tagged" != "$GITHUB_SHA" ]; then
+              echo "::error::$version already exists and points at $tagged, not $GITHUB_SHA."
+              echo "::error::Refusing to publish a release whose tag names a different commit."
+              exit 1
+            fi
             echo "tag=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Tag $version already exists."
+            echo "::notice::Tag $version already points at this commit — rerun."
           else
             echo "tag=false" >> "$GITHUB_OUTPUT"
           fi

@@ -59,9 +59,11 @@ export function parseVersion(tag: string): [number, number, number] {
 }
 
 /**
- * Merge commits are excluded. A release merges `main` into `release`, so the
- * merge itself carries no type and its subject would otherwise be counted as
- * an unparseable commit and float the release to a patch on its own.
+ * A last-resort filter for merge commits, for callers that did not ask git to
+ * exclude them. `release-version.ts` passes `--no-merges`, which settles it by
+ * topology; this only catches a caller that collected commits some other way.
+ * Subject matching cannot be authoritative — a merge subject can be edited —
+ * so it is the fallback rather than the mechanism.
  */
 export function isMergeSubject(subject: string): boolean {
   return /^Merge (pull request|branch|remote-tracking branch) /.test(subject);
