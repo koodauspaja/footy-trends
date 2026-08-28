@@ -55,6 +55,9 @@ async function clearFixtures() {
   await db
     .delete(tasoMatches)
     .where(and(eq(tasoMatches.seasonId, seasonId), eq(tasoMatches.competitionCode, competitionId)));
+  // Group rows too. The concurrency test writes them, and leaving them behind
+  // lets one run's fixtures decide whether the next run's assertions hold.
+  await db.delete(tasoGroupTeams).where(eq(tasoGroupTeams.competitionCode, "spljp99"));
 }
 
 describe("taso integration", () => {
