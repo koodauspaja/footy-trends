@@ -8,14 +8,18 @@ import {
   normalizeTasoMatch,
 } from "@/lib/taso";
 
-const { loggerInfoMock, loggerErrorMock, loggerWarnMock } = vi.hoisted(() => ({
+const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
   loggerInfoMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerWarnMock: vi.fn(),
+  // Passes straight through by default, so the tests below still assert on the
+  // request actually made. Individual tests override it to check the caching.
+  getCachedMock: vi.fn((_key: string, _ttl: number, fetcher: () => unknown) => fetcher()),
 }));
 vi.mock("@/lib/logger", () => ({
   logger: { info: loggerInfoMock, error: loggerErrorMock, warn: loggerWarnMock },
 }));
+vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
 
 describe("taso mapping", () => {
   const originalApiKey = process.env.TASO_API_KEY;
@@ -25,6 +29,7 @@ describe("taso mapping", () => {
     loggerInfoMock.mockReset();
     loggerErrorMock.mockReset();
     loggerWarnMock.mockReset();
+    getCachedMock.mockClear();
     vi.unstubAllGlobals();
   });
 
@@ -849,5 +854,54 @@ describe("TASO winner", () => {
   it("has no winner before the match is played", () => {
     expect(normalize()).toBeNull();
     expect(normalize("Something else")).toBeNull();
+  });
+});
+
+describe("taso caching", () => {
+  beforeEach(() => {
+    getCachedMock.mockClear();
+    vi.stubEnv("TASO_API_KEY", "test-key");
+  });
+
+  it("caches a season's matches per competition and category", async () => {
+    // An empty answer stores no rows, so without a cache `getSyncedSeasonMatches`
+    // cannot tell "never fetched" from "fetched, nothing there" and re-asks on
+    // every request — 18 times for one pair in a single test run. See #200.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ matches: [] }), { status: 200 }))
+    );
+
+    await getSeasonMatches("maajp2022", "EC", 2022);
+
+    expect(getCachedMock).toHaveBeenCalledWith(
+      "taso:matches:maajp2022:EC",
+      900,
+      expect.any(Function)
+    );
+  });
+
+  it("caches a season's groups per competition and category", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ groups: [] }), { status: 200 }))
+    );
+
+    await getSeasonGroups("spljp26", "VL");
+
+    expect(getCachedMock).toHaveBeenCalledWith("taso:groups:spljp26:VL", 900, expect.any(Function));
+  });
+
+  it("does not reach the provider when the cache answers, even with nothing", async () => {
+    // The empty answer is the one that matters: it is the case the database
+    // cannot remember on its own.
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    getCachedMock.mockResolvedValueOnce({ matches: [] });
+
+    const result = await getSeasonMatches("maajp2022", "EC", 2022);
+
+    expect(result).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
