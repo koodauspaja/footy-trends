@@ -6,7 +6,7 @@ database, its own cache, and its own credentials — and record the configuratio
 decisions that only start to matter once real users and real log volume are
 involved.
 
-Complete this after `019-railway-config.md`. By then `railway.toml` is the
+This depends on `019-railway-config.md` being done: `railway.toml` is the
 source of truth for deploy behaviour, so production inherits it rather than
 needing its own dashboard configuration.
 
@@ -55,9 +55,18 @@ would otherwise take production with it.
 2. Name it `production`
 3. Base it on `staging` so the service and its settings are copied
 
-Creating from staging copies service configuration but **not** variable
-*values* you will override below. Treat every variable as unset until Step 4
-says otherwise.
+Duplicating an environment copies "services, variables, and configuration" —
+**including the values**. Production therefore starts out holding *staging's*
+credentials: staging's API keys, staging's Axiom token, and database variables
+still referencing staging's instances.
+
+Treat every variable as wrong until Step 4 has replaced it. The failure mode
+here is silent: nothing errors, because staging's credentials work — production
+just quietly reads and writes staging's data.
+
+Railway stages the copied services for deployment rather than deploying them
+immediately, so review the staged changes before approving; that pause is the
+opportunity to fix the variables first.
 
 ---
 
@@ -100,8 +109,9 @@ few config files — so documentation-, spec-, decision-, test- and
 
 ## Step 4 — Set the environment variables
 
-Ten variables are read by `src/`. Two are injected by Railway once the
-databases are attached; the other eight are set by hand.
+Ten variables are read by `src/` today. Two are injected by Railway once the
+databases are attached; the other eight are set by hand. Step 5 adds six more
+once the Sentry configs read their settings from the environment.
 
 | Variable | Source | Note |
 |---|---|---|
@@ -160,8 +170,8 @@ everybody looks at.
 
 These are **code**, not configuration, so staging and production get the same
 values. Differing per environment requires reading them from environment
-variables first — the one application code change this environment work
-implies.
+variables first — the application code change this environment work implies,
+and it has to be made in all three files.
 
 | Setting | Now | Recommended in production | Why |
 |---|---|---|---|
@@ -207,7 +217,13 @@ a client would keep tracing at 100% while the server behaved:
 ```ts
 // src/instrumentation-client.ts
 tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 1),
+enableLogs: process.env.NEXT_PUBLIC_SENTRY_ENABLE_LOGS !== "false",
+sendDefaultPii: process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII !== "false",
 ```
+
+All three, not just the sample rate: `SENTRY_ENABLE_LOGS=false` does nothing to
+the browser, so leaving `enableLogs` hardcoded means client logs keep going to
+Sentry while the server obeys.
 
 Then production sets:
 
@@ -217,6 +233,7 @@ Then production sets:
 | `SENTRY_ENABLE_LOGS` | `false` | server, edge |
 | `SENTRY_SEND_DEFAULT_PII` | `false` | server, edge |
 | `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` | browser |
+| `NEXT_PUBLIC_SENTRY_ENABLE_LOGS` | `false` | browser |
 | `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII` | `false` | browser |
 
 Record the values actually chosen here, with the reasoning, once agreed —
@@ -261,9 +278,11 @@ and `src/app/sentry-example-page/page.tsx` — also log at info level, but throu
 `enableLogs` does. They are reachable in production and exist to prove the
 integration once, so deleting them is a better answer than tuning either knob.
 
-If Axiom volume does become a cost, the lever is the provider-request log line,
-not the global level — dropping to `warn` would also discard the warnings that
-make provider failures diagnosable.
+If Axiom volume does become a cost, the lever is the provider-request log line
+rather than the global level. Dropping to `warn` keeps every warning and error —
+it discards the record of provider requests that *succeeded*, which is what
+makes latency and volume questions answerable at all. Failures would still be
+visible; the baseline to compare them against would not.
 
 ---
 
@@ -304,13 +323,15 @@ production incident rather than during it.
 5. Check the response body:
 
 ```sh
-curl -s https://<production-domain>/api/health | jq
+# Railway's generated domain for the production service — custom domains are
+# out of scope here, so this is the *.up.railway.app one from Settings → Networking.
+curl -s https://<production-service>.up.railway.app/api/health | jq
 ```
 
-Expect `status: "ok"` with `checks.database: "ok"` and `checks.redis: "ok"`
-— both sit under `checks`, not at the top level. Add
-`?providers=1` to include a live TASO check — it is opt-in precisely because a
-probe should not call a provider on every request.
+Expect `status: "ok"`, with `checks.database` and `checks.redis` both `"ok"` —
+they sit under `checks`, not at the top level. Add `?providers=1` to include a
+live TASO check; it is opt-in precisely because a probe should not call a
+provider on every request.
 
 Then confirm the isolation actually holds:
 
@@ -322,7 +343,8 @@ Then confirm the isolation actually holds:
 
 ## Deploy source, and what is deliberately missing
 
-Production deploys on any push to `release`. Since `release` cannot be pushed
+Production deploys on a push to `release` that touches a watched path — the
+same `watchPatterns` qualification as Step 3. Since `release` cannot be pushed
 to directly — PR and one approval are required — that is a real gate, but it is
 a **human** one: nothing yet checks that the tests pass before production
 takes the code.
@@ -344,8 +366,9 @@ domains/DNS/TLS.
 1. Create a `production` environment based on `staging` (Step 1)
 2. Attach a new PostgreSQL and Redis (Step 2)
 3. Set the trigger branch to `release` (Step 3)
-4. Set the eight manual variables; confirm Railway injected the two database
-   URLs and that they point at this environment's instances (Step 4)
+4. Replace all eight manual variables — they arrive holding staging's values —
+   and confirm the two database variables point at this environment's
+   instances, not staging's (Step 4)
 5. Apply the Sentry and log-level values recorded in Steps 5 and 6
 6. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
@@ -362,17 +385,20 @@ repository can reproduce them.
 ## Done when
 - [ ] `production` environment exists, separate from staging
 - [ ] It has its own PostgreSQL and Redis, and neither URL matches staging's
-- [ ] Its trigger branch is `release`; a push to `main` deploys staging only
-- [ ] All ten required variables are set, with no value shared with staging
+- [ ] Its trigger branch is `release`; a push to `main` never reaches production
+- [ ] All ten variables in Step 4 are set, every one replaced rather than
+      inherited from the duplicated environment, with no value shared with staging
 - [ ] The auth variables are deliberately left unset
 - [ ] All three Sentry configs — server, edge and client — read their settings
       from the environment (prerequisite; without it the next box cannot be true)
 - [ ] Session Replay is decided: kept with masking reviewed, or disabled
 - [ ] Sentry `tracesSampleRate`, `sendDefaultPii` and `enableLogs` are decided,
-      applied, and recorded above with reasoning
+      applied, and recorded above with reasoning — all six variables set, the
+      three `NEXT_PUBLIC_` ones included, or the browser keeps the defaults
 - [ ] `LOG_LEVEL` is decided and recorded
 - [ ] A deploy runs migrations before taking traffic and passes its health check
-- [ ] `/api/health` returns `ok` for database and redis in production
+- [ ] `/api/health` in production returns `status: "ok"` with `checks.database`
+      and `checks.redis` both `"ok"`
 
 ## Next
 → The release workflow — release CI, Wait for CI, version tagging and rollback.
