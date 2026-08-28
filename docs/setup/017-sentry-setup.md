@@ -241,9 +241,10 @@ with every stack listed twice.
 ```js
 const { EventEmitter } = require("node:events");
 
-/** Highest number of `close` listeners seen on a single response, and who added them. */
+/** Highest number of `close` listeners seen on a single response. */
 let peak = 0;
-const perResponse = new WeakMap();
+/** listener function -> where it was attached. */
+const origin = new WeakMap();
 
 function caller() {
   return (new Error().stack || "")
@@ -275,21 +276,22 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
 
     recording = true;
     try {
-      const before = this.listenerCount("close");
+      const where = caller();
       const result = original.call(this, event, listener);
-      const now = this.listenerCount("close");
+      origin.set(listener, where);
 
       // Node's own count, not a tally of our calls.
-      if (now > before) {
-        const sources = perResponse.get(this) ?? [];
-        sources.push(caller());
-        perResponse.set(this, sources);
-
-        if (now > peak) {
-          peak = now;
-          console.error(`--- ${now} close listeners on one ServerResponse ---`);
-          sources.forEach((s, i) => console.error(`  ${i + 1}. ${s}`));
-        }
+      const now = this.listenerCount("close");
+      if (now > peak) {
+        peak = now;
+        console.error(`--- ${now} close listeners on one ServerResponse ---`);
+        // Read the listeners still registered, rather than a history of
+        // attachments: a `once` listener removes itself when it fires, and a
+        // cumulative list would print sources no longer present.
+        this.rawListeners("close").forEach((registered, i) => {
+          const target = registered.listener ?? registered;
+          console.error(`  ${i + 1}. ${origin.get(target) ?? "(unknown)"}`);
+        });
       }
       return result;
     } finally {
@@ -299,9 +301,15 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
 }
 ```
 
-The listed sources can outnumber the peak: `once` listeners remove themselves
-when they fire, so a response may attach thirteen over its life while never
-holding more than eight at once. The peak is the number Node warns on.
+It lists the listeners **still registered** at the moment of the peak, read
+from `rawListeners`, rather than a history of attachments. That distinction
+matters: a `once` listener removes itself when it fires, so a response may
+attach thirteen over its life while never holding more than eight at once. A
+cumulative list would print sources that are no longer there and would not add
+up to the peak Node warns on.
+
+`rawListeners` returns the `once` wrapper rather than the function passed in,
+which is why the lookup falls back through `registered.listener`.
 
 ---
 
