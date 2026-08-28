@@ -12,15 +12,15 @@ function match(providerMatchId: number, competitionName: string, played: boolean
   return {
     providerMatchId,
     competitionCode: "maajp2026",
-    categoryId: "UNL",
+    categoryId: "WWCQ",
     seasonId: 2026,
     groupId: 1,
-    groupName: "C-liiga lohko 1",
+    groupName: "",
     status: played ? "FINISHED" : "SCHEDULED",
     kickoffAt: new Date("2026-09-26T19:00:00Z"),
     matchday: null,
     homeTeamProviderId: 1,
-    homeTeamName: "San Marino",
+    homeTeamName: "Ruotsi",
     awayTeamProviderId: 2,
     awayTeamName: "Suomi",
     homeGoals: played ? 0 : null,
@@ -35,33 +35,33 @@ function year(y: number, matches: ReturnType<typeof match>[]): NationalTeamYear 
 }
 
 async function renderPage() {
-  const { default: Page } = await import("@/app/national-teams/mens-team/page");
+  const { default: Page } = await import("@/app/national-teams/womens-team/page");
   render(await Page());
 }
 
-describe("Huuhkajat page", () => {
+describe("Helmarit page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
     getNationalTeamYearsMock.mockResolvedValue({
       status: "ok",
       incomplete: false,
-      years: [year(2026, [match(1, "UEFA Nations League", true)])],
+      years: [year(2026, [match(1, "MM-karsinnat", true)])],
     });
   });
 
   it("is headed by the team, with no year — the page is every year", async () => {
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Huuhkajat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Helmarit" })).toBeInTheDocument();
   });
 
   it("shows a row's competition, teams and result", async () => {
     await renderPage();
 
     expect(screen.getByRole("columnheader", { name: "Kilpailu" })).toBeInTheDocument();
-    expect(screen.getByText("UEFA Nations League")).toBeInTheDocument();
-    expect(screen.getByText("San Marino – Suomi")).toBeInTheDocument();
+    expect(screen.getByText("MM-karsinnat")).toBeInTheDocument();
+    expect(screen.getByText("Ruotsi – Suomi")).toBeInTheDocument();
     expect(screen.getByText("0–3")).toBeInTheDocument();
   });
 
@@ -76,13 +76,13 @@ describe("Huuhkajat page", () => {
     getNationalTeamYearsMock.mockResolvedValue({
       status: "ok",
       incomplete: false,
-      years: [year(2026, [match(1, "UEFA Nations League", false)])],
+      years: [year(2026, [match(1, "MM-karsinnat", false)])],
     });
 
     await renderPage();
 
     expect(screen.queryByText("0–0")).not.toBeInTheDocument();
-    expect(screen.getByText("San Marino – Suomi")).toBeInTheDocument();
+    expect(screen.getByText("Ruotsi – Suomi")).toBeInTheDocument();
   });
 
   it("puts each year in a section that starts open", async () => {
@@ -90,7 +90,7 @@ describe("Huuhkajat page", () => {
       status: "ok",
       incomplete: false,
       years: [
-        year(2026, [match(1, "UEFA Nations League", true)]),
+        year(2026, [match(1, "MM-karsinnat", true)]),
         year(2021, [match(2, "EM-lopputurnaus", true)]),
       ],
     });
@@ -131,7 +131,7 @@ describe("Huuhkajat page", () => {
       status: "ok",
       incomplete: false,
       years: [
-        year(2026, [match(1, "UEFA Nations League", true)]),
+        year(2026, [match(1, "MM-karsinnat", true)]),
         year(2021, [match(2, "EM-lopputurnaus", true)]),
       ],
     });
@@ -146,7 +146,7 @@ describe("Huuhkajat page", () => {
     getNationalTeamYearsMock.mockResolvedValue({
       status: "ok",
       incomplete: true,
-      years: [year(2026, [match(1, "UEFA Nations League", true)])],
+      years: [year(2026, [match(1, "MM-karsinnat", true)])],
     });
 
     await renderPage();
@@ -193,14 +193,14 @@ describe("Huuhkajat page", () => {
    * everyone.
    */
   it("is rendered per request, never prerendered", async () => {
-    const { dynamic } = await import("@/app/national-teams/mens-team/page");
+    const { dynamic } = await import("@/app/national-teams/womens-team/page");
 
     expect(dynamic).toBe("force-dynamic");
   });
 
   it("titles the browser tab with the team", async () => {
-    const { metadata } = await import("@/app/national-teams/mens-team/page");
+    const { metadata } = await import("@/app/national-teams/womens-team/page");
 
-    expect(metadata.title).toBe("Huuhkajat");
+    expect(metadata.title).toBe("Helmarit");
   });
 });

@@ -64,6 +64,13 @@ A year's Huuhkajat categories are those whose `category_name` ends
 2022–2024 carry `EC` and 2025–2026 do not. The same suffix is what excludes
 Helmarit and every youth team, so one rule does both jobs.
 
+**Superseded by #167.** Both a trailing campaign year and a leading `Muut ` are
+now stripped, so this page shows `A-maaottelut` where it showed `Muut
+A-maaottelut`. The reasoning below held while `Muut A-maaottelut` was the only
+example; Helmarit's `MM-karsinnat 2023` made it the same defect twice, and the
+category id is identical either side of the rename — TASO relabelled one
+competition rather than splitting it. See `decisions/018-helmarit.md`.
+
 The row label is that name with the suffix removed. TASO calls the friendlies
 `Muut A-maaottelut` in 2021 and `A-maaottelut` from 2022, and **both are shown
 as TASO spells them**. Normalising would mean reintroducing exactly the

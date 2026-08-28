@@ -5,12 +5,14 @@ import {
   competitionLabel,
   groupByPlayedYear,
   isFinlandMatch,
-  MENS_TEAM_ACTIVE_YEAR,
-  MENS_TEAM_YEARS,
+  MENS_TEAM,
   matchCountLabel,
-  mensTeamCategories,
+  NATIONAL_TEAM_ACTIVE_YEAR,
+  NATIONAL_TEAM_YEARS,
+  nationalTeamCategories,
   playedYear,
-} from "@/lib/mens-team";
+  WOMENS_TEAM,
+} from "@/lib/national-team";
 
 describe("competitionIdForYear", () => {
   it("maps 2026 to the year-shaped id", () => {
@@ -32,11 +34,11 @@ describe("competitionIdForYear", () => {
   });
 
   it("covers exactly 2021 through 2026, newest first", () => {
-    expect(MENS_TEAM_YEARS).toEqual([2026, 2025, 2024, 2023, 2022, 2021]);
+    expect(NATIONAL_TEAM_YEARS).toEqual([2026, 2025, 2024, 2023, 2022, 2021]);
   });
 
   it("treats the newest year as the active one", () => {
-    expect(MENS_TEAM_ACTIVE_YEAR).toBe(2026);
+    expect(NATIONAL_TEAM_ACTIVE_YEAR).toBe(2026);
   });
 });
 
@@ -51,45 +53,79 @@ describe("mensTeamCategories", () => {
     };
 
     expect(
-      mensTeamCategories(names)
+      nationalTeamCategories(MENS_TEAM, names)
         .map((c) => c.categoryId)
         .sort()
     ).toEqual(["UNL", "WCQ"]);
   });
 
   it("is empty for a season with no Huuhkajat categories", () => {
-    expect(mensTeamCategories({ NA: "Naisten A-maaottelut" })).toEqual([]);
+    expect(nationalTeamCategories(MENS_TEAM, { NA: "Naisten A-maaottelut" })).toEqual([]);
   });
 
   it("carries each category's display label, so no second lookup is needed", () => {
-    expect(mensTeamCategories({ Miehet: "Muut A-maaottelut Huuhkajat" })).toEqual([
-      { categoryId: "Miehet", competitionName: "Muut A-maaottelut" },
+    expect(nationalTeamCategories(MENS_TEAM, { Miehet: "A-maaottelut Huuhkajat" })).toEqual([
+      { categoryId: "Miehet", competitionName: "A-maaottelut" },
     ]);
+  });
+
+  it("selects the configured team, not the other one sharing the bucket", () => {
+    const names = {
+      WCQ: "MM-karsinnat Huuhkajat",
+      WWCQ: "MM-karsinnat 2023 Helmarit",
+      U21ECQ: "EM-karsinnat U21-miehet",
+    };
+
+    expect(nationalTeamCategories(MENS_TEAM, names).map((c) => c.categoryId)).toEqual(["WCQ"]);
+    expect(nationalTeamCategories(WOMENS_TEAM, names).map((c) => c.categoryId)).toEqual(["WWCQ"]);
   });
 });
 
 describe("competitionLabel", () => {
   it("strips the trailing suffix", () => {
-    expect(competitionLabel("UEFA Nations League Huuhkajat")).toBe("UEFA Nations League");
-    expect(competitionLabel("EM-lopputurnaus Huuhkajat")).toBe("EM-lopputurnaus");
+    expect(competitionLabel(MENS_TEAM, "UEFA Nations League Huuhkajat")).toBe(
+      "UEFA Nations League"
+    );
+    expect(competitionLabel(MENS_TEAM, "EM-lopputurnaus Huuhkajat")).toBe("EM-lopputurnaus");
   });
 
   /**
-   * TASO names the friendlies differently either side of 2022 and both stand
-   * as it spells them — normalising would reintroduce the hardcoded id→name
-   * table the suffix rule exists to avoid.
+   * TASO renames one competition between buckets rather than splitting it —
+   * the category id is identical either side — so both variants render the
+   * same. This supersedes #166, which showed them as spelled. See
+   * specs/018-helmarit.md.
    */
-  it("leaves 2021's wording alone rather than normalising it to the later one", () => {
-    expect(competitionLabel("Muut A-maaottelut Huuhkajat")).toBe("Muut A-maaottelut");
-    expect(competitionLabel("A-maaottelut Huuhkajat")).toBe("A-maaottelut");
+  it("normalises the friendlies TASO renamed between buckets", () => {
+    expect(competitionLabel(MENS_TEAM, "Muut A-maaottelut Huuhkajat")).toBe("A-maaottelut");
+    expect(competitionLabel(MENS_TEAM, "A-maaottelut Huuhkajat")).toBe("A-maaottelut");
+    expect(competitionLabel(WOMENS_TEAM, "Muut A-maaottelut Helmarit")).toBe("A-maaottelut");
+    expect(competitionLabel(WOMENS_TEAM, "A-maaottelut Helmarit")).toBe("A-maaottelut");
+  });
+
+  it("strips a campaign year, so one competition reads the same in every year", () => {
+    expect(competitionLabel(WOMENS_TEAM, "MM-karsinnat 2023 Helmarit")).toBe("MM-karsinnat");
+    expect(competitionLabel(WOMENS_TEAM, "MM-karsinnat Helmarit")).toBe("MM-karsinnat");
+  });
+
+  /**
+   * Guards the two rules against eating a label whole. Neither has a case in
+   * the current data, which is exactly why they are pinned.
+   */
+  it("leaves a label that is only a year, or only Muut, alone", () => {
+    expect(competitionLabel(MENS_TEAM, "2023 Huuhkajat")).toBe("2023");
+    expect(competitionLabel(MENS_TEAM, "Muut Huuhkajat")).toBe("Muut");
+  });
+
+  it("does not strip a trailing number that is not a year", () => {
+    expect(competitionLabel(MENS_TEAM, "Lohko 1 Huuhkajat")).toBe("Lohko 1");
   });
 
   it("leaves a name without the suffix unchanged", () => {
-    expect(competitionLabel("Miesten A-maaottelut")).toBe("Miesten A-maaottelut");
+    expect(competitionLabel(MENS_TEAM, "Miesten A-maaottelut")).toBe("Miesten A-maaottelut");
   });
 
   it("does not strip a bare 'Huuhkajat' into an empty label", () => {
-    expect(competitionLabel("Huuhkajat")).toBe("Huuhkajat");
+    expect(competitionLabel(MENS_TEAM, "Huuhkajat")).toBe("Huuhkajat");
   });
 });
 

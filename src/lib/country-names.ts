@@ -88,14 +88,23 @@ const FINNISH_COUNTRY_NAMES: Record<string, string> = {
  * read two ways on a single page — which is the whole defect being fixed here,
  * since `Greece` and `Kreikka` were both appearing.
  *
- * Helmarit (#167) reads the same buckets and will need this too; add any
- * further English names here rather than starting a second map.
+ * Helmarit reads the same buckets and needed five more: `Croatia`, `Cyprus`,
+ * `Czech Republic`, `Portugal` and `Scotland`, all likewise from `maajp18`.
+ * Three of those — Croatia, Portugal, Scotland — appear in Finnish elsewhere
+ * in the same data, so leaving them would put one country under two spellings
+ * on one page. Add any further English names here rather than starting a
+ * second map.
  */
 const FINNISH_TASO_TEAM_NAMES: Record<string, string> = {
   "Bosnia and Herzegovina": "Bosnia-Hertsegovina",
+  Croatia: "Kroatia",
+  Cyprus: "Kypros",
+  "Czech Republic": "Tšekki",
   Greece: "Kreikka",
   Italy: "Italia",
+  Portugal: "Portugali",
   "Republic of Ireland": "Irlanti",
+  Scotland: "Skotlanti",
 };
 
 /** A TASO team name in Finnish, unchanged when it already is. */

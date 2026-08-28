@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
       { source: "/maajoukkueet/ottelut", destination: "/national-teams/matches" },
       { source: "/maajoukkueet/sarjataulukko", destination: "/national-teams/standings" },
       { source: "/maajoukkueet/huuhkajat", destination: "/national-teams/mens-team" },
+      { source: "/maajoukkueet/helmarit", destination: "/national-teams/womens-team" },
     ];
   },
 

@@ -75,7 +75,12 @@ describe("toFinnishTasoTeamName", () => {
    * Euro qualifiers and the 2020 Nations League — carries English. Eight rows,
    * four countries. See specs/017-huuhkajat.md.
    */
-  it("translates the four names TASO reports in English", () => {
+  it("translates the nine names TASO reports in English", () => {
+    expect(toFinnishTasoTeamName("Croatia")).toBe("Kroatia");
+    expect(toFinnishTasoTeamName("Cyprus")).toBe("Kypros");
+    expect(toFinnishTasoTeamName("Czech Republic")).toBe("Tšekki");
+    expect(toFinnishTasoTeamName("Portugal")).toBe("Portugali");
+    expect(toFinnishTasoTeamName("Scotland")).toBe("Skotlanti");
     expect(toFinnishTasoTeamName("Greece")).toBe("Kreikka");
     expect(toFinnishTasoTeamName("Italy")).toBe("Italia");
     expect(toFinnishTasoTeamName("Republic of Ireland")).toBe("Irlanti");
@@ -93,6 +98,35 @@ describe("toFinnishTasoTeamName", () => {
       toFinnishTasoTeamName("Bosnia-Hertsegovina")
     );
     expect(toFinnishTasoTeamName("Republic of Ireland")).toBe(toFinnishTasoTeamName("Irlanti"));
+  });
+
+  /**
+   * Three of Helmarit's English names appear in Finnish elsewhere in the same
+   * data, so leaving them would put one country under two spellings on one
+   * page — the defect this map exists to prevent.
+   */
+  it("collapses the three that TASO spells both ways", () => {
+    expect(toFinnishTasoTeamName("Croatia")).toBe(toFinnishTasoTeamName("Kroatia"));
+    expect(toFinnishTasoTeamName("Portugal")).toBe(toFinnishTasoTeamName("Portugali"));
+    expect(toFinnishTasoTeamName("Scotland")).toBe(toFinnishTasoTeamName("Skotlanti"));
+  });
+
+  /**
+   * These are the same word in both languages and must not be "corrected".
+   */
+  it("leaves names identical in Finnish alone", () => {
+    for (const name of [
+      "Albania",
+      "Georgia",
+      "Latvia",
+      "Montenegro",
+      "Romania",
+      "Serbia",
+      "Slovakia",
+      "Wales",
+    ]) {
+      expect(toFinnishTasoTeamName(name)).toBe(name);
+    }
   });
 
   it("leaves a name TASO already publishes in Finnish alone", () => {

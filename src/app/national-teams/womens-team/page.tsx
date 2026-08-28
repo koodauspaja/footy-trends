@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { NationalTeamPage } from "@/components/national-team-page";
-import { MENS_TEAM } from "@/lib/national-team";
+import { WOMENS_TEAM } from "@/lib/national-team";
 
-export const metadata: Metadata = { title: MENS_TEAM.displayName };
+export const metadata: Metadata = { title: WOMENS_TEAM.displayName };
 
 /**
  * Rendered per request, never prerendered.
@@ -23,6 +23,6 @@ export const dynamic = "force-dynamic";
 // Called as a function rather than rendered as JSX, matching the region pages:
 // it returns the shared server component's promise, so the page resolves in one
 // pass. See src/app/foreign/standings/page.tsx.
-export default function MensTeam() {
-  return NationalTeamPage({ team: MENS_TEAM });
+export default function WomensTeam() {
+  return NationalTeamPage({ team: WOMENS_TEAM });
 }
