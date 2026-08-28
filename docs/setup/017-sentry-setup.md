@@ -126,17 +126,24 @@ so the breadth is deliberate rather than incidental.
 Measured 2026-08-28 on **Next 16.3.2, @sentry/nextjs 10.70.0, Node 24.16.0**,
 with the probe below.
 
-**Peak: 8 `close` listeners on one `ServerResponse` in dev, 7 in production.**
-The difference is Next's dev-only request tracing. Contributors:
+Every listener on the busiest response, one row each, so the totals are
+checkable against the probe's output:
 
-| Source | |
-|---|---|
-| Sentry | `recordRequestSession`, and its async-local-storage path |
-| Next | `requestHandlerImpl` |
-| Next | `createAbortController` / `signalFromNodeResponse` |
-| Next | `DevServer` request tracing — **dev only**, absent in production |
-| Next | `AfterContext`'s `onClose`, `NodeNextResponse.onClose` |
-| Next | `pipeNodeReadableToNodeResponse` |
+| Listener | dev | production |
+|---|---|---|
+| Sentry — `recordRequestSession` | 1 | 1 |
+| Sentry — its async-local-storage path | 1 | 1 |
+| Next — `requestHandlerImpl` | 1 | 1 |
+| Next — `createAbortController` / `signalFromNodeResponse` | 1 | 1 |
+| Next — `DevServer` request tracing | 1 | — |
+| Next — `AfterContext`'s `onClose` | 1 | 1 |
+| Next — `NodeNextResponse.onClose` | 1 | 1 |
+| Next — `pipeNodeReadableToNodeResponse` | 1 | 1 |
+| **Peak concurrent** | **8** | **7** |
+
+Each source contributes exactly one listener. The only difference between the
+two columns is Next's request tracing, which runs in dev alone — which is why
+production is one lower rather than for any reason of its own.
 
 Count the **peak concurrent** listeners, not the attachments. Those sources
 attach 13 times over one response's life, but `once` listeners remove
