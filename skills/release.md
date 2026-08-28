@@ -51,10 +51,16 @@ Three rules worth knowing before the number surprises you:
   1.0.0 is a statement about stability rather than a fact about the commits,
   which is why it is the one thing the tool will not decide.
 
-  It is honoured **only when no tag exists**, so it is self-limiting: once
-  anything is tagged it is ignored entirely, and a variable left set cannot turn
-  the next patch release into a major one. There is no need to unset it. A
-  mistyped value fails loudly rather than falling back to the default.
+  It is honoured **only when the project has never released** — a question asked
+  of every stable tag, not of the promotion range. That distinction matters: the
+  range's previous tag is deliberately empty on a rerun whose only tag points at
+  HEAD, and that is a repeat of a release that already happened rather than a
+  first one.
+
+  So it is self-limiting: once anything is tagged it is ignored entirely, and a
+  variable left set cannot turn the next patch release into a major one. There
+  is no need to unset it. A mistyped value fails loudly rather than falling back
+  to the default.
 
 Merge commits are excluded — a release produces one, and it carries no type.
 
