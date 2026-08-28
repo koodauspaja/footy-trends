@@ -210,10 +210,13 @@ It prints the highest number of `close` listeners any single response carried,
 and which code attached them. Compare that peak against
 `SERVER_RESPONSE_MAX_LISTENERS` in `src/instrumentation.ts`:
 
-- **below it** — nothing to do; that is the situation today, at 8 of 20 in dev
-  and 7 of 20 in production.
-- **at or above it** — the warning is back in production. Raise the constant and
+- **at or below it** — nothing to do; that is the situation today, at 8 of 20 in
+  dev and 7 of 20 in production.
+- **above it** — the warning is back in production. Raise the constant and
   record the new measurement in the table above.
+
+Node warns only when a listener is added *past* the limit, so a peak of exactly
+20 against a limit of 20 is still silent. The threshold to act on is 21.
 
 Two things it must get right, both of which the previous version got wrong and
 which are the whole reason this was repaired in #176:
