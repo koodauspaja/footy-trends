@@ -45,11 +45,12 @@ function onlyIn2026(names: Record<string, string>) {
 }
 
 async function load() {
-  const { getMensTeamYears } = await import("@/lib/mens-team-service");
-  return getMensTeamYears();
+  const { getNationalTeamYears } = await import("@/lib/national-team-service");
+  const { MENS_TEAM } = await import("@/lib/national-team");
+  return getNationalTeamYears(MENS_TEAM);
 }
 
-describe("getMensTeamYears", () => {
+describe("getNationalTeamYears", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
@@ -267,5 +268,118 @@ describe("getMensTeamYears", () => {
     expect(requested).toContain("maajp18");
     expect(requested).toContain("maajp2026");
     expect(requested).not.toContain("maajp2021");
+  });
+});
+
+/**
+ * Helmarit's data differs from Huuhkajat's in ways that are ordinary for it
+ * and would have been anomalies for the men. See specs/018-helmarit.md.
+ */
+describe("getNationalTeamYears — Helmarit", () => {
+  async function loadWomens() {
+    const { getNationalTeamYears } = await import("@/lib/national-team-service");
+    const { WOMENS_TEAM } = await import("@/lib/national-team");
+    return getNationalTeamYears(WOMENS_TEAM);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getSeasonCategoryNameMapMock.mockResolvedValue({});
+    getSeasonMatchListMock.mockResolvedValue({ status: "empty" });
+  });
+
+  it("selects Helmarit categories and ignores Huuhkajat sharing the bucket", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp2026"
+        ? { WWCQ: "MM-karsinnat Helmarit", WCQ: "MM-karsinnat Huuhkajat" }
+        : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Ruotsi")],
+    });
+
+    await loadWomens();
+
+    const asked = getSeasonMatchListMock.mock.calls.map((call) => call[0]);
+    expect(asked).toContain("WWCQ");
+    expect(asked).not.toContain("WCQ");
+  });
+
+  /**
+   * `maajp2024/Naiset-A` is 3 of 3 other teams', `maajp2025/WEC` 6 of 6. A
+   * category filtering down to nothing is ordinary here, not a failure.
+   */
+  it("treats a category with no Finland match at all as empty, not an error", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp2026" ? { WEC: "EM-lopputurnaus Helmarit" } : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Ruotsi", "Norja"), match(2, "Tanska", "Islanti")],
+    });
+
+    await expect(loadWomens()).resolves.toEqual({ status: "empty" });
+  });
+
+  /** `maajp18` holds four calendar years of Helmarit matches, not three. */
+  it("splits maajp18 across all four years it spans", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp18" ? { "Naiset-A": "Muut A-maaottelut Helmarit" } : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        match(1, "Suomi", "Ruotsi", "2018-06-05T16:00:00Z"),
+        match(2, "Norja", "Suomi", "2019-06-05T16:00:00Z"),
+        match(3, "Suomi", "Tanska", "2020-09-18T16:00:00Z"),
+        match(4, "Islanti", "Suomi", "2021-04-13T16:00:00Z"),
+      ],
+    });
+
+    const result = await loadWomens();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.years.map((y) => y.year)).toEqual([2021, 2020, 2019, 2018]);
+  });
+
+  it("renames the friendlies TASO relabelled between buckets", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp18" ? { "Naiset-A": "Muut A-maaottelut Helmarit" } : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Ruotsi", "2018-06-05T16:00:00Z")],
+    });
+
+    const result = await loadWomens();
+
+    expect(result.status === "ok" && result.years[0]?.matches[0]?.competitionName).toBe(
+      "A-maaottelut"
+    );
+  });
+
+  it("renders an English TASO name in Finnish", async () => {
+    getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
+      competitionId === "maajp18" ? { WECQ: "EM-karsinnat Helmarit" } : {}
+    );
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Croatia"), match(2, "Scotland", "Suomi")],
+    });
+
+    const result = await loadWomens();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    const names = result.years.flatMap((y) =>
+      y.matches.flatMap((m) => [m.homeTeamName, m.awayTeamName])
+    );
+    expect(names).toContain("Kroatia");
+    expect(names).toContain("Skotlanti");
+    expect(names).not.toContain("Croatia");
+    expect(names).not.toContain("Scotland");
   });
 });

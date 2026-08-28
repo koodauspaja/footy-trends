@@ -177,6 +177,13 @@ category_name: "MM-karsinnat Huuhkajat"         →  "MM-karsinnat"
 category_name: "Muut A-maaottelut Huuhkajat"    →  "Muut A-maaottelut"
 ```
 
+> **Superseded by specs/018-helmarit.md.** Provider labels are no longer shown
+> exactly as spelled: a trailing campaign year and a leading `Muut ` are both
+> stripped, so `Muut A-maaottelut` now renders as `A-maaottelut` on this page
+> too. The decision below was taken when `Muut A-maaottelut` was the only
+> example; beside Helmarit's `MM-karsinnat 2023` it is the same defect, and the
+> category id is identical either side of the rename.
+
 TASO names the friendlies category `Muut A-maaottelut` in 2021 and
 `A-maaottelut` from 2022. **Both are shown as TASO spells them** — confirmed in
 chat: `Muut A-maaottelut` is a good label. No hardcoded id→name table, and no
@@ -579,7 +586,8 @@ Helmarit (#167) is the same shape and needs the same export.
    #165 added. Putting a TASO competition in it would let `?kilpailu=HUU`
    resolve on a standings page that cannot serve it. The picker draws from two
    sources instead, and #167 will add its entry the same way.
-2. **Provider labels are shown as-is.** `Muut A-maaottelut` in 2021 and
+2. **Provider labels are shown as-is.** *(Superseded — see
+   specs/018-helmarit.md.)* `Muut A-maaottelut` in 2021 and
    `A-maaottelut` from 2022 both stand. No normalisation table.
 3. **No season selector.** Replaced by the year grouping above.
 4. **The route is `/maajoukkueet/huuhkajat`**, inside the region rather than a

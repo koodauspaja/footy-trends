@@ -3,22 +3,23 @@ import { logger } from "./logger";
 import {
   groupByPlayedYear,
   isFinlandMatch,
-  MENS_TEAM_ACTIVE_YEAR,
-  MENS_TEAM_SEASONS,
-  mensTeamCategories,
-} from "./mens-team";
+  NATIONAL_TEAM_ACTIVE_YEAR,
+  NATIONAL_TEAM_SEASONS,
+  type NationalTeam,
+  nationalTeamCategories,
+} from "./national-team";
 import type { NormalizedTasoMatch } from "./taso";
 import { getSeasonCategoryNameMap, getSeasonMatchList } from "./taso-standings-service";
 
 /** A match plus the name of the competition it belonged to, which the row shows. */
-export type MensTeamMatch = NormalizedTasoMatch & { competitionName: string };
+export type NationalTeamMatch = NormalizedTasoMatch & { competitionName: string };
 
 /** One calendar year's matches, chronological. Only years with matches become sections. */
-export type MensTeamYear = { year: number; matches: MensTeamMatch[] };
+export type NationalTeamYear = { year: number; matches: NationalTeamMatch[] };
 
-export type MensTeamResult =
+export type NationalTeamResult =
   /** `incomplete` when some buckets loaded and others failed. */
-  | { status: "ok"; years: MensTeamYear[]; incomplete: boolean }
+  | { status: "ok"; years: NationalTeamYear[]; incomplete: boolean }
   | { status: "empty" }
   | { status: "error" };
 
@@ -27,9 +28,9 @@ export type MensTeamResult =
  * served at all.
  *
  * `null` rather than an empty list precisely because the two must not be
- * confused: an empty category is normal (2025's `UNL` exists and holds no
- * matches), while a category that cannot be read has to reach the reader as an
- * error. A year quietly missing from a page that shows all of them is
+ * confused: an empty category is normal — thirteen of Helmarit's return no
+ * rows at all, and two more hold only other teams' matches — while a category
+ * that cannot be read has to reach the reader as an error. A year quietly missing from a page that shows all of them is
  * invisible — nothing on screen would say which one went absent.
  *
  * "Cannot be served at all" is the exact bar, and it is lower than it sounds.
@@ -44,12 +45,17 @@ export type MensTeamResult =
  * decided by its own date, not by this bucket's nominal season.
  */
 async function loadSeason(
+  team: NationalTeam,
   seasonId: number,
   competitionId: string
-): Promise<MensTeamMatch[] | null> {
+): Promise<NationalTeamMatch[] | null> {
   let categoryNames: Record<string, string>;
   try {
-    categoryNames = await getSeasonCategoryNameMap(competitionId, seasonId, MENS_TEAM_ACTIVE_YEAR);
+    categoryNames = await getSeasonCategoryNameMap(
+      competitionId,
+      seasonId,
+      NATIONAL_TEAM_ACTIVE_YEAR
+    );
   } catch (error) {
     logger.error(
       { err: error, seasonId, competitionId },
@@ -58,7 +64,7 @@ async function loadSeason(
     return null;
   }
 
-  const categories = mensTeamCategories(categoryNames);
+  const categories = nationalTeamCategories(team, categoryNames);
   const results = await Promise.all(
     categories.map(async (category) => ({
       ...category,
@@ -66,12 +72,12 @@ async function loadSeason(
         category.categoryId,
         competitionId,
         seasonId,
-        MENS_TEAM_ACTIVE_YEAR
+        NATIONAL_TEAM_ACTIVE_YEAR
       ),
     }))
   );
 
-  const matches: MensTeamMatch[] = [];
+  const matches: NationalTeamMatch[] = [];
   for (const { categoryId, competitionName, result } of results) {
     // "empty" is a category with no matches, which is ordinary. Only "error"
     // means the season cannot be shown truthfully.
@@ -95,11 +101,12 @@ async function loadSeason(
 }
 
 /**
- * Every year on the page, newest first, each one's matches chronological.
+ * Every year on one team's page, newest first, each one's matches
+ * chronological.
  *
  * Buckets load in parallel and are then regrouped by the year each match was
  * actually played in, because a bucket is not a calendar year — `maajp18`
- * holds matches from 2019, 2020 and 2021.
+ * holds three years of Huuhkajat matches and four of Helmarit's.
  *
  * A bucket that fails no longer takes the page with it. The first version
  * failed the whole page on any failure, reasoning that a year missing from a
@@ -112,12 +119,12 @@ async function loadSeason(
  * has no silent hole either. Only a page with nothing to show at all is an
  * error.
  */
-export async function getMensTeamYears(): Promise<MensTeamResult> {
+export async function getNationalTeamYears(team: NationalTeam): Promise<NationalTeamResult> {
   const loaded = await Promise.all(
-    MENS_TEAM_SEASONS.map(({ year, competitionId }) => loadSeason(year, competitionId))
+    NATIONAL_TEAM_SEASONS.map(({ year, competitionId }) => loadSeason(team, year, competitionId))
   );
 
-  const succeeded = loaded.filter((matches): matches is MensTeamMatch[] => matches !== null);
+  const succeeded = loaded.filter((matches): matches is NationalTeamMatch[] => matches !== null);
   const failedCount = loaded.length - succeeded.length;
   const years = groupByPlayedYear(succeeded.flat());
 

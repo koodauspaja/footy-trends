@@ -11,12 +11,33 @@ describe("National teams page (competition picker)", () => {
     expect(metadata.title).toBe("Valitse kilpailu");
   });
 
-  it("lists only the national-team competitions, with Huuhkajat last", () => {
+  it("lists the football-data tournaments, then both national teams", () => {
     render(<NationalTeams />);
 
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(3);
-    expect(links.map((link) => link.textContent)).toEqual(["MM-kisat", "EM-kisat", "Huuhkajat"]);
+    expect(links).toHaveLength(4);
+    expect(links.map((link) => link.textContent)).toEqual([
+      "MM-kisat",
+      "EM-kisat",
+      "Huuhkajat",
+      "Helmarit",
+    ]);
+  });
+
+  it("links Helmarit to its own page rather than to a standings page", () => {
+    render(<NationalTeams />);
+
+    const helmarit = screen.getByRole("link", { name: /Helmarit$/ });
+    expect(helmarit).toHaveAttribute("href", "/maajoukkueet/helmarit");
+    expect(helmarit.getAttribute("href")).not.toContain("kilpailu=");
+  });
+
+  it("gives Helmarit the Finnish flag, as Huuhkajat has", () => {
+    render(<NationalTeams />);
+
+    const icon = screen.getByRole("link", { name: /Helmarit$/ }).querySelector("img");
+    expect(icon).toHaveAttribute("src", "/finland.svg");
+    expect(icon).toHaveAttribute("alt", "Suomi");
   });
 
   /**
