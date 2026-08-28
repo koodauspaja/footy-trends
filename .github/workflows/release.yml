@@ -244,10 +244,22 @@ jobs:
       - name: Work out the version
         id: version
         env:
-          # Names the first release, and only the first: `decideVersion` ignores
-          # it entirely once any tag exists, so a variable left set here cannot
-          # affect the second release. Set it as a repository variable before
-          # the first release; there is no need to unset it afterwards.
+          # Names the first release. Set it as a repository variable before that
+          # release; there is no need to unset it afterwards, because two things
+          # keep it from touching a later one:
+          #
+          #   - once a release is tagged, the next promotion finds that tag and
+          #     derives from it, so the override is never consulted
+          #   - a rerun takes the version off the tag already on HEAD, before
+          #     the override is read at all
+          #
+          # Not "inert once any tag exists", which is what this said before and
+          # is stronger than the code gives: a repository whose *only* tags were
+          # pre-release or malformed would have no previous tag either. That is
+          # a named limitation on `firstReleaseVersion` in scripts/next-version.ts
+          # rather than an oversight — guarding it needs a second definition of
+          # "has this been tagged", and having two produced six rounds of
+          # contradictions before they were reduced back to one.
           FIRST_RELEASE_VERSION: ${{ vars.FIRST_RELEASE_VERSION }}
         run: |
           version="$(npm run release:version --silent -- --since-last-tag --print=version)"
