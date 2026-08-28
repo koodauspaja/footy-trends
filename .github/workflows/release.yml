@@ -128,11 +128,10 @@ jobs:
   e2e:
     name: Release — end-to-end tests
     runs-on: ubuntu-latest
-    # Longer than the other jobs by design: the backfill below is paced to the
-    # providers' rate limits and takes about 11 minutes, and 105 specs then run
-    # serially. The default 360 minutes would let a stall burn an hour before
+    # Longer than the other jobs by design: 105 specs run serially against live
+    # providers. The default 360 minutes would let a stall burn an hour before
     # anyone noticed.
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -200,17 +199,6 @@ jobs:
       # start-up timeout that a full build would blow through.
       - name: Build
         run: npm run build
-
-      # The suite is a reliable gate only against a populated database, which is
-      # what production is. Measured on the same suite: cold, it makes 338
-      # provider requests, trips football-data.org's 10/minute limit twice and
-      # leaves two tests flaky; warm, it makes 274, trips nothing, and passes
-      # 105 of 105 in two thirds of the time.
-      #
-      # Running the real backfill rather than a fixture also means every release
-      # exercises the script production depends on.
-      - name: Warm the database, so e2e is not racing a rate limit
-        run: npm run backfill
 
       - name: End-to-end tests
         run: npm run test:e2e
