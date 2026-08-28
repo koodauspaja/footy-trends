@@ -217,9 +217,23 @@ describe("formatReleaseNotes", () => {
     expect(notes).not.toContain("## Breaking changes");
   });
 
-  it("says so when it is the first release", () => {
+  it("does not present the promotion range as a first release's contents", () => {
+    // `release` is branched from `main` and already carries everything before
+    // the branch point, so the range is a tail rather than a changelog. Listing
+    // it under a bare "Features" heading understated the first release by two
+    // orders of magnitude — 5 commits shown for 243 deployed.
     const notes = formatReleaseNotes(decideVersion([c("feat: a")], null));
-    expect(notes).toContain("First release.");
+    expect(notes).toContain("the whole application reaching production");
+    expect(notes).toContain("**not** the contents of this release");
+    expect(notes).toContain("## Features since the branch point");
+    expect(notes).not.toContain("## Features\n");
+  });
+
+  it("keeps the plain headings for a later release, where the range is the contents", () => {
+    const notes = formatReleaseNotes(decideVersion([c("feat: a")], "v1.0.0"));
+    expect(notes).toContain("Changes since v1.0.0.");
+    expect(notes).toContain("## Features\n");
+    expect(notes).not.toContain("since the branch point");
   });
 
   it("never publishes an empty body, which would read as a mistake", () => {
