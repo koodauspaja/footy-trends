@@ -121,30 +121,45 @@ describe("decideVersion", () => {
   it("lets FIRST_RELEASE_VERSION name the first release", () => {
     // Whether a first tag is 0.x or 1.0.0 is a statement about stability, not a
     // fact about the commits, so it is the one thing the tool cannot derive.
-    const d = decideVersion([c("docs: one thing")], null, "v1.0.0");
+    const d = decideVersion([c("docs: one thing")], null, { firstReleaseVersion: "v1.0.0" });
     expect(d.next).toBe("v1.0.0");
     expect(d.reasons.join(" ")).toMatch(/named explicitly/);
   });
 
   it("accepts the override without a v prefix", () => {
-    expect(decideVersion([c("docs: x")], null, "1.0.0").next).toBe("v1.0.0");
+    expect(decideVersion([c("docs: x")], null, { firstReleaseVersion: "1.0.0" }).next).toBe(
+      "v1.0.0"
+    );
   });
 
   it("ignores the override once anything is tagged, so it cannot leak", () => {
     // Self-limiting by design: a variable left set after the first release must
     // not turn v0.1.1 into v1.0.0 forever after.
-    const d = decideVersion([c("fix: x")], "v0.1.0", "v1.0.0");
+    const d = decideVersion([c("fix: x")], "v0.1.0", { firstReleaseVersion: "v1.0.0" });
     expect(d.next).toBe("v0.1.1");
   });
 
+  it("ignores the override when the project has released, even with previousTag null", () => {
+    // `previousTag` is deliberately null on a rerun whose only tag points at
+    // HEAD, and for a project with only pre-release tags. Neither is a first
+    // release, and treating them as one would let FIRST_RELEASE_VERSION rename
+    // a release that already happened.
+    const d = decideVersion([c("fix: x")], null, {
+      firstReleaseVersion: "v9.9.9",
+      hasReleasedBefore: true,
+    });
+    expect(d.isFirstRelease).toBe(false);
+    expect(d.next).toBe("v0.0.1");
+  });
+
   it("throws on a mistyped override rather than quietly using the default", () => {
-    expect(() => decideVersion([c("docs: x")], null, "one-point-oh")).toThrow(
-      InvalidFirstReleaseVersion
-    );
+    expect(() =>
+      decideVersion([c("docs: x")], null, { firstReleaseVersion: "one-point-oh" })
+    ).toThrow(InvalidFirstReleaseVersion);
   });
 
   it("treats a blank override as absent", () => {
-    expect(decideVersion([c("docs: x")], null, "   ").next).toBe("v0.1.0");
+    expect(decideVersion([c("docs: x")], null, { firstReleaseVersion: "   " }).next).toBe("v0.1.0");
   });
 
   it("still reports the first release as v0.1.0 when the range has features", () => {

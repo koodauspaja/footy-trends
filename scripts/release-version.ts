@@ -108,7 +108,13 @@ if (commits.length === 0) {
 // Only ever consulted when nothing is tagged yet — see `decideVersion`.
 let decision: ReturnType<typeof decideVersion>;
 try {
-  decision = decideVersion(commits, previousTag, process.env.FIRST_RELEASE_VERSION);
+  decision = decideVersion(commits, previousTag, {
+    firstReleaseVersion: process.env.FIRST_RELEASE_VERSION,
+    // Asked of every stable tag, not of `previousTag`: that one is deliberately
+    // null when the only tag points at HEAD, which is a rerun of a release that
+    // has already happened rather than a first release.
+    hasReleasedBefore: stableTags().length > 0,
+  });
 } catch (error) {
   // A mistyped override is an operator error, not a crash. A stack trace here
   // would bury the one line saying what to put in the variable.

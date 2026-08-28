@@ -89,6 +89,28 @@ export function isMergeSubject(subject: string): boolean {
  * Thrown rather than falling back, because a mistyped override must not
  * silently produce a version nobody intended.
  */
+export type DecideVersionOptions = {
+  /**
+   * Names the first release explicitly — the one decision the commits cannot
+   * make, since whether a project's first tag is 0.x or 1.0.0 is a statement
+   * about stability rather than a fact about its changes.
+   *
+   * Applied only when `hasReleasedBefore` is false.
+   */
+  firstReleaseVersion?: string | undefined;
+  /**
+   * Whether the project has ever released, which is **not** the same question
+   * as `previousTag` being null. The caller skips a tag pointing at HEAD, so
+   * that a rerun reproduces its original range — and it filters out
+   * pre-release tags. Either can leave `previousTag` null on a project that has
+   * plainly released before, and treating that as a first release would let
+   * `firstReleaseVersion` rename an existing release.
+   *
+   * Defaults to `previousTag !== null` for callers that do no such filtering.
+   */
+  hasReleasedBefore?: boolean | undefined;
+};
+
 export class InvalidFirstReleaseVersion extends Error {
   constructor(value: string) {
     super(`FIRST_RELEASE_VERSION must be a version like v1.0.0, got: ${value}`);
@@ -99,16 +121,7 @@ export class InvalidFirstReleaseVersion extends Error {
 export function decideVersion(
   commits: Commit[],
   previousTag: string | null,
-  /**
-   * Names the first release explicitly — the one decision the commits cannot
-   * make, since whether a project's first tag is 0.x or 1.0.0 is a statement
-   * about stability rather than a fact about its changes.
-   *
-   * Honoured **only** when no tag exists, which makes it self-limiting: once
-   * anything is tagged it is ignored entirely, so a variable left set after the
-   * first release cannot leak into the second.
-   */
-  firstReleaseVersion?: string | undefined
+  options: DecideVersionOptions = {}
 ): VersionDecision {
   const considered = commits.filter((c) => !isMergeSubject(c.subject));
 
@@ -123,7 +136,7 @@ export function decideVersion(
     .filter((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix")
     .map((c) => c.subject);
 
-  const isFirstRelease = previousTag === null;
+  const isFirstRelease = !(options.hasReleasedBefore ?? previousTag !== null);
   const previous = previousTag ?? "v0.0.0";
   const [major, minor, patch] = parseVersion(previous);
   const reasons: string[] = [];
@@ -164,7 +177,7 @@ export function decideVersion(
     reasons.push(
       "no previous tag: first release, so the range describes only what followed the branch point"
     );
-    const override = firstReleaseVersion?.trim();
+    const override = options.firstReleaseVersion?.trim();
     if (override !== undefined && override !== "") {
       if (!isStableVersionTag(override)) throw new InvalidFirstReleaseVersion(override);
       next = override.startsWith("v") ? override : `v${override}`;
