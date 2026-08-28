@@ -133,7 +133,7 @@ One line per competition-season, to stdout:
 ```
 
 Failures go to stderr and do not stop the run — one competition-season failing
-should not cost you the other 181. Each is counted, and the exit code is
+should not cost you the other 178. Each is counted, and the exit code is
 non-zero if any failed:
 
 ```

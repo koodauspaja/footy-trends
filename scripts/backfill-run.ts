@@ -70,9 +70,15 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
   try {
     if (reset) {
       out("\nResetting — deleting every row in matches, taso_matches, taso_group_teams");
-      await db.delete(matches);
-      await db.delete(tasoMatches);
-      await db.delete(tasoGroupTeams);
+      // One transaction, so a reset is all or nothing. Three separate deletes
+      // would leave the database partly emptied if the second or third failed,
+      // and the run aborts on that failure — turning a deliberate clean start
+      // into destroyed data with nothing put back.
+      await db.transaction(async (tx) => {
+        await tx.delete(matches);
+        await tx.delete(tasoMatches);
+        await tx.delete(tasoGroupTeams);
+      });
       out("Reset done.");
     }
 
