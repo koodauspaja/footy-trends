@@ -121,21 +121,42 @@ per-event limit; the cost is that a leak of 11–20 listeners of some other
 response event would go unwarned, and past 20 it still warns. Pinned by a test
 so the breadth is deliberate rather than incidental.
 
-### Where the 11 listeners come from
+### How many listeners there are, and where they come from
 
-Measured by preloading a probe that patches `EventEmitter.prototype.on` and
-dumps a stack for every `close` listener attached to a `ServerResponse`.
-Identical in `npm run dev` and in a production `npm run build && npm start`:
+Measured 2026-08-28 on **Next 16.3.2, @sentry/nextjs 10.70.0, Node 24.16.0**,
+with the probe below.
 
-| Listeners | Source |
+**Peak: 8 `close` listeners on one `ServerResponse` in dev, 7 in production.**
+The difference is Next's dev-only request tracing. Contributors:
+
+| Source | |
 |---|---|
-| 7 | Next's bundled `httpxy` proxy — `server/lib/router-utils/proxy-request.js` and `compiled/httpxy` |
-| 2 | Next's `requestHandlerImpl` and `createAbortController`/`signalFromNodeResponse` |
-| 2 | Sentry — `recordRequestSession` and its async-local-storage path |
+| Sentry | `recordRequestSession`, and its async-local-storage path |
+| Next | `requestHandlerImpl` |
+| Next | `createAbortController` / `signalFromNodeResponse` |
+| Next | `DevServer` request tracing — **dev only**, absent in production |
+| Next | `AfterContext`'s `onClose`, `NodeNextResponse.onClose` |
+| Next | `pipeNodeReadableToNodeResponse` |
 
-So Next accounts for 9 of the 11 and Sentry for 2. Removing Sentry would
-drop the total to 9 and silence the warning, but Sentry is not the cause —
-Next alone sits one under Node's default limit of 10.
+Count the **peak concurrent** listeners, not the attachments. Those sources
+attach 13 times over one response's life, but `once` listeners remove
+themselves when they fire, and Node warns on how many are registered at once.
+A cumulative tally overstates it by roughly half.
+
+**On this version the warning no longer fires at all.** Verified by reverting
+`setMaxListeners` in `src/instrumentation.ts`, clearing `.next`, and loading
+four pages with no instrumentation: zero warnings. Next 16.3.0 attached enough
+to cross Node's limit of 10; 16.3.2 does not.
+
+`SERVER_RESPONSE_MAX_LISTENERS` is 20, so there is ample headroom over 8. It is
+kept rather than removed: the count moved once between patch releases and can
+move back, and the constant costs nothing while the warning it prevents costs a
+line per request in production logs.
+
+The historical figures from #129 on Next 16.3.0 — 7 from the bundled `httpxy`
+proxy, 2 from `requestHandlerImpl`/`createAbortController`, 2 from Sentry,
+11 in total — are superseded by the measurement above.
+
 
 ### Why it is safe
 
@@ -175,38 +196,7 @@ whose listener count is Next's to decide and which are discarded per request.
   Next's own request pipeline, not from configuration we should be turning
   off to quiet a log line.
 
-### Re-verifying
-
-> **The probe did not reproduce on Next 16.3.2 (measured 2026-08-27, #174).**
-> Run exactly as documented below, it printed nothing against either
-> `npm run dev` or `npm run build && npm start`, even though the warning itself
-> was still reproducible on dev at the time (four occurrences across four page
-> loads with the fix reverted). It was confirmed loaded into the serving
-> process — a `--require` wrapper logged the `next start` pid — and it works
-> standalone: given a hand-built `ServerResponse` with 11 `close` listeners it
-> dumps them with correct attribution. So the patch of
-> `EventEmitter.prototype.on` is not observing the attachments Next actually
-> makes on this version. It was last verified working on Next 16.3.0 in #129.
->
-> Treat the instructions below as needing repair before they can be relied on.
-> They are kept because the approach is sound and the earlier measurement was
-> made with them.
-
-The probe is still the intended way to re-measure after a Next or Sentry
-upgrade — it reports the counts directly, which the silenced warning no longer
-does.
-
-It is not affected by the fix and needs no change to run: it derives its own
-threshold from `EventEmitter.defaultMaxListeners` and patches `on` directly,
-rather than reading the application's limit. `SERVER_RESPONSE_MAX_LISTENERS` is
-a constant in `src/instrumentation.ts` and is **not** read from the
-environment, so there is nothing to set on the command line — to check against
-the raised limit rather than Node's default, edit that constant and restart.
-
-Read the counts it dumps. The number to compare against
-`SERVER_RESPONSE_MAX_LISTENERS` is how many listeners one response accumulates;
-if that has grown past it, raise the constant and record the new measurement
-here.
+### Re-verifying after an upgrade
 
 Save the script below as `probe.cjs` and preload it into whichever server you
 are checking:
@@ -216,54 +206,92 @@ NODE_OPTIONS="--require ./probe.cjs" npm run dev
 npm run build && NODE_OPTIONS="--require ./probe.cjs" npm start
 ```
 
-The probe dumps once a single response crosses Node's own limit of 10, which
-it derives independently of `SERVER_RESPONSE_MAX_LISTENERS`. Since the app now
-allows 20, **output is expected and is not a problem** — a healthy response
-still attaches 11, which trips the probe but not the app.
+It prints the highest number of `close` listeners any single response carried,
+and which code attached them. Compare that peak against
+`SERVER_RESPONSE_MAX_LISTENERS` in `src/instrumentation.ts`:
 
-Read the count in the dump, not its presence: it lists every listener on that
-one response. Compare that number with `SERVER_RESPONSE_MAX_LISTENERS` in
-`src/instrumentation.ts`.
+- **below it** — nothing to do; that is the situation today, at 8 of 20 in dev
+  and 7 of 20 in production.
+- **at or above it** — the warning is back in production. Raise the constant and
+  record the new measurement in the table above.
 
-- **11, or anything up to and including 20** — within the limit, nothing to do.
-- **21 or more** — Node warns only past the configured limit, so this is the
-  point where the warning is back in production and the constant needs raising.
-  Record the new measurement in the table above.
+Two things it must get right, both of which the previous version got wrong and
+which are the whole reason this was repaired in #176:
 
-(Before #174 raised the limit, no output meant the warning was gone. That is no
-longer true: the probe's threshold and the app's are now different numbers.)
+**Patch every attachment method, not just `on`.** Next 16.3.2 adds roughly half
+its `close` listeners with `once`. A probe patching `on` alone saw about five of
+the eight, never reached its threshold, and printed nothing at all — which reads
+exactly like "no problem found".
+
+**Count with Node's own `listenerCount`, not a private tally.** `once`
+delegates to `on`, so a probe that patches both and counts each call reports
+roughly double. That is how the previous repair attempt produced "13 listeners"
+with every stack listed twice.
 
 ```js
 const { EventEmitter } = require("node:events");
-const tracked = new WeakMap();
-const original = EventEmitter.prototype.on;
-// Node warns one past its own limit; derived rather than hardcoded to 11 so
-// the probe stays correct if defaultMaxListeners ever changes.
-const threshold = EventEmitter.defaultMaxListeners + 1;
 
-EventEmitter.prototype.on = EventEmitter.prototype.addListener = function (event, listener) {
-  if (event === "close" && this?.constructor?.name === "ServerResponse") {
-    let stacks = tracked.get(this) ?? [];
-    tracked.set(this, stacks);
-    // Frames are filtered: the probe's own, node internals, and Next's
-    // compiled `compression`, which overrides res.on and would otherwise
-    // appear as the caller for every listener routed through it.
-    stacks.push(new Error().stack.split("\n").slice(1)
-      .filter((l) => !l.includes(__filename) && !l.includes("node:events"))
-      // Next's compiled `compression` overrides res.on, so its frame appears
-      // for every caller routed through it — see the comment above.
-      .filter((l) => !l.includes("compiled/compression"))
-      .map((l) => l.trim().replace(/^at /, ""))
-      .slice(0, 2).join(" <- "));
-    // Dump once per response, at the threshold, listing every listener so far.
-    if (stacks.length === threshold) {
-      console.error(`--- ${threshold} close listeners on one ServerResponse ---`);
-      stacks.forEach((s, i) => console.error(`  ${i + 1}. ${s}`));
+/** Highest number of `close` listeners seen on a single response, and who added them. */
+let peak = 0;
+const perResponse = new WeakMap();
+
+function caller() {
+  return (new Error().stack || "")
+    .split("\n")
+    .slice(1)
+    .filter(
+      (line) =>
+        !line.includes(__filename) &&
+        !line.includes("node:") &&
+        // Next's compiled `compression` overrides res.on, so its frame appears
+        // for every caller routed through it.
+        !line.includes("compiled/compression")
+    )
+    .map((line) => line.trim().replace(/^at /, ""))[0] ?? "(unknown)";
+}
+
+// `once` calls `on` internally, so the guard must span the delegation: without
+// it the outer `once` and the inner `on` each record the same listener.
+let recording = false;
+
+for (const method of ["on", "addListener", "once", "prependListener", "prependOnceListener"]) {
+  const original = EventEmitter.prototype[method];
+  if (typeof original !== "function") continue;
+
+  EventEmitter.prototype[method] = function (event, listener) {
+    const watching =
+      event === "close" && !recording && this?.constructor?.name === "ServerResponse";
+    if (!watching) return original.call(this, event, listener);
+
+    recording = true;
+    try {
+      const before = this.listenerCount("close");
+      const result = original.call(this, event, listener);
+      const now = this.listenerCount("close");
+
+      // Node's own count, not a tally of our calls.
+      if (now > before) {
+        const sources = perResponse.get(this) ?? [];
+        sources.push(caller());
+        perResponse.set(this, sources);
+
+        if (now > peak) {
+          peak = now;
+          console.error(`--- ${now} close listeners on one ServerResponse ---`);
+          sources.forEach((s, i) => console.error(`  ${i + 1}. ${s}`));
+        }
+      }
+      return result;
+    } finally {
+      recording = false;
     }
-  }
-  return original.call(this, event, listener);
-};
+  };
+}
 ```
+
+The listed sources can outnumber the peak: `once` listeners remove themselves
+when they fire, so a response may attach thirteen over its life while never
+holding more than eight at once. The peak is the number Node warns on.
 
 ---
 
