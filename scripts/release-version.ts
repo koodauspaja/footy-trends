@@ -42,9 +42,26 @@ function tagsAtHead(): string[] {
   return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
 }
 
-/** Every `v*` tag, stable or not — the question "has this ever been tagged". */
-function anyVersionTags(): string[] {
-  return git(["tag", "--list", "v*"]).split("\n").filter(Boolean);
+/**
+ * Pre-release tags are refused rather than interpreted.
+ *
+ * This tool has no semantics for them: `parseVersion` cannot read one, the
+ * ranging deliberately skips them, and every attempt to treat them as "tagged
+ * for one purpose but not the other" produced a contradiction — a repository
+ * holding only `v1.0.0-rc.1` counting as released for the override while
+ * counting as unreleased for the range. Saying so is better than picking one of
+ * two wrong answers silently.
+ */
+function refusePreReleaseTags(): void {
+  const unsupported = git(["tag", "--list", "v*"])
+    .split("\n")
+    .filter(Boolean)
+    .filter((tag) => !isStableVersionTag(tag));
+  if (unsupported.length === 0) return;
+  err(`Unsupported version tags: ${unsupported.join(", ")}`);
+  err("This tool only understands vMAJOR.MINOR.PATCH. Remove them, or extend");
+  err("isStableVersionTag and the bump rules to cover pre-releases deliberately.");
+  process.exit(1);
 }
 
 /** The stable version already on HEAD, if this is a rerun of a release. */
@@ -84,6 +101,8 @@ const positional = args.filter((a) => !a.startsWith("--"));
 // merge, where a rerun may find HEAD already tagged. Skipping a tag that is on
 // HEAD reproduces the original range, so a rerun recomputes the same version
 // and can publish notes that failed to publish the first time.
+refusePreReleaseTags();
+
 const previousTag = sinceLastTag
   ? selectPreviousTag(stableTags(), tagsAtHead())
   : latestVersionTag();
@@ -124,7 +143,7 @@ try {
     // question the override should be inert after, and a pre-release tag is
     // still a tag — treating a repository holding only `v1.0.0-rc.1` as
     // unreleased would let the override rename a later release.
-    hasReleasedBefore: anyVersionTags().length > 0,
+    hasReleasedBefore: stableTags().length > 0,
   });
 } catch (error) {
   // A mistyped override is an operator error, not a crash. A stack trace here
@@ -137,7 +156,17 @@ try {
 // a second answer here is how a rerun of the first release ends up disagreeing
 // with the tag sitting on the very commit it is about to publish notes for.
 const alreadyTagged = sinceLastTag ? stableTagOnHead() : null;
-if (alreadyTagged !== null) decision = { ...decision, next: alreadyTagged };
+if (alreadyTagged !== null) {
+  // The whole decision is replaced, not just the number. Leaving `previous`,
+  // `isFirstRelease` and the reasons describing a derivation that was discarded
+  // would have the report explain how it reached a version it is not using.
+  decision = {
+    ...decision,
+    next: alreadyTagged,
+    isFirstRelease: false,
+    reasons: [`HEAD is already tagged ${alreadyTagged}: reusing it rather than deriving a version`],
+  };
+}
 
 if (printMode === "version") {
   out(decision.next);
@@ -150,8 +179,13 @@ if (printMode === "notes") {
 }
 
 out(`Range        ${from ?? "the beginning"}..${to}  (${commits.length} commits)`);
-out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
-out(`Bump         ${decision.bump}`);
+// `Previous` and `Bump` describe a derivation. On a rerun there was none — the
+// version came off the commit — so printing them would explain how a number was
+// reached that is not the number being used.
+if (alreadyTagged === null) {
+  out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
+  out(`Bump         ${decision.bump}`);
+}
 for (const reason of decision.reasons) out(`             - ${reason}`);
 
 if (decision.isFirstRelease) {
