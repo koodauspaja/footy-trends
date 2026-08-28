@@ -28,6 +28,20 @@ on:
       - release
   workflow_dispatch:
 
+# One release suite at a time, across every trigger. The e2e job runs against
+# the live football-data.org API, and two overlapping runs exhaust its rate
+# limit between them — which surfaces as a failed gate that nothing in the code
+# caused.
+#
+# Queued rather than cancelling: these runs share one group, and
+# `cancel-in-progress` cancels *others* in the group, so a pull-request run
+# updated mid-flight would be free to cancel the post-merge push run — the one
+# Railway's Wait for CI is waiting on. A superseded pull-request run finishing
+# first costs a few minutes; a cancelled push run costs the deploy gate.
+concurrency:
+  group: release-suite
+  cancel-in-progress: false
+
 jobs:
   unit:
     name: Release — typecheck, lint and unit tests
