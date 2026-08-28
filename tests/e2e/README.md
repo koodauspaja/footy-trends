@@ -29,9 +29,16 @@ server otherwise — so `npm run dev` in another terminal works too.
 To run them the way the release gate does, against a production build:
 
 ```bash
+# Stop `npm run dev` first — see below.
 npm run build
 E2E_TARGET=build npm run test:e2e
 ```
+
+`E2E_TARGET=build` deliberately refuses to reuse a server already on port 3000,
+even locally. Reusing one would mean a `next dev` already running is silently
+accepted and the run reports on the dev server while claiming to test what
+ships. It fails with "already used" instead, which is the loud version of the
+same situation.
 
 Worth doing before cutting a release, and worth reaching for when a spec
 passes locally but fails in CI: `dev` and a production build do not always

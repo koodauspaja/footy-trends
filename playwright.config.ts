@@ -46,7 +46,11 @@ export default defineConfig({
   webServer: {
     command: againstProductionBuild ? "npm start" : "npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // Never reuse when the point is to test a production build: a `next dev`
+    // already on port 3000 would be silently accepted, and the run would
+    // report on the dev server while claiming to test what ships. That is the
+    // failure mode `E2E_TARGET=build` exists to avoid.
+    reuseExistingServer: !process.env.CI && !againstProductionBuild,
     timeout: 120_000,
   },
 });
