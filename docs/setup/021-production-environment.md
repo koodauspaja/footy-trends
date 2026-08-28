@@ -204,8 +204,32 @@ occurs.
 
 Combined with `sendDefaultPii: true` this is the most consequential privacy
 setting in the repository, and it is the one nothing has documented so far. It
-is a deliberate decision to take before real users arrive, not after. If replay
-is kept, `maskAllText` and `blockAllMedia` are the settings to review with it.
+is a deliberate decision to take before real users arrive, not after.
+
+Like the three settings above, deciding is not applying — the rates are
+hardcoded, so production records sessions until the code changes. **Disabling**
+means dropping the integration, which also drops the replay bundle from the
+client:
+
+```ts
+// src/instrumentation-client.ts
+integrations: [],   // was [Sentry.replayIntegration()]
+// and remove replaysSessionSampleRate / replaysOnErrorSampleRate with it
+```
+
+**Keeping it** means making the masking explicit rather than relying on SDK
+defaults, and putting the rates behind variables so production can differ from
+staging:
+
+```ts
+integrations: [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })],
+replaysSessionSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_SESSION_RATE ?? 0.1),
+replaysOnErrorSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_ERROR_RATE ?? 1.0),
+```
+
+Setting both rates to `0` disables recording while leaving the integration
+loaded — quieter than removing it, but the browser still ships the replay code,
+so prefer removal if the decision is a firm no.
 
 ### These cannot be applied from the Railway dashboard yet
 
@@ -251,6 +275,8 @@ Then production sets:
 | `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` | browser |
 | `NEXT_PUBLIC_SENTRY_ENABLE_LOGS` | `false` | browser |
 | `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII` | `false` | browser |
+| `NEXT_PUBLIC_SENTRY_REPLAY_SESSION_RATE` | `0` | browser — only if replay is kept |
+| `NEXT_PUBLIC_SENTRY_REPLAY_ERROR_RATE` | `0` | browser — only if replay is kept |
 
 Record the values actually chosen here, with the reasoning, once agreed —
 the reasoning is the part that stops the next person re-litigating it.
@@ -409,7 +435,9 @@ repository can reproduce them.
 - [ ] The auth variables are deliberately left unset
 - [ ] All three Sentry configs — server, edge and client — read their settings
       from the environment (prerequisite; without it the next box cannot be true)
-- [ ] Session Replay is decided: kept with masking reviewed, or disabled
+- [ ] Session Replay is decided **and applied in code** — the integration
+      removed, or kept with `maskAllText`/`blockAllMedia` explicit and its rates
+      set. Deciding alone leaves it recording
 - [ ] Sentry `tracesSampleRate`, `sendDefaultPii` and `enableLogs` are decided,
       applied, and recorded above with reasoning — all six variables set, the
       three `NEXT_PUBLIC_` ones included, or the browser keeps the defaults
