@@ -42,6 +42,17 @@ function tagsAtHead(): string[] {
   return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
 }
 
+/** Every `v*` tag, stable or not — the question "has this ever been tagged". */
+function anyVersionTags(): string[] {
+  return git(["tag", "--list", "v*"]).split("\n").filter(Boolean);
+}
+
+/** The stable version already on HEAD, if this is a rerun of a release. */
+function stableTagOnHead(): string | null {
+  const onHead = new Set(tagsAtHead());
+  return stableTags().find((tag) => onHead.has(tag)) ?? null;
+}
+
 function latestVersionTag(): string | null {
   return stableTags()[0] ?? null;
 }
@@ -105,15 +116,15 @@ if (commits.length === 0) {
   process.exit(printMode === "report" ? 0 : 1);
 }
 
-// Only ever consulted when nothing is tagged yet — see `decideVersion`.
 let decision: ReturnType<typeof decideVersion>;
 try {
   decision = decideVersion(commits, previousTag, {
     firstReleaseVersion: process.env.FIRST_RELEASE_VERSION,
-    // Asked of every stable tag, not of `previousTag`: that one is deliberately
-    // null when the only tag points at HEAD, which is a rerun of a release that
-    // has already happened rather than a first release.
-    hasReleasedBefore: stableTags().length > 0,
+    // Any `v*` tag counts, stable or not. "Has this ever been tagged" is the
+    // question the override should be inert after, and a pre-release tag is
+    // still a tag — treating a repository holding only `v1.0.0-rc.1` as
+    // unreleased would let the override rename a later release.
+    hasReleasedBefore: anyVersionTags().length > 0,
   });
 } catch (error) {
   // A mistyped override is an operator error, not a crash. A stack trace here
@@ -121,6 +132,12 @@ try {
   err(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
+
+// A rerun does not compute a version: the commit already carries one. Deriving
+// a second answer here is how a rerun of the first release ends up disagreeing
+// with the tag sitting on the very commit it is about to publish notes for.
+const alreadyTagged = sinceLastTag ? stableTagOnHead() : null;
+if (alreadyTagged !== null) decision = { ...decision, next: alreadyTagged };
 
 if (printMode === "version") {
   out(decision.next);

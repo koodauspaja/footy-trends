@@ -57,10 +57,14 @@ Three rules worth knowing before the number surprises you:
   HEAD, and that is a repeat of a release that already happened rather than a
   first one.
 
-  So it is self-limiting: once anything is tagged it is ignored entirely, and a
-  variable left set cannot turn the next patch release into a major one. There
-  is no need to unset it. A mistyped value fails loudly rather than falling back
-  to the default.
+  So it is self-limiting: once **any** `v*` tag exists — stable or pre-release —
+  it is ignored entirely, and a variable left set cannot turn the next patch
+  release into a major one. There is no need to unset it. A mistyped value fails
+  loudly rather than falling back to the default.
+
+  A rerun does not consult it at all. If the commit is already tagged, that tag
+  *is* the version: the tagging job reuses it rather than deriving a second
+  answer that could disagree with the tag it is about to publish notes for.
 
 Merge commits are excluded — a release produces one, and it carries no type.
 
