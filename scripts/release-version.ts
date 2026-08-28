@@ -42,6 +42,12 @@ function tagsAtHead(): string[] {
   return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
 }
 
+/** The stable version already on HEAD, if this is a rerun of a release. */
+function stableTagOnHead(): string | null {
+  const onHead = new Set(tagsAtHead());
+  return stableTags().find((tag) => onHead.has(tag)) ?? null;
+}
+
 function latestVersionTag(): string | null {
   return stableTags()[0] ?? null;
 }
@@ -105,7 +111,41 @@ if (commits.length === 0) {
   process.exit(printMode === "report" ? 0 : 1);
 }
 
-const decision = decideVersion(commits, previousTag);
+// Established before anything else consults the override: on a rerun the
+// version comes off the commit, so FIRST_RELEASE_VERSION is not read at all.
+// Validating it first would let a variable changed to something invalid *after*
+// the first release fail a rerun that was never going to use it.
+const alreadyTagged = sinceLastTag ? stableTagOnHead() : null;
+
+let decision: ReturnType<typeof decideVersion>;
+try {
+  decision = decideVersion(commits, previousTag, {
+    firstReleaseVersion: alreadyTagged === null ? process.env.FIRST_RELEASE_VERSION : undefined,
+  });
+} catch (error) {
+  // A mistyped override is an operator error, not a crash. A stack trace here
+  // would bury the one line saying what to put in the variable.
+  err(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
+
+// A rerun does not compute a version: the commit already carries one. Deriving
+// a second answer here is how a rerun of the first release ends up disagreeing
+// with the tag sitting on the very commit it is about to publish notes for.
+if (alreadyTagged !== null) {
+  // The whole decision is replaced, not just the number. Leaving `previous`,
+  // `isFirstRelease` and the reasons describing a derivation that was discarded
+  // would have the report explain how it reached a version it is not using.
+  // Only the version and the explanation change. `isFirstRelease` stays as
+  // computed, because a rerun of the *first* release is still a first release —
+  // forcing it false made the notes say "Changes since v0.0.0." instead of
+  // "First release."
+  decision = {
+    ...decision,
+    next: alreadyTagged,
+    reasons: [`HEAD is already tagged ${alreadyTagged}: reusing it rather than deriving a version`],
+  };
+}
 
 if (printMode === "version") {
   out(decision.next);
@@ -118,8 +158,13 @@ if (printMode === "notes") {
 }
 
 out(`Range        ${from ?? "the beginning"}..${to}  (${commits.length} commits)`);
-out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
-out(`Bump         ${decision.bump}`);
+// `Previous` and `Bump` describe a derivation. On a rerun there was none — the
+// version came off the commit — so printing them would explain how a number was
+// reached that is not the number being used.
+if (alreadyTagged === null) {
+  out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
+  out(`Bump         ${decision.bump}`);
+}
 for (const reason of decision.reasons) out(`             - ${reason}`);
 
 if (decision.isFirstRelease) {

@@ -46,6 +46,23 @@ Three rules worth knowing before the number surprises you:
   point — one docs commit would otherwise name the first production release
   `v0.0.1`. The tool defaults to `v0.1.0` and says it is doing so.
 
+  To name it something else — going straight to `v1.0.0`, say — set the
+  repository variable `FIRST_RELEASE_VERSION`. Whether a first tag is 0.x or
+  1.0.0 is a statement about stability rather than a fact about the commits,
+  which is why it is the one thing the tool will not decide.
+
+  It is honoured only when the promotion range finds no previous tag — that is,
+  on a genuine first release. Two things keep it from touching anything later:
+
+  - Once a release is tagged, the next promotion finds that tag and derives from
+    it, so the override is never consulted. There is no need to unset it.
+  - A **rerun** never consults it either. If the commit is already tagged, that
+    tag *is* the version — the job reuses it rather than deriving a second
+    answer that could disagree with the tag it is about to publish notes for.
+    That holds even if the variable has since been changed, or made invalid.
+
+  A mistyped value fails loudly rather than falling back to the default.
+
 Merge commits are excluded — a release produces one, and it carries no type.
 
 ## Steps

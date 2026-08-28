@@ -85,7 +85,41 @@ export function isMergeSubject(subject: string): boolean {
   return /^Merge (pull request|branch|remote-tracking branch) /.test(subject);
 }
 
-export function decideVersion(commits: Commit[], previousTag: string | null): VersionDecision {
+/**
+ * Thrown rather than falling back, because a mistyped override must not
+ * silently produce a version nobody intended.
+ */
+export type DecideVersionOptions = {
+  /**
+   * Names the first release explicitly — the one decision the commits cannot
+   * make, since whether a project's first tag is 0.x or 1.0.0 is a statement
+   * about stability rather than a fact about its changes.
+   *
+   * Applied only when `previousTag` is null — a genuine first release.
+   *
+   * Known limitation, accepted rather than guarded: a repository whose only
+   * tags are pre-release or malformed also has no previous tag, so a stale
+   * override would apply there. Guarding it needs a second definition of "has
+   * this been tagged", and having two produced six rounds of contradictions
+   * before they were reduced back to one. The variable is set once for a first
+   * release, and a rerun never reads it, so the case needs both an unused
+   * override and a tagging convention this repository does not use.
+   */
+  firstReleaseVersion?: string | undefined;
+};
+
+export class InvalidFirstReleaseVersion extends Error {
+  constructor(value: string) {
+    super(`FIRST_RELEASE_VERSION must be a version like v1.0.0, got: ${value}`);
+    this.name = "InvalidFirstReleaseVersion";
+  }
+}
+
+export function decideVersion(
+  commits: Commit[],
+  previousTag: string | null,
+  options: DecideVersionOptions = {}
+): VersionDecision {
   const considered = commits.filter((c) => !isMergeSubject(c.subject));
 
   const breaking = considered.filter(isBreaking).map((c) => c.subject);
@@ -135,14 +169,20 @@ export function decideVersion(commits: Commit[], previousTag: string | null): Ve
   // since the branch was cut — one docs commit would otherwise name the first
   // production release v0.0.1. v0.1.0 is the floor; going straight to v1.0.0 is
   // a statement about stability and stays a deliberate call.
-  const next = isFirstRelease ? "v0.1.0" : `v${nextTriple.join(".")}`;
+  let next = `v${nextTriple.join(".")}`;
   if (isFirstRelease) {
     reasons.push(
       "no previous tag: first release, so the range describes only what followed the branch point"
     );
-    reasons.push(
-      "defaulting to v0.1.0 rather than deriving; override deliberately if this is a 1.0"
-    );
+    const override = options.firstReleaseVersion?.trim();
+    if (override !== undefined && override !== "") {
+      if (!isStableVersionTag(override)) throw new InvalidFirstReleaseVersion(override);
+      next = override.startsWith("v") ? override : `v${override}`;
+      reasons.push(`named explicitly by FIRST_RELEASE_VERSION: ${next}`);
+    } else {
+      next = "v0.1.0";
+      reasons.push("defaulting to v0.1.0; set FIRST_RELEASE_VERSION to name it deliberately");
+    }
   }
 
   return {
