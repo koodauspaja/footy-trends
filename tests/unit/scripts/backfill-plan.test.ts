@@ -58,6 +58,18 @@ describe("databaseNameFrom", () => {
     expect(databaseNameFrom("postgresql://user:pw@host:5432/railway")).toBe("railway");
   });
 
+  it("decodes the name, because the operator types the real one", () => {
+    // The pathname is percent-encoded. Without decoding, a database called
+    // `footy trends` displays as `footy%20trends` and refuses the --reset
+    // confirmation that was actually correct.
+    expect(databaseNameFrom("postgresql://u:pw@host:5432/footy%20trends")).toBe("footy trends");
+    expect(databaseNameFrom("postgresql://u:pw@host:5432/my%2Ddb")).toBe("my-db");
+  });
+
+  it("falls back to the raw name rather than throwing on a bad escape", () => {
+    expect(databaseNameFrom("postgresql://u:pw@host:5432/bad%zz")).toBe("bad%zz");
+  });
+
   it("returns null when there is no database or the string is not a URL", () => {
     expect(databaseNameFrom("postgresql://user:pw@host:5432/")).toBeNull();
     expect(databaseNameFrom("not a url")).toBeNull();
@@ -101,6 +113,12 @@ describe("authoriseReset", () => {
     const verdict = authoriseReset(production, "footy-trends");
     expect(verdict.allowed).toBe(false);
     expect(verdict.allowed === false && verdict.reason).toContain("does not match");
+  });
+
+  it("accepts a decoded name for an encoded connection string", () => {
+    expect(authoriseReset("postgresql://u:pw@host:5432/footy%20trends", "footy trends")).toEqual({
+      allowed: true,
+    });
   });
 
   it("refuses an empty name rather than treating it as a match", () => {

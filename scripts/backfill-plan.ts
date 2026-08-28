@@ -55,8 +55,16 @@ export function intervalForRatePerMinute(perMinute: number): number {
 export function databaseNameFrom(connectionString: string): string | null {
   try {
     const { pathname } = new URL(connectionString);
-    const name = pathname.replace(/^\//, "");
-    return name === "" ? null : name;
+    const raw = pathname.replace(/^\//, "");
+    if (raw === "") return null;
+    // Decoded, because the pathname is percent-encoded and the operator types
+    // the real name. Without this a database called `footy trends` displays as
+    // `footy%20trends` and refuses the confirmation that was correct.
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
   } catch {
     return null;
   }

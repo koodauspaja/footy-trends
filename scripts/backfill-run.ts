@@ -144,8 +144,14 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
       }
     }
   } finally {
-    await closeDatabase();
-    await redis.quit();
+    // Settled together, not awaited in sequence: a rejection from the first
+    // would skip the second and escape the function, so a run that fetched
+    // everything successfully would print no summary and return no exit code
+    // because a socket failed to close. Cleanup cannot be allowed to decide
+    // whether the backfill succeeded.
+    for (const result of await Promise.allSettled([closeDatabase(), redis.quit()])) {
+      if (result.status === "rejected") err(`  cleanup: ${describeError(result.reason)}`);
+    }
   }
 
   const minutes = ((Date.now() - startedAt) / 60_000).toFixed(1);
