@@ -145,10 +145,13 @@ Each source contributes exactly one listener. The only difference between the
 two columns is Next's request tracing, which runs in dev alone — which is why
 production is one lower rather than for any reason of its own.
 
-Count the **peak concurrent** listeners, not the attachments. Those sources
-attach 13 times over one response's life, but `once` listeners remove
-themselves when they fire, and Node warns on how many are registered at once.
-A cumulative tally overstates it by roughly half.
+Count the **peak concurrent** listeners, not the attachments: Node warns on how
+many are registered at once, and a `once` listener removes itself when it
+fires. On this version the two agree — each source attaches exactly once, and
+nothing detaches before the peak, so the lifetime attachment count is also 8 in
+dev and 7 in production. The probe still reads the live listeners rather than a
+running tally, because that equality is a property of this version rather than
+something to rely on after an upgrade.
 
 **On this version the warning no longer fires at all.** Verified by reverting
 `setMaxListeners` in `src/instrumentation.ts`, clearing `.next`, and loading
@@ -197,7 +200,7 @@ whose listener count is Next's to decide and which are discarded per request.
 
 ### Still deliberately not done
 
-- **Changing Sentry's `tracesSampleRate`** — Sentry is 2 of 11; this would
+- **Changing Sentry's `tracesSampleRate`** — Sentry is 2 of 8; this would
   not get under the limit and would cost production tracing.
 - **Disabling Next's compression or proxying** — the listeners come from
   Next's own request pipeline, not from configuration we should be turning
@@ -225,18 +228,33 @@ and which code attached them. Compare that peak against
 Node warns only when a listener is added *past* the limit, so a peak of exactly
 20 against a limit of 20 is still silent. The threshold to act on is 21.
 
-Two things it must get right, both of which the previous version got wrong and
+Three things it must get right, each of which a previous version got wrong and
 which are the whole reason this was repaired in #176:
 
-**Patch every attachment method, not just `on`.** Next 16.3.2 adds roughly half
-its `close` listeners with `once`. A probe patching `on` alone saw about five of
-the eight, never reached its threshold, and printed nothing at all — which reads
-exactly like "no problem found".
+**Report the peak; never wait for a fixed threshold.** This, and nothing more
+exotic, is why the old probe printed nothing. It dumped only when a response
+reached exactly `defaultMaxListeners + 1` — eleven — and 16.3.2 peaks at eight,
+so the condition never held. It was not blind to the listeners: instrumented,
+it reached a count of eight and simply never dumped. A probe that reports only
+past a hardcoded number goes silent precisely when the count *falls*, and
+silence reads like "no problem found".
 
 **Count with Node's own `listenerCount`, not a private tally.** `once`
 delegates to `on`, so a probe that patches both and counts each call reports
-roughly double. That is how the previous repair attempt produced "13 listeners"
-with every stack listed twice.
+roughly double. That is how one repair attempt produced "13 listeners" with
+every stack listed twice — a figure that describes the bug rather than Next,
+and has to be kept out of the prose accordingly.
+
+**Mirror removals.** A listener detached and attached again from somewhere else
+otherwise keeps reporting the site it no longer has, and the printed rows stop
+matching the peak.
+
+On which methods to patch: `addListener` *is* `on` and `once` delegates to it,
+so patching `on` alone already observes those three — that is exactly why
+double-patching double-counts. `prependListener` and `prependOnceListener` do
+not delegate, so they are patched separately; Next does not currently use them
+for `close`, and they are covered so that it can start without the probe
+quietly under-reporting.
 
 ```js
 const { EventEmitter } = require("node:events");
@@ -244,7 +262,8 @@ const { EventEmitter } = require("node:events");
 /** Highest number of `close` listeners seen on a single response. */
 let peak = 0;
 /**
- * response -> (listener function -> the sites that attached it, in order).
+ * response -> (listener function -> the sites that attached it, in the order
+ * Node holds those registrations).
  *
  * Keyed by response first, so a handler reused across requests does not
  * accumulate an entry per request forever and then report sites belonging to
@@ -253,6 +272,12 @@ let peak = 0;
  * attribute both to whichever attached last.
  */
 const origins = new WeakMap();
+
+/** `rawListeners` yields the `once` wrapper; the site is filed under the
+ * function the caller actually passed in. */
+const targetOf = (listener) => listener?.listener ?? listener;
+
+const isResponse = (emitter) => emitter?.constructor?.name === "ServerResponse";
 
 function caller() {
   return (new Error().stack || "")
@@ -269,17 +294,18 @@ function caller() {
     .map((line) => line.trim().replace(/^at /, ""))[0] ?? "(unknown)";
 }
 
-// `once` calls `on` internally, so the guard must span the delegation: without
-// it the outer `once` and the inner `on` each record the same listener.
+// `once` calls `on` internally, and `addListener` *is* `on` (one function under
+// two names, as `off` is `removeListener`). Both would record the same
+// attachment twice, so one guard spans every delegation.
 let recording = false;
 
 for (const method of ["on", "addListener", "once", "prependListener", "prependOnceListener"]) {
   const original = EventEmitter.prototype[method];
   if (typeof original !== "function") continue;
+  const prepends = method.startsWith("prepend");
 
   EventEmitter.prototype[method] = function (event, listener) {
-    const watching =
-      event === "close" && !recording && this?.constructor?.name === "ServerResponse";
+    const watching = event === "close" && !recording && isResponse(this);
     if (!watching) return original.call(this, event, listener);
 
     recording = true;
@@ -287,7 +313,10 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
       const where = caller();
       const result = original.call(this, event, listener);
       const forResponse = origins.get(this) ?? new Map();
-      forResponse.set(listener, [...(forResponse.get(listener) ?? []), where]);
+      const sites = forResponse.get(listener) ?? [];
+      // Mirror where Node put the registration, so the list stays in the same
+      // order as that function's occurrences in the listener array.
+      forResponse.set(listener, prepends ? [where, ...sites] : [...sites, where]);
       origins.set(this, forResponse);
 
       // Node's own count, not a tally of our calls.
@@ -300,10 +329,9 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
         // cumulative list would print sources no longer present.
         // One queue per function, drained in registration order, so a
         // function attached twice reports both of its sites.
-        const forResponse = origins.get(this) ?? new Map();
         const remaining = new Map();
         this.rawListeners("close").forEach((registered, i) => {
-          const target = registered.listener ?? registered;
+          const target = targetOf(registered);
           if (!remaining.has(target)) remaining.set(target, [...(forResponse.get(target) ?? [])]);
           console.error(`  ${i + 1}. ${remaining.get(target).shift() ?? "(unknown)"}`);
         });
@@ -314,20 +342,59 @@ for (const method of ["on", "addListener", "once", "prependListener", "prependOn
     }
   };
 }
+
+// Removals must be mirrored too, or a listener that is detached and attached
+// again from somewhere else keeps reporting the site it no longer has. A fired
+// `once` listener removes itself through here, so this is the common case, not
+// an exotic one.
+let adjusting = false;
+const removeListener = EventEmitter.prototype.removeListener;
+
+// `off` is the same function object, so one wrapper serves both names. Wrapping
+// each in turn would pop two sites for one removal.
+EventEmitter.prototype.removeListener = EventEmitter.prototype.off = function (event, listener) {
+  const watching = event === "close" && !adjusting && isResponse(this);
+  if (!watching) return removeListener.call(this, event, listener);
+
+  adjusting = true;
+  try {
+    const before = this.listenerCount("close");
+    const result = removeListener.call(this, event, listener);
+    // Only forget a site if Node actually dropped a registration; removing a
+    // listener that was never attached is a no-op there and must be here too.
+    if (this.listenerCount("close") < before) {
+      // Node removes the *last* matching occurrence, so drop the last site.
+      origins.get(this)?.get(targetOf(listener))?.pop();
+    }
+    return result;
+  } finally {
+    adjusting = false;
+  }
+};
+
+// `removeAllListeners` does not route through `removeListener`, so it needs
+// its own mirror.
+const removeAllListeners = EventEmitter.prototype.removeAllListeners;
+EventEmitter.prototype.removeAllListeners = function (event) {
+  if ((event === undefined || event === "close") && isResponse(this)) origins.delete(this);
+  return removeAllListeners.call(this, event);
+};
 ```
 
 It lists the listeners **still registered** at the moment of the peak, read
 from `rawListeners`, rather than a history of attachments. That distinction
-matters: a `once` listener removes itself when it fires, so a response may
-attach thirteen over its life while never holding more than eight at once. A
-cumulative list would print sources that are no longer there and would not add
-up to the peak Node warns on.
+changes no number on 16.3.2, where nothing detaches before the peak; it is what
+keeps the output right on a version where a `once` listener fires earlier, when
+a cumulative list would print sources no longer there and would not add up to
+the peak Node warns on.
 
 `rawListeners` returns the `once` wrapper rather than the function passed in,
-which is why the lookup falls back through `registered.listener`. Sites are recorded per response,
-and per function within it, drained in registration order — so the same callback
-registered from two places reports both, and a handler Next reuses across
-requests never reports a site belonging to an earlier response.
+which is why the lookup falls back through `registered.listener`. Sites are
+recorded per response and per function within it, in the order Node holds those
+registrations, and removals are mirrored — so the same callback registered from
+two places reports both, a handler Next reuses across requests never reports a
+site belonging to an earlier response, and one detached and reattached
+elsewhere reports where it is now rather than where it used to be.
 
 ---
 

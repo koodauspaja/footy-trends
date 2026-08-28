@@ -14,8 +14,10 @@ function serverResponse(): ServerResponse {
 
 /**
  * `register` raises the listener limit for HTTP responses, because Next and
- * Sentry together attach eleven `close` listeners to every one of them. See
- * #174.
+ * Sentry together attach enough `close` listeners to every one of them to pass
+ * Node's default — eleven on Next 16.3.0, which is what #174 silenced. The
+ * count is Next's and it moves: 16.3.2 attaches eight, re-measured in #176.
+ * The limit is pinned for headroom over a moving number, not to match one.
  *
  * `register` mutates `ServerResponse.prototype`, which is global to the
  * worker. Every test restores it, so a later test in the same worker still
@@ -57,10 +59,10 @@ describe("instrumentation", () => {
     expect(serverResponse().getMaxListeners()).toBe(limit);
   });
 
-  it("keeps the limit clear of the eleven Next and Sentry actually attach", async () => {
+  it("keeps the limit clear of the most Next and Sentry have been seen to attach", async () => {
     // Pinning the number, not just "more than the default": dropping it to 12
     // would pass a `> 11` assertion and still put production one listener from
-    // the warning coming back.
+    // the warning coming back at the highest count measured so far.
     const limit = await register("nodejs");
 
     expect(limit).toBe(20);
