@@ -70,17 +70,33 @@ opportunity to fix the variables first.
 
 ---
 
-## Step 2 — Provision its own PostgreSQL and Redis
+## Step 2 — Confirm it has its own PostgreSQL and Redis, and only one of each
 
-Inside the `production` environment:
+**If you duplicated staging, this environment already has its own PostgreSQL
+and Redis** — duplication copies the services, and the copies are this
+environment's own instances, not pointers to staging's. Do not add a second
+pair. Two Postgres services in one environment is the state in which
+`DATABASE_URL` can reference the one you are not looking at, and you pay for
+both.
 
-1. **New** → **Database** → **PostgreSQL**
-2. **New** → **Database** → **Redis**
+So:
 
-Railway injects `DATABASE_URL` and `REDIS_URL` into the environment
-automatically once each is attached to the app service. Confirm both point at
-the new instances and not at staging's — this is the single most damaging thing
-to get wrong here, and the URLs are similar enough to miss at a glance.
+1. Open the `production` environment and count what is there
+2. Exactly one PostgreSQL and one Redis — **verify**, do not create
+3. Nothing there (an empty environment rather than a duplicate) — **New** →
+   **Database** → **PostgreSQL**, then the same for **Redis**
+
+Then confirm `DATABASE_URL` and `REDIS_URL` resolve to *this* environment's
+instances. Railway injects them once each database is attached to the app
+service, but a duplicated environment can arrive with the variables already
+populated, and a copied reference that still points at staging is exactly the
+silent failure Step 1 warns about. The URLs are similar enough to miss at a
+glance, so compare them against staging's rather than reading them alone.
+
+One thing to check rather than assume: whether the duplicated database arrived
+carrying staging's **data** as well as its configuration. Production starting
+life with a copy of staging's rows is survivable, but only if you know it
+happened — decide whether to keep or drop them before the first real deploy.
 
 ---
 
@@ -364,7 +380,8 @@ domains/DNS/TLS.
 ## Recreating this environment from scratch
 
 1. Create a `production` environment based on `staging` (Step 1)
-2. Attach a new PostgreSQL and Redis (Step 2)
+2. Confirm exactly one PostgreSQL and one Redis, adding them only if the
+   environment was created empty rather than duplicated (Step 2)
 3. Set the trigger branch to `release` (Step 3)
 4. Replace all eight manual variables — they arrive holding staging's values —
    and confirm the two database variables point at this environment's
@@ -384,7 +401,8 @@ repository can reproduce them.
 
 ## Done when
 - [ ] `production` environment exists, separate from staging
-- [ ] It has its own PostgreSQL and Redis, and neither URL matches staging's
+- [ ] It has exactly one PostgreSQL and one Redis, both this environment's own,
+      and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
 - [ ] All ten variables in Step 4 are set, every one replaced rather than
       inherited from the duplicated environment, with no value shared with staging
