@@ -184,104 +184,70 @@ Changing only the server file leaves edge and browser traffic on the
 development defaults, which is easy to miss because the server file is the one
 everybody looks at.
 
-These are **code**, not configuration, so staging and production get the same
-values. Differing per environment requires reading them from environment
-variables first — the application code change this environment work implies,
-and it has to be made in all three files.
+These were **code** rather than configuration, so staging and production got the
+same values — the wizard's development ones. All three now read from the
+environment via `src/lib/sentry-config.ts`, with the wizard's behaviour as the
+in-code default, so an environment that sets nothing behaves exactly as before.
 
-| Setting | Now | Recommended in production | Why |
+What each one was, and what production sets:
+
+| Setting | Wizard default | Production | Why |
 |---|---|---|---|
-| `tracesSampleRate` | `1` | `0.1` | 100% tracing ties Sentry quota directly to traffic. At today's volume the cost is small, but the exposure is a traffic spike burning a month's quota in a day. Sampling bounds it. |
-| `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts yet, so almost nothing is gained, and it is a GDPR question that should be answered deliberately rather than inherited from a wizard default. |
-| `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two log destinations, two bills, and two places to search. Keep Axiom for logs and Sentry for errors. |
+| `tracesSampleRate` | `1` | `0.1` | 100% tracing ties Sentry quota directly to traffic. At today's volume the cost is small; the exposure is a spike burning a month's quota in a day. Sampling bounds it |
+| `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts, so almost nothing is gained, and it is a GDPR question worth answering deliberately rather than inheriting |
+| `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two destinations, two bills, and two places to search |
 
-### Session Replay records real users' browsing
+The browser needs its own `NEXT_PUBLIC_`-prefixed copies of all three: values
+read in the browser are inlined at build time, so a server-only variable is
+`undefined` there. That asymmetry is how a client keeps tracing everything while
+the server behaves.
 
-`src/instrumentation-client.ts` also enables `Sentry.replayIntegration()` with
-`replaysSessionSampleRate: 0.1` and `replaysOnErrorSampleRate: 1.0` — one in ten
-sessions recorded as a matter of course, and every session in which an error
-occurs.
+### A blank variable means "unset", not "zero"
 
-Combined with `sendDefaultPii: true` this is the most consequential privacy
-setting in the repository, and it is the one nothing has documented so far. It
-is a deliberate decision to take before real users arrive, not after.
+`Number("")` is `0`, so an empty `SENTRY_TRACES_SAMPLE_RATE` — copied from
+`.env.example`, or added in the dashboard without a value — would switch tracing
+off entirely while looking configured. `src/lib/sentry-config.ts` parses these
+rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
+fall back to the default. A flag turns off on `false` — case-insensitively and
+ignoring surrounding whitespace, since `FALSE` and a stray space are plainly the
+same intent — and anything else leaves it alone, because the failure worth
+guarding is a setting silently flipping.
 
-Like the three settings above, deciding is not applying — the rates are
-hardcoded, so production records sessions until the code changes. **Disabling**
-means dropping the integration, which also drops the replay bundle from the
-client:
+### Session Replay is removed, not sampled down
 
-```ts
-// src/instrumentation-client.ts
-integrations: [],   // was [Sentry.replayIntegration()]
-// and remove replaysSessionSampleRate / replaysOnErrorSampleRate with it
-```
+The wizard enabled it at `replaysSessionSampleRate: 0.1` — one visitor in ten
+recorded, plus every session in which an error occurred. On a public site with
+no accounts that records real people's browsing, for a debugging benefit this
+app has little use for: nearly every page is server-rendered, so a replay shows
+a page load and a click.
 
-**Keeping it** means making the masking explicit rather than relying on SDK
-defaults, and putting the rates behind variables so production can differ from
-staging:
+The integration is **deleted** rather than set to zero. Zero rates stop the
+recording but still ship the replay bundle to every visitor's browser; removing
+it does not.
 
-```ts
-integrations: [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })],
-replaysSessionSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_SESSION_RATE ?? 0.1),
-replaysOnErrorSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_ERROR_RATE ?? 1.0),
-```
+Removed by omitting the `integrations` option, not by passing `integrations: []`.
+An explicit empty array *replaces* Sentry's defaults rather than removing Replay
+from them, which would take the global error handlers, breadcrumbs and request
+context with it — leaving the browser barely reporting anything. Replay is not a
+default; it only ever appears when explicitly added. If it is ever wanted, it comes back deliberately with `maskAllText`
+and `blockAllMedia` set explicitly rather than inherited.
 
-Setting both rates to `0` disables recording while leaving the integration
-loaded — quieter than removing it, but the browser still ships the replay code,
-so prefer removal if the decision is a firm no.
+### The wizard's example routes are deleted
 
-### These cannot be applied from the Railway dashboard yet
+`sentry-example-page` and `sentry-example-api` existed to prove the integration
+once, and are now deleted. They had been reachable in production, and they
+logged through `Sentry.logger` — which `LOG_LEVEL` does not govern — so they
+were the one part of the app whose logging could not be turned down.
 
-Setting a variable in Railway does nothing on its own: all three config files
-hardcode their values, so production runs the development defaults regardless
-of what is set. **Do not tick the Sentry item in *Done when* until the code
-below exists** — otherwise the checklist reads as complete while production
-traces 100% of requests, ships PII, and records sessions.
+### Nothing needs clicking in Sentry
 
-The change is value-neutral — each setting is read from the environment with
-today's behaviour as the fallback, so nothing moves until a variable is set:
+All of the above is code plus Railway variables. The Sentry project itself needs
+no configuration change for this.
 
-```ts
-// sentry.server.config.ts and sentry.edge.config.ts
-tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 1),
-enableLogs: process.env.SENTRY_ENABLE_LOGS !== "false",
-sendDefaultPii: process.env.SENTRY_SEND_DEFAULT_PII !== "false",
-```
-
-The client file needs its own variables. Anything read in the browser must be
-`NEXT_PUBLIC_`-prefixed and is **inlined into the bundle at build time**, so a
-server-only variable silently reads as `undefined` there — which is exactly how
-a client would keep tracing at 100% while the server behaved:
-
-```ts
-// src/instrumentation-client.ts
-tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 1),
-enableLogs: process.env.NEXT_PUBLIC_SENTRY_ENABLE_LOGS !== "false",
-sendDefaultPii: process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII !== "false",
-```
-
-All three, not just the sample rate: `SENTRY_ENABLE_LOGS=false` does nothing to
-the browser, so leaving `enableLogs` hardcoded means client logs keep going to
-Sentry while the server obeys.
-
-Then production sets:
-
-| Variable | Value | Applies to |
-|---|---|---|
-| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | server, edge |
-| `SENTRY_ENABLE_LOGS` | `false` | server, edge |
-| `SENTRY_SEND_DEFAULT_PII` | `false` | server, edge |
-| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` | browser |
-| `NEXT_PUBLIC_SENTRY_ENABLE_LOGS` | `false` | browser |
-| `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII` | `false` | browser |
-| `NEXT_PUBLIC_SENTRY_REPLAY_SESSION_RATE` | `0` | browser — only if replay is kept |
-| `NEXT_PUBLIC_SENTRY_REPLAY_ERROR_RATE` | `0` | browser — only if replay is kept |
-
-Record the values actually chosen here, with the reasoning, once agreed —
-the reasoning is the part that stops the next person re-litigating it.
-
----
+One optional hardening, not required: Sentry can scrub sensitive data
+server-side as well (**Settings → Security & Privacy → Data Scrubbing**). With
+`sendDefaultPii: false` we are not sending it in the first place, so this is
+defence in depth rather than the fix.
 
 ## Step 6 — Set `LOG_LEVEL`
 
@@ -314,11 +280,10 @@ with user traffic:
 
 Everything else in `src/` logs at `warn` or `error`.
 
-The Sentry wizard's example routes — `src/app/api/sentry-example-api/route.ts`
-and `src/app/sentry-example-page/page.tsx` — also log at info level, but through
-`Sentry.logger.info`, not Pino. **`LOG_LEVEL` does not control them**; Step 5's
-`enableLogs` does. They are reachable in production and exist to prove the
-integration once, so deleting them is a better answer than tuning either knob.
+The Sentry wizard's example routes used to log at info level here too, but
+through `Sentry.logger.info` rather than Pino — so `LOG_LEVEL` never governed
+them, only Step 5's `enableLogs` did. They were the one part of the app whose
+logging could not be turned down, and they are deleted (see Step 5).
 
 If Axiom volume does become a cost, the lever is the provider-request log line
 rather than the global level. Dropping to `warn` keeps every warning and error —
@@ -426,24 +391,24 @@ repository can reproduce them.
 ---
 
 ## Done when
-- [ ] `production` environment exists, separate from staging
+- [x] `production` environment exists, separate from staging
 - [ ] It has exactly one PostgreSQL and one Redis, both this environment's own,
       and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
 - [ ] All ten variables in Step 4 are set, every one replaced rather than
       inherited from the duplicated environment, with no value shared with staging
 - [ ] The auth variables are deliberately left unset
-- [ ] All three Sentry configs — server, edge and client — read their settings
-      from the environment (prerequisite; without it the next box cannot be true)
-- [ ] Session Replay is decided **and applied in code** — the integration
-      removed, or kept with `maskAllText`/`blockAllMedia` explicit and its rates
-      set. Deciding alone leaves it recording
-- [ ] Sentry `tracesSampleRate`, `sendDefaultPii` and `enableLogs` are decided,
-      applied, and recorded above with reasoning — all six variables set, the
-      three `NEXT_PUBLIC_` ones included, or the browser keeps the defaults
-- [ ] `LOG_LEVEL` is decided and recorded
-- [ ] A deploy runs migrations before taking traffic and passes its health check
-- [ ] `/api/health` in production returns `status: "ok"` with `checks.database`
+- [x] All three Sentry configs — server, edge and client — read their settings
+      from the environment
+- [x] Session Replay is decided **and applied in code** — the integration is
+      removed, so it neither records nor ships its bundle
+- [x] The wizard's example routes are deleted rather than left reachable
+- [x] The six Sentry variables are set on the production service. Note the code
+      defaults to the wizard's behaviour, so they take effect only once a release
+      carries this change to `release` — setting them alone does not
+- [x] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
+- [x] A deploy runs migrations before taking traffic and passes its health check
+- [x] `/api/health` in production returns `status: "ok"` with `checks.database`
       and `checks.redis` both `"ok"`
 
 ## Next
