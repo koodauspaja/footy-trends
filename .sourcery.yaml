@@ -2,13 +2,23 @@ rule_settings:
   enable:
     - default
 
-# Release pull requests promote `main` into `release`. Every commit in them has
+# Release pull requests promote `main` into `release`. Every commit in one has
 # already been reviewed on its way into `main`, so a review here re-reviews
-# reviewed code and adds noise to the one pull request that most needs to be
-# read for what it ships rather than how it is written.
+# reviewed code and adds noise to the pull request that most needs reading for
+# what it ships rather than how it is written.
 #
 # Sourcery is not a required check on the `release` ruleset — that requires only
-# the three `Release — …` jobs — so this removes noise rather than a gate.
+# the three `Release — …` jobs — so this removes noise, not a gate.
+#
+# Both forms are set because neither is in Sourcery's published documentation,
+# which covers review behaviour but not `.sourcery.yaml`'s schema. `ignore` is
+# a path glob list elsewhere in Sourcery, so the branch-shaped entries below may
+# well be inert; `github.ignore_pr_target_branches` is the one expected to work.
+# Whichever it turns out to be, delete the other rather than leaving both.
 ignore:
   - "branches/release"
   - "branches/release*"
+
+github:
+  ignore_pr_target_branches:
+    - release
