@@ -183,9 +183,52 @@ from `main`'s in ways that are deliberate rather than oversights.
 | `require_extra_approval_for_unattributed_changes` | on (inert) | **off** | Inert at 0 approvals. At 1 it demands a *second* approval, which two people cannot satisfy when one of them is the author. Left on, it would deadlock every release |
 | Merge methods | merge, squash, rebase | **merge only** | A merge commit preserves `main`'s SHAs on `release`, so the deployed commit's ancestry maps back to commits that exist on `main`. Squash and rebase mint new SHAs and break that mapping — and the mapping is the point of wanting a known version in production |
 | Linear history | required | **not required** | Follows from merge-commit-only. Requiring both would leave no legal way to merge |
-| Required status checks | four | **none yet** | `release.yml` does not exist until #85. A required check that never reports blocks every merge — the failure this document already records from #158 |
+| Required status checks | four | **three** | The `Release — …` jobs from `release.yml`. Added once each had reported at least once, per the note below |
+| Require branches to be up to date | **on** | **off** | See *Why `release` does not require an up-to-date branch* below. On `main` it earns its keep; on `release` it would block every release after the first |
 
 Restrict deletions and block force pushes are on for both.
+
+### Why `release` does not require an up-to-date branch
+
+`main` requires it. `release` deliberately does not, and turning it back on
+would block every release (#221).
+
+A release pull request merges `main` into `release` with a **merge commit** —
+that is the row above, and it is what keeps the deployed commit's ancestry
+mapping back to `main`. But that merge commit lands only on `release`. From the
+first release onwards, `release` therefore holds one commit `main` will never
+have, and grows another with each release.
+
+"Require branches to be up to date" means the head branch must contain the
+base's tip. So from v1.0.0 onwards, `main` is permanently *behind* `release`,
+and every release pull request is unmergeable.
+
+**The usual remedy does not exist here.** GitHub's *Update branch* would merge
+`release` into `main`, and two separate rules forbid it:
+
+- `main` requires **linear history**, so a merge commit cannot land there at
+  all, and `non_fast_forward` rules out rewriting it instead.
+- `release` still carries files `main` has deliberately deleted — after v1.0.0
+  it held `src/app/sentry-example-page/page.tsx` and two siblings, removed from
+  `main` by #204. A back-merge would restore deleted code.
+
+**Dropping it costs nothing.** `release` only ever receives merges *from*
+`main`, so it can never hold application content `main` has not already built
+and tested. The only thing it accumulates is the merge commits themselves, and
+requiring `main` to contain those protects against nothing.
+
+On `main` the same setting does earn its keep, because parallel pull requests
+genuinely land there — it caught #204 and #212 sitting `BEHIND` on the day this
+was written.
+
+```sh
+# Verify the asymmetry is still as intended.
+gh api repos/:owner/:repo/rulesets/21727572 \
+  --jq '.rules[] | select(.type=="required_status_checks")
+        | .parameters.strict_required_status_checks_policy'   # release -> false
+```
+
+The asymmetry is deliberate. Do not "fix" it by switching `release` back on.
 
 Create it the same way as `main`'s, targeting `refs/heads/release` instead of
 the default branch, or with the API:
@@ -207,7 +250,8 @@ enabled until a workflow has a `push` trigger for `release`.
 - [ ] Direct push to main rejected
 - [ ] Required status checks added (after `013-ci-workflow.md`)
 - [ ] `release` ruleset active, with 1 required approval and merge commits only
-- [ ] `release`'s required status checks added (after `release.yml` first reports)
+- [x] `release`'s required status checks added (after `release.yml` first reports)
+- [x] `release` does **not** require an up-to-date branch, for the reason above (#221)
 
 ## Next
 → Setup continues in `021-production-environment.md`, which stands up the
