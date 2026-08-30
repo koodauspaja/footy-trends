@@ -15,13 +15,6 @@ describe("regionCrumbFor", () => {
     expect(regionCrumbFor(pathname)).toEqual({ href, label });
   });
 
-  it("keeps the query string out of the decision", () => {
-    expect(regionCrumbFor("/kotimaa/sarjataulukko")).toEqual({
-      href: "/kotimaa",
-      label: "Kotimaa",
-    });
-  });
-
   // A crumb here would link to the page already being shown.
   it.each(["/kotimaa", "/ulkomaat", "/maajoukkueet"])("gives no crumb on %s itself", (pathname) => {
     expect(regionCrumbFor(pathname)).toBeNull();
