@@ -233,9 +233,9 @@ and `blockAllMedia` set explicitly rather than inherited.
 ### The wizard's example routes are deleted
 
 `sentry-example-page` and `sentry-example-api` existed to prove the integration
-once. They were reachable in production, and they logged through
-`Sentry.logger` — which `LOG_LEVEL` does not govern — so they were the one part
-of the app whose logging could not be turned down.
+once, and are now deleted. They had been reachable in production, and they
+logged through `Sentry.logger` — which `LOG_LEVEL` does not govern — so they
+were the one part of the app whose logging could not be turned down.
 
 ### Nothing needs clicking in Sentry
 

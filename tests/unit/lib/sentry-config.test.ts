@@ -36,7 +36,7 @@ describe("sampleRateFrom", () => {
 });
 
 describe("flagFrom", () => {
-  it("turns a flag off only on an exact false", () => {
+  it("turns a flag off on false, whatever its case or spacing", () => {
     expect(flagFrom("false")).toBe(false);
     expect(flagFrom("FALSE")).toBe(false);
     expect(flagFrom(" false ")).toBe(false);
