@@ -90,9 +90,14 @@ test.describe("Tab title follows the selected season", () => {
     await expectTitleToMatchHeading(page);
     const titleBefore = await page.title();
 
-    await changeToAnotherOption(page, "kilpailu");
+    const newCompetition = await changeToAnotherOption(page, "kilpailu");
 
     await expectTitleToMatchHeading(page);
     await expect(page).not.toHaveTitle(titleBefore);
+    // Both halves matter: that the control settled on the competition asked
+    // for, and that the title names that same one. Asserting only that the
+    // title changed would pass a navigation routed to the wrong competition.
+    await expect(page.locator("#kilpailu option:checked")).toHaveText(newCompetition);
+    expect(await page.title()).toContain(newCompetition);
   });
 });
