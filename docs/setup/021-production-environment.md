@@ -208,8 +208,10 @@ the server behaves.
 `.env.example`, or added in the dashboard without a value — would switch tracing
 off entirely while looking configured. `src/lib/sentry-config.ts` parses these
 rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
-fall back to the default. A flag turns off only on the exact string `false`,
-because the failure worth guarding is a setting silently flipping.
+fall back to the default. A flag turns off on `false` — case-insensitively and
+ignoring surrounding whitespace, since `FALSE` and a stray space are plainly the
+same intent — and anything else leaves it alone, because the failure worth
+guarding is a setting silently flipping.
 
 ### Session Replay is removed, not sampled down
 
