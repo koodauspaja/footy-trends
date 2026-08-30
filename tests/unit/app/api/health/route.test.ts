@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 const pingMock = vi.fn();
@@ -255,6 +255,12 @@ describe("health commit", () => {
     vi.clearAllMocks();
     vi.resetModules();
     getCurrentSeasonMock.mockResolvedValue(2026);
+  });
+
+  // Vitest keeps stubbed env vars for the lifetime of the worker, so without
+  // this the empty string set below leaks into whatever runs next in it.
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("reports the commit Railway is serving, so the running version is a request away", async () => {
