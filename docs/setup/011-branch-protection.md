@@ -204,26 +204,45 @@ base's tip. So from v1.0.0 onwards, `main` is permanently *behind* `release`,
 and every release pull request is unmergeable.
 
 **The usual remedy does not exist here.** GitHub's *Update branch* would merge
-`release` into `main`, and two separate rules forbid it:
+`release` into `main`, and `main` requires **linear history** — a merge commit
+cannot land there at all, and `non_fast_forward` rules out rewriting it
+instead. So the back-merge is not available, and the divergence is permanent.
 
-- `main` requires **linear history**, so a merge commit cannot land there at
-  all, and `non_fast_forward` rules out rewriting it instead.
-- `release` still carries files `main` has deliberately deleted — after v1.0.0
-  it held `src/app/sentry-example-page/page.tsx` and two siblings, removed from
-  `main` by #204. A back-merge would restore deleted code.
+It is worth being precise about *why*, because the obvious second reason is
+wrong. `release` does carry files `main` has deleted — after v1.0.0 it still
+held `src/app/sentry-example-page/page.tsx` and two siblings, removed from
+`main` by #204. That looks like it would make a back-merge restore deleted
+code, and it does not: in a three-way merge `main`'s deletion wins over a
+release-side file that was never modified after the branches diverged.
+Measured, on those exact commits — the merge applied cleanly and both files
+stayed deleted. Linear history is the real blocker, and the only one.
 
-**Dropping it costs nothing.** `release` only ever receives merges *from*
-`main`, so it can never hold application content `main` has not already built
-and tested. The only thing it accumulates is the merge commits themselves, and
-requiring `main` to contain those protects against nothing.
+**Dropping it is acceptable rather than free.** `release` only ever receives
+merges *from* `main`, so its content becomes `main`'s content at each release
+and it cannot accumulate application code that was never built and tested on
+`main`. Three kinds of release-only difference are accepted:
+
+- the release merge commits themselves, which carry no content;
+- files `main` has deleted, until the next release merge carries that deletion
+  across — transient, not permanent;
+- anything introduced while resolving a merge conflict, which is the one case
+  that could put genuinely unreviewed content on `release`.
+
+The three required `Release — …` checks run on the merge result and the
+approving review reads it, so that last case is caught where it matters. What
+requiring an up-to-date branch would add is not safety but an impossible
+precondition.
 
 On `main` the same setting does earn its keep, because parallel pull requests
 genuinely land there — it caught #204 and #212 sitting `BEHIND` on the day this
 was written.
 
 ```sh
-# Verify the asymmetry is still as intended.
-gh api repos/:owner/:repo/rulesets/21727572 \
+# Verify the asymmetry is still as intended. The ruleset is looked up by name
+# rather than by id, because deleting and recreating it changes the id and a
+# hard-coded one would quietly 404 instead of failing the check.
+release_ruleset=$(gh api repos/:owner/:repo/rulesets --jq '.[] | select(.name=="release") | .id')
+gh api "repos/:owner/:repo/rulesets/$release_ruleset" \
   --jq '.rules[] | select(.type=="required_status_checks")
         | .parameters.strict_required_status_checks_policy'   # release -> false
 ```
