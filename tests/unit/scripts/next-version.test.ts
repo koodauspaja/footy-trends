@@ -215,6 +215,13 @@ describe("formatReleaseNotes", () => {
     expect(notes).toContain("## Chores\n\n| | |\n|---|---|\n|  | Tidy |");
   });
 
+  it("escapes a vertical bar, which would otherwise split the row into extra columns", () => {
+    const notes = formatReleaseNotes(
+      decideVersion([c("feat: accept a|b as a separator (#9) (#10)")], "v1.0.0")
+    );
+    expect(notes).toContain("| #9 | Accept a\\|b as a separator |");
+  });
+
   it("renders each entry as an issue reference and a sentence", () => {
     const notes = formatReleaseNotes(
       decideVersion([c("feat: settle Sentry's production configuration (#140) (#204)")], "v1.0.0")

@@ -230,13 +230,22 @@ export function describeCommit(subject: string): ReleaseEntry {
   };
 }
 
+/**
+ * A vertical bar ends a Markdown table cell, so a commit subject containing one
+ * would silently split into extra columns and misalign the row. Escaping is
+ * cheaper than forbidding the character in commit messages.
+ */
+function escapeTableCell(text: string): string {
+  return text.replace(/\|/g, "\\|");
+}
+
 /** Markdown release notes: a table per section, matching the v1.0.0 release. */
 export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, subjects: string[]): string => {
     if (subjects.length === 0) return "";
     const rows = subjects
       .map(describeCommit)
-      .map((entry) => `| ${entry.ref ?? ""} | ${entry.description} |`)
+      .map((entry) => `| ${entry.ref ?? ""} | ${escapeTableCell(entry.description)} |`)
       .join("\n");
     return `## ${title}\n\n| | |\n|---|---|\n${rows}\n\n`;
   };
