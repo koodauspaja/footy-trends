@@ -4,6 +4,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import { flagFrom, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
  * Read from the environment so production can differ from staging. Defaults
@@ -14,9 +15,9 @@ import * as Sentry from "@sentry/nextjs";
  * docs/setup/021-production-environment.md for the values production uses and
  * why.
  */
-const tracesSampleRate = Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 1);
-const enableLogs = process.env.SENTRY_ENABLE_LOGS !== "false";
-const sendDefaultPii = process.env.SENTRY_SEND_DEFAULT_PII !== "false";
+const tracesSampleRate = sampleRateFrom(process.env.SENTRY_TRACES_SAMPLE_RATE);
+const enableLogs = flagFrom(process.env.SENTRY_ENABLE_LOGS);
+const sendDefaultPii = flagFrom(process.env.SENTRY_SEND_DEFAULT_PII);
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

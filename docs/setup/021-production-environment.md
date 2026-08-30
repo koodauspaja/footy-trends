@@ -250,6 +250,15 @@ Set all six in Railway → `production` → the app service → **Variables**. S
 can be left on the defaults; it has no real users to protect and heavier tracing
 there is useful rather than costly.
 
+### A blank variable means "unset", not "zero"
+
+`Number("")` is `0`, so an empty `SENTRY_TRACES_SAMPLE_RATE` — copied from
+`.env.example`, or added in the dashboard without a value — would switch tracing
+off entirely while looking configured. `src/lib/sentry-config.ts` parses these
+rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
+fall back to the default. A flag turns off only on the exact string `false`,
+because the failure worth guarding is a setting silently flipping.
+
 ### Session Replay is removed, not sampled down
 
 The wizard enabled it at `replaysSessionSampleRate: 0.1` — one visitor in ten
@@ -260,7 +269,13 @@ a page load and a click.
 
 The integration is **deleted** rather than set to zero. Zero rates stop the
 recording but still ship the replay bundle to every visitor's browser; removing
-it does not. If it is ever wanted, it comes back deliberately with `maskAllText`
+it does not.
+
+Removed by omitting the `integrations` option, not by passing `integrations: []`.
+An explicit empty array *replaces* Sentry's defaults rather than removing Replay
+from them, which would take the global error handlers, breadcrumbs and request
+context with it — leaving the browser barely reporting anything. Replay is not a
+default; it only ever appears when explicitly added. If it is ever wanted, it comes back deliberately with `maskAllText`
 and `blockAllMedia` set explicitly rather than inherited.
 
 ### The wizard's example routes are deleted
