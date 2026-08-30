@@ -15,6 +15,25 @@ function toLogError(error: unknown) {
   };
 }
 
+/**
+ * The commit actually serving this response, so "which version is in
+ * production?" is a request rather than dashboard archaeology. Railway sets it
+ * per deployment; locally and in tests there is no deployment behind it, and
+ * `null` is the honest answer rather than a guess.
+ *
+ * Blank counts as absent. `?? null` alone would report `""` for a variable that
+ * exists but is empty, which reads as "the commit is the empty string" rather
+ * than "unknown" — and a probe cannot tell those apart.
+ *
+ * The commit rather than a version string: the tag is derived from it
+ * (`git tag --points-at`), so the two cannot drift the way a hand-maintained
+ * version would. See skills/release.md.
+ */
+function deployedCommit(): string | null {
+  const sha = process.env.RAILWAY_GIT_COMMIT_SHA?.trim();
+  return sha === undefined || sha === "" ? null : sha;
+}
+
 export async function GET(request: Request) {
   const startedAt = Date.now();
   const checks: Record<string, "ok" | "error"> = {};
@@ -72,6 +91,7 @@ export async function GET(request: Request) {
     {
       status: healthy ? "ok" : "error",
       checks,
+      commit: deployedCommit(),
       timestamp: new Date().toISOString(),
     },
     { status }

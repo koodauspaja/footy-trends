@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 const pingMock = vi.fn();
@@ -247,5 +247,44 @@ describe("GET /api/health — provider check", () => {
 
     expect(response.status).toBe(200);
     expect((await response.json()).status).toBe("ok");
+  });
+});
+
+describe("health commit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getCurrentSeasonMock.mockResolvedValue(2026);
+  });
+
+  // Vitest keeps stubbed env vars for the lifetime of the worker, so without
+  // this the empty string set below leaks into whatever runs next in it.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("reports the commit Railway is serving, so the running version is a request away", async () => {
+    // The commit rather than a version string: the tag is derived from it with
+    // `git tag --points-at`, so the two cannot drift the way a hand-maintained
+    // version would.
+    vi.stubEnv("RAILWAY_GIT_COMMIT_SHA", "b408d2f50166b7311283fb11d58080bda7ee5cad");
+    const GET = await loadGetRoute();
+
+    const response = await GET(probeRequest());
+    const body = await response.json();
+
+    expect(body.commit).toBe("b408d2f50166b7311283fb11d58080bda7ee5cad");
+  });
+
+  it("reports null rather than guessing when nothing set it", async () => {
+    // Local and test runs have no deployment behind them. An empty string or a
+    // fabricated value would read as an answer.
+    vi.stubEnv("RAILWAY_GIT_COMMIT_SHA", "");
+    const GET = await loadGetRoute();
+
+    const response = await GET(probeRequest());
+    const body = await response.json();
+
+    expect(body.commit).toBeNull();
   });
 });
