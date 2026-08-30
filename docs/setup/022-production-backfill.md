@@ -32,6 +32,10 @@ refresh once stored, so this is a one-time cost rather than a recurring one.
 | TASO | 13 | 138 | 276 | 60/min | ~4.6 min |
 | **Total** | | **179** | **329** | | **~11 min** |
 
+Those are the figures for a **first** run against an empty database. A re-run
+skips what is already stored — see *If it fails partway* — and takes about three
+minutes.
+
 Measured, not estimated: a full run against a local database took **11.0 minutes**
 with 0 failures. The football-data figure is lower than a naive
 competitions×seasons count suggests, because `getSeasonContext` derives the
@@ -195,12 +199,16 @@ that season's group rows go. Matches are unaffected either way.
 ---
 
 ## Done when
-- [ ] The first release has deployed, so the schema exists
-- [ ] The run reported the expected production host and database on its first line
-- [ ] It finished with **0 failures**
-- [ ] `matches`, `taso_matches` and `taso_group_teams` all hold rows
-- [ ] A standings page for an old season renders in production with no provider call
-- [ ] The production `DATABASE_URL` is not left behind in `.env`
+- [x] The first release has deployed, so the schema exists — `v1.0.0`
+- [x] The run reported the expected production host and database on its first line
+- [x] It finished with **0 failures** — 11.2 minutes
+- [x] `matches`, `taso_matches` and `taso_group_teams` all hold rows —
+      13,857 / 20,378 / 8,180
+- [x] A standings page for an old season renders in production without fetching
+      match data — ~460ms on repeat requests. The first request to a given
+      competition-season is ~6x slower, because TASO's category names live in a
+      Redis cache a database backfill cannot fill; one slow request, once
+- [x] The production `DATABASE_URL` is not left behind in `.env`
 
 ## Next
 → Nothing scheduled. This is a one-time operation; the app keeps the current
