@@ -278,11 +278,10 @@ with user traffic:
 
 Everything else in `src/` logs at `warn` or `error`.
 
-The Sentry wizard's example routes — `src/app/api/sentry-example-api/route.ts`
-and `src/app/sentry-example-page/page.tsx` — also log at info level, but through
-`Sentry.logger.info`, not Pino. **`LOG_LEVEL` does not control them**; Step 5's
-`enableLogs` does. They are reachable in production and exist to prove the
-integration once, so deleting them is a better answer than tuning either knob.
+The Sentry wizard's example routes used to log at info level here too, but
+through `Sentry.logger.info` rather than Pino — so `LOG_LEVEL` never governed
+them, only Step 5's `enableLogs` did. They were the one part of the app whose
+logging could not be turned down, and they are deleted (see Step 5).
 
 If Axiom volume does become a cost, the lever is the provider-request log line
 rather than the global level. Dropping to `warn` keeps every warning and error —
