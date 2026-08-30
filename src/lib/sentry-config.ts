@@ -35,9 +35,11 @@ export function sampleRateFrom(
 /**
  * A boolean from a variable, defaulting to on.
  *
- * Only the exact string `false` turns a flag off. Anything else — unset, blank,
- * a typo — leaves it as it was, because the failure that matters here is a
- * setting silently flipping, not one failing to flip.
+ * Only `false` turns a flag off — case-insensitively, and ignoring surrounding
+ * whitespace, since `FALSE` and `" false "` are plainly the same intent and a
+ * dashboard is an easy place to acquire a stray space. Anything else — unset,
+ * blank, a typo — leaves the flag as it was, because the failure that matters
+ * here is a setting silently flipping, not one failing to flip.
  */
 export function flagFrom(raw: string | undefined, fallback = true): boolean {
   const trimmed = raw?.trim().toLowerCase();
