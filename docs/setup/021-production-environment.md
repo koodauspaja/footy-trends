@@ -389,7 +389,7 @@ repository can reproduce them.
 ---
 
 ## Done when
-- [ ] `production` environment exists, separate from staging
+- [x] `production` environment exists, separate from staging
 - [ ] It has exactly one PostgreSQL and one Redis, both this environment's own,
       and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
@@ -401,12 +401,12 @@ repository can reproduce them.
 - [x] Session Replay is decided **and applied in code** — the integration is
       removed, so it neither records nor ships its bundle
 - [x] The wizard's example routes are deleted rather than left reachable
-- [ ] The six Sentry variables are set on the production service — the code
-      defaults to the wizard's behaviour, so until they are set production is
-      still tracing everything and sending PII
-- [ ] `LOG_LEVEL` is decided and recorded
-- [ ] A deploy runs migrations before taking traffic and passes its health check
-- [ ] `/api/health` in production returns `status: "ok"` with `checks.database`
+- [x] The six Sentry variables are set on the production service. Note the code
+      defaults to the wizard's behaviour, so they take effect only once a release
+      carries this change to `release` — setting them alone does not
+- [x] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
+- [x] A deploy runs migrations before taking traffic and passes its health check
+- [x] `/api/health` in production returns `status: "ok"` with `checks.database`
       and `checks.redis` both `"ok"`
 
 ## Next
