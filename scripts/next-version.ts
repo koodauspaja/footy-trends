@@ -198,20 +198,60 @@ export function decideVersion(
   };
 }
 
-/** Markdown release notes, grouped the way the version was decided. */
+/**
+ * One row of the release notes: the issue it came from, and a sentence.
+ *
+ * Both are already in the commit subject — `chore: repair the allowlist (#210)
+ * (#212)` carries the reference and the description — so nothing is looked up.
+ * A formatter that needed the network would fail exactly when it is used.
+ */
+export type ReleaseEntry = { ref: string | null; description: string };
+
+/**
+ * Splits a conventional commit subject into its issue reference and a readable
+ * description.
+ *
+ * A squash merge appends its own `(#N)`, so a subject that already named an
+ * issue ends with two references. The **first** is the issue and the last is
+ * the pull request — the issue is what a reader wants, since it says why the
+ * work happened rather than how it landed. A single reference means no issue
+ * was named, which is what Renovate's commits look like; that one is used
+ * rather than dropping the row's identity entirely.
+ */
+export function describeCommit(subject: string): ReleaseEntry {
+  const summary = CONVENTIONAL.exec(subject)?.groups?.summary ?? subject;
+  const refs = [...summary.matchAll(/\(#(\d+)\)/g)].map((match) => match[1]);
+  const text = summary.replace(/\s*\(#\d+\)/g, "").trim();
+
+  return {
+    ref: refs.length === 0 ? null : `#${refs[0]}`,
+    // Commit summaries start lower-case; a table cell reads as a sentence.
+    description: text.charAt(0).toUpperCase() + text.slice(1),
+  };
+}
+
+/** Markdown release notes: a table per section, matching the v1.0.0 release. */
 export function formatReleaseNotes(decision: VersionDecision): string {
-  const section = (title: string, items: string[]): string =>
-    items.length === 0 ? "" : `## ${title}\n\n${items.map((i) => `- ${i}`).join("\n")}\n\n`;
+  const section = (title: string, subjects: string[]): string => {
+    if (subjects.length === 0) return "";
+    const rows = subjects
+      .map(describeCommit)
+      .map((entry) => `| ${entry.ref ?? ""} | ${entry.description} |`)
+      .join("\n");
+    return `## ${title}\n\n| | |\n|---|---|\n${rows}\n\n`;
+  };
 
   // Headings say what the list is. On a first release it is a tail, not a
   // changelog, and calling it "Features" would restate the very claim the
   // preamble just corrected.
   const since = decision.isFirstRelease ? " since the branch point" : "";
+  // `fix:` commits are bugs, and everything that is neither `feat:` nor `fix:`
+  // is a chore. "Other" described the classification rather than the work.
   const body =
     section(`Breaking changes${since}`, decision.breaking) +
     section(`Features${since}`, decision.features) +
-    section(`Fixes${since}`, decision.fixes) +
-    section(`Other${since}`, decision.other);
+    section(`Bugs${since}`, decision.fixes) +
+    section(`Chores${since}`, decision.other);
 
   // A first release is the whole application reaching production, not the
   // commits in the promotion range — `release` was branched from `main` and
@@ -223,9 +263,22 @@ export function formatReleaseNotes(decision: VersionDecision): string {
       "The commits below are **not** the contents of this release — they are only what\n" +
       "landed after `release` was branched from `main`. Everything before that branch\n" +
       "point is in this release too, and is not listed.\n\n"
-    : `Changes since ${decision.previous}.\n\n`;
+    : `Changes since ${decision.previous}${describeCounts(decision)}.\n\n`;
 
   // A release with nothing to list would otherwise publish an empty body,
   // which reads as a mistake rather than as a deliberate no-change release.
-  return `${preamble}${body || "No categorised commits in this range.\n"}`.trimEnd();
+  return `# release: ${decision.next}\n\n${preamble}${body || "No categorised commits in this range.\n"}`.trimEnd();
+}
+
+/** ` — 3 features, 6 chores`, naming only the categories that have anything. */
+function describeCounts(decision: VersionDecision): string {
+  const counts: string[] = [];
+  const add = (n: number, one: string, many: string) => {
+    if (n > 0) counts.push(`${n} ${n === 1 ? one : many}`);
+  };
+  add(decision.breaking.length, "breaking change", "breaking changes");
+  add(decision.features.length, "feature", "features");
+  add(decision.fixes.length, "bug", "bugs");
+  add(decision.other.length, "chore", "chores");
+  return counts.length === 0 ? "" : ` — ${counts.join(", ")}`;
 }

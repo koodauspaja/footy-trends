@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   decideVersion,
+  describeCommit,
   formatReleaseNotes,
   InvalidFirstReleaseVersion,
   isMergeSubject,
@@ -205,10 +206,49 @@ describe("formatReleaseNotes", () => {
     const notes = formatReleaseNotes(
       decideVersion([c("feat: a thing"), c("fix: another"), c("chore: tidy")], "v1.0.0")
     );
+    expect(notes).toContain("# release: v1.1.0");
+    expect(notes).toContain("Changes since v1.0.0 — 1 feature, 1 bug, 1 chore.");
+    expect(notes).toContain("## Features\n\n| | |\n|---|---|\n|  | A thing |");
+    // `fix:` is a bug and everything else is a chore. "Fixes"/"Other" named the
+    // classification rather than the work.
+    expect(notes).toContain("## Bugs\n\n| | |\n|---|---|\n|  | Another |");
+    expect(notes).toContain("## Chores\n\n| | |\n|---|---|\n|  | Tidy |");
+  });
+
+  it("renders each entry as an issue reference and a sentence", () => {
+    const notes = formatReleaseNotes(
+      decideVersion([c("feat: settle Sentry's production configuration (#140) (#204)")], "v1.0.0")
+    );
+    expect(notes).toContain("| #140 | Settle Sentry's production configuration |");
+    expect(notes).not.toContain("feat:");
+    expect(notes).not.toContain("(#204)");
+  });
+
+  it("pluralises the counts, and names only the categories with anything in them", () => {
+    const notes = formatReleaseNotes(
+      decideVersion([c("feat: a"), c("feat: b"), c("chore: c")], "v1.0.0")
+    );
+    expect(notes).toContain("— 2 features, 1 chore.");
+    expect(notes).not.toContain("bug");
+  });
+
+  it("adds no counts to a release with nothing categorised", () => {
+    const notes = formatReleaseNotes(
+      decideVersion([c("Merge pull request #1 from koodauspaja/x")], "v1.0.0")
+    );
     expect(notes).toContain("Changes since v1.0.0.");
-    expect(notes).toContain("## Features\n\n- feat: a thing");
-    expect(notes).toContain("## Fixes\n\n- fix: another");
-    expect(notes).toContain("## Other\n\n- chore: tidy");
+  });
+
+  it("counts a breaking change in the preamble", () => {
+    const notes = formatReleaseNotes(decideVersion([c("feat!: a")], "v1.0.0"));
+    expect(notes).toContain("— 1 breaking change.");
+  });
+
+  it("pluralises breaking changes and bugs", () => {
+    const notes = formatReleaseNotes(
+      decideVersion([c("feat!: a"), c("feat!: b"), c("fix: x"), c("fix: y")], "v1.0.0")
+    );
+    expect(notes).toContain("— 2 breaking changes, 2 bugs.");
   });
 
   it("omits headings that have nothing under them", () => {
@@ -231,7 +271,7 @@ describe("formatReleaseNotes", () => {
 
   it("keeps the plain headings for a later release, where the range is the contents", () => {
     const notes = formatReleaseNotes(decideVersion([c("feat: a")], "v1.0.0"));
-    expect(notes).toContain("Changes since v1.0.0.");
+    expect(notes).toContain("Changes since v1.0.0 — 1 feature.");
     expect(notes).toContain("## Features\n");
     expect(notes).not.toContain("since the branch point");
   });
@@ -241,5 +281,51 @@ describe("formatReleaseNotes", () => {
       decideVersion([c("Merge pull request #1 from koodauspaja/x")], "v1.0.0")
     );
     expect(notes).toContain("No categorised commits in this range.");
+  });
+});
+
+describe("describeCommit", () => {
+  it("takes the issue reference, not the pull request, when the subject has both", () => {
+    // A squash merge appends its own (#N), so a subject that already named an
+    // issue ends with two. The issue says why the work happened.
+    expect(describeCommit("chore: repair the allowlist (#210) (#212)")).toEqual({
+      ref: "#210",
+      description: "Repair the allowlist",
+    });
+  });
+
+  it("uses the only reference when a commit names no issue, as Renovate's do", () => {
+    expect(describeCommit("chore(deps): update dependency x to v2 (#145)")).toEqual({
+      ref: "#145",
+      description: "Update dependency x to v2",
+    });
+  });
+
+  it("returns no reference when the subject carries none", () => {
+    expect(describeCommit("feat: a thing")).toEqual({ ref: null, description: "A thing" });
+  });
+
+  it("keeps a subject that does not parse as a conventional commit", () => {
+    expect(describeCommit("tidied things up")).toEqual({
+      ref: null,
+      description: "Tidied things up",
+    });
+  });
+
+  it("strips the scope along with the type", () => {
+    expect(describeCommit("fix(deps): bump the thing")).toEqual({
+      ref: null,
+      description: "Bump the thing",
+    });
+  });
+
+  it("leaves an already-capitalised description alone", () => {
+    expect(describeCommit("feat: TASO groups are synced").description).toBe(
+      "TASO groups are synced"
+    );
+  });
+
+  it("survives an empty summary without throwing", () => {
+    expect(describeCommit("feat: (#12)")).toEqual({ ref: "#12", description: "" });
   });
 });

@@ -1,3 +1,14 @@
 rule_settings:
   enable:
     - default
+
+# Release pull requests promote `main` into `release`. Every commit in them has
+# already been reviewed on its way into `main`, so a review here re-reviews
+# reviewed code and adds noise to the one pull request that most needs to be
+# read for what it ships rather than how it is written.
+#
+# Sourcery is not a required check on the `release` ruleset — that requires only
+# the three `Release — …` jobs — so this removes noise rather than a gate.
+ignore:
+  - "branches/release"
+  - "branches/release*"
