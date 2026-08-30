@@ -62,7 +62,6 @@ function pacer(perMinute: number) {
   };
 }
 
-/** Resolves to the process exit code: 0 when everything stored, 1 otherwise. */
 /** Rows already stored for one football-data competition-season. */
 async function alreadyStored(
   competitionCode: string,
