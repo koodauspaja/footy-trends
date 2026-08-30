@@ -147,6 +147,15 @@ describe("decideFreshness", () => {
     expect(verdict.message).toContain("No passing full e2e run has been recorded");
   });
 
+  // Clock skew or a hand-edit. A negative age is never greater than the
+  // window, so without its own branch this would read as fresh.
+  it("blocks a marker dated in the future rather than trusting it", () => {
+    const verdict = decide({ marker: new Date(NOW.getTime() + 90 * 60_000) });
+    expect(verdict.kind).toBe("block");
+    expect(verdict.message).toContain("1 h 30 min in the future");
+    expect(verdict.message).toContain(".e2e-freshness");
+  });
+
   it("blocks a run older than the freshness window", () => {
     const verdict = decide({ marker: minutesAgo(13 * 60) });
     expect(verdict.kind).toBe("block");

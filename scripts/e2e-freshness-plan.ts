@@ -128,6 +128,16 @@ function assess(input: {
   }
 
   const age = input.now.getTime() - input.marker.getTime();
+  // A marker dated ahead of now cannot record a run that has finished. Clock
+  // skew or a hand-edit would otherwise sail past the staleness check below,
+  // since a negative age is never greater than the window — so this fails
+  // closed, the same way an unparseable marker does.
+  if (age < 0) {
+    return {
+      blocking: `The marker is dated ${describeAge(-age)} in the future, so no completed run stands behind it. Delete ${MARKER_PATH} and run the suite again.`,
+    };
+  }
+
   if (age > input.maxAgeMs) {
     return {
       blocking: `The last passing e2e run finished ${describeAge(age)} ago, beyond the ${describeAge(
