@@ -184,71 +184,23 @@ Changing only the server file leaves edge and browser traffic on the
 development defaults, which is easy to miss because the server file is the one
 everybody looks at.
 
-These are **code**, not configuration, so staging and production get the same
-values. Differing per environment requires reading them from environment
-variables first — the application code change this environment work implies,
-and it has to be made in all three files.
+These were **code** rather than configuration, so staging and production got the
+same values — the wizard's development ones. All three now read from the
+environment via `src/lib/sentry-config.ts`, with the wizard's behaviour as the
+in-code default, so an environment that sets nothing behaves exactly as before.
 
-| Setting | Now | Recommended in production | Why |
+What each one was, and what production sets:
+
+| Setting | Wizard default | Production | Why |
 |---|---|---|---|
-| `tracesSampleRate` | `1` | `0.1` | 100% tracing ties Sentry quota directly to traffic. At today's volume the cost is small, but the exposure is a traffic spike burning a month's quota in a day. Sampling bounds it. |
-| `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts yet, so almost nothing is gained, and it is a GDPR question that should be answered deliberately rather than inherited from a wizard default. |
-| `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two log destinations, two bills, and two places to search. Keep Axiom for logs and Sentry for errors. |
+| `tracesSampleRate` | `1` | `0.1` | 100% tracing ties Sentry quota directly to traffic. At today's volume the cost is small; the exposure is a spike burning a month's quota in a day. Sampling bounds it |
+| `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts, so almost nothing is gained, and it is a GDPR question worth answering deliberately rather than inheriting |
+| `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two destinations, two bills, and two places to search |
 
-### Session Replay records real users' browsing
-
-`src/instrumentation-client.ts` also enables `Sentry.replayIntegration()` with
-`replaysSessionSampleRate: 0.1` and `replaysOnErrorSampleRate: 1.0` — one in ten
-sessions recorded as a matter of course, and every session in which an error
-occurs.
-
-Combined with `sendDefaultPii: true` this is the most consequential privacy
-setting in the repository, and it is the one nothing has documented so far. It
-is a deliberate decision to take before real users arrive, not after.
-
-Like the three settings above, deciding is not applying — the rates are
-hardcoded, so production records sessions until the code changes. **Disabling**
-means dropping the integration, which also drops the replay bundle from the
-client:
-
-```ts
-// src/instrumentation-client.ts
-integrations: [],   // was [Sentry.replayIntegration()]
-// and remove replaysSessionSampleRate / replaysOnErrorSampleRate with it
-```
-
-**Keeping it** means making the masking explicit rather than relying on SDK
-defaults, and putting the rates behind variables so production can differ from
-staging:
-
-```ts
-integrations: [Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true })],
-replaysSessionSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_SESSION_RATE ?? 0.1),
-replaysOnErrorSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_REPLAY_ERROR_RATE ?? 1.0),
-```
-
-Setting both rates to `0` disables recording while leaving the integration
-loaded — quieter than removing it, but the browser still ships the replay code,
-so prefer removal if the decision is a firm no.
-
-### The values production uses, and why
-
-Decided and applied. All three configs read them from the environment; the
-defaults in code preserve the wizard's behaviour, so anywhere that sets nothing
-still behaves as before.
-
-| Variable | Production | Why |
-|---|---|---|
-| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | 100% ties Sentry quota directly to traffic. At today's volume the cost is small; the exposure is a spike burning a month's quota in a day. Sampling bounds it |
-| `SENTRY_ENABLE_LOGS` | `false` | Logs already go to Axiom (`009`). Leaving this on gives two destinations, two bills, and two places to search |
-| `SENTRY_SEND_DEFAULT_PII` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts, so almost nothing is gained |
-| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `0.1` | The browser needs its own; a server-only variable is `undefined` there |
-| `NEXT_PUBLIC_SENTRY_ENABLE_LOGS` | `false` | as above |
-| `NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII` | `false` | as above |
-
-Set all six in Railway → `production` → the app service → **Variables**. Staging
-can be left on the defaults; it has no real users to protect and heavier tracing
-there is useful rather than costly.
+The browser needs its own `NEXT_PUBLIC_`-prefixed copies of all three: values
+read in the browser are inlined at build time, so a server-only variable is
+`undefined` there. That asymmetry is how a client keeps tracing everything while
+the server behaves.
 
 ### A blank variable means "unset", not "zero"
 
