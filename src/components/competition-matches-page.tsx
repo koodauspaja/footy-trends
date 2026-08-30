@@ -198,9 +198,22 @@ async function renderLeagueMatches({
       />
       {result.status === "ok" && maxMatchday !== null && (
         <div className="mb-4 flex items-center gap-4 text-sm">
+          {/*
+           * `prefetch={false}` is load-bearing, not a performance choice — see
+           * #189. These two links are the only ones in the app that point at
+           * the *same* route with different search params, and with prefetching
+           * on, clicking one changed the URL without changing the page: the
+           * router served a cached entry and made no request at all.
+           *
+           * It reproduces only in a production build, because `<Link>`
+           * auto-prefetches on viewport in production and not in dev — which is
+           * why it survived until e2e started running against a real build.
+           * Every other query-string link here crosses routes and is unaffected.
+           */}
           {result.round > 1 && (
             <Link
               className="hover:underline"
+              prefetch={false}
               href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round - 1}`}
             >
               ◀ Edellinen kierros
@@ -209,6 +222,7 @@ async function renderLeagueMatches({
           {result.round < maxMatchday && (
             <Link
               className="hover:underline"
+              prefetch={false}
               href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round + 1}`}
             >
               Seuraava kierros ▶

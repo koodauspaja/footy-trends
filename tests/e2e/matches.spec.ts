@@ -12,12 +12,22 @@ test.describe("Season-wide match list", () => {
 
     const nextLink = page.getByRole("link", { name: "Seuraava kierros ▶" });
     const prevLink = page.getByRole("link", { name: "◀ Edellinen kierros" });
+
+    // Asserted rather than assumed: without this the test clicks nothing when
+    // neither link is present and then fails on the unchanged heading, which
+    // reads as a navigation bug rather than as a page with no rounds to step
+    // between. That ambiguity cost real time diagnosing #189.
+    const stepped = (await nextLink.count()) + (await prevLink.count());
+    expect(stepped, "expected at least one round-navigation link").toBeGreaterThan(0);
+
     if (await nextLink.count()) {
       await nextLink.click();
-    } else if (await prevLink.count()) {
+    } else {
       await prevLink.click();
     }
 
+    // Regression guard for #189: this passed against `next dev` while the
+    // production build changed the URL and left the page as it was.
     await expect(heading).not.toHaveText(before ?? "");
   });
 
