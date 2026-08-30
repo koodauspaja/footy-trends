@@ -171,6 +171,11 @@ A season with no stored rows is always re-asked, including one that is genuinely
 empty. That costs a single request, and it is the right way round: skipping a
 season that had merely *failed* would leave a hole nothing later fills.
 
+For TASO the matches and the group snapshot are asked about **separately**,
+because they are separate writes. A season whose matches stored and whose groups
+then failed retries only the groups; a single season-level check would see "it
+has rows" and strand them for ever.
+
 Do not re-run with `--reset` to "start clean" after a partial run — that throws
 away good rows and buys nothing.
 
