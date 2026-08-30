@@ -20,7 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "prepare": "husky"
   },
   "dependencies": {
     "@axiomhq/pino": "2.0.0",
@@ -45,6 +46,7 @@
     "@vitejs/plugin-react": "6.0.5",
     "@vitest/coverage-v8": "4.1.11",
     "drizzle-kit": "0.31.10",
+    "husky": "9.1.7",
     "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.12",

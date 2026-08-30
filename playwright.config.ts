@@ -32,7 +32,15 @@ export default defineConfig({
   ...(process.env.CI ? { workers: 1 } : {}),
   // The HTML report is what release.yml uploads as an artifact; without it a
   // failed release run leaves nothing to look at but scrollback.
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  /**
+   * `e2e-freshness-reporter` records a passing full run for the pre-push hook
+   * to read (#84). It is a reporter rather than an `&&` on the `test:e2e`
+   * script because npm appends a script's extra arguments to the end of the
+   * whole command, which would have misrouted them.
+   */
+  reporter: process.env.CI
+    ? [["list"], ["html", { open: "never" }], ["./scripts/e2e-freshness-reporter.ts"]]
+    : [["list"], ["./scripts/e2e-freshness-reporter.ts"]],
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
