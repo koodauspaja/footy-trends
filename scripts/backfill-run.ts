@@ -6,7 +6,7 @@
  * settled — importing `src/db` fixes the connection, so nothing here may be
  * loaded before then.
  */
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { closeDatabase, db } from "../src/db";
 import { matches, tasoGroupTeams, tasoMatches } from "../src/db/schema";
 import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions";
@@ -32,6 +32,7 @@ import {
   synchronizeMatches as synchronizeTasoMatches,
 } from "../src/lib/taso-standings-service";
 import {
+  canSkip,
   delayBefore,
   describeError,
   intervalForRatePerMinute,
@@ -62,10 +63,37 @@ function pacer(perMinute: number) {
 }
 
 /** Resolves to the process exit code: 0 when everything stored, 1 otherwise. */
+/** Rows already stored for one football-data competition-season. */
+async function alreadyStored(
+  competitionCode: string,
+  seasonId: number,
+  currentSeason: number
+): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(matches)
+    .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
+  return canSkip(row?.n ?? 0, seasonId, currentSeason);
+}
+
+/** The same question for TASO, which is keyed by category rather than code. */
+async function alreadyStoredTaso(
+  categoryId: string,
+  seasonId: number,
+  currentSeason: number
+): Promise<boolean> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(tasoMatches)
+    .where(and(eq(tasoMatches.categoryId, categoryId), eq(tasoMatches.seasonId, seasonId)));
+  return canSkip(row?.n ?? 0, seasonId, currentSeason);
+}
+
 export async function backfill({ reset }: { reset: boolean }): Promise<number> {
   out(`Rates        football-data ${FOOTBALL_DATA_PER_MINUTE}/min, TASO ${TASO_PER_MINUTE}/min`);
 
   let failures = 0;
+  let skipped = 0;
   const startedAt = Date.now();
 
   try {
@@ -100,9 +128,14 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
     out(`\n=== football-data.org: ${SUPPORTED_COMPETITIONS.length} competitions ===`);
     for (const competition of SUPPORTED_COMPETITIONS) {
       let seasons: number[];
+      // The provider's own view of which season is being played, rather than
+      // the calendar year: it is what decides whether a season is finished and
+      // therefore skippable, and football-data's seasons straddle years.
+      let activeSeason: number;
       try {
         const context = await footballData(() => getSeasonContext(competition.code));
         seasons = context.selectableSeasons.map((season) => season.seasonId);
+        activeSeason = context.activeSeasonId;
       } catch (error) {
         failures += 1;
         err(`  ${competition.code}: no season context — ${describeError(error)}`);
@@ -111,6 +144,11 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
 
       for (const seasonId of seasons) {
         try {
+          if (await alreadyStored(competition.code, seasonId, activeSeason)) {
+            skipped += 1;
+            out(`  ${competition.code} ${seasonId}: already stored, skipped`);
+            continue;
+          }
           const providerMatches = await footballData(() =>
             getFootballDataMatches(competition.code, seasonId)
           );
@@ -137,6 +175,11 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
         const competitionId = competitionIdForSeason(competition.code, seasonId);
         const categoryId = categoryIdForSeason(competition.code, seasonId);
         try {
+          if (await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason)) {
+            skipped += 1;
+            out(`  ${competition.code} ${seasonId}: already stored, skipped`);
+            continue;
+          }
           const providerMatches = await taso(() =>
             getTasoMatches(competitionId, categoryId, seasonId)
           );
@@ -167,7 +210,9 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
   }
 
   const minutes = ((Date.now() - startedAt) / 60_000).toFixed(1);
-  out(`\nFinished in ${minutes} min with ${failures} failure(s).`);
+  out(
+    `\nFinished in ${minutes} min with ${failures} failure(s), ${skipped} already stored and skipped.`
+  );
   // A partial run is re-runnable: every write is an upsert, so repeating it
   // costs requests rather than correctness.
   return failures === 0 ? 0 : 1;

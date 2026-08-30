@@ -158,9 +158,18 @@ renders without waiting on a provider call.
 
 ## If it fails partway
 
-**Just run it again, without `--reset`.** Every write is an upsert, so
-repeating completed work costs requests rather than correctness. The cost of a
-re-run is time, not damage.
+**Just run it again, without `--reset`.** A re-run skips every competition-season
+that already holds rows and is older than the season being played — the same
+rule `needsRefresh` applies in normal operation, rather than a second notion of
+"done" invented for this script.
+
+Measured against a fully populated production database: **3.3 minutes instead of
+11.2**, 153 competition-seasons skipped and 27 fetched. The 27 are the current
+season, which is still changing and so is deliberately refreshed every time.
+
+A season with no stored rows is always re-asked, including one that is genuinely
+empty. That costs a single request, and it is the right way round: skipping a
+season that had merely *failed* would leave a hole nothing later fills.
 
 Do not re-run with `--reset` to "start clean" after a partial run — that throws
 away good rows and buys nothing.
