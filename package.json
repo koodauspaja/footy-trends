@@ -16,6 +16,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "backfill": "tsx scripts/backfill.ts",
+    "verify:sentry": "tsx scripts/verify-sentry.ts",
     "release:version": "tsx scripts/release-version.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
