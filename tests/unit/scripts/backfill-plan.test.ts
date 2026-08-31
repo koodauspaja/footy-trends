@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authoriseReset,
+  canSkip,
   databaseNameFrom,
   delayBefore,
   describeError,
@@ -166,5 +167,27 @@ describe("describeError", () => {
     const error = new Error("the outer message");
     (error as Error & { cause?: unknown }).cause = new Error("");
     expect(describeError(error)).toBe("the outer message");
+  });
+});
+
+describe("canSkip", () => {
+  it("skips a finished season that already holds rows", () => {
+    expect(canSkip(380, 2024, 2026)).toBe(true);
+  });
+
+  it("never skips the season being played, however much is stored", () => {
+    // A finished season's results do not change; the current one does.
+    expect(canSkip(380, 2026, 2026)).toBe(false);
+  });
+
+  it("does not skip a season with no rows, even a finished one", () => {
+    // "We tried and there was nothing" and "we never got there" look identical
+    // from the outside. Re-asking about a genuinely empty season costs one
+    // request; skipping one that merely failed leaves a hole nothing fills.
+    expect(canSkip(0, 2018, 2026)).toBe(false);
+  });
+
+  it("does not skip a future season", () => {
+    expect(canSkip(10, 2027, 2026)).toBe(false);
   });
 });

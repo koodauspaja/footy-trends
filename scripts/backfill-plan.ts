@@ -124,3 +124,24 @@ export function describeError(error: unknown, maxLength = 200): string {
   if (cause instanceof Error && cause.message !== "") return cause.message;
   return error.message.length > maxLength ? `${error.message.slice(0, maxLength)}…` : error.message;
 }
+
+/**
+ * Whether a competition-season can be skipped on a re-run.
+ *
+ * Two conditions, both required. It must already hold rows — proof the fetch
+ * succeeded, which "we tried" alone would not be. And it must be older than the
+ * season currently being played, because a finished season's results do not
+ * change while the current one does.
+ *
+ * That is deliberately the same rule `needsRefresh` applies during normal
+ * operation, rather than a second notion of "done" invented for this script.
+ *
+ * A season that is genuinely empty — TASO publishes nothing for NSC 2018 — has
+ * no rows and is therefore re-fetched. That is one request rather than the 329
+ * a full re-run costs, and it is the right way round: re-asking about an empty
+ * season is cheap, while skipping one that merely failed would leave a hole
+ * nothing later fills.
+ */
+export function canSkip(storedRows: number, seasonId: number, currentSeason: number): boolean {
+  return storedRows > 0 && seasonId < currentSeason;
+}

@@ -22,7 +22,6 @@ const STATIC_BY_DESIGN = new Set([
   path.join("domestic", "page.tsx"),
   path.join("foreign", "page.tsx"),
   path.join("national-teams", "page.tsx"),
-  path.join("sentry-example-page", "page.tsx"),
 ]);
 
 async function pageFiles(dir: string): Promise<string[]> {

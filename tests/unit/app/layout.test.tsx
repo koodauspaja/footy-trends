@@ -11,6 +11,15 @@ vi.mock("next/font/google", () => ({
   Geist_Mono: () => ({ variable: "--font-geist-mono" }),
 }));
 
+/**
+ * `SiteHeader` reads the path to decide its region crumb. Rendering the layout
+ * in isolation gives it no router to read from, so the hook is stood in for
+ * here; what the crumb does with a path is covered in the header's own tests.
+ */
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+}));
+
 describe("RootLayout", () => {
   it("declares the document Finnish, which the whole app assumes", () => {
     const markup = renderToStaticMarkup(<RootLayout>{null}</RootLayout>);

@@ -1,0 +1,12 @@
+# Nudges (and blocks) pushes that no passing e2e run covers — see #84 and
+# tests/e2e/README.md. `git push --no-verify` skips it.
+#
+# Dependencies may not be installed on a fresh clone, and a hook that fails
+# for that reason would be the first thing a new contributor meets. Skip
+# quietly instead; `npm install` puts the check back.
+if [ ! -x node_modules/.bin/tsx ]; then
+  echo "e2e freshness check skipped: run npm install to enable it."
+  exit 0
+fi
+
+node_modules/.bin/tsx scripts/e2e-freshness.ts

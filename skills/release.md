@@ -95,6 +95,33 @@ Merge commits are excluded — a release produces one, and it carries no type.
      --body-file /tmp/notes.md
    ```
 
+   **Do not write or edit the body by hand.** `--print=notes` produces the
+   agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
+   counts, then a table per section — `Breaking changes`, `Features`, `Bugs`,
+   `Chores` — each row an issue reference and a sentence:
+
+   ```markdown
+   # release: v1.1.0
+
+   Changes since v1.0.0 — 3 features, 6 chores.
+
+   ## Features
+
+   | | |
+   |---|---|
+   | #140 | Settle Sentry's production configuration |
+
+   ## Chores
+
+   | | |
+   |---|---|
+   | #210 | Repair the allowScripts allowlist, which had drifted |
+   ```
+
+   The reference and the description both come from the commit subject, so a
+   badly written commit subject becomes a badly written release note. That is
+   the cost of never having to look anything up during a release.
+
    Do **not** write `Closes #N` for issues their own pull requests already
    closed.
 
