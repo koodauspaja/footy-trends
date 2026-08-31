@@ -261,14 +261,33 @@ trusting the check's colour.
 must be updated before it can merge. **Rebase it**:
 
 ```sh
+# Force-pushing the wrong branch is the expensive mistake here, so name the
+# branch rather than trusting whatever is checked out and wherever it tracks.
+branch=$(git branch --show-current)
+[ "$branch" = "$(gh pr view <PR> --json headRefName -q .headRefName)" ] || exit 1
+
 git fetch origin main
 git rebase origin/main
-git push --force-with-lease
+git push --force-with-lease origin "HEAD:$branch"
 ```
 
-Not `git merge origin/main`. Both produce a mergeable branch; only the merge
-produces a **merge-commit head**, and Sourcery's required check goes missing far
-more often on those (#236). Measured across one day's pull requests:
+The explicit `origin "HEAD:$branch"` matters: a bare `git push` obeys the
+contributor's `push.default` and the branch's upstream, so on a `matching`
+configuration it force-pushes *every* matching branch, and with a missing or
+different upstream it fails or targets the wrong one.
+
+Not `git merge origin/main`. On a divergent branch, merging introduces a
+**merge-commit head**; a plain `git rebase` replays your commits onto `main` and
+leaves a single-parent one. That is true of `git rebase` as used above and not a
+property of rebasing in general — `--rebase-merges` preserves merge topology, so
+do not reach for it here. If it matters, look rather than assume:
+
+```sh
+git cat-file -p HEAD | grep -c '^parent'   # 1 after a plain rebase
+```
+
+Sourcery's required check goes missing far more often on merge-commit heads
+(#236). Measured across one day's pull requests:
 
 | Head | Sourcery check reported without intervention |
 |---|---|
@@ -279,6 +298,11 @@ A rebase does **not** guarantee the check arrives — the one single-parent
 exception was this very pull request, whose check never started at all while
 Sourcery was demonstrably working on another minutes earlier. It shifts the
 odds, and that is all it claims to do.
+
+The odds are real, though: this pull request was itself rebased when it fell
+behind, and the check appeared unprompted within 30 seconds and completed
+`success`. Measured, not assumed — the parent count of the resulting head was
+1.
 
 So the load-bearing rule is the next paragraph, not this one: **a missing check
 is re-requested, never waited on**, whatever shape the head is.
