@@ -385,9 +385,40 @@ takes the code.
 
 Railway's **Wait for CI** setting is what closes this, holding a deployment in
 `WAITING` until GitHub workflows finish and marking it `SKIPPED` if any fail.
-It cannot be enabled yet: the toggle only appears when a workflow has a `push`
-trigger for the tracked branch, and no release workflow exists. Enable it as
-part of that work, not here.
+The toggle only appears when a workflow has a `push` trigger for the tracked
+branch, which is why `release.yml` has one (#85). It is now enabled.
+
+### Wait for CI works, and recovery is manual
+
+Verified during the v1.1.0 release (#215), rather than assumed. The drill needed
+no code and no extra release: the release pull request was merged, the
+push-triggered `release.yml` run was cancelled immediately with `gh run cancel`,
+and Railway's behaviour was observed.
+
+**It gates correctly.** All four jobs reported `cancelled` on the release head,
+Railway marked that deployment **SKIPPED**, and production kept serving v1.0.0
+throughout — `/api/health` never stopped answering.
+
+**Recovery is not automatic, and this is the part that will catch you out.**
+Re-running the workflow (`gh run rerun`) turns every check green on the same
+commit, and GitHub Actions acts on it — the `tag` job ran, `v1.1.0` was tagged
+and its release published. Railway did **not**. A skipped deployment is a
+finished deployment, and a workflow re-run is not a new push, so nothing tells
+Railway to look again.
+
+The fix is one click: **Railway → `production` → Deployments → the `SKIPPED`
+deployment → Redeploy.** It then builds normally, because the check-runs on that
+commit are now green.
+
+So the failure mode to know about is not a broken gate but a silent wait: the
+tag exists, the release is published, GitHub looks entirely finished, and
+production is still on the previous version until somebody presses Redeploy.
+
+```sh
+# What Railway is reading, if a deployment is skipped and you want to know why.
+gh api repos/:owner/:repo/commits/$(git rev-parse origin/release)/check-runs \
+  --jq '.check_runs[] | "\(.name): \(.conclusion)"'
+```
 
 Also deliberately out of scope: release CI (unit, integration and e2e against
 the release branch), version tagging, rollback procedure, and custom
