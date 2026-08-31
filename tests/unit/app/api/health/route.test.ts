@@ -219,6 +219,30 @@ describe("GET /api/health — provider check", () => {
   });
 
   /**
+   * TASO has two failure shapes and only one of them throws.
+   *
+   * A stale or missing key is blocked by Cloudflare with a 403, which throws.
+   * But TASO's own API answers a bad request with **HTTP 200** and an error
+   * body — that parses fine and yields no recognisable season, so
+   * `getCurrentSeason` returns `null`. Awaiting it without looking reported the
+   * provider healthy on a response containing no data at all, which is the
+   * failure #113 exists to catch and the one a scheduled check would have
+   * slept through.
+   */
+  it("reports the provider as error when it answers with no recognisable season", async () => {
+    getCurrentSeasonMock.mockResolvedValue(null);
+    const GET = await loadGetRoute();
+
+    const body = await (await GET(providerRequest())).json();
+
+    expect(body.checks.taso).toBe("error");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "TASO health check answered without a recognisable published season"
+    );
+  });
+
+  /**
    * The gap #182 exposed: every page but one was fine, the endpoint reported
    * everything healthy, and there was no way to ask whether the provider was
    * reachable short of probing pages one at a time.

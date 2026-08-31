@@ -64,10 +64,49 @@ TASO_API_KEY=your_scraped_key_here
 ## Re-scraping when the key stops working
 
 The key is scraped, not a registered credential, so it can rotate or expire
-without notice — there is no alerting for this (a documented, accepted gap;
-see specs/009-veikkausliiga.md's Security & Secrets section). If TASO starts
-returning 403s in production logs where it previously worked, repeat Step 1
-against the live site and update the Railway variable.
+without notice.
+
+### How you find out
+
+**A scheduled check asks production every day** —
+`.github/workflows/taso-key-check.yml`, added by #113. It calls production's
+`/api/health?providers=1`, which makes a real TASO request with production's own
+key, and fails the workflow if the answer is anything but `ok`. A red scheduled
+workflow emails repo watchers, the same as a failed CI run.
+
+It deliberately holds no key of its own: a copy in Actions secrets could pass
+while production's failed, which is the one thing this must not do.
+
+Nothing else would notice quickly. Pages backed by stored rows keep serving, so
+the site looks healthy while the current season quietly stops updating — the
+failure is silent by nature, which is why it needed a check rather than
+attention.
+
+The check covers **both** of TASO's failure shapes, because only one of them
+throws:
+
+| Failure | What you see |
+|---|---|
+| Stale or missing key | Cloudflare returns **403** with an HTML block page, before TASO's app sees it |
+| Valid key, bad request | TASO returns **200** with `{"call":{"status":"error"}}` — parses fine, contains no usable season |
+
+The second reported healthy until #113: the probe awaited the season and never
+looked at it, so a response with no data at all passed.
+
+### Recovering
+
+1. Read the workflow run's output. It prints the health body, which is where
+   the reason is.
+2. **A 403 is a "go look", not a verdict.** It is Cloudflare's bot management
+   deciding to block, which may mean a stale key — or their WAF reacting to
+   something else entirely, such as IP reputation. Re-keying does not fix the
+   second, and doing it reflexively hides it.
+3. If the key is the cause, repeat Step 1 against the live site and update the
+   Railway variable in **both** environments — the key is shared between
+   staging and production (`021-production-environment.md`), so a rotation
+   breaks both at once and staging cannot act as an early warning.
+4. Re-run the workflow (*Actions → TASO key check → Run workflow*) to confirm
+   the fix, rather than waiting for tomorrow's schedule.
 
 ## Done when
 - [ ] TASO API key scraped from a real browser session
