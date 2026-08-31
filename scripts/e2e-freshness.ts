@@ -4,43 +4,61 @@
  * decide. Exits non-zero only on a `block`.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { changedBetweenCommits, currentHead, currentStatus } from "./e2e-freshness-git";
 import {
+  type ChangeKind,
+  changedBetweenStatuses,
   decideFreshness,
+  describeChange,
+  kindFromDiffLetter,
   MARKER_PATH,
   MAX_AGE_MS,
+  type Marker,
   missingPrerequisites,
   parseMarker,
-  WATCHED_DIRECTORIES,
 } from "./e2e-freshness-plan";
 
-/** Every file under `directory`, recursively, as repo-relative paths. */
-function filesUnder(directory: string): string[] {
-  if (!existsSync(directory)) return [];
-  const found: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      found.push(...filesUnder(full));
-    } else if (entry.isFile()) {
-      found.push(full);
-    }
-  }
-  return found;
-}
-
 /**
- * Files the last passing run cannot have covered, by modification time.
+ * What the last passing run cannot vouch for, as `path (kind)` strings.
  *
- * Working-tree mtimes rather than the commits being pushed: what matters is
- * whether the code on disk is the code the suite ran against, and an uncommitted
- * edit breaks that just as thoroughly as a commit does.
+ * Two sources, because they catch different things. Commits between the marker
+ * and `HEAD` cover work that has landed — including **deletions**, which the
+ * modification-time walk this replaced could not see at all, since a deleted
+ * file leaves nothing to stat (#220). Working-tree status covers what has not
+ * been committed yet, because an uncommitted edit breaks the correspondence
+ * just as thoroughly as a commit does.
+ *
+ * A `touch` with no content change now counts as nothing, which is the right
+ * answer and was not the old one.
  */
-function changedSince(marker: Date): string[] {
-  return WATCHED_DIRECTORIES.flatMap(filesUnder).filter(
-    (file) => statSync(file).mtime.getTime() > marker.getTime()
-  );
+function changesSince(marker: Marker): string[] {
+  const head = currentHead();
+  const changes = new Map<string, ChangeKind>();
+
+  if (head === null) {
+    // No resolvable HEAD: nothing can be compared, so nothing is vouched for.
+    return [describeChange("<git HEAD unavailable>", "changed")];
+  }
+
+  const landed = changedBetweenCommits(marker.head, head);
+  if (landed === null) {
+    // The recorded commit is gone — a rebase or force-push. Fail closed.
+    return [describeChange(`<history changed since ${marker.head.slice(0, 7)}>`, "changed")];
+  }
+  for (const line of landed) {
+    const [letter, ...rest] = line.split("\t");
+    const file = rest.at(-1);
+    if (file !== undefined) changes.set(file, kindFromDiffLetter(letter ?? ""));
+  }
+
+  for (const { path: file, kind } of changedBetweenStatuses(marker.status, currentStatus())) {
+    changes.set(file, kind);
+  }
+
+  return [...changes]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([file, kind]) => describeChange(file, kind));
 }
 
 /**
@@ -71,10 +89,10 @@ function main(): void {
 
   const marker = parseMarker(readMarker());
   const verdict = decideFreshness({
-    marker,
+    marker: marker === null ? null : marker.finishedAt,
     now: new Date(),
     maxAgeMs: MAX_AGE_MS,
-    changedFiles: marker === null ? [] : changedSince(marker),
+    changedFiles: marker === null ? [] : changesSince(marker),
     missingPrerequisites: missingPrerequisites({
       docker: dockerIsRunning(),
       footballDataKey: (process.env.FOOTBALL_DATA_API_KEY ?? "").trim() !== "",

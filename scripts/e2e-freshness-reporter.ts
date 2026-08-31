@@ -1,6 +1,7 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { FullConfig, FullResult, Reporter, Suite } from "@playwright/test/reporter";
+import { currentHead, currentStatus } from "./e2e-freshness-git";
 import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
 
 /** Spec files on disk, so a run narrowed to one file is not mistaken for all of them. */
@@ -39,6 +40,22 @@ export default class E2eFreshnessReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     if (result.status !== "passed" || !this.covered) return;
-    writeFileSync(MARKER_PATH, `${JSON.stringify({ finishedAt: new Date().toISOString() })}\n`);
+
+    // The marker records git's view of the watched trees, not the clock alone:
+    // the hook compares that state rather than modification times, so it can
+    // see a deletion (#220). No resolvable HEAD means nothing to compare
+    // against, and writing a marker that cannot be checked is worse than
+    // writing none — the hook would have to trust it.
+    const head = currentHead();
+    if (head === null) return;
+
+    writeFileSync(
+      MARKER_PATH,
+      `${JSON.stringify({
+        finishedAt: new Date().toISOString(),
+        head,
+        status: currentStatus(),
+      })}\n`
+    );
   }
 }

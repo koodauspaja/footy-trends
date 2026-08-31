@@ -50,27 +50,117 @@ export function missingPrerequisites(prerequisites: Prerequisites): string[] {
 }
 
 /**
- * The marker records an ISO timestamp. Anything else — a truncated write, a
- * hand-edit, a file from an older format — is treated as no marker at all
- * rather than as a date, so a corrupt marker fails closed.
+ * What a passing run recorded: when it finished, and the state of the watched
+ * trees at that moment.
+ *
+ * The state is git's, not the filesystem's — `head` plus the porcelain status
+ * of the watched paths. That pair changes for an add, a modification, a rename
+ * **and a deletion**, which the modification-time walk this replaced could not
+ * see: a deleted file leaves nothing to stat, so the push sailed through
+ * untested (#220).
  */
-export function parseMarker(raw: string | null): Date | null {
+export type Marker = {
+  finishedAt: Date;
+  /** `git rev-parse HEAD` when the run passed. */
+  head: string;
+  /** `git status --porcelain` lines for the watched paths, at that moment. */
+  status: string[];
+};
+
+/**
+ * Anything that is not a complete marker — a truncated write, a hand-edit, or
+ * the older timestamp-only format — is treated as no marker at all, so a
+ * corrupt or outdated one fails closed rather than vouching for a run whose
+ * state cannot be compared.
+ */
+export function parseMarker(raw: string | null): Marker | null {
   if (raw === null) return null;
   const trimmed = raw.trim();
   if (trimmed === "") return null;
 
-  let finishedAt: unknown;
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    finishedAt = (parsed as Record<string, unknown>).finishedAt;
+    parsed = JSON.parse(trimmed);
   } catch {
     return null;
   }
+  if (typeof parsed !== "object" || parsed === null) return null;
 
-  if (typeof finishedAt !== "string") return null;
+  const { finishedAt, head, status } = parsed as Record<string, unknown>;
+  if (typeof finishedAt !== "string" || typeof head !== "string" || head === "") return null;
+  if (!Array.isArray(status) || status.some((line) => typeof line !== "string")) return null;
+
   const at = new Date(finishedAt);
-  return Number.isNaN(at.getTime()) ? null : at;
+  if (Number.isNaN(at.getTime())) return null;
+
+  return { finishedAt: at, head, status: status as string[] };
+}
+
+/** How a watched path differs from what the last passing run covered. */
+export type ChangeKind = "added" | "modified" | "deleted" | "renamed" | "changed";
+
+/**
+ * Names the kind in the blocking message, so a deletion is not mistaken for an
+ * edit — the two need different responses, and "3 file(s) changed" hid that.
+ */
+export function describeChange(path: string, kind: ChangeKind): string {
+  return `${path} (${kind})`;
+}
+
+/** `git diff --name-status` letters. `R097` and friends carry a score. */
+export function kindFromDiffLetter(letter: string): ChangeKind {
+  if (letter.startsWith("A")) return "added";
+  if (letter.startsWith("D")) return "deleted";
+  if (letter.startsWith("M")) return "modified";
+  if (letter.startsWith("R")) return "renamed";
+  return "changed";
+}
+
+/**
+ * `git status --porcelain` prefixes a path with two status letters and a space:
+ * index state, then worktree state. ` D foo` is deleted in the worktree, `A  foo`
+ * added to the index, `?? foo` untracked.
+ */
+export function kindFromStatusLine(line: string): ChangeKind {
+  const code = line.slice(0, 2);
+  if (code.includes("D")) return "deleted";
+  if (code === "??" || code.includes("A")) return "added";
+  if (code.includes("R")) return "renamed";
+  if (code.includes("M")) return "modified";
+  return "changed";
+}
+
+/** The path in a porcelain line, taking the destination of a rename. */
+export function pathFromStatusLine(line: string): string {
+  const rest = line.slice(3).trim();
+  const arrow = rest.indexOf(" -> ");
+  return arrow === -1 ? rest : rest.slice(arrow + 4);
+}
+
+/**
+ * Working-tree differences between the two moments.
+ *
+ * A path counts as changed when its status line appeared, disappeared, or
+ * changed letters since the run. A path that disappeared from the status is a
+ * change too — an edit that was reverted, or a staged deletion that was
+ * restored — because the tree no longer matches what passed.
+ */
+export function changedBetweenStatuses(
+  markerStatus: string[],
+  currentStatus: string[]
+): { path: string; kind: ChangeKind }[] {
+  const before = new Map(markerStatus.map((line) => [pathFromStatusLine(line), line]));
+  const after = new Map(currentStatus.map((line) => [pathFromStatusLine(line), line]));
+
+  const changed: { path: string; kind: ChangeKind }[] = [];
+  for (const [path, line] of after) {
+    if (before.get(path) !== line) changed.push({ path, kind: kindFromStatusLine(line) });
+  }
+  for (const [path] of before) {
+    // Present then, absent now: the working tree moved back towards HEAD.
+    if (!after.has(path)) changed.push({ path, kind: "changed" });
+  }
+  return changed;
 }
 
 /** `3 h 5 min`, `12 min`, `40 s` — enough precision to see why it is stale. */
