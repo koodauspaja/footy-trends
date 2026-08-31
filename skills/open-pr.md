@@ -271,7 +271,18 @@ git rebase origin/main
 git push --force-with-lease origin "HEAD:$branch"
 ```
 
-The explicit `origin "HEAD:$branch"` matters: a bare `git push` obeys the
+Two details in there are load-bearing, and both look like noise.
+
+**`git fetch origin main`, not `git fetch origin`.** Fetching everything updates
+the remote-tracking ref for *this branch* as well — and that ref is precisely
+what `--force-with-lease` compares against. So if a colleague pushed to your
+branch, fetching everything first makes the lease compare against their new
+commit, accept the push, and overwrite them. Narrowing the fetch leaves the
+branch's tracking ref at what you last saw, which is what lets the lease notice
+them at all. The narrow fetch *is* the safety property; widening it silently
+removes one.
+
+**The explicit `origin "HEAD:$branch"`.** A bare `git push` obeys the
 contributor's `push.default` and the branch's upstream, so on a `matching`
 configuration it force-pushes *every* matching branch, and with a missing or
 different upstream it fails or targets the wrong one.
