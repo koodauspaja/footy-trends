@@ -199,11 +199,13 @@ was written.
 
 Its cost is that every pull request which falls behind must be updated, and
 updating by **merge** produces a merge-commit head — on which Sourcery's
-required check is unreliable (#236: 5 of 6 merge-commit heads anomalous, against
-7 of 7 single-parent heads clean).
+required check goes missing far more often (#236: it reported unprompted on 1 of
+6 merge-commit heads, against 7 of 8 single-parent ones). It is a difference of
+degree, not of kind: the check can fail to start on any commit, so re-requesting
+it is the actual remedy and rebasing only reduces how often that is needed.
 
 **The answer is to rebase rather than merge, not to drop the requirement.** That
-keeps the protection and removes the trigger; `skills/open-pr.md` has the
+keeps the protection and reduces the exposure; `skills/open-pr.md` has the
 command and the reasoning. It is safe because this ruleset targets
 `~DEFAULT_BRANCH` only — feature branches carry no `non_fast_forward` rule — and
 because `main` requires 0 approving reviews, so a force-push dismisses nothing.

@@ -267,15 +267,21 @@ git push --force-with-lease
 ```
 
 Not `git merge origin/main`. Both produce a mergeable branch; only the merge
-produces a **merge-commit head**, and Sourcery's required check is unreliable on
-those (#236). Measured across one day's pull requests:
+produces a **merge-commit head**, and Sourcery's required check goes missing far
+more often on those (#236). Measured across one day's pull requests:
 
-| Head | Sourcery check |
+| Head | Sourcery check reported without intervention |
 |---|---|
-| Single-parent (7 of 7) | reported normally, every time |
-| Merge commit (6) | 5 anomalous — `skipped`, absent until re-requested, or a check with no review |
+| Single-parent | 7 of 8 |
+| Merge commit | 1 of 6 |
 
-A rebase keeps the head single-parent and side-steps the whole class.
+A rebase does **not** guarantee the check arrives — the one single-parent
+exception was this very pull request, whose check never started at all while
+Sourcery was demonstrably working on another minutes earlier. It shifts the
+odds, and that is all it claims to do.
+
+So the load-bearing rule is the next paragraph, not this one: **a missing check
+is re-requested, never waited on**, whatever shape the head is.
 
 **It is safe here specifically.** The `main` ruleset targets `~DEFAULT_BRANCH`
 only, so feature branches carry no `non_fast_forward` rule and force-pushing to
@@ -291,9 +297,16 @@ you last fetched, which is the case where someone else has the branch.
 merge instead and accept the re-request — a rewritten history someone else is
 standing on costs more than a missing check.
 
-If you do end up with a merge-commit head and no Sourcery check, that is the
-known case: re-request it as described above, rather than waiting for one that
-is not coming.
+**If the check is missing, re-request it. Do not wait.** Sourcery can simply
+fail to start on a commit — observed on both head shapes — and nothing arrives
+later to fix it:
+
+```sh
+gh pr comment <PR> --body "@sourcery-ai review"
+```
+
+That is the remedy in every case. Rebasing reduces how often you need it; it
+does not replace it.
 
 ## Neither signal is trustworthy on its own
 
