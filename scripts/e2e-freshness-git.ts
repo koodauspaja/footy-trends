@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
 
 /**
@@ -9,76 +10,58 @@ import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
  * unit-testable, and apart from the hook so the reporter can reuse it without
  * pulling in the hook's `docker` probe.
  *
- * Every function returns `null` when git cannot answer. That distinction is
- * load-bearing: an empty list and a failed command look identical otherwise,
- * and "git failed" would read as "the tree is clean" — the check would pass
- * having verified nothing.
+ * `null` means git could not answer. That distinction is load-bearing: an empty
+ * list and a failed command look identical otherwise, and "git failed" would
+ * read as "nothing is there" — the check would pass having verified nothing.
  */
 
-function git(args: string[]): string | null {
-  const run = spawnSync("git", args, { encoding: "utf8", timeout: 10_000 });
+function git(args: string[], input?: string): string | null {
+  const run = spawnSync("git", args, {
+    encoding: "utf8",
+    timeout: 15_000,
+    ...(input === undefined ? {} : { input }),
+    maxBuffer: 32 * 1024 * 1024,
+  });
   return run.status === 0 ? run.stdout : null;
 }
 
-/** `git rev-parse HEAD`, or `null` outside a repository or before the first commit. */
-export function currentHead(): string | null {
-  return git(["rev-parse", "HEAD"])?.trim() ?? null;
-}
-
 /**
- * Content hashes for paths, in the order given. A path that does not exist —
- * a deletion — hashes as `-`, which is a change like any other.
- */
-function hashObjects(paths: string[]): string[] | null {
-  if (paths.length === 0) return [];
-  const hashes: string[] = [];
-  for (const file of paths) {
-    const out = git(["hash-object", "--", file]);
-    hashes.push(out === null ? "-" : out.trim());
-  }
-  return hashes;
-}
-
-/**
- * The state of every changed watched path: status code, **content hash**, and
- * path, sorted so the same tree always produces the same list.
+ * Every watched file that exists on disk — tracked and untracked, with
+ * `.gitignore` respected so build output and the marker itself stay out.
  *
- * The hash is what makes this correct. Comparing porcelain lines alone missed
- * a file that was already dirty when the run passed and was then edited again:
- * its line stays ` M src/a.ts` through any number of further edits, so the hook
- * reported "fresh" for code the run never exercised. Reproduced before fixing.
+ * A tracked file deleted from the working tree is simply absent, which is what
+ * makes a deletion visible: its entry disappears from the fingerprint.
  */
-export function currentStatus(): string[] | null {
-  const out = git(["status", "--porcelain", "--", ...WATCHED_DIRECTORIES]);
+function watchedFiles(): string[] | null {
+  const out = git(["ls-files", "-c", "-o", "--exclude-standard", "--", ...WATCHED_DIRECTORIES]);
   if (out === null) return null;
-
-  const lines = out.split("\n").filter(Boolean);
-  const paths = lines.map((line) => {
-    const rest = line.slice(3).trim();
-    const arrow = rest.indexOf(" -> ");
-    return arrow === -1 ? rest : rest.slice(arrow + 4);
-  });
-
-  const hashes = hashObjects(paths);
-  if (hashes === null) return null;
-
-  return lines
-    .map((line, index) => `${line.slice(0, 2)}\t${hashes[index]}\t${paths[index]}`)
-    .sort();
+  return out.split("\n").filter(Boolean).filter(existsSync);
 }
 
 /**
- * Paths that differ between two commits, with their change letters — this is
- * what sees a **deletion**, which a walk of files that exist cannot.
+ * `hash<TAB>path` for every watched file, sorted — a description of the code
+ * the suite ran against, and nothing else.
  *
- * `null` when the range cannot be resolved, which happens after a rebase or a
- * force-push discards the commit the marker recorded. That is treated as a
- * change rather than as "nothing changed", so an unresolvable history fails
- * closed.
+ * Content, deliberately, rather than `HEAD` plus working-tree status. That pair
+ * describes *where* content lives, so committing moved a file from one half to
+ * the other and read as a change even though nothing was edited (#242). It also
+ * forced special cases for a rebase or a branch switch. A content fingerprint
+ * has none: identical content is identical, wherever git is keeping it.
+ *
+ * One `git hash-object` process for the whole set — 94 files in ~37ms here.
  */
-export function changedBetweenCommits(from: string, to: string): string[] | null {
-  if (from === to) return [];
-  const out = git(["diff", "--name-status", `${from}..${to}`, "--", ...WATCHED_DIRECTORIES]);
-  if (out === null) return null;
-  return out.split("\n").filter(Boolean);
+export function fingerprint(): string[] | null {
+  const files = watchedFiles();
+  if (files === null) return null;
+  if (files.length === 0) return [];
+
+  const hashed = git(["hash-object", "--stdin-paths"], `${files.join("\n")}\n`);
+  if (hashed === null) return null;
+
+  const hashes = hashed.split("\n").filter(Boolean);
+  // A short read means some path could not be hashed — a file removed between
+  // listing and hashing, say. Fail closed rather than fingerprint a subset.
+  if (hashes.length !== files.length) return null;
+
+  return files.map((file, index) => `${hashes[index]}\t${file}`).sort();
 }

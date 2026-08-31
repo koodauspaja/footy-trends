@@ -1,7 +1,7 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { FullConfig, FullResult, Reporter, Suite } from "@playwright/test/reporter";
-import { currentHead, currentStatus } from "./e2e-freshness-git";
+import { fingerprint } from "./e2e-freshness-git";
 import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
 
 /** Spec files on disk, so a run narrowed to one file is not mistaken for all of them. */
@@ -41,18 +41,20 @@ export default class E2eFreshnessReporter implements Reporter {
   onEnd(result: FullResult): void {
     if (result.status !== "passed" || !this.covered) return;
 
-    // The marker records git's view of the watched trees, not the clock alone:
-    // the hook compares that state rather than modification times, so it can
-    // see a deletion (#220). No resolvable HEAD means nothing to compare
-    // against, and writing a marker that cannot be checked is worse than
-    // writing none — the hook would have to trust it.
-    const head = currentHead();
-    const status = currentStatus();
-    if (head === null || status === null) return;
+    // The marker records the *content* of the watched trees, not where git is
+    // keeping it. The hook compares hashes, so committing what the run already
+    // covered is invisible (#242), while a deletion still shows as an entry
+    // that disappeared (#220).
+    //
+    // A fingerprint git cannot produce is no fingerprint: writing one that
+    // cannot be checked is worse than writing none, because the hook would
+    // have to trust it.
+    const files = fingerprint();
+    if (files === null) return;
 
     writeFileSync(
       MARKER_PATH,
-      `${JSON.stringify({ finishedAt: new Date().toISOString(), head, status })}\n`
+      `${JSON.stringify({ finishedAt: new Date().toISOString(), files })}\n`
     );
   }
 }

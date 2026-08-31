@@ -5,13 +5,11 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { changedBetweenCommits, currentHead, currentStatus } from "./e2e-freshness-git";
+import { fingerprint } from "./e2e-freshness-git";
 import {
-  type ChangeKind,
-  changedBetweenStatuses,
+  changedBetweenFingerprints,
   decideFreshness,
   describeChange,
-  kindFromDiffLetter,
   MARKER_PATH,
   MAX_AGE_MS,
   type Marker,
@@ -33,46 +31,16 @@ import {
  * answer and was not the old one.
  */
 function changesSince(marker: Marker): string[] {
-  const head = currentHead();
-  const changes = new Map<string, ChangeKind>();
-
-  if (head === null) {
-    // No resolvable HEAD: nothing can be compared, so nothing is vouched for.
-    return [describeChange("<git HEAD unavailable>", "changed")];
+  const now = fingerprint();
+  if (now === null) {
+    // git could not describe the working tree. Treating that as "unchanged"
+    // would pass the check having verified nothing, so it fails closed.
+    return [describeChange("<git could not read the working tree>", "modified")];
   }
 
-  const landed = changedBetweenCommits(marker.head, head);
-  if (landed === null) {
-    // The recorded commit is gone — a rebase or force-push. Fail closed.
-    return [describeChange(`<history changed since ${marker.head.slice(0, 7)}>`, "changed")];
-  }
-  for (const line of landed) {
-    const [letter, ...rest] = line.split("\t");
-    const file = rest.at(-1);
-    if (file !== undefined) changes.set(file, kindFromDiffLetter(letter ?? ""));
-  }
-
-  const status = currentStatus();
-  if (status === null) {
-    // git could not report the working tree. Treating that as "clean" would
-    // pass the check having verified nothing, so it fails closed instead.
-    return [describeChange("<git status unavailable>", "changed")];
-  }
-
-  // Re-read HEAD after the status. A commit landing between the two reads
-  // would otherwise be invisible: the old HEAD shows no landed changes, and
-  // the status is already clean relative to the new one.
-  if (currentHead() !== head) {
-    return [describeChange("<HEAD moved while checking>", "changed")];
-  }
-
-  for (const { path: file, kind } of changedBetweenStatuses(marker.status, status)) {
-    changes.set(file, kind);
-  }
-
-  return [...changes]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([file, kind]) => describeChange(file, kind));
+  return changedBetweenFingerprints(marker.files, now).map(({ path: file, kind }) =>
+    describeChange(file, kind)
+  );
 }
 
 /**
