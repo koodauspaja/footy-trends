@@ -3,8 +3,19 @@
 When you have finished implementing a feature and tests are passing, open a pull
 request using the following steps:
 
-1. Create a feature branch named `feature/NNN-short-description` where NNN matches
-   the issue and spec number.
+1. Create a feature branch named `feature/NNN-short-description` where NNN is the
+   **spec** number — the `NNN` in `specs/NNN-feature-name.md`, not the issue
+   number. The two matched in the first few features and have not for a long
+   time.
+
+   That is what keeps the trail lined up: the branch, `specs/NNN-*.md`,
+   `decisions/NNN-*.md` and the pull request all carry the same number, so any
+   one of them leads to the rest.
+
+   **Chores and bugs use the issue number** instead, because they have no spec —
+   `chore/172-branch-naming-spec-number`, `bug/220-freshness-deleted-files`. The
+   asymmetry is deliberate: each kind of branch is numbered by the document that
+   defines it, and for a chore or a bug that document is the issue.
 2. Commit all changes with a conventional commit message, e.g.
    `feat: add standings form table (#NNN)`.
 3. Check the diff size against the PR's base branch before pushing:

@@ -38,7 +38,10 @@ Workflow
      `Ready`, and does not substitute for it.
    - Once confirmed `Ready`, move the card to `In Progress` before creating
      a branch or writing any code.
-3. Create a bug branch named `bug/NNN-short-description`.
+3. Create a bug branch named `bug/NNN-short-description`, where NNN is the
+   **issue** number. A bug has no spec of its own, so the issue is the document
+   that defines it — unlike a feature branch, which takes its number from
+   `specs/NNN-*.md`. See `skills/open-pr.md` step 1.
 4. Fix the root cause, not just the symptom. Keep the change scoped to the
    bug — do not fold in unrelated cleanup or refactoring.
    - Keep code, comments, and documentation in English.
