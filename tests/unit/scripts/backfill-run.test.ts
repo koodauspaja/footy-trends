@@ -55,6 +55,15 @@ describe("the backfill's current TASO season", () => {
     expect(SOURCE).toMatch(/discovered === null/);
   });
 
+  // `getCurrentSeason` has two failure shapes: it returns null when TASO
+  // publishes no seasons, and throws on a network or HTTP error. Handling only
+  // the first sends an outage to the top-level handler, losing the refusal and
+  // the run summary with it. The app's own `discoverCurrentSeason` wraps it for
+  // the same reason.
+  it("catches a thrown discovery failure, not only a null one", () => {
+    expect(SOURCE).toMatch(/try\s*\{[^}]*getCurrentSeason[^}]*\}\s*catch/s);
+  });
+
   it("is not taken from the clock", () => {
     // The exact expression #219 was filed for, and any near relative of it.
     expect(SOURCE).not.toMatch(/new Date\(\)\.getUTCFullYear\(\)/);

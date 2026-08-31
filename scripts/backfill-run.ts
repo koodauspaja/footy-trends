@@ -195,12 +195,26 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
     // discovery step into a second backfill. Discovery itself is
     // competition-agnostic (spec 011), so this is one request for the whole
     // loop, floored per competition below exactly as the app floors it.
-    const discovered = await taso(() => getCurrentSeason());
+
+    // Two failure shapes, not one. `getCurrentSeason` returns `null` when TASO
+    // answers with no published seasons, and *throws* on a network or HTTP
+    // error — the app's own `discoverCurrentSeason` wraps it in a try for
+    // exactly this reason. Without the catch, a provider outage escapes to the
+    // top-level handler, and the run loses both this refusal and the summary
+    // line that reports how much of the football-data half succeeded.
+    let discovered: number | null;
+    try {
+      discovered = await taso(() => getCurrentSeason());
+    } catch (error) {
+      err(`  TASO season discovery failed — ${describeError(error)}`);
+      discovered = null;
+    }
+
     if (discovered === null) {
       failures += 1;
       err(
-        "  TASO season discovery failed. Refusing to guess the current season — " +
-          "backfilling the wrong range is worse than not backfilling. Re-run when TASO answers."
+        "  Refusing to guess the current season — backfilling the wrong range is " +
+          "worse than not backfilling. Re-run when TASO answers."
       );
     }
 
