@@ -23,6 +23,7 @@ import {
 import { redis } from "../src/lib/redis";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "../src/lib/standings-service";
 import {
+  getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches as getTasoMatches,
   normalizeGroupTeams,
@@ -180,8 +181,49 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
     }
 
     out(`\n=== TASO: ${DOMESTIC_COMPETITIONS.length} competitions ===`);
-    const currentTasoSeason = new Date().getUTCFullYear();
+
+    // The current season comes from the provider, not the clock (#219).
+    // `new Date().getUTCFullYear()` contradicted spec 011, and the two
+    // disagree whenever TASO publishes the next season before January or runs
+    // the current one past it. That value decides which seasons are fetched
+    // and, through `canSkip`, which count as finished — so a disagreement can
+    // skip a season that is still gaining matches.
+    //
+    // `getCurrentSeason` rather than `resolveTasoSeasonContext`, which the app
+    // uses: that also computes `defaultSeason`, and answering "does this season
+    // have matches" means *syncing* the season. Thirteen of those turns a
+    // discovery step into a second backfill. Discovery itself is
+    // competition-agnostic (spec 011), so this is one request for the whole
+    // loop, floored per competition below exactly as the app floors it.
+
+    // Two failure shapes, not one. `getCurrentSeason` returns `null` when TASO
+    // answers with no published seasons, and *throws* on a network or HTTP
+    // error — the app's own `discoverCurrentSeason` wraps it in a try for
+    // exactly this reason. Without the catch, a provider outage escapes to the
+    // top-level handler, and the run loses both this refusal and the summary
+    // line that reports how much of the football-data half succeeded.
+    let discovered: number | null;
+    try {
+      discovered = await taso(() => getCurrentSeason());
+    } catch (error) {
+      err(`  TASO season discovery failed — ${describeError(error)}`);
+      discovered = null;
+    }
+
+    if (discovered === null) {
+      failures += 1;
+      err(
+        "  Refusing to guess the current season — backfilling the wrong range is " +
+          "worse than not backfilling. Re-run when TASO answers."
+      );
+    }
+
     for (const competition of DOMESTIC_COMPETITIONS) {
+      if (discovered === null) break;
+      // Floored at the competition's own first season, the same way
+      // `resolveTasoSeasonContext` floors it: Ykkösliiga did not exist before
+      // 2024, and a ceiling below its floor would produce no seasons at all.
+      const currentTasoSeason = Math.max(discovered, tasoEarliestSeasonFor(competition.code));
       const seasons = tasoSeasonsFor(tasoEarliestSeasonFor(competition.code), currentTasoSeason);
       for (const seasonId of seasons) {
         // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`:
