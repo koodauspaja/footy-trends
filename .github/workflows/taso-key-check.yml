@@ -1,0 +1,64 @@
+# The TASO key is scraped from Palloliitto's public frontend, not issued to us
+# (docs/setup/020-taso-api-key.md). It can stop working without notice, and
+# nothing else would notice quickly: pages backed by stored rows keep serving,
+# so the site looks fine while the current season quietly stops updating.
+#
+# This asks production, once a day, whether its configured key still reaches
+# TASO. It needs **no secrets**: `/api/health?providers=1` is public and makes a
+# real TASO request with production's own key, so the check exercises the thing
+# that can break rather than a copy of it. A key in Actions secrets would be a
+# second copy that could pass while production's fails.
+#
+# Failure surfaces as a red scheduled workflow, which GitHub emails to watchers
+# — the same signal as a failed CI run, and no new infrastructure to maintain.
+name: TASO key check
+
+on:
+  schedule:
+    # 06:00 UTC daily. Early enough that a broken key is known before the day's
+    # fixtures matter, and daily because there is no evidence yet on how often
+    # the key actually rotates — see #113.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: taso-key-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Production can still reach TASO
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask production whether its TASO key still works
+        env:
+          HEALTH_URL: https://footy-trends.up.railway.app/api/health?providers=1
+        run: |
+          set -euo pipefail
+
+          # `--fail-with-body` so a non-2xx still prints what came back: the
+          # body is where the reason is, and a bare exit code sends whoever
+          # reads this to reproduce it by hand.
+          if ! body=$(curl -sS --fail-with-body --max-time 30 "$HEALTH_URL"); then
+            echo "The health endpoint itself did not answer:"
+            echo "$body"
+            exit 1
+          fi
+
+          echo "$body" | jq .
+
+          taso=$(echo "$body" | jq -r '.checks.taso // "absent"')
+          if [ "$taso" != "ok" ]; then
+            echo
+            echo "::error::TASO check reported '$taso'."
+            echo "Production's TASO key may have stopped working."
+            echo "Re-scrape it: docs/setup/020-taso-api-key.md, 'Re-scraping when the key stops working'."
+            echo
+            echo "A 403 from Cloudflare is the usual sign of a stale key, but it can also"
+            echo "be their WAF blocking for another reason — check the body above before"
+            echo "assuming a re-scrape is the fix (#113)."
+            exit 1
+          fi
+
+          echo "TASO reachable with production's key."

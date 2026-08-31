@@ -4,42 +4,42 @@
  * decide. Exits non-zero only on a `block`.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { fingerprint } from "./e2e-freshness-git";
 import {
+  changedBetweenFingerprints,
   decideFreshness,
+  describeChange,
   MARKER_PATH,
   MAX_AGE_MS,
+  type Marker,
   missingPrerequisites,
   parseMarker,
-  WATCHED_DIRECTORIES,
 } from "./e2e-freshness-plan";
 
-/** Every file under `directory`, recursively, as repo-relative paths. */
-function filesUnder(directory: string): string[] {
-  if (!existsSync(directory)) return [];
-  const found: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      found.push(...filesUnder(full));
-    } else if (entry.isFile()) {
-      found.push(full);
-    }
-  }
-  return found;
-}
-
 /**
- * Files the last passing run cannot have covered, by modification time.
+ * What the last passing run cannot vouch for, as `path (kind)` strings.
  *
- * Working-tree mtimes rather than the commits being pushed: what matters is
- * whether the code on disk is the code the suite ran against, and an uncommitted
- * edit breaks that just as thoroughly as a commit does.
+ * One comparison: the fingerprint the run recorded against the fingerprint of
+ * the working tree now. A path present in one and not the other, or whose hash
+ * differs, is `added`, `modified` or `deleted`.
+ *
+ * There is no second source and no commit history involved, which is why
+ * committing, staging, amending, rebasing and switching branches are all
+ * invisible — none of them change a byte. A `touch` with no content change
+ * likewise counts as nothing, which is the right answer and was not the old
+ * one.
  */
-function changedSince(marker: Date): string[] {
-  return WATCHED_DIRECTORIES.flatMap(filesUnder).filter(
-    (file) => statSync(file).mtime.getTime() > marker.getTime()
+function changesSince(marker: Marker): string[] {
+  const now = fingerprint();
+  if (now === null) {
+    // git could not describe the working tree. Treating that as "unchanged"
+    // would pass the check having verified nothing, so it fails closed.
+    return [describeChange("<git could not read the working tree>", "modified")];
+  }
+
+  return changedBetweenFingerprints(marker.files, now).map(({ path: file, kind }) =>
+    describeChange(file, kind)
   );
 }
 
@@ -71,10 +71,10 @@ function main(): void {
 
   const marker = parseMarker(readMarker());
   const verdict = decideFreshness({
-    marker,
+    marker: marker === null ? null : marker.finishedAt,
     now: new Date(),
     maxAgeMs: MAX_AGE_MS,
-    changedFiles: marker === null ? [] : changedSince(marker),
+    changedFiles: marker === null ? [] : changesSince(marker),
     missingPrerequisites: missingPrerequisites({
       docker: dockerIsRunning(),
       footballDataKey: (process.env.FOOTBALL_DATA_API_KEY ?? "").trim() !== "",

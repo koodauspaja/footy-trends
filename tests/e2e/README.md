@@ -26,6 +26,35 @@ npm run test:e2e
 listening on `http://localhost:3000`, and reuses an already-running dev
 server otherwise — so `npm run dev` in another terminal works too.
 
+### The suite runs serially, everywhere
+
+`workers: 1` is set unconditionally, not only in CI (#227). Parallel workers
+exhaust football-data.org's per-key rate limit and fail as regressions that are
+not real.
+
+This was CI-only until it was measured failing three times in a single day, on
+changes that could not have caused it:
+
+| Change under test | Parallel | Serial, same commit |
+|---|---|---|
+| A dependency bump | 118/119 | **119 passed** |
+| Release-notes formatting | 118/119 | **119 passed** |
+| **One Markdown file** | **114**/119 | **119 passed** |
+
+The third lost five specs across four files, with `The destination stream closed
+early` in the server log, on a docs-only change. The correct response every time
+was "ignore it and re-run serially" — which is precisely the reflex that lets a
+real regression through.
+
+**The cost is about 30 seconds.** Measured on 119 specs: parallel ~50s, serial
+**~1m20s**, and two consecutive serial runs both passed. That buys a suite whose
+failures mean something.
+
+It matters to the pre-push hook too. The hook writes its freshness marker only
+when a full run passes, so a spurious parallel failure left no marker, the next
+push was blocked, and the fix was to re-run — serially, if you knew to. If you
+did not, the hook simply looked broken.
+
 To run them the way the release gate does, against a production build:
 
 ```bash

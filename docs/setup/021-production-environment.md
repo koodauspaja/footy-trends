@@ -40,12 +40,16 @@ Everything about the application is identical; only the surroundings differ.
 | Deploys from | `main` | `release` |
 | PostgreSQL | its own | its own, separate |
 | Redis | its own | its own, separate |
-| Credentials | staging set | **no value shared with staging** |
+| Credentials | staging set | **its own, except the two provider API keys** |
 | Deploy config | `railway.toml` | the same `railway.toml` |
 
-Sharing a database or a provider key between the two is the failure this
-separation exists to prevent: a staging migration or a rate-limit exhaustion
-would otherwise take production with it.
+Sharing a **database** between the two is the failure this separation exists to
+prevent: a staging migration would otherwise take production with it.
+
+The **provider keys are shared**, deliberately and as an accepted risk — the
+plan issues one key each. So rate-limit exhaustion by staging *can* reach
+production, and that is a known cost rather than an oversight. See *The provider
+keys are shared with staging* under Step 4.
 
 ---
 
@@ -60,9 +64,15 @@ Duplicating an environment copies "services, variables, and configuration" —
 credentials: staging's API keys, staging's Axiom token, and database variables
 still referencing staging's instances.
 
-Treat every variable as wrong until Step 4 has replaced it. The failure mode
-here is silent: nothing errors, because staging's credentials work — production
-just quietly reads and writes staging's data.
+Treat every variable as wrong until Step 4 has **accounted for** it. Most must
+be replaced; the two provider API keys are deliberately shared and must be left
+holding staging's value — see *The provider keys are shared with staging*.
+"Replace everything" would have you rotate those, which breaks the documented
+one-key-per-provider arrangement and can take staging's access with it.
+
+The failure mode for everything else is silent: nothing errors, because
+staging's credentials work — production just quietly reads and writes staging's
+data.
 
 Railway stages the copied services for deployment rather than deploying them
 immediately, so review the staged changes before approving; that pause is the
@@ -133,10 +143,10 @@ once the Sentry configs read their settings from the environment.
 |---|---|---|
 | `DATABASE_URL` | Railway | From this environment's PostgreSQL |
 | `REDIS_URL` | Railway | From this environment's Redis |
-| `FOOTBALL_DATA_API_KEY` | manual | Its own key, not staging's — see below |
+| `FOOTBALL_DATA_API_KEY` | manual | **Shared with staging** — accepted risk, see below |
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
-| `TASO_API_KEY` | manual | See *TASO key* below |
+| `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
@@ -150,13 +160,37 @@ they belong to the authentication work that has not shipped. Leave them unset
 rather than provisioning credentials nothing consumes; an unused secret is
 still a secret to rotate and leak.
 
-### On separate provider keys
+### The provider keys are shared with staging — accepted risk
 
-football-data.org enforces a per-key rate limit. A shared key means staging's
-traffic can exhaust production's quota, which surfaces as production pages
-failing to load for reasons nothing in production caused. Use a distinct key if
-the plan allows more than one; if it does not, record that as an accepted risk
-here rather than leaving it implicit.
+`FOOTBALL_DATA_API_KEY` and `TASO_API_KEY` are **one key each, used by both
+environments**. This section previously said production should have its own and
+that a shared key must be recorded as an accepted risk if a second is not
+available. That is the case, so here it is recorded (#214).
+
+Everything else is separate: PostgreSQL, Redis, the Sentry DSN, and the Axiom
+token and dataset. The provider keys are the single deliberate exception.
+
+**football-data.org rate-limits per key**, so the sharing has real consequences
+that will present as production faults:
+
+- Staging traffic, a local `npm run test:e2e`, or a backfill run draws on the
+  same per-key quota production is relying on, at the same moment.
+- `022-production-backfill.md` paces the backfill at 9 requests/minute — 90% of
+  the documented 10. Concurrent consumers eat into that headroom; a `429` comes
+  when their **combined** traffic crosses the per-key limit, not from the mere
+  existence of a second consumer. A quiet staging costs nothing; staging under
+  load during a backfill is what produces the symptom.
+- Production's own defence is `fetchProviderJson`'s single 429 retry, which
+  waits out a counter reset. It handles a brief collision and not a sustained
+  one.
+
+**The TASO key is scraped rather than issued** (`020-taso-api-key.md`), and
+sharing compounds that: one expiry takes out Veikkausliiga data in *both*
+environments simultaneously, so staging cannot act as the early warning it
+would otherwise be. Both fail together, and the first report will come from
+production.
+
+If the plan ever allows a second key, split them and delete this section.
 
 ### TASO key
 
@@ -164,7 +198,8 @@ here rather than leaving it implicit.
 not issued**. It can stop working without notice and has a manual re-scrape
 procedure. Production depending on it is an availability risk worth naming
 before real users do: when it expires, Veikkausliiga data fails in production
-until someone repeats the scrape by hand.
+until someone repeats the scrape by hand — and, because the key is shared, in
+staging at the same time.
 
 ---
 
@@ -238,6 +273,54 @@ and `blockAllMedia` set explicitly rather than inherited.
 once, and are now deleted. They had been reachable in production, and they
 logged through `Sentry.logger` — which `LOG_LEVEL` does not govern — so they
 were the one part of the app whose logging could not be turned down.
+
+### Verifying Sentry actually receives events
+
+The client half needs no test event: `NEXT_PUBLIC_` values are inlined at build
+time, so the shipped bundle can be read directly — that is how v1.1.0 was
+confirmed (0 occurrences of `replayIntegration`, and the literals `"false"`,
+`"false"`, `"0.1"`).
+
+The **server** half gives no such evidence. It reads `process.env` at runtime,
+so the only proof is an event arriving. `npm run verify:sentry` sends one
+deliberately (#230):
+
+```sh
+SENTRY_TRACES_SAMPLE_RATE=0.1 SENTRY_SEND_DEFAULT_PII=false \
+SENTRY_ENABLE_LOGS=false NEXT_PUBLIC_SENTRY_DSN='<production>' \
+  npm run verify:sentry
+```
+
+```
+Project      o4511499874729984.ingest.de.sentry.io/4511977968959568
+Settings     tracesSampleRate=0.1  sendDefaultPii=false  enableLogs=false
+Marker       footy-trends verification 2026-08-31T09:07:43.508Z
+
+Event 1bbe0bdb… was accepted and flushed.
+```
+
+Two things to read there. The **Settings** line is what the server runtime would
+actually use, read through the same helpers `sentry.server.config.ts` uses — so
+a wrong value shows up without waiting for an event. The **Marker** is what to
+search for in *Sentry → Issues* to confirm it arrived.
+
+The script never prints the DSN's public key, only the host and project id, so
+its output is safe to paste into an issue.
+
+**A flushed event proves the SDK reached Sentry's ingest endpoint — not that
+the event is visible.** Inbound filters and rate limits can still drop it,
+which is why the output sends you to look rather than declaring success.
+
+**It is a script, not a route, deliberately.** The wizard's example routes did
+this job once and were deleted (see above): anything reachable in production is
+reachable by anyone, and theirs logged through `Sentry.logger`, which
+`LOG_LEVEL` does not govern. A script adds no surface to the deployed app —
+nothing to guard, nothing for a crawler to find.
+
+**The edge runtime is not covered.** Reaching it means running inside the edge
+sandbox, which a command-line script cannot do. That gap is real; it is stated
+here rather than glossed, and it is why #140's Sentry criterion is ticked for
+server and client only.
 
 ### Nothing needs clicking in Sentry
 
@@ -358,9 +441,40 @@ takes the code.
 
 Railway's **Wait for CI** setting is what closes this, holding a deployment in
 `WAITING` until GitHub workflows finish and marking it `SKIPPED` if any fail.
-It cannot be enabled yet: the toggle only appears when a workflow has a `push`
-trigger for the tracked branch, and no release workflow exists. Enable it as
-part of that work, not here.
+The toggle only appears when a workflow has a `push` trigger for the tracked
+branch, which is why `release.yml` has one (#85). It is now enabled.
+
+### Wait for CI works, and recovery is manual
+
+Verified during the v1.1.0 release (#215), rather than assumed. The drill needed
+no code and no extra release: the release pull request was merged, the
+push-triggered `release.yml` run was cancelled immediately with `gh run cancel`,
+and Railway's behaviour was observed.
+
+**It gates correctly.** All four jobs reported `cancelled` on the release head,
+Railway marked that deployment **SKIPPED**, and production kept serving v1.0.0
+throughout — `/api/health` never stopped answering.
+
+**Recovery is not automatic, and this is the part that will catch you out.**
+Re-running the workflow (`gh run rerun`) turns every check green on the same
+commit, and GitHub Actions acts on it — the `tag` job ran, `v1.1.0` was tagged
+and its release published. Railway did **not**. A skipped deployment is a
+finished deployment, and a workflow re-run is not a new push, so nothing tells
+Railway to look again.
+
+The fix is one click: **Railway → `production` → Deployments → the `SKIPPED`
+deployment → Redeploy.** It then builds normally, because the check-runs on that
+commit are now green.
+
+So the failure mode to know about is not a broken gate but a silent wait: the
+tag exists, the release is published, GitHub looks entirely finished, and
+production is still on the previous version until somebody presses Redeploy.
+
+```sh
+# What Railway is reading, if a deployment is skipped and you want to know why.
+gh api repos/:owner/:repo/commits/$(git rev-parse origin/release)/check-runs \
+  --jq '.check_runs[] | "\(.name): \(.conclusion)"'
+```
 
 Also deliberately out of scope: release CI (unit, integration and e2e against
 the release branch), version tagging, rollback procedure, and custom
@@ -396,7 +510,9 @@ repository can reproduce them.
       and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
 - [ ] All ten variables in Step 4 are set, every one replaced rather than
-      inherited from the duplicated environment, with no value shared with staging
+      inherited from the duplicated environment. Datastore and observability
+      credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
+      `TASO_API_KEY` deliberately do — see *The provider keys are shared*
 - [ ] The auth variables are deliberately left unset
 - [x] All three Sentry configs — server, edge and client — read their settings
       from the environment

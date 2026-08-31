@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  changedBetweenFingerprints,
   decideFreshness,
   describeAge,
+  describeChange,
+  hashFromEntry,
   isFullRun,
   MAX_AGE_MS,
   missingPrerequisites,
   parseMarker,
+  pathFromEntry,
 } from "../../../scripts/e2e-freshness-plan";
 
 const NOW = new Date("2026-08-30T12:00:00.000Z");
@@ -48,15 +52,41 @@ describe("missingPrerequisites", () => {
   });
 });
 
+const MARKER_JSON = '{"finishedAt":"2026-08-30T11:00:00.000Z","files":["deadbee\\tsrc/a.ts"]}';
+
 describe("parseMarker", () => {
-  it("reads the timestamp the reporter writes", () => {
-    expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z"}')).toEqual(
-      new Date("2026-08-30T11:00:00.000Z")
-    );
+  it("reads what the reporter writes", () => {
+    expect(parseMarker(MARKER_JSON)).toEqual({
+      finishedAt: new Date("2026-08-30T11:00:00.000Z"),
+      files: ["deadbee\tsrc/a.ts"],
+    });
+  });
+
+  it("accepts an empty watched tree", () => {
+    expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","files":[]}')).not.toBeNull();
   });
 
   it("tolerates the trailing newline the reporter writes", () => {
-    expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z"}\n')).not.toBeNull();
+    expect(parseMarker(`${MARKER_JSON}\n`)).not.toBeNull();
+  });
+
+  // The timestamp-only format predates #220. It carries no tree state, so the
+  // hook could not tell whether anything had changed — failing closed makes the
+  // next run write a usable one.
+  it("rejects an older-format marker rather than half-trusting it", () => {
+    // The head+status shape #220 wrote, and the timestamp-only one before it.
+    expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z"}')).toBeNull();
+    expect(
+      parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":[]}')
+    ).toBeNull();
+  });
+
+  it.each([
+    ["a missing files list", '{"finishedAt":"2026-08-30T11:00:00.000Z"}'],
+    ["a non-array files list", '{"finishedAt":"2026-08-30T11:00:00.000Z","files":"x"}'],
+    ["a files list of non-strings", '{"finishedAt":"2026-08-30T11:00:00.000Z","files":[1]}'],
+  ])("rejects %s", (_label, raw) => {
+    expect(parseMarker(raw)).toBeNull();
   });
 
   // A corrupt marker must fail closed: read as "no run recorded", never as a
@@ -69,8 +99,8 @@ describe("parseMarker", () => {
     ["a JSON scalar", '"2026-08-30T11:00:00.000Z"'],
     ["JSON null", "null"],
     ["a missing field", "{}"],
-    ["a non-string field", '{"finishedAt":123}'],
-    ["an unparseable date", '{"finishedAt":"not a date"}'],
+    ["a non-string field", '{"finishedAt":123,"files":[]}'],
+    ["an unparseable date", '{"finishedAt":"not a date","files":[]}'],
   ])("treats %s as no marker", (_label, raw) => {
     expect(parseMarker(raw)).toBeNull();
   });
@@ -203,5 +233,81 @@ describe("decideFreshness", () => {
   it("still passes a fresh run when prerequisites are missing", () => {
     // Nothing to warn about: the marker is fresh, whatever is missing now.
     expect(decide({ missingPrerequisites: ["Docker is not running"] }).kind).toBe("pass");
+  });
+});
+
+const entry = (hash: string, path: string) => `${hash}\t${path}`;
+
+describe("pathFromEntry / hashFromEntry", () => {
+  it("splits an entry at the tab", () => {
+    expect(pathFromEntry(entry("abc123", "src/a.ts"))).toBe("src/a.ts");
+    expect(hashFromEntry(entry("abc123", "src/a.ts"))).toBe("abc123");
+  });
+
+  // A hash cannot contain a tab, so the first one is the separator and
+  // everything after it is the path — including any tabs of its own.
+  it("keeps a path containing a tab intact", () => {
+    expect(pathFromEntry("abc123\tsrc/od\td.ts")).toBe("src/od\td.ts");
+  });
+});
+
+describe("changedBetweenFingerprints", () => {
+  it("finds nothing when the content is identical", () => {
+    const same = [entry("aaa", "src/a.ts"), entry("bbb", "src/b.ts")];
+    expect(changedBetweenFingerprints(same, same)).toEqual([]);
+  });
+
+  it("catches an edit", () => {
+    expect(
+      changedBetweenFingerprints([entry("aaa", "src/a.ts")], [entry("bbb", "src/a.ts")])
+    ).toEqual([{ path: "src/a.ts", kind: "modified" }]);
+  });
+
+  it("catches a new file", () => {
+    expect(changedBetweenFingerprints([], [entry("aaa", "src/new.ts")])).toEqual([
+      { path: "src/new.ts", kind: "added" },
+    ]);
+  });
+
+  // #220: a deleted file simply stops appearing, which the modification-time
+  // walk this replaced could not see at all.
+  it("catches a deletion, as an entry that disappeared", () => {
+    expect(changedBetweenFingerprints([entry("aaa", "src/gone.ts")], [])).toEqual([
+      { path: "src/gone.ts", kind: "deleted" },
+    ]);
+  });
+
+  /**
+   * #242, and the whole reason this compares content.
+   *
+   * Committing moves bytes from the working tree into a commit and changes
+   * nothing about them. The earlier `HEAD`-plus-status pair described *where*
+   * content lived, so that move read as a change and blocked a push the run had
+   * already covered. A hash cannot tell the difference, which is the property
+   * wanted.
+   */
+  it("sees nothing when content is committed rather than edited", () => {
+    const before = [entry("aaa", "src/a.ts")];
+    const afterCommitting = [entry("aaa", "src/a.ts")];
+    expect(changedBetweenFingerprints(before, afterCommitting)).toEqual([]);
+  });
+
+  it("reports every change, sorted, when several differ", () => {
+    expect(
+      changedBetweenFingerprints(
+        [entry("aaa", "src/b.ts"), entry("ccc", "src/c.ts")],
+        [entry("zzz", "src/a.ts"), entry("bbb", "src/b.ts")]
+      )
+    ).toEqual([
+      { path: "src/a.ts", kind: "added" },
+      { path: "src/b.ts", kind: "modified" },
+      { path: "src/c.ts", kind: "deleted" },
+    ]);
+  });
+});
+
+describe("describeChange", () => {
+  it("names the kind, so a deletion is not mistaken for an edit", () => {
+    expect(describeChange("src/a.ts", "deleted")).toBe("src/a.ts (deleted)");
   });
 });

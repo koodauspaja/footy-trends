@@ -3,8 +3,19 @@
 When you have finished implementing a feature and tests are passing, open a pull
 request using the following steps:
 
-1. Create a feature branch named `feature/NNN-short-description` where NNN matches
-   the issue and spec number.
+1. Create a feature branch named `feature/NNN-short-description` where NNN is the
+   **spec** number — the `NNN` in `specs/NNN-feature-name.md`, not the issue
+   number. The two matched in the first few features and have not for a long
+   time.
+
+   That is what keeps the trail lined up: the branch, `specs/NNN-*.md`,
+   `decisions/NNN-*.md` and the pull request all carry the same number, so any
+   one of them leads to the rest.
+
+   **Chores and bugs use the issue number** instead, because they have no spec —
+   `chore/172-branch-naming-spec-number`, `bug/220-freshness-deleted-files`. The
+   asymmetry is deliberate: each kind of branch is numbered by the document that
+   defines it, and for a chore or a bug that document is the issue.
 2. Commit all changes with a conventional commit message, e.g.
    `feat: add standings form table (#NNN)`.
 3. Check the diff size against the PR's base branch before pushing:
@@ -128,6 +139,48 @@ request using the following steps:
    until a review completes. Do not merge on a stale green check, and do not
    propose merging with a caveat.
 
+   **The one exception: a diff with nothing in it for Sourcery to review.**
+   Sourcery reviews source. A pull request that touches only dependency
+   metadata, a lockfile or similar can legitimately produce a green check and
+   no review at all — #212 changed two lines in `package.json`'s
+   `allowScripts` and got exactly that. Under a rule with no exception such a
+   PR is unmergeable for ever, so the rule gets set aside by hand, which is
+   worse than having no rule.
+
+   The exception is an **allowlist**, not "everything that is not source".
+   Only these paths count as unreviewable:
+
+   ```
+   package.json
+   package-lock.json
+   ```
+
+   Everything else is reviewable, **including documentation and workflows**.
+   Sourcery reviews prose, `.github/` and `skills/` perfectly well — the
+   findings that produced this very section came from a pull request whose
+   entire diff was three Markdown files. Defining the carve-out by exclusion
+   would have let those bypass the gate, which is the opposite of the intent.
+
+   Establish it rather than assume it. List what actually changed, and check
+   every path is on the allowlist:
+
+   ```sh
+   git diff --name-only origin/main...HEAD
+   ```
+
+   If every path is on it, a missing review is expected and the PR may merge —
+   say so explicitly in the PR, naming the paths. **One path off the list and
+   the hard block stands for the whole PR**, however small that path's diff.
+
+   The distinction is *what Sourcery reviews*, not how risky the change looks.
+   Two lines of lockfile are low-risk and unreviewable; two lines in
+   `src/lib/` are low-risk and very much reviewable. Only the second property
+   matters here.
+
+   If a future PR hits a genuinely unreviewable path that is not on the list,
+   add it here in that PR, with the evidence that Sourcery produced nothing for
+   it — do not widen the rule from memory.
+
    This check cannot be delegated to branch protection. GitHub treats a
    `skipped` required check as satisfying the requirement, so a protected
    branch will allow a merge with no Sourcery review at all — see
@@ -138,17 +191,42 @@ request using the following steps:
    reactions to later pushes are deliberately light and create no new review
    object, so that value stays pinned to the first reviewed commit and would
    block nearly every PR that fixed a finding.
-7. A light re-check is not a full review. Sourcery reviews thoroughly when a
+7. **Read the review threads before merging, every time.** The check-run
+   query above tells you a review happened. It does not tell you what it
+   said, and `mergeStateStatus: CLEAN` says only that the required checks
+   passed — never that anyone read the comments.
+
+   ```sh
+   gh api graphql -f query='{repository(owner:"koodauspaja",name:"footy-trends"){
+     pullRequest(number:<PR>){reviewThreads(first:100){
+       pageInfo{hasNextPage endCursor}
+       nodes{isResolved comments(first:1){nodes{path body createdAt}}}}}}}' \
+     --jq '.data.repository.pullRequest.reviewThreads
+           | "hasNextPage=\(.pageInfo.hasNextPage)",
+             (.nodes[] | select(.isResolved==false))'
+   ```
+
+   **Check `hasNextPage` before believing the result.** A page size silently
+   truncates: if it is `true`, an unresolved thread can sit past the end and
+   the command prints nothing for it, which reads identically to "all clear".
+   Page with `after: "<endCursor>"` until it is `false`.
+
+   Nothing unresolved may remain. Findings can also arrive **after** you have
+   replied to and resolved an earlier thread, so re-run this immediately
+   before merging rather than relying on having looked once: #229 was merged
+   on a green state with two findings on it that were eleven minutes old.
+
+8. A light re-check is not a full review. Sourcery reviews thoroughly when a
    PR opens; every push after that gets a lighter pass that re-checks
    existing comments, resolves addressed threads and re-runs security scans,
    but does not regenerate the summary or the full set of inline comments.
    After substantive fix commits, comment `@sourcery-ai review` on the PR to
    force a complete review of the final state, and wait for it before
    handing off.
-8. Do not merge the PR yourself. Leave it for human review. **Either Miikka
+9. Do not merge the PR yourself. Leave it for human review. **Either Miikka
    or Kalle** may be that reviewer — the two are interchangeable, so work
    never waits on one named person being available.
-9. If the PR merges without the issue auto-closing (for example the closing
+10. If the PR merges without the issue auto-closing (for example the closing
    keyword was missing or malformed), close the issue manually and note in a
    comment which PR shipped it. This does not apply to the earlier PRs of a
    stacked series, which are *meant* to merge without closing — there, do the
@@ -176,3 +254,110 @@ Note that Sourcery's own docs are explicit that "a rate limit never blocks a
 merge" — it skips the review and GitHub goes green. That is exactly why the
 merge gate in step 6 checks for a real review of the head commit rather than
 trusting the check's colour.
+
+## Update a stale branch by rebase, not merge
+
+`main` requires branches to be up to date, so a pull request that falls behind
+must be updated before it can merge. **Rebase it**:
+
+```sh
+# Force-pushing the wrong branch is the expensive mistake here, so name the
+# branch rather than trusting whatever is checked out and wherever it tracks.
+branch=$(git branch --show-current)
+[ "$branch" = "$(gh pr view <PR> --json headRefName -q .headRefName)" ] || exit 1
+
+git fetch origin main
+git rebase origin/main
+git push --force-with-lease origin "HEAD:$branch"
+```
+
+Two details in there are load-bearing, and both look like noise.
+
+**`git fetch origin main`, not `git fetch origin`.** Fetching everything updates
+the remote-tracking ref for *this branch* as well — and that ref is precisely
+what `--force-with-lease` compares against. So if a colleague pushed to your
+branch, fetching everything first makes the lease compare against their new
+commit, accept the push, and overwrite them. Narrowing the fetch leaves the
+branch's tracking ref at what you last saw, which is what lets the lease notice
+them at all. The narrow fetch *is* the safety property; widening it silently
+removes one.
+
+**The explicit `origin "HEAD:$branch"`.** A bare `git push` obeys the
+contributor's `push.default` and the branch's upstream, so on a `matching`
+configuration it force-pushes *every* matching branch, and with a missing or
+different upstream it fails or targets the wrong one.
+
+Not `git merge origin/main`. On a divergent branch, merging introduces a
+**merge-commit head**; a plain `git rebase` replays your commits onto `main` and
+leaves a single-parent one. That is true of `git rebase` as used above and not a
+property of rebasing in general — `--rebase-merges` preserves merge topology, so
+do not reach for it here. If it matters, look rather than assume:
+
+```sh
+git cat-file -p HEAD | grep -c '^parent'   # 1 after a plain rebase
+```
+
+Sourcery's required check goes missing far more often on merge-commit heads
+(#236). Measured across one day's pull requests:
+
+| Head | Sourcery check reported without intervention |
+|---|---|
+| Single-parent | 7 of 8 |
+| Merge commit | 1 of 6 |
+
+A rebase does **not** guarantee the check arrives — the one single-parent
+exception was this very pull request, whose check never started at all while
+Sourcery was demonstrably working on another minutes earlier. It shifts the
+odds, and that is all it claims to do.
+
+The odds are real, though: this pull request was itself rebased when it fell
+behind, and the check appeared unprompted within 30 seconds and completed
+`success`. Measured, not assumed — the parent count of the resulting head was
+1.
+
+So the load-bearing rule is the next paragraph, not this one: **a missing check
+is re-requested, never waited on**, whatever shape the head is.
+
+**It is safe here specifically.** The `main` ruleset targets `~DEFAULT_BRANCH`
+only, so feature branches carry no `non_fast_forward` rule and force-pushing to
+one is allowed; and `main` requires **0** approving reviews, so
+`dismiss_stale_reviews_on_push` costs nothing. Neither holds for `release` — but
+release pull requests never need this, because #221 dropped the up-to-date
+requirement there.
+
+Use `--force-with-lease`, not `--force`: it protects against a remote update
+since you last fetched, but it does not detect another checkout. Before
+force-pushing, get explicit coordination from anyone else who may have the
+branch checked out, or use a separate branch.
+
+**Rebase only your own unmerged branch.** If someone else has it checked out,
+merge instead and accept the re-request — a rewritten history someone else is
+standing on costs more than a missing check.
+
+**If the check is missing, re-request it. Do not wait.** Sourcery can simply
+fail to start on a commit — observed on both head shapes — and nothing arrives
+later to fix it:
+
+```sh
+gh pr comment <PR> --body "@sourcery-ai review"
+```
+
+That is the remedy in every case. Rebasing reduces how often you need it; it
+does not replace it.
+
+## Neither signal is trustworthy on its own
+
+Both halves have been seen to fail, on the same day:
+
+| Seen on | Failure | Consequence |
+|---|---|---|
+| #212 | **A check with no review.** The check-run went green having reviewed nothing | Branch protection is satisfied and the PR merges unreviewed |
+| #229 | **A review with no check.** Sourcery reviewed and approved the head but posted no check-run | `Sourcery review` is a required check on `main`, so the PR sat `BLOCKED` indefinitely on a review that had already happened |
+
+The second needs an explicit `@sourcery-ai review` comment to make Sourcery
+report; waiting does not fix it. Treat a PR blocked on a missing Sourcery
+check the same way — re-request, do not assume it is coming.
+
+So: the check-run says a review ran, the threads say what it found, and the
+merge state says neither. Step 6 and step 7 exist because no one of them is
+enough.

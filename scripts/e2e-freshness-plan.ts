@@ -50,27 +50,94 @@ export function missingPrerequisites(prerequisites: Prerequisites): string[] {
 }
 
 /**
- * The marker records an ISO timestamp. Anything else — a truncated write, a
- * hand-edit, a file from an older format — is treated as no marker at all
- * rather than as a date, so a corrupt marker fails closed.
+ * What a passing run recorded: when it finished, and the content of the watched
+ * trees at that moment.
+ *
+ * Content, not location. An earlier version stored `HEAD` plus the working-tree
+ * status, which describes *where* content lives — so committing moved a file
+ * from one half of that pair to the other and read as a change even though
+ * nothing had been edited (#242). Hashes have no such cases: identical content
+ * is identical, wherever git is keeping it.
  */
-export function parseMarker(raw: string | null): Date | null {
+export type Marker = {
+  finishedAt: Date;
+  /** `hash<TAB>path` for every watched file that existed, sorted. */
+  files: string[];
+};
+
+/**
+ * Anything that is not a complete marker — a truncated write, a hand-edit, or
+ * an older format — is treated as no marker at all, so a corrupt or outdated
+ * one fails closed rather than vouching for a run it cannot describe.
+ */
+export function parseMarker(raw: string | null): Marker | null {
   if (raw === null) return null;
   const trimmed = raw.trim();
   if (trimmed === "") return null;
 
-  let finishedAt: unknown;
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    finishedAt = (parsed as Record<string, unknown>).finishedAt;
+    parsed = JSON.parse(trimmed);
   } catch {
     return null;
   }
+  if (typeof parsed !== "object" || parsed === null) return null;
 
+  const { finishedAt, files } = parsed as Record<string, unknown>;
   if (typeof finishedAt !== "string") return null;
+  if (!Array.isArray(files) || files.some((line) => typeof line !== "string")) return null;
+
   const at = new Date(finishedAt);
-  return Number.isNaN(at.getTime()) ? null : at;
+  if (Number.isNaN(at.getTime())) return null;
+
+  return { finishedAt: at, files: files as string[] };
+}
+
+/** How a watched path differs from what the last passing run covered. */
+export type ChangeKind = "added" | "modified" | "deleted";
+
+/**
+ * Names the kind in the blocking message, so a deletion is not mistaken for an
+ * edit — the two need different responses, and "3 file(s) changed" hid that.
+ */
+export function describeChange(path: string, kind: ChangeKind): string {
+  return `${path} (${kind})`;
+}
+
+/** The path in a `hash<TAB>path` entry. */
+export function pathFromEntry(entry: string): string {
+  return entry.slice(entry.indexOf("\t") + 1);
+}
+
+/** The hash in a `hash<TAB>path` entry. */
+export function hashFromEntry(entry: string): string {
+  return entry.slice(0, entry.indexOf("\t"));
+}
+
+/**
+ * What changed between two fingerprints.
+ *
+ * Three cases and no more, which is the point of comparing content: a path is
+ * present in one and not the other, or its hash differs. Where git was keeping
+ * the bytes — working tree, index, or a commit — never enters into it.
+ */
+export function changedBetweenFingerprints(
+  before: string[],
+  after: string[]
+): { path: string; kind: ChangeKind }[] {
+  const was = new Map(before.map((entry) => [pathFromEntry(entry), hashFromEntry(entry)]));
+  const now = new Map(after.map((entry) => [pathFromEntry(entry), hashFromEntry(entry)]));
+
+  const changed: { path: string; kind: ChangeKind }[] = [];
+  for (const [path, hash] of now) {
+    const previous = was.get(path);
+    if (previous === undefined) changed.push({ path, kind: "added" });
+    else if (previous !== hash) changed.push({ path, kind: "modified" });
+  }
+  for (const [path] of was) {
+    if (!now.has(path)) changed.push({ path, kind: "deleted" });
+  }
+  return changed.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 /** `3 h 5 min`, `12 min`, `40 s` — enough precision to see why it is stale. */

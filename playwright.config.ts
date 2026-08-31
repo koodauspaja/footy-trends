@@ -21,15 +21,25 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   /**
-   * Serial in CI, in the config rather than as a `--workers=1` flag on the
-   * command line — the flag is the kind of thing that gets dropped when
-   * somebody copies the command. Parallel runs exhaust football-data.org's
-   * rate limit and fail as regressions that are not real.
+   * Serial everywhere, not only in CI, and in the config rather than as a
+   * `--workers=1` flag — the flag is the kind of thing that gets dropped when
+   * somebody copies the command.
    *
-   * Spread rather than `workers: undefined`, because `exactOptionalPropertyTypes`
-   * rejects an explicit undefined and the local default is Playwright's to pick.
+   * Parallel runs exhaust football-data.org's rate limit and fail as
+   * regressions that are not real. This was CI-only until #227, and the local
+   * half was measured failing three times in one day on unrelated changes —
+   * once losing five specs across four files on a change that touched a single
+   * Markdown file. The correct response each time was "ignore it and re-run
+   * serially", which is exactly the reflex that lets a real regression through.
+   *
+   * It also matters to the pre-push hook (#84), which writes its freshness
+   * marker only when a full run passes: a spurious parallel failure leaves no
+   * marker, so the next push is blocked and the hook looks broken.
+   *
+   * The cost is roughly 30s per run. That buys a suite whose failures mean
+   * something — see tests/e2e/README.md.
    */
-  ...(process.env.CI ? { workers: 1 } : {}),
+  workers: 1,
   // The HTML report is what release.yml uploads as an artifact; without it a
   // failed release run leaves nothing to look at but scrollback.
   /**

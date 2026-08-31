@@ -38,7 +38,10 @@ Workflow
      `Ready`, and does not substitute for it.
    - Once confirmed `Ready`, move the card to `In Progress` before creating
      a branch or writing any code.
-3. Create a bug branch named `bug/NNN-short-description`.
+3. Create a bug branch named `bug/NNN-short-description`, where NNN is the
+   **issue** number. A bug has no spec of its own, so the issue is the document
+   that defines it — unlike a feature branch, which takes its number from
+   `specs/NNN-*.md`. See `skills/open-pr.md` step 1.
 4. Fix the root cause, not just the symptom. Keep the change scoped to the
    bug — do not fold in unrelated cleanup or refactoring.
    - Keep code, comments, and documentation in English.
@@ -95,9 +98,12 @@ Workflow
 
 11. Leave the pull request for human review. Do not merge it yourself.
     Before handing it off, apply the Sourcery review gate in
-    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block, and a
-    light re-check after fix commits is not a full review. Either Miikka or
-    Kalle may be the reviewer.
+    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
+    every changed path is on that document's short allowlist of unreviewable
+    files (documentation and workflows are **not** on it), unresolved review
+    threads must be read immediately before merging, and a light re-check
+    after fix commits is not a full review. Either Miikka or Kalle may be the
+    reviewer.
 
 Important rules
 - Never hand off or merge a pull request while its issue still has unticked
