@@ -52,9 +52,10 @@ that out and tries once more. One retry, not a loop, so a provider that keeps
 refusing surfaces as an error rather than stalling the run indefinitely.
 
 That retry is a floor, not a licence to pace faster. It absorbs a single
-collision; a sustained one — another consumer working through the same key —
-exhausts both the headroom and the retry, and the run starts failing
-competition-seasons. Which matters here because **the key is shared with
+collision. What defeats it is another consumer whose traffic, **added to this
+run's**, crosses the per-key limit and keeps it crossed — the retry waits out
+one counter reset and gives up, so the run starts failing competition-seasons.
+A second consumer that is merely present, and quiet, costs nothing. Which matters here because **the key is shared with
 staging** (`021-production-environment.md`), so "another consumer" includes a
 staging page view or somebody's local `npm run test:e2e`.
 
