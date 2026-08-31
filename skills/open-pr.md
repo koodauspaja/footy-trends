@@ -255,6 +255,46 @@ merge" — it skips the review and GitHub goes green. That is exactly why the
 merge gate in step 6 checks for a real review of the head commit rather than
 trusting the check's colour.
 
+## Update a stale branch by rebase, not merge
+
+`main` requires branches to be up to date, so a pull request that falls behind
+must be updated before it can merge. **Rebase it**:
+
+```sh
+git fetch origin
+git rebase origin/main
+git push --force-with-lease
+```
+
+Not `git merge origin/main`. Both produce a mergeable branch; only the merge
+produces a **merge-commit head**, and Sourcery's required check is unreliable on
+those (#236). Measured across one day's pull requests:
+
+| Head | Sourcery check |
+|---|---|
+| Single-parent (7 of 7) | reported normally, every time |
+| Merge commit (6) | 5 anomalous — `skipped`, absent until re-requested, or a check with no review |
+
+A rebase keeps the head single-parent and side-steps the whole class.
+
+**It is safe here specifically.** The `main` ruleset targets `~DEFAULT_BRANCH`
+only, so feature branches carry no `non_fast_forward` rule and force-pushing to
+one is allowed; and `main` requires **0** approving reviews, so
+`dismiss_stale_reviews_on_push` costs nothing. Neither holds for `release` — but
+release pull requests never need this, because #221 dropped the up-to-date
+requirement there.
+
+Use `--force-with-lease`, not `--force`: it refuses if the remote moved since
+you last fetched, which is the case where someone else has the branch.
+
+**Rebase only your own unmerged branch.** If someone else has it checked out,
+merge instead and accept the re-request — a rewritten history someone else is
+standing on costs more than a missing check.
+
+If you do end up with a merge-commit head and no Sourcery check, that is the
+known case: re-request it as described above, rather than waiting for one that
+is not coming.
+
 ## Neither signal is trustworthy on its own
 
 Both halves have been seen to fail, on the same day:
