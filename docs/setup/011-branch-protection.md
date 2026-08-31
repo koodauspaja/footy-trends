@@ -188,6 +188,31 @@ from `main`'s in ways that are deliberate rather than oversights.
 
 Restrict deletions and block force pushes are on for both.
 
+### Why `main` keeps it
+
+The mirror of the section below, and a genuine trade rather than an oversight.
+
+Requiring an up-to-date branch on `main` does real work: parallel pull requests
+land there constantly, and it is what forces a branch tested against a stale
+`main` to be re-tested. It caught #204 and #212 sitting `BEHIND` on the day this
+was written.
+
+Its cost is that every pull request which falls behind must be updated, and
+updating by **merge** produces a merge-commit head — on which Sourcery's
+required check goes missing far more often (#236: it reported unprompted on 1 of
+6 merge-commit heads, against 7 of 8 single-parent ones). It is a difference of
+degree, not of kind: the check can fail to start on any commit, so re-requesting
+it is the actual remedy and rebasing only reduces how often that is needed.
+
+**The answer is to rebase rather than merge, not to drop the requirement.** That
+keeps the protection and reduces the exposure; `skills/open-pr.md` has the
+command and the reasoning. It is safe because this ruleset targets
+`~DEFAULT_BRANCH` only — feature branches carry no `non_fast_forward` rule — and
+because `main` requires 0 approving reviews, so a force-push dismisses nothing.
+
+Turning the requirement off would have been the wrong repair: it treats a
+reporting quirk in one tool as a reason to stop testing against current `main`.
+
 ### Why `release` does not require an up-to-date branch
 
 `main` requires it. `release` deliberately does not, and turning it back on

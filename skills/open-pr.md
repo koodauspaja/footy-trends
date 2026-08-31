@@ -255,6 +255,96 @@ merge" — it skips the review and GitHub goes green. That is exactly why the
 merge gate in step 6 checks for a real review of the head commit rather than
 trusting the check's colour.
 
+## Update a stale branch by rebase, not merge
+
+`main` requires branches to be up to date, so a pull request that falls behind
+must be updated before it can merge. **Rebase it**:
+
+```sh
+# Force-pushing the wrong branch is the expensive mistake here, so name the
+# branch rather than trusting whatever is checked out and wherever it tracks.
+branch=$(git branch --show-current)
+[ "$branch" = "$(gh pr view <PR> --json headRefName -q .headRefName)" ] || exit 1
+
+git fetch origin main
+git rebase origin/main
+git push --force-with-lease origin "HEAD:$branch"
+```
+
+Two details in there are load-bearing, and both look like noise.
+
+**`git fetch origin main`, not `git fetch origin`.** Fetching everything updates
+the remote-tracking ref for *this branch* as well — and that ref is precisely
+what `--force-with-lease` compares against. So if a colleague pushed to your
+branch, fetching everything first makes the lease compare against their new
+commit, accept the push, and overwrite them. Narrowing the fetch leaves the
+branch's tracking ref at what you last saw, which is what lets the lease notice
+them at all. The narrow fetch *is* the safety property; widening it silently
+removes one.
+
+**The explicit `origin "HEAD:$branch"`.** A bare `git push` obeys the
+contributor's `push.default` and the branch's upstream, so on a `matching`
+configuration it force-pushes *every* matching branch, and with a missing or
+different upstream it fails or targets the wrong one.
+
+Not `git merge origin/main`. On a divergent branch, merging introduces a
+**merge-commit head**; a plain `git rebase` replays your commits onto `main` and
+leaves a single-parent one. That is true of `git rebase` as used above and not a
+property of rebasing in general — `--rebase-merges` preserves merge topology, so
+do not reach for it here. If it matters, look rather than assume:
+
+```sh
+git cat-file -p HEAD | grep -c '^parent'   # 1 after a plain rebase
+```
+
+Sourcery's required check goes missing far more often on merge-commit heads
+(#236). Measured across one day's pull requests:
+
+| Head | Sourcery check reported without intervention |
+|---|---|
+| Single-parent | 7 of 8 |
+| Merge commit | 1 of 6 |
+
+A rebase does **not** guarantee the check arrives — the one single-parent
+exception was this very pull request, whose check never started at all while
+Sourcery was demonstrably working on another minutes earlier. It shifts the
+odds, and that is all it claims to do.
+
+The odds are real, though: this pull request was itself rebased when it fell
+behind, and the check appeared unprompted within 30 seconds and completed
+`success`. Measured, not assumed — the parent count of the resulting head was
+1.
+
+So the load-bearing rule is the next paragraph, not this one: **a missing check
+is re-requested, never waited on**, whatever shape the head is.
+
+**It is safe here specifically.** The `main` ruleset targets `~DEFAULT_BRANCH`
+only, so feature branches carry no `non_fast_forward` rule and force-pushing to
+one is allowed; and `main` requires **0** approving reviews, so
+`dismiss_stale_reviews_on_push` costs nothing. Neither holds for `release` — but
+release pull requests never need this, because #221 dropped the up-to-date
+requirement there.
+
+Use `--force-with-lease`, not `--force`: it protects against a remote update
+since you last fetched, but it does not detect another checkout. Before
+force-pushing, get explicit coordination from anyone else who may have the
+branch checked out, or use a separate branch.
+
+**Rebase only your own unmerged branch.** If someone else has it checked out,
+merge instead and accept the re-request — a rewritten history someone else is
+standing on costs more than a missing check.
+
+**If the check is missing, re-request it. Do not wait.** Sourcery can simply
+fail to start on a commit — observed on both head shapes — and nothing arrives
+later to fix it:
+
+```sh
+gh pr comment <PR> --body "@sourcery-ai review"
+```
+
+That is the remedy in every case. Rebasing reduces how often you need it; it
+does not replace it.
+
 ## Neither signal is trustworthy on its own
 
 Both halves have been seen to fail, on the same day:
