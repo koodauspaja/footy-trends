@@ -95,9 +95,12 @@ Workflow
 
 11. Leave the pull request for human review. Do not merge it yourself.
     Before handing it off, apply the Sourcery review gate in
-    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block, and a
-    light re-check after fix commits is not a full review. Either Miikka or
-    Kalle may be the reviewer.
+    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
+    every changed path is on that document's short allowlist of unreviewable
+    files (documentation and workflows are **not** on it), unresolved review
+    threads must be read immediately before merging, and a light re-check
+    after fix commits is not a full review. Either Miikka or Kalle may be the
+    reviewer.
 
 Important rules
 - Never hand off or merge a pull request while its issue still has unticked
