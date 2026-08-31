@@ -136,21 +136,39 @@ request using the following steps:
    PR is unmergeable for ever, so the rule gets set aside by hand, which is
    worse than having no rule.
 
-   Establish it rather than assume it. List what actually changed:
+   The exception is an **allowlist**, not "everything that is not source".
+   Only these paths count as unreviewable:
+
+   ```
+   package.json
+   package-lock.json
+   ```
+
+   Everything else is reviewable, **including documentation and workflows**.
+   Sourcery reviews prose, `.github/` and `skills/` perfectly well — the
+   findings that produced this very section came from a pull request whose
+   entire diff was three Markdown files. Defining the carve-out by exclusion
+   would have let those bypass the gate, which is the opposite of the intent.
+
+   Establish it rather than assume it. List what actually changed, and check
+   every path is on the allowlist:
 
    ```sh
    git diff --name-only origin/main...HEAD
    ```
 
-   If nothing under `src/`, `scripts/`, `tests/` or the config files that
-   drive them is in that list, a missing review is expected and the PR may
-   merge — say so explicitly in the PR, naming the paths. If **anything**
-   source-shaped is in the list, the hard block stands.
+   If every path is on it, a missing review is expected and the PR may merge —
+   say so explicitly in the PR, naming the paths. **One path off the list and
+   the hard block stands for the whole PR**, however small that path's diff.
 
    The distinction is *what Sourcery reviews*, not how risky the change looks.
    Two lines of lockfile are low-risk and unreviewable; two lines in
    `src/lib/` are low-risk and very much reviewable. Only the second property
    matters here.
+
+   If a future PR hits a genuinely unreviewable path that is not on the list,
+   add it here in that PR, with the evidence that Sourcery produced nothing for
+   it — do not widen the rule from memory.
 
    This check cannot be delegated to branch protection. GitHub treats a
    `skipped` required check as satisfying the requirement, so a protected
@@ -169,11 +187,18 @@ request using the following steps:
 
    ```sh
    gh api graphql -f query='{repository(owner:"koodauspaja",name:"footy-trends"){
-     pullRequest(number:<PR>){reviewThreads(first:30){nodes{
-       isResolved comments(first:1){nodes{path body createdAt}}}}}}}' \
-     --jq '.data.repository.pullRequest.reviewThreads.nodes[]
-           | select(.isResolved==false)'
+     pullRequest(number:<PR>){reviewThreads(first:100){
+       pageInfo{hasNextPage endCursor}
+       nodes{isResolved comments(first:1){nodes{path body createdAt}}}}}}}' \
+     --jq '.data.repository.pullRequest.reviewThreads
+           | "hasNextPage=\(.pageInfo.hasNextPage)",
+             (.nodes[] | select(.isResolved==false))'
    ```
+
+   **Check `hasNextPage` before believing the result.** A page size silently
+   truncates: if it is `true`, an unresolved thread can sit past the end and
+   the command prints nothing for it, which reads identically to "all clear".
+   Page with `after: "<endCursor>"` until it is `false`.
 
    Nothing unresolved may remain. Findings can also arrive **after** you have
    replied to and resolved an earlier thread, so re-run this immediately
