@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  changedBetweenStatuses,
+  changedBetweenFingerprints,
   decideFreshness,
   describeAge,
   describeChange,
+  hashFromEntry,
   isFullRun,
-  kindFromDiffLetter,
-  kindFromStatusLine,
   MAX_AGE_MS,
   missingPrerequisites,
   parseMarker,
-  pathFromStatusLine,
+  pathFromEntry,
 } from "../../../scripts/e2e-freshness-plan";
 
 const NOW = new Date("2026-08-30T12:00:00.000Z");
@@ -53,22 +52,18 @@ describe("missingPrerequisites", () => {
   });
 });
 
-const MARKER_JSON =
-  '{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc1234","status":[" M\\tdeadbee\\tsrc/a.ts"]}';
+const MARKER_JSON = '{"finishedAt":"2026-08-30T11:00:00.000Z","files":["deadbee\\tsrc/a.ts"]}';
 
 describe("parseMarker", () => {
   it("reads what the reporter writes", () => {
     expect(parseMarker(MARKER_JSON)).toEqual({
       finishedAt: new Date("2026-08-30T11:00:00.000Z"),
-      head: "abc1234",
-      status: [" M\tdeadbee\tsrc/a.ts"],
+      files: ["deadbee\tsrc/a.ts"],
     });
   });
 
-  it("accepts a clean tree, where the status list is empty", () => {
-    expect(
-      parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":[]}')
-    ).not.toBeNull();
+  it("accepts an empty watched tree", () => {
+    expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","files":[]}')).not.toBeNull();
   });
 
   it("tolerates the trailing newline the reporter writes", () => {
@@ -78,20 +73,18 @@ describe("parseMarker", () => {
   // The timestamp-only format predates #220. It carries no tree state, so the
   // hook could not tell whether anything had changed — failing closed makes the
   // next run write a usable one.
-  it("rejects the older timestamp-only marker rather than half-trusting it", () => {
+  it("rejects an older-format marker rather than half-trusting it", () => {
+    // The head+status shape #220 wrote, and the timestamp-only one before it.
     expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z"}')).toBeNull();
+    expect(
+      parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":[]}')
+    ).toBeNull();
   });
 
   it.each([
-    ["a missing head", '{"finishedAt":"2026-08-30T11:00:00.000Z","status":[]}'],
-    ["an empty head", '{"finishedAt":"2026-08-30T11:00:00.000Z","head":"","status":[]}'],
-    ["a non-string head", '{"finishedAt":"2026-08-30T11:00:00.000Z","head":7,"status":[]}'],
-    ["a missing status", '{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc"}'],
-    ["a non-array status", '{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":"x"}'],
-    [
-      "a status of non-strings",
-      '{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":[1]}',
-    ],
+    ["a missing files list", '{"finishedAt":"2026-08-30T11:00:00.000Z"}'],
+    ["a non-array files list", '{"finishedAt":"2026-08-30T11:00:00.000Z","files":"x"}'],
+    ["a files list of non-strings", '{"finishedAt":"2026-08-30T11:00:00.000Z","files":[1]}'],
   ])("rejects %s", (_label, raw) => {
     expect(parseMarker(raw)).toBeNull();
   });
@@ -106,8 +99,8 @@ describe("parseMarker", () => {
     ["a JSON scalar", '"2026-08-30T11:00:00.000Z"'],
     ["JSON null", "null"],
     ["a missing field", "{}"],
-    ["a non-string field", '{"finishedAt":123,"head":"abc","status":[]}'],
-    ["an unparseable date", '{"finishedAt":"not a date","head":"abc","status":[]}'],
+    ["a non-string field", '{"finishedAt":123,"files":[]}'],
+    ["an unparseable date", '{"finishedAt":"not a date","files":[]}'],
   ])("treats %s as no marker", (_label, raw) => {
     expect(parseMarker(raw)).toBeNull();
   });
@@ -243,111 +236,73 @@ describe("decideFreshness", () => {
   });
 });
 
-const entry = (code: string, hash: string, path: string) => `${code}\t${hash}\t${path}`;
+const entry = (hash: string, path: string) => `${hash}\t${path}`;
 
-describe("kindFromStatusLine", () => {
-  it.each([
-    [" D", "deleted"],
-    ["D ", "deleted"],
-    ["??", "added"],
-    ["A ", "added"],
-    [" M", "modified"],
-    ["M ", "modified"],
-    ["R ", "renamed"],
-    ["UU", "changed"],
-  ])("reads %s as %s", (code, kind) => {
-    expect(kindFromStatusLine(entry(code, "abc", "src/a.ts"))).toBe(kind);
+describe("pathFromEntry / hashFromEntry", () => {
+  it("splits an entry at the tab", () => {
+    expect(pathFromEntry(entry("abc123", "src/a.ts"))).toBe("src/a.ts");
+    expect(hashFromEntry(entry("abc123", "src/a.ts"))).toBe("abc123");
   });
 
-  // A deletion staged *and* re-added shows as `AD`; the deletion is the part
-  // that a passing run cannot vouch for.
-  it("prefers deleted when a code carries both", () => {
-    expect(kindFromStatusLine(entry("AD", "abc", "src/x.ts"))).toBe("deleted");
-  });
-
-  it("treats a malformed entry as a change rather than throwing", () => {
-    expect(kindFromStatusLine("")).toBe("changed");
+  // A hash cannot contain a tab, so the first one is the separator and
+  // everything after it is the path — including any tabs of its own.
+  it("keeps a path containing a tab intact", () => {
+    expect(pathFromEntry("abc123\tsrc/od\td.ts")).toBe("src/od\td.ts");
   });
 });
 
-describe("pathFromStatusLine", () => {
-  it("reads the path from the third field", () => {
-    expect(pathFromStatusLine(entry(" M", "abc", "src/a.ts"))).toBe("src/a.ts");
+describe("changedBetweenFingerprints", () => {
+  it("finds nothing when the content is identical", () => {
+    const same = [entry("aaa", "src/a.ts"), entry("bbb", "src/b.ts")];
+    expect(changedBetweenFingerprints(same, same)).toEqual([]);
   });
 
-  it("returns nothing for a malformed entry rather than throwing", () => {
-    expect(pathFromStatusLine("nonsense")).toBe("");
-  });
-});
-
-describe("kindFromDiffLetter", () => {
-  it.each([
-    ["A", "added"],
-    ["D", "deleted"],
-    ["M", "modified"],
-    ["R097", "renamed"],
-    ["T", "changed"],
-    ["", "changed"],
-  ])("reads %s as %s", (letter, kind) => {
-    expect(kindFromDiffLetter(letter)).toBe(kind);
-  });
-});
-
-describe("changedBetweenStatuses", () => {
-  it("finds nothing when the tree is as it was", () => {
-    const same = [entry(" M", "abc", "src/a.ts")];
-    expect(changedBetweenStatuses(same, same)).toEqual([]);
-  });
-
-  // The bug this replaces: a walk of files that exist cannot see a deletion.
-  it("catches a file deleted since the run", () => {
-    expect(changedBetweenStatuses([], [entry(" D", "-", "src/gone.ts")])).toEqual([
-      { path: "src/gone.ts", kind: "deleted" },
-    ]);
+  it("catches an edit", () => {
+    expect(
+      changedBetweenFingerprints([entry("aaa", "src/a.ts")], [entry("bbb", "src/a.ts")])
+    ).toEqual([{ path: "src/a.ts", kind: "modified" }]);
   });
 
   it("catches a new file", () => {
-    expect(changedBetweenStatuses([], [entry("??", "abc", "src/new.ts")])).toEqual([
+    expect(changedBetweenFingerprints([], [entry("aaa", "src/new.ts")])).toEqual([
       { path: "src/new.ts", kind: "added" },
     ]);
   });
 
-  // The second bug, found in review: a file already dirty when the run passed
-  // keeps the same status letters through every further edit, so comparing
-  // letters alone reported "fresh" for code the run never saw. The content
-  // hash is what makes it visible.
-  it("catches a further edit to a file that was already dirty", () => {
-    expect(
-      changedBetweenStatuses([entry(" M", "aaa", "src/a.ts")], [entry(" M", "bbb", "src/a.ts")])
-    ).toEqual([{ path: "src/a.ts", kind: "modified" }]);
-  });
-
-  it("catches a further edit to an untracked file, whose line never changes", () => {
-    expect(
-      changedBetweenStatuses([entry("??", "aaa", "src/n.ts")], [entry("??", "bbb", "src/n.ts")])
-    ).toEqual([{ path: "src/n.ts", kind: "added" }]);
-  });
-
-  it("catches a change of status letters at identical content", () => {
-    expect(
-      changedBetweenStatuses([entry(" M", "aaa", "src/a.ts")], [entry("M ", "aaa", "src/a.ts")])
-    ).toEqual([{ path: "src/a.ts", kind: "modified" }]);
-  });
-
-  // Reverting an edit moves the tree away from what passed, even though it
-  // moves it back towards HEAD.
-  it("catches a path that has left the status entirely", () => {
-    expect(changedBetweenStatuses([entry(" M", "aaa", "src/a.ts")], [])).toEqual([
-      { path: "src/a.ts", kind: "changed" },
+  // #220: a deleted file simply stops appearing, which the modification-time
+  // walk this replaced could not see at all.
+  it("catches a deletion, as an entry that disappeared", () => {
+    expect(changedBetweenFingerprints([entry("aaa", "src/gone.ts")], [])).toEqual([
+      { path: "src/gone.ts", kind: "deleted" },
     ]);
   });
 
-  it("reports each path once when several changed", () => {
-    const changed = changedBetweenStatuses(
-      [],
-      [entry(" D", "-", "src/a.ts"), entry("??", "abc", "src/b.ts")]
-    );
-    expect(changed).toHaveLength(2);
+  /**
+   * #242, and the whole reason this compares content.
+   *
+   * Committing moves bytes from the working tree into a commit and changes
+   * nothing about them. The earlier `HEAD`-plus-status pair described *where*
+   * content lived, so that move read as a change and blocked a push the run had
+   * already covered. A hash cannot tell the difference, which is the property
+   * wanted.
+   */
+  it("sees nothing when content is committed rather than edited", () => {
+    const before = [entry("aaa", "src/a.ts")];
+    const afterCommitting = [entry("aaa", "src/a.ts")];
+    expect(changedBetweenFingerprints(before, afterCommitting)).toEqual([]);
+  });
+
+  it("reports every change, sorted, when several differ", () => {
+    expect(
+      changedBetweenFingerprints(
+        [entry("aaa", "src/b.ts"), entry("ccc", "src/c.ts")],
+        [entry("zzz", "src/a.ts"), entry("bbb", "src/b.ts")]
+      )
+    ).toEqual([
+      { path: "src/a.ts", kind: "added" },
+      { path: "src/b.ts", kind: "modified" },
+      { path: "src/c.ts", kind: "deleted" },
+    ]);
   });
 });
 
