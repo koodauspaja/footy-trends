@@ -274,6 +274,54 @@ once, and are now deleted. They had been reachable in production, and they
 logged through `Sentry.logger` — which `LOG_LEVEL` does not govern — so they
 were the one part of the app whose logging could not be turned down.
 
+### Verifying Sentry actually receives events
+
+The client half needs no test event: `NEXT_PUBLIC_` values are inlined at build
+time, so the shipped bundle can be read directly — that is how v1.1.0 was
+confirmed (0 occurrences of `replayIntegration`, and the literals `"false"`,
+`"false"`, `"0.1"`).
+
+The **server** half gives no such evidence. It reads `process.env` at runtime,
+so the only proof is an event arriving. `npm run verify:sentry` sends one
+deliberately (#230):
+
+```sh
+SENTRY_TRACES_SAMPLE_RATE=0.1 SENTRY_SEND_DEFAULT_PII=false \
+SENTRY_ENABLE_LOGS=false NEXT_PUBLIC_SENTRY_DSN='<production>' \
+  npm run verify:sentry
+```
+
+```
+Project      o4511499874729984.ingest.de.sentry.io/4511977968959568
+Settings     tracesSampleRate=0.1  sendDefaultPii=false  enableLogs=false
+Marker       footy-trends verification 2026-08-31T09:07:43.508Z
+
+Event 1bbe0bdb… was accepted and flushed.
+```
+
+Two things to read there. The **Settings** line is what the server runtime would
+actually use, read through the same helpers `sentry.server.config.ts` uses — so
+a wrong value shows up without waiting for an event. The **Marker** is what to
+search for in *Sentry → Issues* to confirm it arrived.
+
+The script never prints the DSN's public key, only the host and project id, so
+its output is safe to paste into an issue.
+
+**A flushed event proves the SDK reached Sentry's ingest endpoint — not that
+the event is visible.** Inbound filters and rate limits can still drop it,
+which is why the output sends you to look rather than declaring success.
+
+**It is a script, not a route, deliberately.** The wizard's example routes did
+this job once and were deleted (see above): anything reachable in production is
+reachable by anyone, and theirs logged through `Sentry.logger`, which
+`LOG_LEVEL` does not govern. A script adds no surface to the deployed app —
+nothing to guard, nothing for a crawler to find.
+
+**The edge runtime is not covered.** Reaching it means running inside the edge
+sandbox, which a command-line script cannot do. That gap is real; it is stated
+here rather than glossed, and it is why #140's Sentry criterion is ticked for
+server and client only.
+
 ### Nothing needs clicking in Sentry
 
 All of the above is code plus Railway variables. The Sentry project itself needs
