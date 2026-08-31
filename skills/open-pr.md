@@ -290,8 +290,10 @@ one is allowed; and `main` requires **0** approving reviews, so
 release pull requests never need this, because #221 dropped the up-to-date
 requirement there.
 
-Use `--force-with-lease`, not `--force`: it refuses if the remote moved since
-you last fetched, which is the case where someone else has the branch.
+Use `--force-with-lease`, not `--force`: it protects against a remote update
+since you last fetched, but it does not detect another checkout. Before
+force-pushing, get explicit coordination from anyone else who may have the
+branch checked out, or use a separate branch.
 
 **Rebase only your own unmerged branch.** If someone else has it checked out,
 merge instead and accept the re-request — a rewritten history someone else is
