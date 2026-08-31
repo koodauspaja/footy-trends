@@ -47,15 +47,12 @@ export default class E2eFreshnessReporter implements Reporter {
     // against, and writing a marker that cannot be checked is worse than
     // writing none — the hook would have to trust it.
     const head = currentHead();
-    if (head === null) return;
+    const status = currentStatus();
+    if (head === null || status === null) return;
 
     writeFileSync(
       MARKER_PATH,
-      `${JSON.stringify({
-        finishedAt: new Date().toISOString(),
-        head,
-        status: currentStatus(),
-      })}\n`
+      `${JSON.stringify({ finishedAt: new Date().toISOString(), head, status })}\n`
     );
   }
 }

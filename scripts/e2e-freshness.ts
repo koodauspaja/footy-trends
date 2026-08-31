@@ -52,7 +52,21 @@ function changesSince(marker: Marker): string[] {
     if (file !== undefined) changes.set(file, kindFromDiffLetter(letter ?? ""));
   }
 
-  for (const { path: file, kind } of changedBetweenStatuses(marker.status, currentStatus())) {
+  const status = currentStatus();
+  if (status === null) {
+    // git could not report the working tree. Treating that as "clean" would
+    // pass the check having verified nothing, so it fails closed instead.
+    return [describeChange("<git status unavailable>", "changed")];
+  }
+
+  // Re-read HEAD after the status. A commit landing between the two reads
+  // would otherwise be invisible: the old HEAD shows no landed changes, and
+  // the status is already clean relative to the new one.
+  if (currentHead() !== head) {
+    return [describeChange("<HEAD moved while checking>", "changed")];
+  }
+
+  for (const { path: file, kind } of changedBetweenStatuses(marker.status, status)) {
     changes.set(file, kind);
   }
 

@@ -63,7 +63,7 @@ export type Marker = {
   finishedAt: Date;
   /** `git rev-parse HEAD` when the run passed. */
   head: string;
-  /** `git status --porcelain` lines for the watched paths, at that moment. */
+  /** `code<TAB>hash<TAB>path` for each changed watched path, at that moment. */
   status: string[];
 };
 
@@ -117,11 +117,15 @@ export function kindFromDiffLetter(letter: string): ChangeKind {
 }
 
 /**
- * `git status --porcelain` prefixes a path with two status letters and a space:
- * index state, then worktree state. ` D foo` is deleted in the worktree, `A  foo`
- * added to the index, `?? foo` untracked.
+ * Entries are `code<TAB>hash<TAB>path`, built in `e2e-freshness-git.ts`: the
+ * two porcelain status letters, the file's content hash, and its path.
+ *
+ * The hash is what makes a second edit to an already-dirty file visible. The
+ * status letters alone stay ` M src/a.ts` through any number of edits, so
+ * comparing them missed exactly the changes a passing run had not seen.
  */
 export function kindFromStatusLine(line: string): ChangeKind {
+  // The first two characters, always — the entry is `XY<TAB>hash<TAB>path`.
   const code = line.slice(0, 2);
   if (code.includes("D")) return "deleted";
   if (code === "??" || code.includes("A")) return "added";
@@ -130,11 +134,9 @@ export function kindFromStatusLine(line: string): ChangeKind {
   return "changed";
 }
 
-/** The path in a porcelain line, taking the destination of a rename. */
+/** The path in a status entry — the third tab-separated field. */
 export function pathFromStatusLine(line: string): string {
-  const rest = line.slice(3).trim();
-  const arrow = rest.indexOf(" -> ");
-  return arrow === -1 ? rest : rest.slice(arrow + 4);
+  return line.split("\t")[2] ?? "";
 }
 
 /**
