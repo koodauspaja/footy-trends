@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { lstatSync, readlinkSync } from "node:fs";
 import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
 
 /**
@@ -15,27 +15,97 @@ import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
  * read as "nothing is there" — the check would pass having verified nothing.
  */
 
-function git(args: string[], input?: string): string | null {
+/** Enough headroom under any platform's argument limit, with room to grow. */
+const HASH_BATCH = 500;
+
+function git(args: string[]): string | null {
   const run = spawnSync("git", args, {
     encoding: "utf8",
     timeout: 15_000,
-    ...(input === undefined ? {} : { input }),
     maxBuffer: 32 * 1024 * 1024,
   });
   return run.status === 0 ? run.stdout : null;
 }
 
 /**
+ * What the path is, without following it — `lstat`, not `exists`.
+ *
+ * `existsSync` follows symlinks, so a tracked symlink whose target is missing
+ * reports as absent and drops out of the fingerprint entirely; editing or
+ * deleting it would then be invisible. `lstat` describes the link itself,
+ * which is the thing git tracks.
+ */
+function describePath(path: string): "file" | "symlink" | "absent" {
+  try {
+    return lstatSync(path).isSymbolicLink() ? "symlink" : "file";
+  } catch {
+    return "absent";
+  }
+}
+
+/**
+ * A symlink's content is its target path — that is what git stores in the blob
+ * — so the target is its fingerprint.
+ *
+ * Read directly rather than through `git hash-object`, which opens the file and
+ * so fails on a dangling link. Letting that fail would take the whole
+ * fingerprint with it, and one broken symlink under `src/` would then block
+ * every push *and* stop a passing run recording anything. Retargeting the link
+ * still shows as a change, which is the behaviour that matters.
+ */
+function symlinkEntry(path: string): string | null {
+  try {
+    return `link:${readlinkSync(path)}\t${path}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Every watched file that exists on disk — tracked and untracked, with
  * `.gitignore` respected so build output and the marker itself stay out.
+ *
+ * `-z`, because without it git *quotes* any path needing escaping — a newline
+ * in a filename comes back as the literal `"src/od\nd.ts"`, which matches no
+ * file and would silently drop it. NUL-separated output is the raw bytes.
  *
  * A tracked file deleted from the working tree is simply absent, which is what
  * makes a deletion visible: its entry disappears from the fingerprint.
  */
-function watchedFiles(): string[] | null {
-  const out = git(["ls-files", "-c", "-o", "--exclude-standard", "--", ...WATCHED_DIRECTORIES]);
+function watchedPaths(): string[] | null {
+  const out = git([
+    "ls-files",
+    "-z",
+    "-c",
+    "-o",
+    "--exclude-standard",
+    "--",
+    ...WATCHED_DIRECTORIES,
+  ]);
   if (out === null) return null;
-  return out.split("\n").filter(Boolean).filter(existsSync);
+  return out.split("\0").filter(Boolean);
+}
+
+/**
+ * Hashes for the given paths, in order.
+ *
+ * Paths go as arguments rather than through `--stdin-paths`, which is
+ * newline-delimited and so cannot express a filename containing one. Batched
+ * only to stay clear of the platform argument limit.
+ */
+function hashAll(files: string[]): string[] | null {
+  const hashes: string[] = [];
+  for (let start = 0; start < files.length; start += HASH_BATCH) {
+    const batch = files.slice(start, start + HASH_BATCH);
+    const out = git(["hash-object", "--", ...batch]);
+    if (out === null) return null;
+    const produced = out.split("\n").filter(Boolean);
+    // A short read means some path could not be hashed. Fail closed rather
+    // than fingerprint a subset and call the rest unchanged.
+    if (produced.length !== batch.length) return null;
+    hashes.push(...produced);
+  }
+  return hashes;
 }
 
 /**
@@ -48,20 +118,31 @@ function watchedFiles(): string[] | null {
  * forced special cases for a rebase or a branch switch. A content fingerprint
  * has none: identical content is identical, wherever git is keeping it.
  *
- * One `git hash-object` process for the whole set — 94 files in ~37ms here.
+ * Cheap: 94 files in ~37ms here.
  */
 export function fingerprint(): string[] | null {
-  const files = watchedFiles();
-  if (files === null) return null;
-  if (files.length === 0) return [];
+  const paths = watchedPaths();
+  if (paths === null) return null;
 
-  const hashed = git(["hash-object", "--stdin-paths"], `${files.join("\n")}\n`);
-  if (hashed === null) return null;
+  const files: string[] = [];
+  const entries: string[] = [];
+  for (const path of paths) {
+    const kind = describePath(path);
+    // Absent means deleted from the working tree: it contributes no entry, and
+    // its disappearance from the fingerprint is what makes the deletion visible.
+    if (kind === "absent") continue;
+    if (kind === "symlink") {
+      const entry = symlinkEntry(path);
+      if (entry === null) return null;
+      entries.push(entry);
+      continue;
+    }
+    files.push(path);
+  }
 
-  const hashes = hashed.split("\n").filter(Boolean);
-  // A short read means some path could not be hashed — a file removed between
-  // listing and hashing, say. Fail closed rather than fingerprint a subset.
-  if (hashes.length !== files.length) return null;
+  const hashes = hashAll(files);
+  if (hashes === null) return null;
+  entries.push(...files.map((file, index) => `${hashes[index]}\t${file}`));
 
-  return files.map((file, index) => `${hashes[index]}\t${file}`).sort();
+  return entries.sort();
 }

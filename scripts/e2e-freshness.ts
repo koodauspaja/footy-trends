@@ -20,15 +20,15 @@ import {
 /**
  * What the last passing run cannot vouch for, as `path (kind)` strings.
  *
- * Two sources, because they catch different things. Commits between the marker
- * and `HEAD` cover work that has landed — including **deletions**, which the
- * modification-time walk this replaced could not see at all, since a deleted
- * file leaves nothing to stat (#220). Working-tree status covers what has not
- * been committed yet, because an uncommitted edit breaks the correspondence
- * just as thoroughly as a commit does.
+ * One comparison: the fingerprint the run recorded against the fingerprint of
+ * the working tree now. A path present in one and not the other, or whose hash
+ * differs, is `added`, `modified` or `deleted`.
  *
- * A `touch` with no content change now counts as nothing, which is the right
- * answer and was not the old one.
+ * There is no second source and no commit history involved, which is why
+ * committing, staging, amending, rebasing and switching branches are all
+ * invisible — none of them change a byte. A `touch` with no content change
+ * likewise counts as nothing, which is the right answer and was not the old
+ * one.
  */
 function changesSince(marker: Marker): string[] {
   const now = fingerprint();
