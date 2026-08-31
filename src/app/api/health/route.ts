@@ -71,8 +71,24 @@ export async function GET(request: Request) {
       //
       // Bounded, because a health endpoint that hangs until the probe times
       // out is worse than one reporting a provider as unreachable.
-      await getCurrentSeason(AbortSignal.timeout(PROVIDER_TIMEOUT_MS));
-      checks.taso = "ok";
+      const season = await getCurrentSeason(AbortSignal.timeout(PROVIDER_TIMEOUT_MS));
+
+      // A throw is not the only way this fails. A stale key is blocked by
+      // Cloudflare with a 403, which throws — but TASO's own API answers a bad
+      // request with **HTTP 200** and an error body, which parses fine and
+      // yields no recognisable seasons. `getCurrentSeason` returns `null` for
+      // that, and awaiting it without looking reported the provider healthy on
+      // a response that contained no data at all (#113).
+      //
+      // Either way there is nothing usable behind the key, which is what the
+      // probe is being asked about.
+      checks.taso = season === null ? "error" : "ok";
+      if (season === null) {
+        logger.warn(
+          { season },
+          "TASO health check answered without a recognisable published season"
+        );
+      }
     } catch (error: unknown) {
       checks.taso = "error";
       // Non-fatal, like Redis: pages backed by stored rows keep serving, and a
