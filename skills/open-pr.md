@@ -261,7 +261,7 @@ trusting the check's colour.
 must be updated before it can merge. **Rebase it**:
 
 ```sh
-git fetch origin
+git fetch origin main
 git rebase origin/main
 git push --force-with-lease
 ```
