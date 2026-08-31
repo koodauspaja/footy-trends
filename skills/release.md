@@ -147,6 +147,13 @@ That is the end of the manual part.
 3. Railway deploys `release`, running migrations before the new container takes
    traffic.
 
+**If that release run fails or is cancelled**, Railway marks the deployment
+`SKIPPED` and production keeps serving the previous version — which is the
+point. But fixing the run does not restart the deploy: re-running the workflow
+turns the checks green and lets the `tag` job publish, while Railway sees no new
+push and does nothing. Press **Redeploy** on the skipped deployment in Railway.
+Verified in #215; the detail is in `docs/setup/021-production-environment.md`.
+
 The tag is created **after** the tests pass and **only** on a merge, never on a
 pull request. A tag is permanent and public, so it must not be possible to
 create one for a release that was rejected or that failed.
