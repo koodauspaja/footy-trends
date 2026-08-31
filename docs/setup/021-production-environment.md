@@ -64,9 +64,15 @@ Duplicating an environment copies "services, variables, and configuration" —
 credentials: staging's API keys, staging's Axiom token, and database variables
 still referencing staging's instances.
 
-Treat every variable as wrong until Step 4 has replaced it. The failure mode
-here is silent: nothing errors, because staging's credentials work — production
-just quietly reads and writes staging's data.
+Treat every variable as wrong until Step 4 has **accounted for** it. Most must
+be replaced; the two provider API keys are deliberately shared and must be left
+holding staging's value — see *The provider keys are shared with staging*.
+"Replace everything" would have you rotate those, which breaks the documented
+one-key-per-provider arrangement and can take staging's access with it.
+
+The failure mode for everything else is silent: nothing errors, because
+staging's credentials work — production just quietly reads and writes staging's
+data.
 
 Railway stages the copied services for deployment rather than deploying them
 immediately, so review the staged changes before approving; that pause is the
@@ -167,11 +173,13 @@ token and dataset. The provider keys are the single deliberate exception.
 **football-data.org rate-limits per key**, so the sharing has real consequences
 that will present as production faults:
 
-- Staging traffic, a local `npm run test:e2e`, or a backfill run consumes quota
-  production is relying on at the same moment.
+- Staging traffic, a local `npm run test:e2e`, or a backfill run draws on the
+  same per-key quota production is relying on, at the same moment.
 - `022-production-backfill.md` paces the backfill at 9 requests/minute — 90% of
-  the documented 10 — and that 10% headroom is gone the moment a second
-  consumer shares the key. A `429` during a backfill is the expected symptom.
+  the documented 10. Concurrent consumers eat into that headroom; a `429` comes
+  when their **combined** traffic crosses the per-key limit, not from the mere
+  existence of a second consumer. A quiet staging costs nothing; staging under
+  load during a backfill is what produces the symptom.
 - Production's own defence is `fetchProviderJson`'s single 429 retry, which
   waits out a counter reset. It handles a brief collision and not a sustained
   one.
