@@ -40,12 +40,16 @@ Everything about the application is identical; only the surroundings differ.
 | Deploys from | `main` | `release` |
 | PostgreSQL | its own | its own, separate |
 | Redis | its own | its own, separate |
-| Credentials | staging set | **no value shared with staging** |
+| Credentials | staging set | **its own, except the two provider API keys** |
 | Deploy config | `railway.toml` | the same `railway.toml` |
 
-Sharing a database or a provider key between the two is the failure this
-separation exists to prevent: a staging migration or a rate-limit exhaustion
-would otherwise take production with it.
+Sharing a **database** between the two is the failure this separation exists to
+prevent: a staging migration would otherwise take production with it.
+
+The **provider keys are shared**, deliberately and as an accepted risk — the
+plan issues one key each. So rate-limit exhaustion by staging *can* reach
+production, and that is a known cost rather than an oversight. See *The provider
+keys are shared with staging* under Step 4.
 
 ---
 
@@ -133,10 +137,10 @@ once the Sentry configs read their settings from the environment.
 |---|---|---|
 | `DATABASE_URL` | Railway | From this environment's PostgreSQL |
 | `REDIS_URL` | Railway | From this environment's Redis |
-| `FOOTBALL_DATA_API_KEY` | manual | Its own key, not staging's — see below |
+| `FOOTBALL_DATA_API_KEY` | manual | **Shared with staging** — accepted risk, see below |
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
-| `TASO_API_KEY` | manual | See *TASO key* below |
+| `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
@@ -150,13 +154,35 @@ they belong to the authentication work that has not shipped. Leave them unset
 rather than provisioning credentials nothing consumes; an unused secret is
 still a secret to rotate and leak.
 
-### On separate provider keys
+### The provider keys are shared with staging — accepted risk
 
-football-data.org enforces a per-key rate limit. A shared key means staging's
-traffic can exhaust production's quota, which surfaces as production pages
-failing to load for reasons nothing in production caused. Use a distinct key if
-the plan allows more than one; if it does not, record that as an accepted risk
-here rather than leaving it implicit.
+`FOOTBALL_DATA_API_KEY` and `TASO_API_KEY` are **one key each, used by both
+environments**. This section previously said production should have its own and
+that a shared key must be recorded as an accepted risk if a second is not
+available. That is the case, so here it is recorded (#214).
+
+Everything else is separate: PostgreSQL, Redis, the Sentry DSN, and the Axiom
+token and dataset. The provider keys are the single deliberate exception.
+
+**football-data.org rate-limits per key**, so the sharing has real consequences
+that will present as production faults:
+
+- Staging traffic, a local `npm run test:e2e`, or a backfill run consumes quota
+  production is relying on at the same moment.
+- `022-production-backfill.md` paces the backfill at 9 requests/minute — 90% of
+  the documented 10 — and that 10% headroom is gone the moment a second
+  consumer shares the key. A `429` during a backfill is the expected symptom.
+- Production's own defence is `fetchProviderJson`'s single 429 retry, which
+  waits out a counter reset. It handles a brief collision and not a sustained
+  one.
+
+**The TASO key is scraped rather than issued** (`020-taso-api-key.md`), and
+sharing compounds that: one expiry takes out Veikkausliiga data in *both*
+environments simultaneously, so staging cannot act as the early warning it
+would otherwise be. Both fail together, and the first report will come from
+production.
+
+If the plan ever allows a second key, split them and delete this section.
 
 ### TASO key
 
@@ -164,7 +190,8 @@ here rather than leaving it implicit.
 not issued**. It can stop working without notice and has a manual re-scrape
 procedure. Production depending on it is an availability risk worth naming
 before real users do: when it expires, Veikkausliiga data fails in production
-until someone repeats the scrape by hand.
+until someone repeats the scrape by hand — and, because the key is shared, in
+staging at the same time.
 
 ---
 
@@ -427,7 +454,9 @@ repository can reproduce them.
       and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
 - [ ] All ten variables in Step 4 are set, every one replaced rather than
-      inherited from the duplicated environment, with no value shared with staging
+      inherited from the duplicated environment. Datastore and observability
+      credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
+      `TASO_API_KEY` deliberately do — see *The provider keys are shared*
 - [ ] The auth variables are deliberately left unset
 - [x] All three Sentry configs — server, edge and client — read their settings
       from the environment

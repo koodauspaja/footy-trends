@@ -43,9 +43,20 @@ selectable seasons from the provider's own data — the Champions League offers
 three, and the Euros one, not four each.
 
 **football-data.org is capped at 9 requests/minute** — 90% of the documented 10
-(`007-football-data-api.md`). `fetchProviderJson` has no retry and no 429
-handling, so a rate-limit response is a thrown error, not a pause. The headroom
-is the point.
+(`007-football-data-api.md`). The headroom is the point: pacing below the limit
+is what stops a rate-limit response happening at all.
+
+`fetchProviderJson` does have a **single** 429 retry, added in #197 — it reads
+`Retry-After`, falls back to football-data.org's `X-RequestCounter-Reset`, waits
+that out and tries once more. One retry, not a loop, so a provider that keeps
+refusing surfaces as an error rather than stalling the run indefinitely.
+
+That retry is a floor, not a licence to pace faster. It absorbs a single
+collision; a sustained one — another consumer working through the same key —
+exhausts both the headroom and the retry, and the run starts failing
+competition-seasons. Which matters here because **the key is shared with
+staging** (`021-production-environment.md`), so "another consumer" includes a
+staging page view or somebody's local `npm run test:e2e`.
 
 **TASO is paced at 1 request/second.** It publishes no rate limit, so there is
 no maximum to take a percentage of. One per second is well below what a
@@ -193,7 +204,7 @@ that season's group rows go. Matches are unaffected either way.
 | Failure | What it means |
 |---|---|
 | `password authentication failed` | The connection string is wrong, or you used the internal host from outside Railway |
-| A `429` from football-data.org | Something else is using the same key. The backfill's own pacing has 10% headroom; a second consumer removes it |
+| A `429` from football-data.org | Something else is using the same key — staging, a local `npm run test:e2e`, or another backfill. The key is shared between the two environments, the pacing's 10% headroom is gone the moment a second consumer appears, and `fetchProviderJson`'s single retry only absorbs one collision |
 | Repeated TASO failures | Its key is scraped rather than issued (`020-taso-api-key.md`) and may have expired. Re-scrape, then re-run |
 
 ---
