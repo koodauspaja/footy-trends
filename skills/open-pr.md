@@ -128,6 +128,30 @@ request using the following steps:
    until a review completes. Do not merge on a stale green check, and do not
    propose merging with a caveat.
 
+   **The one exception: a diff with nothing in it for Sourcery to review.**
+   Sourcery reviews source. A pull request that touches only dependency
+   metadata, a lockfile or similar can legitimately produce a green check and
+   no review at all — #212 changed two lines in `package.json`'s
+   `allowScripts` and got exactly that. Under a rule with no exception such a
+   PR is unmergeable for ever, so the rule gets set aside by hand, which is
+   worse than having no rule.
+
+   Establish it rather than assume it. List what actually changed:
+
+   ```sh
+   git diff --name-only origin/main...HEAD
+   ```
+
+   If nothing under `src/`, `scripts/`, `tests/` or the config files that
+   drive them is in that list, a missing review is expected and the PR may
+   merge — say so explicitly in the PR, naming the paths. If **anything**
+   source-shaped is in the list, the hard block stands.
+
+   The distinction is *what Sourcery reviews*, not how risky the change looks.
+   Two lines of lockfile are low-risk and unreviewable; two lines in
+   `src/lib/` are low-risk and very much reviewable. Only the second property
+   matters here.
+
    This check cannot be delegated to branch protection. GitHub treats a
    `skipped` required check as satisfying the requirement, so a protected
    branch will allow a merge with no Sourcery review at all — see
@@ -138,17 +162,35 @@ request using the following steps:
    reactions to later pushes are deliberately light and create no new review
    object, so that value stays pinned to the first reviewed commit and would
    block nearly every PR that fixed a finding.
-7. A light re-check is not a full review. Sourcery reviews thoroughly when a
+7. **Read the review threads before merging, every time.** The check-run
+   query above tells you a review happened. It does not tell you what it
+   said, and `mergeStateStatus: CLEAN` says only that the required checks
+   passed — never that anyone read the comments.
+
+   ```sh
+   gh api graphql -f query='{repository(owner:"koodauspaja",name:"footy-trends"){
+     pullRequest(number:<PR>){reviewThreads(first:30){nodes{
+       isResolved comments(first:1){nodes{path body createdAt}}}}}}}' \
+     --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+           | select(.isResolved==false)'
+   ```
+
+   Nothing unresolved may remain. Findings can also arrive **after** you have
+   replied to and resolved an earlier thread, so re-run this immediately
+   before merging rather than relying on having looked once: #229 was merged
+   on a green state with two findings on it that were eleven minutes old.
+
+8. A light re-check is not a full review. Sourcery reviews thoroughly when a
    PR opens; every push after that gets a lighter pass that re-checks
    existing comments, resolves addressed threads and re-runs security scans,
    but does not regenerate the summary or the full set of inline comments.
    After substantive fix commits, comment `@sourcery-ai review` on the PR to
    force a complete review of the final state, and wait for it before
    handing off.
-8. Do not merge the PR yourself. Leave it for human review. **Either Miikka
+9. Do not merge the PR yourself. Leave it for human review. **Either Miikka
    or Kalle** may be that reviewer — the two are interchangeable, so work
    never waits on one named person being available.
-9. If the PR merges without the issue auto-closing (for example the closing
+10. If the PR merges without the issue auto-closing (for example the closing
    keyword was missing or malformed), close the issue manually and note in a
    comment which PR shipped it. This does not apply to the earlier PRs of a
    stacked series, which are *meant* to merge without closing — there, do the
@@ -176,3 +218,20 @@ Note that Sourcery's own docs are explicit that "a rate limit never blocks a
 merge" — it skips the review and GitHub goes green. That is exactly why the
 merge gate in step 6 checks for a real review of the head commit rather than
 trusting the check's colour.
+
+## Neither signal is trustworthy on its own
+
+Both halves have been seen to fail, on the same day:
+
+| Seen on | Failure | Consequence |
+|---|---|---|
+| #212 | **A check with no review.** The check-run went green having reviewed nothing | Branch protection is satisfied and the PR merges unreviewed |
+| #229 | **A review with no check.** Sourcery reviewed and approved the head but posted no check-run | `Sourcery review` is a required check on `main`, so the PR sat `BLOCKED` indefinitely on a review that had already happened |
+
+The second needs an explicit `@sourcery-ai review` comment to make Sourcery
+report; waiting does not fix it. Treat a PR blocked on a missing Sourcery
+check the same way — re-request, do not assume it is coming.
+
+So: the check-run says a review ran, the threads say what it found, and the
+merge state says neither. Step 6 and step 7 exist because no one of them is
+enough.
