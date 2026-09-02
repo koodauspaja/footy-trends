@@ -237,6 +237,15 @@ export function competitionForSeason(seasons: TeamSeason[], seasonId: number): s
 export type TeamSeasonsView = {
   /** The seasons the club played, newest first, for the selector. */
   offeredSeasons: Array<{ seasonId: number; label: string }>;
+  /**
+   * Season → the competition the selector navigates to.
+   *
+   * Derived from the same filtered set as `offeredSeasons`, so the selector
+   * cannot be sent to a competition-season the page would reject. Computing it
+   * from the raw list is a real bug: a season whose busiest competition is
+   * unreachable would map to that one.
+   */
+  seasonCompetitions: Record<number, string>;
   /** Where the club played in the season being shown, most matches first. */
   sameSeason: Array<{ label: string; href: string }>;
   /** The club's most recent season, offered when it played nothing this one. */
@@ -294,7 +303,12 @@ export function teamSeasonsView(
           href: labels.href(mostRecent.competitionCode, mostRecent.seasonId),
         };
 
-  return { offeredSeasons, sameSeason, newest };
+  return {
+    offeredSeasons,
+    seasonCompetitions: seasonCompetitions(reachable),
+    sameSeason,
+    newest,
+  };
 }
 
 /** Every competition a club played in one season, most matches first. */
@@ -303,7 +317,7 @@ export function competitionsInSeason(seasons: TeamSeason[], seasonId: number): T
 }
 
 /** Season → the competition the selector should land on, for every season the club played. */
-export function seasonCompetitions(seasons: TeamSeason[]): Record<number, string> {
+function seasonCompetitions(seasons: TeamSeason[]): Record<number, string> {
   const map: Record<number, string> = {};
   for (const season of seasons) {
     map[season.seasonId] ??= season.competitionCode;

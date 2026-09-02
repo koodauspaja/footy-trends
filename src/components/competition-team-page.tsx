@@ -19,7 +19,6 @@ import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
   getTeamName,
   getTeamSeasons,
-  seasonCompetitions,
   type TeamNameResult,
   type TeamSeasonsResult,
   teamSeasonsView,
@@ -200,15 +199,21 @@ export async function CompetitionTeamPage({
   // Either lookup failing is an outage, and neither is a club that does not exist.
   const lookups = nameStatus === "error" ? "error" : seasons.status;
 
-  const { offeredSeasons, sameSeason, newest } = teamSeasonsView(played, seasonId, {
-    season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
-    competition: getCompetitionName,
-    href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
-    selectable: (code, year) =>
-      year >=
-        earliestSeasonFor(code, resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON)) &&
-      year <= context.activeSeasonId,
-  });
+  const { offeredSeasons, seasonCompetitions, sameSeason, newest } = teamSeasonsView(
+    played,
+    seasonId,
+    {
+      season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
+      competition: getCompetitionName,
+      href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+      selectable: (code, year) =>
+        year >=
+          earliestSeasonFor(
+            code,
+            resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON)
+          ) && year <= context.activeSeasonId,
+    }
+  );
   // Everything the body needs, in one value: the two lookups' verdicts and
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
@@ -227,7 +232,7 @@ export async function CompetitionTeamPage({
       <TeamSeasonSelector
         basePath={basePath}
         competitionCode={competitionCode}
-        seasonCompetitions={seasonCompetitions(played)}
+        seasonCompetitions={seasonCompetitions}
         seasons={offeredSeasons}
         selectedSeasonId={seasonId}
         teamProviderId={teamProviderId}

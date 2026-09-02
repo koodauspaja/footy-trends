@@ -18,7 +18,6 @@ import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
   getTeamName,
   getTeamSeasons,
-  seasonCompetitions,
   type TeamNameResult,
   type TeamSeasonsResult,
   teamSeasonsView,
@@ -167,12 +166,16 @@ export default async function DomesticTeamPage({
   // Either lookup failing is an outage, and neither is a club that does not exist.
   const lookups = nameStatus === "error" ? "error" : seasons.status;
 
-  const { offeredSeasons, sameSeason, newest } = teamSeasonsView(played, seasonId, {
-    season: String,
-    competition: getDomesticCompetitionName,
-    href: (code, year) => `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
-    selectable: (code, year) => year >= earliestSeasonFor(code) && year <= currentSeason,
-  });
+  const { offeredSeasons, seasonCompetitions, sameSeason, newest } = teamSeasonsView(
+    played,
+    seasonId,
+    {
+      season: String,
+      competition: getDomesticCompetitionName,
+      href: (code, year) => `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+      selectable: (code, year) => year >= earliestSeasonFor(code) && year <= currentSeason,
+    }
+  );
   // Everything the body needs, in one value: the two lookups' verdicts and
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
@@ -192,7 +195,7 @@ export default async function DomesticTeamPage({
       <TasoSeasonOnlyControls
         actionPath={`/kotimaa/joukkue/${teamProviderId}`}
         competitionCode={competitionCode}
-        seasonCompetitions={seasonCompetitions(played)}
+        seasonCompetitions={seasonCompetitions}
         seasons={offeredSeasons}
         selectedSeasonId={seasonId}
       />

@@ -234,9 +234,38 @@ describe("reading a club's seasons", () => {
   });
 
   it("maps every season to the competition the selector should land on", async () => {
-    const { seasonCompetitions } = await load();
+    const { teamSeasonsView } = await load();
 
-    expect(seasonCompetitions(seasons)).toEqual({ 2025: "VL", 2026: "M1L" });
+    const view = teamSeasonsView(seasons, 2026, {
+      season: String,
+      competition: (code: string) => code,
+      href: (code: string, year: number) => `/team?kilpailu=${code}&kausi=${year}`,
+      selectable: () => true,
+    });
+
+    expect(view.seasonCompetitions).toEqual({ 2025: "VL", 2026: "M1L" });
+  });
+
+  it("never maps a season to a competition the page would reject", async () => {
+    // The busiest competition in a season can be the unreachable one; sending
+    // the selector there lands the reader on a fallback season instead.
+    const { teamSeasonsView } = await load();
+
+    const view = teamSeasonsView(
+      [
+        { competitionCode: "M1L", seasonId: 2026, matches: 27 },
+        { competitionCode: "MSC", seasonId: 2026, matches: 2 },
+      ],
+      2026,
+      {
+        season: String,
+        competition: (code: string) => code,
+        href: (code: string, year: number) => `/team?kilpailu=${code}&kausi=${year}`,
+        selectable: (code: string) => code !== "M1L",
+      }
+    );
+
+    expect(view.seasonCompetitions).toEqual({ 2026: "MSC" });
   });
 });
 
