@@ -51,6 +51,11 @@ export function TeamMatchesOutcome({
 }>) {
   const { result, seasons, seasonLabel, sameSeason, newest } = outcome;
 
+  // The match list's own verdict comes first, because it is the one about this
+  // page. `empty` is only ever returned when the refresh succeeded and the
+  // season holds no matches for anyone (`refreshFailed ? error : empty` in both
+  // services), so it stays true whether or not the club's other seasons could
+  // be read — and reporting an outage instead would be less accurate, not more.
   if (result === "ok") return table;
   if (result === "empty") return <p>{EMPTY}</p>;
   if (result === "error") return <p>{ERROR}</p>;
