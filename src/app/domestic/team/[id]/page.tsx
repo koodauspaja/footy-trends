@@ -96,7 +96,6 @@ async function resolvePage(
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const seasons = await getTeamSeasons(SOURCE, teamProviderId);
   // The club's own name, asked for only when there is no match to read it off.
-  // The club's own name, asked for only when there is no match to read it off.
   const name: TeamNameResult =
     firstMatch === undefined
       ? await getTeamName(SOURCE, teamProviderId)

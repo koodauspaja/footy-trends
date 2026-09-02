@@ -256,3 +256,36 @@ describe("National-teams page metadata", () => {
     expect(metadata.title).toContain("Alankomaat");
   });
 });
+
+describe("National-teams team page, when the country played elsewhere", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+  });
+
+  it("names the country in Finnish, as every other page does", async () => {
+    // The name comes straight from the database here, so it needs the same
+    // localisation the match list gets — otherwise this page alone says
+    // "England".
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [{ competitionCode: "EC", seasonId: 2024, matches: 7 }],
+    });
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "England" });
+
+    const { default: TeamPage } = await import("@/app/national-teams/team/[id]/page");
+    render(
+      await TeamPage({
+        params: Promise.resolve({ id: "770" }),
+        searchParams: Promise.resolve({ kilpailu: "WC", kausi: "2026" }),
+      })
+    );
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Englanti");
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent("England –");
+  });
+});

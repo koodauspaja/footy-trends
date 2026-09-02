@@ -6,7 +6,7 @@ import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import { getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
-import { toFinnishTeamNames } from "@/lib/country-names";
+import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
   type CompetitionPageOptions,
@@ -113,12 +113,18 @@ async function resolvePageContext(
   const source = { kind: "football-data", region } as const;
   const seasons = await getTeamSeasons(source, teamProviderId);
   // The club's own name, asked for only when there is no match to read it off.
-  // The club's own name, asked for only when there is no match to read it off.
   const name: TeamNameResult =
     firstMatch === undefined
       ? await getTeamName(source, teamProviderId)
       : { status: "ok", name: nameForTeam(firstMatch, teamProviderId) };
-  const teamName = name.status === "ok" ? name.name : null;
+  const storedName = name.status === "ok" ? name.name : null;
+  // A national team is a country, and this app is Finnish — the same treatment
+  // `localised` gives the match list, applied to a name read straight from the
+  // database. Without it this page alone says "England".
+  const teamName =
+    storedName !== null && region === "national-teams"
+      ? toFinnishCountryName(storedName)
+      : storedName;
 
   return { ...base, teamProviderId, result: localised, teamName, nameStatus: name.status, seasons };
 }
