@@ -165,7 +165,12 @@ function categoryNameLoader(): CategoryNames {
   };
 }
 
-/** The competition a single national-team match belonged to, as TASO names it. */
+/**
+ * The competition a single national-team match belonged to, normalised: TASO's
+ * category name with the team suffix stripped, so `UEFA Nations League
+ * Huuhkajat` reads as `UEFA Nations League`. `null` when the bucket's category
+ * map has no entry for the row, or could not be read at all.
+ */
 async function resolveNationalCompetitionName(
   team: NationalTeam,
   match: TasoMatchRow,
