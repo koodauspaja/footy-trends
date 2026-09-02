@@ -8,6 +8,7 @@ import {
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
+import type { TeamContext } from "@/lib/team-context";
 
 /**
  * What a route file supplies to make a shared page one region's.
@@ -66,18 +67,33 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
  */
 export async function resolveBasePageContext(
   params: Record<string, string | string[] | undefined>,
-  region: CompetitionRegion
+  region: CompetitionRegion,
+  /**
+   * What to use where the URL says nothing — a team's own newest stored
+   * context, on the pages that have one. Omitted everywhere else, which leaves
+   * the region's defaults exactly as they were. See
+   * specs/020-context-free-team-page.md.
+   */
+  defaults?: TeamContext
 ): Promise<BasePageContext> {
   const competitionParam = parseCompetitionParam(params.kilpailu, region);
   const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : defaultCompetitionFor(region);
+    competitionParam.kind === "valid"
+      ? competitionParam.code
+      : (defaults?.competitionCode ?? defaultCompetitionFor(region));
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
   if (context === null) return { status: "error", competitionName };
 
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : context.activeSeasonId;
+  // As in the domestic resolver: a team's own season fills a gap, it does not
+  // override an invalid value's fallback.
+  const seasonFallback =
+    defaults !== undefined && defaults.competitionCode === competitionCode
+      ? defaults.seasonId
+      : context.activeSeasonId;
+  const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 
   return {

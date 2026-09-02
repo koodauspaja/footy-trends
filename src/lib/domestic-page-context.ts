@@ -9,6 +9,7 @@ import {
 } from "./domestic-competitions";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
 import { getSeasonCategoryName, resolveTasoSeasonContext } from "./taso-standings-service";
+import type { TeamContext } from "./team-context";
 
 /**
  * A Finnish season is a single calendar year, not a year-spanning one like the
@@ -85,11 +86,20 @@ export type DomesticPageContext = {
  * surfacing here.
  */
 export async function resolveDomesticPageContext(
-  params: Record<string, string | string[] | undefined>
+  params: Record<string, string | string[] | undefined>,
+  /**
+   * What to use where the URL says nothing — a team's own newest stored
+   * context, on the pages that have one. Omitted everywhere else, which leaves
+   * the region's defaults exactly as they were. See
+   * specs/020-context-free-team-page.md.
+   */
+  defaults?: TeamContext
 ): Promise<DomesticPageContext> {
   const competitionParam = parseDomesticCompetitionParam(params.kilpailu);
   const competitionCode =
-    competitionParam.kind === "valid" ? competitionParam.code : DEFAULT_DOMESTIC_COMPETITION_CODE;
+    competitionParam.kind === "valid"
+      ? competitionParam.code
+      : (defaults?.competitionCode ?? DEFAULT_DOMESTIC_COMPETITION_CODE);
   const competitionName = getDomesticCompetitionName(competitionCode);
 
   const { currentSeason, defaultSeason } = await resolveTasoSeasonContext(competitionCode);
@@ -98,7 +108,13 @@ export async function resolveDomesticPageContext(
     earliestSeasonFor(competitionCode)
   );
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
-  const seasonId = season.kind === "valid" ? season.seasonId : defaultSeason;
+  // A team's own season only stands in for a missing one. An invalid `kausi`
+  // keeps its notice and the competition's default, as it always has.
+  const seasonFallback =
+    defaults !== undefined && defaults.competitionCode === competitionCode
+      ? defaults.seasonId
+      : defaultSeason;
+  const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdForSeason(competitionCode, seasonId);
   const categoryId = categoryIdForSeason(competitionCode, seasonId);

@@ -66,6 +66,13 @@ export const matches = pgTable(
     // scans it twice under a BitmapOr, so the mirrored (away, home) index earns
     // nothing and is deliberately absent. See specs/019-match-page.md.
     index("matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
+    // The away half of "every match this team played, either side". The index
+    // above already serves the home half; without this one the away half scans
+    // that index's whole second column. Single-column deliberately: the sort
+    // that follows reads from a bitmap, which has already discarded index
+    // order, so carrying `kickoff_at` here buys nothing. See
+    // specs/020-context-free-team-page.md.
+    index("matches_away_team_idx").on(table.awayTeamProviderId),
   ]
 );
 
@@ -125,6 +132,9 @@ export const tasoMatches = pgTable(
     // orientations. Measured on 20,604 stored rows, this turns the query from a
     // 3.16 ms sequential scan into a 0.13 ms bitmap scan.
     index("taso_matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
+    // As on `matches` above. Measured on 20,604 stored rows: 1.03 ms and 144
+    // buffers without it, 0.20 ms and 94 with.
+    index("taso_matches_away_team_idx").on(table.awayTeamProviderId),
   ]
 );
 

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
+import type { TeamContextResult } from "@/lib/team-context";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
@@ -16,6 +17,28 @@ vi.mock("@/lib/standings-service", () => ({
 }));
 vi.mock("@/lib/football-data", () => ({ getSeasonContext: getSeasonContextMock }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
+const TEAM_CONTEXT_COMPETITION = "WC";
+const TEAM_CONTEXT_SEASON = 2026;
+/** The team exists, in the competition these tests already assume. */
+async function defaultTeamContext(
+  _source: unknown,
+  teamProviderId: number
+): Promise<TeamContextResult> {
+  return Number.isInteger(teamProviderId) && teamProviderId !== 0
+    ? {
+        status: "ok" as const,
+        context: { competitionCode: TEAM_CONTEXT_COMPETITION, seasonId: TEAM_CONTEXT_SEASON },
+      }
+    : { status: "not_found" as const };
+}
+
+const getTeamContextMock = vi.fn(defaultTeamContext);
+
+// The team's own newest stored context, which the page resolves before it knows
+// which competition to ask about. Mocked at the database boundary, so
+// `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const seasonContext: SeasonContext = {
@@ -64,6 +87,7 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
 describe("National-teams standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getCupSeasonMock.mockResolvedValue({ status: "ok", matches: worldCupMatches });
@@ -116,6 +140,7 @@ describe("National-teams standings page", () => {
 describe("National-teams matches page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getCupSeasonMock.mockResolvedValue({ status: "ok", matches: worldCupMatches });
@@ -144,6 +169,7 @@ describe("National-teams matches page", () => {
 describe("National-teams team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: worldCupMatches.slice(0, 1) });
@@ -179,6 +205,7 @@ describe("National-teams team page", () => {
 describe("National-teams page metadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getCupSeasonMock.mockResolvedValue({ status: "ok", matches: worldCupMatches });

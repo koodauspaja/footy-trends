@@ -4,6 +4,7 @@ import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
+import { parseCompetitionParam } from "@/lib/competitions";
 import { toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
@@ -11,9 +12,12 @@ import {
   resolveBasePageContext,
 } from "@/lib/page-context";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
+import type { TeamContextFilter } from "@/lib/team-context";
+import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
+const TEAM_HEADING = "Joukkue";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 
 /** A team page's own `params`, on top of the shared region options. */
@@ -22,12 +26,27 @@ export type CompetitionTeamPageOptions = CompetitionPageOptions & {
 };
 
 type PageContext =
+  /** No stored match anywhere in this region — not "none this season". */
+  | { status: "not_found" }
   | { status: "error"; competitionName: string }
   | (Extract<BasePageContext, { status: "ok" }> & {
       teamProviderId: number;
       result: TeamMatchesResult;
       teamName: string | null;
     });
+
+/** What the URL already said, and so what the team's own context must not contradict. */
+function filterFrom(
+  params: Record<string, string | string[] | undefined>,
+  region: CompetitionPageOptions["region"]
+): TeamContextFilter {
+  const competitionParam = parseCompetitionParam(params.kilpailu, region);
+  const season = seasonCandidate(params.kausi);
+  return {
+    ...(competitionParam.kind === "valid" ? { competitionCode: competitionParam.code } : {}),
+    ...(season === undefined ? {} : { seasonId: season }),
+  };
+}
 
 /**
  * Resolves everything both `generateMetadata` and the page itself need —
@@ -50,18 +69,26 @@ async function resolvePageContext(
   params: Record<string, string | string[] | undefined>,
   region: CompetitionPageOptions["region"]
 ): Promise<PageContext> {
-  const base = await resolveBasePageContext(params, region);
+  const teamProviderId = Number(id);
+  // Resolved before the season context, because it decides which competition
+  // that context is fetched for. See specs/020-context-free-team-page.md.
+  const defaults = await resolveTeamDefaults(
+    { kind: "football-data", region },
+    teamProviderId,
+    filterFrom(params, region)
+  );
+  if (defaults.status === "not_found") return defaults;
+  if (defaults.status === "error") return { status: "error", competitionName: TEAM_HEADING };
+
+  const base = await resolveBasePageContext(params, region, defaults.defaults);
   if (base.status === "error") return base;
 
-  const teamProviderId = Number(id);
-  const result = Number.isNaN(teamProviderId)
-    ? ({ status: "not_found" } as const)
-    : await getTeamMatches(
-        base.competitionCode,
-        teamProviderId,
-        base.seasonId,
-        base.context.activeSeasonId
-      );
+  const result = await getTeamMatches(
+    base.competitionCode,
+    teamProviderId,
+    base.seasonId,
+    base.context.activeSeasonId
+  );
 
   // A national team is a country, and this app is Finnish.
   const localised =
@@ -83,6 +110,7 @@ export async function teamMetadata({
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
   const resolved = await resolvePageContext(id, resolvedParams, region);
+  if (resolved.status === "not_found") return { title: NOT_FOUND_MESSAGE };
   if (resolved.status === "error") return { title: resolved.competitionName };
 
   return {
@@ -106,6 +134,16 @@ export async function CompetitionTeamPage({
   const { id } = await params;
   const resolvedParams = (await searchParams) ?? {};
   const resolved = await resolvePageContext(id, resolvedParams, region);
+  // A team with no stored match has no competition to name, so the page offers
+  // neither a season selector nor a standings link: every season would fail
+  // identically, and the table would be one this team never played in.
+  if (resolved.status === "not_found") {
+    return (
+      <PageShell heading={TEAM_HEADING}>
+        <p>{NOT_FOUND_MESSAGE}</p>
+      </PageShell>
+    );
+  }
   if (resolved.status === "error") {
     return (
       <PageShell heading={resolved.competitionName}>
@@ -144,15 +182,13 @@ export async function CompetitionTeamPage({
       {season.kind === "invalid" && (
         <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
       )}
-      {!Number.isNaN(teamProviderId) && (
-        <TeamSeasonSelector
-          basePath={basePath}
-          teamProviderId={teamProviderId}
-          competitionCode={competitionCode}
-          seasons={context.selectableSeasons}
-          selectedSeasonId={seasonId}
-        />
-      )}
+      <TeamSeasonSelector
+        basePath={basePath}
+        teamProviderId={teamProviderId}
+        competitionCode={competitionCode}
+        seasons={context.selectableSeasons}
+        selectedSeasonId={seasonId}
+      />
       {result.status === "not_found" && <p>{NOT_FOUND_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
