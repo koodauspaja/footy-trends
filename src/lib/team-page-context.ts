@@ -52,7 +52,7 @@ export function seasonCandidate(rawValue: string | string[] | undefined): number
  * wanted, and falling back to the region's default competition — which is what
  * happened before this existed — is the answer that serves 12 of 1,315 Finnish
  * teams. The season itself is still honoured downstream, so an unplayed season
- * still ends at `Joukkuetta ei löytynyt.`, under the team's own competition.
+ * still ends at the team-not-found message, under the team's own competition.
  */
 export async function resolveTeamDefaults(
   source: TeamPageSource,

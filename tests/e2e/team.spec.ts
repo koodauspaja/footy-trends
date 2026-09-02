@@ -1,6 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Team match list", () => {
+  test("a relegated club is told where it played instead of being unknown", async ({ page }) => {
+    // Burnley were in the Championship in 2024/25.
+    await page.goto("/ulkomaat/joukkue/328?kilpailu=PL&kausi=2024");
+
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Burnley");
+    await expect(
+      page.locator("main").getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).toBeVisible();
+
+    await page.getByRole("link", { name: "Championship", exact: true }).click();
+
+    await expect(page).toHaveURL(/kilpailu=ELC&kausi=2024/);
+    await expect(page.getByRole("table")).toBeVisible();
+  });
+
   test("clicking a team name navigates to its team page and shows the match list", async ({
     page,
   }) => {

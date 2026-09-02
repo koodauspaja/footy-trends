@@ -8,7 +8,7 @@
  * broke when what actually happened is that they asked for a team, match or
  * season that cannot exist. Measured on `/kotimaa/joukkue/99999999999`,
  * `/kotimaa/ottelu/99999999999` and `?kausi=9007199254740991`, all three of
- * which rendered "Otteluiden lataaminen epäonnistui." before this existed.
+ * which rendered the match-loading-failed message before this existed.
  *
  * Note the raw SQL is fine — Postgres promotes the column to `bigint` when it
  * compares against a literal that large. Only the bound parameter fails, which

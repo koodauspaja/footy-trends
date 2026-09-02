@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
@@ -37,6 +38,20 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
 // The team's own newest stored context, which the page resolves before it knows
 // which competition to ask about. Mocked at the database boundary, so
 // `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+/**
+ * The club's other seasons, which most of these tests do not describe: an
+ * unanswered lookup leaves the page on its previous behaviour, and the tests
+ * that care about it set a value. See specs/022-teams-between-tiers.md.
+ */
+const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
+
+const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
+
+vi.mock("@/lib/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+  return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
+});
+
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -87,6 +102,8 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
 describe("National-teams standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
@@ -237,5 +254,38 @@ describe("National-teams page metadata", () => {
     });
 
     expect(metadata.title).toContain("Alankomaat");
+  });
+});
+
+describe("National-teams team page, when the country played elsewhere", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+  });
+
+  it("names the country in Finnish, as every other page does", async () => {
+    // The name comes straight from the database here, so it needs the same
+    // localisation the match list gets — otherwise this page alone says
+    // "England".
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [{ competitionCode: "EC", seasonId: 2024, matches: 7 }],
+    });
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "England" });
+
+    const { default: TeamPage } = await import("@/app/national-teams/team/[id]/page");
+    render(
+      await TeamPage({
+        params: Promise.resolve({ id: "770" }),
+        searchParams: Promise.resolve({ kilpailu: "WC", kausi: "2026" }),
+      })
+    );
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Englanti");
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent("England –");
   });
 });
