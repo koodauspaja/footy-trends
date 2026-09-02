@@ -1,17 +1,34 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Domestic team match list (Veikkausliiga)", () => {
-  test("a bare team URL shows the team's own competition and season", async ({ page }) => {
+  test("a bare team URL renders the team, not the region's default competition", async ({
+    page,
+  }) => {
+    // Deliberately not "the same heading as the parameterised URL": a correct
+    // resolver renders a *different* competition whenever the team's newest
+    // match is one — a Suomen Cup tie, say. Which competition it picks is
+    // verified against fixtures in tests/integration/team-context.test.ts; what
+    // e2e can prove is that the bare URL is a working team page rather than the
+    // Veikkausliiga not-found it used to be.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M2");
+    const teamName = await page
+      .locator("table tbody tr")
+      .first()
+      .getByRole("link")
+      .first()
+      .textContent();
     await page.locator("table tbody tr").first().getByRole("link").first().click();
     await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
 
-    const heading = await page.getByRole("heading", { level: 1 }).textContent();
     const bare = new URL(page.url()).pathname;
     await page.goto(bare);
 
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading ?? "");
+    await expect(page).toHaveURL(bare);
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading).toContainText(teamName ?? "");
+    await expect(heading).not.toContainText("Veikkausliiga");
     await expect(page.getByRole("table")).toBeVisible();
+    await expect(page.locator("main").getByText("Joukkuetta ei löytynyt.")).toHaveCount(0);
   });
 
   test("an unknown team id shows the reduced not-found page", async ({ page }) => {

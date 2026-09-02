@@ -16,23 +16,32 @@ test.describe("Team match list", () => {
     await expect(page.getByRole("columnheader", { name: "Pvm" })).toBeVisible();
   });
 
-  test("a bare team URL shows the team's own competition, not the region's default", async ({
+  test("a bare team URL renders the team, not the region's default competition", async ({
     page,
   }) => {
     // Reached by navigation rather than a hardcoded id, then stripped of its
     // parameters: before specs/020 the bare URL meant "Valioliiga, active
     // season", which served 20 of 315 stored team ids.
+    //
+    // It deliberately does not require the same heading as the parameterised
+    // page: a Bundesliga club whose newest stored match is a Champions League
+    // one should render that instead, and a test demanding otherwise would fail
+    // on correct behaviour. The choice itself is verified against fixtures in
+    // tests/integration/team-context.test.ts.
     await page.goto("/ulkomaat/sarjataulukko?kilpailu=BL1");
-    await page.locator("table tbody tr").first().getByRole("link").first().click();
+    const firstTeam = page.locator("table tbody tr").first().getByRole("link").first();
+    const teamName = await firstTeam.textContent();
+    await firstTeam.click();
     await expect(page).toHaveURL(/\/ulkomaat\/joukkue\/\d+/);
 
-    const heading = await page.getByRole("heading", { level: 1 }).textContent();
     const bare = new URL(page.url()).pathname;
     await page.goto(bare);
 
     await expect(page).toHaveURL(bare);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading ?? "");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Bundesliga");
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading).toContainText(teamName ?? "");
+    await expect(heading).not.toContainText("Valioliiga");
+    await expect(page.getByRole("table")).toBeVisible();
   });
 
   test("a season alone resolves the competition of that season's matches", async ({ page }) => {

@@ -129,6 +129,24 @@ shown. Rewritten in both resolvers to state what actually happens.
 Sonar found the same two lines from the other side — an `x !== undefined && x.y`
 that reads better as `x?.y` — so the rewritten fallbacks use optional chaining.
 
+## The second review round: an e2e test that passed for the wrong reason
+
+Both new e2e tests captured the heading from the *parameterised* team page and
+demanded the bare URL render it identically. That is not the rule. A correct
+resolver renders a different competition whenever the team's newest stored match
+belongs to one — a Suomen Cup tie, a Champions League night — so the tests would
+have failed on correct behaviour the moment the data shifted. They passed only
+because today's Bundesliga and Kakkonen seasons happen to run later than those
+teams' cup matches.
+
+Rewritten to assert what e2e can actually prove without hardcoding ids that may
+not exist in another database: the URL stays bare, the heading names the team,
+a match table renders, and the heading is **not** the region's default
+competition — which is the regression this feature exists to fix. Which
+competition is chosen is verified against fixtures in
+`tests/integration/team-context.test.ts`, where a fixed newest match can be
+inserted and asserted exactly.
+
 ## Smaller calls
 
 - **Page tests mock `@/lib/team-context`, not `@/lib/team-page-context`.**
