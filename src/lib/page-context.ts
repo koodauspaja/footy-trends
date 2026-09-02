@@ -87,12 +87,10 @@ export async function resolveBasePageContext(
   if (context === null) return { status: "error", competitionName };
 
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
-  // As in the domestic resolver: a team's own season fills a gap, it does not
-  // override an invalid value's fallback.
+  // As in the domestic resolver: the team's own season stands in wherever
+  // `kausi` does not decide, and an invalid one keeps its notice either way.
   const seasonFallback =
-    defaults !== undefined && defaults.competitionCode === competitionCode
-      ? defaults.seasonId
-      : context.activeSeasonId;
+    defaults?.competitionCode === competitionCode ? defaults.seasonId : context.activeSeasonId;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 

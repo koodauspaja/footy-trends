@@ -100,6 +100,35 @@ server before touching the resolver: `/ulkomaat/joukkue/5?kausi=2024` renders
 `FC Bayern München – Bundesliga 2024/25`. The test gained the `toHaveURL` wait
 the test above it already had.
 
+## What the first review round found
+
+Three findings, all taken.
+
+**A database error was being answered with the wrong competition.** When the
+unfiltered lookup succeeded and the filtered one failed, `resolveTeamDefaults`
+fell back to the unfiltered context — rendering some other competition's page as
+though it were the answer, and hiding a transient failure. Both the narrowed
+lookup and the season-dropping retry now propagate `error`, which the pages
+already render as their existing error state. The distinction the fallback path
+exists for is `not_found`, and only that.
+
+**`seasonCandidate` accepted numbers that are not numbers.** `/^\d+$/` passes
+three hundred digits, which `Number` turns into `Infinity`, which reaches an
+integer comparison and makes Postgres throw — an error state where a Finnish
+notice belongs. It now requires `Number.isSafeInteger`. Checked for the same
+shape elsewhere while fixing it: the other two season parsers compare against a
+list of selectable seasons, so an unusable value fails that check and gets its
+notice; the team and match id parsers already require `Number.isInteger`, which
+`Infinity` fails. This was the only one.
+
+**A comment that had become the opposite of the code.** It said an invalid
+`kausi` falls back to the competition's default; after this change it falls back
+to the team's own season whenever the resolved competition is the one being
+shown. Rewritten in both resolvers to state what actually happens.
+
+Sonar found the same two lines from the other side — an `x !== undefined && x.y`
+that reads better as `x?.y` — so the rewritten fallbacks use optional chaining.
+
 ## Smaller calls
 
 - **Page tests mock `@/lib/team-context`, not `@/lib/team-page-context`.**

@@ -108,12 +108,12 @@ export async function resolveDomesticPageContext(
     earliestSeasonFor(competitionCode)
   );
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
-  // A team's own season only stands in for a missing one. An invalid `kausi`
-  // keeps its notice and the competition's default, as it always has.
+  // A team's own season stands in wherever `kausi` does not decide — absent or
+  // invalid alike. An invalid one still gets its notice; what it falls back to
+  // is the team's own season when the resolved competition is the one being
+  // shown, and the competition's default otherwise.
   const seasonFallback =
-    defaults !== undefined && defaults.competitionCode === competitionCode
-      ? defaults.seasonId
-      : defaultSeason;
+    defaults?.competitionCode === competitionCode ? defaults.seasonId : defaultSeason;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdForSeason(competitionCode, seasonId);

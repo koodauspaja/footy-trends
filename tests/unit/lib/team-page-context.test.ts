@@ -31,6 +31,15 @@ describe("seasonCandidate", () => {
     expect(seasonCandidate("-1")).toBeUndefined();
     expect(seasonCandidate(["2019", "2020"])).toBeUndefined();
   });
+
+  it("rejects a number too large to be a season, rather than filtering on Infinity", async () => {
+    // Three hundred digits parse to `Infinity`, which Postgres rejects when it
+    // reaches an integer comparison — an error where a notice belongs.
+    const { seasonCandidate } = await load();
+
+    expect(seasonCandidate("9".repeat(300))).toBeUndefined();
+    expect(seasonCandidate(String(Number.MAX_SAFE_INTEGER + 2))).toBeUndefined();
+  });
 });
 
 describe("resolveTeamDefaults", () => {
@@ -129,7 +138,28 @@ describe("resolveTeamDefaults", () => {
     expect(getTeamContextMock).toHaveBeenLastCalledWith(SOURCE, 60496, { competitionCode: "VL" });
   });
 
-  it("falls back to the newest match when even the narrowed retry finds nothing", async () => {
+  it("falls back to the newest match when the narrowed retry finds nothing", async () => {
+    getTeamContextMock
+      .mockResolvedValueOnce(NEWEST)
+      .mockResolvedValueOnce({ status: "not_found" })
+      .mockResolvedValueOnce({ status: "not_found" });
+    const { resolveTeamDefaults } = await load();
+
+    expect(
+      await resolveTeamDefaults(SOURCE, 60496, { competitionCode: "VL", seasonId: 1999 })
+    ).toEqual({ status: "ok", defaults: { competitionCode: "M2", seasonId: 2026 } });
+  });
+
+  it("propagates an error from the narrowed lookup rather than answering with another competition", async () => {
+    getTeamContextMock.mockResolvedValueOnce(NEWEST).mockResolvedValueOnce({ status: "error" });
+    const { resolveTeamDefaults } = await load();
+
+    expect(await resolveTeamDefaults(SOURCE, 60496, { competitionCode: "VL" })).toEqual({
+      status: "error",
+    });
+  });
+
+  it("propagates an error from the season-dropping retry too", async () => {
     getTeamContextMock
       .mockResolvedValueOnce(NEWEST)
       .mockResolvedValueOnce({ status: "not_found" })
@@ -138,6 +168,6 @@ describe("resolveTeamDefaults", () => {
 
     expect(
       await resolveTeamDefaults(SOURCE, 60496, { competitionCode: "VL", seasonId: 1999 })
-    ).toEqual({ status: "ok", defaults: { competitionCode: "M2", seasonId: 2026 } });
+    ).toEqual({ status: "error" });
   });
 });

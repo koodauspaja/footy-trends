@@ -27,7 +27,12 @@ const POSITIVE_INTEGER = /^\d+$/;
  */
 export function seasonCandidate(rawValue: string | string[] | undefined): number | undefined {
   if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return undefined;
-  return Number(rawValue);
+  const seasonId = Number(rawValue);
+  // Digits alone are not enough: three hundred of them parse to `Infinity`,
+  // which is not a season and which Postgres rejects outright when it reaches
+  // an integer comparison. An unusable value is no filter at all, and the
+  // page's own validation still gives it the Finnish notice.
+  return Number.isSafeInteger(seasonId) ? seasonId : undefined;
 }
 
 /**
@@ -57,6 +62,9 @@ export async function resolveTeamDefaults(
 
   const narrowed = await getTeamContext(source, teamProviderId, filter);
   if (narrowed.status === "ok") return { status: "ok", defaults: narrowed.context };
+  // A database that could not answer is not a team that did not play: falling
+  // back here would render some other competition as though it were the answer.
+  if (narrowed.status === "error") return narrowed;
 
   if (filter.seasonId === undefined) {
     // Only a competition filter, and the team never played it. The page renders
@@ -69,6 +77,7 @@ export async function resolveTeamDefaults(
     teamProviderId,
     filter.competitionCode === undefined ? {} : { competitionCode: filter.competitionCode }
   );
+  if (withoutSeason.status === "error") return withoutSeason;
   return {
     status: "ok",
     defaults: withoutSeason.status === "ok" ? withoutSeason.context : anyMatch.context,
