@@ -31,6 +31,23 @@ const LEGACY = [
   ["/ulkomaat/team/57", "/ulkomaat/joukkue/57"],
 ] as const;
 
+/**
+ * The match pages added in specs/019, on both spellings. `/maajoukkueet` has
+ * two shapes because it is fed by two providers — see that spec.
+ */
+const MATCH_PAGES = [
+  ["/domestic/match/4036979", "/kotimaa/ottelu/4036979"],
+  ["/kotimaa/match/4036979", "/kotimaa/ottelu/4036979"],
+  ["/foreign/match/497001", "/ulkomaat/ottelu/497001"],
+  ["/ulkomaat/match/497001", "/ulkomaat/ottelu/497001"],
+  ["/national-teams/match/537430", "/maajoukkueet/ottelu/537430"],
+  ["/maajoukkueet/match/537430", "/maajoukkueet/ottelu/537430"],
+  ["/national-teams/mens-team/match/4296364", "/maajoukkueet/huuhkajat/ottelu/4296364"],
+  ["/maajoukkueet/huuhkajat/match/4296364", "/maajoukkueet/huuhkajat/ottelu/4296364"],
+  ["/national-teams/womens-team/match/4296364", "/maajoukkueet/helmarit/ottelu/4296364"],
+  ["/maajoukkueet/helmarit/match/4296364", "/maajoukkueet/helmarit/ottelu/4296364"],
+] as const;
+
 const ENGLISH = [
   ["/domestic", "/kotimaa"],
   ["/domestic/standings", "/kotimaa/sarjataulukko"],
@@ -43,7 +60,7 @@ const ENGLISH = [
 ] as const;
 
 test.describe("URL redirects", () => {
-  for (const [from, to] of [...MOVED, ...LEGACY, ...ENGLISH]) {
+  for (const [from, to] of [...MOVED, ...LEGACY, ...ENGLISH, ...MATCH_PAGES]) {
     test(`${from} redirects to ${to}`, async ({ request }) => {
       const response = await request.get(from, { maxRedirects: 0 });
 

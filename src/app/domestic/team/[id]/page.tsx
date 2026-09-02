@@ -133,6 +133,7 @@ export default async function DomesticTeamPage({
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (
         <MatchListTable
+          matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
           matches={result.matches}
           teamHref={null}
           fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}

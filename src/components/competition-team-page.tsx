@@ -159,6 +159,7 @@ export async function CompetitionTeamPage({
       {result.status === "ok" && (
         <MatchListTable
           matches={result.matches}
+          matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
           teamHref={null}
           fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
         />

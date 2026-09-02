@@ -1,0 +1,2 @@
+CREATE INDEX "matches_head_to_head_idx" ON "matches" USING btree ("home_team_provider_id","away_team_provider_id");--> statement-breakpoint
+CREATE INDEX "taso_matches_head_to_head_idx" ON "taso_matches" USING btree ("home_team_provider_id","away_team_provider_id");

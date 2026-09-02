@@ -90,12 +90,19 @@ function GroupBody({
   // every row. A league's playoff group can span rounds, so it keeps the
   // column (specs/010-playoff-group-match-list.md).
   if (isCup) {
-    return <MatchListTable matches={group.matches} teamHref={teamHref} />;
+    return (
+      <MatchListTable
+        matches={group.matches}
+        matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
+        teamHref={teamHref}
+      />
+    );
   }
 
   return (
     <MatchListTable
       matches={group.matches}
+      matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
       teamHref={teamHref}
       fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "–" }}
     />

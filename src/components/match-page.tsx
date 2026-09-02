@@ -1,0 +1,354 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
+import { PageShell } from "@/components/page-shell";
+import { getCompetitionName } from "@/lib/competitions";
+import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
+import {
+  competitionCodeForCategory,
+  getDomesticCompetitionName,
+  isDomesticCup,
+} from "@/lib/domestic-competitions";
+import { getSeasonContext } from "@/lib/football-data";
+import { headToHeadWindow, headToHeadWindowSentence } from "@/lib/head-to-head";
+import { logger } from "@/lib/logger";
+import {
+  declaredWinnerSide,
+  formatKickoff,
+  formatScore,
+  matchContextLines,
+  teamDisplayName,
+} from "@/lib/match-detail";
+import {
+  type FootballDataMatchRow,
+  getMatchPageData,
+  type HeadToHeadResult,
+  type StoredMatch,
+  type TasoMatchRow,
+} from "@/lib/match-service";
+import type { MatchSource } from "@/lib/match-source";
+import { competitionLabel, MENS_TEAM, type NationalTeam, WOMENS_TEAM } from "@/lib/national-team";
+import { formatSeasonLabel } from "@/lib/seasons";
+import { getSeasonCategoryNameMap } from "@/lib/taso-standings-service";
+
+const MATCH_HEADING = "Ottelu";
+const NOT_FOUND_MESSAGE = "Ottelua ei löytynyt.";
+const ERROR_MESSAGE = "Ottelun lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
+const HEAD_TO_HEAD_HEADING = "Aiemmat kohtaamiset";
+const HEAD_TO_HEAD_EMPTY = "Aiempia kohtaamisia ei löytynyt.";
+const HEAD_TO_HEAD_ERROR = "Aiempien kohtaamisten lataaminen epäonnistui.";
+const HEAD_TO_HEAD_UNAVAILABLE =
+  "Aiempia kohtaamisia ei voida näyttää, koska toista joukkuetta ei tunnisteta.";
+
+/** What a route file supplies to make this page its own. */
+export type MatchPageOptions = {
+  params: Promise<{ id: string }>;
+  /** Which table the id resolves against, and under what predicate. See specs/019. */
+  source: MatchSource;
+  /** This route's own prefix, so a head-to-head row links back into it. */
+  basePath: string;
+  /**
+   * Where a team name links, or `null` where no team page exists.
+   *
+   * Null on the two national-team routes: neither Finland nor its opponents have
+   * a page under `/maajoukkueet`, and #71 asks for a link to a team's *existing*
+   * page. #246 is what would change that.
+   */
+  teamBasePath: string | null;
+  /** Set on the two TASO national-team routes, which name their competition through it. */
+  nationalTeam?: NationalTeam;
+};
+
+/** Everything the markup needs, with every provider difference already resolved. */
+type MatchView = {
+  homeName: string;
+  awayName: string;
+  homeHref: string | null;
+  awayHref: string | null;
+  kickoff: string;
+  contextLines: string[];
+  score: string;
+  winnerSide: "home" | "away" | null;
+  windowSentence: string;
+  /** `Kilpailu` for football-data rows, `Sarja` for TASO's own series name. */
+  headToHeadHeader: string;
+  headToHeadRows: MatchListRow[];
+  /** The competition or series each head-to-head row is labelled with. */
+  headToHeadLabels: Map<number, string>;
+  title: string;
+};
+
+/**
+ * Whether this competition's seasons cross a calendar year, for the season label.
+ *
+ * `null` when the provider cannot be reached: the match is the page, and the
+ * season then shows as its bare start year rather than taking the whole page
+ * down for a missing slash.
+ */
+async function resolveSpansCalendarYears(competitionCode: string): Promise<boolean | null> {
+  try {
+    return (await getSeasonContext(competitionCode)).spansCalendarYears;
+  } catch (error) {
+    logger.error({ err: error, competitionCode }, "Unable to resolve the season label");
+    return null;
+  }
+}
+
+/**
+ * The competition a national-team match belonged to, as TASO names it.
+ *
+ * The name is not stored — `taso_matches` keeps the category id, and the id is
+ * not a Finnish label — so this reads the same cached category map the
+ * Huuhkajat and Helmarit pages already read, and applies the same
+ * suffix-stripping. `null` on failure: the match still renders, one line
+ * shorter.
+ */
+async function resolveNationalCompetitionName(
+  team: NationalTeam,
+  match: TasoMatchRow
+): Promise<string | null> {
+  try {
+    const names = await getSeasonCategoryNameMap(
+      match.competitionCode,
+      match.seasonId,
+      match.seasonId
+    );
+    const categoryName = names[match.categoryId];
+    if (categoryName === undefined) return null;
+    // The route names a team, but a hand-typed id can point at the other one's
+    // category — and stripping the wrong suffix would leave "… Huuhkajat" on
+    // the Helmarit page. The suffix the name actually carries wins.
+    const owner = [MENS_TEAM, WOMENS_TEAM].find((candidate) =>
+      categoryName.endsWith(candidate.categorySuffix)
+    );
+    return competitionLabel(owner ?? team, categoryName);
+  } catch (error) {
+    logger.error(
+      { err: error, competitionId: match.competitionCode, categoryId: match.categoryId },
+      "Unable to name a national-team competition"
+    );
+    return null;
+  }
+}
+
+function headToHeadRowsOf(result: HeadToHeadResult): Array<FootballDataMatchRow | TasoMatchRow> {
+  return result.status === "ok" ? result.matches : [];
+}
+
+/** The football-data half of the view: `/ulkomaat` and `/maajoukkueet`'s WC and EC. */
+async function footballDataView(
+  match: FootballDataMatchRow,
+  headToHead: HeadToHeadResult,
+  options: MatchPageOptions
+): Promise<MatchView> {
+  const spans = await resolveSpansCalendarYears(match.competitionCode);
+  const competitionName = getCompetitionName(match.competitionCode);
+  const seasonLabel =
+    spans === null ? String(match.seasonId) : formatSeasonLabel(match.seasonId, spans);
+
+  const localise =
+    options.source.kind === "football-data" && options.source.region === "national-teams";
+  const [localised = match] = localise ? toFinnishTeamNames([match]) : [match];
+  const rows = headToHeadRowsOf(headToHead) as FootballDataMatchRow[];
+  const localisedRows = localise ? toFinnishTeamNames(rows) : rows;
+
+  const teamHref = (teamProviderId: number) =>
+    options.teamBasePath === null
+      ? null
+      : `${options.teamBasePath}/joukkue/${teamProviderId}?kilpailu=${match.competitionCode}&kausi=${match.seasonId}`;
+
+  return {
+    homeName: teamDisplayName(localised.homeTeamProviderId, localised.homeTeamName),
+    awayName: teamDisplayName(localised.awayTeamProviderId, localised.awayTeamName),
+    homeHref: teamHref(match.homeTeamProviderId),
+    awayHref: teamHref(match.awayTeamProviderId),
+    kickoff: formatKickoff(match.kickoffAt),
+    contextLines: matchContextLines({
+      source: "football-data",
+      competitionLabel: `${competitionName} ${seasonLabel}`,
+      matchday: match.matchday,
+      stage: match.stage,
+      groupName: match.groupName,
+    }),
+    score: formatScore(match),
+    winnerSide: null,
+    windowSentence: headToHeadWindowSentence(
+      headToHeadWindow(options.source, match, spans ?? true)
+    ),
+    headToHeadHeader: "Kilpailu",
+    headToHeadRows: localisedRows,
+    headToHeadLabels: new Map(
+      localisedRows.map((row) => [row.providerMatchId, getCompetitionName(row.competitionCode)])
+    ),
+    title: `${localised.homeTeamName} – ${localised.awayTeamName}, ${competitionName} ${seasonLabel}`,
+  };
+}
+
+/** The TASO half: `/kotimaa`, and the two national-team routes. */
+async function tasoView(
+  match: TasoMatchRow,
+  headToHead: HeadToHeadResult,
+  options: MatchPageOptions
+): Promise<MatchView> {
+  const national = options.nationalTeam;
+  const rows = headToHeadRowsOf(headToHead) as TasoMatchRow[];
+  const [localised = match] = national === undefined ? [match] : toFinnishTasoTeamNames([match]);
+  const localisedRows = national === undefined ? rows : toFinnishTasoTeamNames(rows);
+
+  const domesticCode = competitionCodeForCategory(match.categoryId);
+  const competitionName =
+    national === undefined
+      ? domesticCode === null
+        ? null
+        : getDomesticCompetitionName(domesticCode)
+      : await resolveNationalCompetitionName(national, match);
+  const season = national === undefined ? match.seasonId : match.kickoffAt.getUTCFullYear();
+
+  const teamHref = (teamProviderId: number) =>
+    options.teamBasePath === null || domesticCode === null
+      ? null
+      : `${options.teamBasePath}/joukkue/${teamProviderId}?kilpailu=${domesticCode}&kausi=${match.seasonId}`;
+
+  return {
+    homeName: teamDisplayName(localised.homeTeamProviderId, localised.homeTeamName),
+    awayName: teamDisplayName(localised.awayTeamProviderId, localised.awayTeamName),
+    homeHref: teamHref(match.homeTeamProviderId),
+    awayHref: teamHref(match.awayTeamProviderId),
+    kickoff: formatKickoff(match.kickoffAt),
+    contextLines: matchContextLines({
+      source: "taso",
+      competitionLabel: competitionName === null ? null : `${competitionName} ${season}`,
+      matchday: match.matchday,
+      seriesName: match.groupName,
+      // A national-team round is a real round; a Finnish cup round is the
+      // series name itself. See `roundLine`.
+      isCup: national === undefined && domesticCode !== null && isDomesticCup(domesticCode),
+    }),
+    score: formatScore(match),
+    winnerSide: declaredWinnerSide(match, match.winner),
+    windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, match, false)),
+    headToHeadHeader: "Sarja",
+    headToHeadRows: localisedRows,
+    headToHeadLabels: new Map(localisedRows.map((row) => [row.providerMatchId, row.groupName])),
+    title: `${localised.homeTeamName} – ${localised.awayTeamName}${
+      competitionName === null ? "" : `, ${competitionName} ${season}`
+    }`,
+  };
+}
+
+function buildView(
+  stored: StoredMatch,
+  headToHead: HeadToHeadResult,
+  options: MatchPageOptions
+): Promise<MatchView> {
+  return stored.source === "football-data"
+    ? footballDataView(stored.match, headToHead, options)
+    : tasoView(stored.match, headToHead, options);
+}
+
+/**
+ * The id is the *provider's* match id, as every team link on the site uses the
+ * provider's team id — the value that survives a re-sync. A non-numeric id
+ * never reaches a query.
+ */
+async function resolve(options: MatchPageOptions) {
+  const { id } = await options.params;
+  const providerMatchId = Number(id);
+  if (!Number.isInteger(providerMatchId)) return { status: "not_found" } as const;
+
+  const data = await getMatchPageData(options.source, providerMatchId);
+  if (data.status !== "ok") return data;
+  return {
+    status: "ok" as const,
+    data,
+    view: await buildView(data.match, data.headToHead, options),
+  };
+}
+
+export async function matchMetadata(options: MatchPageOptions): Promise<Metadata> {
+  const resolved = await resolve(options);
+  return { title: resolved.status === "ok" ? resolved.view.title : NOT_FOUND_MESSAGE };
+}
+
+function TeamName({
+  name,
+  href,
+  isWinner,
+}: Readonly<{ name: string; href: string | null; isWinner: boolean }>) {
+  const className = isWinner ? "font-semibold" : undefined;
+  if (href === null) return <span className={className}>{name}</span>;
+  return (
+    <Link className={`hover:underline ${className ?? ""}`.trim()} href={href}>
+      {name}
+    </Link>
+  );
+}
+
+function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: string }>) {
+  return (
+    <section>
+      <h2 className="mb-2 font-semibold text-xl">{HEAD_TO_HEAD_HEADING}</h2>
+      <p className="mb-4 text-sm text-zinc-600">{view.windowSentence}</p>
+      {view.headToHeadRows.length === 0 ? (
+        <p>{HEAD_TO_HEAD_EMPTY}</p>
+      ) : (
+        <MatchListTable
+          matches={view.headToHeadRows}
+          teamHref={null}
+          matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
+          fourthColumn={{
+            header: view.headToHeadHeader,
+            render: (match) => view.headToHeadLabels.get(match.providerMatchId) ?? "",
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+/**
+ * One match, in whichever region it was reached from.
+ *
+ * Five routes share this body — see specs/019-match-page.md for why
+ * `/maajoukkueet` needs two of them. A not-found renders inside the normal page
+ * shell rather than as a 404, which is what the team pages already do.
+ */
+export async function MatchPage(options: Readonly<MatchPageOptions>) {
+  const resolved = await resolve(options);
+
+  // A page with no match has nothing to name in its heading, and repeating the
+  // message there would state it twice. The team pages head their own
+  // not-found with the competition; this is the equivalent.
+  if (resolved.status !== "ok") {
+    return (
+      <PageShell heading={MATCH_HEADING}>
+        <p>{resolved.status === "not_found" ? NOT_FOUND_MESSAGE : ERROR_MESSAGE}</p>
+      </PageShell>
+    );
+  }
+
+  const { view, data } = resolved;
+
+  return (
+    <PageShell heading={`${view.homeName} – ${view.awayName}`}>
+      {/* A scoreboard rather than a repeat of the heading: the names sit either
+          side of the score, and carry the links a heading string cannot. */}
+      <p className="mb-3 text-2xl">
+        <TeamName href={view.homeHref} isWinner={view.winnerSide === "home"} name={view.homeName} />
+        <span className="mx-3 font-semibold">{view.score}</span>
+        <TeamName href={view.awayHref} isWinner={view.winnerSide === "away"} name={view.awayName} />
+      </p>
+      <p className="mb-1 text-sm text-zinc-600">{view.kickoff}</p>
+      {view.contextLines.map((line) => (
+        <p className="text-sm text-zinc-600" key={line}>
+          {line}
+        </p>
+      ))}
+      <div className="mt-10">
+        {data.headToHead.status === "error" && <p>{HEAD_TO_HEAD_ERROR}</p>}
+        {data.headToHead.status === "unavailable" && <p>{HEAD_TO_HEAD_UNAVAILABLE}</p>}
+        {data.headToHead.status === "ok" && <HeadToHead basePath={options.basePath} view={view} />}
+      </div>
+    </PageShell>
+  );
+}

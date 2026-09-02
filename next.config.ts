@@ -9,18 +9,33 @@ const nextConfig: NextConfig = {
     return [
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
+      { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
       { source: "/kotimaa/ottelut", destination: "/domestic/matches" },
       { source: "/kotimaa/sarjataulukko", destination: "/domestic/standings" },
       { source: "/ulkomaat", destination: "/foreign" },
       { source: "/ulkomaat/joukkue/:id", destination: "/foreign/team/:id" },
+      { source: "/ulkomaat/ottelu/:id", destination: "/foreign/match/:id" },
       { source: "/ulkomaat/ottelut", destination: "/foreign/matches" },
       { source: "/ulkomaat/sarjataulukko", destination: "/foreign/standings" },
       { source: "/maajoukkueet", destination: "/national-teams" },
       { source: "/maajoukkueet/joukkue/:id", destination: "/national-teams/team/:id" },
+      { source: "/maajoukkueet/ottelu/:id", destination: "/national-teams/match/:id" },
       { source: "/maajoukkueet/ottelut", destination: "/national-teams/matches" },
       { source: "/maajoukkueet/sarjataulukko", destination: "/national-teams/standings" },
       { source: "/maajoukkueet/huuhkajat", destination: "/national-teams/mens-team" },
       { source: "/maajoukkueet/helmarit", destination: "/national-teams/womens-team" },
+      // The two national teams are TASO's, not football-data's, so their
+      // matches cannot share `/maajoukkueet/ottelu/:id` — the id spaces are
+      // independent and 317 ids already exist in both tables. See
+      // specs/019-match-page.md.
+      {
+        source: "/maajoukkueet/huuhkajat/ottelu/:id",
+        destination: "/national-teams/mens-team/match/:id",
+      },
+      {
+        source: "/maajoukkueet/helmarit/ottelu/:id",
+        destination: "/national-teams/womens-team/match/:id",
+      },
     ];
   },
 
@@ -61,6 +76,42 @@ const nextConfig: NextConfig = {
       { source: "/domestic/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
       { source: "/domestic/matches", destination: "/kotimaa/ottelut", permanent: true },
       { source: "/domestic/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
+      // The match pages added in specs/019, closed on both spellings like
+      // every URL above them.
+      { source: "/domestic/match/:id", destination: "/kotimaa/ottelu/:id", permanent: true },
+      { source: "/kotimaa/match/:id", destination: "/kotimaa/ottelu/:id", permanent: true },
+      { source: "/foreign/match/:id", destination: "/ulkomaat/ottelu/:id", permanent: true },
+      { source: "/ulkomaat/match/:id", destination: "/ulkomaat/ottelu/:id", permanent: true },
+      {
+        source: "/national-teams/match/:id",
+        destination: "/maajoukkueet/ottelu/:id",
+        permanent: true,
+      },
+      {
+        source: "/maajoukkueet/match/:id",
+        destination: "/maajoukkueet/ottelu/:id",
+        permanent: true,
+      },
+      {
+        source: "/national-teams/mens-team/match/:id",
+        destination: "/maajoukkueet/huuhkajat/ottelu/:id",
+        permanent: true,
+      },
+      {
+        source: "/maajoukkueet/huuhkajat/match/:id",
+        destination: "/maajoukkueet/huuhkajat/ottelu/:id",
+        permanent: true,
+      },
+      {
+        source: "/national-teams/womens-team/match/:id",
+        destination: "/maajoukkueet/helmarit/ottelu/:id",
+        permanent: true,
+      },
+      {
+        source: "/maajoukkueet/helmarit/match/:id",
+        destination: "/maajoukkueet/helmarit/ottelu/:id",
+        permanent: true,
+      },
       // The same shape for the third region, added in specs/016.
       {
         source: "/maajoukkueet/standings",
