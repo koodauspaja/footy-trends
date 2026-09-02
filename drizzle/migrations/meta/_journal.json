@@ -64,6 +64,13 @@
       "when": 1788360666489,
       "tag": "0008_add_head_to_head_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788364498739,
+      "tag": "0009_add_away_team_indexes",
+      "breakpoints": true
     }
   ]
 }

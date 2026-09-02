@@ -185,6 +185,22 @@ export function categoryIdsFor(code: string): string[] {
 }
 
 /**
+ * Every `category_id` any competition in the picker has ever been published
+ * under.
+ *
+ * The set a stored row must belong to for the site to be able to *show* it: the
+ * registry is hand-maintained while TASO publishes more categories than it
+ * lists — 28 in `spljp26` against the picker's 20 — so a row can carry a
+ * category with no page behind it. Used to skip such a row when resolving a
+ * team's own context. See specs/020-context-free-team-page.md.
+ */
+export function allDomesticCategoryIds(): string[] {
+  return DOMESTIC_COMPETITIONS.flatMap((competition) =>
+    competition.categories.map((category) => category.categoryId)
+  );
+}
+
+/**
  * Which competition a stored `category_id` belongs to, or `null` if none claims
  * it.
  *

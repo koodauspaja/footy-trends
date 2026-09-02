@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
+import type { TeamContextResult } from "@/lib/team-context";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
@@ -31,6 +32,28 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });
+
+const TEAM_CONTEXT_COMPETITION = "VL";
+const TEAM_CONTEXT_SEASON = 2026;
+/** The team exists, in the competition these tests already assume. */
+async function defaultTeamContext(
+  _source: unknown,
+  teamProviderId: number
+): Promise<TeamContextResult> {
+  return Number.isInteger(teamProviderId) && teamProviderId !== 0
+    ? {
+        status: "ok" as const,
+        context: { competitionCode: TEAM_CONTEXT_COMPETITION, seasonId: TEAM_CONTEXT_SEASON },
+      }
+    : { status: "not_found" as const };
+}
+
+const getTeamContextMock = vi.fn(defaultTeamContext);
+
+// The team's own newest stored context, which the page resolves before it knows
+// which competition to ask about. Mocked at the database boundary, so
+// `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -74,6 +97,7 @@ async function renderTeam(
 describe("Domestic team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
   });
 
@@ -116,10 +140,71 @@ describe("Domestic team page", () => {
     expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
   });
 
-  it("shows the not-found message for a non-numeric id, without calling getTeamMatches", async () => {
+  it("shows the team's own competition and season when the URL names neither", async () => {
+    // Before this, a bare URL meant "Veikkausliiga, current season", which
+    // served 12 of 1,315 stored Finnish team ids. See specs/020.
+    getTeamContextMock.mockResolvedValue({
+      status: "ok",
+      context: { competitionCode: "M2", seasonId: 2019 },
+    });
+
+    await renderTeam("60496");
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2019"
+    );
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("M2", "spljp19", 60496, 2019, 2026);
+  });
+
+  it("keeps an explicit competition and season exactly as they are", async () => {
+    getTeamContextMock.mockResolvedValue({
+      status: "ok",
+      context: { competitionCode: "M2", seasonId: 2019 },
+    });
+
+    await renderTeam("60496", { kilpailu: "VL", kausi: "2020" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2020"
+    );
+  });
+
+  it("fills in the season from the team's newest match in a competition the URL names", async () => {
+    getTeamContextMock.mockResolvedValue({
+      status: "ok",
+      context: { competitionCode: "M1", seasonId: 2018 },
+    });
+
+    await renderTeam("60496", { kilpailu: "M1" });
+
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/kotimaa/sarjataulukko?kilpailu=M1&kausi=2018"
+    );
+  });
+
+  it("shows the error state rather than an unknown team when the lookup fails", async () => {
+    getTeamContextMock.mockResolvedValue({ status: "error" });
+
+    await renderTeam("60496");
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
+  it("shows the reduced not-found page for a non-numeric id, without calling getTeamMatches", async () => {
     await renderTeam("not-a-number");
 
+    // No competition to name, so no season selector and no standings link: the
+    // page used to offer both for Veikkausliiga. See specs/020.
+    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
     expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
   });
 
@@ -193,7 +278,21 @@ describe("Domestic team page", () => {
     ).toEqual({ title: "Veikkausliiga" });
   });
 
-  it("sets the tab title to just the competition name for a non-numeric id, without calling getTeamMatches", async () => {
+  it("titles the page after the section when the team lookup fails", async () => {
+    // Not the not-found message: a database that cannot be reached is not a
+    // team that does not exist.
+    getTeamContextMock.mockResolvedValue({ status: "error" });
+    const { generateMetadata } = await import("@/app/domestic/team/[id]/page");
+
+    expect(
+      await generateMetadata({
+        params: Promise.resolve({ id: "60496" }),
+        searchParams: Promise.resolve({}),
+      })
+    ).toEqual({ title: "Joukkue" });
+  });
+
+  it("titles a page with no team after the not-found message, without calling getTeamMatches", async () => {
     const { generateMetadata } = await import("@/app/domestic/team/[id]/page");
 
     expect(
@@ -201,7 +300,7 @@ describe("Domestic team page", () => {
         params: Promise.resolve({ id: "not-a-number" }),
         searchParams: Promise.resolve({}),
       })
-    ).toEqual({ title: "Veikkausliiga" });
+    ).toEqual({ title: "Joukkuetta ei löytynyt." });
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
   });
 
