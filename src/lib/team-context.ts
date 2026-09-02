@@ -19,7 +19,7 @@ import { isStoredInteger } from "./provider-ids";
  * A bare team URL already resolved before this existed — it meant "the region's
  * default competition, in its default season", which served 12 of 1,315 stored
  * Finnish team ids and 20 of 315 football-data ones. Everything else answered
- * "Joukkuetta ei löytynyt." on its own address. See
+ * the team-not-found message on its own address. See
  * specs/020-context-free-team-page.md.
  */
 export type TeamContext = { competitionCode: string; seasonId: number };

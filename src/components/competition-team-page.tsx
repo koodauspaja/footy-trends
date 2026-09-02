@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContextNotices } from "@/components/context-notices";
 import { MatchListTable } from "@/components/match-list-table";
-import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
-import { TeamSeasonMissing } from "@/components/team-season-missing";
+import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import { getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
 import { toFinnishTeamNames } from "@/lib/country-names";
@@ -20,14 +20,14 @@ import {
   getTeamName,
   getTeamSeasons,
   seasonCompetitions,
+  type TeamNameResult,
   type TeamSeasonsResult,
   teamSeasonsView,
 } from "@/lib/team-seasons";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
-const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const TEAM_HEADING = "Joukkue";
-const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
+const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 
 /** A team page's own `params`, on top of the shared region options. */
 export type CompetitionTeamPageOptions = CompetitionPageOptions & {
@@ -42,6 +42,8 @@ type PageContext =
       teamProviderId: number;
       result: TeamMatchesResult;
       teamName: string | null;
+      /** Whether the name lookup itself failed, which is an outage like any other. */
+      nameStatus: TeamNameResult["status"];
       /** Every competition and season this club has matches for. */
       seasons: TeamSeasonsResult;
     });
@@ -111,12 +113,14 @@ async function resolvePageContext(
   const source = { kind: "football-data", region } as const;
   const seasons = await getTeamSeasons(source, teamProviderId);
   // The club's own name, asked for only when there is no match to read it off.
-  const teamName =
+  // The club's own name, asked for only when there is no match to read it off.
+  const name: TeamNameResult =
     firstMatch === undefined
       ? await getTeamName(source, teamProviderId)
-      : nameForTeam(firstMatch, teamProviderId);
+      : { status: "ok", name: nameForTeam(firstMatch, teamProviderId) };
+  const teamName = name.status === "ok" ? name.name : null;
 
-  return { ...base, teamProviderId, result: localised, teamName, seasons };
+  return { ...base, teamProviderId, result: localised, teamName, nameStatus: name.status, seasons };
 }
 
 export async function teamMetadata({
@@ -179,6 +183,7 @@ export async function CompetitionTeamPage({
     seasonLabel,
     result,
     teamName,
+    nameStatus,
     seasons,
   } = resolved;
 
@@ -186,11 +191,17 @@ export async function CompetitionTeamPage({
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 
   const played = seasons.status === "ok" ? seasons.seasons : [];
+  // Either lookup failing is an outage, and neither is a club that does not exist.
+  const lookups = nameStatus === "error" ? "error" : seasons.status;
+
   const { offeredSeasons, sameSeason, newest } = teamSeasonsView(played, seasonId, {
     season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
     competition: getCompetitionName,
     href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
   });
+  // Everything the body needs, in one value: the two lookups' verdicts and
+  // where the club was instead.
+  const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   return (
     <PageShell heading={heading}>
@@ -202,12 +213,7 @@ export async function CompetitionTeamPage({
           Sarjataulukkoon
         </Link>
       </p>
-      {competitionParam.kind === "invalid" && (
-        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
-      )}
-      {season.kind === "invalid" && (
-        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
-      )}
+      <ContextNotices resolved={{ competitionParam, competitionName, season, seasonLabel }} />
       <TeamSeasonSelector
         basePath={basePath}
         competitionCode={competitionCode}
@@ -216,25 +222,19 @@ export async function CompetitionTeamPage({
         selectedSeasonId={seasonId}
         teamProviderId={teamProviderId}
       />
-      {/* A club that exists but played elsewhere is not an unknown club — and a
-          lookup that failed is neither, so it says so rather than either. */}
-      {result.status === "not_found" && played.length > 0 && (
-        <TeamSeasonMissing newest={newest} sameSeason={sameSeason} seasonLabel={seasonLabel} />
-      )}
-      {result.status === "not_found" && seasons.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {result.status === "not_found" && seasons.status === "not_found" && (
-        <p>{NOT_FOUND_MESSAGE}</p>
-      )}
-      {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
-      {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {result.status === "ok" && (
-        <MatchListTable
-          matches={result.matches}
-          matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
-          teamHref={null}
-          fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
-        />
-      )}
+      <TeamMatchesOutcome
+        outcome={outcome}
+        table={
+          result.status === "ok" ? (
+            <MatchListTable
+              fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
+              matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
+              matches={result.matches}
+              teamHref={null}
+            />
+          ) : null
+        }
+      />
     </PageShell>
   );
 }

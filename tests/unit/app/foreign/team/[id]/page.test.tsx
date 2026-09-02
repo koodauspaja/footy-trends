@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamSeasonsResult } from "@/lib/team-seasons";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
@@ -48,7 +48,7 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
  */
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
-const getTeamNameMock = vi.fn(async (): Promise<string | null> => null);
+const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
 vi.mock("@/lib/team-seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
@@ -148,7 +148,7 @@ describe("Team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue(null);
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
@@ -372,7 +372,7 @@ describe("Team page", () => {
   it("says where a relegated club played instead of calling it unknown", async () => {
     // Burnley: Premier League 2023, Championship 2024, back up in 2025.
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue("Burnley FC");
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "Burnley FC" });
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
       seasons: [
@@ -408,6 +408,26 @@ describe("Team page", () => {
       (option) => option.textContent
     );
     expect(options).toEqual(["2025/26", "2024/25"]);
+  });
+
+  it("shows the error state when the club's name could not be read", async () => {
+    // Seasons read fine, the name lookup did not: rendering the explanation
+    // with a blank where the club should be would hide an outage.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [{ competitionCode: "ELC", seasonId: 2024, matches: 46 }],
+    });
+    getTeamNameMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2024" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).not.toBeInTheDocument();
   });
 
   it("does not call a club unknown when its seasons could not be read", async () => {

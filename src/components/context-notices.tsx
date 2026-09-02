@@ -1,7 +1,19 @@
-import type { BasePageContext } from "@/lib/page-context";
 import { Notice } from "./notice";
 
-type ResolvedContext = Extract<BasePageContext, { status: "ok" }>;
+/**
+ * What the notices need, which is less than any page's whole context: the two
+ * parameter verdicts and what is being shown instead.
+ *
+ * Widened from `BasePageContext` so `/kotimaa`'s pages, whose context is a
+ * different type with the same three fields, stop carrying their own copy of
+ * this markup. See specs/022-teams-between-tiers.md.
+ */
+export type NoticeContext = {
+  competitionParam: { kind: "absent" | "valid" | "invalid" };
+  competitionName: string;
+  season: { kind: "absent" | "valid" | "invalid" };
+  seasonLabel: string;
+};
 
 /**
  * The invalid-`kilpailu` and invalid-`kausi` banners, shared by every
@@ -11,7 +23,7 @@ type ResolvedContext = Extract<BasePageContext, { status: "ok" }>;
  * shape, and all four render exactly these two notices — four copies of the
  * same block if it lives in the pages. See specs/014-champions-league.md.
  */
-export function ContextNotices({ resolved }: Readonly<{ resolved: ResolvedContext }>) {
+export function ContextNotices({ resolved }: Readonly<{ resolved: NoticeContext }>) {
   return (
     <>
       {resolved.competitionParam.kind === "invalid" && (

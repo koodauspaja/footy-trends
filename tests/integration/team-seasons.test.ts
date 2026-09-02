@@ -117,7 +117,10 @@ describe("a club's own seasons", () => {
       .insert(tasoMatches)
       .values(tasoRow({ homeTeamProviderId: OTHER, awayTeamProviderId: TEAM }));
 
-    expect(await getTeamName({ kind: "taso", bucket: "domestic" }, TEAM)).toBe("Integration KuPS");
+    expect(await getTeamName({ kind: "taso", bucket: "domestic" }, TEAM)).toEqual({
+      status: "ok",
+      name: "Integration KuPS",
+    });
   });
 
   it("ignores the national-team buckets that share the table", async () => {

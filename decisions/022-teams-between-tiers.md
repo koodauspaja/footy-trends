@@ -110,6 +110,45 @@ competition — as functions, and both pages now call it. That also removed the
 nested ternaries Sonar flagged separately: with the name lookup split out, there
 is nothing left to nest.
 
+## The second review round: duplication went up before it went down
+
+Sonar failed the quality gate at **3.9% duplicated lines on new code**, against
+a 3% threshold — after a change whose stated purpose was removing duplication.
+Two lessons, both mine.
+
+First, I guessed at the cause twice (the query blocks, then the scope
+predicates) and refactored on the guess. Asking Sonar directly —
+`api/duplications/show` — named it in one call: **fourteen lines of JSX**,
+identical in both team pages, being the selector plus a six-condition body.
+
+Second, the fix had to be a component rather than a helper.
+`TeamMatchesOutcome` now owns every outcome a team page's body can have —
+matches, played elsewhere, no matches stored, unknown club, failed lookup — and
+takes one `outcome` object rather than six props, because six identically
+ordered props are themselves ten duplicated lines. Both pages went from a
+six-condition block to a single element.
+
+While there, `/kotimaa`'s pages adopted the `ContextNotices` component that has
+existed since specs/014 and that they had never used, which removed another
+ten-line copy of the two invalid-parameter banners.
+
+A local scan at Sonar's own threshold now reports one duplicated block involving
+these files: the `Sarjataulukkoon` link, which predates this change, is shared
+with the matches page, and is not new code. Extracting it would pull an
+untouched file into this pull request, so it is left as a follow-up.
+
+## A name that could not be read is not a club without a name
+
+The same review found `getTeamName` catching a failed query and returning
+`null`, which is what "this club has no stored name" also looks like — so a
+database outage would have rendered the cross-tier explanation with a blank
+where the club should be. It returns `ok`/`not_found`/`error` now, and a page
+treats an error from *either* lookup as the outage it is.
+
+That is the third time in this branch's reviews that an error was being
+flattened into absent data. It is worth stating as a rule rather than a fix:
+**when a function can fail, its failure needs its own value, not a falsy one.**
+
 ## Verified by loading the pages
 
 | URL | Before | After |

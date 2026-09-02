@@ -25,7 +25,7 @@ export type TeamSeasonsResult =
  * A club's seasons are spread across tiers — promotion and relegation are
  * ordinary — while a team page's season selector offered the *competition's*
  * seasons. Measured 2026-09-02: 120 of the 264 (club, season) options on
- * Veikkausliiga's team pages ended at "Joukkuetta ei löytynyt.", and 28 of 108
+ * Veikkausliiga's team pages ended at the team-not-found message, and 28 of 108
  * on the Premier League's. This is what lets the selector offer the seasons the
  * club actually played, and lets a page that finds nothing say where it did
  * play instead. See specs/022-teams-between-tiers.md.
@@ -45,18 +45,43 @@ const loadTeamSeasons = cache(async function loadTeamSeasons(
   }
 });
 
-async function footballDataSeasons(
-  region: CompetitionRegion,
-  teamProviderId: number
-): Promise<TeamSeasonsResult> {
+/**
+ * Which rows belong to a club under one route.
+ *
+ * Written once and used by both reads below: the seasons a club played, and the
+ * name to call it by. Two copies of a predicate is two chances for them to
+ * disagree about what a club's matches are.
+ */
+function footballDataScope(region: CompetitionRegion, teamProviderId: number) {
   const codes = competitionsInRegion(region).map((competition) => competition.code);
-  const scope = and(
+  return and(
     or(
       eq(matches.homeTeamProviderId, teamProviderId),
       eq(matches.awayTeamProviderId, teamProviderId)
     ),
     inArray(matches.competitionCode, codes)
   );
+}
+
+function tasoScope(teamProviderId: number) {
+  return and(
+    or(
+      eq(tasoMatches.homeTeamProviderId, teamProviderId),
+      eq(tasoMatches.awayTeamProviderId, teamProviderId)
+    ),
+    // The national-team buckets share this table and have no team pages.
+    notLike(tasoMatches.competitionCode, `${NATIONAL_TEAM_COMPETITION_PREFIX}%`),
+    // Only categories the picker claims: a row the site cannot show a page for
+    // cannot answer which page this should be.
+    inArray(tasoMatches.categoryId, allDomesticCategoryIds())
+  );
+}
+
+async function footballDataSeasons(
+  region: CompetitionRegion,
+  teamProviderId: number
+): Promise<TeamSeasonsResult> {
+  const scope = footballDataScope(region, teamProviderId);
 
   const rows = await db
     .select({
@@ -74,14 +99,7 @@ async function footballDataSeasons(
 }
 
 async function tasoSeasons(teamProviderId: number): Promise<TeamSeasonsResult> {
-  const scope = and(
-    or(
-      eq(tasoMatches.homeTeamProviderId, teamProviderId),
-      eq(tasoMatches.awayTeamProviderId, teamProviderId)
-    ),
-    notLike(tasoMatches.competitionCode, `${NATIONAL_TEAM_COMPETITION_PREFIX}%`),
-    inArray(tasoMatches.categoryId, allDomesticCategoryIds())
-  );
+  const scope = tasoScope(teamProviderId);
 
   const rows = await db
     .select({
@@ -113,86 +131,71 @@ async function tasoSeasons(teamProviderId: number): Promise<TeamSeasonsResult> {
   return { status: "ok", seasons: sortSeasons([...byCompetition.values()]) };
 }
 
-/** The club's current name: the one its newest stored match calls it. */
-function nameOf(
-  row: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string } | undefined,
-  teamProviderId: number
-): string | null {
-  if (row === undefined) return null;
-  return row.homeTeamProviderId === teamProviderId ? row.homeTeamName : row.awayTeamName;
-}
-
 /**
  * What to call a club whose page has no matches to take a name from.
  *
  * A separate question from its seasons, and a rarer one: a page that renders
  * matches reads the name off the first of them, so this only runs on the
- * "played elsewhere" path. Keeping it out of `getTeamSeasons` is what leaves
- * the common page at one added query rather than two.
+ * cross-tier page. Keeping it out of `getTeamSeasons` leaves the common page at
+ * one added query rather than two.
+ *
+ * `error` is distinct from `not_found` on purpose. A database that could not
+ * answer is not a club without a name, and a page that cannot tell them apart
+ * renders an explanation with a blank where the club should be.
  */
+export type TeamNameResult =
+  | { status: "ok"; name: string }
+  | { status: "not_found" }
+  | { status: "error" };
+
 const loadTeamName = cache(async function loadTeamName(
   kind: TeamPageSource["kind"],
   scope: string,
   teamProviderId: number
-): Promise<string | null> {
+): Promise<TeamNameResult> {
   try {
-    if (kind === "football-data") {
-      const codes = competitionsInRegion(scope as CompetitionRegion).map(
-        (competition) => competition.code
-      );
-      const [row] = await db
-        .select({
-          homeTeamProviderId: matches.homeTeamProviderId,
-          homeTeamName: matches.homeTeamName,
-          awayTeamName: matches.awayTeamName,
-        })
-        .from(matches)
-        .where(
-          and(
-            or(
-              eq(matches.homeTeamProviderId, teamProviderId),
-              eq(matches.awayTeamProviderId, teamProviderId)
-            ),
-            inArray(matches.competitionCode, codes)
-          )
-        )
-        .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
-        .limit(1);
-      return nameOf(row, teamProviderId);
-    }
+    const row =
+      kind === "football-data"
+        ? await db
+            .select({
+              homeTeamProviderId: matches.homeTeamProviderId,
+              homeTeamName: matches.homeTeamName,
+              awayTeamName: matches.awayTeamName,
+            })
+            .from(matches)
+            .where(footballDataScope(scope as CompetitionRegion, teamProviderId))
+            .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
+            .limit(1)
+            .then(([first]) => first)
+        : await db
+            .select({
+              homeTeamProviderId: tasoMatches.homeTeamProviderId,
+              homeTeamName: tasoMatches.homeTeamName,
+              awayTeamName: tasoMatches.awayTeamName,
+            })
+            .from(tasoMatches)
+            .where(tasoScope(teamProviderId))
+            .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+            .limit(1)
+            .then(([first]) => first);
 
-    const [row] = await db
-      .select({
-        homeTeamProviderId: tasoMatches.homeTeamProviderId,
-        homeTeamName: tasoMatches.homeTeamName,
-        awayTeamName: tasoMatches.awayTeamName,
-      })
-      .from(tasoMatches)
-      .where(
-        and(
-          or(
-            eq(tasoMatches.homeTeamProviderId, teamProviderId),
-            eq(tasoMatches.awayTeamProviderId, teamProviderId)
-          ),
-          notLike(tasoMatches.competitionCode, `${NATIONAL_TEAM_COMPETITION_PREFIX}%`),
-          inArray(tasoMatches.categoryId, allDomesticCategoryIds())
-        )
-      )
-      .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
-      .limit(1);
-    return nameOf(row, teamProviderId);
+    if (row === undefined) return { status: "not_found" };
+    return {
+      status: "ok",
+      name: row.homeTeamProviderId === teamProviderId ? row.homeTeamName : row.awayTeamName,
+    };
   } catch (error) {
     logger.error({ err: error, kind, scope, teamProviderId }, "Unable to read a team's name");
-    return null;
+    return { status: "error" };
   }
 });
 
 export function getTeamName(
   source: TeamPageSource,
   teamProviderId: number
-): Promise<string | null> {
+): Promise<TeamNameResult> {
   if (!isStoredInteger(teamProviderId) || teamProviderId === PLACEHOLDER_TEAM_ID) {
-    return Promise.resolve(null);
+    return Promise.resolve({ status: "not_found" });
   }
   const scope = source.kind === "football-data" ? source.region : source.bucket;
   return loadTeamName(source.kind, scope, teamProviderId);

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamSeasonsResult } from "@/lib/team-seasons";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
@@ -45,7 +45,7 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
  */
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
-const getTeamNameMock = vi.fn(async (): Promise<string | null> => null);
+const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
 vi.mock("@/lib/team-seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
@@ -103,7 +103,7 @@ describe("National-teams standings page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue(null);
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);

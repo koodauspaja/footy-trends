@@ -212,7 +212,12 @@ Run with `--workers=1`, per the config.
 
 - `specs/022-teams-between-tiers.md` (this file)
 - `decisions/022-teams-between-tiers.md` (written during implementation)
-- `src/lib/team-seasons.ts` — the query
+- `src/lib/team-seasons.ts` — the grouped query, the name lookup, and the view
+  both pages derive from them
+- `src/components/team-matches-outcome.tsx` — the five outcomes a team page's
+  body can have, in one place rather than six conditions per page
+- `src/components/context-notices.tsx` — widened to the three fields it reads,
+  so `/kotimaa`'s pages stop carrying their own copy of the same two banners
 - `src/app/domestic/team/[id]/page.tsx`, `src/components/competition-team-page.tsx`
 - `src/components/team-season-selector.tsx`, `src/components/taso-season-only-controls.tsx`
   — the seasons they are given

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamSeasonsResult } from "@/lib/team-seasons";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
@@ -61,7 +61,7 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
  */
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
-const getTeamNameMock = vi.fn(async (): Promise<string | null> => null);
+const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
 vi.mock("@/lib/team-seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
@@ -113,7 +113,7 @@ describe("Domestic team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue(null);
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
   });
@@ -217,7 +217,7 @@ describe("Domestic team page", () => {
     // FC Haka, Ykkönen 2015–19, Veikkausliiga 2020–25, Ykkösliiga 2026. Asking
     // for its Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue("FC Haka");
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "FC Haka" });
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
       seasons: [
@@ -243,7 +243,7 @@ describe("Domestic team page", () => {
 
   it("offers the club's most recent season when it played nothing that year", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue("HIFK");
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "HIFK" });
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
       seasons: [{ competitionCode: "VL", seasonId: 2022, matches: 27 }],
@@ -277,6 +277,26 @@ describe("Domestic team page", () => {
     expect(options).toEqual(["2018", "2017"]);
   });
 
+  it("shows the error state when the club's name could not be read", async () => {
+    // Seasons read fine, the name lookup did not: rendering the explanation
+    // with a blank where the club should be would hide an outage.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [{ competitionCode: "M1L", seasonId: 2026, matches: 27 }],
+    });
+    getTeamNameMock.mockResolvedValue({ status: "error" });
+
+    await renderTeam("60561", { kilpailu: "VL", kausi: "2026" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).not.toBeInTheDocument();
+  });
+
   it("does not call a club unknown when its seasons could not be read", async () => {
     // A database that could not answer is not a club that does not exist.
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
@@ -293,7 +313,7 @@ describe("Domestic team page", () => {
   it("still calls an unknown club unknown", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue(null);
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
 
     await renderTeam("999999", { kilpailu: "VL", kausi: "2026" });
 

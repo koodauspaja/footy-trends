@@ -176,7 +176,7 @@ describe("getTeamSeasons", () => {
     await getTeamSeasons(DOMESTIC, 60561);
     expect(newestMock).not.toHaveBeenCalled();
 
-    expect(await getTeamName(DOMESTIC, 60561)).toBe("FC Haka");
+    expect(await getTeamName(DOMESTIC, 60561)).toEqual({ status: "ok", name: "FC Haka" });
   });
 
   it("reads a foreign club's name, from whichever side it played", async () => {
@@ -185,14 +185,15 @@ describe("getTeamSeasons", () => {
     ]);
     const { getTeamName } = await load();
 
-    expect(await getTeamName(FOREIGN, 328)).toBe("Burnley FC");
+    expect(await getTeamName(FOREIGN, 328)).toEqual({ status: "ok", name: "Burnley FC" });
   });
 
-  it("has no name when the lookup throws, and logs it", async () => {
+  it("reports an error rather than a missing name when the lookup throws", async () => {
+    // A page cannot tell an unnamed club from an outage if both are "no name".
     newestMock.mockRejectedValue(new Error("connection refused"));
     const { getTeamName } = await load();
 
-    expect(await getTeamName(DOMESTIC, 60561)).toBeNull();
+    expect(await getTeamName(DOMESTIC, 60561)).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ teamProviderId: 60561 }),
       "Unable to read a team's name"
@@ -203,8 +204,8 @@ describe("getTeamSeasons", () => {
     newestMock.mockResolvedValue([]);
     const { getTeamName } = await load();
 
-    expect(await getTeamName(DOMESTIC, 60561)).toBeNull();
-    expect(await getTeamName(DOMESTIC, 0)).toBeNull();
+    expect(await getTeamName(DOMESTIC, 60561)).toEqual({ status: "not_found" });
+    expect(await getTeamName(DOMESTIC, 0)).toEqual({ status: "not_found" });
   });
 });
 
