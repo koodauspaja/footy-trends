@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { COLUMN_WIDTHS } from "@/components/data-table";
 import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components/standings-table";
 
 function buildRow(overrides: Partial<StandingsRow> = {}): StandingsRow {
@@ -120,5 +121,30 @@ describe("StandingsLegend", () => {
         "O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit, ME = maaliero, P = pisteet."
       )
     ).toBeInTheDocument();
+  });
+
+  it("right-aligns the statistics and leaves Sija with the text columns", () => {
+    // Digits line up by place value; the position reads as a label beside the
+    // team name. See specs/021-table-consistency.md.
+    render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+
+    for (const stat of ["O", "V", "T", "H", "TM", "PM", "ME", "P"]) {
+      expect(screen.getByRole("columnheader", { name: stat })).toHaveClass("text-right");
+    }
+    expect(screen.getByRole("columnheader", { name: "Sija" })).toHaveClass("text-left");
+    expect(screen.getByRole("columnheader", { name: "Joukkue" })).toHaveClass("text-left");
+    expect(screen.getByRole("columnheader", { name: "Vire" })).toHaveClass("text-left");
+  });
+
+  it("sizes every column from the shared scale, so sibling tables agree", () => {
+    const { container } = render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+
+    const widths = [...container.querySelectorAll("col")].map((col) => col.style.width || "flex");
+    expect(widths).toEqual([
+      `${COLUMN_WIDTHS.position}px`,
+      "flex",
+      ...Array(8).fill(`${COLUMN_WIDTHS.stat}px`),
+      `${COLUMN_WIDTHS.form}px`,
+    ]);
   });
 });
