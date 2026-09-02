@@ -7,6 +7,15 @@
 /** A match, as far as anything in this module cares. */
 type StagedMatch = { stage: string | null };
 
+/**
+ * football-data's marker for "this is an ordinary league season" — 13,184
+ * stored rows across nine competitions carry it.
+ *
+ * Deliberately absent from `STAGE_NAMES`: it is not a phase a reader needs
+ * named, and the competition and round already say everything it would.
+ */
+export const REGULAR_SEASON = "REGULAR_SEASON";
+
 export const LEAGUE_STAGE = "LEAGUE_STAGE";
 export const GROUP_STAGE = "GROUP_STAGE";
 

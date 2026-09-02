@@ -21,16 +21,26 @@ export type NationalTeam = {
   categorySuffix: string;
   /** Shown as the page heading and in the picker. */
   displayName: string;
+  /**
+   * The team's own public path, which its match rows link under.
+   *
+   * These matches are TASO's while `/maajoukkueet/ottelu/:id` is
+   * football-data's, so each team's rows need a route that names their source.
+   * See specs/019-match-page.md.
+   */
+  basePath: string;
 };
 
 export const MENS_TEAM: NationalTeam = {
   categorySuffix: " Huuhkajat",
   displayName: "Huuhkajat",
+  basePath: "/maajoukkueet/huuhkajat",
 };
 
 export const WOMENS_TEAM: NationalTeam = {
   categorySuffix: " Helmarit",
   displayName: "Helmarit",
+  basePath: "/maajoukkueet/helmarit",
 };
 
 /**
@@ -54,6 +64,17 @@ const COMPETITION_IDS: ReadonlyArray<readonly [year: number, competitionId: stri
   [2022, "maajp2022"],
   [2021, "maajp18"],
 ];
+
+/**
+ * The oldest calendar year any national-team bucket carries matches for.
+ *
+ * Not a bucket's nominal year: `maajp18` reports `season_id: 2021` while
+ * holding matches played in 2018, 2019, 2020 and 2021 — measured exhaustively
+ * in specs/018-helmarit.md. This is the year the match page's head-to-head
+ * states as the window it looked in, so it describes the *matches* a bucket
+ * holds rather than the id it is filed under.
+ */
+export const EARLIEST_NATIONAL_TEAM_YEAR = 2018;
 
 export const NATIONAL_TEAM_SEASONS: ReadonlyArray<{ year: number; competitionId: string }> =
   COMPETITION_IDS.map(([year, competitionId]) => ({ year, competitionId }));

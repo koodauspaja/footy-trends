@@ -61,6 +61,11 @@ export const matches = pgTable(
       table.seasonId,
       table.stage
     ),
+    // The match page's head-to-head list, which asks for one pair of teams in
+    // either order. One composite index serves both orientations: the planner
+    // scans it twice under a BitmapOr, so the mirrored (away, home) index earns
+    // nothing and is deliberately absent. See specs/019-match-page.md.
+    index("matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
   ]
 );
 
@@ -116,6 +121,10 @@ export const tasoMatches = pgTable(
       table.seasonId,
       table.groupId
     ),
+    // As on `matches` above: the head-to-head pair lookup, one index for both
+    // orientations. Measured on 20,604 stored rows, this turns the query from a
+    // 3.16 ms sequential scan into a 0.13 ms bitmap scan.
+    index("taso_matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
   ]
 );
 

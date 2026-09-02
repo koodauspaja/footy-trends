@@ -185,6 +185,24 @@ export function categoryIdsFor(code: string): string[] {
 }
 
 /**
+ * Which competition a stored `category_id` belongs to, or `null` if none claims
+ * it.
+ *
+ * The inverse of `categoryIdsFor`, and needed by a page that starts from a
+ * stored row rather than from a `kilpailu` value — the match page, which has to
+ * build a team link out of a match it has just read. `null` rather than a
+ * fallback: a category no competition claims (a junior series we never added to
+ * the picker) has no team page to link to, and inventing one would send the
+ * reader to a page that cannot render.
+ */
+export function competitionCodeForCategory(categoryId: string): string | null {
+  const competition = DOMESTIC_COMPETITIONS.find((candidate) =>
+    candidate.categories.some((category) => category.categoryId === categoryId)
+  );
+  return competition?.code ?? null;
+}
+
+/**
  * The oldest season a competition can be asked for — the floor of its own
  * season selector, which is not the same for every competition (Ykkösliiga
  * did not exist before 2024). Falls back to the provider-wide floor for an

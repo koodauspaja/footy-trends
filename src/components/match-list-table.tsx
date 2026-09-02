@@ -26,6 +26,17 @@ type MatchListTableProps<T extends MatchListRow> = {
   teamHref: ((teamProviderId: number) => string) | null;
   /** Omitted on the season-wide `/ulkomaat/ottelut` page, which has no fourth column at all. */
   fourthColumn?: { header: string; render: (match: T) => ReactNode };
+  /**
+   * Builds a row's match-page href. `null` or omitted leaves **this table's**
+   * dates as plain text — the opt-out is per table, not per row, because no
+   * caller has ever needed one row to differ from its neighbours.
+   *
+   * The date carries the link rather than the row: `Pvm` is the one column
+   * every one of these tables has, it is never a link otherwise, and it does
+   * not nest inside the team links the `Ottelu` column already carries. See
+   * specs/019-match-page.md.
+   */
+  matchHref?: ((match: T) => string) | null;
 };
 
 /**
@@ -40,6 +51,7 @@ export function MatchListTable<T extends MatchListRow>({
   matches,
   teamHref,
   fourthColumn,
+  matchHref,
 }: Readonly<MatchListTableProps<T>>) {
   return (
     <div className="overflow-x-auto">
@@ -55,7 +67,15 @@ export function MatchListTable<T extends MatchListRow>({
         <tbody>
           {matches.map((match) => (
             <tr className="border-b border-zinc-200" key={match.providerMatchId}>
-              <td className="p-3">{matchDateFormatter.format(match.kickoffAt)}</td>
+              <td className="p-3">
+                {matchHref ? (
+                  <Link className="hover:underline" href={matchHref(match)}>
+                    {matchDateFormatter.format(match.kickoffAt)}
+                  </Link>
+                ) : (
+                  matchDateFormatter.format(match.kickoffAt)
+                )}
+              </td>
               <td className="p-3">
                 {teamHref ? (
                   <>
