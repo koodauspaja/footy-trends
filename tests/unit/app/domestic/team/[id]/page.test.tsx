@@ -61,9 +61,11 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
  */
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
+const getTeamNameMock = vi.fn(async (): Promise<string | null> => null);
+
 vi.mock("@/lib/team-seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
-  return { ...actual, getTeamSeasons: getTeamSeasonsMock };
+  return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
 });
 
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
@@ -111,6 +113,7 @@ describe("Domestic team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue(null);
     getTeamContextMock.mockImplementation(defaultTeamContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
   });
@@ -214,9 +217,9 @@ describe("Domestic team page", () => {
     // FC Haka, Ykkönen 2015–19, Veikkausliiga 2020–25, Ykkösliiga 2026. Asking
     // for its Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue("FC Haka");
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
-      teamName: "FC Haka",
       seasons: [
         { competitionCode: "M1L", seasonId: 2026, matches: 27 },
         { competitionCode: "MSC", seasonId: 2026, matches: 2 },
@@ -240,9 +243,9 @@ describe("Domestic team page", () => {
 
   it("offers the club's most recent season when it played nothing that year", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue("HIFK");
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
-      teamName: "HIFK",
       seasons: [{ competitionCode: "VL", seasonId: 2022, matches: 27 }],
     });
 
@@ -260,7 +263,6 @@ describe("Domestic team page", () => {
     // 120 of Veikkausliiga's 264 (club, season) options led nowhere.
     getTeamSeasonsMock.mockResolvedValue({
       status: "ok",
-      teamName: "HIFK",
       seasons: [
         { competitionCode: "M1", seasonId: 2018, matches: 24 },
         { competitionCode: "VL", seasonId: 2017, matches: 27 },
@@ -275,9 +277,23 @@ describe("Domestic team page", () => {
     expect(options).toEqual(["2018", "2017"]);
   });
 
+  it("does not call a club unknown when its seasons could not be read", async () => {
+    // A database that could not answer is not a club that does not exist.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeam("60561", { kilpailu: "VL", kausi: "2026" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
   it("still calls an unknown club unknown", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue(null);
 
     await renderTeam("999999", { kilpailu: "VL", kausi: "2026" });
 

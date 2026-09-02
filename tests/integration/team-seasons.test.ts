@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getTeamSeasons } from "@/lib/team-seasons";
+import { getTeamName, getTeamSeasons } from "@/lib/team-seasons";
 
 /**
  * The grouped query against a real Postgres: which competitions and seasons a
@@ -86,7 +86,6 @@ describe("a club's own seasons", () => {
 
     expect(result).toEqual({
       status: "ok",
-      teamName: "Integration Haka",
       seasons: [
         { competitionCode: "M1L", seasonId: 990801, matches: 1 },
         { competitionCode: "VL", seasonId: 990800, matches: 1 },
@@ -118,10 +117,7 @@ describe("a club's own seasons", () => {
       .insert(tasoMatches)
       .values(tasoRow({ homeTeamProviderId: OTHER, awayTeamProviderId: TEAM }));
 
-    const result = await getTeamSeasons({ kind: "taso", bucket: "domestic" }, TEAM);
-
-    if (result.status !== "ok") throw new Error("expected seasons");
-    expect(result.teamName).toBe("Integration KuPS");
+    expect(await getTeamName({ kind: "taso", bucket: "domestic" }, TEAM)).toBe("Integration KuPS");
   });
 
   it("ignores the national-team buckets that share the table", async () => {

@@ -15,10 +15,11 @@ import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-ser
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
-  competitionsInSeason,
+  getTeamName,
   getTeamSeasons,
   seasonCompetitions,
   type TeamSeasonsResult,
+  teamSeasonsView,
 } from "@/lib/team-seasons";
 
 export const dynamic = "force-dynamic";
@@ -92,12 +93,11 @@ async function resolvePage(
   );
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const seasons = await getTeamSeasons(SOURCE, teamProviderId);
+  // The club's own name, asked for only when there is no match to read it off.
   const teamName =
-    firstMatch !== undefined
-      ? nameForTeam(firstMatch, teamProviderId)
-      : seasons.status === "ok"
-        ? seasons.teamName
-        : null;
+    firstMatch === undefined
+      ? await getTeamName(SOURCE, teamProviderId)
+      : nameForTeam(firstMatch, teamProviderId);
 
   return { status: "ok", context, teamProviderId, result, teamName, seasons };
 }
@@ -152,30 +152,11 @@ export default async function DomesticTeamPage({
   } = context;
 
   const played = seasons.status === "ok" ? seasons.seasons : [];
-  // The club's own seasons, so the dropdown stops offering years it spent in
-  // another tier — 120 of Veikkausliiga's 264 options ended nowhere. Falls back
-  // to the competition's range when the club's seasons could not be read.
-  const offeredSeasons =
-    played.length > 0
-      ? [...new Set(played.map((entry) => entry.seasonId))]
-          .sort((left, right) => right - left)
-          .map((year) => ({ seasonId: year, label: String(year) }))
-      : selectableSeasons;
-
-  const teamHref = (code: string, year: number) =>
-    `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`;
-  const sameSeason = competitionsInSeason(played, seasonId).map((entry) => ({
-    label: getDomesticCompetitionName(entry.competitionCode),
-    href: teamHref(entry.competitionCode, entry.seasonId),
-  }));
-  const [newestSeason] = played;
-  const newest =
-    newestSeason === undefined
-      ? null
-      : {
-          label: `${getDomesticCompetitionName(newestSeason.competitionCode)} ${newestSeason.seasonId}`,
-          href: teamHref(newestSeason.competitionCode, newestSeason.seasonId),
-        };
+  const { offeredSeasons, sameSeason, newest } = teamSeasonsView(played, seasonId, {
+    season: String,
+    competition: getDomesticCompetitionName,
+    href: (code, year) => `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+  });
 
   return (
     <PageShell heading={headingFor(resolved)}>
@@ -198,14 +179,18 @@ export default async function DomesticTeamPage({
         actionPath={`/kotimaa/joukkue/${teamProviderId}`}
         competitionCode={competitionCode}
         seasonCompetitions={seasonCompetitions(played)}
-        seasons={offeredSeasons}
+        seasons={offeredSeasons.length > 0 ? offeredSeasons : selectableSeasons}
         selectedSeasonId={seasonId}
       />
-      {/* A club that exists but played elsewhere is not an unknown club. */}
+      {/* A club that exists but played elsewhere is not an unknown club — and a
+          lookup that failed is neither, so it says so rather than either. */}
       {result.status === "not_found" && played.length > 0 && (
         <TeamSeasonMissing newest={newest} sameSeason={sameSeason} seasonLabel={seasonLabel} />
       )}
-      {result.status === "not_found" && played.length === 0 && <p>{NOT_FOUND_MESSAGE}</p>}
+      {result.status === "not_found" && seasons.status === "error" && <p>{ERROR_MESSAGE}</p>}
+      {result.status === "not_found" && seasons.status === "not_found" && (
+        <p>{NOT_FOUND_MESSAGE}</p>
+      )}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (

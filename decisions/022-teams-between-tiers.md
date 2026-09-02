@@ -87,6 +87,29 @@ and won the same number of matches in each — possible with two cups — and
 without it the selector could land somewhere different between renders. The same
 reasoning as the head-to-head tie-break in specs/019.
 
+## What the first review round found
+
+**An outage was being reported as an unknown club.** When the grouped seasons
+query failed and the asked page had no matches, `played` was empty and the page
+fell through to `Joukkuetta ei löytynyt.` — telling a reader a club does not
+exist because the database could not be reached. The three states are now
+distinct: matches, "played elsewhere", and the page's own error message. The
+same class of finding as #249's, and the same fix: an error is not data.
+
+**The grouped read was two queries.** The name came from a second, newest-row
+lookup inside `getTeamSeasons`, so every team page paid for it while the spec
+claimed one query. `getTeamName` is now its own function, called only by the
+page that has no match to read a name off — the common page is back to one added
+query, and the spec says what the code does.
+
+**Sonar found the same block twice.** Both pages derived the selector's options,
+the same-season links and the newest-season fallback with five near-identical
+lines each (9.3% and 9.1% duplication on new code). `teamSeasonsView` takes the
+two things the pages genuinely differ on — how they label a season and name a
+competition — as functions, and both pages now call it. That also removed the
+nested ternaries Sonar flagged separately: with the name lookup split out, there
+is nothing left to nest.
+
 ## Verified by loading the pages
 
 | URL | Before | After |

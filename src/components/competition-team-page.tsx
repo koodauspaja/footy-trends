@@ -17,10 +17,11 @@ import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service"
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
-  competitionsInSeason,
+  getTeamName,
   getTeamSeasons,
   seasonCompetitions,
   type TeamSeasonsResult,
+  teamSeasonsView,
 } from "@/lib/team-seasons";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
@@ -107,13 +108,13 @@ async function resolvePageContext(
       : result;
 
   const [firstMatch] = localised.status === "ok" ? localised.matches : [];
-  const seasons = await getTeamSeasons({ kind: "football-data", region }, teamProviderId);
+  const source = { kind: "football-data", region } as const;
+  const seasons = await getTeamSeasons(source, teamProviderId);
+  // The club's own name, asked for only when there is no match to read it off.
   const teamName =
-    firstMatch !== undefined
-      ? nameForTeam(firstMatch, teamProviderId)
-      : seasons.status === "ok"
-        ? seasons.teamName
-        : null;
+    firstMatch === undefined
+      ? await getTeamName(source, teamProviderId)
+      : nameForTeam(firstMatch, teamProviderId);
 
   return { ...base, teamProviderId, result: localised, teamName, seasons };
 }
@@ -181,33 +182,15 @@ export async function CompetitionTeamPage({
     seasons,
   } = resolved;
 
-  const played = seasons.status === "ok" ? seasons.seasons : [];
-  const label = (year: number) => formatSeasonLabel(year, context.spansCalendarYears);
-  // The club's own seasons rather than the competition's, so a relegated club's
-  // dropdown stops offering years it spent in another tier. See specs/022.
-  const offeredSeasons =
-    played.length > 0
-      ? [...new Set(played.map((entry) => entry.seasonId))]
-          .sort((left, right) => right - left)
-          .map((year) => ({ seasonId: year, label: label(year) }))
-      : context.selectableSeasons;
-
-  const teamHref = (code: string, year: number) =>
-    `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`;
-  const sameSeason = competitionsInSeason(played, seasonId).map((entry) => ({
-    label: getCompetitionName(entry.competitionCode),
-    href: teamHref(entry.competitionCode, entry.seasonId),
-  }));
-  const [newestSeason] = played;
-  const newest =
-    newestSeason === undefined
-      ? null
-      : {
-          label: `${getCompetitionName(newestSeason.competitionCode)} ${label(newestSeason.seasonId)}`,
-          href: teamHref(newestSeason.competitionCode, newestSeason.seasonId),
-        };
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
+
+  const played = seasons.status === "ok" ? seasons.seasons : [];
+  const { offeredSeasons, sameSeason, newest } = teamSeasonsView(played, seasonId, {
+    season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
+    competition: getCompetitionName,
+    href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+  });
 
   return (
     <PageShell heading={heading}>
@@ -229,15 +212,19 @@ export async function CompetitionTeamPage({
         basePath={basePath}
         competitionCode={competitionCode}
         seasonCompetitions={seasonCompetitions(played)}
-        seasons={offeredSeasons}
+        seasons={offeredSeasons.length > 0 ? offeredSeasons : context.selectableSeasons}
         selectedSeasonId={seasonId}
         teamProviderId={teamProviderId}
       />
-      {/* A club that exists but played elsewhere is not an unknown club. */}
+      {/* A club that exists but played elsewhere is not an unknown club — and a
+          lookup that failed is neither, so it says so rather than either. */}
       {result.status === "not_found" && played.length > 0 && (
         <TeamSeasonMissing newest={newest} sameSeason={sameSeason} seasonLabel={seasonLabel} />
       )}
-      {result.status === "not_found" && played.length === 0 && <p>{NOT_FOUND_MESSAGE}</p>}
+      {result.status === "not_found" && seasons.status === "error" && <p>{ERROR_MESSAGE}</p>}
+      {result.status === "not_found" && seasons.status === "not_found" && (
+        <p>{NOT_FOUND_MESSAGE}</p>
+      )}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (

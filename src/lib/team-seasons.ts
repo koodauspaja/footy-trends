@@ -14,7 +14,7 @@ import type { TeamPageSource } from "./team-context";
 export type TeamSeason = { competitionCode: string; seasonId: number; matches: number };
 
 export type TeamSeasonsResult =
-  | { status: "ok"; teamName: string; seasons: TeamSeason[] }
+  | { status: "ok"; seasons: TeamSeason[] }
   /** No stored match at all under this route — the same bar specs/020 uses. */
   | { status: "not_found" }
   | { status: "error" };
@@ -70,22 +70,7 @@ async function footballDataSeasons(
 
   if (rows.length === 0) return { status: "not_found" };
 
-  const [newest] = await db
-    .select({
-      homeTeamProviderId: matches.homeTeamProviderId,
-      homeTeamName: matches.homeTeamName,
-      awayTeamName: matches.awayTeamName,
-    })
-    .from(matches)
-    .where(scope)
-    .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
-    .limit(1);
-
-  return {
-    status: "ok",
-    teamName: nameOf(newest, teamProviderId),
-    seasons: sortSeasons(rows),
-  };
+  return { status: "ok", seasons: sortSeasons(rows) };
 }
 
 async function tasoSeasons(teamProviderId: number): Promise<TeamSeasonsResult> {
@@ -125,31 +110,92 @@ async function tasoSeasons(teamProviderId: number): Promise<TeamSeasonsResult> {
 
   if (byCompetition.size === 0) return { status: "not_found" };
 
-  const [newest] = await db
-    .select({
-      homeTeamProviderId: tasoMatches.homeTeamProviderId,
-      homeTeamName: tasoMatches.homeTeamName,
-      awayTeamName: tasoMatches.awayTeamName,
-    })
-    .from(tasoMatches)
-    .where(scope)
-    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
-    .limit(1);
-
-  return {
-    status: "ok",
-    teamName: nameOf(newest, teamProviderId),
-    seasons: sortSeasons([...byCompetition.values()]),
-  };
+  return { status: "ok", seasons: sortSeasons([...byCompetition.values()]) };
 }
 
 /** The club's current name: the one its newest stored match calls it. */
 function nameOf(
   row: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string } | undefined,
   teamProviderId: number
-): string {
-  if (row === undefined) return "";
+): string | null {
+  if (row === undefined) return null;
   return row.homeTeamProviderId === teamProviderId ? row.homeTeamName : row.awayTeamName;
+}
+
+/**
+ * What to call a club whose page has no matches to take a name from.
+ *
+ * A separate question from its seasons, and a rarer one: a page that renders
+ * matches reads the name off the first of them, so this only runs on the
+ * "played elsewhere" path. Keeping it out of `getTeamSeasons` is what leaves
+ * the common page at one added query rather than two.
+ */
+const loadTeamName = cache(async function loadTeamName(
+  kind: TeamPageSource["kind"],
+  scope: string,
+  teamProviderId: number
+): Promise<string | null> {
+  try {
+    if (kind === "football-data") {
+      const codes = competitionsInRegion(scope as CompetitionRegion).map(
+        (competition) => competition.code
+      );
+      const [row] = await db
+        .select({
+          homeTeamProviderId: matches.homeTeamProviderId,
+          homeTeamName: matches.homeTeamName,
+          awayTeamName: matches.awayTeamName,
+        })
+        .from(matches)
+        .where(
+          and(
+            or(
+              eq(matches.homeTeamProviderId, teamProviderId),
+              eq(matches.awayTeamProviderId, teamProviderId)
+            ),
+            inArray(matches.competitionCode, codes)
+          )
+        )
+        .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
+        .limit(1);
+      return nameOf(row, teamProviderId);
+    }
+
+    const [row] = await db
+      .select({
+        homeTeamProviderId: tasoMatches.homeTeamProviderId,
+        homeTeamName: tasoMatches.homeTeamName,
+        awayTeamName: tasoMatches.awayTeamName,
+      })
+      .from(tasoMatches)
+      .where(
+        and(
+          or(
+            eq(tasoMatches.homeTeamProviderId, teamProviderId),
+            eq(tasoMatches.awayTeamProviderId, teamProviderId)
+          ),
+          notLike(tasoMatches.competitionCode, `${NATIONAL_TEAM_COMPETITION_PREFIX}%`),
+          inArray(tasoMatches.categoryId, allDomesticCategoryIds())
+        )
+      )
+      .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+      .limit(1);
+    return nameOf(row, teamProviderId);
+  } catch (error) {
+    logger.error({ err: error, kind, scope, teamProviderId }, "Unable to read a team's name");
+    return null;
+  }
+});
+
+export function getTeamName(
+  source: TeamPageSource,
+  teamProviderId: number
+): Promise<string | null> {
+  if (!isStoredInteger(teamProviderId) || teamProviderId === PLACEHOLDER_TEAM_ID) {
+    return Promise.resolve(null);
+  }
+  const scope = source.kind === "football-data" ? source.region : source.bucket;
+  return loadTeamName(source.kind, scope, teamProviderId);
 }
 
 /** Newest season first, and within a season the competition with the most matches. */
@@ -182,6 +228,53 @@ export function getTeamSeasons(
  */
 export function competitionForSeason(seasons: TeamSeason[], seasonId: number): string | null {
   return seasons.find((season) => season.seasonId === seasonId)?.competitionCode ?? null;
+}
+
+/** What a team page needs from a club's seasons, once labels are applied. */
+export type TeamSeasonsView = {
+  /** The seasons the club played, newest first, for the selector. */
+  offeredSeasons: Array<{ seasonId: number; label: string }>;
+  /** Where the club played in the season being shown, most matches first. */
+  sameSeason: Array<{ label: string; href: string }>;
+  /** The club's most recent season, offered when it played nothing this one. */
+  newest: { label: string; href: string } | null;
+};
+
+/**
+ * The same three answers both team pages need, derived once.
+ *
+ * The pages differ only in how they label a season and name a competition —
+ * `2026` against `2025/26`, the domestic registry against the football-data
+ * one — so those come in as functions and everything else is shared.
+ */
+export function teamSeasonsView(
+  seasons: TeamSeason[],
+  seasonId: number,
+  labels: {
+    season: (seasonId: number) => string;
+    competition: (competitionCode: string) => string;
+    href: (competitionCode: string, seasonId: number) => string;
+  }
+): TeamSeasonsView {
+  const offeredSeasons = [...new Set(seasons.map((entry) => entry.seasonId))]
+    .sort((left, right) => right - left)
+    .map((year) => ({ seasonId: year, label: labels.season(year) }));
+
+  const sameSeason = competitionsInSeason(seasons, seasonId).map((entry) => ({
+    label: labels.competition(entry.competitionCode),
+    href: labels.href(entry.competitionCode, entry.seasonId),
+  }));
+
+  const [mostRecent] = seasons;
+  const newest =
+    mostRecent === undefined
+      ? null
+      : {
+          label: `${labels.competition(mostRecent.competitionCode)} ${labels.season(mostRecent.seasonId)}`,
+          href: labels.href(mostRecent.competitionCode, mostRecent.seasonId),
+        };
+
+  return { offeredSeasons, sameSeason, newest };
 }
 
 /** Every competition a club played in one season, most matches first. */

@@ -113,8 +113,8 @@ also what a season the club played *nowhere* falls back to.
 
 ## API & Data
 
-One query per team page, alongside the two specs/020 already makes, and cached
-the same way:
+One grouped query per team page, alongside the two specs/020 already makes, and
+cached the same way:
 
 ```sql
 SELECT competition/category, season_id
@@ -128,8 +128,13 @@ It answers all three needs at once: which seasons the selector offers, where the
 team played in the asked season, and what its most recent context is. The
 `away_team_provider_id` index from specs/020 already serves it.
 
-No provider call. The team's name comes from the row the existing lookup already
-reads.
+**The club's name is a second, separate lookup, and only on the page that needs
+it.** A page that renders matches reads the name off the first of them; only the
+"played elsewhere" page has no match to read, so `getTeamName` runs there and
+nowhere else. Folding it into the grouped query would have made every team page
+pay for it.
+
+No provider call.
 
 ## Edge Cases
 
@@ -139,6 +144,7 @@ reads.
 | Team exists, never played this competition at all | The message, plus its most recent context |
 | Team played two competitions that season | Both listed, picker order |
 | Team id that does not exist | specs/020's reduced page, unchanged |
+| The seasons lookup fails | The page's error state — a database that could not answer is neither an unknown club nor a club that played elsewhere |
 | Placeholder id `0` | Same — never resolves |
 | Team whose only stored matches are in a category the picker does not claim | Treated as not existing, as specs/020 does |
 | A competition the team played in a season the app can no longer select | Not offered; the link points only at pages that render |

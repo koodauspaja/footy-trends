@@ -54,7 +54,6 @@ describe("getTeamSeasons", () => {
 
     expect(result).toEqual({
       status: "ok",
-      teamName: "FC Haka",
       seasons: [
         // Within a season, the competition with more matches comes first.
         { competitionCode: "M1L", seasonId: 2026, matches: 27 },
@@ -132,7 +131,6 @@ describe("getTeamSeasons", () => {
     // The club was the away side of its newest match, so that is its name.
     expect(result).toEqual({
       status: "ok",
-      teamName: "Burnley FC",
       seasons: [
         { competitionCode: "PL", seasonId: 2025, matches: 38 },
         { competitionCode: "ELC", seasonId: 2024, matches: 46 },
@@ -166,15 +164,47 @@ describe("getTeamSeasons", () => {
     );
   });
 
-  it("has no name to show when the newest row cannot be read", async () => {
+  it("asks for a club's name separately, and only when a page needs one", async () => {
+    // A page that renders matches reads the name off the first of them; this
+    // lookup is the "played elsewhere" path's, and its own query.
     groupedMock.mockResolvedValue([{ categoryId: "VL", seasonId: 2025, matches: 27 }]);
+    newestMock.mockResolvedValue([
+      { homeTeamProviderId: 60561, homeTeamName: "FC Haka", awayTeamName: "KuPS" },
+    ]);
+    const { getTeamSeasons, getTeamName } = await load();
+
+    await getTeamSeasons(DOMESTIC, 60561);
+    expect(newestMock).not.toHaveBeenCalled();
+
+    expect(await getTeamName(DOMESTIC, 60561)).toBe("FC Haka");
+  });
+
+  it("reads a foreign club's name, from whichever side it played", async () => {
+    newestMock.mockResolvedValue([
+      { homeTeamProviderId: 999, homeTeamName: "Arsenal FC", awayTeamName: "Burnley FC" },
+    ]);
+    const { getTeamName } = await load();
+
+    expect(await getTeamName(FOREIGN, 328)).toBe("Burnley FC");
+  });
+
+  it("has no name when the lookup throws, and logs it", async () => {
+    newestMock.mockRejectedValue(new Error("connection refused"));
+    const { getTeamName } = await load();
+
+    expect(await getTeamName(DOMESTIC, 60561)).toBeNull();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ teamProviderId: 60561 }),
+      "Unable to read a team's name"
+    );
+  });
+
+  it("has no name for a club nothing is stored for", async () => {
     newestMock.mockResolvedValue([]);
-    const { getTeamSeasons } = await load();
+    const { getTeamName } = await load();
 
-    const result = await getTeamSeasons(DOMESTIC, 60561);
-
-    if (result.status !== "ok") throw new Error("expected seasons");
-    expect(result.teamName).toBe("");
+    expect(await getTeamName(DOMESTIC, 60561)).toBeNull();
+    expect(await getTeamName(DOMESTIC, 0)).toBeNull();
   });
 });
 
