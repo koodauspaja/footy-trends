@@ -146,6 +146,9 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     const buckets = new Set(getSeasonCategoryNameMapMock.mock.calls.map((call) => call[0]));
     expect(buckets).toEqual(new Set(["maajp2026", "maajp2025"]));
     expect(getSeasonCategoryNameMapMock).toHaveBeenCalledTimes(2);
+    // The bucket's own season first, the active year second: that is what buys
+    // a settled bucket the one-year TTL instead of a fifteen-minute one.
+    expect(getSeasonCategoryNameMapMock).toHaveBeenCalledWith("maajp2026", 2026, 2026);
   });
 
   it("falls back to the series name for a row TASO cannot name", async () => {

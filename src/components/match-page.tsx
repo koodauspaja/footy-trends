@@ -106,17 +106,19 @@ async function resolveSpansCalendarYears(competitionCode: string): Promise<boole
  * TASO's category names for one provider bucket, or `null` if it cannot be
  * asked.
  *
- * `NATIONAL_TEAM_ACTIVE_YEAR` rather than the row's own season: that argument
- * only picks the cache TTL, and a bucket from 2019 is immutable — telling the
- * cache it is current would re-fetch a settled answer every fifteen minutes.
+ * The two season arguments decide the cache TTL, and only that: a bucket at or
+ * above the active year is treated as still changing and cached for fifteen
+ * minutes, an older one as settled and cached for a year. So the bucket's own
+ * season goes first and `NATIONAL_TEAM_ACTIVE_YEAR` second — passing the active
+ * year twice makes every bucket look current, which is the fifteen-minute
+ * re-fetch this is meant to avoid.
  */
-async function loadCategoryNames(competitionCode: string): Promise<Record<string, string> | null> {
+async function loadCategoryNames(
+  competitionCode: string,
+  seasonId: number
+): Promise<Record<string, string> | null> {
   try {
-    return await getSeasonCategoryNameMap(
-      competitionCode,
-      NATIONAL_TEAM_ACTIVE_YEAR,
-      NATIONAL_TEAM_ACTIVE_YEAR
-    );
+    return await getSeasonCategoryNameMap(competitionCode, seasonId, NATIONAL_TEAM_ACTIVE_YEAR);
   } catch (error) {
     logger.error({ err: error, competitionId: competitionCode }, "Unable to read TASO categories");
     return null;
@@ -145,14 +147,19 @@ function labelFromCategoryName(team: NationalTeam, categoryName: string): string
  * it is displaying and about up to five previous meetings, which at 1.28
  * buckets per list are usually the same one or two.
  */
-type CategoryNames = (competitionCode: string) => Promise<Record<string, string> | null>;
+type CategoryNames = (
+  competitionCode: string,
+  seasonId: number
+) => Promise<Record<string, string> | null>;
 
 function categoryNameLoader(): CategoryNames {
   const byBucket = new Map<string, Promise<Record<string, string> | null>>();
-  return (competitionCode) => {
+  // Keyed by bucket alone: a bucket has one season, so the season only ever
+  // repeats what the key already says.
+  return (competitionCode, seasonId) => {
     const pending = byBucket.get(competitionCode);
     if (pending !== undefined) return pending;
-    const started = loadCategoryNames(competitionCode);
+    const started = loadCategoryNames(competitionCode, seasonId);
     byBucket.set(competitionCode, started);
     return started;
   };
@@ -164,7 +171,7 @@ async function resolveNationalCompetitionName(
   match: TasoMatchRow,
   names: CategoryNames
 ): Promise<string | null> {
-  const categoryName = (await names(match.competitionCode))?.[match.categoryId];
+  const categoryName = (await names(match.competitionCode, match.seasonId))?.[match.categoryId];
   return categoryName === undefined ? null : labelFromCategoryName(team, categoryName);
 }
 
@@ -301,7 +308,7 @@ async function labelTasoHeadToHead(
 
   return Promise.all(
     rows.map(async (row) => {
-      const categoryName = (await names(row.competitionCode))?.[row.categoryId];
+      const categoryName = (await names(row.competitionCode, row.seasonId))?.[row.categoryId];
       return {
         ...row,
         label:
