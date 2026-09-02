@@ -104,6 +104,54 @@ describe("/kotimaa/ottelu/:id", () => {
     );
   });
 
+  it("names each previous meeting's competition rather than TASO's series", async () => {
+    // The list spans competitions, so this column is the only signal for which
+    // one a meeting belonged to: "5. Kierros" left a cup tie looking like a
+    // league round. See #251.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: {
+        status: "ok",
+        matches: [
+          tasoRow({
+            providerMatchId: 4000002,
+            categoryId: "MSC",
+            groupName: "5. Kierros",
+            kickoffAt: new Date("2026-05-30T15:00:00Z"),
+          }),
+          tasoRow({
+            providerMatchId: 4000003,
+            categoryId: "VL",
+            groupName: "Runkosarja",
+            kickoffAt: new Date("2026-04-05T15:00:00Z"),
+          }),
+        ],
+      },
+    });
+    await renderPage();
+
+    expect(screen.getByRole("columnheader", { name: "Kilpailu" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Sarja" })).not.toBeInTheDocument();
+    expect(screen.getByText("Miesten Suomen Cup")).toBeInTheDocument();
+    expect(screen.getByText("Veikkausliiga")).toBeInTheDocument();
+    expect(screen.queryByText("5. Kierros")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the series name for a category the picker does not claim", async () => {
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: {
+        status: "ok",
+        matches: [tasoRow({ providerMatchId: 4000004, categoryId: "X99", groupName: "Lohko A" })],
+      },
+    });
+    await renderPage();
+
+    expect(screen.getByText("Lohko A")).toBeInTheDocument();
+  });
+
   it("states the window the meetings were drawn from", async () => {
     await renderPage();
 

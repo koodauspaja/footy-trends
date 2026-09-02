@@ -95,6 +95,35 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     expect(screen.queryByRole("link", { name: "San Marino" })).not.toBeInTheDocument();
   });
 
+  it("names each previous meeting's competition, with the team suffix stripped", async () => {
+    // TASO's own group names here run to "2024", "Slovakia" and "Heinäkuu"; the
+    // competition names are already normalised by specs/018. See #251.
+    getSeasonCategoryNameMapMock.mockResolvedValue({
+      UNL: "UEFA Nations League Huuhkajat",
+      WCQ: "MM-karsinnat Huuhkajat",
+    });
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: row() },
+      headToHead: {
+        status: "ok",
+        matches: [row({ providerMatchId: 4200002, categoryId: "WCQ", groupName: "Lohko J" })],
+      },
+    });
+    await renderMensPage();
+
+    expect(screen.getByRole("columnheader", { name: "Kilpailu" })).toBeInTheDocument();
+    expect(screen.getByText("MM-karsinnat")).toBeInTheDocument();
+    expect(screen.queryByText("Lohko J")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the series name for a row TASO cannot name", async () => {
+    getSeasonCategoryNameMapMock.mockResolvedValue({});
+    await renderMensPage();
+
+    expect(screen.getByText("MM-karsinnat lohko J")).toBeInTheDocument();
+  });
+
   it("states the window as a calendar year, not a season", async () => {
     await renderMensPage();
 

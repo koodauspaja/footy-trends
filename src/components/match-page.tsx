@@ -37,6 +37,7 @@ const MATCH_HEADING = "Ottelu";
 const NOT_FOUND_MESSAGE = "Ottelua ei löytynyt.";
 const ERROR_MESSAGE = "Ottelun lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const HEAD_TO_HEAD_HEADING = "Aiemmat kohtaamiset";
+const COMPETITION_COLUMN = "Kilpailu";
 const HEAD_TO_HEAD_EMPTY = "Aiempia kohtaamisia ei löytynyt.";
 const HEAD_TO_HEAD_ERROR = "Aiempien kohtaamisten lataaminen epäonnistui.";
 const HEAD_TO_HEAD_UNAVAILABLE =
@@ -72,7 +73,7 @@ type MatchView = {
   score: string;
   winnerSide: "home" | "away" | null;
   windowSentence: string;
-  /** `Kilpailu` for football-data rows, `Sarja` for TASO's own series name. */
+  /** Always `Kilpailu`: every row names the competition it was played in. */
   headToHeadHeader: string;
   /** Each row carries its own fourth-column label — a competition, or a series. */
   headToHeadRows: Array<MatchListRow & { label: string }>;
@@ -205,7 +206,7 @@ async function footballDataView(
     // season above shows as a bare year, and the sentence must not describe the
     // same season as `2026/27` two lines below it.
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, spans ?? false)),
-    headToHeadHeader: "Kilpailu",
+    headToHeadHeader: COMPETITION_COLUMN,
     headToHeadRows: localisedRows.map((row) => ({
       ...row,
       label: getCompetitionName(row.competitionCode),
@@ -231,6 +232,43 @@ function tasoCompetitionName(
   return domesticCode === null ? null : getDomesticCompetitionName(domesticCode);
 }
 
+/**
+ * The previous meetings, each labelled with the competition it was played in.
+ *
+ * The head-to-head deliberately spans competitions, so this column is the only
+ * signal for which one a meeting belonged to — and TASO's `group_name` names a
+ * stage instead: `5. Kierros` leaves a cup tie looking like a league round, and
+ * on the national-team side it can be `2024`, `Slovakia` or `Heinäkuu`. See
+ * #251.
+ *
+ * Two different lookups behind one column, as elsewhere on this page: a
+ * domestic row's category maps to a competition in our own registry, while a
+ * national-team row's name lives only in TASO's category map — cached, and
+ * already read for the displayed match. A national-team list touches 1.28 of
+ * those maps on average and three at most, measured across all 104 stored pairs
+ * on 2026-09-02.
+ *
+ * The group name stays as the fallback for a row nothing can name: a category
+ * the picker does not claim, or a map that could not be read.
+ */
+async function labelTasoHeadToHead(
+  team: NationalTeam | undefined,
+  rows: TasoMatchRow[]
+): Promise<Array<TasoMatchRow & { label: string }>> {
+  return Promise.all(
+    rows.map(async (row) => {
+      if (team !== undefined) {
+        return {
+          ...row,
+          label: (await resolveNationalCompetitionName(team, row)) ?? row.groupName,
+        };
+      }
+      const code = competitionCodeForCategory(row.categoryId);
+      return { ...row, label: code === null ? row.groupName : getDomesticCompetitionName(code) };
+    })
+  );
+}
+
 /** The TASO half: `/kotimaa`, and the two national-team routes. */
 async function tasoView(
   match: TasoMatchRow,
@@ -244,6 +282,7 @@ async function tasoView(
 
   const domesticCode = competitionCodeForCategory(match.categoryId);
   const competitionName = await tasoCompetitionName(national, domesticCode, match);
+  const labelledRows = await labelTasoHeadToHead(national, localisedRows);
   const season = national === undefined ? match.seasonId : match.kickoffAt.getUTCFullYear();
 
   const teamHref = teamHrefBuilder(options.teamBasePath, domesticCode, match.seasonId);
@@ -266,8 +305,8 @@ async function tasoView(
     score: formatScore(match),
     winnerSide: declaredWinnerSide(match, match.winner),
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, false)),
-    headToHeadHeader: "Sarja",
-    headToHeadRows: localisedRows.map((row) => ({ ...row, label: row.groupName })),
+    headToHeadHeader: COMPETITION_COLUMN,
+    headToHeadRows: labelledRows,
     title: `${localised.homeTeamName} – ${localised.awayTeamName}${
       competitionName === null ? "" : `, ${competitionName} ${season}`
     }`,
