@@ -5,14 +5,14 @@ import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
+import { earliestSeasonFor, getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
   type CompetitionPageOptions,
   resolveBasePageContext,
 } from "@/lib/page-context";
-import { formatSeasonLabel } from "@/lib/seasons";
+import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
@@ -204,6 +204,10 @@ export async function CompetitionTeamPage({
     season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
     competition: getCompetitionName,
     href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+    selectable: (code, year) =>
+      year >=
+        earliestSeasonFor(code, resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON)) &&
+      year <= context.activeSeasonId,
   });
   // Everything the body needs, in one value: the two lookups' verdicts and
   // where the club was instead.
@@ -224,7 +228,7 @@ export async function CompetitionTeamPage({
         basePath={basePath}
         competitionCode={competitionCode}
         seasonCompetitions={seasonCompetitions(played)}
-        seasons={offeredSeasons.length > 0 ? offeredSeasons : context.selectableSeasons}
+        seasons={offeredSeasons}
         selectedSeasonId={seasonId}
         teamProviderId={teamProviderId}
       />

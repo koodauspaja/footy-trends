@@ -430,6 +430,23 @@ describe("Team page", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not offer a stored season past the provider's active one", async () => {
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2027, matches: 2 },
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+      ],
+    });
+
+    await renderTeamPage("57", { kilpailu: "PL", kausi: "2025" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2025/26"]);
+  });
+
   it("does not call a club unknown when its seasons could not be read", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
     getTeamSeasonsMock.mockResolvedValue({ status: "error" });

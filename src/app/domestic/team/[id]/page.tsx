@@ -7,6 +7,7 @@ import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import {
+  earliestSeasonFor,
   getDomesticCompetitionName,
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
@@ -155,7 +156,7 @@ export default async function DomesticTeamPage({
     competitionCode,
     competitionParam,
     competitionName,
-    selectableSeasons,
+    currentSeason,
     season,
     seasonId,
     seasonLabel,
@@ -170,6 +171,7 @@ export default async function DomesticTeamPage({
     season: String,
     competition: getDomesticCompetitionName,
     href: (code, year) => `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
+    selectable: (code, year) => year >= earliestSeasonFor(code) && year <= currentSeason,
   });
   // Everything the body needs, in one value: the two lookups' verdicts and
   // where the club was instead.
@@ -191,7 +193,7 @@ export default async function DomesticTeamPage({
         actionPath={`/kotimaa/joukkue/${teamProviderId}`}
         competitionCode={competitionCode}
         seasonCompetitions={seasonCompetitions(played)}
-        seasons={offeredSeasons.length > 0 ? offeredSeasons : selectableSeasons}
+        seasons={offeredSeasons}
         selectedSeasonId={seasonId}
       />
       <TeamMatchesOutcome

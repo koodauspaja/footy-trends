@@ -310,6 +310,25 @@ describe("Domestic team page", () => {
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
   });
 
+  it("does not offer a stored season past the one the provider is on", async () => {
+    // A bucket can hold a season the picker does not offer yet; a dropdown
+    // entry for it sends a `kausi` the page rejects.
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [
+        { competitionCode: "VL", seasonId: 2027, matches: 3 },
+        { competitionCode: "VL", seasonId: 2026, matches: 27 },
+      ],
+    });
+
+    await renderTeam("60901", { kilpailu: "VL", kausi: "2026" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2026"]);
+  });
+
   it("still calls an unknown club unknown", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });

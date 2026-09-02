@@ -144,7 +144,10 @@ No provider call.
 | Team exists, never played this competition at all | The message, plus its most recent context |
 | Team played two competitions that season | Both listed, picker order |
 | Team id that does not exist | specs/020's reduced page, unchanged |
-| The seasons lookup fails | The page's error state — a database that could not answer is neither an unknown club nor a club that played elsewhere |
+| The seasons lookup fails **and the page has no matches** | The page's error state — a database that could not answer is neither an unknown club nor a club that played elsewhere |
+| The seasons lookup fails **while the page has matches** | The matches, as normal. The failed lookup only costs the selector its narrowed options; blanking a page whose content is correct would be a worse answer than showing it |
+| A stored season the app can no longer select | Not offered by the selector: choosing it would send a `kausi` the page rejects, landing the reader on a fallback season instead of where they clicked |
+| The season being shown is one the club never played | Still offered, and selected — a dropdown missing its own page's season shows a different one as chosen |
 | Placeholder id `0` | Same — never resolves |
 | Team whose only stored matches are in a category the picker does not claim | Treated as not existing, as specs/020 does |
 | A competition the team played in a season the app can no longer select | Not offered; the link points only at pages that render |

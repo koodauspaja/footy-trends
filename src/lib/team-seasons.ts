@@ -257,18 +257,35 @@ export function teamSeasonsView(
     season: (seasonId: number) => string;
     competition: (competitionCode: string) => string;
     href: (competitionCode: string, seasonId: number) => string;
+    /**
+     * Whether a page exists for this competition and season.
+     *
+     * A club can have stored rows the app no longer offers — a raised season
+     * floor leaves them behind — and offering one sends a `kausi` the page
+     * rejects, landing the reader on a fallback season with a notice rather
+     * than where they clicked. Filtered here rather than in the pages, because
+     * both would need the same rule.
+     */
+    selectable: (competitionCode: string, seasonId: number) => boolean;
   }
 ): TeamSeasonsView {
-  const offeredSeasons = [...new Set(seasons.map((entry) => entry.seasonId))]
+  const reachable = seasons.filter((entry) =>
+    labels.selectable(entry.competitionCode, entry.seasonId)
+  );
+  // The season being shown is always offered, even when the club did not play
+  // it: a dropdown that omits it has nothing selected, so the browser displays
+  // its first option and the control claims a different season from the page.
+  // It is also why the pages need no empty-list fallback — this list never is.
+  const offeredSeasons = [...new Set([...reachable.map((entry) => entry.seasonId), seasonId])]
     .sort((left, right) => right - left)
     .map((year) => ({ seasonId: year, label: labels.season(year) }));
 
-  const sameSeason = competitionsInSeason(seasons, seasonId).map((entry) => ({
+  const sameSeason = competitionsInSeason(reachable, seasonId).map((entry) => ({
     label: labels.competition(entry.competitionCode),
     href: labels.href(entry.competitionCode, entry.seasonId),
   }));
 
-  const [mostRecent] = seasons;
+  const [mostRecent] = reachable;
   const newest =
     mostRecent === undefined
       ? null

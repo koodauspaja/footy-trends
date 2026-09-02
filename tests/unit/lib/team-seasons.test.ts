@@ -239,3 +239,50 @@ describe("reading a club's seasons", () => {
     expect(seasonCompetitions(seasons)).toEqual({ 2025: "VL", 2026: "M1L" });
   });
 });
+
+describe("teamSeasonsView", () => {
+  const labels = {
+    season: String,
+    competition: (code: string) => code,
+    href: (code: string, year: number) => `/team?kilpailu=${code}&kausi=${year}`,
+    selectable: () => true,
+  };
+  const seasons = [
+    { competitionCode: "M1L", seasonId: 2026, matches: 27 },
+    { competitionCode: "VL", seasonId: 2025, matches: 27 },
+  ];
+
+  it("always offers the season being shown, even one the club did not play", async () => {
+    // A dropdown without the current season has nothing selected, so the
+    // browser shows its first option and the control contradicts the heading.
+    const { teamSeasonsView } = await load();
+
+    const view = teamSeasonsView(seasons, 2019, labels);
+
+    expect(view.offeredSeasons.map((option) => option.seasonId)).toEqual([2026, 2025, 2019]);
+  });
+
+  it("does not offer a season the page could not render", async () => {
+    // A raised season floor leaves stored rows behind; offering one sends a
+    // `kausi` the page rejects and lands the reader somewhere else entirely.
+    const { teamSeasonsView } = await load();
+
+    const view = teamSeasonsView(seasons, 2026, {
+      ...labels,
+      selectable: (_code, year) => year >= 2026,
+    });
+
+    expect(view.offeredSeasons.map((option) => option.seasonId)).toEqual([2026]);
+    expect(view.newest?.label).toBe("M1L 2026");
+  });
+
+  it("leaves nothing to offer but the current season when none is reachable", async () => {
+    const { teamSeasonsView } = await load();
+
+    const view = teamSeasonsView(seasons, 2020, { ...labels, selectable: () => false });
+
+    expect(view.offeredSeasons.map((option) => option.seasonId)).toEqual([2020]);
+    expect(view.newest).toBeNull();
+    expect(view.sameSeason).toEqual([]);
+  });
+});
