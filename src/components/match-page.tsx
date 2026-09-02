@@ -29,6 +29,7 @@ import {
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
 import { competitionLabel, MENS_TEAM, type NationalTeam, WOMENS_TEAM } from "@/lib/national-team";
+import { isStoredInteger } from "@/lib/provider-ids";
 import { formatSeasonLabel } from "@/lib/seasons";
 import { getSeasonCategoryNameMap } from "@/lib/taso-standings-service";
 
@@ -291,7 +292,7 @@ function buildView(
 async function resolve(options: MatchPageOptions) {
   const { id } = await options.params;
   const providerMatchId = Number(id);
-  if (!Number.isInteger(providerMatchId)) return { status: "not_found" } as const;
+  if (!isStoredInteger(providerMatchId)) return { status: "not_found" } as const;
 
   const data = await getMatchPageData(options.source, providerMatchId);
   if (data.status !== "ok") return data;

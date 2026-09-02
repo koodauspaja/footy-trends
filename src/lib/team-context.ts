@@ -11,6 +11,7 @@ import {
 import { logger } from "./logger";
 import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 import { NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
+import { isStoredInteger } from "./provider-ids";
 
 /**
  * Which competition and season a team page shows when its URL does not say.
@@ -166,8 +167,10 @@ export function getTeamContext(
   filter: TeamContextFilter = {}
 ): Promise<TeamContextResult> {
   // The id alone, not `isPlaceholderTeam`: that also treats a blank *name* as a
-  // placeholder, and there is no name here to judge.
-  if (!Number.isInteger(teamProviderId) || teamProviderId === PLACEHOLDER_TEAM_ID) {
+  // placeholder, and there is no name here to judge. `isStoredInteger` refuses
+  // what the column cannot hold, which would otherwise fail at bind time and
+  // reach the reader as an error rather than a not-found.
+  if (!isStoredInteger(teamProviderId) || teamProviderId === PLACEHOLDER_TEAM_ID) {
     return Promise.resolve({ status: "not_found" });
   }
   const scope = source.kind === "football-data" ? source.region : source.bucket;

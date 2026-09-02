@@ -147,6 +147,36 @@ competition is chosen is verified against fixtures in
 `tests/integration/team-context.test.ts`, where a fixed newest match can be
 inserted and asserted exactly.
 
+## The third round: a range one door further out
+
+The same review that caught `Infinity` came back for the range below it.
+`Number.isSafeInteger` accepts 9,007,199,254,740,991; a Postgres `integer`
+column holds 2,147,483,647. Measured on a running server before fixing
+anything, all of these rendered **`Otteluiden lataaminen epäonnistui.`** — the
+error state, telling a reader the site was broken:
+
+| URL | Rendered | Should render |
+|---|---|---|
+| `/kotimaa/joukkue/99999999999` | error | `Joukkuetta ei löytynyt.` |
+| `/ulkomaat/joukkue/99999999999` | error | `Joukkuetta ei löytynyt.` |
+| `/kotimaa/joukkue/60496?kausi=9007199254740991` | error | the team's page, with the season notice |
+| `/kotimaa/ottelu/99999999999` | error | `Ottelua ei löytynyt.` |
+
+**The last two rows are spec 019's, already on `main`.** The match page had the
+identical flaw, so this is a class rather than a line, and one guard —
+`isStoredInteger` in `src/lib/provider-ids.ts` — now stands at all three doors:
+`getMatchPageData`, `getTeamContext` and `seasonCandidate`.
+
+The non-obvious part, and the reason the database cannot be left to answer it:
+**raw SQL with a literal that large is fine.** Postgres promotes the column to
+`bigint` when it compares against one, and returns zero rows. It is the *bound
+parameter* that fails — `postgres.js` binds an `int4` — so the failure appears
+only through the app, which is exactly where a reader meets it.
+
+All four URLs were re-loaded after the fix and now answer honestly, the
+`kausi` one landing on the team's own page under
+`Kautta ei löytynyt. Näytetään kausi 2026.`
+
 ## Smaller calls
 
 - **Page tests mock `@/lib/team-context`, not `@/lib/team-page-context`.**

@@ -39,6 +39,8 @@ describe("seasonCandidate", () => {
 
     expect(seasonCandidate("9".repeat(300))).toBeUndefined();
     expect(seasonCandidate(String(Number.MAX_SAFE_INTEGER + 2))).toBeUndefined();
+    // Safe as a JavaScript integer, still too large for the column.
+    expect(seasonCandidate("99999999999")).toBeUndefined();
   });
 });
 

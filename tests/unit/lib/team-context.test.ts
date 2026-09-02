@@ -72,6 +72,15 @@ describe("getTeamContext", () => {
     expect(rowsMock).not.toHaveBeenCalled();
   });
 
+  it("refuses an id too large for the column without querying at all", async () => {
+    // Left to the database this fails at bind time, and the reader is told the
+    // site broke rather than that the team does not exist.
+    const getTeamContext = await load();
+
+    expect(await getTeamContext(DOMESTIC, 99999999999)).toEqual({ status: "not_found" });
+    expect(rowsMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a non-integer id without querying at all", async () => {
     const getTeamContext = await load();
 

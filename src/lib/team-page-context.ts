@@ -1,3 +1,4 @@
+import { isStoredInteger } from "./provider-ids";
 import {
   getTeamContext,
   type TeamContext,
@@ -28,11 +29,12 @@ const POSITIVE_INTEGER = /^\d+$/;
 export function seasonCandidate(rawValue: string | string[] | undefined): number | undefined {
   if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return undefined;
   const seasonId = Number(rawValue);
-  // Digits alone are not enough: three hundred of them parse to `Infinity`,
-  // which is not a season and which Postgres rejects outright when it reaches
-  // an integer comparison. An unusable value is no filter at all, and the
-  // page's own validation still gives it the Finnish notice.
-  return Number.isSafeInteger(seasonId) ? seasonId : undefined;
+  // Digits alone are not enough. Three hundred of them parse to `Infinity`, and
+  // anything past 2,147,483,647 does not fit the column — both fail at bind
+  // time and surface as an error where a Finnish notice belongs. An unusable
+  // value is no filter at all, and the page's own validation still gives it
+  // that notice.
+  return isStoredInteger(seasonId) ? seasonId : undefined;
 }
 
 /**

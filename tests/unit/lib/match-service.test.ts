@@ -192,6 +192,15 @@ describe("getMatchPageData", () => {
     expect(selectMock).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses an id too large for the column without querying at all", async () => {
+    // The same door as the team page's: an out-of-range parameter fails at bind
+    // time, which reaches the reader as an error rather than a not-found.
+    const getMatchPageData = await load();
+
+    expect(await getMatchPageData(DOMESTIC, 99999999999)).toEqual({ status: "not_found" });
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
   it("answers error, and logs, when the lookup throws", async () => {
     selectMock.mockRejectedValueOnce(new Error("connection refused"));
     const getMatchPageData = await load();

@@ -7,6 +7,7 @@ import { HEAD_TO_HEAD_LIMIT } from "./head-to-head";
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
+import { isStoredInteger } from "./provider-ids";
 
 export type FootballDataMatchRow = typeof matches.$inferSelect;
 export type TasoMatchRow = typeof tasoMatches.$inferSelect;
@@ -221,6 +222,11 @@ export function getMatchPageData(
   source: MatchSource,
   providerMatchId: number
 ): Promise<MatchPageData> {
+  // An id the column cannot hold is a match that cannot exist. Left to the
+  // database it fails at bind time instead, and the reader is told the site
+  // broke. See specs/020-context-free-team-page.md.
+  if (!isStoredInteger(providerMatchId)) return Promise.resolve({ status: "not_found" });
+
   const scope = source.kind === "football-data" ? source.region : source.bucket;
   return loadMatchPageData(source.kind, scope, providerMatchId);
 }
