@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
@@ -40,6 +41,18 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
 // The team's own newest stored context, which the page resolves before it knows
 // which competition to ask about. Mocked at the database boundary, so
 // `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+/**
+ * The club's other seasons, which most of these tests do not describe: an
+ * unanswered lookup leaves the page on its previous behaviour, and the tests
+ * that care about it set a value. See specs/022-teams-between-tiers.md.
+ */
+const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
+
+vi.mock("@/lib/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+  return { ...actual, getTeamSeasons: getTeamSeasonsMock };
+});
+
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
@@ -132,6 +145,7 @@ async function getMetadata(
 describe("Team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
@@ -350,6 +364,48 @@ describe("Team page", () => {
       screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
+  it("says where a relegated club played instead of calling it unknown", async () => {
+    // Burnley: Premier League 2023, Championship 2024, back up in 2025.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      teamName: "Burnley FC",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+        { competitionCode: "ELC", seasonId: 2024, matches: 46 },
+      ],
+    });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2024" });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Burnley FC");
+    expect(
+      screen.getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Championship" })).toHaveAttribute(
+      "href",
+      "/ulkomaat/joukkue/328?kilpailu=ELC&kausi=2024"
+    );
+  });
+
+  it("offers the club's own seasons, labelled as the competition labels them", async () => {
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      teamName: "Burnley FC",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+        { competitionCode: "ELC", seasonId: 2024, matches: 46 },
+      ],
+    });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2025" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2025/26", "2024/25"]);
   });
 
   it("shows the reduced not-found page for a non-numeric team id, and queries nothing", async () => {

@@ -5,11 +5,21 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
-import { parseDomesticCompetitionParam } from "@/lib/domestic-competitions";
+import { TeamSeasonMissing } from "@/components/team-season-missing";
+import {
+  getDomesticCompetitionName,
+  parseDomesticCompetitionParam,
+} from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
+import {
+  competitionsInSeason,
+  getTeamSeasons,
+  seasonCompetitions,
+  type TeamSeasonsResult,
+} from "@/lib/team-seasons";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +62,8 @@ type ResolvedTeamPage =
       teamProviderId: number;
       result: TeamMatchesResult;
       teamName: string | null;
+      /** Every competition and season this club has matches for. */
+      seasons: TeamSeasonsResult;
     };
 
 /**
@@ -79,9 +91,15 @@ async function resolvePage(
     context.currentSeason
   );
   const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
+  const seasons = await getTeamSeasons(SOURCE, teamProviderId);
+  const teamName =
+    firstMatch !== undefined
+      ? nameForTeam(firstMatch, teamProviderId)
+      : seasons.status === "ok"
+        ? seasons.teamName
+        : null;
 
-  return { status: "ok", context, teamProviderId, result, teamName };
+  return { status: "ok", context, teamProviderId, result, teamName, seasons };
 }
 
 function headingFor(resolved: Extract<ResolvedTeamPage, { status: "ok" }>): string {
@@ -121,7 +139,7 @@ export default async function DomesticTeamPage({
     );
   }
 
-  const { context, teamProviderId, result } = resolved;
+  const { context, teamProviderId, result, seasons } = resolved;
   const {
     competitionCode,
     competitionParam,
@@ -132,6 +150,32 @@ export default async function DomesticTeamPage({
     seasonLabel,
     renamedTo,
   } = context;
+
+  const played = seasons.status === "ok" ? seasons.seasons : [];
+  // The club's own seasons, so the dropdown stops offering years it spent in
+  // another tier — 120 of Veikkausliiga's 264 options ended nowhere. Falls back
+  // to the competition's range when the club's seasons could not be read.
+  const offeredSeasons =
+    played.length > 0
+      ? [...new Set(played.map((entry) => entry.seasonId))]
+          .sort((left, right) => right - left)
+          .map((year) => ({ seasonId: year, label: String(year) }))
+      : selectableSeasons;
+
+  const teamHref = (code: string, year: number) =>
+    `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`;
+  const sameSeason = competitionsInSeason(played, seasonId).map((entry) => ({
+    label: getDomesticCompetitionName(entry.competitionCode),
+    href: teamHref(entry.competitionCode, entry.seasonId),
+  }));
+  const [newestSeason] = played;
+  const newest =
+    newestSeason === undefined
+      ? null
+      : {
+          label: `${getDomesticCompetitionName(newestSeason.competitionCode)} ${newestSeason.seasonId}`,
+          href: teamHref(newestSeason.competitionCode, newestSeason.seasonId),
+        };
 
   return (
     <PageShell heading={headingFor(resolved)}>
@@ -153,10 +197,15 @@ export default async function DomesticTeamPage({
       <TasoSeasonOnlyControls
         actionPath={`/kotimaa/joukkue/${teamProviderId}`}
         competitionCode={competitionCode}
-        seasons={selectableSeasons}
+        seasonCompetitions={seasonCompetitions(played)}
+        seasons={offeredSeasons}
         selectedSeasonId={seasonId}
       />
-      {result.status === "not_found" && <p>{NOT_FOUND_MESSAGE}</p>}
+      {/* A club that exists but played elsewhere is not an unknown club. */}
+      {result.status === "not_found" && played.length > 0 && (
+        <TeamSeasonMissing newest={newest} sameSeason={sameSeason} seasonLabel={seasonLabel} />
+      )}
+      {result.status === "not_found" && played.length === 0 && <p>{NOT_FOUND_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (

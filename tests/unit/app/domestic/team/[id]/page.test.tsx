@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
@@ -53,6 +54,18 @@ const getTeamContextMock = vi.fn(defaultTeamContext);
 // The team's own newest stored context, which the page resolves before it knows
 // which competition to ask about. Mocked at the database boundary, so
 // `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+/**
+ * The club's other seasons, which most of these tests do not describe: an
+ * unanswered lookup leaves the page on its previous behaviour, and the tests
+ * that care about it set a value. See specs/022-teams-between-tiers.md.
+ */
+const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
+
+vi.mock("@/lib/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+  return { ...actual, getTeamSeasons: getTeamSeasonsMock };
+});
+
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
@@ -97,6 +110,7 @@ async function renderTeam(
 describe("Domestic team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
     getTeamContextMock.mockImplementation(defaultTeamContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
   });
@@ -194,6 +208,83 @@ describe("Domestic team page", () => {
       screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
+  it("says where a relegated club played instead of calling it unknown", async () => {
+    // FC Haka, Ykkönen 2015–19, Veikkausliiga 2020–25, Ykkösliiga 2026. Asking
+    // for its Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      teamName: "FC Haka",
+      seasons: [
+        { competitionCode: "M1L", seasonId: 2026, matches: 27 },
+        { competitionCode: "MSC", seasonId: 2026, matches: 2 },
+        { competitionCode: "VL", seasonId: 2025, matches: 27 },
+      ],
+    });
+
+    await renderTeam("60561", { kilpailu: "VL", kausi: "2026" });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("FC Haka");
+    expect(
+      screen.getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ykkösliiga" })).toHaveAttribute(
+      "href",
+      "/kotimaa/joukkue/60561?kilpailu=M1L&kausi=2026"
+    );
+    expect(screen.getByRole("link", { name: "Miesten Suomen Cup" })).toBeInTheDocument();
+  });
+
+  it("offers the club's most recent season when it played nothing that year", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      teamName: "HIFK",
+      seasons: [{ competitionCode: "VL", seasonId: 2022, matches: 27 }],
+    });
+
+    await renderTeam("60808", { kilpailu: "VL", kausi: "2015" });
+
+    // The label and the link are separate nodes, as a link inside a sentence is.
+    expect(screen.getByText(/Joukkueen uusin kausi/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Veikkausliiga 2022" })).toHaveAttribute(
+      "href",
+      "/kotimaa/joukkue/60808?kilpailu=VL&kausi=2022"
+    );
+  });
+
+  it("offers the club's own seasons in the selector, not the competition's", async () => {
+    // 120 of Veikkausliiga's 264 (club, season) options led nowhere.
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      teamName: "HIFK",
+      seasons: [
+        { competitionCode: "M1", seasonId: 2018, matches: 24 },
+        { competitionCode: "VL", seasonId: 2017, matches: 27 },
+      ],
+    });
+
+    await renderTeam("60808", { kilpailu: "VL", kausi: "2017" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2018", "2017"]);
+  });
+
+  it("still calls an unknown club unknown", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+
+    await renderTeam("999999", { kilpailu: "VL", kausi: "2026" });
+
+    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).not.toBeInTheDocument();
   });
 
   it("shows the reduced not-found page for a non-numeric id, without calling getTeamMatches", async () => {

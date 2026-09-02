@@ -3,17 +3,25 @@ import Link from "next/link";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { TeamSeasonMissing } from "@/components/team-season-missing";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { parseCompetitionParam } from "@/lib/competitions";
+import { getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
 import { toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
   type CompetitionPageOptions,
   resolveBasePageContext,
 } from "@/lib/page-context";
+import { formatSeasonLabel } from "@/lib/seasons";
 import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
+import {
+  competitionsInSeason,
+  getTeamSeasons,
+  seasonCompetitions,
+  type TeamSeasonsResult,
+} from "@/lib/team-seasons";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
@@ -33,6 +41,8 @@ type PageContext =
       teamProviderId: number;
       result: TeamMatchesResult;
       teamName: string | null;
+      /** Every competition and season this club has matches for. */
+      seasons: TeamSeasonsResult;
     });
 
 /** What the URL already said, and so what the team's own context must not contradict. */
@@ -97,9 +107,15 @@ async function resolvePageContext(
       : result;
 
   const [firstMatch] = localised.status === "ok" ? localised.matches : [];
-  const teamName = firstMatch === undefined ? null : nameForTeam(firstMatch, teamProviderId);
+  const seasons = await getTeamSeasons({ kind: "football-data", region }, teamProviderId);
+  const teamName =
+    firstMatch !== undefined
+      ? nameForTeam(firstMatch, teamProviderId)
+      : seasons.status === "ok"
+        ? seasons.teamName
+        : null;
 
-  return { ...base, teamProviderId, result: localised, teamName };
+  return { ...base, teamProviderId, result: localised, teamName, seasons };
 }
 
 export async function teamMetadata({
@@ -162,7 +178,34 @@ export async function CompetitionTeamPage({
     seasonLabel,
     result,
     teamName,
+    seasons,
   } = resolved;
+
+  const played = seasons.status === "ok" ? seasons.seasons : [];
+  const label = (year: number) => formatSeasonLabel(year, context.spansCalendarYears);
+  // The club's own seasons rather than the competition's, so a relegated club's
+  // dropdown stops offering years it spent in another tier. See specs/022.
+  const offeredSeasons =
+    played.length > 0
+      ? [...new Set(played.map((entry) => entry.seasonId))]
+          .sort((left, right) => right - left)
+          .map((year) => ({ seasonId: year, label: label(year) }))
+      : context.selectableSeasons;
+
+  const teamHref = (code: string, year: number) =>
+    `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`;
+  const sameSeason = competitionsInSeason(played, seasonId).map((entry) => ({
+    label: getCompetitionName(entry.competitionCode),
+    href: teamHref(entry.competitionCode, entry.seasonId),
+  }));
+  const [newestSeason] = played;
+  const newest =
+    newestSeason === undefined
+      ? null
+      : {
+          label: `${getCompetitionName(newestSeason.competitionCode)} ${label(newestSeason.seasonId)}`,
+          href: teamHref(newestSeason.competitionCode, newestSeason.seasonId),
+        };
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 
@@ -184,12 +227,17 @@ export async function CompetitionTeamPage({
       )}
       <TeamSeasonSelector
         basePath={basePath}
-        teamProviderId={teamProviderId}
         competitionCode={competitionCode}
-        seasons={context.selectableSeasons}
+        seasonCompetitions={seasonCompetitions(played)}
+        seasons={offeredSeasons}
         selectedSeasonId={seasonId}
+        teamProviderId={teamProviderId}
       />
-      {result.status === "not_found" && <p>{NOT_FOUND_MESSAGE}</p>}
+      {/* A club that exists but played elsewhere is not an unknown club. */}
+      {result.status === "not_found" && played.length > 0 && (
+        <TeamSeasonMissing newest={newest} sameSeason={sameSeason} seasonLabel={seasonLabel} />
+      )}
+      {result.status === "not_found" && played.length === 0 && <p>{NOT_FOUND_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (

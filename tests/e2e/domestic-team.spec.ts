@@ -1,6 +1,32 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Domestic team match list (Veikkausliiga)", () => {
+  test("a relegated club is told where it played, not that it is unknown", async ({ page }) => {
+    // FC Haka: Veikkausliiga 2020–2025, Ykkösliiga 2026. Asking for its
+    // Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
+    await page.goto("/kotimaa/joukkue/60561?kilpailu=VL&kausi=2026");
+
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("FC Haka");
+    await expect(
+      page.locator("main").getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).toBeVisible();
+    await expect(page.locator("main").getByText("Joukkuetta ei löytynyt.")).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Ykkösliiga", exact: true }).click();
+
+    await expect(page).toHaveURL(/kilpailu=M1L&kausi=2026/);
+    await expect(page.getByRole("table")).toBeVisible();
+  });
+
+  test("the season selector offers the club's own seasons", async ({ page }) => {
+    await page.goto("/kotimaa/joukkue/60808?kilpailu=VL&kausi=2017");
+
+    // HIFK has no stored season after 2023, so the dropdown stops there rather
+    // than offering Veikkausliiga's full range.
+    const options = page.getByLabel("Kausi").locator("option");
+    await expect(options.first()).toHaveText("2023");
+  });
+
   test("a bare team URL renders the team, not the region's default competition", async ({
     page,
   }) => {
