@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
-const getSeasonCategoryNameMapMock = vi.fn<() => Promise<Record<string, string>>>();
+const getSeasonCategoryNameMapMock =
+  vi.fn<
+    (
+      competitionId: string,
+      seasonId: number,
+      activeSeasonId: number
+    ) => Promise<Record<string, string>>
+  >();
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
@@ -93,6 +100,62 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Suomi" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "San Marino" })).not.toBeInTheDocument();
+  });
+
+  it("names each previous meeting's competition, with the team suffix stripped", async () => {
+    // TASO's own group names here run to "2024", "Slovakia" and "Heinäkuu"; the
+    // competition names are already normalised by specs/018. See #251.
+    getSeasonCategoryNameMapMock.mockResolvedValue({
+      UNL: "UEFA Nations League Huuhkajat",
+      WCQ: "MM-karsinnat Huuhkajat",
+    });
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: row() },
+      headToHead: {
+        status: "ok",
+        matches: [row({ providerMatchId: 4200002, categoryId: "WCQ", groupName: "Lohko J" })],
+      },
+    });
+    await renderMensPage();
+
+    expect(screen.getByRole("columnheader", { name: "Kilpailu" })).toBeInTheDocument();
+    expect(screen.getByText("MM-karsinnat")).toBeInTheDocument();
+    expect(screen.queryByText("Lohko J")).not.toBeInTheDocument();
+  });
+
+  it("reads one category map per bucket, however many rows share it", async () => {
+    // `getCached` does not deduplicate in-flight misses, so a per-row lookup
+    // would fetch the same map once per row on a cold cache. See #251.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: row() },
+      headToHead: {
+        status: "ok",
+        matches: [
+          row({ providerMatchId: 4200002, categoryId: "UNL" }),
+          row({ providerMatchId: 4200003, categoryId: "WCQ" }),
+          row({ providerMatchId: 4200004, competitionCode: "maajp2025", categoryId: "UNL" }),
+        ],
+      },
+    });
+    await renderMensPage();
+
+    // Two buckets across three rows — plus the displayed match's own, which is
+    // the same map as the first and is cached by the request.
+    const buckets = new Set(getSeasonCategoryNameMapMock.mock.calls.map((call) => call[0]));
+    expect(buckets).toEqual(new Set(["maajp2026", "maajp2025"]));
+    expect(getSeasonCategoryNameMapMock).toHaveBeenCalledTimes(2);
+    // The bucket's own season first, the active year second: that is what buys
+    // a settled bucket the one-year TTL instead of a fifteen-minute one.
+    expect(getSeasonCategoryNameMapMock).toHaveBeenCalledWith("maajp2026", 2026, 2026);
+  });
+
+  it("falls back to the series name for a row TASO cannot name", async () => {
+    getSeasonCategoryNameMapMock.mockResolvedValue({});
+    await renderMensPage();
+
+    expect(screen.getByText("MM-karsinnat lohko J")).toBeInTheDocument();
   });
 
   it("states the window as a calendar year, not a season", async () => {
