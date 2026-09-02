@@ -112,6 +112,70 @@ found by loading a real match and reading it.
 The general lesson is the one the project already writes down: a page that
 renders is not a page that is correct, and the check is to load it.
 
+## What Sourcery caught, and what it did not
+
+Five findings on the first review, four of them real.
+
+**The window sentence described a narrower set than the query returned.** The
+sentence took its floor from the match's own competition while the query spans
+the whole region, so a World Cup page could list a 2024 European Championship
+meeting under a sentence claiming 2026. Fixed on the sentence's side rather than
+the query's: the cross-competition list is the feature, so the window now names
+the oldest season any competition in the region reaches. Widening the query's
+scope was never the alternative — narrowing it to one competition would have
+been.
+
+**A placeholder team was still a link.** `Tuntematon joukkue` pointed at
+`/kotimaa/joukkue/0`. The finding named the TASO view; the fix covers both
+providers, because one rule is cheaper than remembering that `matches` happens
+to carry no such row today.
+
+**Half a shootout printed as a shootout.** `formatScore` checked only
+`penaltiesHome`, so one recorded total without the other would have rendered
+`(rp 4–null)`. Now one `bothOrNeither` helper states the rule once for all three
+score pairs, which also removed two unreachable `?? 0` fallbacks.
+
+**The season fallbacks disagreed with each other.** With the provider
+unreachable, the season line showed `2026` while the window sentence would have
+said `2026/27`.
+
+**The one I did not take** was a nitpick: the `matchHref` prop's doc promised a
+per-row opt-out its type did not offer. Widening the type to `string | null`
+would have added a code path no caller wants — the opt-out is per *table*, which
+the optional prop already provides. The documentation was wrong, so the
+documentation changed.
+
+Sonar found one more: a nested ternary choosing a TASO competition's name. It is
+two different questions behind one expression — a registry lookup for a domestic
+row, a cached category map for a national-team one — and it is now a named
+function.
+
+## Coverage, and what it exposed
+
+100% on all four metrics, and reaching it was not a test-writing exercise. Three
+of the gaps were unreachable code that should not have existed:
+
+- a source/route mismatch branch in the head-to-head, which pretended to be
+  error handling for a state the caller made impossible. The query is now bound
+  inside the branch that already knows both types, so the state cannot be
+  described, let alone reached.
+- `?? ""` behind a label lookup that could not miss. Each head-to-head row now
+  carries its own label instead of being looked up in a side map.
+- `?? ""` per date part in the kickoff formatter, gone with the switch to two
+  formatters joined by `klo`.
+
+The rest were real cases with no test: a category the registry does not claim
+(TASO publishes 28 in `spljp26`, the picker registers 20), a category map that
+answers nothing, a category name carrying neither team's suffix, and the
+metadata of a page with no match.
+
+**`match-service.ts` read as 0% covered in Sonar while vitest's summary looked
+clean**, because vitest reports only files a test imported and the service was
+exercised solely by integration tests. It now has unit tests of its own for the
+decisions made around the queries — the scope predicate applied to a returned
+row, the placeholder short-circuit, and the two failure paths, none of which an
+integration test can trigger on demand.
+
 ## Smaller calls
 
 - **The date carries the match link**, in every list. It is the one column every

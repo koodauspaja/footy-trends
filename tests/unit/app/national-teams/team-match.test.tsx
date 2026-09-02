@@ -112,6 +112,29 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     );
   });
 
+  it("names a category the map does not know at all only by its series", async () => {
+    getSeasonCategoryNameMapMock.mockResolvedValue({});
+    await renderMensPage();
+
+    expect(screen.getByText("C-liiga lohko 1")).toBeInTheDocument();
+    expect(screen.queryByText(/UEFA Nations League/)).not.toBeInTheDocument();
+  });
+
+  it("leaves a category name carrying neither team's suffix alone", async () => {
+    getSeasonCategoryNameMapMock.mockResolvedValue({ UNL: "Pohjoismaiden mestaruus" });
+    await renderMensPage();
+
+    expect(screen.getByText("Pohjoismaiden mestaruus 2026")).toBeInTheDocument();
+  });
+
+  it("titles the page with the teams and the competition", async () => {
+    const { generateMetadata } = await import("@/app/national-teams/mens-team/match/[id]/page");
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: "4296364" }) })).toEqual({
+      title: "Suomi – San Marino, UEFA Nations League 2026",
+    });
+  });
+
   it("renders the match one line shorter when the category names cannot be read", async () => {
     getSeasonCategoryNameMapMock.mockRejectedValue(new Error("TASO down"));
     await renderMensPage();
@@ -159,6 +182,14 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
     await renderWomensPage();
 
     expect(screen.getByText("MM-karsinnat 2026")).toBeInTheDocument();
+  });
+
+  it("titles the Helmarit page from its own route", async () => {
+    const { generateMetadata } = await import("@/app/national-teams/womens-team/match/[id]/page");
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: "4296364" }) })).toEqual({
+      title: "Suomi – Kroatia, UEFA Nations League 2026",
+    });
   });
 
   it("renders an opponent TASO spells in English under its Finnish name", async () => {

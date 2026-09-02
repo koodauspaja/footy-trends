@@ -75,61 +75,84 @@ function isInBucket(row: TasoMatchRow, bucket: "domestic" | "national"): boolean
  * A leg of a two-legged tie is a match here, with its own row and its own
  * score. Ties belong to the bracket; this is a list of matches.
  */
-async function loadHeadToHead(source: MatchSource, stored: StoredMatch): Promise<HeadToHeadResult> {
-  const { match } = stored;
+/**
+ * The five most recent meetings between the same two teams, newest first.
+ *
+ * Two functions rather than one taking both providers: a single one had to
+ * re-check that the row and the route agreed about the source, which the caller
+ * already knows by construction — and that check was an unreachable branch
+ * pretending to be error handling. Each is called from the branch that already
+ * proved its own types.
+ *
+ * Every clause is a decision, set out in specs/019-match-page.md: both
+ * orientations, strictly earlier than this match, played matches only, and
+ * scoped to the same source so a Kotimaa page cannot surface a Huuhkajat row
+ * out of the table they share. The ordering is total — two meetings can share a
+ * kickoff instant, and a page that reordered between renders would be a bug
+ * nobody could reproduce.
+ *
+ * A leg of a two-legged tie is a match here, with its own row and its own
+ * score. Ties belong to the bracket; this is a list of matches.
+ */
+async function footballDataHeadToHead(
+  region: CompetitionRegion,
+  match: FootballDataMatchRow
+): Promise<HeadToHeadResult> {
   if (hasPlaceholderTeam(match)) return { status: "unavailable" };
+  const home = match.homeTeamProviderId;
+  const away = match.awayTeamProviderId;
+  const codes = competitionsInRegion(region).map((competition) => competition.code);
 
+  const rows = await db
+    .select()
+    .from(matches)
+    .where(
+      and(
+        or(
+          and(eq(matches.homeTeamProviderId, home), eq(matches.awayTeamProviderId, away)),
+          and(eq(matches.homeTeamProviderId, away), eq(matches.awayTeamProviderId, home))
+        ),
+        ne(matches.providerMatchId, match.providerMatchId),
+        lt(matches.kickoffAt, match.kickoffAt),
+        eq(matches.status, FINISHED_STATUS),
+        isNotNull(matches.homeGoals),
+        isNotNull(matches.awayGoals),
+        inArray(matches.competitionCode, codes)
+      )
+    )
+    .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
+    .limit(HEAD_TO_HEAD_LIMIT);
+  return { status: "ok", matches: rows };
+}
+
+async function tasoHeadToHead(
+  bucket: "domestic" | "national",
+  match: TasoMatchRow
+): Promise<HeadToHeadResult> {
+  if (hasPlaceholderTeam(match)) return { status: "unavailable" };
   const home = match.homeTeamProviderId;
   const away = match.awayTeamProviderId;
 
-  if (stored.source === "football-data" && source.kind === "football-data") {
-    const codes = competitionsInRegion(source.region).map((competition) => competition.code);
-    const rows = await db
-      .select()
-      .from(matches)
-      .where(
-        and(
-          or(
-            and(eq(matches.homeTeamProviderId, home), eq(matches.awayTeamProviderId, away)),
-            and(eq(matches.homeTeamProviderId, away), eq(matches.awayTeamProviderId, home))
-          ),
-          ne(matches.providerMatchId, match.providerMatchId),
-          lt(matches.kickoffAt, match.kickoffAt),
-          eq(matches.status, FINISHED_STATUS),
-          isNotNull(matches.homeGoals),
-          isNotNull(matches.awayGoals),
-          inArray(matches.competitionCode, codes)
-        )
+  const rows = await db
+    .select()
+    .from(tasoMatches)
+    .where(
+      and(
+        or(
+          and(eq(tasoMatches.homeTeamProviderId, home), eq(tasoMatches.awayTeamProviderId, away)),
+          and(eq(tasoMatches.homeTeamProviderId, away), eq(tasoMatches.awayTeamProviderId, home))
+        ),
+        ne(tasoMatches.providerMatchId, match.providerMatchId),
+        lt(tasoMatches.kickoffAt, match.kickoffAt),
+        eq(tasoMatches.status, FINISHED_STATUS),
+        isNotNull(tasoMatches.homeGoals),
+        isNotNull(tasoMatches.awayGoals),
+        tasoBucketPredicate(bucket)
       )
-      .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
-      .limit(HEAD_TO_HEAD_LIMIT);
-    return { status: "ok", matches: rows };
-  }
-
-  if (stored.source === "taso" && source.kind === "taso") {
-    const rows = await db
-      .select()
-      .from(tasoMatches)
-      .where(
-        and(
-          or(
-            and(eq(tasoMatches.homeTeamProviderId, home), eq(tasoMatches.awayTeamProviderId, away)),
-            and(eq(tasoMatches.homeTeamProviderId, away), eq(tasoMatches.awayTeamProviderId, home))
-          ),
-          ne(tasoMatches.providerMatchId, match.providerMatchId),
-          lt(tasoMatches.kickoffAt, match.kickoffAt),
-          eq(tasoMatches.status, FINISHED_STATUS),
-          isNotNull(tasoMatches.homeGoals),
-          isNotNull(tasoMatches.awayGoals),
-          tasoBucketPredicate(source.bucket)
-        )
-      )
-      .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
-      .limit(HEAD_TO_HEAD_LIMIT);
-    return { status: "ok", matches: rows };
-  }
-
-  return { status: "error" };
+    )
+    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+    .limit(HEAD_TO_HEAD_LIMIT);
+  return { status: "ok", matches: rows };
 }
 
 const FINISHED_STATUS = "FINISHED";
@@ -158,6 +181,9 @@ const loadMatchPageData = cache(async function loadMatchPageData(
   ) as MatchSource;
 
   let stored: StoredMatch;
+  // Bound inside the branch that knows both the row's type and the route's, so
+  // the two can never disagree.
+  let headToHead: () => Promise<HeadToHeadResult>;
   try {
     if (source.kind === "football-data") {
       const [row] = await db
@@ -167,6 +193,7 @@ const loadMatchPageData = cache(async function loadMatchPageData(
         .limit(1);
       if (row === undefined || !isInRegion(row, source.region)) return { status: "not_found" };
       stored = { source: "football-data", match: row };
+      headToHead = () => footballDataHeadToHead(source.region, row);
     } else {
       const [row] = await db
         .select()
@@ -175,6 +202,7 @@ const loadMatchPageData = cache(async function loadMatchPageData(
         .limit(1);
       if (row === undefined || !isInBucket(row, source.bucket)) return { status: "not_found" };
       stored = { source: "taso", match: row };
+      headToHead = () => tasoHeadToHead(source.bucket, row);
     }
   } catch (error) {
     logger.error({ err: error, kind, scope, providerMatchId }, "Unable to load the match");
@@ -182,7 +210,7 @@ const loadMatchPageData = cache(async function loadMatchPageData(
   }
 
   try {
-    return { status: "ok", match: stored, headToHead: await loadHeadToHead(source, stored) };
+    return { status: "ok", match: stored, headToHead: await headToHead() };
   } catch (error) {
     logger.error({ err: error, kind, scope, providerMatchId }, "Unable to load the head-to-head");
     return { status: "ok", match: stored, headToHead: { status: "error" } };

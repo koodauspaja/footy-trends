@@ -236,14 +236,26 @@ exists to explain:
 |---|---|
 | `/kotimaa` | `Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.` |
 | `/ulkomaat` | `Perustuu kaudesta 2023/24 alkaen tallennettuihin otteluihin.` |
-| `/maajoukkueet` (WC/EC) | `Perustuu kaudesta {earliest} alkaen tallennettuihin otteluihin.` |
+| `/maajoukkueet` (WC/EC) | `Perustuu kaudesta 2024 alkaen tallennettuihin otteluihin.` |
 | Huuhkajat / Helmarit | `Perustuu vuodesta 2018 alkaen tallennettuihin otteluihin.` |
 
 The years are read from the constants that actually bound each source —
 `EARLIEST_TASO_SEASON` (2015), `resolveEarliestSeason(FOOTBALL_DATA_EARLIEST_SEASON)`
-(2023 by default), a competition's own `earliestSeason` where it has one, and
+(2023 by default), each competition's own `earliestSeason` where it has one, and
 the oldest year the national-team buckets cover (2018, per specs/018). They are
 never hardcoded in the page.
+
+**The window is the region's, not the match's own competition's.** The
+head-to-head deliberately spans every competition in a region, so a World Cup
+page can list a 2024 European Championship meeting — and stating the World Cup's
+own floor (2026) above such a row would describe a window the page has just
+contradicted. The floor is therefore the oldest season *any* competition the
+query can return reaches, which is exactly the set the query scopes itself to:
+2024 on `/maajoukkueet`, the plan floor on `/ulkomaat`.
+
+When `getSeasonContext` cannot be reached, the sentence falls back to a bare
+year for the same reason the season line does — the two must not describe one
+season as `2026` and `2026/27` two lines apart.
 
 #### Why the sentence is a criterion and not a nicety
 
@@ -414,7 +426,8 @@ opponent, and present the result as previous meetings.
 So:
 
 - A team with id `0` or an empty name renders as **`Tuntematon joukkue`** and is
-  never a link.
+  never a link — not even on `/kotimaa`, where its team page would resolve to
+  `/kotimaa/joukkue/0`, a page that cannot exist.
 - A match with either team id `0` shows no head-to-head at all. In its place:
   `Aiempia kohtaamisia ei voida näyttää, koska toista joukkuetta ei tunnisteta.`
 - The match itself renders normally. Its score is real.

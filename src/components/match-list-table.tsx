@@ -27,8 +27,9 @@ type MatchListTableProps<T extends MatchListRow> = {
   /** Omitted on the season-wide `/ulkomaat/ottelut` page, which has no fourth column at all. */
   fourthColumn?: { header: string; render: (match: T) => ReactNode };
   /**
-   * Builds a row's match-page href, or `null`/omitted where a row should not
-   * link.
+   * Builds a row's match-page href. `null` or omitted leaves **this table's**
+   * dates as plain text — the opt-out is per table, not per row, because no
+   * caller has ever needed one row to differ from its neighbours.
    *
    * The date carries the link rather than the row: `Pvm` is the one column
    * every one of these tables has, it is never a link otherwise, and it does

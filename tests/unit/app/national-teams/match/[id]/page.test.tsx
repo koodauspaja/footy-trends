@@ -83,13 +83,23 @@ describe("/maajoukkueet/ottelu/:id", () => {
     expect(screen.getByText("Lohko B")).toBeInTheDocument();
   });
 
-  it("states the window from the tournament's own floor", async () => {
-    // Our plan reaches the 2026 World Cup and nothing before it.
+  it("states the window the head-to-head can actually reach, across the region", async () => {
+    // The list spans the region, so a World Cup page can show a 2024 European
+    // Championship meeting. Stating the World Cup's own 2026 floor above such a
+    // row would describe a window the page has just contradicted.
     await renderPage();
 
     expect(
-      screen.getByText("Perustuu kaudesta 2026 alkaen tallennettuihin otteluihin.")
+      screen.getByText("Perustuu kaudesta 2024 alkaen tallennettuihin otteluihin.")
     ).toBeInTheDocument();
+  });
+
+  it("titles the page with the teams, the competition and the season", async () => {
+    const { generateMetadata } = await import("@/app/national-teams/match/[id]/page");
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: "537430" }) })).toEqual({
+      title: "Englanti – Ruotsi, MM-kisat 2026",
+    });
   });
 
   it("links a previous meeting into /maajoukkueet", async () => {

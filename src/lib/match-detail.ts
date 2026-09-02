@@ -56,11 +56,15 @@ export function teamDisplayName(teamProviderId: number, teamName: string): strin
   return isPlaceholderTeam(teamProviderId, teamName) ? UNKNOWN_TEAM_NAME : teamName;
 }
 
-const kickoffFormatter = new Intl.DateTimeFormat("fi-FI", {
+const kickoffDateFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+});
+
+const kickoffTimeFormatter = new Intl.DateTimeFormat("fi-FI", {
+  timeZone: "Europe/Helsinki",
   hour: "2-digit",
   minute: "2-digit",
 });
@@ -68,17 +72,29 @@ const kickoffFormatter = new Intl.DateTimeFormat("fi-FI", {
 /**
  * `12.09.2026 klo 18.30` — the list pages' date, plus the time this page adds.
  *
- * Assembled from parts rather than a format string: `fi-FI` renders the time as
- * `18.30`, which is correct Finnish, but joins it to the date with `klo` only
- * in some runtimes. Stating the separator here makes the output the same
- * everywhere, which is also what makes it testable.
+ * Two formatters joined by `klo` rather than one `dateStyle`/`timeStyle` pair:
+ * `fi-FI` renders the time as `18.30`, which is correct Finnish, but supplies
+ * the connecting word only in some runtimes. Stating it here makes the output
+ * the same everywhere, which is also what makes it testable.
  */
 export function formatKickoff(kickoffAt: Date): string {
-  const parts = kickoffFormatter.formatToParts(kickoffAt);
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  const date = `${value("day")}.${value("month")}.${value("year")}`;
-  return `${date} klo ${value("hour")}.${value("minute")}`;
+  return `${kickoffDateFormatter.format(kickoffAt)} klo ${kickoffTimeFormatter.format(kickoffAt)}`;
+}
+
+/**
+ * A score pair, or `null` unless both halves are present.
+ *
+ * Half a pair is unusable everywhere it appears — a sum needs both sides, and a
+ * shootout with one total recorded is not a shootout — so the check lives here
+ * once rather than as three near-identical conditions.
+ */
+function bothOrNeither(
+  home: number | null | undefined,
+  away: number | null | undefined
+): [number, number] | null {
+  return home === null || home === undefined || away === null || away === undefined
+    ? null
+    : [home, away];
 }
 
 /** The score breakdown football-data records behind a knockout tie. TASO has none. */
@@ -104,32 +120,23 @@ export type ScoreBreakdown = {
  * one match cannot read two ways on two pages.
  */
 export function formatScore(match: ScoreBreakdown): string {
-  const extraTime =
-    match.extraTimeHome !== null &&
-    match.extraTimeHome !== undefined &&
-    match.extraTimeAway !== null &&
-    match.extraTimeAway !== undefined;
-  const regularTime =
-    match.regularTimeHome !== null &&
-    match.regularTimeHome !== undefined &&
-    match.regularTimeAway !== null &&
-    match.regularTimeAway !== undefined;
+  const regular = bothOrNeither(match.regularTimeHome, match.regularTimeAway);
+  const extra = bothOrNeither(match.extraTimeHome, match.extraTimeAway);
+  const penalties = bothOrNeither(match.penaltiesHome, match.penaltiesAway);
 
   const [home, away] =
-    regularTime && extraTime
-      ? [
-          (match.regularTimeHome ?? 0) + (match.extraTimeHome ?? 0),
-          (match.regularTimeAway ?? 0) + (match.extraTimeAway ?? 0),
-        ]
+    regular !== null && extra !== null
+      ? [regular[0] + extra[0], regular[1] + extra[1]]
       : [match.homeGoals, match.awayGoals];
 
   const score = formatMatchResult(home, away);
   if (score === "–") return score;
 
-  if (match.penaltiesHome !== null && match.penaltiesHome !== undefined) {
-    return `${score} (rp ${match.penaltiesHome}–${match.penaltiesAway})`;
-  }
-  return extraTime ? `${score} (ja)` : score;
+  // Half a shootout is not a shootout: one total without the other would print
+  // "(rp 4–null)". `formatLeg` in the bracket has always required both, which
+  // is what `bothOrNeither` states once for all three pairs here.
+  if (penalties !== null) return `${score} (rp ${penalties[0]}–${penalties[1]})`;
+  return extra !== null ? `${score} (ja)` : score;
 }
 
 /**

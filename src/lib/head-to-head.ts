@@ -8,7 +8,7 @@
  * specs/019-match-page.md.
  */
 
-import { earliestSeasonFor } from "./competitions";
+import { competitionsInRegion, earliestSeasonFor } from "./competitions";
 import type { MatchSource } from "./match-source";
 import { EARLIEST_NATIONAL_TEAM_YEAR } from "./national-team";
 import { formatSeasonLabel, resolveEarliestSeason } from "./seasons";
@@ -46,12 +46,19 @@ export function headToHeadWindowSentence(window: HeadToHeadWindow): string {
  * How far back this source can reach, read from the constants that actually
  * bound it rather than repeated as a literal on the page.
  *
- * `spansCalendarYears` only shapes the label — `2023/24` for a league,
- * `2026` for a tournament played inside one summer.
+ * **The window is the region's, not this match's competition's.** The
+ * head-to-head deliberately spans every competition in a region, so a World Cup
+ * page can list a European Championship meeting — and stating the World Cup's
+ * own floor (2026) under a list containing a 2024 meeting would describe a
+ * window the page has just contradicted. The floor is therefore the oldest
+ * season any competition the query can return reaches, which is exactly the set
+ * the query scopes itself to.
+ *
+ * `spansCalendarYears` only shapes the label — `2023/24` for a league, `2026`
+ * for a tournament played inside one summer.
  */
 export function headToHeadWindow(
   source: MatchSource,
-  match: { competitionCode: string },
   spansCalendarYears: boolean
 ): HeadToHeadWindow {
   if (source.kind === "taso") {
@@ -61,6 +68,10 @@ export function headToHeadWindow(
   }
 
   const planFloor = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
-  const earliest = earliestSeasonFor(match.competitionCode, planFloor);
+  const earliest = Math.min(
+    ...competitionsInRegion(source.region).map((competition) =>
+      earliestSeasonFor(competition.code, planFloor)
+    )
+  );
   return { kind: "season", label: formatSeasonLabel(earliest, spansCalendarYears) };
 }

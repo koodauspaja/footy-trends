@@ -27,7 +27,7 @@ describe("headToHeadWindowSentence", () => {
 
 describe("headToHeadWindow", () => {
   it("reaches back to the TASO floor for a Finnish club match", () => {
-    expect(headToHeadWindow(DOMESTIC, { competitionCode: "spljp26" }, true)).toEqual({
+    expect(headToHeadWindow(DOMESTIC, true)).toEqual({
       kind: "season",
       label: "2015",
     });
@@ -35,30 +35,32 @@ describe("headToHeadWindow", () => {
 
   it("reaches back to the oldest national-team bucket year", () => {
     // `maajp18` holds matches played in 2018, whatever season it reports.
-    expect(headToHeadWindow(NATIONAL, { competitionCode: "maajp2026" }, true)).toEqual({
+    expect(headToHeadWindow(NATIONAL, true)).toEqual({
       kind: "year",
       year: 2018,
     });
   });
 
   it("uses the plan floor for a league, labelled as a spanning season", () => {
-    expect(headToHeadWindow(FOREIGN, { competitionCode: "PL" }, true)).toEqual({
+    expect(headToHeadWindow(FOREIGN, true)).toEqual({
       kind: "season",
       label: "2023/24",
     });
   });
 
-  it("uses a tournament's own floor, labelled as a single year", () => {
-    // Our plan reaches the 2026 World Cup and nothing earlier.
-    expect(headToHeadWindow(NATIONAL_TEAMS, { competitionCode: "WC" }, false)).toEqual({
+  it("uses the region's oldest floor, not the match's own competition", () => {
+    // A World Cup page can list a 2024 European Championship meeting, because
+    // the head-to-head spans the region. Stating the World Cup's own 2026 floor
+    // over such a list would describe a window the page has just contradicted.
+    expect(headToHeadWindow(NATIONAL_TEAMS, false)).toEqual({
       kind: "season",
-      label: "2026",
+      label: "2024",
     });
   });
 
   it("follows a configured plan floor", () => {
     process.env.FOOTBALL_DATA_EARLIEST_SEASON = "2021";
-    expect(headToHeadWindow(FOREIGN, { competitionCode: "PL" }, true)).toEqual({
+    expect(headToHeadWindow(FOREIGN, true)).toEqual({
       kind: "season",
       label: "2021/22",
     });

@@ -16,6 +16,7 @@ import {
   declaredWinnerSide,
   formatKickoff,
   formatScore,
+  isPlaceholderTeam,
   matchContextLines,
   teamDisplayName,
 } from "@/lib/match-detail";
@@ -72,9 +73,8 @@ type MatchView = {
   windowSentence: string;
   /** `Kilpailu` for football-data rows, `Sarja` for TASO's own series name. */
   headToHeadHeader: string;
-  headToHeadRows: MatchListRow[];
-  /** The competition or series each head-to-head row is labelled with. */
-  headToHeadLabels: Map<number, string>;
+  /** Each row carries its own fourth-column label — a competition, or a series. */
+  headToHeadRows: Array<MatchListRow & { label: string }>;
   title: string;
 };
 
@@ -131,6 +131,37 @@ async function resolveNationalCompetitionName(
   }
 }
 
+/**
+ * Builds a team link for a match, or always `null` where this route has no team
+ * pages to link to (`/maajoukkueet/huuhkajat`, `/maajoukkueet/helmarit`) or the
+ * row belongs to a competition our registry does not claim.
+ */
+function teamHrefBuilder(
+  basePath: string | null,
+  competitionCode: string | null,
+  seasonId: number
+): (teamProviderId: number) => string | null {
+  if (basePath === null || competitionCode === null) return () => null;
+  return (teamProviderId) =>
+    `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
+}
+
+/**
+ * A team's href, unless the team is a placeholder.
+ *
+ * Id `0` is TASO's unresolved bracket slot, not a team: it renders as
+ * `Tuntematon joukkue`, and `/kotimaa/joukkue/0` is a page that cannot exist.
+ * Applied to both providers rather than only to TASO — `matches` has no
+ * placeholder rows today, and one rule is cheaper than remembering that.
+ */
+function linkableTeamHref(
+  teamProviderId: number,
+  teamName: string,
+  build: (teamProviderId: number) => string | null
+): string | null {
+  return isPlaceholderTeam(teamProviderId, teamName) ? null : build(teamProviderId);
+}
+
 function headToHeadRowsOf(result: HeadToHeadResult): Array<FootballDataMatchRow | TasoMatchRow> {
   return result.status === "ok" ? result.matches : [];
 }
@@ -152,16 +183,13 @@ async function footballDataView(
   const rows = headToHeadRowsOf(headToHead) as FootballDataMatchRow[];
   const localisedRows = localise ? toFinnishTeamNames(rows) : rows;
 
-  const teamHref = (teamProviderId: number) =>
-    options.teamBasePath === null
-      ? null
-      : `${options.teamBasePath}/joukkue/${teamProviderId}?kilpailu=${match.competitionCode}&kausi=${match.seasonId}`;
+  const teamHref = teamHrefBuilder(options.teamBasePath, match.competitionCode, match.seasonId);
 
   return {
     homeName: teamDisplayName(localised.homeTeamProviderId, localised.homeTeamName),
     awayName: teamDisplayName(localised.awayTeamProviderId, localised.awayTeamName),
-    homeHref: teamHref(match.homeTeamProviderId),
-    awayHref: teamHref(match.awayTeamProviderId),
+    homeHref: linkableTeamHref(match.homeTeamProviderId, localised.homeTeamName, teamHref),
+    awayHref: linkableTeamHref(match.awayTeamProviderId, localised.awayTeamName, teamHref),
     kickoff: formatKickoff(match.kickoffAt),
     contextLines: matchContextLines({
       source: "football-data",
@@ -172,16 +200,34 @@ async function footballDataView(
     }),
     score: formatScore(match),
     winnerSide: null,
-    windowSentence: headToHeadWindowSentence(
-      headToHeadWindow(options.source, match, spans ?? true)
-    ),
+    // `spans ?? false` deliberately: when the provider cannot be reached the
+    // season above shows as a bare year, and the sentence must not describe the
+    // same season as `2026/27` two lines below it.
+    windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, spans ?? false)),
     headToHeadHeader: "Kilpailu",
-    headToHeadRows: localisedRows,
-    headToHeadLabels: new Map(
-      localisedRows.map((row) => [row.providerMatchId, getCompetitionName(row.competitionCode)])
-    ),
+    headToHeadRows: localisedRows.map((row) => ({
+      ...row,
+      label: getCompetitionName(row.competitionCode),
+    })),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}, ${competitionName} ${seasonLabel}`,
   };
+}
+
+/**
+ * What to call the competition a TASO row belonged to.
+ *
+ * Two different questions behind one line: a domestic row's category maps to a
+ * competition in our own registry, while a national-team row's name lives only
+ * in TASO's category map. `null` from either — an unclaimed junior category, or
+ * a map that could not be read — costs one line, not the page.
+ */
+function tasoCompetitionName(
+  team: NationalTeam | undefined,
+  domesticCode: string | null,
+  match: TasoMatchRow
+): Promise<string | null> | string | null {
+  if (team !== undefined) return resolveNationalCompetitionName(team, match);
+  return domesticCode === null ? null : getDomesticCompetitionName(domesticCode);
 }
 
 /** The TASO half: `/kotimaa`, and the two national-team routes. */
@@ -196,24 +242,16 @@ async function tasoView(
   const localisedRows = national === undefined ? rows : toFinnishTasoTeamNames(rows);
 
   const domesticCode = competitionCodeForCategory(match.categoryId);
-  const competitionName =
-    national === undefined
-      ? domesticCode === null
-        ? null
-        : getDomesticCompetitionName(domesticCode)
-      : await resolveNationalCompetitionName(national, match);
+  const competitionName = await tasoCompetitionName(national, domesticCode, match);
   const season = national === undefined ? match.seasonId : match.kickoffAt.getUTCFullYear();
 
-  const teamHref = (teamProviderId: number) =>
-    options.teamBasePath === null || domesticCode === null
-      ? null
-      : `${options.teamBasePath}/joukkue/${teamProviderId}?kilpailu=${domesticCode}&kausi=${match.seasonId}`;
+  const teamHref = teamHrefBuilder(options.teamBasePath, domesticCode, match.seasonId);
 
   return {
     homeName: teamDisplayName(localised.homeTeamProviderId, localised.homeTeamName),
     awayName: teamDisplayName(localised.awayTeamProviderId, localised.awayTeamName),
-    homeHref: teamHref(match.homeTeamProviderId),
-    awayHref: teamHref(match.awayTeamProviderId),
+    homeHref: linkableTeamHref(match.homeTeamProviderId, localised.homeTeamName, teamHref),
+    awayHref: linkableTeamHref(match.awayTeamProviderId, localised.awayTeamName, teamHref),
     kickoff: formatKickoff(match.kickoffAt),
     contextLines: matchContextLines({
       source: "taso",
@@ -226,10 +264,9 @@ async function tasoView(
     }),
     score: formatScore(match),
     winnerSide: declaredWinnerSide(match, match.winner),
-    windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, match, false)),
+    windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, false)),
     headToHeadHeader: "Sarja",
-    headToHeadRows: localisedRows,
-    headToHeadLabels: new Map(localisedRows.map((row) => [row.providerMatchId, row.groupName])),
+    headToHeadRows: localisedRows.map((row) => ({ ...row, label: row.groupName })),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}${
       competitionName === null ? "" : `, ${competitionName} ${season}`
     }`,
@@ -296,10 +333,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
           matches={view.headToHeadRows}
           teamHref={null}
           matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
-          fourthColumn={{
-            header: view.headToHeadHeader,
-            render: (match) => view.headToHeadLabels.get(match.providerMatchId) ?? "",
-          }}
+          fourthColumn={{ header: view.headToHeadHeader, render: (match) => match.label }}
         />
       )}
     </section>

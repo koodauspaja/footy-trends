@@ -202,6 +202,18 @@ describe("matchContextLines", () => {
     ).toEqual(["C-liiga lohko 1", "Kierros 6"]);
   });
 
+  it("shows no series line for a row whose group name is blank", () => {
+    expect(
+      matchContextLines({
+        source: "taso",
+        competitionLabel: "Veikkausliiga 2026",
+        matchday: 4,
+        seriesName: "",
+        isCup: false,
+      })
+    ).toEqual(["Veikkausliiga 2026", "Kierros 4"]);
+  });
+
   it("drops a Finnish cup's round, which the series name already names", () => {
     // TASO's round_id is not re-indexed per competition — round 63 exists.
     expect(

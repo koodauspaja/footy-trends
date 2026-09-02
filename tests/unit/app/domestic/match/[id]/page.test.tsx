@@ -163,6 +163,46 @@ describe("/kotimaa/ottelu/:id", () => {
     );
   });
 
+  it("shows plain team names for a category the registry does not claim", async () => {
+    // TASO publishes 28 categories in spljp26 and the picker registers 20, so a
+    // row can carry a category with no competition behind it: no team page to
+    // link to, no competition to name, and the series name left to carry it.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow({ categoryId: "X99" }) },
+      headToHead: { status: "ok", matches: [] },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: "VPS" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Veikkausliiga/)).not.toBeInTheDocument();
+    expect(screen.getByText("Mestaruussarja")).toBeInTheDocument();
+  });
+
+  it("never links a placeholder team, whose page could not exist", async () => {
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: {
+        source: "taso",
+        match: tasoRow({ homeTeamProviderId: 0, homeTeamName: "" }),
+      },
+      headToHead: { status: "unavailable" },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: "Tuntematon joukkue" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "FC Lahti" })).toBeInTheDocument();
+  });
+
+  it("titles a page with no match after the not-found message", async () => {
+    getMatchPageDataMock.mockResolvedValue({ status: "not_found" });
+    const { generateMetadata } = await import("@/app/domestic/match/[id]/page");
+
+    expect(await generateMetadata({ params: Promise.resolve({ id: "999999999" }) })).toEqual({
+      title: "Ottelua ei löytynyt.",
+    });
+  });
+
   it("still renders the match when the head-to-head query fails", async () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
