@@ -1,14 +1,15 @@
 import Link from "next/link";
+import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 
-const columns = [
-  ["O", "Ottelut"],
-  ["V", "Voitot"],
-  ["T", "Tasapelit"],
-  ["H", "Häviöt"],
-  ["TM", "Tehdyt maalit"],
-  ["PM", "Päästetyt maalit"],
-  ["ME", "Maaliero"],
-  ["P", "Pisteet"],
+const statColumns = [
+  ["O", "Ottelut", (row: StandingsRow) => row.played],
+  ["V", "Voitot", (row: StandingsRow) => row.won],
+  ["T", "Tasapelit", (row: StandingsRow) => row.drawn],
+  ["H", "Häviöt", (row: StandingsRow) => row.lost],
+  ["TM", "Tehdyt maalit", (row: StandingsRow) => row.goalsFor],
+  ["PM", "Päästetyt maalit", (row: StandingsRow) => row.goalsAgainst],
+  ["ME", "Maaliero", (row: StandingsRow) => row.goalDifference],
+  ["P", "Pisteet", (row: StandingsRow) => row.points],
 ] as const;
 
 /**
@@ -40,6 +41,13 @@ function cell(value: number | null): string {
  * The Sija/Joukkue/O-V-T-H-TM-PM-ME-P/Vire table shared by `/ulkomaat/sarjataulukko`
  * and `/kotimaa/sarjataulukko` — identical markup and Finnish column
  * headers on both; only the team-link target differs.
+ *
+ * The stats are right-aligned so digits line up by place value, which is most
+ * of what a standings table is for; `Sija` stays left, where it reads as a
+ * label beside the team name rather than a quantity to compare. `Joukkue` is
+ * the flexible column, so the numbers stay grouped on a wide screen instead of
+ * being strung across it — and every table on the page has the same columns as
+ * its siblings, which they did not before. See specs/021-table-consistency.md.
  */
 export function StandingsTable({
   standings,
@@ -48,60 +56,54 @@ export function StandingsTable({
   standings: readonly StandingsRow[];
   teamHref: (teamProviderId: number) => string;
 }>) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-zinc-300 text-sm text-zinc-600">
-            <th className="p-3">Sija</th>
-            {/* Absorbs the leftover width, so the numeric columns stay grouped
-                instead of being strung across the table. A four-team group is
-                where this bites: without it, `3 3 0 0 6 0 6 9` spreads over
-                700px and a row is hard to follow. */}
-            <th className="w-full p-3">Joukkue</th>
-            {columns.map(([short, title]) => (
-              <th className="p-3" key={short} title={title}>
-                {short}
-              </th>
-            ))}
-            <th className="p-3">Vire</th>
-          </tr>
-        </thead>
-        <tbody>
-          {standings.map((team) => (
-            <tr className="border-b border-zinc-200" key={team.teamProviderId}>
-              <td className="p-3">{team.position}</td>
-              <th className="w-full p-3 font-medium" scope="row">
-                {/* A pass-through group's team can lack an id (see toPassThroughStanding); no id, no link. */}
-                {team.teamProviderId === 0 ? (
-                  team.teamName
-                ) : (
-                  <Link className="hover:underline" href={teamHref(team.teamProviderId)}>
-                    {team.teamName}
-                  </Link>
-                )}
-              </th>
-              <td className="whitespace-nowrap p-3">{cell(team.played)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.won)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.drawn)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.lost)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.goalsFor)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.goalsAgainst)}</td>
-              <td className="whitespace-nowrap p-3">{cell(team.goalDifference)}</td>
-              <td className="whitespace-nowrap p-3 font-semibold">{cell(team.points)}</td>
-              <td className="p-3" aria-label={team.form.map((item) => item.label).join(", ")}>
-                {team.form.map((item) => (
-                  <span className="mr-1" key={item.matchId} title={item.label}>
-                    {item.result}
-                  </span>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns: Array<DataTableColumn<StandingsRow>> = [
+    {
+      key: "position",
+      header: "Sija",
+      width: COLUMN_WIDTHS.position,
+      render: (row) => row.position,
+    },
+    {
+      key: "team",
+      header: "Joukkue",
+      width: "flex",
+      rowHeader: true,
+      cellClassName: "font-medium",
+      // A pass-through group's team can lack an id (see toPassThroughStanding); no id, no link.
+      render: (row) =>
+        row.teamProviderId === 0 ? (
+          row.teamName
+        ) : (
+          <Link className="hover:underline" href={teamHref(row.teamProviderId)}>
+            {row.teamName}
+          </Link>
+        ),
+    },
+    ...statColumns.map(([short, title, value]) => ({
+      key: short,
+      header: short,
+      headerTitle: title,
+      width: COLUMN_WIDTHS.stat,
+      align: "right" as const,
+      // Points carry the weight, as they always have.
+      ...(short === "P" ? { cellClassName: "font-semibold" } : {}),
+      render: (row: StandingsRow) => cell(value(row)),
+    })),
+    {
+      key: "form",
+      header: "Vire",
+      width: COLUMN_WIDTHS.form,
+      cellLabel: (row) => row.form.map((item) => item.label).join(", "),
+      render: (row) =>
+        row.form.map((item) => (
+          <span className="mr-1" key={item.matchId} title={item.label}>
+            {item.result}
+          </span>
+        )),
+    },
+  ];
+
+  return <DataTable columns={columns} rowKey={(row) => row.teamProviderId} rows={standings} />;
 }
 
 /**
