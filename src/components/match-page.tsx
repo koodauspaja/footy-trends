@@ -28,7 +28,13 @@ import {
   type TasoMatchRow,
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
-import { competitionLabel, MENS_TEAM, type NationalTeam, WOMENS_TEAM } from "@/lib/national-team";
+import {
+  competitionLabel,
+  MENS_TEAM,
+  NATIONAL_TEAM_ACTIVE_YEAR,
+  type NationalTeam,
+  WOMENS_TEAM,
+} from "@/lib/national-team";
 import { isStoredInteger } from "@/lib/provider-ids";
 import { formatSeasonLabel } from "@/lib/seasons";
 import { getSeasonCategoryNameMap } from "@/lib/taso-standings-service";
@@ -73,7 +79,7 @@ type MatchView = {
   score: string;
   winnerSide: "home" | "away" | null;
   windowSentence: string;
-  /** Always `Kilpailu`: every row names the competition it was played in. */
+  /** Always `Kilpailu`: a competition name where one resolves, TASO's series name otherwise. */
   headToHeadHeader: string;
   /** Each row carries its own fourth-column label — a competition, or a series. */
   headToHeadRows: Array<MatchListRow & { label: string }>;
@@ -97,40 +103,69 @@ async function resolveSpansCalendarYears(competitionCode: string): Promise<boole
 }
 
 /**
- * The competition a national-team match belonged to, as TASO names it.
+ * TASO's category names for one provider bucket, or `null` if it cannot be
+ * asked.
  *
- * The name is not stored — `taso_matches` keeps the category id, and the id is
- * not a Finnish label — so this reads the same cached category map the
- * Huuhkajat and Helmarit pages already read, and applies the same
- * suffix-stripping. `null` on failure: the match still renders, one line
- * shorter.
+ * `NATIONAL_TEAM_ACTIVE_YEAR` rather than the row's own season: that argument
+ * only picks the cache TTL, and a bucket from 2019 is immutable — telling the
+ * cache it is current would re-fetch a settled answer every fifteen minutes.
  */
-async function resolveNationalCompetitionName(
-  team: NationalTeam,
-  match: TasoMatchRow
-): Promise<string | null> {
+async function loadCategoryNames(competitionCode: string): Promise<Record<string, string> | null> {
   try {
-    const names = await getSeasonCategoryNameMap(
-      match.competitionCode,
-      match.seasonId,
-      match.seasonId
+    return await getSeasonCategoryNameMap(
+      competitionCode,
+      NATIONAL_TEAM_ACTIVE_YEAR,
+      NATIONAL_TEAM_ACTIVE_YEAR
     );
-    const categoryName = names[match.categoryId];
-    if (categoryName === undefined) return null;
-    // The route names a team, but a hand-typed id can point at the other one's
-    // category — and stripping the wrong suffix would leave "… Huuhkajat" on
-    // the Helmarit page. The suffix the name actually carries wins.
-    const owner = [MENS_TEAM, WOMENS_TEAM].find((candidate) =>
-      categoryName.endsWith(candidate.categorySuffix)
-    );
-    return competitionLabel(owner ?? team, categoryName);
   } catch (error) {
-    logger.error(
-      { err: error, competitionId: match.competitionCode, categoryId: match.categoryId },
-      "Unable to name a national-team competition"
-    );
+    logger.error({ err: error, competitionId: competitionCode }, "Unable to read TASO categories");
     return null;
   }
+}
+
+/**
+ * A category name as a competition label, with the team suffix stripped.
+ *
+ * The route names a team, but a hand-typed id can point at the other one's
+ * category — and stripping the wrong suffix would leave "… Huuhkajat" on the
+ * Helmarit page. The suffix the name actually carries wins.
+ */
+function labelFromCategoryName(team: NationalTeam, categoryName: string): string {
+  const owner = [MENS_TEAM, WOMENS_TEAM].find((candidate) =>
+    categoryName.endsWith(candidate.categorySuffix)
+  );
+  return competitionLabel(owner ?? team, categoryName);
+}
+
+/**
+ * A per-render memo over `loadCategoryNames`, keyed by bucket.
+ *
+ * `getCached` does not deduplicate in-flight misses, so on a cold cache every
+ * caller sees the miss and fetches the same map. One page asks about the match
+ * it is displaying and about up to five previous meetings, which at 1.28
+ * buckets per list are usually the same one or two.
+ */
+type CategoryNames = (competitionCode: string) => Promise<Record<string, string> | null>;
+
+function categoryNameLoader(): CategoryNames {
+  const byBucket = new Map<string, Promise<Record<string, string> | null>>();
+  return (competitionCode) => {
+    const pending = byBucket.get(competitionCode);
+    if (pending !== undefined) return pending;
+    const started = loadCategoryNames(competitionCode);
+    byBucket.set(competitionCode, started);
+    return started;
+  };
+}
+
+/** The competition a single national-team match belonged to, as TASO names it. */
+async function resolveNationalCompetitionName(
+  team: NationalTeam,
+  match: TasoMatchRow,
+  names: CategoryNames
+): Promise<string | null> {
+  const categoryName = (await names(match.competitionCode))?.[match.categoryId];
+  return categoryName === undefined ? null : labelFromCategoryName(team, categoryName);
 }
 
 /**
@@ -226,9 +261,10 @@ async function footballDataView(
 function tasoCompetitionName(
   team: NationalTeam | undefined,
   domesticCode: string | null,
-  match: TasoMatchRow
+  match: TasoMatchRow,
+  names: CategoryNames
 ): Promise<string | null> | string | null {
-  if (team !== undefined) return resolveNationalCompetitionName(team, match);
+  if (team !== undefined) return resolveNationalCompetitionName(team, match, names);
   return domesticCode === null ? null : getDomesticCompetitionName(domesticCode);
 }
 
@@ -253,18 +289,24 @@ function tasoCompetitionName(
  */
 async function labelTasoHeadToHead(
   team: NationalTeam | undefined,
-  rows: TasoMatchRow[]
+  rows: TasoMatchRow[],
+  names: CategoryNames
 ): Promise<Array<TasoMatchRow & { label: string }>> {
-  return Promise.all(
-    rows.map(async (row) => {
-      if (team !== undefined) {
-        return {
-          ...row,
-          label: (await resolveNationalCompetitionName(team, row)) ?? row.groupName,
-        };
-      }
+  if (team === undefined) {
+    return rows.map((row) => {
       const code = competitionCodeForCategory(row.categoryId);
       return { ...row, label: code === null ? row.groupName : getDomesticCompetitionName(code) };
+    });
+  }
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const categoryName = (await names(row.competitionCode))?.[row.categoryId];
+      return {
+        ...row,
+        label:
+          categoryName === undefined ? row.groupName : labelFromCategoryName(team, categoryName),
+      };
     })
   );
 }
@@ -281,8 +323,11 @@ async function tasoView(
   const localisedRows = national === undefined ? rows : toFinnishTasoTeamNames(rows);
 
   const domesticCode = competitionCodeForCategory(match.categoryId);
-  const competitionName = await tasoCompetitionName(national, domesticCode, match);
-  const labelledRows = await labelTasoHeadToHead(national, localisedRows);
+  // One memo for the whole view: the displayed match and its previous meetings
+  // usually sit in the same bucket, and asking twice would fetch it twice.
+  const categoryNames = categoryNameLoader();
+  const competitionName = await tasoCompetitionName(national, domesticCode, match, categoryNames);
+  const labelledRows = await labelTasoHeadToHead(national, localisedRows, categoryNames);
   const season = national === undefined ? match.seasonId : match.kickoffAt.getUTCFullYear();
 
   const teamHref = teamHrefBuilder(options.teamBasePath, domesticCode, match.seasonId);

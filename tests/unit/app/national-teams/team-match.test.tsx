@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
-const getSeasonCategoryNameMapMock = vi.fn<() => Promise<Record<string, string>>>();
+const getSeasonCategoryNameMapMock =
+  vi.fn<
+    (
+      competitionId: string,
+      seasonId: number,
+      activeSeasonId: number
+    ) => Promise<Record<string, string>>
+  >();
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
@@ -115,6 +122,30 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     expect(screen.getByRole("columnheader", { name: "Kilpailu" })).toBeInTheDocument();
     expect(screen.getByText("MM-karsinnat")).toBeInTheDocument();
     expect(screen.queryByText("Lohko J")).not.toBeInTheDocument();
+  });
+
+  it("reads one category map per bucket, however many rows share it", async () => {
+    // `getCached` does not deduplicate in-flight misses, so a per-row lookup
+    // would fetch the same map once per row on a cold cache. See #251.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: row() },
+      headToHead: {
+        status: "ok",
+        matches: [
+          row({ providerMatchId: 4200002, categoryId: "UNL" }),
+          row({ providerMatchId: 4200003, categoryId: "WCQ" }),
+          row({ providerMatchId: 4200004, competitionCode: "maajp2025", categoryId: "UNL" }),
+        ],
+      },
+    });
+    await renderMensPage();
+
+    // Two buckets across three rows — plus the displayed match's own, which is
+    // the same map as the first and is cached by the request.
+    const buckets = new Set(getSeasonCategoryNameMapMock.mock.calls.map((call) => call[0]));
+    expect(buckets).toEqual(new Set(["maajp2026", "maajp2025"]));
+    expect(getSeasonCategoryNameMapMock).toHaveBeenCalledTimes(2);
   });
 
   it("falls back to the series name for a row TASO cannot name", async () => {
