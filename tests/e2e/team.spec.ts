@@ -2,17 +2,25 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Team match list", () => {
   test("a relegated club is told where it played instead of being unknown", async ({ page }) => {
-    // Burnley were in the Championship in 2024/25.
-    await page.goto("/ulkomaat/joukkue/328?kilpailu=PL&kausi=2024");
+    // Whoever is in the Championship this season is not in the Premier League
+    // this season — read off the app rather than assuming a club id or a year.
+    await page.goto("/ulkomaat/sarjataulukko?kilpailu=ELC");
+    const firstTeam = page.locator("table tbody tr").first().getByRole("link").first();
+    const clubName = (await firstTeam.textContent())?.trim() ?? "";
+    await firstTeam.click();
+    await expect(page).toHaveURL(/\/ulkomaat\/joukkue\/\d+/);
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Burnley");
+    const url = new URL(page.url());
+    const season = url.searchParams.get("kausi") ?? "";
+    await page.goto(`${url.pathname}?kilpailu=PL&kausi=${season}`);
+
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(clubName);
     await expect(
       page.locator("main").getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
     ).toBeVisible();
 
-    await page.getByRole("link", { name: "Championship", exact: true }).click();
-
-    await expect(page).toHaveURL(/kilpailu=ELC&kausi=2024/);
+    await page.locator("main").getByRole("link", { name: "Championship", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`kilpailu=ELC&kausi=${season}`));
     await expect(page.getByRole("table")).toBeVisible();
   });
 
