@@ -17,7 +17,15 @@ test.describe("Domestic season-wide match list (Veikkausliiga)", () => {
   test("links a team name from the match list to its team page", async ({ page }) => {
     await page.goto("/kotimaa/ottelut?kausi=2020");
 
-    const firstTeamLink = page.locator("table tbody tr").first().getByRole("link").first();
+    // The `Ottelu` cell, not the row: the `Pvm` cell now links to the match
+    // page (specs/019), so the row's first link is no longer a team.
+    const firstTeamLink = page
+      .locator("table tbody tr")
+      .first()
+      .locator("td")
+      .nth(1)
+      .getByRole("link")
+      .first();
     const teamName = await firstTeamLink.textContent();
     await firstTeamLink.click();
 

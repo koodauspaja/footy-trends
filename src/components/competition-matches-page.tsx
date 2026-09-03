@@ -95,6 +95,7 @@ async function renderCupMatches({
       {stageMatches.length > 0 && (
         <MatchListTable
           matches={stageMatches}
+          matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
           teamHref={(teamProviderId) =>
             `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
           }
@@ -236,6 +237,7 @@ async function renderLeagueMatches({
       {result.status === "ok" && result.matches.length > 0 && (
         <MatchListTable
           matches={result.matches}
+          matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
           teamHref={(teamProviderId) =>
             `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
           }

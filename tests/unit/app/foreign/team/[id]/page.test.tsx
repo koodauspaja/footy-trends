@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { TeamMatchesResult } from "@/lib/standings-service";
+import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
@@ -18,6 +20,42 @@ vi.mock("@/lib/standings-service", () => ({
 vi.mock("@/lib/logger", () => ({
   logger: { error: loggerErrorMock },
 }));
+
+const TEAM_CONTEXT_COMPETITION = "PL";
+const TEAM_CONTEXT_SEASON = 2025;
+/** The team exists, in the competition these tests already assume. */
+async function defaultTeamContext(
+  _source: unknown,
+  teamProviderId: number
+): Promise<TeamContextResult> {
+  return Number.isInteger(teamProviderId) && teamProviderId !== 0
+    ? {
+        status: "ok" as const,
+        context: { competitionCode: TEAM_CONTEXT_COMPETITION, seasonId: TEAM_CONTEXT_SEASON },
+      }
+    : { status: "not_found" as const };
+}
+
+const getTeamContextMock = vi.fn(defaultTeamContext);
+
+// The team's own newest stored context, which the page resolves before it knows
+// which competition to ask about. Mocked at the database boundary, so
+// `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
+/**
+ * The club's other seasons, which most of these tests do not describe: an
+ * unanswered lookup leaves the page on its previous behaviour, and the tests
+ * that care about it set a value. See specs/022-teams-between-tiers.md.
+ */
+const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
+
+const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
+
+vi.mock("@/lib/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+  return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
+});
+
+vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -109,6 +147,9 @@ async function getMetadata(
 describe("Team page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getTeamContextMock.mockImplementation(defaultTeamContext);
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getTeamMatchesMock.mockResolvedValue(okResult);
@@ -289,12 +330,145 @@ describe("Team page", () => {
     expect(screen.getByLabelText("Kausi")).toBeInTheDocument();
   });
 
-  it("shows the not-found message for a non-numeric team id without querying matches or a season selector", async () => {
+  it("shows the team's own competition when the URL names none", async () => {
+    // A bare URL used to mean "Premier League, active season", which served 20
+    // of 315 stored football-data team ids. See specs/020.
+    getTeamContextMock.mockResolvedValue({
+      status: "ok",
+      context: { competitionCode: "BL1", seasonId: 2024 },
+    });
+
+    await renderTeamPage("721");
+
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("BL1", 721, 2024, 2025);
+    expect(screen.getByRole("link", { name: "Sarjataulukkoon" })).toHaveAttribute(
+      "href",
+      "/ulkomaat/sarjataulukko?kilpailu=BL1&kausi=2024"
+    );
+  });
+
+  it("fills in the season from the team's newest match in a competition the URL names", async () => {
+    getTeamContextMock.mockResolvedValue({
+      status: "ok",
+      context: { competitionCode: "ELC", seasonId: 2023 },
+    });
+
+    await renderTeamPage("721", { kilpailu: "ELC" });
+
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("ELC", 721, 2023, 2025);
+  });
+
+  it("shows the error state rather than an unknown team when the lookup fails", async () => {
+    getTeamContextMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("721");
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
+  it("says where a relegated club played instead of calling it unknown", async () => {
+    // Burnley: Premier League 2023, Championship 2024, back up in 2025.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "ok", name: "Burnley FC" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+        { competitionCode: "ELC", seasonId: 2024, matches: 46 },
+      ],
+    });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2024" });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Burnley FC");
+    expect(
+      screen.getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Championship" })).toHaveAttribute(
+      "href",
+      "/ulkomaat/joukkue/328?kilpailu=ELC&kausi=2024"
+    );
+  });
+
+  it("offers the club's own seasons, labelled as the competition labels them", async () => {
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+        { competitionCode: "ELC", seasonId: 2024, matches: 46 },
+      ],
+    });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2025" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2025/26", "2024/25"]);
+  });
+
+  it("shows the error state when the club's name could not be read", async () => {
+    // Seasons read fine, the name lookup did not: rendering the explanation
+    // with a blank where the club should be would hide an outage.
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [{ competitionCode: "ELC", seasonId: 2024, matches: 46 }],
+    });
+    getTeamNameMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2024" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer a stored season past the provider's active one", async () => {
+    getTeamSeasonsMock.mockResolvedValue({
+      status: "ok",
+      seasons: [
+        { competitionCode: "PL", seasonId: 2027, matches: 2 },
+        { competitionCode: "PL", seasonId: 2025, matches: 38 },
+      ],
+    });
+
+    await renderTeamPage("57", { kilpailu: "PL", kausi: "2025" });
+
+    const options = [...screen.getByLabelText("Kausi").querySelectorAll("option")].map(
+      (option) => option.textContent
+    );
+    expect(options).toEqual(["2025/26"]);
+  });
+
+  it("does not call a club unknown when its seasons could not be read", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("328", { kilpailu: "PL", kausi: "2024" });
+
+    expect(
+      screen.getByText("Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+  });
+
+  it("shows the reduced not-found page for a non-numeric team id, and queries nothing", async () => {
     await renderTeamPage("abc");
 
+    // The page used to name Valioliiga and offer its standings link to a team
+    // that does not exist. See specs/020-context-free-team-page.md.
+    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
     expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
   });
 
   it("links back to the standings for the current competition and season", async () => {
@@ -370,8 +544,8 @@ describe("Team page", () => {
     expect(await getMetadata("999")).toEqual({ title: "Valioliiga" });
   });
 
-  it("sets the tab title to just the competition name for a non-numeric team id", async () => {
-    expect(await getMetadata("abc")).toEqual({ title: "Valioliiga" });
+  it("titles a page with no team after the not-found message", async () => {
+    expect(await getMetadata("abc")).toEqual({ title: "Joukkuetta ei löytynyt." });
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
   });
 

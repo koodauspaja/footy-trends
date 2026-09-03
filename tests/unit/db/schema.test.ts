@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { matches, tasoMatches } from "@/db/schema";
 
 describe("matches table", () => {
-  it("declares a unique index on the provider match id and two composite lookup indexes", () => {
+  it("declares a unique index on the provider match id and four lookup indexes", () => {
     const { indexes } = getTableConfig(matches);
 
-    expect(indexes).toHaveLength(3);
+    expect(indexes).toHaveLength(5);
     expect(
       indexes.find((index) => index.config.name === "matches_provider_match_id_idx")?.config
     ).toMatchObject({
@@ -23,6 +23,23 @@ describe("matches table", () => {
     ).toMatchObject({
       unique: false,
     });
+    // The match page's head-to-head pair lookup. One index serves both
+    // orientations — see specs/019-match-page.md.
+    const headToHead = indexes.find(
+      (index) => index.config.name === "matches_head_to_head_idx"
+    )?.config;
+    expect(headToHead).toMatchObject({ unique: false });
+    expect(headToHead?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "home_team_provider_id",
+      "away_team_provider_id",
+    ]);
+    // The away half of "every match this team played", which the composite
+    // above cannot serve on its own. See specs/020-context-free-team-page.md.
+    const awaySide = indexes.find((index) => index.config.name === "matches_away_team_idx")?.config;
+    expect(awaySide).toMatchObject({ unique: false });
+    expect(awaySide?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "away_team_provider_id",
+    ]);
   });
 
   it("carries the cup columns, all nullable so league rows need no backfill", () => {
@@ -47,10 +64,10 @@ describe("matches table", () => {
 });
 
 describe("taso_matches table", () => {
-  it("declares a unique index on the taso match id and a composite lookup index", () => {
+  it("declares a unique index on the taso match id and three lookup indexes", () => {
     const { indexes } = getTableConfig(tasoMatches);
 
-    expect(indexes).toHaveLength(2);
+    expect(indexes).toHaveLength(4);
     expect(
       indexes.find((index) => index.config.name === "taso_matches_taso_match_id_idx")?.config
     ).toMatchObject({
@@ -67,6 +84,24 @@ describe("taso_matches table", () => {
       "competition_id",
       "season_id",
       "group_id",
+    ]);
+    // As on `matches`: the head-to-head pair lookup, both orientations from one
+    // index. Measured 3.16 ms → 0.13 ms on 20,604 stored rows.
+    const headToHead = indexes.find(
+      (index) => index.config.name === "taso_matches_head_to_head_idx"
+    )?.config;
+    expect(headToHead).toMatchObject({ unique: false });
+    expect(headToHead?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "home_team_provider_id",
+      "away_team_provider_id",
+    ]);
+    // Measured on 20,604 stored rows: 1.03 ms without it, 0.20 ms with.
+    const awaySide = indexes.find(
+      (index) => index.config.name === "taso_matches_away_team_idx"
+    )?.config;
+    expect(awaySide).toMatchObject({ unique: false });
+    expect(awaySide?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "away_team_provider_id",
     ]);
   });
 });

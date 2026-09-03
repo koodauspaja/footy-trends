@@ -74,6 +74,7 @@ export default async function DomesticMatchesPage({
       {result.status === "ok" && result.matches.length === 0 && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "ok" && result.matches.length > 0 && (
         <MatchListTable
+          matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
           matches={result.matches}
           teamHref={(teamProviderId) =>
             `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`

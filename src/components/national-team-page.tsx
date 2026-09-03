@@ -21,7 +21,7 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  * use for rounds — and open by default for the same reason: nothing is hidden
  * until the reader chooses to hide it. See specs/017-huuhkajat.md.
  */
-function YearSection({ year }: Readonly<{ year: NationalTeamYear }>) {
+function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
     <details className="mb-10 border-zinc-200 border-b pb-4" open>
       <summary className="mb-3 cursor-pointer list-none">
@@ -31,6 +31,7 @@ function YearSection({ year }: Readonly<{ year: NationalTeamYear }>) {
       <MatchListTable
         matches={year.matches}
         teamHref={null}
+        matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
         fourthColumn={{ header: "Kilpailu", render: (match) => match.competitionName }}
       />
     </details>
@@ -58,7 +59,9 @@ export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "ok" && result.incomplete && <Notice>{INCOMPLETE_MESSAGE}</Notice>}
       {result.status === "ok" &&
-        result.years.map((year) => <YearSection key={year.year} year={year} />)}
+        result.years.map((year) => (
+          <YearSection basePath={team.basePath} key={year.year} year={year} />
+        ))}
     </PageShell>
   );
 }
