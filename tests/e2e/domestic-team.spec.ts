@@ -2,29 +2,46 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Domestic team match list (Veikkausliiga)", () => {
   test("a relegated club is told where it played, not that it is unknown", async ({ page }) => {
-    // FC Haka: Veikkausliiga 2020–2025, Ykkösliiga 2026. Asking for its
-    // Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
-    await page.goto("/kotimaa/joukkue/60561?kilpailu=VL&kausi=2026");
+    // Derived from the app rather than from a club id: whoever is in Ykkösliiga
+    // this season is, by definition, not in Veikkausliiga this season. Naming a
+    // club and a year here would only assert what one database happens to hold
+    // — the mistake this test was written with, and #256 fixed.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=M1L");
+    const firstTeam = page.locator("table tbody tr").first().getByRole("link").first();
+    const clubName = (await firstTeam.textContent())?.trim() ?? "";
+    await firstTeam.click();
+    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("FC Haka");
+    const url = new URL(page.url());
+    const season = url.searchParams.get("kausi") ?? "";
+    await page.goto(`${url.pathname}?kilpailu=VL&kausi=${season}`);
+
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(clubName);
     await expect(
       page.locator("main").getByText("Joukkue ei pelannut tässä sarjassa tällä kaudella.")
     ).toBeVisible();
     await expect(page.locator("main").getByText("Joukkuetta ei löytynyt.")).toHaveCount(0);
 
-    await page.getByRole("link", { name: "Ykkösliiga", exact: true }).click();
-
-    await expect(page).toHaveURL(/kilpailu=M1L&kausi=2026/);
+    // The offered link goes back to where the club actually played, and renders.
+    await page.locator("main").getByRole("link", { name: "Ykkösliiga", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`kilpailu=M1L&kausi=${season}`));
     await expect(page.getByRole("table")).toBeVisible();
   });
 
-  test("the season selector offers the club's own seasons", async ({ page }) => {
-    await page.goto("/kotimaa/joukkue/60808?kilpailu=VL&kausi=2017");
+  test("the season selector agrees with the season being shown", async ({ page }) => {
+    // The invariant, not one club's history: whatever `kausi` the page renders
+    // is the option the control displays. A dropdown missing its own page's
+    // season shows a different one as chosen.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=M1L");
+    await page.locator("table tbody tr").first().getByRole("link").first().click();
+    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
 
-    // HIFK has no stored season after 2023, so the dropdown stops there rather
-    // than offering Veikkausliiga's full range.
-    const options = page.getByLabel("Kausi").locator("option");
-    await expect(options.first()).toHaveText("2023");
+    const shown = new URL(page.url()).searchParams.get("kausi") ?? "";
+    await expect(page.getByLabel("Kausi")).toHaveValue(shown);
+
+    // And a season the club did not play is still the one selected.
+    await page.goto(`${new URL(page.url()).pathname}?kilpailu=VL&kausi=${shown}`);
+    await expect(page.getByLabel("Kausi")).toHaveValue(shown);
   });
 
   test("a bare team URL renders the team, not the region's default competition", async ({
