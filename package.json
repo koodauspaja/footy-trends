@@ -10,6 +10,7 @@
     "test:unit": "vitest run tests/unit --coverage --passWithNoTests",
     "test:integration": "vitest run tests/integration --passWithNoTests",
     "test:e2e": "playwright test",
+    "test:e2e:browser": "playwright install --with-deps chromium",
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

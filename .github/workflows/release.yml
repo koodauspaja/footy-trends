@@ -196,8 +196,13 @@ jobs:
 
       # Chromium only, per #81. `--with-deps` because the runner has none of
       # the shared libraries a headless browser needs.
+      #
+      # An npm script rather than `npx`, which is allowed to fetch a package
+      # on demand and run its lifecycle scripts (githubactions:S6505, S8543).
+      # This runs the playwright already installed above, so the browser
+      # always matches the version in package-lock.json.
       - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+        run: npm run test:e2e:browser
 
       - name: Run database migrations
         run: npm run db:migrate
