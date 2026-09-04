@@ -146,6 +146,12 @@ sonar.tests=tests
 
 sonar.javascript.lcov.reportPaths=coverage/lcov.info
 
+# Without this the scanner uploads the analysis and exits successfully, while
+# the Quality Gate is evaluated afterwards on SonarCloud's servers — so a
+# failing gate leaves the GitHub check green. This makes the scanner poll for
+# the result and fail the job.
+sonar.qualitygate.wait=true
+
 # Build output, dependencies and generated reports.
 #
 # `tests/**` belongs here too: `sonar.sources=.` contains it and `sonar.tests`
