@@ -154,13 +154,38 @@ sonar.javascript.lcov.reportPaths=coverage/lcov.info
 # as tests.
 sonar.exclusions=tests/**,package-lock.json,node_modules/**,.next/**,coverage/**
 
-# Every source file absent from the lcov report is scored 0% by the Zero
-# Coverage Sensor, so widening the scope means naming what cannot be covered:
-# the tooling's own configuration and any runner script that opens a database
-# or shells out. Name the files, never a whole directory — `scripts/**` would
-# also throw away the halves that *are* tested.
-sonar.coverage.exclusions=next.config.ts,drizzle.config.ts,vitest.config.ts
+# Derive this list, do not copy it — see below.
+sonar.coverage.exclusions=
 ```
+
+### Deriving the coverage exclusions
+
+Every source file absent from the lcov report is scored 0% by the Zero Coverage
+Sensor, so widening the scope means naming what cannot be covered. The list is
+project-specific and this repository's has twenty-one entries; the guide
+deliberately does not reproduce it, because a copy here would drift from the
+real one silently.
+
+Derive it instead. After a coverage run, every tracked JS/TS file absent from
+the report is a file the sensor would score 0%:
+
+```bash
+npm run test:unit
+comm -23 \
+  <(git ls-files '*.ts' '*.tsx' '*.mjs' | grep -v '^tests/' | sort) \
+  <(grep '^SF:' coverage/lcov.info | cut -d: -f2 | sort)
+```
+
+Every line it prints must then appear in `sonar.coverage.exclusions` — or,
+better, gain a test. The command lists candidates and does not subtract what is
+already excluded, so read its output against the property rather than expecting
+it to fall empty. Two rules:
+
+- **Name files, never a directory.** `scripts/**` is shorter and wrong: it also
+  discards the halves that *are* tested, reporting covered code as excluded.
+- **A pattern matching nothing is worse than no pattern**, because it looks
+  load-bearing in review. Check every entry still names a file that exists —
+  two in this repository outlived their files by months.
 
 There is no `sonar.typescript.tsconfigPath`. The property is `tsconfigPaths`,
 plural, and unset the analyzer traverses from the project root and finds
