@@ -33,15 +33,57 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        run: npm ci
+        # `--ignore-scripts` blocks dependency lifecycle scripts, which are how a
+        # compromised package runs code on a runner holding our tokens
+        # (githubactions:S6505). Nothing here needs them: the only script in
+        # package.json is husky, which installs git hooks no CI job uses, and
+        # the two dependencies that fetch binaries — esbuild and @sentry/cli —
+        # resolve them from optional platform packages instead. Verified in #258
+        # by installing this way and running typecheck, lint, the full unit
+        # suite and a production build.
+        run: npm ci --ignore-scripts
 
       - name: Run unit tests with coverage
         run: npm run test:unit
 
+      # The new-code definition is "previous version", and every analysis so far
+      # recorded the version as "not provided" — so the boundary never moved and
+      # `main`'s new-code view meant nothing. The releases are tagged, so the
+      # newest tag is the boundary this project actually has.
+      #
+      # Not `git describe`: a release tag sits on the merge commit created on
+      # `release`, which is a descendant of `main` rather than an ancestor, so
+      # nothing on `main` can reach it. The newest tag by version is what we
+      # want, reachable or not.
+      #
+      # Pull requests are unaffected either way — they are measured against
+      # their target branch. See #258.
+      - name: Read the last release tag
+        id: version
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          echo "value=${tag:-0.0.0}" >> "$GITHUB_OUTPUT"
+
+      # `skipNodeProvisioning` stops the scanner downloading its own Node for the
+      # JS/TS analyzer: the step above installed Node 24 and it is on PATH. This
+      # belongs to the workflow rather than the properties file, because that
+      # guarantee is the workflow's — a scan run anywhere else should still be
+      # allowed to fetch a Node of its own.
+      #
+      # `sonarcloud-github-action` is archived: "Deprecated. Use
+      # sonarqube-scan-action instead." Same scanner, current name.
+      #
+      # SonarQube Cloud needs only SONAR_TOKEN — SONAR_HOST_URL is for
+      # self-hosted Server. The project key and organization come from
+      # sonar-project.properties, where they are plain text because they are not
+      # secret; passing them again from secrets was one value in two places, and
+      # the copy in git is the one the scanner reads.
       - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8 # v5.0.0
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        with:
+          args: >-
+            -Dsonar.projectVersion=${{ steps.version.outputs.value }}
+            -Dsonar.scanner.skipNodeProvisioning=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
-          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
