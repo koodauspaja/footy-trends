@@ -201,3 +201,64 @@ describe("an error code taken straight off the query string", () => {
     }
   );
 });
+
+/**
+ * #266: after a cancelled sign-in the reader sits on `?error=auth`, and
+ * `returnPath` carried that straight into Google's `callbackURL` — so a
+ * *successful* sign-in returned them to their own error message.
+ */
+describe("a spent error does not survive the next attempt", () => {
+  it("does not ask Google to return the reader to the error they just cleared", () => {
+    pathname.current = "/";
+    searchParams.current = new URLSearchParams({ error: "auth" });
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu sisään" }));
+
+    expect(socialSignIn).toHaveBeenCalledWith(expect.objectContaining({ callbackURL: "/" }));
+  });
+
+  it("keeps the page's own state while dropping the error", () => {
+    // `kilpailu`/`kausi` are the page's state and must survive; `error`
+    // belongs to the attempt that failed, not to the page.
+    pathname.current = "/kotimaa/sarjataulukko";
+    searchParams.current = new URLSearchParams({
+      kilpailu: "VL",
+      error: "auth",
+      kausi: "2026",
+    });
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu sisään" }));
+
+    expect(socialSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ callbackURL: "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026" })
+    );
+  });
+
+  it("clears a stale notice after a sign-out that works", async () => {
+    // The rarer sibling: a failed sign-out leaves `?error=signout`, and a
+    // successful one does not navigate, so the notice would sit there.
+    signedInAs("Matti");
+    pathname.current = "/kotimaa/ottelut";
+    searchParams.current = new URLSearchParams({ error: "signout" });
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+    expect(replace).toHaveBeenCalledWith("/kotimaa/ottelut");
+  });
+
+  it("leaves the URL alone when a sign-out works and there was no error", async () => {
+    // No history churn on the ordinary path.
+    signedInAs("Matti");
+    pathname.current = "/kotimaa/ottelut";
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalled());
+
+    expect(replace).not.toHaveBeenCalled();
+  });
+});

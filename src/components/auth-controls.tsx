@@ -29,8 +29,23 @@ const MESSAGES = new Map([["signout", "Uloskirjautuminen epäonnistui. Yritä uu
 /** Every Google-side failure says the same thing — see `SignInError` below. */
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
 
+const ERROR_PARAM = "error";
+
+/**
+ * Where to send the reader back to, carrying the page's own state but not the
+ * outcome of a previous attempt.
+ *
+ * `error` is dropped deliberately (#266). Carrying the whole query string is
+ * what returns the reader to `?kilpailu=`/`?kausi=`/`?vaihe=` where they left
+ * off — but on `/?error=auth` it also made `callbackURL` point at the error
+ * itself, so a *successful* sign-in landed the reader back on
+ * `Kirjautuminen epäonnistui`, telling them the thing that had just worked had
+ * failed. An error belongs to one attempt, not to the page.
+ */
 function returnPath(pathname: string, params: URLSearchParams): string {
-  const query = params.toString();
+  const kept = new URLSearchParams(params);
+  kept.delete(ERROR_PARAM);
+  const query = kept.toString();
   return query ? `${pathname}?${query}` : pathname;
 }
 
@@ -60,8 +75,18 @@ function AuthButtons() {
    */
   const report = (code: string) => {
     const params = new URLSearchParams(searchParams);
-    params.set("error", code);
+    params.set(ERROR_PARAM, code);
     router.replace(`${pathname}?${params.toString()}`);
+  };
+
+  /**
+   * Sign-out succeeds without navigating, so a notice left over from a failed
+   * one would stay on screen (#266). Only touches the URL when there is
+   * something to clear, so the ordinary path adds no history entry.
+   */
+  const clearError = () => {
+    if (!searchParams.has(ERROR_PARAM)) return;
+    router.replace(returnPath(pathname, searchParams));
   };
 
   // Not "loading" text and not a spinner: an empty slot roughly the width of
@@ -103,7 +128,9 @@ function AuthButtons() {
       <button
         className={BUTTON_CLASS}
         onClick={() => {
-          signOut().catch(() => report("signout"));
+          // `then(onFulfilled, onRejected)` rather than `.then().catch()`: a
+          // throw inside `clearError` must not be reported as a failed sign-out.
+          signOut().then(clearError, () => report("signout"));
         }}
         type="button"
       >
