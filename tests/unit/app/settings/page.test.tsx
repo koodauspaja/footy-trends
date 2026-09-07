@@ -107,7 +107,7 @@ describe("the settings route", () => {
   it("describes the current device without an IP address or an operating system", async () => {
     await renderPage();
 
-    expect(screen.getByText("Chrome")).toBeInTheDocument();
+    expect(screen.getByText("Chrome-selain")).toBeInTheDocument();
     expect(screen.getByText("Tämä laite")).toBeInTheDocument();
     // A session with no user agent still gets a row, not a blank one.
     expect(screen.getByText("Tuntematon selain")).toBeInTheDocument();

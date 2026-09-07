@@ -13,6 +13,11 @@
  * UI to say what one already says. Confirmed with Miikka: the browser alone
  * identifies a device well enough, and the cost — two Chrome sessions on
  * different machines reading alike — is accepted.
+ *
+ * The remaining label is a Finnish compound around the product name —
+ * `Chrome-selain`, not a bare `Chrome`. The brand cannot be translated, but the
+ * word around it can be, and this matches the `Tuntematon selain` the fallback
+ * has always used. A bare brand next to that fallback was the inconsistency.
  */
 
 const UNKNOWN_BROWSER = "Tuntematon selain";
@@ -23,11 +28,11 @@ const UNKNOWN_BROWSER = "Tuntematon selain";
  * Matching in this order is what stops every browser reporting as Safari.
  */
 const BROWSERS: ReadonlyArray<readonly [needle: string, label: string]> = [
-  ["Edg/", "Edge"],
-  ["OPR/", "Opera"],
-  ["Firefox/", "Firefox"],
-  ["Chrome/", "Chrome"],
-  ["Safari/", "Safari"],
+  ["Edg/", "Edge-selain"],
+  ["OPR/", "Opera-selain"],
+  ["Firefox/", "Firefox-selain"],
+  ["Chrome/", "Chrome-selain"],
+  ["Safari/", "Safari-selain"],
 ];
 
 /**
@@ -47,20 +52,45 @@ export function describeDevice(userAgent: string | null): string {
   return UNKNOWN_BROWSER;
 }
 
+const lastUsedFormatter = new Intl.DateTimeFormat("fi-FI", {
+  timeZone: "Europe/Helsinki",
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+});
+
+/**
+ * The calendar date in Helsinki, as `2026-09-03`, for comparing days.
+ *
+ * `en-CA` is a deliberate trick, not a stray locale: it yields ISO-ordered
+ * `YYYY-MM-DD`, which sorts and compares as a string. The reader never sees it.
+ */
+const helsinkiDateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Helsinki",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /**
  * `Käytetty tänään` / `Käytetty eilen` / `Käytetty 3.9.2026`.
  *
- * Compared on calendar days in the reader's own timezone rather than on elapsed
- * hours: "yesterday" means the previous date, not 24 hours ago, and a session
- * used at 23:50 should not still read `tänään` at 00:10.
+ * Everything here is computed in **Europe/Helsinki**, like every other
+ * user-facing date in the app (`match-list-table.tsx`, `match-detail.ts`,
+ * `national-team.ts`). This runs on the server, so the alternative was not "the
+ * reader's timezone" but *Railway's* — UTC — which for a Finnish reader gets
+ * `tänään` and `eilen` wrong for the two or three hours after midnight.
+ *
+ * Compared on calendar days rather than elapsed hours: "yesterday" means the
+ * previous date, not 24 hours ago, so a session used at 23:50 does not still
+ * read `tänään` at 00:10.
  */
 export function describeLastUsed(updatedAt: Date, now: Date = new Date()): string {
-  const startOfDay = (date: Date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const day = (date: Date) => Date.parse(`${helsinkiDateKeyFormatter.format(date)}T00:00:00Z`);
 
-  const days = Math.round((startOfDay(now) - startOfDay(updatedAt)) / 86_400_000);
+  const days = Math.round((day(now) - day(updatedAt)) / 86_400_000);
 
   if (days <= 0) return "Käytetty tänään";
   if (days === 1) return "Käytetty eilen";
-  return `Käytetty ${updatedAt.toLocaleDateString("fi-FI")}`;
+  return `Käytetty ${lastUsedFormatter.format(updatedAt)}`;
 }

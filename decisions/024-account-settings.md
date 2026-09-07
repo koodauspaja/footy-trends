@@ -247,6 +247,36 @@ row. The `SYSTEMS` table is gone rather than left unused, and a test now asserts
 that no output names an OS. The accepted cost — two Chrome sessions on different
 machines reading alike — is recorded in the spec.
 
+## Widening each finding to its class
+
+Three findings, each of which turned out to have a wider scope than the line it
+was reported on:
+
+**A timezone bug, and a comment that claimed the opposite.** `describeLastUsed`
+compared and formatted dates with local-time methods, and its own documentation
+said "in the reader's own timezone". It runs on the *server*, so that was never
+true: the alternative to Helsinki was Railway's UTC, which reports `eilen` to a
+Finnish reader for the two or three hours after midnight. Checking the rest of
+`src/` settled the fix without a judgement call — `match-list-table.tsx`,
+`match-detail.ts` and `national-team.ts` all already pin `Europe/Helsinki`, and
+this was the only user-facing date that did not. The tests now use UTC instants
+and pass under `TZ=UTC` and `TZ=America/Los_Angeles` alike; against the old
+implementation two of them fail.
+
+**A deferred import that was only half deferred.** `viewer.ts` dynamically
+imported `auth` but still imported `getPreferencesFor` at module scope, which
+pulls in `@/db` and constructs the Postgres client. So the "signed-out readers
+pay nothing" claim was false for the database half, and an environment without
+`DATABASE_URL` could fail before the cookie check. Both imports are now behind
+the authenticated branch.
+
+**English labels, resolved by consistency rather than argument.** `Chrome` beside
+`Tuntematon selain` was the actual inconsistency: the fallback had always been
+Finnish. `Chrome-selain` keeps the untranslatable brand and translates the word
+around it, which is what the fallback already did. A sweep of every rendered
+string in `src/` found nothing else in English — the remaining English is
+comments and log messages, which CLAUDE.md requires.
+
 ## Verification
 
 - `npm run test:unit` — **100% statements, branches, functions and lines**, and

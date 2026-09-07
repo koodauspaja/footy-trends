@@ -195,9 +195,9 @@ One row per session:
 
 | Element | String |
 |---|---|
-| Device | `Chrome` — the browser, and **not** the operating system |
+| Device | `Chrome-selain` — the browser, and **not** the operating system |
 | Current session | `Tämä laite` |
-| Last used | `Käytetty tänään` / `Käytetty eilen` / `Käytetty 3.9.2026` |
+| Last used | `Käytetty tänään` / `Käytetty eilen` / `Käytetty 3.9.2026`, computed in **Europe/Helsinki** like every other date in the app |
 | Button | `Kirjaa ulos muut laitteet` |
 | Only one session | `Olet kirjautunut sisään vain tällä laitteella.` — button hidden |
 | Done | `Muut laitteet kirjattu ulos.` |
@@ -314,6 +314,16 @@ A small, local mapping — no dependency. The browser is the first match among
 Edge, Opera, Firefox, Chrome, Safari; Edge before Chrome and Chrome before
 Safari, because their UA strings contain each other's names. Anything unmatched
 renders `Tuntematon selain`.
+
+The label is a Finnish compound around the product name — `Chrome-selain`, not
+a bare `Chrome`. The brand cannot be translated; the word around it can, and
+this is what `Tuntematon selain` has always done. A bare brand beside that
+fallback was the inconsistency.
+
+Dates are computed and formatted in **Europe/Helsinki**, matching
+`match-list-table.tsx`, `match-detail.ts` and `national-team.ts`. This runs on
+the server, so the alternative was not "the reader's timezone" but Railway's —
+UTC — which gets `tänään` and `eilen` wrong for the hours after Finnish midnight.
 
 **The operating system is not shown.** `Chrome · macOS` put two English product
 names into a Finnish page to say what the browser alone already says, and

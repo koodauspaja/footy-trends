@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { cache } from "react";
 import { logger } from "@/lib/logger";
-import { getPreferencesFor } from "@/lib/preferences";
 import type { Preferences } from "@/lib/regions";
 
 const SESSION_COOKIE = "better-auth.session_token";
@@ -66,12 +65,18 @@ export const getViewerPreferences = cache(async (): Promise<Preferences | null> 
      * job, which deliberately has no environment at all (#158).
      *
      * Deferring it past the cookie check above also means a signed-out request
-     * never constructs the auth instance in the first place.
+     * constructs neither the auth instance nor the database client.
      */
     const { auth } = await import("@/lib/auth");
     const session = await auth.api.getSession({ headers: requestHeaders });
     if (!session) return null;
 
+    // Deferred for the same reason as `auth` above, and it was the remaining
+    // hole in that claim: `preferences.ts` imports `@/db`, which constructs the
+    // Postgres client at module scope. A top-level import here made every
+    // importer of this module — which is every competition page — pay that on
+    // a signed-out request, and fail outright without `DATABASE_URL`.
+    const { getPreferencesFor } = await import("@/lib/preferences");
     return await getPreferencesFor(session.user.id);
   } catch (error) {
     logger.error({ err: error }, "Reading viewer preferences failed");
