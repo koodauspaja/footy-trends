@@ -5,7 +5,8 @@ import { Suspense } from "react";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 
-const BUTTON_CLASS = "text-sm hover:underline";
+// `shrink-0` keeps the button its full width when a long name shares the row.
+const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
 
 /**
  * What went wrong, carried in the URL rather than in component state.
@@ -91,7 +92,9 @@ function AuthButtons() {
 
   return (
     <>
-      <span className="text-sm text-zinc-600">{session.user.name}</span>
+      {/* `min-w-0 break-words` so a long display name wraps inside the header
+          instead of pushing `Kirjaudu ulos` off a narrow viewport. */}
+      <span className="min-w-0 break-words text-sm text-zinc-600">{session.user.name}</span>
       <button
         className={BUTTON_CLASS}
         onClick={() => {

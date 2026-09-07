@@ -22,10 +22,15 @@ export function SiteHeader() {
 
   return (
     <header className="border-zinc-200 border-b">
-      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-8">
+      {/* Wraps rather than truncates. A narrow viewport with the longest
+          breadcrumb (`Maajoukkueet`) and a long Google display name overflows a
+          single non-wrapping row, pushing the sign-out control off-screen. The
+          repo's instinct is to wrap a long name rather than cut it — see the
+          note in data-table.tsx — so the header grows to two lines instead. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-8">
         {/* The auth control sits outside this nav, so the breadcrumb landmark
             keeps meaning "murupolku" rather than "murupolku and a login". */}
-        <nav aria-label="Murupolku" className="flex items-center gap-2 text-sm">
+        <nav aria-label="Murupolku" className="flex min-w-0 items-center gap-2 text-sm">
           <Link className="hover:underline" href="/">
             Etusivu
           </Link>
@@ -40,7 +45,7 @@ export function SiteHeader() {
             </>
           )}
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <AuthControls />
         </div>
       </div>

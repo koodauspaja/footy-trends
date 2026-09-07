@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 /**
  * The sign-in control, from specs/023-google-oauth-login.md.
@@ -52,7 +52,10 @@ test.describe("Sign-in control", () => {
     expect(googleUrl).not.toBeNull();
     const url = new URL(googleUrl ?? "");
 
-    expect(url.searchParams.get("client_id")).toBeTruthy();
+    // Against the configured value, not merely non-empty: a truthy check passes
+    // even when a different client id is wired in. `.env` is loaded by
+    // global-setup, and CI sets the dummy literal from the workflow.
+    expect(url.searchParams.get("client_id")).toBe(process.env.GOOGLE_CLIENT_ID);
     expect(url.searchParams.get("redirect_uri")).toContain("/api/auth/callback/google");
     // The scopes the spec commits to, and no sensitive extras.
     expect(url.searchParams.get("scope")).toContain("email");
@@ -94,5 +97,91 @@ test.describe("Signed-out pages are unchanged", () => {
     // group. Any of them proves the page still rendered its data.
     await expect(page.getByRole("table").first()).toBeVisible();
     expect(await page.getByRole("row").count()).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * A signed-in header, without signing in.
+ *
+ * The session is read by the browser from `/api/auth/get-session`, so
+ * intercepting that one response renders the signed-in header for real — layout
+ * included. This tests **our component**, not Google's flow: nothing here
+ * proves a real sign-in works, and the acceptance criteria still call for a
+ * human to confirm that.
+ */
+async function signedInAs(page: Page, name: string) {
+  await page.route("**/api/auth/get-session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        session: {
+          id: "e2e-session",
+          token: "e2e-token",
+          userId: "e2e-user",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        user: {
+          id: "e2e-user",
+          name,
+          email: "e2e@example.com",
+          emailVerified: true,
+          image: null,
+        },
+      }),
+    });
+  });
+}
+
+const WIDTH = 320;
+
+test.describe("Narrow viewports", () => {
+  // jsdom has no layout, so this overflow is only observable in a real browser.
+  // The header used to be one non-wrapping row: a long display name pushed
+  // `Kirjaudu ulos` off a phone screen entirely.
+  test.use({ viewport: { width: WIDTH, height: 640 } });
+
+  test("keeps sign-out on screen next to a long display name", async ({ page }) => {
+    await signedInAs(page, "Matti-Pekka Meikäläinen-Virtanen");
+    await page.goto("/maajoukkueet/sarjataulukko");
+
+    const button = page.getByRole("button", { name: "Kirjaudu ulos" });
+    await expect(button).toBeVisible();
+
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    // Fully inside the viewport, not clipped at either edge.
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(WIDTH);
+  });
+
+  test("does not scroll the page sideways for a long display name", async ({ page }) => {
+    await signedInAs(page, "Matti-Pekka Meikäläinen-Virtanen");
+    await page.goto("/maajoukkueet/sarjataulukko");
+
+    await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+
+    expect(overflows).toBe(false);
+  });
+
+  test("keeps the breadcrumb and sign-in on screen when signed out", async ({ page }) => {
+    await page.goto("/maajoukkueet/sarjataulukko");
+
+    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Maajoukkueet" })).toBeVisible();
+  });
+});
+
+test.describe("A signed-in header", () => {
+  test("shows the reader's name and offers sign-out", async ({ page }) => {
+    await signedInAs(page, "Matti Meikäläinen");
+    await page.goto("/ulkomaat");
+
+    await expect(page.getByText("Matti Meikäläinen")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toHaveCount(0);
   });
 });

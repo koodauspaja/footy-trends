@@ -208,6 +208,36 @@ variables in its required table (ten variables became fourteen) and explains the
 rename. A repo-wide `grep` for `NEXTAUTH` now returns only the deliberate
 migration notes.
 
+## Two more findings, one measured before believing
+
+**The header overflowed on a phone.** Sourcery flagged the breadcrumb and the
+auth control sharing one non-wrapping flex row. It reproduces: at a 320px
+viewport with a long display name, `Kirjaudu ulos` ended at **327.7px** — off
+the screen — and the page scrolled sideways.
+
+The name now wraps rather than truncating, following the instinct already
+recorded in `data-table.tsx` ("a long name wraps inside its column instead"):
+`min-w-0 break-words` on the name, `shrink-0` on the buttons, and a wrapping
+row. Cutting a person's name to fit is the wrong trade.
+
+The e2e test for it was itself checked before being believed. Written first
+against the *signed-out* header, it passed with and without the fix — proving
+nothing, because "Etusivu / Maajoukkueet" and `Kirjaudu sisään` fit at 320px
+comfortably. Only a long **signed-in** name overflows, so the test now
+intercepts `/api/auth/get-session` and fulfils it with a session, which renders
+the real signed-in header in a real browser. Reverted against the pre-fix
+components it fails on both assertions; with the fix it passes. (The partial
+revert was also instructive: `min-w-0`/`shrink-0` alone is load-bearing, and the
+wrapping row is belt-and-braces.)
+
+This also closes part of the gap noted above — the signed-in **layout** is now
+covered end to end. It still proves nothing about a real Google sign-in, which
+remains a human check.
+
+**The `client_id` assertion was too weak.** It checked truthiness, so it passed
+for any non-empty id. It now asserts equality with `process.env.GOOGLE_CLIENT_ID`
+— the real value locally, the workflow's dummy literal in CI.
+
 ## The coverage that vitest could not see
 
 Sonar reported `src/app/api/auth/[...all]/route.ts` at **0%** with two uncovered

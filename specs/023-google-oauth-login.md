@@ -120,6 +120,13 @@ error is carried in that page's own `?error=signout`, so one notice has one
 source rather than a second, invisible mechanism kept in agreement with the
 first.
 
+### Narrow viewports
+
+The breadcrumb and the auth control share one row, which wraps rather than
+truncating: a long Google display name must not push `Kirjaudu ulos` off a phone
+screen, and cutting a person's name to fit is the wrong trade — the same call
+`data-table.tsx` already records for long team names.
+
 ### Accessibility
 
 The header's existing `<nav aria-label="Murupolku">` wraps the breadcrumb only.
@@ -419,7 +426,11 @@ Serial, like the rest of the suite — enforced in `playwright.config.ts` since
 - A standings page's table contents are byte-identical to the pre-change
   snapshot, proving the header change did not disturb the page.
 
-**E2E cannot complete a real Google sign-in** — it needs live test-user
+The signed-in header — including its layout at a 320px viewport with a long
+display name — is covered by intercepting `/api/auth/get-session` and fulfilling
+it with a session, which renders the real component in a real browser.
+
+**E2E still cannot complete a real Google sign-in** — it needs live test-user
 credentials and Google blocks automated browsers. The signed-in header is
 therefore covered by unit tests plus the manual verification the acceptance
 criteria call for, and this gap is stated here rather than papered over with a
