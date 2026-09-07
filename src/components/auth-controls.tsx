@@ -1,16 +1,28 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 
 const BUTTON_CLASS = "text-sm hover:underline";
 
 /**
- * Where Google should send the reader back to. Relative by design: better-auth
- * validates `callbackURL` against its trusted origins, and a relative path
- * cannot become an open redirect.
+ * What went wrong, carried in the URL rather than in component state.
+ *
+ * Google reports its own failures by sending the reader back to
+ * `errorCallbackURL`, so the query string is already the channel for one half
+ * of this. Using it for the other half too means one notice with one source,
+ * instead of a second, invisible mechanism that has to be kept in agreement
+ * with the first.
  */
+const MESSAGES: Record<string, string> = {
+  signout: "Uloskirjautuminen epäonnistui. Yritä uudelleen.",
+};
+
+/** Every Google-side failure says the same thing — see `SignInError` below. */
+const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
+
 function returnPath(pathname: string, params: URLSearchParams): string {
   const query = params.toString();
   return query ? `${pathname}?${query}` : pathname;
@@ -31,6 +43,20 @@ function AuthButtons() {
   const { data: session, isPending } = useSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  /**
+   * Neither call may have its promise dropped. A rejected sign-out leaves the
+   * reader looking at a header that says they are signed in while the session
+   * row and cookie still exist, and an unhandled rejection is all the trace it
+   * would otherwise leave. `replace`, not `push`, so the failed attempt does
+   * not become a back-button step.
+   */
+  const report = (code: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("error", code);
+    router.replace(`${pathname}?${params.toString()}`);
+  };
 
   // Not "loading" text and not a spinner: an empty slot roughly the width of
   // the button that replaces it. A signed-in reader must never be shown
@@ -44,14 +70,18 @@ function AuthButtons() {
     return (
       <button
         className={BUTTON_CLASS}
-        onClick={() =>
-          signIn.social({
-            provider: "google",
-            // Back to the page they left, not to the front page.
-            callbackURL: returnPath(pathname, searchParams),
-            errorCallbackURL: "/?error=auth",
-          })
-        }
+        onClick={() => {
+          signIn
+            .social({
+              provider: "google",
+              // Back to the page they left, not to the front page.
+              callbackURL: returnPath(pathname, searchParams),
+              errorCallbackURL: "/?error=auth",
+            })
+            // Fails before any redirect happens — our own route being
+            // unreachable, not Google refusing.
+            .catch(() => report("auth"));
+        }}
         type="button"
       >
         Kirjaudu sisään
@@ -62,7 +92,13 @@ function AuthButtons() {
   return (
     <>
       <span className="text-sm text-zinc-600">{session.user.name}</span>
-      <button className={BUTTON_CLASS} onClick={() => signOut()} type="button">
+      <button
+        className={BUTTON_CLASS}
+        onClick={() => {
+          signOut().catch(() => report("signout"));
+        }}
+        type="button"
+      >
         Kirjaudu ulos
       </button>
     </>
@@ -72,23 +108,19 @@ function AuthButtons() {
 /**
  * The failure notice, shown after Google sends the reader back without a
  * session — a cancelled consent screen, an account that is not on the Testing
- * mode test-user list, or a provider error.
+ * mode test-user list, or a provider error — and after a sign-out that failed.
  *
- * Deliberately one string for all three. Google's `error` parameter tells them
- * apart, but the reader's next action is the same in every case, and naming the
- * cause would leak whether a given account is on the test-user list.
- *
- * `<output>` carries the same implicit live-region semantics as
- * `<p role="status">`, matching `Notice` in components/notice.tsx.
+ * Every Google-side cause says the same thing, deliberately. Google's `error`
+ * parameter tells them apart, but the reader's next action is identical in
+ * every case, and naming the cause would leak whether a given account is on the
+ * test-user list. Sign-out is the one distinguishable case, because it is ours
+ * and describes a different thing having failed.
  */
 function SignInError() {
-  if (!useSearchParams().has("error")) return null;
+  const error = useSearchParams().get("error");
+  if (error === null) return null;
 
-  return (
-    <output className="block px-4 pb-3 text-amber-900 text-sm sm:px-8">
-      Kirjautuminen epäonnistui. Yritä uudelleen.
-    </output>
-  );
+  return <Notice>{MESSAGES[error] ?? SIGN_IN_FAILED}</Notice>;
 }
 
 /**

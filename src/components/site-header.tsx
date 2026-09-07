@@ -44,7 +44,11 @@ export function SiteHeader() {
           <AuthControls />
         </div>
       </div>
-      <AuthNotice />
+      {/* Outside the flex row above: `Notice` is a full-width banner, and the
+          row is a single line of breadcrumb and controls. */}
+      <div className="px-4 sm:px-8">
+        <AuthNotice />
+      </div>
     </header>
   );
 }

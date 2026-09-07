@@ -10,6 +10,7 @@ const { pathname, session } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname.current,
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 
 // The header now renders the auth control, which reads a session. Mocked here

@@ -107,6 +107,19 @@ list.
 Rendered with the existing `Notice` component (`src/components/notice.tsx`), not
 a new one.
 
+### Sign-out failed
+
+| Element | String |
+|---|---|
+| Notice | `Uloskirjautuminen epäonnistui. Yritä uudelleen.` |
+
+Distinguished from the sign-in message because it describes a different thing
+having failed, and because — unlike the Google-side causes — it is ours and
+leaks nothing by being named. The reader stays on the page they were on; the
+error is carried in that page's own `?error=signout`, so one notice has one
+source rather than a second, invisible mechanism kept in agreement with the
+first.
+
 ### Accessibility
 
 The header's existing `<nav aria-label="Murupolku">` wraps the breadcrumb only.
@@ -248,6 +261,8 @@ fills in on the client.
 | Session read is slow | The control stays an empty slot until it resolves. No page content waits on it — the page is already rendered and interactive. |
 | Postgres unreachable during the sign-in callback | The auth handler returns its error; the reader lands on `/` with the failure notice. |
 | Reader signs out | Session row deleted, cookie cleared, reader stays on the page they were on. |
+| Sign-out request fails | The reader stays put and is told `Uloskirjautuminen epäonnistui. Yritä uudelleen.` Neither this nor the sign-in call may drop its promise: a rejected sign-out otherwise leaves a header claiming the reader is signed in while the session row and cookie still exist, with an unhandled rejection as its only trace. |
+| Sign-in request fails before reaching Google | Our own route being unreachable, rather than Google refusing. Reported in place with the sign-in failure notice. |
 | Reader has cookies disabled | The flow cannot complete; the reader returns to `/` signed out with the failure notice. First-party cookies only, so a third-party-cookie blocker does not affect this. |
 | Two browsers / devices, same account | Two `session` rows, one `user` row. Signing out of one leaves the other signed in. |
 
@@ -378,7 +393,9 @@ Suggested literals, chosen to be obviously non-secret at a glance:
 | `db/schema.test.ts` (existing, extended) | The four tables exist with the expected column names; `session.token` unique; `session.userId` and `account.userId` cascade on delete. |
 | `lib/auth.test.ts` (new) | Google is the configured provider; the Drizzle adapter is wired to `db`; missing `BETTER_AUTH_SECRET` fails loudly at construction rather than at first sign-in. Mocks `better-auth` and `postgres` and sets env with `vi.stubEnv` + `vi.resetModules()` and a dynamic import — the `tests/unit/db/index.test.ts` pattern. It must pass in a shell with no `.env` and no environment at all, because that is what the CI `unit` job is. |
 | `lib/auth-name-fallback.test.ts` (new) | A profile with no `name` yields the email local part; a profile with a name is untouched. |
-| `components/auth-controls.test.tsx` (new) | Pending session → empty slot, neither `Kirjaudu sisään` nor a name. Failed session → signed out, no throw. `?error=` present → the failure notice renders; absent → it does not. |
+| `components/auth-controls.test.tsx` (new) | Pending session → empty slot, neither `Kirjaudu sisään` nor a name. Failed session → signed out, no throw. `?error=` present → the failure notice renders; absent → it does not. A rejected `signOut()`/`signIn.social()` reports on the current path, keeping the reader's existing query. |
+| `lib/auth-client.test.ts` (new) | The client takes no `baseURL`, and re-exports the three members the header uses. Exists because every other test mocks this module, so without it the real file is never imported — which vitest scores 100% and Sonar scores 0%. |
+| `app/api/auth/route.test.ts` (new) | The route serves better-auth's handler and is `force-dynamic`. Same reason as above: an untested file is invisible to vitest's report and 0% in Sonar's. |
 | `app/rendering-mode.test.ts` (existing) | Must pass **unchanged**, with `STATIC_BY_DESIGN` still listing exactly its current four pages. If this file needs editing, the implementation has crossed the boundary this spec set out to respect — treat that as a design failure, not a test to update. |
 
 ### Integration — `tests/integration/auth.test.ts` (new)

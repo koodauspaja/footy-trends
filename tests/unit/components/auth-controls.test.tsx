@@ -2,12 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthControls, AuthNotice } from "@/components/auth-controls";
 
-const { sessionState, socialSignIn, signOut, searchParams, pathname } = vi.hoisted(() => ({
+const { sessionState, socialSignIn, signOut, searchParams, pathname, replace } = vi.hoisted(() => ({
   sessionState: { current: { data: null as unknown, isPending: false } },
-  socialSignIn: vi.fn(),
-  signOut: vi.fn(),
+  socialSignIn: vi.fn(() => Promise.resolve()),
+  signOut: vi.fn(() => Promise.resolve()),
   searchParams: { current: new URLSearchParams() },
   pathname: { current: "/" },
+  replace: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname.current,
   useSearchParams: () => searchParams.current,
+  useRouter: () => ({ replace }),
 }));
 
 function signedOut() {
@@ -35,7 +37,10 @@ function pending() {
 
 beforeEach(() => {
   socialSignIn.mockClear();
+  socialSignIn.mockResolvedValue(undefined);
   signOut.mockClear();
+  signOut.mockResolvedValue(undefined);
+  replace.mockClear();
   searchParams.current = new URLSearchParams();
   pathname.current = "/";
   signedOut();
@@ -129,5 +134,54 @@ describe("AuthNotice", () => {
       expect(screen.getByText("Kirjautuminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
       unmount();
     }
+  });
+});
+
+describe("a failed request is reported, not dropped", () => {
+  it("reports a sign-out that failed, rather than leaving a stale header", async () => {
+    // Without this the reader sees a header claiming they are signed in while
+    // the session row and cookie still exist, and the rejection goes unhandled.
+    signedInAs("Matti");
+    signOut.mockRejectedValue(new Error("network"));
+    pathname.current = "/kotimaa/ottelut";
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+    // Same page, not the front page: the reader keeps their place.
+    expect(replace).toHaveBeenCalledWith("/kotimaa/ottelut?error=signout");
+  });
+
+  it("reports a sign-in that never reached Google", async () => {
+    socialSignIn.mockRejectedValue(new Error("network"));
+    pathname.current = "/ulkomaat";
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu sisään" }));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+    expect(replace).toHaveBeenCalledWith("/ulkomaat?error=auth");
+  });
+
+  it("keeps the query the reader already had", async () => {
+    signedInAs("Matti");
+    signOut.mockRejectedValue(new Error("network"));
+    pathname.current = "/kotimaa/sarjataulukko";
+    searchParams.current = new URLSearchParams({ kilpailu: "VL" });
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+    expect(replace).toHaveBeenCalledWith("/kotimaa/sarjataulukko?kilpailu=VL&error=signout");
+  });
+
+  it("names sign-out as what failed, not sign-in", () => {
+    searchParams.current = new URLSearchParams({ error: "signout" });
+
+    render(<AuthNotice />);
+
+    expect(screen.getByText("Uloskirjautuminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
   });
 });

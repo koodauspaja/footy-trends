@@ -179,6 +179,47 @@ alone on this branch, and the full suite is green on this branch. It was
 state-dependent, not a regression from this change — the class of failure #256
 already addressed.
 
+## Three findings from review, fixed as classes
+
+Sourcery raised three, all correct.
+
+**The notice bypassed the `Notice` component** — the spec said to use it and the
+first implementation duplicated a bare `<output>`, losing the amber border,
+background and spacing. Fixed by rendering through `Notice`, which is also what
+the spec had committed to; the drift was mine.
+
+**A dropped promise on `signOut()`.** A rejected sign-out left a header claiming
+the reader was signed in while the session row and cookie still existed, with an
+unhandled rejection as its only trace. Sourcery named `signOut`; `signIn.social`
+had the identical defect one branch away, so both are handled. The failure is
+reported through the **same** `?error=` channel Google already uses for its own
+failures — one notice, one source — with `router.replace` on the current path so
+the reader keeps their place and the failed attempt does not become a
+back-button step. Sign-out gets its own string, `Uloskirjautuminen epäonnistui.
+Yritä uudelleen.`, because it describes a different thing having failed and,
+unlike the Google-side causes, leaks nothing by being named.
+
+**Two sibling docs still taught the old variable names.** `docs/setup/007`
+carried a `.env` template with `NEXTAUTH_SECRET`/`NEXTAUTH_URL`, and
+`docs/setup/021` had a "Not set here" section stating that nothing in `src/`
+read them. Following either would leave `BETTER_AUTH_*` unset and `auth.ts`
+throwing at import. Both are corrected: 021 now lists all four authentication
+variables in its required table (ten variables became fourteen) and explains the
+rename. A repo-wide `grep` for `NEXTAUTH` now returns only the deliberate
+migration notes.
+
+## The coverage that vitest could not see
+
+Sonar reported `src/app/api/auth/[...all]/route.ts` at **0%** with two uncovered
+lines while `npm run test:unit` reported a clean 100%. Both were right: vitest's
+v8 provider only reports files some test imports, so a file with no test at all
+is absent from the report rather than counted as zero.
+
+Checking the class rather than the flagged file, `src/lib/auth-client.ts` had the
+same hole for a different reason — every component test mocks `@/lib/auth-client`,
+so the real module was never imported either. Both now have tests, and all five
+new source files appear in `coverage/lcov.info` at 100% lines and branches.
+
 ## Deliberately not built
 
 Route protection, middleware, an account page (#117), favourite teams, roles or
