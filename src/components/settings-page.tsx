@@ -51,7 +51,7 @@ const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
 
 export function SettingsPage({ preferences, devices, regionOptions }: Props) {
-  const [saved, setSaved] = useState<null | "ok" | "error">(null);
+  const [saved, setSaved] = useState<null | "ok" | "error" | "stale">(null);
   const [pending, startTransition] = useTransition();
   const { refetch } = useSession();
 
@@ -71,8 +71,18 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
              * acting on the previous value until a full reload — so a reader
              * who saves `Kotimaa` and clicks through would see the setting do
              * nothing.
+             *
+             * A rejected refetch must not escape the transition, and must not
+             * be reported as a successful save either: the save *did* succeed,
+             * but the setting will not take effect until the page is reloaded,
+             * and saying so is more use than a silent stale header.
              */
-            if (result.ok) await refetch();
+            if (!result.ok) return;
+            try {
+              await refetch();
+            } catch {
+              setSaved("stale");
+            }
           });
         }}
         className={SECTION_CLASS}
@@ -137,6 +147,9 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
           Tallenna
         </button>
         {saved === "ok" && <Notice>Asetukset tallennettu.</Notice>}
+        {saved === "stale" && (
+          <Notice>Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan.</Notice>
+        )}
         {saved === "error" && (
           <Notice>Asetusten tallentaminen epäonnistui. Yritä uudelleen.</Notice>
         )}

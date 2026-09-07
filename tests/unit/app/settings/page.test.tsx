@@ -7,14 +7,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * correctly reports 0%.
  */
 const { getSession, listSessions, currentPreferencesRow, logger, state } = vi.hoisted(() => {
-  const state = { signedIn: true, listThrows: false, row: null as unknown };
+  const state = {
+    signedIn: true,
+    listThrows: false,
+    sessionThrows: false,
+    row: null as unknown,
+  };
   return {
     state,
-    getSession: vi.fn(async () =>
-      state.signedIn
+    getSession: vi.fn(async () => {
+      if (state.sessionThrows) throw new Error("database down");
+      return state.signedIn
         ? { user: { id: "user-1", name: "Matti" }, session: { token: "current-token" } }
-        : null
-    ),
+        : null;
+    }),
     listSessions: vi.fn(async () => {
       if (state.listThrows) throw new Error("boom");
       return [
@@ -67,6 +73,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.signedIn = true;
   state.listThrows = false;
+  state.sessionThrows = false;
   state.row = null;
   // `clearAllMocks` clears calls but not implementations, so a
   // `mockResolvedValue` in one test would otherwise leak into the next.
@@ -120,6 +127,20 @@ describe("the settings route", () => {
 
     expect(screen.getByLabelText("Mistä sovellus aloittaa")).toHaveValue("kotimaa");
     expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+  });
+
+  it("does not turn a failed session lookup into an error page", async () => {
+    // Nor into "sign in to see your settings": a failure is not proof the
+    // reader is signed out, and they may well be signed in.
+    state.sessionThrows = true;
+
+    await renderPage();
+
+    expect(
+      screen.getByText("Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kirjaudu sisään nähdäksesi asetuksesi.")).not.toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalled();
   });
 
   it("withholds the form when preferences cannot be read", async () => {

@@ -191,6 +191,22 @@ is the spec error described above; the code was right.
 Each fix was checked by reverting it and watching the test fail: four tests go
 red against the pre-fix code.
 
+## Every failure state, eventually
+
+A third review found two more of the same family, and the pattern is worth
+naming: **each guard I added made the next unguarded call the weakest link.**
+Preferences and the device list were handled, which left the session lookup
+above them as the one unhandled call on the page; fixing the stale-session bug
+with `refetch()` introduced a new promise that could reject.
+
+- The settings page's own `getSession` now has its own state. A failure is
+  deliberately **not** the sign-in prompt: that would claim the reader is signed
+  out, which a failed lookup does not establish.
+- A rejected `refetch()` reports `Asetukset tallennettu. Päivitä sivu, jotta
+  muutokset tulevat voimaan.` The save genuinely succeeded, so calling it a
+  failure would be a lie in the other direction — but the start region will not
+  apply until the session is re-read.
+
 ## The seam nothing tested
 
 Auditing the issue's criteria rather than trusting the earlier "needs a human"

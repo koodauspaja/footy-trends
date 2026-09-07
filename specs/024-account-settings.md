@@ -338,6 +338,8 @@ be an analytics-grade parser, and a wrong guess costs nothing.
 | Save fails | The form keeps what the reader typed and shows the failure. Nothing is silently discarded. |
 | Preferences cannot be **read** | The form is withheld entirely and the page shows `Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.` Rendering defaults would show settings apparently reset, and a save would then overwrite the real ones — losing them to a query that briefly failed. "Failed" and "never saved" must not collapse into one state. |
 | The device list cannot be read | `Laitelistaa ei voitu ladata.`, and the sign-out button stays. **Never** `Olet kirjautunut sisään vain tällä laitteella.` — that is a claim about the reader's account security that a failed request cannot support, and it would hide the very sessions this section exists to reveal. |
+| The session cannot be read when the page loads | `Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.` — **not** the sign-in prompt. A failed lookup is not proof the reader is signed out, and they may well be signed in. |
+| The session refresh after a save fails | `Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan.` The save did succeed, so reporting a failure would be wrong — but the start region rides on the session payload and will not take effect until it is re-read, and a silently stale header is worse than saying so. |
 | Resolving the session fails during a save | Returns a failure, never rejects. The client awaits the action with no rejection handler, so a thrown error would leave the reader with a form that silently did nothing. |
 
 ## Performance & Limits

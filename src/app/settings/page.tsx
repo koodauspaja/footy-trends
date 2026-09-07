@@ -25,7 +25,28 @@ export const dynamic = "force-dynamic";
 
 export default async function Settings() {
   const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
+
+  /**
+   * The session lookup needs its own guard, not just the two below it. It
+   * reads request headers and hits the database, and an unhandled failure here
+   * rejects the whole route — an error page where the reader expected their
+   * settings.
+   *
+   * A failure is not "signed out": prompting them to sign in would be a claim
+   * we cannot make, and they may already be signed in. So it gets its own
+   * state, like every other failure on this page.
+   */
+  let session: Awaited<ReturnType<typeof auth.api.getSession>> = null;
+  try {
+    session = await auth.api.getSession({ headers: requestHeaders });
+  } catch (error) {
+    logger.error({ err: error }, "Reading the session on the settings page failed");
+    return (
+      <PageShell heading={HEADING}>
+        <Notice>Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.</Notice>
+      </PageShell>
+    );
+  }
 
   if (!session) {
     return (

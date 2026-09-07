@@ -68,6 +68,7 @@ beforeEach(() => {
   deleteAccount.mockClear();
   deleteAccount.mockResolvedValue({ ok: true });
   refetch.mockClear();
+  refetch.mockResolvedValue(undefined);
 });
 
 describe("preferences", () => {
@@ -126,6 +127,22 @@ describe("preferences", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
 
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("says the save landed but needs a reload when the session refresh fails", async () => {
+    // The save did succeed, so reporting a failure would be wrong. But the
+    // start region will not take effect until the session is re-read, and a
+    // silently stale header is worse than saying so.
+    refetch.mockRejectedValue(new Error("network"));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    expect(
+      await screen.findByText(
+        "Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan."
+      )
+    ).toBeInTheDocument();
   });
 
   it("does not refresh the session when the save failed", async () => {
