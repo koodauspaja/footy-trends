@@ -35,21 +35,61 @@ beforeEach(() => {
 });
 
 describe("a reader's stored competition default", () => {
-  it("opens the foreign competition they chose instead of the Premier League", async () => {
-    getViewerPreferences.mockResolvedValue(preferences({ defaultCompetitionForeign: "BL1" }));
+  /**
+   * One shape — stored preferences plus a URL, resolved for a region — so the
+   * precedence rules read as a table instead of six near-identical tests.
+   *
+   * URL > team context > preference > the region's hardcoded default. The team
+   * context rung has its own test below, because it takes a third argument.
+   */
+  it.each([
+    [
+      "the foreign competition they chose",
+      { defaultCompetitionForeign: "BL1" },
+      {},
+      "foreign",
+      "BL1",
+    ],
+    [
+      "the national competition they chose",
+      { defaultCompetitionNational: "EC" },
+      {},
+      "national-teams",
+      "EC",
+    ],
+    // Kotimaa is a separate registry; honouring its column here would render a
+    // TASO competition under a football-data heading.
+    [
+      "the region default, ignoring a domestic preference",
+      { defaultCompetitionDomestic: "M1L" },
+      {},
+      "foreign",
+      "PL",
+    ],
+    // A shared link must render what it says (specs/012), and a stored default
+    // is a weaker statement than a typed URL.
+    [
+      "the URL, over any preference",
+      { defaultCompetitionForeign: "BL1" },
+      { kilpailu: "PL" },
+      "foreign",
+      "PL",
+    ],
+    ["the region default for a signed-out reader", null, {}, "foreign", "PL"],
+    // A competition can be retired long after someone chose it.
+    [
+      "the region default when the stored code has left the registry",
+      { defaultCompetitionForeign: "GONE" },
+      {},
+      "foreign",
+      "PL",
+    ],
+  ] as const)("opens %s", async (_case, stored, params, region, expected) => {
+    getViewerPreferences.mockResolvedValue(stored === null ? null : preferences(stored));
 
-    const context = await resolveBasePageContext({}, "foreign");
+    const context = await resolveBasePageContext(params, region);
 
-    expect(context.status).toBe("ok");
-    expect(context.status === "ok" && context.competitionCode).toBe("BL1");
-  });
-
-  it("opens the national competition they chose instead of the World Cup", async () => {
-    getViewerPreferences.mockResolvedValue(preferences({ defaultCompetitionNational: "EC" }));
-
-    const context = await resolveBasePageContext({}, "national-teams");
-
-    expect(context.status === "ok" && context.competitionCode).toBe("EC");
+    expect(context.status === "ok" && context.competitionCode).toBe(expected);
   });
 
   it("reads each region from its own column, never another's", async () => {
@@ -65,23 +105,6 @@ describe("a reader's stored competition default", () => {
 
     expect(foreign.status === "ok" && foreign.competitionCode).toBe("BL1");
     expect(national.status === "ok" && national.competitionCode).toBe("EC");
-  });
-
-  it("ignores a domestic preference entirely, since Kotimaa is a separate registry", async () => {
-    getViewerPreferences.mockResolvedValue(preferences({ defaultCompetitionDomestic: "M1L" }));
-
-    const context = await resolveBasePageContext({}, "foreign");
-
-    expect(context.status === "ok" && context.competitionCode).toBe("PL");
-  });
-
-  it("still lets an explicit kilpailu win", async () => {
-    // A shared link must render what it says (specs/012).
-    getViewerPreferences.mockResolvedValue(preferences({ defaultCompetitionForeign: "BL1" }));
-
-    const context = await resolveBasePageContext({ kilpailu: "PL" }, "foreign");
-
-    expect(context.status === "ok" && context.competitionCode).toBe("PL");
   });
 
   it("lets a team's own context outrank the preference", async () => {

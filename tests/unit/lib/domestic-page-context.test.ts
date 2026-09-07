@@ -186,41 +186,27 @@ describe("a reader's stored competition default", () => {
     getViewerPreferences.mockResolvedValue(null);
   });
 
-  it("opens the competition they chose instead of Veikkausliiga", async () => {
-    // The wiring this whole feature exists for: without it the preference is
-    // stored and never read.
-    getViewerPreferences.mockResolvedValue(preferences("M1L"));
+  /**
+   * The same shape as `page-context.test.ts`: stored preference plus a URL,
+   * resolved for Kotimaa. A table rather than five near-identical tests.
+   */
+  it.each([
+    ["the competition they chose", "M1L", {}, "M1L"],
+    // A shared link must render what it says (specs/012).
+    ["Veikkausliiga, because the URL says so", "M1L", { kilpailu: "VL" }, "VL"],
+    ["Veikkausliiga for a signed-out reader", null, {}, "VL"],
+    // A competition can be retired long after someone chose it.
+    ["Veikkausliiga when the stored code has left the registry", "GONE", {}, "VL"],
+  ] as const)("opens %s", async (_case, stored, params, expected) => {
+    getViewerPreferences.mockResolvedValue(stored === null ? null : preferences(stored));
 
-    const context = await resolveDomesticPageContext({});
+    const context = await resolveDomesticPageContext(params);
 
-    expect(context.competitionCode).toBe("M1L");
-  });
-
-  it("still lets an explicit kilpailu win", async () => {
-    // A shared link must render what it says (specs/012); a stored default is
-    // a weaker statement than a typed URL.
-    getViewerPreferences.mockResolvedValue(preferences("M1L"));
-
-    const context = await resolveDomesticPageContext({ kilpailu: "VL" });
-
-    expect(context.competitionCode).toBe("VL");
-  });
-
-  it("falls back to Veikkausliiga for a signed-out reader", async () => {
-    const context = await resolveDomesticPageContext({});
-
-    expect(context.competitionCode).toBe("VL");
-  });
-
-  it("falls back when the stored competition no longer exists", async () => {
-    getViewerPreferences.mockResolvedValue(preferences("GONE"));
-
-    const context = await resolveDomesticPageContext({});
-
-    expect(context.competitionCode).toBe("VL");
+    expect(context.competitionCode).toBe(expected);
   });
 
   it("falls back when the reader has a row but no domestic preference", async () => {
+    // Distinct from having no row at all: the row exists, that column is null.
     getViewerPreferences.mockResolvedValue(preferences(null));
 
     const context = await resolveDomesticPageContext({});

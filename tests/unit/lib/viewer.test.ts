@@ -34,9 +34,23 @@ beforeEach(() => {
 });
 
 describe("getViewerPreferences", () => {
-  it("returns nothing, and touches neither auth nor the database, with no cookie", async () => {
+  /**
+   * The cookie header decides whether a request is worth authenticating at all.
+   * Both tables below assert the same two things, so they are tables rather
+   * than a dozen near-identical tests: what the function returns, and — just as
+   * important — whether better-auth was constructed at all.
+   */
+  it.each([
+    ["no cookie header at all", null],
+    ["only unrelated cookies", "theme=dark; consent=1"],
+    // A substring match on the whole header would read this as authenticated.
+    ["a cookie whose *value* contains the name", "tracking=better-auth.session_token; theme=dark"],
+    // A name with no value carries no token.
+    ["a bare valueless fragment", "better-auth.session_token"],
+  ])("takes the signed-out path for %s", async (_case, cookie) => {
     // Signed-out readers are the overwhelming majority of traffic and must pay
-    // nothing for a feature they cannot use.
+    // nothing for a feature they cannot use — not even constructing better-auth.
+    headerValue.cookie = cookie;
     const { getViewerPreferences } = await import("@/lib/viewer");
 
     expect(await getViewerPreferences()).toBeNull();
@@ -44,19 +58,15 @@ describe("getViewerPreferences", () => {
     expect(getPreferencesFor).not.toHaveBeenCalled();
   });
 
-  it("ignores unrelated cookies", async () => {
-    headerValue.cookie = "theme=dark; consent=1";
-    const { getViewerPreferences } = await import("@/lib/viewer");
-
-    expect(await getViewerPreferences()).toBeNull();
-    expect(getSession).not.toHaveBeenCalled();
-  });
-
   it.each([
     ["the plain cookie", "better-auth.session_token=abc"],
     // Production serves over HTTPS, where better-auth prefixes the name.
     ["the __Secure- prefixed cookie", "__Secure-better-auth.session_token=abc"],
-  ])("reads preferences when %s is present", async (_case, cookie) => {
+    ["the cookie among others", "theme=dark; better-auth.session_token=abc; consent=1"],
+    // Malformed or valueless fragments turn up in real headers alongside good
+    // ones; they must neither match nor throw.
+    ["a valueless fragment beside it", "flag; better-auth.session_token=abc"],
+  ])("reads preferences for %s", async (_case, cookie) => {
     headerValue.cookie = cookie;
     getSession.mockResolvedValue({ user: { id: "user-1" } });
     getPreferencesFor.mockResolvedValue(PREFERENCES);
@@ -64,45 +74,6 @@ describe("getViewerPreferences", () => {
 
     expect(await getViewerPreferences()).toEqual(PREFERENCES);
     expect(getPreferencesFor).toHaveBeenCalledWith("user-1");
-  });
-
-  it("ignores an unrelated cookie whose value merely contains the name", async () => {
-    // A substring match on the whole header would read this as authenticated
-    // and construct better-auth for a signed-out reader.
-    headerValue.cookie = "tracking=better-auth.session_token; theme=dark";
-    const { getViewerPreferences } = await import("@/lib/viewer");
-
-    expect(await getViewerPreferences()).toBeNull();
-    expect(getSession).not.toHaveBeenCalled();
-  });
-
-  it("finds the cookie among others, whatever the order", async () => {
-    headerValue.cookie = "theme=dark; better-auth.session_token=abc; consent=1";
-    getSession.mockResolvedValue({ user: { id: "user-1" } });
-    getPreferencesFor.mockResolvedValue(PREFERENCES);
-    const { getViewerPreferences } = await import("@/lib/viewer");
-
-    expect(await getViewerPreferences()).toEqual(PREFERENCES);
-  });
-
-  it("copes with a cookie fragment that carries no value", async () => {
-    // Malformed or valueless fragments turn up in real cookie headers; they
-    // must neither match nor throw.
-    headerValue.cookie = "flag; better-auth.session_token=abc";
-    getSession.mockResolvedValue({ user: { id: "user-1" } });
-    getPreferencesFor.mockResolvedValue(PREFERENCES);
-    const { getViewerPreferences } = await import("@/lib/viewer");
-
-    expect(await getViewerPreferences()).toEqual(PREFERENCES);
-  });
-
-  it("does not treat a bare valueless fragment as the session cookie", async () => {
-    headerValue.cookie = "better-auth.session_token";
-    const { getViewerPreferences } = await import("@/lib/viewer");
-
-    // A name with no value is not a session; better-auth is never constructed.
-    expect(await getViewerPreferences()).toBeNull();
-    expect(getSession).not.toHaveBeenCalled();
   });
 
   it("returns null when the cookie is stale and resolves to no session", async () => {
