@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 
@@ -120,31 +121,26 @@ function AuthButtons() {
     );
   }
 
+  // `Kirjaudu ulos` lives inside the menu as of specs/024-account-settings.md.
+  // The header row holds one control instead of three, which is what overflowed
+  // a 320px viewport in #266.
   return (
-    <>
-      {/* `min-w-0 break-words` so a long display name wraps inside the header
-          instead of pushing `Kirjaudu ulos` off a narrow viewport. */}
-      <span className="min-w-0 break-words text-sm text-zinc-600">{session.user.name}</span>
-      <button
-        className={BUTTON_CLASS}
-        onClick={() => {
-          // `then(onFulfilled, onRejected)` rather than `.then().catch()`, so
-          // a throw inside `clearError` is not reported as a failed sign-out —
-          // and a terminal `catch` so that throw cannot escape either. All
-          // `clearError` does is rewrite the URL; if that fails the notice
-          // simply stays put, which is worth swallowing but not worth
-          // mislabelling.
-          signOut()
-            .then(clearError, () => report("signout"))
-            .catch(() => {
-              /* The URL rewrite failed; the stale notice stays. Nothing to say. */
-            });
-        }}
-        type="button"
-      >
-        Kirjaudu ulos
-      </button>
-    </>
+    <AccountMenu
+      image={session.user.image ?? null}
+      name={session.user.name}
+      onSignOut={() => {
+        // `then(onFulfilled, onRejected)` rather than `.then().catch()`, so a
+        // throw inside `clearError` is not reported as a failed sign-out — and
+        // a terminal `catch` so that throw cannot escape either. All
+        // `clearError` does is rewrite the URL; if that fails the notice simply
+        // stays put, which is worth swallowing but not worth mislabelling.
+        signOut()
+          .then(clearError, () => report("signout"))
+          .catch(() => {
+            /* The URL rewrite failed; the stale notice stays. Nothing to say. */
+          });
+      }}
+    />
   );
 }
 

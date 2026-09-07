@@ -10,6 +10,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("postgres", () => ({ default: vi.fn(() => ({ end: vi.fn() })) }));
 vi.mock("drizzle-orm/postgres-js", () => ({ drizzle: vi.fn(() => ({})) }));
 
+const { customSession, getDefaultRegionFor } = vi.hoisted(() => ({
+  customSession: vi.fn((fn: unknown) => ({ id: "custom-session", fn })),
+  getDefaultRegionFor: vi.fn(async () => "kotimaa"),
+}));
+
 const { betterAuth, drizzleAdapter, nextCookies } = vi.hoisted(() => ({
   betterAuth: vi.fn((config: unknown) => ({ config })),
   drizzleAdapter: vi.fn((_db: unknown, config: unknown) => ({ adapter: config })),
@@ -19,6 +24,8 @@ const { betterAuth, drizzleAdapter, nextCookies } = vi.hoisted(() => ({
 vi.mock("better-auth", () => ({ betterAuth }));
 vi.mock("better-auth/adapters/drizzle", () => ({ drizzleAdapter }));
 vi.mock("better-auth/next-js", () => ({ nextCookies }));
+vi.mock("better-auth/plugins/custom-session", () => ({ customSession }));
+vi.mock("@/lib/preferences", () => ({ getDefaultRegionFor }));
 
 const REQUIRED = {
   BETTER_AUTH_SECRET: "test-secret",
@@ -85,6 +92,33 @@ describe("auth configuration", () => {
     ]);
   });
 
+  it("puts the start-page preference on the session the browser fetches", async () => {
+    // Enriching `/api/auth/get-session` rather than adding a second client
+    // fetch: `/` is prerendered and applies the preference in the browser.
+    setEnv();
+    await loadConfig();
+
+    const enrich = customSession.mock.calls[0]?.[0] as (input: unknown) => Promise<unknown>;
+    const user = { id: "user-1", name: "Matti" };
+    const session = { id: "session-1" };
+
+    expect(await enrich({ user, session })).toEqual({
+      user,
+      session,
+      defaultRegion: "kotimaa",
+    });
+    expect(getDefaultRegionFor).toHaveBeenCalledWith("user-1");
+  });
+
+  it("enables account deletion, which the settings page needs", async () => {
+    setEnv();
+
+    const config = await loadConfig();
+
+    // Off by default in better-auth; `Poista tili` in specs/024 depends on it.
+    expect(config.user.deleteUser.enabled).toBe(true);
+  });
+
   it("keeps the cookie session cache off, so sign-out revokes immediately", async () => {
     setEnv();
 
@@ -99,7 +133,10 @@ describe("auth configuration", () => {
     const config = await loadConfig();
 
     expect(nextCookies).toHaveBeenCalled();
-    expect(config.plugins).toHaveLength(1);
+    // `customSession` joined it in specs/024, to put the start-page preference
+    // on the session the browser already fetches. `nextCookies` must stay last.
+    expect(config.plugins).toHaveLength(2);
+    expect(config.plugins.at(-1)).toBe(nextCookies.mock.results.at(-1)?.value);
   });
 
   it("maps a nameless Google profile to a usable name", async () => {

@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthControls, AuthNotice } from "@/components/auth-controls";
+import { SHOW_PICKER_PARAM } from "@/components/start-redirect";
+import { useSession } from "@/lib/auth-client";
 import { regionCrumbFor } from "@/lib/breadcrumb";
+import { isRegionSegment } from "@/lib/regions";
 
 /**
  * `Etusivu / Kotimaa` — the front page, then the region the reader is inside.
@@ -19,6 +22,20 @@ import { regionCrumbFor } from "@/lib/breadcrumb";
  */
 export function SiteHeader() {
   const region = regionCrumbFor(usePathname());
+  const { data: session } = useSession();
+
+  /**
+   * `Etusivu` has to reach the region picker, not bounce off it.
+   *
+   * A reader with a start-page preference is redirected away from `/`, so
+   * without the suppressing parameter this crumb would return them to the
+   * region they are already in and look broken. No setting may make a page
+   * unreachable by clicking — see specs/024-account-settings.md.
+   */
+  const hasStartPage = isRegionSegment(
+    (session as { defaultRegion?: unknown } | null)?.defaultRegion
+  );
+  const homeHref = hasStartPage ? `/?${SHOW_PICKER_PARAM}=1` : "/";
 
   return (
     <header className="border-zinc-200 border-b">
@@ -31,7 +48,7 @@ export function SiteHeader() {
         {/* The auth control sits outside this nav, so the breadcrumb landmark
             keeps meaning "murupolku" rather than "murupolku and a login". */}
         <nav aria-label="Murupolku" className="flex min-w-0 items-center gap-2 text-sm">
-          <Link className="hover:underline" href="/">
+          <Link className="hover:underline" href={homeHref}>
             Etusivu
           </Link>
           {region !== null && (

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/site-header";
 
@@ -83,10 +83,38 @@ describe("SiteHeader", () => {
   });
 
   it("shows the signed-in reader's name in the header", () => {
-    session.current = { data: { user: { name: "Matti Meikäläinen" } }, isPending: false };
+    session.current = {
+      data: { user: { name: "Matti Meikäläinen", image: null } },
+      isPending: false,
+    };
     renderAt("/");
 
     expect(screen.getByText("Matti Meikäläinen")).toBeInTheDocument();
+
+    // `Kirjaudu ulos` lives in the account menu as of specs/024.
+    fireEvent.click(screen.getByRole("button", { name: "Tili: Matti Meikäläinen" }));
+
     expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Asetukset" })).toHaveAttribute("href", "/asetukset");
+  });
+
+  it("points Etusivu at the picker for a reader with a start page", () => {
+    // Without the parameter this crumb would redirect straight back to the
+    // region they are already in, and the picker would be unreachable by
+    // clicking. See specs/024-account-settings.md.
+    session.current = {
+      data: { user: { name: "Matti", image: null }, defaultRegion: "kotimaa" },
+      isPending: false,
+    };
+    renderAt("/kotimaa/ottelut");
+
+    expect(screen.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/?valitse=1");
+  });
+
+  it("leaves Etusivu alone when there is no start page to escape", () => {
+    session.current = { data: { user: { name: "Matti", image: null } }, isPending: false };
+    renderAt("/kotimaa/ottelut");
+
+    expect(screen.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/");
   });
 });

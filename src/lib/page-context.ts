@@ -1,3 +1,4 @@
+import { preferredCompetitionFor } from "@/lib/competition-preferences";
 import {
   type CompetitionParamResult,
   type CompetitionRegion,
@@ -9,6 +10,7 @@ import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
 import type { TeamContext } from "@/lib/team-context";
+import { getViewerPreferences } from "@/lib/viewer";
 
 /**
  * What a route file supplies to make a shared page one region's.
@@ -77,10 +79,26 @@ export async function resolveBasePageContext(
   defaults?: TeamContext
 ): Promise<BasePageContext> {
   const competitionParam = parseCompetitionParam(params.kilpailu, region);
+  /**
+   * Precedence, most specific first: the URL, then the team's own context on
+   * the pages that have one, then the reader's stored preference, then the
+   * region's hardcoded default. A signed-out reader stops at the last one, and
+   * an explicit `?kilpailu=` beats a preference — a shared link must render
+   * what it says (specs/012), and a stored default is a weaker statement than a
+   * typed URL. See specs/024-account-settings.md.
+   */
+  const explicit =
+    competitionParam.kind === "valid" ? competitionParam.code : defaults?.competitionCode;
   const competitionCode =
-    competitionParam.kind === "valid"
-      ? competitionParam.code
-      : (defaults?.competitionCode ?? defaultCompetitionFor(region));
+    explicit ??
+    // Only reached when neither the URL nor a team context has settled it —
+    // otherwise every signed-in request would pay for an auth and Postgres
+    // lookup whose answer could not change the outcome.
+    preferredCompetitionFor(
+      region === "foreign" ? "ulkomaat" : "maajoukkueet",
+      await getViewerPreferences()
+    ) ??
+    defaultCompetitionFor(region);
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
@@ -89,8 +107,13 @@ export async function resolveBasePageContext(
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   // As in the domestic resolver: the team's own season stands in wherever
   // `kausi` does not decide, and an invalid one keeps its notice either way.
+  // Optional-chained on both sides, then `??` for the fallback. Reading
+  // `defaults.seasonId` directly inside the true branch does not typecheck —
+  // TypeScript does not narrow `defaults` from the comparison above — and
+  // spelling out `defaults !== undefined` trades that for a lint finding.
   const seasonFallback =
-    defaults?.competitionCode === competitionCode ? defaults.seasonId : context.activeSeasonId;
+    (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
+    context.activeSeasonId;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 

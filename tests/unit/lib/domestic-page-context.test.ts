@@ -5,10 +5,15 @@ import {
   resolveDomesticPageContext,
 } from "@/lib/domestic-page-context";
 
-const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock } = vi.hoisted(() => ({
-  resolveTasoSeasonContextMock: vi.fn(),
-  getSeasonCategoryNameMock: vi.fn(),
-}));
+const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPreferences } =
+  vi.hoisted(() => ({
+    resolveTasoSeasonContextMock: vi.fn(),
+    getSeasonCategoryNameMock: vi.fn(),
+    getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
+  }));
+
+// A signed-in reader's stored default, from specs/024-account-settings.md.
+vi.mock("@/lib/viewer", () => ({ getViewerPreferences }));
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
@@ -162,5 +167,56 @@ describe("resolveDomesticPageContext competition naming", () => {
     expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("P20SM", "spljp20", 2020, 2026);
     expect(context.categoryId).toBe("P20SM");
     expect(context.renamedTo).toBe("P21 SM");
+  });
+});
+
+describe("a reader's stored competition default", () => {
+  const preferences = (defaultCompetitionDomestic: string | null) => ({
+    defaultRegion: null,
+    defaultCompetitionDomestic,
+    defaultCompetitionForeign: null,
+    defaultCompetitionNational: null,
+  });
+
+  beforeEach(() => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+    // Cleared, not just re-stubbed: these tests assert on call counts, and
+    // `mockResolvedValue` leaves earlier calls recorded.
+    getViewerPreferences.mockClear();
+    getViewerPreferences.mockResolvedValue(null);
+  });
+
+  /**
+   * The same shape as `page-context.test.ts`: stored preference plus a URL,
+   * resolved for Kotimaa. A table rather than five near-identical tests.
+   */
+  it.each([
+    ["the competition they chose", "M1L", {}, "M1L"],
+    // A shared link must render what it says (specs/012).
+    ["Veikkausliiga, because the URL says so", "M1L", { kilpailu: "VL" }, "VL"],
+    ["Veikkausliiga for a signed-out reader", null, {}, "VL"],
+    // A competition can be retired long after someone chose it.
+    ["Veikkausliiga when the stored code has left the registry", "GONE", {}, "VL"],
+  ] as const)("opens %s", async (_case, stored, params, expected) => {
+    getViewerPreferences.mockResolvedValue(stored === null ? null : preferences(stored));
+
+    const context = await resolveDomesticPageContext(params);
+
+    expect(context.competitionCode).toBe(expected);
+  });
+
+  it("falls back when the reader has a row but no domestic preference", async () => {
+    // Distinct from having no row at all: the row exists, that column is null.
+    getViewerPreferences.mockResolvedValue(preferences(null));
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
+  });
+
+  it("does not look preferences up when the URL already settles it", async () => {
+    await resolveDomesticPageContext({ kilpailu: "VL" });
+
+    expect(getViewerPreferences).not.toHaveBeenCalled();
   });
 });

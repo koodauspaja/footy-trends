@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // browser always shows the Finnish path.
   async rewrites() {
     return [
+      // The account settings page, added in specs/024-account-settings.md.
+      { source: "/asetukset", destination: "/settings" },
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
@@ -51,6 +53,8 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      // English folder paths are not URLs — same rule as every entry below.
+      { source: "/settings", destination: "/asetukset", permanent: true },
       // The foreign pages moved under /ulkomaat.
       { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },

@@ -311,3 +311,46 @@ export const verification = pgTable("verification", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * A signed-in reader's preferences, from specs/024-account-settings.md.
+ *
+ * One row per user, created on first save rather than at sign-in: an untouched
+ * settings page writes nothing, so a row's existence means someone chose
+ * something.
+ *
+ * **Every column is nullable, and null is meaningful.** It means "no
+ * preference", which is not the same as "prefers what the default happens to be
+ * today". If the domestic fallback ever moves off Veikkausliiga, a reader who
+ * never chose follows the change and a reader who explicitly chose Veikkausliiga
+ * does not. It is also what makes every setting unsettable — nothing here is a
+ * one-way door.
+ *
+ * Three competition columns rather than a `(user, region, code)` join table: the
+ * three regions are fixed by the URL structure, and the code does not even have
+ * one type spanning them — `CompetitionRegion` covers `foreign` and
+ * `national-teams`, while Kotimaa's competitions come from TASO with their own
+ * `DEFAULT_DOMESTIC_COMPETITION_CODE`. The column names say which registry each
+ * value belongs to instead of pretending to a uniformity the data lacks.
+ */
+export const userPreferences = pgTable("user_preferences", {
+  id: text("id").primaryKey(),
+  // Unique, not merely indexed: one row per reader is the whole shape of this
+  // table, and a second row would make "the reader's preferences" ambiguous.
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // "kotimaa" | "ulkomaat" | "maajoukkueet", or null for `Kysy joka kerta`.
+  // Stored as the Finnish URL segment the reader is sent to, so the redirect is
+  // a lookup rather than a translation.
+  defaultRegion: text("default_region"),
+  // Validated against the registries on read, never on write: a competition can
+  // be retired from the registry long after someone chose it, and a stored code
+  // that no longer resolves must fall back rather than strand the reader.
+  defaultCompetitionDomestic: text("default_competition_domestic"),
+  defaultCompetitionForeign: text("default_competition_foreign"),
+  defaultCompetitionNational: text("default_competition_national"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

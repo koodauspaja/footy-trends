@@ -1,6 +1,14 @@
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { account, matches, session, tasoMatches, user, verification } from "@/db/schema";
+import {
+  account,
+  matches,
+  session,
+  tasoMatches,
+  user,
+  userPreferences,
+  verification,
+} from "@/db/schema";
 
 describe("matches table", () => {
   it("declares a unique index on the provider match id and four lookup indexes", () => {
@@ -179,5 +187,39 @@ describe("better-auth tables", () => {
     expect(
       getTableConfig(account).indexes.find((i) => i.config.name === "account_user_id_idx")
     ).toBeDefined();
+  });
+});
+
+describe("user_preferences table", () => {
+  it("holds one row per reader", () => {
+    // Unique, not merely indexed: a second row would make "the reader's
+    // preferences" ambiguous. See specs/024-account-settings.md.
+    const userId = getTableConfig(userPreferences).columns.find(
+      (column) => column.name === "user_id"
+    );
+
+    expect(userId?.isUnique).toBe(true);
+    expect(userId?.notNull).toBe(true);
+  });
+
+  it("cascades away with its user, leaving no orphaned preferences", () => {
+    const [foreignKey] = getTableConfig(userPreferences).foreignKeys;
+
+    expect(foreignKey?.onDelete).toBe("cascade");
+
+    const reference = foreignKey?.reference();
+    expect(reference?.foreignTable).toBe(user);
+    expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+  });
+
+  it("leaves every preference nullable, so each one can be unset", () => {
+    // Null means "no preference", which is not the same as "prefers today's
+    // default". It is also what makes no setting a one-way door.
+    const optional = getTableConfig(userPreferences).columns.filter((column) =>
+      column.name.startsWith("default_")
+    );
+
+    expect(optional).toHaveLength(4);
+    for (const column of optional) expect(column.notNull).toBe(false);
   });
 });

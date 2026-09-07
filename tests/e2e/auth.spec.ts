@@ -109,6 +109,14 @@ test.describe("Signed-out pages are unchanged", () => {
  * proves a real sign-in works, and the acceptance criteria still call for a
  * human to confirm that.
  */
+/**
+ * `Kirjaudu ulos` moved into the account menu in specs/024-account-settings.md,
+ * so every signed-in assertion opens the menu first.
+ */
+async function openAccountMenu(page: Page) {
+  await page.getByRole("button", { name: /^Tili:/ }).click();
+}
+
 async function signedInAs(page: Page, name: string) {
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({
@@ -144,6 +152,7 @@ test.describe("Narrow viewports", () => {
     await signedInAs(page, "Matti-Pekka Meikäläinen-Virtanen");
     await page.goto("/maajoukkueet/sarjataulukko");
 
+    await openAccountMenu(page);
     const button = page.getByRole("button", { name: "Kirjaudu ulos" });
     await expect(button).toBeVisible();
 
@@ -158,6 +167,7 @@ test.describe("Narrow viewports", () => {
     await signedInAs(page, "Matti-Pekka Meikäläinen-Virtanen");
     await page.goto("/maajoukkueet/sarjataulukko");
 
+    await openAccountMenu(page);
     await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
 
     const overflows = await page.evaluate(
@@ -181,8 +191,12 @@ test.describe("A signed-in header", () => {
     await page.goto("/ulkomaat");
 
     await expect(page.getByText("Matti Meikäläinen")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toHaveCount(0);
+
+    await openAccountMenu(page);
+
+    await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Asetukset" })).toBeVisible();
   });
 });
 
@@ -239,6 +253,7 @@ test.describe("A spent sign-in error", () => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto(callbackURL ?? "/");
 
+    await openAccountMenu(page);
     await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
     await expect(page.getByText(/Kirjautuminen epäonnistui/)).toHaveCount(0);
   });

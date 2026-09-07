@@ -28,7 +28,15 @@ function signedOut() {
 }
 
 function signedInAs(name: string) {
-  sessionState.current = { data: { user: { name } }, isPending: false };
+  sessionState.current = { data: { user: { name, image: null } }, isPending: false };
+}
+
+/**
+ * `Kirjaudu ulos` moved inside the account menu in specs/024-account-settings.md,
+ * so reaching it now takes a click on the trigger first.
+ */
+function openAccountMenu() {
+  fireEvent.click(screen.getByRole("button", { name: /^Tili:/ }));
 }
 
 function pending() {
@@ -59,8 +67,13 @@ describe("AuthControls", () => {
     render(<AuthControls />);
 
     expect(screen.getByText("Matti Meikäläinen")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Kirjaudu sisään" })).not.toBeInTheDocument();
+    // Behind the menu now, not beside the name.
+    expect(screen.queryByRole("button", { name: "Kirjaudu ulos" })).not.toBeInTheDocument();
+
+    openAccountMenu();
+
+    expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
   });
 
   it("shows neither state while the session is still loading", () => {
@@ -103,6 +116,7 @@ describe("AuthControls", () => {
     signedInAs("Matti");
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
 
     expect(signOut).toHaveBeenCalledTimes(1);
@@ -146,6 +160,7 @@ describe("a failed request is reported, not dropped", () => {
     pathname.current = "/kotimaa/ottelut";
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
@@ -171,6 +186,7 @@ describe("a failed request is reported, not dropped", () => {
     searchParams.current = new URLSearchParams({ kilpailu: "VL" });
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
@@ -244,6 +260,7 @@ describe("a spent error does not survive the next attempt", () => {
     searchParams.current = new URLSearchParams({ error: "signout" });
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
@@ -256,6 +273,7 @@ describe("a spent error does not survive the next attempt", () => {
     pathname.current = "/kotimaa/ottelut";
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
     await vi.waitFor(() => expect(signOut).toHaveBeenCalled());
 
@@ -276,6 +294,7 @@ describe("a URL rewrite that itself fails", () => {
     });
 
     render(<AuthControls />);
+    openAccountMenu();
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
