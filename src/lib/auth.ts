@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { customSession } from "better-auth/plugins/custom-session";
 import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import { displayNameFor } from "@/lib/auth-profile";
+import { getDefaultRegionFor } from "@/lib/preferences";
 
 /**
  * Reads a variable that sign-in cannot work without, and says which one is
@@ -50,6 +52,19 @@ export const auth = betterAuth({
     },
   },
 
+  user: {
+    /**
+     * Off by default in better-auth. Enabled for the settings page's
+     * `Poista tili`, from specs/024-account-settings.md.
+     *
+     * No `sendDeleteAccountVerification`, so deletion happens immediately. The
+     * email round trip would add friction without safety: the session already
+     * proves the account, and the page requires the reader to type `POISTA`
+     * before the button enables.
+     */
+    deleteUser: { enabled: true },
+  },
+
   session: {
     /**
      * Database sessions, deliberately: signing out revokes immediately.
@@ -62,10 +77,29 @@ export const auth = betterAuth({
     cookieCache: { enabled: false },
   },
 
-  /**
-   * Must be last in the plugin list: it writes better-auth's `Set-Cookie`
-   * headers through Next's cookie API, which is what makes a server action or
-   * route handler actually persist the session.
-   */
-  plugins: [nextCookies()],
+  plugins: [
+    /**
+     * Puts the reader's start-page preference on the session the browser
+     * already fetches, from specs/024-account-settings.md.
+     *
+     * `/` is prerendered and applies the region preference client-side, so it
+     * needs the value in the browser. Enriching `/api/auth/get-session` costs
+     * no extra round trip, where a second client fetch would.
+     *
+     * Only `defaultRegion` — the one field the client acts on. The settings
+     * page reads the rest server-side, so shipping them here would be payload
+     * on every page load for nothing.
+     */
+    customSession(async ({ user, session }) => ({
+      user,
+      session,
+      defaultRegion: await getDefaultRegionFor(user.id),
+    })),
+    /**
+     * Must be last in the plugin list: it writes better-auth's `Set-Cookie`
+     * headers through Next's cookie API, which is what makes a server action or
+     * route handler actually persist the session.
+     */
+    nextCookies(),
+  ],
 });

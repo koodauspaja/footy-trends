@@ -1,3 +1,4 @@
+import { preferredCompetitionFor } from "@/lib/competition-preferences";
 import {
   type CompetitionParamResult,
   type CompetitionRegion,
@@ -9,6 +10,7 @@ import { getSeasonContext, type SeasonContext } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { formatSeasonLabel, parseSeasonParam, type SeasonParamResult } from "@/lib/seasons";
 import type { TeamContext } from "@/lib/team-context";
+import { getViewerPreferences } from "@/lib/viewer";
 
 /**
  * What a route file supplies to make a shared page one region's.
@@ -77,10 +79,22 @@ export async function resolveBasePageContext(
   defaults?: TeamContext
 ): Promise<BasePageContext> {
   const competitionParam = parseCompetitionParam(params.kilpailu, region);
+  /**
+   * Precedence, most specific first: the URL, then the team's own context on
+   * the pages that have one, then the reader's stored preference, then the
+   * region's hardcoded default. A signed-out reader stops at the last one, and
+   * an explicit `?kilpailu=` beats a preference — a shared link must render
+   * what it says (specs/012), and a stored default is a weaker statement than a
+   * typed URL. See specs/024-account-settings.md.
+   */
+  const preferred = preferredCompetitionFor(
+    region === "foreign" ? "ulkomaat" : "maajoukkueet",
+    await getViewerPreferences()
+  );
   const competitionCode =
     competitionParam.kind === "valid"
       ? competitionParam.code
-      : (defaults?.competitionCode ?? defaultCompetitionFor(region));
+      : (defaults?.competitionCode ?? preferred ?? defaultCompetitionFor(region));
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);
@@ -89,8 +103,13 @@ export async function resolveBasePageContext(
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   // As in the domestic resolver: the team's own season stands in wherever
   // `kausi` does not decide, and an invalid one keeps its notice either way.
+  // `defaults !== undefined` spelled out rather than leaning on `?.`: the
+  // competition is now resolved through a preference as well, and TypeScript no
+  // longer narrows `defaults` from the optional-chained comparison alone.
   const seasonFallback =
-    defaults?.competitionCode === competitionCode ? defaults.seasonId : context.activeSeasonId;
+    defaults !== undefined && defaults.competitionCode === competitionCode
+      ? defaults.seasonId
+      : context.activeSeasonId;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 

@@ -1,3 +1,5 @@
+import { preferredCompetitionFor } from "@/lib/competition-preferences";
+import { getViewerPreferences } from "@/lib/viewer";
 import {
   categoryIdForSeason,
   competitionIdForSeason,
@@ -99,7 +101,9 @@ export async function resolveDomesticPageContext(
   const competitionCode =
     competitionParam.kind === "valid"
       ? competitionParam.code
-      : (defaults?.competitionCode ?? DEFAULT_DOMESTIC_COMPETITION_CODE);
+      : (defaults?.competitionCode ??
+        preferredCompetitionFor("kotimaa", await getViewerPreferences()) ??
+        DEFAULT_DOMESTIC_COMPETITION_CODE);
   const competitionName = getDomesticCompetitionName(competitionCode);
 
   const { currentSeason, defaultSeason } = await resolveTasoSeasonContext(competitionCode);
@@ -112,8 +116,13 @@ export async function resolveDomesticPageContext(
   // invalid alike. An invalid one still gets its notice; what it falls back to
   // is the team's own season when the resolved competition is the one being
   // shown, and the competition's default otherwise.
+  // `defaults !== undefined` spelled out rather than leaning on `?.`: the
+  // competition is now resolved through a preference as well, and TypeScript no
+  // longer narrows `defaults` from the optional-chained comparison alone.
   const seasonFallback =
-    defaults?.competitionCode === competitionCode ? defaults.seasonId : defaultSeason;
+    defaults !== undefined && defaults.competitionCode === competitionCode
+      ? defaults.seasonId
+      : defaultSeason;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdForSeason(competitionCode, seasonId);

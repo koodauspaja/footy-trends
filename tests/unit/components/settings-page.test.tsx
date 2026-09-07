@@ -1,0 +1,235 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
+import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
+
+const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
+  saveSettings: vi.fn(async () => ({ ok: true })),
+  signOutOtherDevices: vi.fn(async () => ({ ok: true })),
+  deleteAccount: vi.fn(async () => ({ ok: true })),
+}));
+
+vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
+
+const REGION_OPTIONS: RegionOptions[] = [
+  {
+    region: "kotimaa",
+    label: "Kotimaan oletussarja",
+    fallbackLabel: "Oletus (Veikkausliiga)",
+    options: [
+      { code: "VL", name: "Veikkausliiga" },
+      { code: "M1L", name: "Ykkösliiga" },
+    ],
+  },
+  {
+    region: "ulkomaat",
+    label: "Ulkomaiden oletussarja",
+    fallbackLabel: "Oletus (Valioliiga)",
+    options: [{ code: "PL", name: "Valioliiga" }],
+  },
+  {
+    region: "maajoukkueet",
+    label: "Maajoukkueiden oletuskilpailu",
+    fallbackLabel: "Oletus (MM-kisat)",
+    options: [{ code: "WC", name: "MM-kisat" }],
+  },
+];
+
+const THIS_DEVICE: Device = {
+  id: "a",
+  description: "Chrome · macOS",
+  lastUsed: "Käytetty tänään",
+  current: true,
+};
+const OTHER_DEVICE: Device = {
+  id: "b",
+  description: "Safari · iOS",
+  lastUsed: "Käytetty eilen",
+  current: false,
+};
+
+function renderPage(preferences: Preferences = NO_PREFERENCES, devices: Device[] = [THIS_DEVICE]) {
+  return render(
+    <SettingsPage devices={devices} preferences={preferences} regionOptions={REGION_OPTIONS} />
+  );
+}
+
+beforeEach(() => {
+  saveSettings.mockClear();
+  saveSettings.mockResolvedValue({ ok: true });
+  signOutOtherDevices.mockClear();
+  signOutOtherDevices.mockResolvedValue({ ok: true });
+  deleteAccount.mockClear();
+  deleteAccount.mockResolvedValue({ ok: true });
+});
+
+describe("preferences", () => {
+  it("offers an unset value for every preference", () => {
+    // Nothing here may be a one-way door: each setting can be returned to the
+    // app's stock behaviour.
+    renderPage();
+
+    expect(screen.getByRole("option", { name: "Kysy joka kerta" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Oletus (Veikkausliiga)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Oletus (Valioliiga)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Oletus (MM-kisat)" })).toBeInTheDocument();
+  });
+
+  it("selects the unset option when nothing is stored", () => {
+    renderPage();
+
+    expect(screen.getByLabelText("Mistä sovellus aloittaa")).toHaveValue("");
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("");
+  });
+
+  it("shows what the reader previously chose", () => {
+    renderPage({
+      ...NO_PREFERENCES,
+      defaultRegion: "kotimaa",
+      defaultCompetitionDomestic: "M1L",
+    });
+
+    expect(screen.getByLabelText("Mistä sovellus aloittaa")).toHaveValue("kotimaa");
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+  });
+
+  it("offers only that region's competitions in its select", () => {
+    renderPage();
+
+    const domestic = screen.getByLabelText("Kotimaan oletussarja");
+    expect(domestic).toContainHTML("Ykkösliiga");
+    expect(domestic).not.toContainHTML("Valioliiga");
+  });
+
+  it("confirms a save in Finnish", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    await waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(await screen.findByText("Asetukset tallennettu.")).toBeInTheDocument();
+  });
+
+  it("reports a failed save rather than pretending it worked", async () => {
+    saveSettings.mockResolvedValue({ ok: false });
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    expect(
+      await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+});
+
+describe("signed-in devices", () => {
+  it("marks the current device and never shows an IP address", () => {
+    renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
+
+    expect(screen.getByText("Chrome · macOS")).toBeInTheDocument();
+    expect(screen.getByText("Tämä laite")).toBeInTheDocument();
+    // Location-revealing, and pages get screenshotted.
+    expect(document.body.textContent).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+  });
+
+  it("hides the button when there is nothing else to sign out", () => {
+    renderPage(NO_PREFERENCES, [THIS_DEVICE]);
+
+    expect(screen.getByText("Olet kirjautunut sisään vain tällä laitteella.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kirjaa ulos muut laitteet" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("signs the other devices out", async () => {
+    renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" }));
+
+    await waitFor(() => expect(signOutOtherDevices).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Muut laitteet kirjattu ulos.")).toBeInTheDocument();
+  });
+
+  it("reports a failed sign-out", async () => {
+    signOutOtherDevices.mockResolvedValue({ ok: false });
+    renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" }));
+
+    expect(
+      await screen.findByText("Uloskirjaus epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+});
+
+describe("deleting the account", () => {
+  const typeConfirmation = (value: string) =>
+    fireEvent.change(screen.getByLabelText("Vahvistus"), { target: { value } });
+
+  it("keeps the button disabled until the word is exact", () => {
+    renderPage();
+    const button = screen.getByRole("button", { name: "Poista tili" });
+
+    expect(button).toBeDisabled();
+
+    typeConfirmation("POIST");
+    expect(button).toBeDisabled();
+
+    typeConfirmation("POISTA");
+    expect(button).toBeEnabled();
+  });
+
+  it.each([
+    ["lowercase", "poista"],
+    ["mixed case", "Poista"],
+    ["another word", "DELETE"],
+  ])("stays disabled for %s", (_case, value) => {
+    // The friction is the point: there is no undo and no recovery window.
+    renderPage();
+    typeConfirmation(value);
+
+    expect(screen.getByRole("button", { name: "Poista tili" })).toBeDisabled();
+  });
+
+  it("accepts the word with surrounding whitespace", () => {
+    renderPage();
+    typeConfirmation("  POISTA  ");
+
+    expect(screen.getByRole("button", { name: "Poista tili" })).toBeEnabled();
+  });
+
+  it("reports a failed deletion instead of pretending the account is gone", async () => {
+    deleteAccount.mockResolvedValue({ ok: false });
+    renderPage();
+    typeConfirmation("POISTA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista tili" }));
+
+    expect(
+      await screen.findByText("Tilin poistaminen epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+
+  it("leaves for the front page once the account is gone", async () => {
+    // A full load, not a client navigation: the account no longer exists, so
+    // every trace of the session has to go with it.
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        get href() {
+          return "http://localhost/asetukset";
+        },
+        set href(value: string) {
+          assign(value);
+        },
+      },
+    });
+
+    renderPage();
+    typeConfirmation("POISTA");
+    fireEvent.click(screen.getByRole("button", { name: "Poista tili" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+  });
+});
