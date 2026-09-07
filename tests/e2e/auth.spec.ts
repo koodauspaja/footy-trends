@@ -185,3 +185,61 @@ test.describe("A signed-in header", () => {
     await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toHaveCount(0);
   });
 });
+
+/**
+ * #266: after a cancelled sign-in the reader sits on `?error=auth`, and the
+ * callback URL we handed Google carried that error along — so a successful
+ * sign-in returned them to their own failure message.
+ *
+ * Asserted on the request we send, which is where the bug actually lived. The
+ * round trip through Google cannot be automated, but what we ask for can.
+ */
+test.describe("A spent sign-in error", () => {
+  async function callbackUrlFor(page: Page, path: string): Promise<string | undefined> {
+    let body: { callbackURL?: string } | undefined;
+
+    await page.route("**/api/auth/sign-in/social", async (route) => {
+      body ??= route.request().postDataJSON();
+      await route.abort();
+    });
+
+    await page.goto(path);
+    await page.getByRole("button", { name: "Kirjaudu sisään" }).click();
+    await expect.poll(() => body).not.toBeUndefined();
+
+    return body?.callbackURL;
+  }
+
+  test("is not carried back through a successful sign-in", async ({ page }) => {
+    await page.goto("/?error=auth");
+    // The notice is right to be here — this attempt did fail.
+    await expect(page.getByText("Kirjautuminen epäonnistui. Yritä uudelleen.")).toBeVisible();
+
+    expect(await callbackUrlFor(page, "/?error=auth")).toBe("/");
+  });
+
+  test("is dropped without losing the page's own state", async ({ page }) => {
+    const callbackURL = await callbackUrlFor(
+      page,
+      "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026&error=auth"
+    );
+
+    expect(callbackURL).toContain("kilpailu=VL");
+    expect(callbackURL).toContain("kausi=2026");
+    expect(callbackURL).not.toContain("error");
+  });
+
+  test("leaves no notice at the end of the issue's repro steps", async ({ page }) => {
+    // Step 5, assembled from the two halves rather than asserted at a
+    // hardcoded URL: where we actually ask Google to return the reader, then
+    // that page as a signed-in reader. Navigating to a fixed "/" would pass
+    // whether or not the callback still carried the error, which is the whole
+    // thing under test.
+    const callbackURL = await callbackUrlFor(page, "/?error=auth");
+    await signedInAs(page, "Matti Meikäläinen");
+    await page.goto(callbackURL ?? "/");
+
+    await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
+    await expect(page.getByText(/Kirjautuminen epäonnistui/)).toHaveCount(0);
+  });
+});
