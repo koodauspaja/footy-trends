@@ -5,7 +5,12 @@ import { Notice } from "@/components/notice";
 import { useSession } from "@/lib/auth-client";
 import type { CompetitionOption } from "@/lib/competition-preferences";
 import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
-import { deleteAccount, saveSettings, signOutOtherDevices } from "@/lib/settings-actions";
+import {
+  type ActionResult,
+  deleteAccount,
+  saveSettings,
+  signOutOtherDevices,
+} from "@/lib/settings-actions";
 
 export type Device = {
   id: string;
@@ -60,7 +65,20 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
       <form
         action={(formData) => {
           startTransition(async () => {
-            const result = await saveSettings(formData);
+            /**
+             * The actions return `{ ok: false }` for their own failures, but
+             * the *invocation* can reject on its own — a dropped connection or
+             * a server-action transport error never reaches their `try`. Each
+             * call site below catches that too, otherwise the reader gets a
+             * dead control and an unhandled rejection.
+             */
+            let result: ActionResult;
+            try {
+              result = await saveSettings(formData);
+            } catch {
+              setSaved("error");
+              return;
+            }
             setSaved(result.ok ? "ok" : "error");
 
             /**
@@ -190,8 +208,12 @@ function DeviceList({ devices }: Readonly<{ devices: Device[] | null }>) {
           disabled={pending}
           onClick={() => {
             startTransition(async () => {
-              const outcome = await signOutOtherDevices();
-              setResult(outcome.ok ? "ok" : "error");
+              try {
+                const outcome = await signOutOtherDevices();
+                setResult(outcome.ok ? "ok" : "error");
+              } catch {
+                setResult("error");
+              }
             });
           }}
           type="button"
@@ -239,11 +261,16 @@ function DeleteAccount() {
         disabled={!armed || pending}
         onClick={() => {
           startTransition(async () => {
-            const outcome = await deleteAccount(confirmation);
-            // On success the account is gone, so there is nobody left to show a
-            // farewell screen to. A full load clears every trace of the session.
-            if (outcome.ok) window.location.href = "/";
-            else setFailed(true);
+            try {
+              const outcome = await deleteAccount(confirmation);
+              // On success the account is gone, so there is nobody left to show
+              // a farewell screen to. A full load clears every trace of the
+              // session.
+              if (outcome.ok) window.location.href = "/";
+              else setFailed(true);
+            } catch {
+              setFailed(true);
+            }
           });
         }}
         type="button"

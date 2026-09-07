@@ -298,3 +298,48 @@ describe("deleting the account", () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
   });
 });
+
+describe("a server action that rejects before returning anything", () => {
+  // The actions return `{ ok: false }` for their own failures, but the
+  // invocation can reject on its own — a dropped connection never reaches
+  // their `try`. Uncaught, that leaves a dead control and an unhandled
+  // rejection.
+  const typeConfirmation = (value: string) =>
+    fireEvent.change(screen.getByLabelText("Vahvistus"), { target: { value } });
+
+  it("still reports a failed save", async () => {
+    saveSettings.mockRejectedValue(new Error("transport"));
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    expect(
+      await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+
+  it("still reports a failed sign-out of other devices", async () => {
+    signOutOtherDevices.mockRejectedValue(new Error("transport"));
+    renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" }));
+
+    expect(
+      await screen.findByText("Uloskirjaus epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+
+  it("still reports a failed deletion, and does not navigate away", async () => {
+    // Sending the reader to `/` as though the account were gone would be the
+    // worst possible outcome here.
+    deleteAccount.mockRejectedValue(new Error("transport"));
+    renderPage();
+    typeConfirmation("POISTA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista tili" }));
+
+    expect(
+      await screen.findByText("Tilin poistaminen epäonnistui. Yritä uudelleen.")
+    ).toBeInTheDocument();
+  });
+});

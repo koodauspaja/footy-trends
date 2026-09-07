@@ -380,8 +380,10 @@ be an analytics-grade parser, and a wrong guess costs nothing.
 - [ ] Signed in, the header shows an avatar that opens a menu containing
       `Asetukset` and `Kirjaudu ulos`; signed out the header is unchanged from
       today.
-- [ ] The menu opens on click, closes on `Escape`, on an outside click and on
-      choosing an item, and returns focus to the trigger.
+- [ ] The menu opens on click and closes on `Escape`, on an outside click and on
+      choosing an item. `Escape` restores focus to the trigger; an outside click
+      restores it only when focus would otherwise be orphaned; choosing an item
+      leaves focus to the navigation or sign-out that follows.
 - [ ] A reader whose Google profile has no `image` gets their name as the
       trigger, not an unlabelled button.
 - [ ] At a 320px viewport with a long display name, the header does not overflow
