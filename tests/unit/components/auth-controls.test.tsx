@@ -40,7 +40,7 @@ beforeEach(() => {
   socialSignIn.mockResolvedValue(undefined);
   signOut.mockClear();
   signOut.mockResolvedValue(undefined);
-  replace.mockClear();
+  replace.mockReset();
   searchParams.current = new URLSearchParams();
   pathname.current = "/";
   signedOut();
@@ -260,5 +260,28 @@ describe("a spent error does not survive the next attempt", () => {
     await vi.waitFor(() => expect(signOut).toHaveBeenCalled());
 
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("a URL rewrite that itself fails", () => {
+  it("is swallowed, and not mislabelled as a failed sign-out", async () => {
+    // `clearError` only rewrites the URL. If that throws, the stale notice
+    // stays put — but the throw must not escape as an unhandled rejection, and
+    // must not be reported as though signing out had failed.
+    signedInAs("Matti");
+    pathname.current = "/kotimaa/ottelut";
+    searchParams.current = new URLSearchParams({ error: "signout" });
+    replace.mockImplementation(() => {
+      throw new Error("navigation failed");
+    });
+
+    render(<AuthControls />);
+    fireEvent.click(screen.getByRole("button", { name: "Kirjaudu ulos" }));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalled());
+
+    // Once, by `clearError`. A second call would mean `report` had run and
+    // told the reader their sign-out failed, which it did not.
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

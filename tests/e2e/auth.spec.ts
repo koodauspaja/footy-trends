@@ -229,10 +229,15 @@ test.describe("A spent sign-in error", () => {
     expect(callbackURL).not.toContain("error");
   });
 
-  test("leaves no notice once the reader is signed in", async ({ page }) => {
-    // What the reader sees at the end of the issue's repro steps.
+  test("leaves no notice at the end of the issue's repro steps", async ({ page }) => {
+    // Step 5, assembled from the two halves rather than asserted at a
+    // hardcoded URL: where we actually ask Google to return the reader, then
+    // that page as a signed-in reader. Navigating to a fixed "/" would pass
+    // whether or not the callback still carried the error, which is the whole
+    // thing under test.
+    const callbackURL = await callbackUrlFor(page, "/?error=auth");
     await signedInAs(page, "Matti Meikäläinen");
-    await page.goto("/");
+    await page.goto(callbackURL ?? "/");
 
     await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toBeVisible();
     await expect(page.getByText(/Kirjautuminen epäonnistui/)).toHaveCount(0);

@@ -67,11 +67,11 @@ function AuthButtons() {
   const router = useRouter();
 
   /**
-   * Neither call may have its promise dropped. A rejected sign-out leaves the
-   * reader looking at a header that says they are signed in while the session
-   * row and cookie still exist, and an unhandled rejection is all the trace it
-   * would otherwise leave. `replace`, not `push`, so the failed attempt does
-   * not become a back-button step.
+   * Neither call may leave an unhandled rejection. A rejected sign-out leaves
+   * the reader looking at a header that says they are signed in while the
+   * session row and cookie still exist, and an unhandled rejection is all the
+   * trace it would otherwise leave. `replace`, not `push`, so the failed
+   * attempt does not become a back-button step.
    */
   const report = (code: string) => {
     const params = new URLSearchParams(searchParams);
@@ -128,9 +128,17 @@ function AuthButtons() {
       <button
         className={BUTTON_CLASS}
         onClick={() => {
-          // `then(onFulfilled, onRejected)` rather than `.then().catch()`: a
-          // throw inside `clearError` must not be reported as a failed sign-out.
-          signOut().then(clearError, () => report("signout"));
+          // `then(onFulfilled, onRejected)` rather than `.then().catch()`, so
+          // a throw inside `clearError` is not reported as a failed sign-out —
+          // and a terminal `catch` so that throw cannot escape either. All
+          // `clearError` does is rewrite the URL; if that fails the notice
+          // simply stays put, which is worth swallowing but not worth
+          // mislabelling.
+          signOut()
+            .then(clearError, () => report("signout"))
+            .catch(() => {
+              /* The URL rewrite failed; the stale notice stays. Nothing to say. */
+            });
         }}
         type="button"
       >
