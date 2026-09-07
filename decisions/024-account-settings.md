@@ -191,6 +191,28 @@ is the spec error described above; the code was right.
 Each fix was checked by reverting it and watching the test fail: four tests go
 red against the pre-fix code.
 
+## The seam nothing tested
+
+Auditing the issue's criteria rather than trusting the earlier "needs a human"
+label found one more gap, and it was the most important kind: **the write path
+and the read path were each tested in isolation and never against each other.**
+The action was tested with a mocked database, the resolvers with mocked
+preferences. A competition column crossed with the wrong region — the exact bug
+`page-context.test.ts` exists to catch on the read side — would have round-tripped
+cleanly through the action's own tests.
+
+`tests/integration/settings-actions.test.ts` closes it against real Postgres:
+what `saveSettings` writes is what `getPreferencesFor`, `getDefaultRegionFor`
+and `preferredCompetitionFor` later read, per region, including unsetting and
+the "stored but no longer in the registry" case. Only the session is mocked,
+because a real one needs a Google sign-in.
+
+That also re-graded five criteria that had been left unticked as
+"un-automatable". They were not: the signed-in header is covered end to end via
+session interception, the device list and its no-IP rule at the route level, the
+deletion gate and its four-table cascade across unit and integration. What was
+genuinely missing was the seam above, not a browser.
+
 ## Verification
 
 - `npm run test:unit` — **100% statements, branches, functions and lines**, and
