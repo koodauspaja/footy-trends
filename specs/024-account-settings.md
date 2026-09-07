@@ -95,9 +95,17 @@ unlabelled button.
 | Avatar `alt` | empty — the trigger is already labelled, and a duplicated name is noise to a screen reader |
 
 Behaviour: a real `<button aria-expanded>` controlling the menu, closing on
-`Escape`, on outside click, and on choosing an item; focus returns to the trigger
-on close. Not a hover menu — hover menus are unusable on the phones #266 was
-about.
+`Escape`, on outside click, and on choosing an item. Not a hover menu — hover
+menus are unusable on the phones #266 was about.
+
+**Focus on dismissal, per path**, because "returns focus to the trigger" is only
+right for one of the three:
+
+| Dismissed by | Focus |
+|---|---|
+| `Escape` | Returns to the trigger. The reader is on the keyboard and has nowhere else to be. |
+| An outside click | Returns to the trigger **only if focus was inside the menu and nothing else claimed it.** A keyboard reader who tabs in and then clicks empty space would otherwise be dropped on `<body>` — measured, not assumed. But a click is itself a focus request, so overriding it when the reader clicked another control is the anti-pattern this avoids. |
+| Choosing an item | Stays where the navigation or sign-out puts it. Yanking focus back to the header mid-navigation would drop a keyboard reader at the top of the page on every visit. |
 
 > **Test impact, stated because it will bite twice.** `Kirjaudu ulos` stops being
 > directly visible: every existing selector for it — in
@@ -415,7 +423,7 @@ be an analytics-grade parser, and a wrong guess costs nothing.
 | `components/settings-page.test.tsx` (new) | Signed out → the Finnish prompt. Pending → heading only, never the prompt. Signed in → the three sections. Save failure keeps the reader's input. |
 | `components/delete-account.test.tsx` (new) | The button is disabled until `POISTA` exactly; ` POISTA ` enables it; `poista` does not. |
 | `components/sessions-list.test.tsx` (new) | Current session marked; a single session hides the button; **no IP appears in the rendered output**. |
-| `components/account-menu.test.tsx` (new) | Closed by default; opens on click; `Escape`, outside click and choosing an item all close it; focus returns to the trigger; `aria-expanded` tracks state. A null `image` falls back to the name. |
+| `components/account-menu.test.tsx` (new) | Closed by default; opens on click; `Escape`, outside click and choosing an item all close it; `aria-expanded` tracks state; a null `image` falls back to the name. Focus is asserted per path: rescued when an outside click would orphan it, **not** stolen from a control the reader clicked instead. |
 | `components/site-header.test.tsx` (existing) | The menu trigger appears only when signed in. The `Etusivu` crumb points at `/?valitse=1` when a default region is set, and at `/` otherwise. |
 | `components/auth-controls.test.tsx` (existing) | **Updated, not extended.** `Kirjaudu ulos` now lives behind the menu, so every existing assertion for it opens the menu first. |
 | `app/rendering-mode.test.ts` (existing) | Passes **unchanged**, with `STATIC_BY_DESIGN` still naming four pages. Needing to edit it means the implementation crossed the boundary this spec set out to respect. |

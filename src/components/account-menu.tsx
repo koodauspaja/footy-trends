@@ -39,7 +39,33 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
       if (event.key === "Escape") close(true);
     };
     const onPointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) close(false);
+      if (containerRef.current?.contains(event.target as Node)) return;
+
+      /**
+       * Rescue focus only if it would otherwise be orphaned.
+       *
+       * A keyboard reader who tabs into the menu and then clicks empty space
+       * leaves focus on an element that is about to unmount, and it falls to
+       * `<body>` — measured, not assumed. But forcing focus back on *every*
+       * outside click would fight a reader who clicked a different control: the
+       * click is itself a focus request, and overriding it is the anti-pattern
+       * this avoids.
+       *
+       * So: close now, and after the click has settled, restore only if focus
+       * ended up on `<body>` — which is exactly the orphaned case, and is
+       * false whenever the reader's click gave focus to something else. Asking
+       * afterwards needs no "was focus inside" bookkeeping, and no guard for a
+       * ref that cannot be null while the menu is open.
+       *
+       * A timeout rather than a microtask because the browser moves focus as
+       * part of the click's default action, which has not happened yet when
+       * this handler runs.
+       */
+      close(false);
+
+      setTimeout(() => {
+        if (document.activeElement === document.body) close(true);
+      }, 0);
     };
 
     document.addEventListener("keydown", onKeyDown);

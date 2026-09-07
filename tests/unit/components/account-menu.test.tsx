@@ -140,4 +140,48 @@ describe("AccountMenu", () => {
 
     expect(screen.getByRole("link", { name: "Asetukset" })).toBeInTheDocument();
   });
+
+  it("rescues focus that an outside click would otherwise orphan", async () => {
+    // A keyboard reader tabs into the menu, then clicks empty space. The
+    // focused element unmounts with the menu and focus falls to `<body>` —
+    // measured, which is why this rescue exists at all.
+    renderMenu();
+    fireEvent.click(trigger());
+    screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
+
+    fireEvent.pointerDown(document.body);
+
+    await vi.waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("does not steal focus from whatever the reader clicked instead", async () => {
+    // The opposite failure: a click is itself a focus request, and overriding
+    // it would yank the reader back to the header.
+    const elsewhere = document.createElement("button");
+    elsewhere.textContent = "Muu painike";
+    document.body.append(elsewhere);
+
+    renderMenu();
+    fireEvent.click(trigger());
+    screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
+
+    fireEvent.pointerDown(elsewhere);
+    elsewhere.focus(); // what the browser's click default action does next
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(elsewhere).toHaveFocus();
+    elsewhere.remove();
+  });
+
+  it("leaves focus alone for a mouse reader who never entered the menu", async () => {
+    // Focus is on the trigger from the click that opened it, so there is
+    // nothing to rescue and no timer worth running.
+    renderMenu();
+    fireEvent.click(trigger());
+
+    fireEvent.pointerDown(document.body);
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(screen.queryByRole("link", { name: "Asetukset" })).not.toBeInTheDocument();
+  });
 });
