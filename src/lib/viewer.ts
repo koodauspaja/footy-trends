@@ -4,6 +4,36 @@ import { logger } from "@/lib/logger";
 import { getPreferencesFor } from "@/lib/preferences";
 import type { Preferences } from "@/lib/regions";
 
+const SESSION_COOKIE = "better-auth.session_token";
+
+/**
+ * Whether the request carries better-auth's session cookie.
+ *
+ * Compares parsed cookie **names**, not a substring of the whole header: an
+ * unrelated cookie whose *value* happened to contain this string would
+ * otherwise be read as an authenticated request, constructing better-auth and
+ * querying preferences for a signed-out reader.
+ *
+ * Both spellings count — the name is prefixed `__Secure-` over HTTPS, which is
+ * every production request.
+ */
+function hasSessionCookie(header: string | null): boolean {
+  if (header === null) return false;
+
+  return header.split(";").some((part) => {
+    const trimmed = part.trim();
+    const equals = trimmed.indexOf("=");
+
+    // A fragment with no `=` is not a cookie and carries no token, so the name
+    // matching on its own proves nothing. Returning here also avoids a
+    // fallback for a `split` index that can never be missing.
+    if (equals === -1) return false;
+
+    const name = trimmed.slice(0, equals);
+    return name === SESSION_COOKIE || name === `__Secure-${SESSION_COOKIE}`;
+  });
+}
+
 /**
  * The signed-in reader's preferences on the server, or null.
  *
@@ -26,11 +56,7 @@ export const getViewerPreferences = cache(async (): Promise<Preferences | null> 
   try {
     const requestHeaders = await headers();
 
-    // better-auth's cookie is prefixed `__Secure-` in production, so match on
-    // the stem rather than an exact name.
-    // Optional-chained: a missing header and a header without the cookie are
-    // the same answer here.
-    if (!requestHeaders.get("cookie")?.includes("better-auth.session_token")) return null;
+    if (!hasSessionCookie(requestHeaders.get("cookie"))) return null;
 
     /**
      * Imported here, not at module scope. `auth.ts` constructs better-auth on

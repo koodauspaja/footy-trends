@@ -274,8 +274,12 @@ The two differ deliberately, and the reason is #182 — the same reason 023 read
 the session in the browser. `/` is prerendered and must stay so; the competition
 pages are not and never were.
 
-**The server-side lookup is skipped entirely when no session cookie is present.**
-A signed-out reader — the overwhelming majority — pays nothing.
+**The server-side lookup is skipped entirely unless it can change the answer.**
+It runs only after the URL and any team context have failed to settle the
+competition, and only when a session cookie is actually present — matched on
+parsed cookie *names*, so an unrelated cookie whose value contains the string
+does not drag a signed-out request through better-auth. A signed-out reader, and
+any reader following an explicit `?kilpailu=` link, pays nothing.
 
 ### Caching
 

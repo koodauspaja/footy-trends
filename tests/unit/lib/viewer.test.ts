@@ -66,6 +66,45 @@ describe("getViewerPreferences", () => {
     expect(getPreferencesFor).toHaveBeenCalledWith("user-1");
   });
 
+  it("ignores an unrelated cookie whose value merely contains the name", async () => {
+    // A substring match on the whole header would read this as authenticated
+    // and construct better-auth for a signed-out reader.
+    headerValue.cookie = "tracking=better-auth.session_token; theme=dark";
+    const { getViewerPreferences } = await import("@/lib/viewer");
+
+    expect(await getViewerPreferences()).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("finds the cookie among others, whatever the order", async () => {
+    headerValue.cookie = "theme=dark; better-auth.session_token=abc; consent=1";
+    getSession.mockResolvedValue({ user: { id: "user-1" } });
+    getPreferencesFor.mockResolvedValue(PREFERENCES);
+    const { getViewerPreferences } = await import("@/lib/viewer");
+
+    expect(await getViewerPreferences()).toEqual(PREFERENCES);
+  });
+
+  it("copes with a cookie fragment that carries no value", async () => {
+    // Malformed or valueless fragments turn up in real cookie headers; they
+    // must neither match nor throw.
+    headerValue.cookie = "flag; better-auth.session_token=abc";
+    getSession.mockResolvedValue({ user: { id: "user-1" } });
+    getPreferencesFor.mockResolvedValue(PREFERENCES);
+    const { getViewerPreferences } = await import("@/lib/viewer");
+
+    expect(await getViewerPreferences()).toEqual(PREFERENCES);
+  });
+
+  it("does not treat a bare valueless fragment as the session cookie", async () => {
+    headerValue.cookie = "better-auth.session_token";
+    const { getViewerPreferences } = await import("@/lib/viewer");
+
+    // A name with no value is not a session; better-auth is never constructed.
+    expect(await getViewerPreferences()).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it("returns null when the cookie is stale and resolves to no session", async () => {
     headerValue.cookie = "better-auth.session_token=expired";
     getSession.mockResolvedValue(null);

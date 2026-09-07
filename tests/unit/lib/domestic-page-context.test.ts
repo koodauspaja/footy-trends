@@ -180,6 +180,9 @@ describe("a reader's stored competition default", () => {
 
   beforeEach(() => {
     resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+    // Cleared, not just re-stubbed: these tests assert on call counts, and
+    // `mockResolvedValue` leaves earlier calls recorded.
+    getViewerPreferences.mockClear();
     getViewerPreferences.mockResolvedValue(null);
   });
 
@@ -223,5 +226,11 @@ describe("a reader's stored competition default", () => {
     const context = await resolveDomesticPageContext({});
 
     expect(context.competitionCode).toBe("VL");
+  });
+
+  it("does not look preferences up when the URL already settles it", async () => {
+    await resolveDomesticPageContext({ kilpailu: "VL" });
+
+    expect(getViewerPreferences).not.toHaveBeenCalled();
   });
 });

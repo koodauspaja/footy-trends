@@ -127,4 +127,25 @@ describe("a reader's stored competition default", () => {
     // The banner and the page therefore agree.
     expect(context.status === "ok" && context.competitionName).toBe("Bundesliga");
   });
+
+  it("does not look preferences up when the URL already settles it", async () => {
+    // A valid `?kilpailu=` cannot be overridden, so the auth and Postgres
+    // lookup behind `getViewerPreferences` would be paid for nothing on every
+    // signed-in request.
+    await resolveBasePageContext({ kilpailu: "PL" }, "foreign");
+
+    expect(getViewerPreferences).not.toHaveBeenCalled();
+  });
+
+  it("does not look preferences up when a team context already settles it", async () => {
+    await resolveBasePageContext({}, "foreign", { competitionCode: "PL", seasonId: 2025 });
+
+    expect(getViewerPreferences).not.toHaveBeenCalled();
+  });
+
+  it("looks them up only when nothing else has", async () => {
+    await resolveBasePageContext({}, "foreign");
+
+    expect(getViewerPreferences).toHaveBeenCalledTimes(1);
+  });
 });

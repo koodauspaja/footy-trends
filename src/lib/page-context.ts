@@ -87,14 +87,18 @@ export async function resolveBasePageContext(
    * what it says (specs/012), and a stored default is a weaker statement than a
    * typed URL. See specs/024-account-settings.md.
    */
-  const preferred = preferredCompetitionFor(
-    region === "foreign" ? "ulkomaat" : "maajoukkueet",
-    await getViewerPreferences()
-  );
+  const explicit =
+    competitionParam.kind === "valid" ? competitionParam.code : defaults?.competitionCode;
   const competitionCode =
-    competitionParam.kind === "valid"
-      ? competitionParam.code
-      : (defaults?.competitionCode ?? preferred ?? defaultCompetitionFor(region));
+    explicit ??
+    // Only reached when neither the URL nor a team context has settled it —
+    // otherwise every signed-in request would pay for an auth and Postgres
+    // lookup whose answer could not change the outcome.
+    preferredCompetitionFor(
+      region === "foreign" ? "ulkomaat" : "maajoukkueet",
+      await getViewerPreferences()
+    ) ??
+    defaultCompetitionFor(region);
   const competitionName = getCompetitionName(competitionCode);
 
   const context = await resolveSeasonContext(competitionCode);

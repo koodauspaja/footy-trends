@@ -102,6 +102,7 @@ export async function resolveDomesticPageContext(
     competitionParam.kind === "valid"
       ? competitionParam.code
       : (defaults?.competitionCode ??
+        // Only reached when neither the URL nor a team context has settled it.
         preferredCompetitionFor("kotimaa", await getViewerPreferences()) ??
         DEFAULT_DOMESTIC_COMPETITION_CODE);
   const competitionName = getDomesticCompetitionName(competitionCode);
