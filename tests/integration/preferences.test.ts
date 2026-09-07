@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { session, user, userPreferences } from "@/db/schema";
+import { account, session, user, userPreferences } from "@/db/schema";
 import { getPreferencesFor } from "@/lib/preferences";
 
 /**
@@ -31,6 +31,7 @@ function preferenceRow(id: string, userId: string, overrides = {}) {
 
 afterEach(async () => {
   await db.delete(userPreferences).where(inArray(userPreferences.userId, USER_IDS));
+  await db.delete(account).where(inArray(account.userId, USER_IDS));
   await db.delete(session).where(inArray(session.userId, USER_IDS));
   await db.delete(user).where(inArray(user.id, USER_IDS));
 });
@@ -112,5 +113,34 @@ describe("user preferences", () => {
 
     expect((await getPreferencesFor(USER_ID))?.defaultRegion).toBe("kotimaa");
     expect((await getPreferencesFor(OTHER_USER_ID))?.defaultRegion).toBe("ulkomaat");
+  });
+
+  it("takes everything with it when the account is deleted", async () => {
+    // `Poista tili` promises the account, its sessions and its Google link are
+    // all gone. One delete, all four row types, in a single transaction — so
+    // there is no half-deleted state to recover from.
+    await db.insert(user).values(userRow(USER_ID, "pref1@example.com"));
+    await db.insert(userPreferences).values(preferenceRow("itest-pref-1", USER_ID));
+    await db.insert(session).values({
+      id: "itest-pref-session",
+      token: "itest-pref-token-2",
+      userId: USER_ID,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+    await db.insert(account).values({
+      id: "itest-pref-account",
+      accountId: "itest-google-sub",
+      providerId: "google",
+      userId: USER_ID,
+    });
+
+    await db.delete(user).where(eq(user.id, USER_ID));
+
+    expect(await db.select().from(user).where(eq(user.id, USER_ID))).toHaveLength(0);
+    expect(await db.select().from(session).where(eq(session.userId, USER_ID))).toHaveLength(0);
+    expect(await db.select().from(account).where(eq(account.userId, USER_ID))).toHaveLength(0);
+    expect(
+      await db.select().from(userPreferences).where(eq(userPreferences.userId, USER_ID))
+    ).toHaveLength(0);
   });
 });

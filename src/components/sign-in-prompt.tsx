@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 
 /**
@@ -10,6 +10,7 @@ import { signIn } from "@/lib/auth-client";
  */
 export function SignInPrompt() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <div className="flex flex-col items-start gap-3">
@@ -24,9 +25,15 @@ export function SignInPrompt() {
               callbackURL: pathname,
               errorCallbackURL: "/?error=auth",
             })
-            .catch(() => {
-              /* The header's notice reports a failure; nothing to add here. */
-            });
+            /**
+             * Reported through the same `?error=` channel Google's own
+             * failures use, so the header's notice renders it — one mechanism,
+             * one source. An earlier version swallowed this and claimed the
+             * header would report it; the header only reports *its own*
+             * sign-in call, so the reader was left with a button that appeared
+             * to do nothing.
+             */
+            .catch(() => router.replace(`${pathname}?error=auth`));
         }}
         type="button"
       >

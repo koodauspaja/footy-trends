@@ -28,8 +28,9 @@ export const getViewerPreferences = cache(async (): Promise<Preferences | null> 
 
     // better-auth's cookie is prefixed `__Secure-` in production, so match on
     // the stem rather than an exact name.
-    const cookie = requestHeaders.get("cookie");
-    if (cookie === null || !cookie.includes("better-auth.session_token")) return null;
+    // Optional-chained: a missing header and a header without the cookie are
+    // the same answer here.
+    if (!requestHeaders.get("cookie")?.includes("better-auth.session_token")) return null;
 
     /**
      * Imported here, not at module scope. `auth.ts` constructs better-auth on

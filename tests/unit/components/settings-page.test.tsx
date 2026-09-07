@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
 
+const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
+
 const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
   saveSettings: vi.fn(async () => ({ ok: true })),
   signOutOtherDevices: vi.fn(async () => ({ ok: true })),
@@ -10,6 +12,7 @@ const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch }) }));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {
@@ -61,6 +64,7 @@ beforeEach(() => {
   signOutOtherDevices.mockResolvedValue({ ok: true });
   deleteAccount.mockClear();
   deleteAccount.mockResolvedValue({ ok: true });
+  refetch.mockClear();
 });
 
 describe("preferences", () => {
@@ -108,6 +112,27 @@ describe("preferences", () => {
 
     await waitFor(() => expect(saveSettings).toHaveBeenCalled());
     expect(await screen.findByText("Asetukset tallennettu.")).toBeInTheDocument();
+  });
+
+  it("pushes a saved start region into the mounted session", async () => {
+    // The start region rides on the session payload, and the header and front
+    // page act on it. Without this the setting appears to do nothing until a
+    // full reload.
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not refresh the session when the save failed", async () => {
+    saveSettings.mockResolvedValue({ ok: false });
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
+
+    await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.");
+    expect(refetch).not.toHaveBeenCalled();
   });
 
   it("reports a failed save rather than pretending it worked", async () => {

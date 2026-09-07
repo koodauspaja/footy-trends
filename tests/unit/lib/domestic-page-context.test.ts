@@ -5,10 +5,15 @@ import {
   resolveDomesticPageContext,
 } from "@/lib/domestic-page-context";
 
-const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock } = vi.hoisted(() => ({
-  resolveTasoSeasonContextMock: vi.fn(),
-  getSeasonCategoryNameMock: vi.fn(),
-}));
+const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPreferences } =
+  vi.hoisted(() => ({
+    resolveTasoSeasonContextMock: vi.fn(),
+    getSeasonCategoryNameMock: vi.fn(),
+    getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
+  }));
+
+// A signed-in reader's stored default, from specs/024-account-settings.md.
+vi.mock("@/lib/viewer", () => ({ getViewerPreferences }));
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
@@ -162,5 +167,61 @@ describe("resolveDomesticPageContext competition naming", () => {
     expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("P20SM", "spljp20", 2020, 2026);
     expect(context.categoryId).toBe("P20SM");
     expect(context.renamedTo).toBe("P21 SM");
+  });
+});
+
+describe("a reader's stored competition default", () => {
+  const preferences = (defaultCompetitionDomestic: string | null) => ({
+    defaultRegion: null,
+    defaultCompetitionDomestic,
+    defaultCompetitionForeign: null,
+    defaultCompetitionNational: null,
+  });
+
+  beforeEach(() => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+    getViewerPreferences.mockResolvedValue(null);
+  });
+
+  it("opens the competition they chose instead of Veikkausliiga", async () => {
+    // The wiring this whole feature exists for: without it the preference is
+    // stored and never read.
+    getViewerPreferences.mockResolvedValue(preferences("M1L"));
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("M1L");
+  });
+
+  it("still lets an explicit kilpailu win", async () => {
+    // A shared link must render what it says (specs/012); a stored default is
+    // a weaker statement than a typed URL.
+    getViewerPreferences.mockResolvedValue(preferences("M1L"));
+
+    const context = await resolveDomesticPageContext({ kilpailu: "VL" });
+
+    expect(context.competitionCode).toBe("VL");
+  });
+
+  it("falls back to Veikkausliiga for a signed-out reader", async () => {
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
+  });
+
+  it("falls back when the stored competition no longer exists", async () => {
+    getViewerPreferences.mockResolvedValue(preferences("GONE"));
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
+  });
+
+  it("falls back when the reader has a row but no domestic preference", async () => {
+    getViewerPreferences.mockResolvedValue(preferences(null));
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
   });
 });

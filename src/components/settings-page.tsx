@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
+import { useSession } from "@/lib/auth-client";
 import type { CompetitionOption } from "@/lib/competition-preferences";
 import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
 import { deleteAccount, saveSettings, signOutOtherDevices } from "@/lib/settings-actions";
@@ -51,6 +52,7 @@ const HEADING_CLASS = "mb-3 font-medium text-lg";
 export function SettingsPage({ preferences, devices, regionOptions }: Props) {
   const [saved, setSaved] = useState<null | "ok" | "error">(null);
   const [pending, startTransition] = useTransition();
+  const { refetch } = useSession();
 
   return (
     <>
@@ -59,6 +61,17 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
           startTransition(async () => {
             const result = await saveSettings(formData);
             setSaved(result.ok ? "ok" : "error");
+
+            /**
+             * The start region rides on the session payload (see the
+             * `customSession` plugin in src/lib/auth.ts), and the mounted
+             * `useSession()` store does not know it just changed. Without this
+             * refetch the header's `Etusivu` link and the front page keep
+             * acting on the previous value until a full reload — so a reader
+             * who saves `Kotimaa` and clicks through would see the setting do
+             * nothing.
+             */
+            if (result.ok) await refetch();
           });
         }}
         className={SECTION_CLASS}

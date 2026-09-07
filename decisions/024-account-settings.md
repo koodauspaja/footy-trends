@@ -146,10 +146,42 @@ Both are the same class as the header-overflow test in #265. Reverting the
 implementation and watching the test fail is the only thing that distinguishes a
 regression test from a decoration.
 
+## The wiring that had no test, and the bug it hid
+
+Review flagged the PR as incomplete against the issue, correctly. The audit
+found the core feature untested: `preferredCompetitionFor` was unit-tested in
+isolation and wired into both page-context resolvers, but **nothing asserted
+that a stored preference changes what a page renders**. A wrong region mapping —
+reading the foreign column on `/maajoukkueet`, say — would have passed every
+test.
+
+`page-context.ts` had no test file at all. It has nine now, including one that
+exists purely to pin the mapping: a foreign and a national preference set at the
+same time must resolve to different competitions.
+
+Writing them found a real spec/code contradiction. This spec said an invalid
+`?kilpailu=` must fall back to the **hardcoded** default, "because the notice
+would then name a competition the reader never asked for". The code fell through
+to the preference instead. Checking `ContextNotices` settled it: it renders
+`resolved.competitionName`, so the banner names whatever is actually shown — and
+a stored preference is something the reader chose explicitly. **The spec was
+wrong on both counts and was corrected**; the code was right.
+
+The first version of that test asserted only that the parameter was `invalid`,
+which is trivially true and would have passed either way. Asserting the resolved
+competition is what surfaced the contradiction.
+
 ## Verification
 
-- `npm run test:unit` — **100% statements, branches, functions and lines**
-- `npm run test:integration` — 62 against real Postgres, 7 new
+- `npm run test:unit` — **100% statements, branches, functions and lines**, and
+  verified per file rather than only in aggregate: vitest omits files no test
+  imports, which is how `settings-actions.ts` and `app/settings/page.tsx` read
+  as 100% locally while Sonar reported them at 0%. Both have tests now.
+- Run with `.env` moved aside and the variables unset, which is what the CI unit
+  job actually is
+- `npm run test:integration` — 63 against real Postgres, 8 new, including one
+  proving a single account deletion removes the `user`, `session`, `account`
+  **and** `user_preferences` rows together
 - `npm run test:e2e` — **173 passed** against a production build
 - `npm run lint`, `npm run typecheck`, `npm run build` — clean
 - Migration `0011` applied to a real Postgres and inspected with `\d`: unique

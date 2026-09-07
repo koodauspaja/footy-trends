@@ -103,13 +103,13 @@ export async function resolveBasePageContext(
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   // As in the domestic resolver: the team's own season stands in wherever
   // `kausi` does not decide, and an invalid one keeps its notice either way.
-  // `defaults !== undefined` spelled out rather than leaning on `?.`: the
-  // competition is now resolved through a preference as well, and TypeScript no
-  // longer narrows `defaults` from the optional-chained comparison alone.
+  // Optional-chained on both sides, then `??` for the fallback. Reading
+  // `defaults.seasonId` directly inside the true branch does not typecheck —
+  // TypeScript does not narrow `defaults` from the comparison above — and
+  // spelling out `defaults !== undefined` trades that for a lint finding.
   const seasonFallback =
-    defaults !== undefined && defaults.competitionCode === competitionCode
-      ? defaults.seasonId
-      : context.activeSeasonId;
+    (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
+    context.activeSeasonId;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = formatSeasonLabel(seasonId, context.spansCalendarYears);
 

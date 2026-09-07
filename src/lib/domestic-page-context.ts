@@ -116,13 +116,13 @@ export async function resolveDomesticPageContext(
   // invalid alike. An invalid one still gets its notice; what it falls back to
   // is the team's own season when the resolved competition is the one being
   // shown, and the competition's default otherwise.
-  // `defaults !== undefined` spelled out rather than leaning on `?.`: the
-  // competition is now resolved through a preference as well, and TypeScript no
-  // longer narrows `defaults` from the optional-chained comparison alone.
+  // Optional-chained on both sides, then `??` for the fallback. Reading
+  // `defaults.seasonId` directly inside the true branch does not typecheck —
+  // TypeScript does not narrow `defaults` from the comparison above — and
+  // spelling out `defaults !== undefined` trades that for a lint finding.
   const seasonFallback =
-    defaults !== undefined && defaults.competitionCode === competitionCode
-      ? defaults.seasonId
-      : defaultSeason;
+    (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
+    defaultSeason;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdForSeason(competitionCode, seasonId);
