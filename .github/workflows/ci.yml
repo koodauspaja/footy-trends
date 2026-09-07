@@ -90,6 +90,14 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
       REDIS_URL: redis://localhost:6379
+      # Dummy literals, not secrets. No test completes a real Google sign-in —
+      # Google blocks automated browsers — so nothing here needs a real
+      # credential. They exist because src/lib/auth.ts fails fast on a missing
+      # variable rather than at first sign-in. See specs/023-google-oauth-login.md.
+      BETTER_AUTH_SECRET: ci-not-a-real-secret-ci-not-a-real-secret
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-dummy-client-id
+      GOOGLE_CLIENT_SECRET: ci-dummy-client-secret
 
     steps:
       - uses: actions/checkout@v7

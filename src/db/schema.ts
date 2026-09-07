@@ -1,4 +1,13 @@
-import { index, integer, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import type { TasoWinner } from "@/lib/taso";
 
 /**
@@ -189,3 +198,116 @@ export const tasoGroupTeams = pgTable(
     ),
   ]
 );
+
+/**
+ * better-auth's four tables, from specs/023-google-oauth-login.md.
+ *
+ * Written by hand rather than by `@better-auth/cli generate`: the CLI is
+ * published at 1.4.21 against the 1.7.3 library this repo pins, and a generated
+ * file arrives without the comments every table above carries. The column list
+ * is taken from `@better-auth/core/dist/db/get-tables.mjs` at 1.7.3.
+ *
+ * Two conventions differ from the tables above, both deliberately:
+ *
+ * 1. **Primary keys are `text`, not `serial`.** better-auth generates its own
+ *    string ids; an integer key would need its `useNumberId` mode and a matching
+ *    adapter config. The two id spaces never meet — no auth table references a
+ *    match table or the reverse — so the inconsistency is contained.
+ * 2. **Model names are singular.** `user`, `session`, `account` and
+ *    `verification` are better-auth's defaults, and renaming them buys a naming
+ *    convention at the cost of a mapping in every adapter call.
+ *
+ * The TS property names must stay camelCase whatever the SQL columns are called:
+ * the Drizzle adapter resolves a field by indexing this table object with the
+ * property key (`schemaModel[fieldName]`), and throws if it is absent. The SQL
+ * column names are therefore free to stay snake_case like the rest of the file.
+ */
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  // Required by better-auth. Google returns it under the `profile` scope; the
+  // sign-in path falls back to the email's local part if it ever does not.
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  // Always true in practice — Google is the only provider and it verifies
+  // addresses itself — but the column is `required` in better-auth's model.
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  // The Google avatar URL. Nullable, and nothing renders it yet.
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const session = pgTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    // What the session cookie carries. Unique because every session read is a
+    // lookup by this value, and it is the whole basis of authentication.
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Recorded by better-auth on every session. Nullable: behind a proxy either
+    // header can be absent, and neither is required to authenticate.
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Sign-out and account deletion both read every session a user owns.
+    index("session_user_id_idx").on(table.userId),
+  ]
+);
+
+export const account = pgTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    // The provider's own id for the account — Google's `sub`. Paired with
+    // `providerId` this is what makes a repeat sign-in find the existing user
+    // instead of creating a second one.
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Google's tokens. better-auth marks all three `returned: false`, so they
+    // are never serialised to the client, and nothing in this app reads them —
+    // the only scopes requested are `openid email profile`, which need no API
+    // call after sign-in.
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    // Permanently unused: part of better-auth's core account model for the
+    // email/password provider this app does not enable. Omitting a column the
+    // library writes to would break on an adapter we do not control.
+    password: text("password"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("account_user_id_idx").on(table.userId),
+    // The repeat-sign-in lookup above, and the guarantee that one Google
+    // account cannot end up attached to two users.
+    uniqueIndex("account_provider_account_idx").on(table.providerId, table.accountId),
+  ]
+);
+
+/**
+ * Required even though no email flow exists: better-auth stores the OAuth state
+ * and PKCE verifier here for the duration of the Google redirect. Without this
+ * table sign-in fails at the callback, not at startup.
+ */
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

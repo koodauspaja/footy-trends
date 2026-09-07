@@ -1,6 +1,6 @@
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { matches, tasoMatches } from "@/db/schema";
+import { account, matches, session, tasoMatches, user, verification } from "@/db/schema";
 
 describe("matches table", () => {
   it("declares a unique index on the provider match id and four lookup indexes", () => {
@@ -103,5 +103,81 @@ describe("taso_matches table", () => {
     expect(awaySide?.columns.map((column) => (column as { name: string }).name)).toEqual([
       "away_team_provider_id",
     ]);
+  });
+});
+
+describe("better-auth tables", () => {
+  it("names the four models better-auth asks for", () => {
+    // The Drizzle adapter resolves a model by name; a renamed table fails at
+    // the OAuth callback, not at startup. See specs/023-google-oauth-login.md.
+    expect([user, session, account, verification].map((t) => getTableConfig(t).name)).toEqual([
+      "user",
+      "session",
+      "account",
+      "verification",
+    ]);
+  });
+
+  it("keeps the property names better-auth indexes this table by", () => {
+    // `schemaModel[fieldName]` in the adapter — camelCase keys, whatever the
+    // SQL columns are called.
+    expect(Object.keys(user)).toEqual(
+      expect.arrayContaining(["id", "name", "email", "emailVerified", "image"])
+    );
+    expect(Object.keys(account)).toEqual(
+      expect.arrayContaining(["accountId", "providerId", "userId", "accessToken", "idToken"])
+    );
+  });
+
+  it("makes a session token unique, since it is the whole basis of authentication", () => {
+    const { columns } = getTableConfig(session);
+    const token = columns.find((column) => column.name === "token");
+
+    expect(token?.isUnique).toBe(true);
+    expect(token?.notNull).toBe(true);
+  });
+
+  it("requires an email and keeps it unique across users", () => {
+    const email = getTableConfig(user).columns.find((column) => column.name === "email");
+
+    expect(email?.isUnique).toBe(true);
+    expect(email?.notNull).toBe(true);
+  });
+
+  it("cascades sessions and accounts away with their user", () => {
+    for (const table of [session, account]) {
+      const [foreignKey] = getTableConfig(table).foreignKeys;
+
+      expect(foreignKey?.onDelete).toBe("cascade");
+
+      // Resolving the reference is what proves it points at `user.id` and not
+      // merely at something; Drizzle defers it in a callback, so an unresolved
+      // reference is a foreign key nobody has ever checked the target of.
+      const reference = foreignKey?.reference();
+      expect(reference?.foreignTable).toBe(user);
+      expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+    }
+  });
+
+  it("stops one Google account attaching to two users", () => {
+    const { indexes } = getTableConfig(account);
+    const identity = indexes.find(
+      (index) => index.config.name === "account_provider_account_idx"
+    )?.config;
+
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "provider_id",
+      "account_id",
+    ]);
+  });
+
+  it("indexes the user id both tables are read by", () => {
+    expect(
+      getTableConfig(session).indexes.find((i) => i.config.name === "session_user_id_idx")
+    ).toBeDefined();
+    expect(
+      getTableConfig(account).indexes.find((i) => i.config.name === "account_user_id_idx")
+    ).toBeDefined();
   });
 });

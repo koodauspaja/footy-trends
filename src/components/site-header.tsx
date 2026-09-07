@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AuthControls, AuthNotice } from "@/components/auth-controls";
 import { regionCrumbFor } from "@/lib/breadcrumb";
 
 /**
@@ -20,22 +21,30 @@ export function SiteHeader() {
   const region = regionCrumbFor(usePathname());
 
   return (
-    <header className="border-zinc-200 border-b px-4 py-3 sm:px-8">
-      <nav aria-label="Murupolku" className="flex items-center gap-2 text-sm">
-        <Link className="hover:underline" href="/">
-          Etusivu
-        </Link>
-        {region !== null && (
-          <>
-            <span aria-hidden="true" className="text-zinc-400">
-              /
-            </span>
-            <Link className="hover:underline" href={region.href}>
-              {region.label}
-            </Link>
-          </>
-        )}
-      </nav>
+    <header className="border-zinc-200 border-b">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-8">
+        {/* The auth control sits outside this nav, so the breadcrumb landmark
+            keeps meaning "murupolku" rather than "murupolku and a login". */}
+        <nav aria-label="Murupolku" className="flex items-center gap-2 text-sm">
+          <Link className="hover:underline" href="/">
+            Etusivu
+          </Link>
+          {region !== null && (
+            <>
+              <span aria-hidden="true" className="text-zinc-400">
+                /
+              </span>
+              <Link className="hover:underline" href={region.href}>
+                {region.label}
+              </Link>
+            </>
+          )}
+        </nav>
+        <div className="flex items-center gap-3">
+          <AuthControls />
+        </div>
+      </div>
+      <AuthNotice />
     </header>
   );
 }

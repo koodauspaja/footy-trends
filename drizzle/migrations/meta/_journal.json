@@ -71,6 +71,13 @@
       "when": 1788364498739,
       "tag": "0009_add_away_team_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788788277138,
+      "tag": "0010_opposite_cammi",
+      "breakpoints": true
     }
   ]
 }
