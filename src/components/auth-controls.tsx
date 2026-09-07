@@ -16,10 +16,15 @@ const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
  * of this. Using it for the other half too means one notice with one source,
  * instead of a second, invisible mechanism that has to be kept in agreement
  * with the first.
+ *
+ * A `Map`, not an object literal, because the key comes straight off the query
+ * string with no validation. `MESSAGES["__proto__"]` on an object returns
+ * `Object.prototype`, and `constructor` and `toString` return functions — none
+ * of which `??` treats as absent, so each would reach `Notice` as a non-string
+ * child and throw during render. A `Map` has no inherited keys, which removes
+ * the case rather than guarding against it.
  */
-const MESSAGES: Record<string, string> = {
-  signout: "Uloskirjautuminen epäonnistui. Yritä uudelleen.",
-};
+const MESSAGES = new Map([["signout", "Uloskirjautuminen epäonnistui. Yritä uudelleen."]]);
 
 /** Every Google-side failure says the same thing — see `SignInError` below. */
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
@@ -123,7 +128,7 @@ function SignInError() {
   const error = useSearchParams().get("error");
   if (error === null) return null;
 
-  return <Notice>{MESSAGES[error] ?? SIGN_IN_FAILED}</Notice>;
+  return <Notice>{MESSAGES.get(error) ?? SIGN_IN_FAILED}</Notice>;
 }
 
 /**

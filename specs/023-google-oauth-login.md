@@ -270,6 +270,7 @@ fills in on the client.
 | Reader signs out | Session row deleted, cookie cleared, reader stays on the page they were on. |
 | Sign-out request fails | The reader stays put and is told `Uloskirjautuminen epäonnistui. Yritä uudelleen.` Neither this nor the sign-in call may drop its promise: a rejected sign-out otherwise leaves a header claiming the reader is signed in while the session row and cookie still exist, with an unhandled rejection as its only trace. |
 | Sign-in request fails before reaching Google | Our own route being unreachable, rather than Google refusing. Reported in place with the sign-in failure notice. |
+| `?error=` carries an unknown or hostile value | Falls back to the sign-in message. The lookup is a `Map`, so keys like `__proto__`, `constructor` and `toString` cannot resolve to an inherited member and reach the notice as a non-string child. |
 | Reader has cookies disabled | The flow cannot complete; the reader returns to `/` signed out with the failure notice. First-party cookies only, so a third-party-cookie blocker does not affect this. |
 | Two browsers / devices, same account | Two `session` rows, one `user` row. Signing out of one leaves the other signed in. |
 

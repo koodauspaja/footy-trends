@@ -185,3 +185,19 @@ describe("a failed request is reported, not dropped", () => {
     expect(screen.getByText("Uloskirjautuminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
   });
 });
+
+describe("an error code taken straight off the query string", () => {
+  // `MESSAGES` is a Map for this reason: as an object literal, each of these
+  // keys resolves to an inherited member — `Object.prototype`, or a function —
+  // which `??` does not treat as absent, so it would reach `Notice` as a
+  // non-string child and throw during render.
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"])(
+    "falls back to the sign-in message for %s instead of throwing",
+    (code) => {
+      searchParams.current = new URLSearchParams({ error: code });
+
+      expect(() => render(<AuthNotice />)).not.toThrow();
+      expect(screen.getByText("Kirjautuminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
+    }
+  );
+});

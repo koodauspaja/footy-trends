@@ -238,6 +238,34 @@ remains a human check.
 for any non-empty id. It now asserts equality with `process.env.GOOGLE_CLIENT_ID`
 — the real value locally, the workflow's dummy literal in CI.
 
+## A crash reachable from the query string
+
+Sourcery's third review found `MESSAGES[error]` reading inherited properties.
+Reproduced before fixing, and it is worse than the one key it names:
+
+    __proto__     -> object    (React throws)
+    constructor   -> function  (React throws)
+    toString      -> function  (React throws)
+
+`??` treats none of these as absent, so each reaches `Notice` as a non-string
+child and React throws `Objects are not valid as a React child` — a crashed page
+from `/?error=__proto__`, which anyone can link to.
+
+Fixed with a `Map` rather than the suggested `Object.hasOwn` guard. A guard is a
+second thing to keep true; a `Map` has no inherited keys, so the case cannot
+arise. Five keys are now regression-tested, and against the object-literal
+version all five fail with that exact React error.
+
+**Swept rather than patched at the named line.** Three other `Record<string, string>`
+lookups take the same shape — `STAGE_NAMES` in `cup-stages.ts` and the two tables
+in `country-names.ts`. Neither is reachable: `getStageName` is only ever called
+with a stage `parseStageParam` has already validated against the stages present
+in the data, and the country tables are keyed on provider-supplied names, not on
+anything from the URL. `MESSAGES` was the only one taking a raw query parameter,
+which is exactly why it was the only one that broke. They are left alone
+deliberately — changing four files to look uniform would have hidden which one
+actually had the bug.
+
 ## The coverage that vitest could not see
 
 Sonar reported `src/app/api/auth/[...all]/route.ts` at **0%** with two uncovered
