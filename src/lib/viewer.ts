@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { cache } from "react";
-import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { getPreferencesFor } from "@/lib/preferences";
 import type { Preferences } from "@/lib/regions";
@@ -32,6 +31,17 @@ export const getViewerPreferences = cache(async (): Promise<Preferences | null> 
     const cookie = requestHeaders.get("cookie");
     if (cookie === null || !cookie.includes("better-auth.session_token")) return null;
 
+    /**
+     * Imported here, not at module scope. `auth.ts` constructs better-auth on
+     * import and throws without its four environment variables — and this
+     * module is reached from every competition page's context resolver, so a
+     * top-level import made dozens of unrelated page tests fail in the CI unit
+     * job, which deliberately has no environment at all (#158).
+     *
+     * Deferring it past the cookie check above also means a signed-out request
+     * never constructs the auth instance in the first place.
+     */
+    const { auth } = await import("@/lib/auth");
     const session = await auth.api.getSession({ headers: requestHeaders });
     if (!session) return null;
 

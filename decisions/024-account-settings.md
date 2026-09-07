@@ -102,6 +102,28 @@ Two guards were removed rather than tested:
   rewrite, because `then(onFulfilled, onRejected)` plus a terminal `catch`
   separates the two. Carried over from #266.
 
+## The auth import that broke fifty unrelated tests
+
+CI failed where local runs passed, and the reason was worth recording rather
+than patching around. `page-context.ts` calls `getViewerPreferences()`, so
+`viewer.ts` — and therefore `auth.ts` — became a transitive import of every
+competition page. `auth.ts` constructs better-auth at module load and throws
+without its four environment variables, and the CI `unit` job deliberately has
+**no environment at all** (#158). Dozens of page tests that have nothing to do
+with authentication failed with
+`BETTER_AUTH_SECRET is required for authentication but is not set`.
+
+The fix is a deferred `await import("@/lib/auth")` inside `getViewerPreferences`,
+placed *after* the session-cookie check. Mocking `@/lib/viewer` in fifty test
+files would have been the other option; it would have hidden the actual problem,
+which is that a page's context resolver should not construct an auth instance
+merely by being imported. As a bonus, a signed-out request now never constructs
+one either.
+
+Reproduced locally by moving `.env` aside and running with the variables unset,
+which is what CI actually does — that is the only way to see this failure
+without pushing.
+
 ## Two tests that proved nothing, caught before merging
 
 **The e2e "no IP address" and "preferences render" tests were asserting against
