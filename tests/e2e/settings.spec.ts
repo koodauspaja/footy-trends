@@ -87,6 +87,29 @@ test.describe("Settings, signed out", () => {
  * signed-out page, the account menu, and the client-side start-page redirect.
  */
 test.describe("The account menu", () => {
+  /**
+   * Outside-click dismissal is only ever driven with a synthesised
+   * `pointerdown` in jsdom. A real browser fires pointerdown, then mousedown,
+   * then a focus change, then click — and the focus rescue runs on a timer in
+   * the middle of that sequence. This is the only place that ordering is real.
+   */
+  test("closes when the reader clicks the page behind it", async ({ page }) => {
+    await signedInAs(page, "Matti Meikäläinen");
+    await page.goto("/ulkomaat");
+
+    await page.getByRole("button", { name: /^Tili:/ }).click();
+    await expect(page.getByRole("link", { name: "Asetukset" })).toBeVisible();
+
+    // Well below the header, on ordinary page content.
+    await page.mouse.click(20, 400);
+
+    await expect(page.getByRole("link", { name: "Asetukset" })).toHaveCount(0);
+    // Still usable afterwards — the rescue must not have left the trigger in a
+    // state that swallows the next click.
+    await page.getByRole("button", { name: /^Tili:/ }).click();
+    await expect(page.getByRole("link", { name: "Asetukset" })).toBeVisible();
+  });
+
   test("reaches the settings page", async ({ page }) => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto("/ulkomaat");
