@@ -104,15 +104,16 @@ describe("the settings route", () => {
     expect(screen.getByText("Tilin poistaminen")).toBeInTheDocument();
   });
 
-  it("describes the current device without an IP address", async () => {
+  it("describes the current device without an IP address or an operating system", async () => {
     await renderPage();
 
-    expect(screen.getByText("Chrome · macOS")).toBeInTheDocument();
+    expect(screen.getByText("Chrome")).toBeInTheDocument();
     expect(screen.getByText("Tämä laite")).toBeInTheDocument();
     // A session with no user agent still gets a row, not a blank one.
     expect(screen.getByText("Tuntematon selain")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+    expect(document.body.textContent).not.toMatch(/macOS|Windows/);
   });
 
   it("shows stored preferences as the selected values", async () => {

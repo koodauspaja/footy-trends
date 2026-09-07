@@ -7,6 +7,12 @@
  * sign other devices out. It is not analytics: a wrong guess costs nothing,
  * while a parsing library would be a supply-chain dependency bought for one
  * line of a settings page.
+ *
+ * **The operating system is deliberately not shown.** An earlier version
+ * rendered `Chrome · macOS`, which put two English product names in a Finnish
+ * UI to say what one already says. Confirmed with Miikka: the browser alone
+ * identifies a device well enough, and the cost — two Chrome sessions on
+ * different machines reading alike — is accepted.
  */
 
 const UNKNOWN_BROWSER = "Tuntematon selain";
@@ -25,43 +31,20 @@ const BROWSERS: ReadonlyArray<readonly [needle: string, label: string]> = [
 ];
 
 /**
- * Also order-dependent: an iPhone's UA contains `Mac OS X`, and an Android's
- * contains `Linux`. The specific platform has to be tested before the general
- * one it is built on.
- */
-const SYSTEMS: ReadonlyArray<readonly [needle: string, label: string]> = [
-  ["iPhone", "iOS"],
-  ["iPad", "iPadOS"],
-  ["Android", "Android"],
-  ["Windows", "Windows"],
-  ["Mac OS X", "macOS"],
-  ["Linux", "Linux"],
-];
-
-function firstMatch(value: string, table: ReadonlyArray<readonly [string, string]>): string | null {
-  for (const [needle, label] of table) {
-    if (value.includes(needle)) return label;
-  }
-  return null;
-}
-
-/**
- * `Chrome · macOS`, or just the browser where the system is unrecognised.
+ * The browser behind a session, or `Tuntematon selain`.
  *
- * Falls back to `Tuntematon selain` rather than showing a raw user-agent
- * string: the row exists to be recognised at a glance, and 200 characters of
- * `Mozilla/5.0 (…)` is not that. Null and empty are treated the same, since
- * `user_agent` is nullable — a request behind some proxies carries no such
- * header at all.
+ * Never the raw user-agent string: the row exists to be recognised at a glance,
+ * and 200 characters of `Mozilla/5.0 (…)` is not that. Null and empty are the
+ * same answer, since `user_agent` is nullable — behind some proxies the header
+ * never arrives at all.
  */
 export function describeDevice(userAgent: string | null): string {
   if (userAgent === null || userAgent.trim() === "") return UNKNOWN_BROWSER;
 
-  const browser = firstMatch(userAgent, BROWSERS);
-  if (browser === null) return UNKNOWN_BROWSER;
-
-  const system = firstMatch(userAgent, SYSTEMS);
-  return system === null ? browser : `${browser} · ${system}`;
+  for (const [needle, label] of BROWSERS) {
+    if (userAgent.includes(needle)) return label;
+  }
+  return UNKNOWN_BROWSER;
 }
 
 /**

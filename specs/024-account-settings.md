@@ -195,7 +195,7 @@ One row per session:
 
 | Element | String |
 |---|---|
-| Device | `Chrome · macOS` — browser and operating system |
+| Device | `Chrome` — the browser, and **not** the operating system |
 | Current session | `Tämä laite` |
 | Last used | `Käytetty tänään` / `Käytetty eilen` / `Käytetty 3.9.2026` |
 | Button | `Kirjaa ulos muut laitteet` |
@@ -310,10 +310,17 @@ session proves the account already.
 
 ### Parsing the user agent
 
-A small, local mapping — no dependency. Browser from the first match among Edge,
-Chrome, Firefox, Safari; OS from macOS, Windows, Linux, iOS, Android. Edge before
-Chrome and Chrome before Safari, because their UA strings contain each other's
-names. Anything unmatched renders `Tuntematon selain`.
+A small, local mapping — no dependency. The browser is the first match among
+Edge, Opera, Firefox, Chrome, Safari; Edge before Chrome and Chrome before
+Safari, because their UA strings contain each other's names. Anything unmatched
+renders `Tuntematon selain`.
+
+**The operating system is not shown.** `Chrome · macOS` put two English product
+names into a Finnish page to say what the browser alone already says, and
+CLAUDE.md's Finnish-UI rule admits no exception worth spending there. The
+accepted cost is that two Chrome sessions on different machines read alike; the
+browser is still enough to notice a device that is not yours, which is what the
+section is for.
 
 This is deliberately crude. It exists so a reader can recognise a device, not to
 be an analytics-grade parser, and a wrong guess costs nothing.
@@ -430,7 +437,7 @@ be an analytics-grade parser, and a wrong guess costs nothing.
 | File | Assertions |
 |---|---|
 | `lib/preferences.test.ts` (new) | A stale competition code resolves to the hardcoded default; a valid one wins; an absent preference falls back; an unknown region is ignored. |
-| `lib/user-agent.test.ts` (new) | Edge before Chrome, Chrome before Safari; each OS; an unparseable string gives `Tuntematon selain`. |
+| `lib/user-agent.test.ts` (new) | Edge before Chrome, Chrome before Safari; an unparseable string gives `Tuntematon selain`; **no output ever names an operating system**. |
 | `components/settings-page.test.tsx` (new) | Signed out → the Finnish prompt. Pending → heading only, never the prompt. Signed in → the three sections. Save failure keeps the reader's input. |
 | `components/delete-account.test.tsx` (new) | The button is disabled until `POISTA` exactly; ` POISTA ` enables it; `poista` does not. |
 | `components/sessions-list.test.tsx` (new) | Current session marked; a single session hides the button; **no IP appears in the rendered output**. |

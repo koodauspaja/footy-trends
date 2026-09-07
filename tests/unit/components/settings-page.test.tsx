@@ -40,13 +40,13 @@ const REGION_OPTIONS: RegionOptions[] = [
 
 const THIS_DEVICE: Device = {
   id: "a",
-  description: "Chrome · macOS",
+  description: "Chrome",
   lastUsed: "Käytetty tänään",
   current: true,
 };
 const OTHER_DEVICE: Device = {
   id: "b",
-  description: "Safari · iOS",
+  description: "Safari",
   lastUsed: "Käytetty eilen",
   current: false,
 };
@@ -171,7 +171,7 @@ describe("signed-in devices", () => {
   it("marks the current device and never shows an IP address", () => {
     renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
 
-    expect(screen.getByText("Chrome · macOS")).toBeInTheDocument();
+    expect(screen.getByText("Chrome")).toBeInTheDocument();
     expect(screen.getByText("Tämä laite")).toBeInTheDocument();
     // Location-revealing, and pages get screenshotted.
     expect(document.body.textContent).not.toMatch(/\d+\.\d+\.\d+\.\d+/);

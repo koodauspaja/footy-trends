@@ -17,21 +17,22 @@ describe("describeDevice", () => {
   it.each([
     // Every one of these contains the name of a browser further down the list.
     // Order is the whole trick, so each case pins one rung of it.
-    ["Edge over Chrome and Safari", EDGE_WINDOWS, "Edge · Windows"],
-    ["Chrome over Safari", CHROME_MAC, "Chrome · macOS"],
-    ["Safari when nothing else matches", SAFARI_MAC, "Safari · macOS"],
-    ["Firefox", FIREFOX_LINUX, "Firefox · Linux"],
+    ["Edge over Chrome and Safari", EDGE_WINDOWS, "Edge"],
+    ["Chrome over Safari", CHROME_MAC, "Chrome"],
+    ["Safari when nothing else matches", SAFARI_MAC, "Safari"],
+    ["Firefox", FIREFOX_LINUX, "Firefox"],
+    ["Safari on a phone", SAFARI_IPHONE, "Safari"],
+    ["Chrome on Android", CHROME_ANDROID, "Chrome"],
   ])("picks %s", (_case, userAgent, expected) => {
     expect(describeDevice(userAgent)).toBe(expected);
   });
 
-  it.each([
-    // An iPhone's UA says `Mac OS X`; an Android's says `Linux`. The specific
-    // platform has to win over the general one it is built on.
-    ["iPhone over macOS", SAFARI_IPHONE, "Safari · iOS"],
-    ["Android over Linux", CHROME_ANDROID, "Chrome · Android"],
-  ])("picks %s", (_case, userAgent, expected) => {
-    expect(describeDevice(userAgent)).toBe(expected);
+  it("never names an operating system", () => {
+    // Confirmed with Miikka: the OS put two English product names in a Finnish
+    // UI to say what the browser already says.
+    for (const userAgent of [CHROME_MAC, EDGE_WINDOWS, SAFARI_IPHONE, CHROME_ANDROID]) {
+      expect(describeDevice(userAgent)).not.toMatch(/macOS|Windows|iOS|Android|Linux|·/);
+    }
   });
 
   it.each([
@@ -45,7 +46,7 @@ describe("describeDevice", () => {
     expect(describeDevice(userAgent)).toBe("Tuntematon selain");
   });
 
-  it("names the browser alone when the system is unrecognised", () => {
+  it("names the browser whatever the platform", () => {
     expect(describeDevice("Mozilla/5.0 (Unknown) Firefox/130.0")).toBe("Firefox");
   });
 });

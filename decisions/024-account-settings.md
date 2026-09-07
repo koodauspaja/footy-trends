@@ -229,6 +229,24 @@ session interception, the device list and its no-IP rule at the route level, the
 deletion gate and its four-table cascade across unit and integration. What was
 genuinely missing was the seam above, not a browser.
 
+## The one review finding that turned into a product decision
+
+The last round flagged `Chrome · macOS` as English strings in a Finnish UI. My
+first response was to argue in a commit message that these are product names —
+which is not a decision, is invisible on the PR, and left the finding untouched.
+
+The repo's own convention is more precise than "brands are not translated": it
+translates where a Finnish form exists (`Valioliiga`, `Itävalta`) and keeps the
+proper noun where none does (`Bundesliga`, `Serie A`, `Ligue 1`). No Finnish
+form exists for Chrome or macOS, so by that convention both could stay.
+
+Put to Miikka rather than settled unilaterally, the answer was better than
+either option I was weighing: **drop the operating system entirely.** It was
+saying what the browser already says, at the cost of a second English token per
+row. The `SYSTEMS` table is gone rather than left unused, and a test now asserts
+that no output names an OS. The accepted cost — two Chrome sessions on different
+machines reading alike — is recorded in the spec.
+
 ## Verification
 
 - `npm run test:unit` — **100% statements, branches, functions and lines**, and
