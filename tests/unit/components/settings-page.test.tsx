@@ -51,7 +51,10 @@ const OTHER_DEVICE: Device = {
   current: false,
 };
 
-function renderPage(preferences: Preferences = NO_PREFERENCES, devices: Device[] = [THIS_DEVICE]) {
+function renderPage(
+  preferences: Preferences = NO_PREFERENCES,
+  devices: Device[] | null = [THIS_DEVICE]
+) {
   return render(
     <SettingsPage devices={devices} preferences={preferences} regionOptions={REGION_OPTIONS} />
   );
@@ -164,6 +167,26 @@ describe("signed-in devices", () => {
     expect(
       screen.queryByRole("button", { name: "Kirjaa ulos muut laitteet" })
     ).not.toBeInTheDocument();
+  });
+
+  it("says the list is unknown rather than claiming there is only one device", () => {
+    // "Olet kirjautunut sisään vain tällä laitteella" is a claim about the
+    // reader's account security. A failed request cannot support it, and
+    // stating it would hide the very sessions this section exists to reveal.
+    renderPage(NO_PREFERENCES, null);
+
+    expect(screen.getByText("Laitelistaa ei voitu ladata.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Olet kirjautunut sisään vain tällä laitteella.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("still offers to sign other devices out when the list is unknown", () => {
+    // Revoking works whether or not we could enumerate them, and a reader who
+    // suspects something is wrong should not be left without the control.
+    renderPage(NO_PREFERENCES, null);
+
+    expect(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" })).toBeInTheDocument();
   });
 
   it("signs the other devices out", async () => {

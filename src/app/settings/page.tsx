@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
-import { type RegionOptions, SettingsPage } from "@/components/settings-page";
+import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { auth } from "@/lib/auth";
 import { competitionOptionsFor, fallbackLabelFor } from "@/lib/competition-preferences";
@@ -35,9 +36,30 @@ export default async function Settings() {
   }
 
   const row = await currentPreferencesRow();
+
+  /**
+   * A failed lookup is not "no preferences". Rendering defaults here would show
+   * a reader their settings apparently reset, and a save would then overwrite
+   * the real ones — losing settings because a query briefly failed. So the form
+   * is withheld entirely rather than shown with wrong values.
+   */
+  if (row === "error") {
+    return (
+      <PageShell heading={HEADING}>
+        <Notice>Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.</Notice>
+      </PageShell>
+    );
+  }
+
   const preferences = row === null ? NO_PREFERENCES : toPreferences(row);
 
-  let devices: Array<{ id: string; description: string; lastUsed: string; current: boolean }> = [];
+  /**
+   * `null` means the list could not be read, which is **not** the same as "one
+   * device". Reporting an empty list would tell the reader nothing else is
+   * signed in — a claim about their account security that we cannot back, and
+   * that hides the very sessions the section exists to reveal.
+   */
+  let devices: Device[] | null = null;
   try {
     const sessions = await auth.api.listSessions({ headers: requestHeaders });
     devices = sessions.map((entry) => ({
@@ -51,7 +73,7 @@ export default async function Settings() {
     }));
   } catch (error) {
     // The device list failing must not take the whole settings page with it —
-    // the preferences below are still editable without it.
+    // the preferences are still editable without it.
     logger.error({ err: error }, "Listing sessions failed");
   }
 

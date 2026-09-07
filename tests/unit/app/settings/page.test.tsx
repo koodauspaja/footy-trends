@@ -68,6 +68,9 @@ beforeEach(() => {
   state.signedIn = true;
   state.listThrows = false;
   state.row = null;
+  // `clearAllMocks` clears calls but not implementations, so a
+  // `mockResolvedValue` in one test would otherwise leak into the next.
+  currentPreferencesRow.mockImplementation(async () => state.row);
 });
 
 describe("the settings route", () => {
@@ -119,6 +122,20 @@ describe("the settings route", () => {
     expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
   });
 
+  it("withholds the form when preferences cannot be read", async () => {
+    // Rendering defaults would show settings apparently reset, and a save
+    // would overwrite the real ones.
+    currentPreferencesRow.mockResolvedValue("error");
+
+    await renderPage();
+
+    expect(
+      screen.getByText("Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Aloitusnäkymä")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tallenna" })).not.toBeInTheDocument();
+  });
+
   it("still renders the editable preferences when the device list fails", async () => {
     // A failing session list must not take the whole page with it.
     state.listThrows = true;
@@ -126,7 +143,11 @@ describe("the settings route", () => {
     await renderPage();
 
     expect(screen.getByText("Aloitusnäkymä")).toBeInTheDocument();
-    expect(screen.getByText("Olet kirjautunut sisään vain tällä laitteella.")).toBeInTheDocument();
+    // Unknown, not "only this device".
+    expect(screen.getByText("Laitelistaa ei voitu ladata.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Olet kirjautunut sisään vain tällä laitteella.")
+    ).not.toBeInTheDocument();
     expect(logger.error).toHaveBeenCalled();
   });
 });

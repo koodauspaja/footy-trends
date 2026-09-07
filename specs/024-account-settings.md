@@ -336,6 +336,9 @@ be an analytics-grade parser, and a wrong guess costs nothing.
 | Deletion fails midway | Postgres cascades are one transaction: either the user and everything keyed to them are gone, or nothing is. There is no half-deleted state to recover from. |
 | Reader types `poista` or ` POISTA ` | Trimmed, then compared case-sensitively. `POISTA` with surrounding spaces works; lowercase does not. |
 | Save fails | The form keeps what the reader typed and shows the failure. Nothing is silently discarded. |
+| Preferences cannot be **read** | The form is withheld entirely and the page shows `Asetusten lataaminen epäonnistui. Yritä myöhemmin uudelleen.` Rendering defaults would show settings apparently reset, and a save would then overwrite the real ones — losing them to a query that briefly failed. "Failed" and "never saved" must not collapse into one state. |
+| The device list cannot be read | `Laitelistaa ei voitu ladata.`, and the sign-out button stays. **Never** `Olet kirjautunut sisään vain tällä laitteella.` — that is a claim about the reader's account security that a failed request cannot support, and it would hide the very sessions this section exists to reveal. |
+| Resolving the session fails during a save | Returns a failure, never rejects. The client awaits the action with no rejection handler, so a thrown error would leave the reader with a form that silently did nothing. |
 
 ## Performance & Limits
 

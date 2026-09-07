@@ -31,9 +31,6 @@ function orNull(value: FormDataEntryValue | null): string | null {
 }
 
 export async function saveSettings(formData: FormData): Promise<ActionResult> {
-  const userId = await currentUserId();
-  if (userId === null) return { ok: false };
-
   const region = orNull(formData.get("defaultRegion"));
   // Validated here as well as on read: a region that is not one of the three
   // would redirect nobody, but storing it would leave a value in the database
@@ -49,6 +46,14 @@ export async function saveSettings(formData: FormData): Promise<ActionResult> {
   };
 
   try {
+    // Inside the `try`, not before it: resolving the session reads request
+    // headers and hits the database, and a failure there would reject the
+    // server action rather than returning `{ ok: false }`. The client awaits
+    // this and has no rejection handler, so the reader would be left with a
+    // form that silently did nothing instead of the promised Finnish notice.
+    const userId = await currentUserId();
+    if (userId === null) return { ok: false };
+
     // The row is created on first save rather than at sign-in, so its existence
     // means someone chose something.
     await db
@@ -56,7 +61,7 @@ export async function saveSettings(formData: FormData): Promise<ActionResult> {
       .values({ id: randomUUID(), userId, ...values })
       .onConflictDoUpdate({ target: userPreferences.userId, set: values });
   } catch (error) {
-    logger.error({ err: error, userId }, "Saving settings failed");
+    logger.error({ err: error }, "Saving settings failed");
     return { ok: false };
   }
 
@@ -96,16 +101,29 @@ export async function deleteAccount(confirmation: string): Promise<ActionResult>
   }
 }
 
-/** Exported for the settings page, which needs the row it may have just written. */
+/**
+ * The reader's stored row for the settings page.
+ *
+ * Three outcomes, deliberately distinguished: the row, `null` for a reader who
+ * has never saved, and `"error"` when the lookup failed. Collapsing the last
+ * two would show a reader their preferences reset to defaults and let them
+ * overwrite the real ones with a save — losing settings because a query
+ * briefly failed. See specs/024-account-settings.md.
+ */
 export async function currentPreferencesRow() {
-  const userId = await currentUserId();
-  if (userId === null) return null;
+  try {
+    const userId = await currentUserId();
+    if (userId === null) return null;
 
-  const [row] = await db
-    .select()
-    .from(userPreferences)
-    .where(eq(userPreferences.userId, userId))
-    .limit(1);
+    const [row] = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1);
 
-  return row ?? null;
+    return row ?? null;
+  } catch (error) {
+    logger.error({ err: error }, "Reading settings failed");
+    return "error" as const;
+  }
 }

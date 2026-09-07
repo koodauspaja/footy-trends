@@ -171,6 +171,26 @@ The first version of that test asserted only that the parameter was `invalid`,
 which is trivially true and would have passed either way. Asserting the resolved
 competition is what surfaced the contradiction.
 
+## Reading the whole review, not the last comment
+
+A first review left four inline comments and a second left two. Only the
+second review's body was read, so four findings sat unaddressed while the PR
+looked handled. Re-reading every inline comment on the PR found three real
+`bug_risk` items still open, all in the same family — **failure states that lie
+about what is true**:
+
+| Finding | What it did | What it does now |
+|---|---|---|
+| `settings/page.tsx:38` | A failed preferences query rejected the render | The form is withheld and the page says loading failed. Rendering defaults would show settings apparently reset, and a save would overwrite the real ones — "failed" and "never saved" must not be the same state |
+| `settings/page.tsx:56` | A failed `listSessions` became an empty list, so the page said `Olet kirjautunut sisään vain tällä laitteella.` | `Laitelistaa ei voitu ladata.`, with the sign-out button kept. The old text is a claim about the reader's account security that a failed request cannot support, and it hides the very sessions the section exists to reveal |
+| `settings-actions.ts:35` | `currentUserId()` ran before the `try`, so an auth failure rejected the action | Inside the `try`. The client awaits with no rejection handler, so the reader got a form that silently did nothing instead of the promised notice |
+
+The fourth finding — an invalid `?kilpailu=` falling through to the preference —
+is the spec error described above; the code was right.
+
+Each fix was checked by reverting it and watching the test fail: four tests go
+red against the pre-fix code.
+
 ## Verification
 
 - `npm run test:unit` — **100% statements, branches, functions and lines**, and

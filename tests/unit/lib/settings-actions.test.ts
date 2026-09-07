@@ -102,6 +102,17 @@ describe("saveSettings", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("returns a failure rather than rejecting when the session cannot be resolved", async () => {
+    // The client awaits this with no rejection handler, so a thrown error
+    // leaves the reader with a form that silently did nothing instead of the
+    // promised Finnish notice.
+    getSession.mockRejectedValueOnce(new Error("headers unavailable"));
+    const { saveSettings } = await import("@/lib/settings-actions");
+
+    await expect(saveSettings(form({ defaultRegion: "kotimaa" }))).resolves.toEqual({ ok: false });
+    expect(logger.error).toHaveBeenCalled();
+  });
+
   it("reports a database failure instead of claiming a save", async () => {
     state.insertThrows = true;
     const { saveSettings } = await import("@/lib/settings-actions");
@@ -173,6 +184,16 @@ describe("currentPreferencesRow", () => {
     const { currentPreferencesRow } = await import("@/lib/settings-actions");
 
     expect(await currentPreferencesRow()).toMatchObject({ defaultRegion: "kotimaa" });
+  });
+
+  it("distinguishes a failed lookup from having no preferences", async () => {
+    // Collapsing these would show the reader defaults, and a save would then
+    // overwrite their real settings — losing them to a transient query failure.
+    getSession.mockRejectedValueOnce(new Error("database down"));
+    const { currentPreferencesRow } = await import("@/lib/settings-actions");
+
+    expect(await currentPreferencesRow()).toBe("error");
+    expect(logger.error).toHaveBeenCalled();
   });
 
   it("returns null when there is no row yet", async () => {

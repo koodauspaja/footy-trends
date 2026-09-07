@@ -29,7 +29,8 @@ export type RegionOptions = {
 
 type Props = Readonly<{
   preferences: Preferences;
-  devices: Device[];
+  /** `null` when the list could not be read — distinct from an empty list. */
+  devices: Device[] | null;
   regionOptions: RegionOptions[];
 }>;
 
@@ -147,16 +148,20 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
   );
 }
 
-function DeviceList({ devices }: Readonly<{ devices: Device[] }>) {
+function DeviceList({ devices }: Readonly<{ devices: Device[] | null }>) {
   const [result, setResult] = useState<null | "ok" | "error">(null);
   const [pending, startTransition] = useTransition();
-  const others = devices.filter((device) => !device.current);
+  // Unknown, not empty. "Only this device" is a claim about the reader's
+  // account security, and we cannot make it from a failed request.
+  const unknown = devices === null;
+  const others = devices?.filter((device) => !device.current) ?? [];
 
   return (
     <section className={SECTION_CLASS}>
       <h2 className={HEADING_CLASS}>Kirjautuneet laitteet</h2>
+      {unknown && <Notice>Laitelistaa ei voitu ladata.</Notice>}
       <ul className="mb-3 flex flex-col gap-2">
-        {devices.map((device) => (
+        {(devices ?? []).map((device) => (
           <li className="text-sm" key={device.id}>
             <span>{device.description}</span>
             {device.current && <span className="ml-2 text-zinc-600">Tämä laite</span>}
@@ -164,7 +169,7 @@ function DeviceList({ devices }: Readonly<{ devices: Device[] }>) {
           </li>
         ))}
       </ul>
-      {others.length === 0 ? (
+      {!unknown && others.length === 0 ? (
         <p className="text-sm text-zinc-600">Olet kirjautunut sisään vain tällä laitteella.</p>
       ) : (
         <button
