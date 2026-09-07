@@ -41,7 +41,7 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         run: npm run typecheck
@@ -107,13 +107,29 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run tests with coverage
         run: npm test
 
+      # The newest release tag becomes the project version, which is what the
+      # "previous version" new-code definition measures against. Not
+      # `git describe`: a release tag sits on a merge commit created on
+      # `release`, which `main` cannot reach.
+      - name: Read the last release tag
+        id: version
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          echo "value=${tag:-0.0.0}" >> "$GITHUB_OUTPUT"
+
+      # `sonarcloud-github-action` is archived and deprecated. Pin the
+      # replacement by SHA, never `@master`.
       - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        with:
+          args: >-
+            -Dsonar.projectVersion=${{ steps.version.outputs.value }}
+            -Dsonar.scanner.skipNodeProvisioning=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

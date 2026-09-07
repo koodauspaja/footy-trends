@@ -100,13 +100,29 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run tests with coverage
         run: npm test
 
+      # The newest release tag becomes the project version, which is what the
+      # "previous version" new-code definition measures against. Not
+      # `git describe`: a release tag sits on a merge commit created on
+      # `release`, which `main` cannot reach.
+      - name: Read the last release tag
+        id: version
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          echo "value=${tag:-0.0.0}" >> "$GITHUB_OUTPUT"
+
+      # `sonarcloud-github-action` is archived and deprecated. Pin the
+      # replacement by SHA, never `@master`.
       - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        with:
+          args: >-
+            -Dsonar.projectVersion=${{ steps.version.outputs.value }}
+            -Dsonar.scanner.skipNodeProvisioning=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -122,16 +138,68 @@ Create file: `sonar-project.properties` in the repo root.
 sonar.projectKey=YOUR_PROJECT_KEY
 sonar.organization=YOUR_ORGANIZATION
 
-sonar.sources=src
+# The whole repository, not just `src`. The stock profiles for GitHub Actions,
+# Secrets, YAML, JSON and Docker only ever see a file if it is indexed, and a
+# committed API key is exactly what they are for.
+sonar.sources=.
 sonar.tests=tests
 
 sonar.javascript.lcov.reportPaths=coverage/lcov.info
-sonar.typescript.tsconfigPath=tsconfig.json
 
-# Exclude generated files and config from analysis
-sonar.exclusions=**/*.spec.ts,**/node_modules/**,**/dist/**
-sonar.coverage.exclusions=**/*.spec.ts
+# Without this the scanner uploads the analysis and exits successfully, while
+# the Quality Gate is evaluated afterwards on SonarCloud's servers — so a
+# failing gate leaves the GitHub check green. This makes the scanner poll for
+# the result and fail the job.
+sonar.qualitygate.wait=true
+
+# Build output, dependencies and generated reports.
+#
+# `tests/**` belongs here too: `sonar.sources=.` contains it and `sonar.tests`
+# claims it, and a file indexed as both source and test fails the analysis.
+# This property applies to main sources only, so the tests are still analysed
+# as tests.
+sonar.exclusions=tests/**,package-lock.json,node_modules/**,.next/**,coverage/**
+
+# Derive this list, do not copy it — see below.
+sonar.coverage.exclusions=
 ```
+
+### Deriving the coverage exclusions
+
+Every source file absent from the lcov report is scored 0% by the Zero Coverage
+Sensor, so widening the scope means naming what cannot be covered. The list is
+project-specific and this repository's has twenty-one entries; the guide
+deliberately does not reproduce it, because a copy here would drift from the
+real one silently.
+
+Derive it instead. After a coverage run, every tracked JS/TS file absent from
+the report is a file the sensor would score 0%:
+
+```bash
+npm run test:unit
+comm -23 \
+  <(git ls-files '*.ts' '*.tsx' '*.mjs' | grep -v '^tests/' | sort) \
+  <(grep '^SF:' coverage/lcov.info | cut -d: -f2 | sort)
+```
+
+Every line it prints must then appear in `sonar.coverage.exclusions` — or,
+better, gain a test. The command lists candidates and does not subtract what is
+already excluded, so read its output against the property rather than expecting
+it to fall empty. Two rules:
+
+- **Name files, never a directory.** `scripts/**` is shorter and wrong: it also
+  discards the halves that *are* tested, reporting covered code as excluded.
+- **A pattern matching nothing is worse than no pattern**, because it looks
+  load-bearing in review. Check every entry still names a file that exists —
+  two in this repository outlived their files by months.
+
+There is no `sonar.typescript.tsconfigPath`. The property is `tsconfigPaths`,
+plural, and unset the analyzer traverses from the project root and finds
+`tsconfig.json` by itself — so leave it out.
+
+The authoritative version of this file is the one in the repository root; this
+block is the shape to start from, not a copy to maintain in two places. See
+#258 for how each line was arrived at.
 
 Replace `YOUR_PROJECT_KEY` and `YOUR_ORGANIZATION` with the values from
 Step 3. These are not secrets — it is fine to commit them.

@@ -13,8 +13,12 @@ football-data.org API — the same setup used for local development
   `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
   being missing, rather than letting every spec time out against a generic
   error page
-- Chromium installed for Playwright: `npx playwright install chromium`
-  (one-time, not run automatically on `npm install`)
+- Chromium installed for Playwright: `npm run test:e2e:browser`
+  (one-time, not run automatically on `npm install`). The same script the
+  release workflow runs, so a local browser matches CI's. Not `npx`, which may
+  fetch a package on demand and run its lifecycle scripts; this resolves the
+  playwright already in `node_modules`. Its `--with-deps` installs the shared
+  libraries a headless browser needs on Linux and is a no-op on macOS
 
 ## Running
 
