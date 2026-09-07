@@ -4,7 +4,7 @@
 Create a Google Cloud project, enable the OAuth API, and generate credentials
 so the app can offer Google sign-in. No app code in this step — just the
 infrastructure. The credentials will sit in Railway as environment variables,
-ready for the NextAuth integration in the feature spec.
+ready for the better-auth integration in `specs/023-google-oauth-login.md`.
 
 ---
 
@@ -74,10 +74,18 @@ users see when they click "Sign in with Google".
 |------|-------|
 | `GOOGLE_CLIENT_ID` | your Client ID from Step 3 |
 | `GOOGLE_CLIENT_SECRET` | your Client Secret from Step 3 |
-| `NEXTAUTH_SECRET` | a random string (generate with `openssl rand -base64 32`) |
-| `NEXTAUTH_URL` | your Railway production URL, e.g. `https://footy-trends.up.railway.app` |
+| `BETTER_AUTH_SECRET` | a random string (generate with `openssl rand -base64 32`) |
+| `BETTER_AUTH_URL` | your Railway production URL, e.g. `https://footy-trends.up.railway.app` |
 
-Generate the `NEXTAUTH_SECRET` locally:
+> **Renamed in `specs/023-google-oauth-login.md`.** This step originally named
+> these `NEXTAUTH_SECRET` and `NEXTAUTH_URL`. The app uses **better-auth**, not
+> NextAuth, which reads the `BETTER_AUTH_*` names. If you already set the old
+> pair, copy the same values across — nothing needs regenerating — and delete
+> the `NEXTAUTH_*` variables once sign-in works. The redirect URI registered in
+> Step 3 is unchanged: better-auth serves the same
+> `/api/auth/callback/google` path.
+
+Generate the `BETTER_AUTH_SECRET` locally:
 ```bash
 openssl rand -base64 32
 ```
@@ -91,11 +99,11 @@ Add to your `.env` file:
 ```
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
-NEXTAUTH_SECRET=your_random_secret
-NEXTAUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=your_random_secret
+BETTER_AUTH_URL=http://localhost:3000
 ```
 
-Note that `NEXTAUTH_URL` differs between local (localhost) and production
+Note that `BETTER_AUTH_URL` differs between local (localhost) and production
 (Railway URL) — Railway overrides it automatically via the Variables tab.
 
 ---
@@ -120,8 +128,8 @@ confirm the consent screen appears and looks correct.
 - [ ] Google Cloud project `footy-trends` created
 - [ ] OAuth consent screen configured with test users added
 - [ ] OAuth client ID and secret generated
-- [ ] `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and
-      `NEXTAUTH_URL` stored in Railway variables
+- [ ] `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, and
+      `BETTER_AUTH_URL` stored in Railway variables
 - [ ] Same variables added to local `.env`
 - [ ] Consent screen verified in browser
 

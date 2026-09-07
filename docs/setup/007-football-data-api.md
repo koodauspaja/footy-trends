@@ -83,11 +83,11 @@ DATABASE_URL=postgresql://user:password@localhost:5432/footy-trends
 # Redis — Railway injects REDIS_URL automatically in production (added in 016)
 REDIS_URL=redis://localhost:6379
 
-# Google OAuth (added in 014)
+# Google OAuth (added in 014, wired up in specs/023-google-oauth-login.md)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:3000
 
 # Sentry (added in 017)
 NEXT_PUBLIC_SENTRY_DSN=
