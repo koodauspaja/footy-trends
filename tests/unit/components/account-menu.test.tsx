@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu } from "@/components/account-menu";
 
@@ -141,47 +141,79 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("link", { name: "Asetukset" })).toBeInTheDocument();
   });
 
-  it("rescues focus that an outside click would otherwise orphan", async () => {
+  /**
+   * The rescue runs on a zero-delay timer, so these three flush it
+   * deterministically rather than sleeping.
+   *
+   * A sleep would be a race — and `waitFor` would be worse here than a sleep:
+   * "focus was *not* stolen" is already true before the timer fires, so it
+   * would pass without ever observing the settled state. Running the timer is
+   * the only way to assert on what happens after it.
+   */
+  function flushFocusRescue() {
+    act(() => {
+      vi.runAllTimers();
+    });
+  }
+
+  it("rescues focus that an outside click would otherwise orphan", () => {
     // A keyboard reader tabs into the menu, then clicks empty space. The
     // focused element unmounts with the menu and focus falls to `<body>` —
     // measured, which is why this rescue exists at all.
-    renderMenu();
-    fireEvent.click(trigger());
-    screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
+    vi.useFakeTimers();
+    try {
+      renderMenu();
+      fireEvent.click(trigger());
+      screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
 
-    fireEvent.pointerDown(document.body);
+      fireEvent.pointerDown(document.body);
+      flushFocusRescue();
 
-    await vi.waitFor(() => expect(trigger()).toHaveFocus());
+      expect(trigger()).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("does not steal focus from whatever the reader clicked instead", async () => {
+  it("does not steal focus from whatever the reader clicked instead", () => {
     // The opposite failure: a click is itself a focus request, and overriding
     // it would yank the reader back to the header.
+    vi.useFakeTimers();
     const elsewhere = document.createElement("button");
     elsewhere.textContent = "Muu painike";
     document.body.append(elsewhere);
 
-    renderMenu();
-    fireEvent.click(trigger());
-    screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
+    try {
+      renderMenu();
+      fireEvent.click(trigger());
+      screen.getByRole("button", { name: "Kirjaudu ulos" }).focus();
 
-    fireEvent.pointerDown(elsewhere);
-    elsewhere.focus(); // what the browser's click default action does next
+      fireEvent.pointerDown(elsewhere);
+      elsewhere.focus(); // what the browser's click default action does next
+      flushFocusRescue();
 
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(elsewhere).toHaveFocus();
-    elsewhere.remove();
+      expect(elsewhere).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+      elsewhere.remove();
+    }
   });
 
-  it("leaves focus alone for a mouse reader who never entered the menu", async () => {
-    // Focus is on the trigger from the click that opened it, so there is
-    // nothing to rescue and no timer worth running.
-    renderMenu();
-    fireEvent.click(trigger());
+  it("leaves focus alone for a mouse reader who never entered the menu", () => {
+    // Focus is on the trigger from the click that opened it, so the rescue
+    // finds nothing orphaned and changes nothing.
+    vi.useFakeTimers();
+    try {
+      renderMenu();
+      fireEvent.click(trigger());
 
-    fireEvent.pointerDown(document.body);
+      fireEvent.pointerDown(document.body);
+      flushFocusRescue();
 
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(screen.queryByRole("link", { name: "Asetukset" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Asetukset" })).not.toBeInTheDocument();
+      expect(trigger()).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
