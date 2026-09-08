@@ -21,6 +21,7 @@ import {
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
   normalizeGroupTeams,
+  parseProviderId,
   type TasoGroup,
 } from "./taso";
 
@@ -882,26 +883,15 @@ function reportUnconfiguredContinuations(
     if (group.group_type !== "additional_group_stage") continue;
 
     /**
-     * Digits only, checked as a string before converting.
-     *
-     * Neither obvious numeric parse is safe here. `Number.parseInt` reads
-     * `"2abc"` as 2, so a malformed id would be attributed to a real group —
-     * either suppressing this error or raising it against the wrong one. And
-     * `Number` reads `""` as 0, which `Number.isInteger` then accepts, so an
-     * empty id would become group 0. A group id is a positive integer within
-     * the safe range, or it is not an id — and both ends of that are checked,
-     * because `"0"` and a twenty-digit string are both all-digits.
+     * The same validation `normalizeGroupTeams` applies before storing the
+     * group, deliberately from the same function rather than a second copy of
+     * the rule: a group this reports on and a group we store must be the same
+     * set, or one of them is describing data the other never saw. What it
+     * rejects, and why each rejection matters, is documented on
+     * `parseProviderId`.
      */
-    const rawId = group.group_id ?? "";
-    if (!/^\d+$/.test(rawId)) continue;
-
-    const groupId = Number(rawId);
-    // The digits check alone is not enough, and the two gaps are opposite
-    // ends of the same range. `"0"` is all digits but is not a group, and a
-    // long enough digit string converts to a rounded value or `Infinity` —
-    // which could be attributed to a real configured group. Both would have
-    // contradicted the sentence above this.
-    if (!Number.isSafeInteger(groupId) || groupId <= 0) continue;
+    const groupId = parseProviderId(group.group_id);
+    if (groupId === null) continue;
 
     if (configured[groupId] !== undefined) continue;
 

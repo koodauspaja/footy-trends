@@ -1977,6 +1977,17 @@ describe("resolveTasoSeasonContext", () => {
       ...overrides,
     });
 
+    /**
+     * A group with a team is the only shape that can reach storage, so the
+     * tests about ids that are not ids use it. With `teams: []` they would
+     * pass with every id check deleted, because an empty group contributes no
+     * rows whatever its id.
+     */
+    const withTeam = (groupId: string) =>
+      continuation(groupId, {
+        teams: [{ team_id: "60731", team_name: "HJK", points: 12 }],
+      });
+
     it("is reported, naming the group and TASO's own parent hint", async () => {
       mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
       getSeasonGroupsMock.mockResolvedValue([
@@ -2041,13 +2052,14 @@ describe("resolveTasoSeasonContext", () => {
       // Long enough that `Number` rounds it. Left unchecked this lands on a
       // real integer and can be attributed to a configured group.
       ["is beyond the safe integer range", "99999999999999999999"],
-    ])("skips a group whose id %s, rather than throwing", async (_case, groupId) => {
+    ])("neither reports nor stores a group whose id %s", async (_case, groupId) => {
       // Deliberately a competition with **no** configured groups. Under
       // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2
       // and is absorbed as "already configured" — the test would pass while the
       // malformed group was silently attributed to a real one.
+      mockInsert();
       mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
-      getSeasonGroupsMock.mockResolvedValue([continuation(groupId as string)]);
+      getSeasonGroupsMock.mockResolvedValue([withTeam(groupId as string)]);
 
       await expect(
         getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined)
@@ -2057,6 +2069,27 @@ describe("resolveTasoSeasonContext", () => {
         expect.anything(),
         expect.stringContaining("no carry-over entry")
       );
+      // Staying quiet is only half of it, and was all the first fix did
+      // (#285). A group whose id is unusable must not reach the table either:
+      // `"0"` would be stored as group 0, and an over-long id fails the insert
+      // for the whole season's snapshot.
+      expect(dbMock.insert).not.toHaveBeenCalled();
+    });
+
+    it("stores a continuation whose id is real, so the check above can fail", async () => {
+      // The positive control for the table above: same shape, same path, an id
+      // that is an id. Without this, deleting every group from the pipeline
+      // would leave that table green.
+      const { values } = mockInsert();
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([withTeam("9")]);
+
+      await getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(dbMock.insert).toHaveBeenCalledWith(tasoGroupTeams);
+      expect(values).toHaveBeenCalledWith([
+        expect.objectContaining({ groupId: 9, teamProviderId: 60731, points: 12 }),
+      ]);
     });
 
     it.each([
