@@ -112,8 +112,9 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
       {open && (
         <div
           /**
-           * `bg-background text-foreground`, not `bg-white`. Those two tokens
-           * are the ones `globals.css` flips under `prefers-color-scheme`, and
+           * `bg-background text-foreground`, not a pinned white. Those two
+           * tokens are the ones `globals.css` flips under
+           * `prefers-color-scheme`, and
            * `body` already uses them — so the panel and its contents move
            * together. Hardcoding a white surface while the text followed the
            * theme is what left this at 1.17:1 in dark mode (#273).

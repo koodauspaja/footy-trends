@@ -1,4 +1,14 @@
-@import "tailwindcss";
+/*
+ * `source` narrows what Tailwind scans for class names to `src`.
+ *
+ * Left to auto-detect, it reads every file in the project — tests and Markdown
+ * included — and emits a utility for any candidate it finds. Measured: the
+ * table in tests/unit/app/theme-tokens.test.ts, which exists to *forbid*
+ * shades, put `.bg-zinc-50`, `.bg-amber-50`, `.bg-slate-100` and three more
+ * into the shipped stylesheet, and a spec file added `.border-zinc-200`. Dead
+ * weight, and the wrong thing for a grep of the bundle to find.
+ */
+@import "tailwindcss" source("../");
 
 /*
  * Every colour the app renders is a token here, and every token has a value in
@@ -11,7 +21,7 @@
  * theme — reached 1.17:1 and was effectively invisible (#273).
  *
  * The rule that prevents a repeat is simple: a component names a role, never a
- * shade. `text-muted`, not `text-zinc-600`. A shade cannot know what is behind
+ * shade. `text-muted`, not a numbered zinc. A shade cannot know what is behind
  * it; a role can be given a value per scheme, once, here.
  *
  * Every pairing below is measured rather than eyeballed, and

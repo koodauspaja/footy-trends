@@ -173,6 +173,59 @@ async function expectLegible(page: Page, where: string, scheme: string) {
   ).toEqual([]);
 }
 
+/**
+ * Tailwind emits a utility for every class-shaped string it finds while
+ * scanning, and what it scans is configured rather than obvious.
+ *
+ * Left to auto-detect it reads the whole project: the table in
+ * `tests/unit/app/theme-tokens.test.ts` that exists to *forbid* shades put six
+ * of them into the shipped stylesheet, and `specs/024-account-settings.md`
+ * added `.border-zinc-200`. Harmless to look at and wrong to leave — a grep of
+ * the bundle for a shade should find nothing, and the source guard's own
+ * fixtures should not be the thing that breaks that.
+ */
+test("ships no shade utility, whatever the source scan picks up", async ({ page }) => {
+  await page.goto("/");
+
+  const shades = await page.evaluate(() => {
+    /**
+     * Every selector in the sheet, however deeply nested.
+     *
+     * Two traps, both hit while writing this. Tailwind emits its utilities
+     * inside one `@layer utilities` block, so matching the top-level rules
+     * finds nothing whatever the stylesheet contains — the first version of
+     * this test passed with six shades in the bundle. And in a browser that
+     * supports CSS nesting a plain `CSSStyleRule` *also* answers to
+     * `cssRules`, so treating "has cssRules" as "is not a style rule" throws
+     * away every selector there is. A rule can be both, and is read as both.
+     */
+    const selectorsOf = (rules: CSSRuleList): string[] =>
+      [...rules].flatMap((rule) => [
+        ...(typeof (rule as CSSStyleRule).selectorText === "string"
+          ? [(rule as CSSStyleRule).selectorText]
+          : []),
+        ...("cssRules" in rule ? selectorsOf((rule as CSSGroupingRule).cssRules) : []),
+      ]);
+
+    const selectors = [...document.styleSheets].flatMap((sheet) => {
+      try {
+        return selectorsOf(sheet.cssRules);
+      } catch {
+        // A cross-origin sheet cannot be read, and none of ours is.
+        return [];
+      }
+    });
+
+    const shade =
+      /\.(?:bg|text|border|ring|divide|outline|decoration|shadow|from|via|to|caret|accent|fill|stroke|placeholder)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\b/;
+    // Tailwind escapes `:` and `/` in selectors; the class underneath is what
+    // this is about.
+    return selectors.filter((selector) => shade.test(selector.replaceAll("\\", "")));
+  });
+
+  expect(shades).toEqual([]);
+});
+
 for (const scheme of ["light", "dark"] as const) {
   test.describe(`Colour scheme: ${scheme}`, () => {
     test.use({ colorScheme: scheme });
