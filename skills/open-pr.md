@@ -1,7 +1,13 @@
 # Skill: opening a pull request
 
 When you have finished implementing a feature and tests are passing, open a pull
-request using the following steps:
+request using the following steps.
+
+**First, run `skills/self-review.md`.** It is the pass over your own diff for the
+six defect classes this repository's reviews keep finding — measured, not
+guessed, and re-measurable with `npm run review:findings`. A round of review
+costs ten minutes of waiting and a context switch; the pass costs less, and the
+largest class (a test that proves nothing) has appeared in seven pull requests.
 
 1. Create a feature branch named `feature/NNN-short-description` where NNN is the
    **spec** number — the `NNN` in `specs/NNN-feature-name.md`, not the issue
