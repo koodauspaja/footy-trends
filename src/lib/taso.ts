@@ -172,11 +172,6 @@ function parseKickoff(date: string, time: string, offset: string): Date | null {
   return new Date(localMs - offsetTotalMinutes * 60_000);
 }
 
-/** `""` (an unplayed match's score) and `undefined` both mean "no score yet". */
-function parseScore(value: string | undefined): number | null {
-  return value === undefined || value === "" ? null : Number(value);
-}
-
 /**
  * `Forfeited` is a walkover, and TASO counts it: the row carries the awarded
  * result (3-0 in every case observed) and the team's `matches_played`
@@ -218,6 +213,35 @@ export function normalizeTasoMatch(
   )
     return null;
 
+  /**
+   * The four ids the row is stored under, all of them `integer NOT NULL`.
+   * `Number` alone let `""`, `"2abc"` and an over-long digit string through as
+   * 0, NaN and a rounded value — the first two fail the insert for the whole
+   * season, and the third stores the match under a group or team that exists
+   * but is not this one. One unusable row is worth less than the season.
+   */
+  const providerMatchId = parseProviderId(match.match_id);
+  const groupId = parseProviderId(match.group_id);
+  const homeTeamProviderId = parseProviderId(match.team_A_id);
+  const awayTeamProviderId = parseProviderId(match.team_B_id);
+  if (
+    providerMatchId === null ||
+    groupId === null ||
+    homeTeamProviderId === null ||
+    awayTeamProviderId === null
+  ) {
+    logger.warn(
+      {
+        matchId: match.match_id,
+        groupId: match.group_id,
+        homeTeamId: match.team_A_id,
+        awayTeamId: match.team_B_id,
+      },
+      "Skipping TASO match with an unusable id"
+    );
+    return null;
+  }
+
   // TASO returns a dateless row for every two-legged playoff final,
   // holding the tie's aggregate score — confirmed to be exactly the sum of
   // the two legs in 2019, 2022, 2023 and 2024. It is not a fixture and
@@ -235,21 +259,27 @@ export function normalizeTasoMatch(
   }
 
   return {
-    providerMatchId: Number(match.match_id),
+    providerMatchId,
     competitionCode: competitionId,
     categoryId,
     seasonId,
-    groupId: Number(match.group_id),
+    groupId,
     groupName: match.group_name,
     status: normalizeStatus(match.status),
     kickoffAt,
-    matchday: match.round_id === undefined ? null : Number(match.round_id),
-    homeTeamProviderId: Number(match.team_A_id),
+    // Not an identity, so an unusable round costs the round rather than the
+    // row — which is the same thing an absent one costs.
+    matchday: optionalNumber(match.round_id),
+    homeTeamProviderId,
     homeTeamName: match.team_A_name,
-    awayTeamProviderId: Number(match.team_B_id),
+    awayTeamProviderId,
     awayTeamName: match.team_B_name,
-    homeGoals: parseScore(match.fs_A),
-    awayGoals: parseScore(match.fs_B),
+    // `""` (an unplayed match's score) and `undefined` both mean "no score
+    // yet", which is what `optionalNumber` already answers for them — it read
+    // the same fields the same way, so a second copy of the rule only gave the
+    // scores their own version of the `Number` traps.
+    homeGoals: optionalNumber(match.fs_A),
+    awayGoals: optionalNumber(match.fs_B),
     winner: normalizeWinner(match.winner),
   };
 }
@@ -472,11 +502,53 @@ export type NormalizedTasoGroupTeam = {
   finalGroupStanding: number | null;
 };
 
-/** `undefined` and `null` both mean "TASO did not report this"; a knockout group omits the field entirely. */
+/**
+ * The range a Postgres `integer` column holds. Every numeric column these
+ * normalisers feed is one, so a number outside it is not a number we can
+ * store: it reaches the driver and fails the whole season's sync rather than
+ * costing a single field.
+ */
+const INT4_MIN = -2_147_483_648;
+const INT4_MAX = 2_147_483_647;
+
+/**
+ * One numeric field as TASO reported it, or `null` when it reported nothing
+ * usable — `undefined` and `null` both mean "not reported", and a knockout
+ * group omits the stat fields entirely.
+ *
+ * Two separate rules, because `Number` alone answers for far more than it
+ * should. It reads formats TASO does not write — `"0x10"` as 16, `"1e2"` as
+ * 100, `"+2"` and `" 2"` as 2, `""` as 0 — and each of those is a made-up
+ * value that looks exactly like a reported one. And it reads `"2abc"` as NaN,
+ * `"1e400"` as Infinity and `"2.5"` as a decimal, none of which an `integer`
+ * column takes, so they would fail at the driver rather than here. So: a
+ * string is a decimal integer or it is nothing, and the number it converts to
+ * has to be one the column can hold.
+ */
 function optionalNumber(value: number | string | null | undefined): number | null {
-  if (value === undefined || value === null || value === "") return null;
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && !/^-?\d+$/.test(value)) return null;
   const parsed = Number(value);
-  return Number.isNaN(parsed) ? null : parsed;
+  if (!Number.isInteger(parsed) || parsed < INT4_MIN || parsed > INT4_MAX) return null;
+  return parsed;
+}
+
+/**
+ * A TASO id — a match, a group, a team — or `null` when the field holds
+ * something that is not one.
+ *
+ * Separate from `optionalNumber` because an id is a *key*. An unusable stat
+ * costs one column; an unusable id costs the row its identity, and a
+ * plausible-looking wrong one files real data under something else — which is
+ * why the string-format rule above matters most here: `"0x10"` reported as
+ * group 16 is not a rejected id, it is a real group's table with a foreign
+ * team in it. Sign and zero are the rest of it: `Number("-0")` and `Number("")`
+ * are zero, which `Number.isInteger` accepts and which no TASO entity has. An
+ * id is a positive decimal integer the column can hold, or it is not an id.
+ */
+export function parseProviderId(value: number | string | null | undefined): number | null {
+  const parsed = optionalNumber(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
 }
 
 /**
@@ -491,11 +563,14 @@ export function normalizeGroupTeams(
   seasonId: number
 ): NormalizedTasoGroupTeam[] {
   return groups.flatMap((group) => {
-    const groupId = optionalNumber(group.group_id);
+    // Validated here rather than only where the group is *reported on*: this
+    // is the path that reaches the database, so an id that is not an id must
+    // be dropped before it becomes a stored row under a made-up key.
+    const groupId = parseProviderId(group.group_id);
     if (groupId === null) return [];
 
     return (group.teams ?? []).flatMap((team) => {
-      const teamProviderId = optionalNumber(team.team_id);
+      const teamProviderId = parseProviderId(team.team_id);
       if (teamProviderId === null) return [];
 
       return [

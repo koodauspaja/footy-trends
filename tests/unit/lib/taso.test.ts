@@ -190,6 +190,91 @@ describe("taso mapping", () => {
     ).toBeNull();
   });
 
+  describe("a match whose id is not an id", () => {
+    /**
+     * Every one of these four columns is `integer NOT NULL`. `Number` alone
+     * answered for all of them: `""` and `"  "` became 0, `"2abc"` became NaN,
+     * and a long digit string became a rounded value. The first three fail the
+     * insert — taking the whole season's sync with them, not just this row —
+     * and the fourth is worse, because it succeeds under a group or team that
+     * exists and is not this one.
+     */
+    const field = (name: string, value: unknown) => ({
+      match_id: "1",
+      status: "Played",
+      round_id: "1",
+      group_id: "1",
+      group_name: "Runkosarja",
+      date: "2026-05-01",
+      time: "18:00:00",
+      time_zone_offset: "+0300",
+      team_A_id: "10",
+      team_A_name: "HJK",
+      team_B_id: "20",
+      team_B_name: "KuPS",
+      [name]: value,
+    });
+
+    const UNUSABLE = [
+      ["is empty", ""],
+      ["is whitespace", "  "],
+      ["begins with digits but is not a number", "2abc"],
+      ["will not parse at all", "not-a-number"],
+      ["is a decimal", "2.5"],
+      ["is zero", "0"],
+      ["is negative", "-1"],
+      ["is past what an integer column holds", "99999999999999999999"],
+      // The four `Number` reads as a perfectly good positive integer. These
+      // are the dangerous ones: nothing fails, and the row is filed under a
+      // group, team or match that exists and is not this one.
+      ["is hexadecimal", "0x10"],
+      ["is in exponent notation", "1e2"],
+      ["carries a leading plus", "+2"],
+      ["carries a leading space", " 2"],
+    ] as const;
+
+    it.each(
+      ["match_id", "group_id", "team_A_id", "team_B_id"].flatMap((name) =>
+        UNUSABLE.map(([label, value]) => [name, label, value] as const)
+      )
+    )("is skipped when %s %s", (name, _case, value) => {
+      expect(normalizeTasoMatch(field(name, value), "spljp26", "VL", 2026)).toBeNull();
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.anything(),
+        "Skipping TASO match with an unusable id"
+      );
+    });
+
+    it("keeps a match whose ids are all real, so the guard cannot be passing by rejecting everything", () => {
+      expect(normalizeTasoMatch(field("match_id", "1"), "spljp26", "VL", 2026)).toMatchObject({
+        providerMatchId: 1,
+        groupId: 1,
+        homeTeamProviderId: 10,
+        awayTeamProviderId: 20,
+      });
+      expect(loggerWarnMock).not.toHaveBeenCalled();
+    });
+
+    it("costs an unusable score the score rather than the match", () => {
+      // Scores had their own copy of this parse until #285 folded it into the
+      // shared one, and `Number("2abc")` is NaN — a value the `integer` column
+      // rejects, taking the season's insert with it.
+      expect(normalizeTasoMatch(field("fs_A", "2abc"), "spljp26", "VL", 2026)).toMatchObject({
+        providerMatchId: 1,
+        homeGoals: null,
+      });
+    });
+
+    it("costs an unusable round_id the round rather than the match", () => {
+      // `matchday` is nullable and is not part of any key, so "no usable
+      // round" and "no round reported" are the same answer.
+      expect(normalizeTasoMatch(field("round_id", "2abc"), "spljp26", "VL", 2026)).toMatchObject({
+        providerMatchId: 1,
+        matchday: null,
+      });
+    });
+  });
+
   it("converts a Helsinki summer-time (EEST, +0300) kickoff to the correct UTC instant", () => {
     const result = normalizeTasoMatch(
       {
@@ -763,6 +848,142 @@ describe("normalizeGroupTeams", () => {
     );
 
     expect(rows).toEqual([]);
+  });
+
+  /**
+   * These are the ids the standings service also refuses to report on. The
+   * two must agree: a group it says nothing about because the id is unusable
+   * must not then be stored under that same unusable id — which is what
+   * happened while only the diagnostic checked (#285). Each case carries a
+   * team, because a group with no teams contributes no rows anyway and would
+   * pass this test with the validation removed.
+   */
+  const UNUSABLE_IDS = [
+    ["is empty", ""],
+    ["is whitespace", "  "],
+    ["begins with digits but is not a number", "2abc"],
+    ["is a decimal", "2.5"],
+    ["is zero", "0"],
+    ["is negative", "-1"],
+    ["is past what an integer column holds", "99999999999999999999"],
+    // `Number` reads each of these as a positive integer, so nothing fails —
+    // the row is simply filed under a group or team that is not its own.
+    ["is hexadecimal", "0x10"],
+    ["is in exponent notation", "1e2"],
+    ["carries a leading plus", "+2"],
+    ["carries a leading space", " 2"],
+  ] as const;
+
+  it.each(UNUSABLE_IDS)(
+    "stores nothing for a group whose id %s, teams and all",
+    (_case, groupId) => {
+      expect(
+        normalizeGroupTeams(
+          [{ group_id: groupId, teams: [{ team_id: "60731", team_name: "HJK", points: 67 }] }],
+          "VL",
+          "spljp26",
+          2026
+        )
+      ).toEqual([]);
+    }
+  );
+
+  it.each(UNUSABLE_IDS)(
+    "drops only the team whose id %s, keeping the rest of the group",
+    (_case, teamId) => {
+      const rows = normalizeGroupTeams(
+        [
+          {
+            group_id: "2",
+            teams: [
+              { team_id: teamId, team_name: "Unusable" },
+              { team_id: "60731", team_name: "HJK" },
+            ],
+          },
+        ],
+        "VL",
+        "spljp26",
+        2026
+      );
+
+      expect(rows).toEqual([expect.objectContaining({ teamProviderId: 60731, teamName: "HJK" })]);
+    }
+  );
+
+  it("reads a stat TASO sends as a decimal string, and only as a decimal string", () => {
+    // `final_group_standing` really does arrive as a string, so the string
+    // path is not hypothetical — and `Number` would read "1e2" as 100, a
+    // standing nobody holds.
+    const [row] = normalizeGroupTeams(
+      [
+        {
+          group_id: "2",
+          teams: [
+            {
+              team_id: "60731",
+              starting_points: "-6" as unknown as number,
+              final_group_standing: "3",
+              points: "1e2" as unknown as number,
+              goals_for: "0x10" as unknown as number,
+            },
+          ],
+        },
+      ],
+      "VL",
+      "spljp26",
+      2026
+    );
+
+    expect(row).toMatchObject({
+      startingPoints: -6,
+      finalGroupStanding: 3,
+      points: null,
+      goalsFor: null,
+    });
+  });
+
+  it("keeps a stat that is legitimately zero or negative, which no id may be", () => {
+    // The id rule is stricter than the stat rule on purpose, and one function
+    // reading both would quietly erase a points deduction.
+    const [row] = normalizeGroupTeams(
+      [
+        {
+          group_id: "2",
+          teams: [{ team_id: "60731", team_name: "HJK", points: 0, starting_points: -6 }],
+        },
+      ],
+      "VL",
+      "spljp26",
+      2026
+    );
+
+    expect(row).toMatchObject({ points: 0, startingPoints: -6 });
+  });
+
+  it("drops a stat no integer column can hold rather than failing the insert", () => {
+    // Not hypothetical in kind: the same `Number` coercion that turned a long
+    // id into a rounded value turns one of these into `Infinity`.
+    const [row] = normalizeGroupTeams(
+      [
+        {
+          group_id: "2",
+          teams: [
+            {
+              team_id: "60731",
+              team_name: "HJK",
+              points: "1e400" as unknown as number,
+              goals_for: "99999999999999999999" as unknown as number,
+              goals_against: 2.5,
+            },
+          ],
+        },
+      ],
+      "VL",
+      "spljp26",
+      2026
+    );
+
+    expect(row).toMatchObject({ points: null, goalsFor: null, goalsAgainst: null });
   });
 
   it("defaults a missing team name to an empty string, since the column is not nullable", () => {
