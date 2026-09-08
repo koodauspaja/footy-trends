@@ -23,6 +23,14 @@ import { favouriteKeysOf } from "@/lib/session-extras";
  * It imports `favourite-keys.ts` rather than `favourites.ts`: the latter
  * reaches the database, and this is a client bundle — the same boundary
  * `avatar-limits.ts` exists for, learned the expensive way in #268.
+ *
+ * **A unit test that renders a tree containing this must mock
+ * `@/lib/auth-client`.** The real client opens a broadcast channel whose
+ * nanostores cleanup runs a second after the last unsubscribe, by which point
+ * the file's jsdom is gone — it then throws `window is not defined` as an
+ * uncaught exception inside whichever file is running at the time, which is a
+ * flake with no relation to the file that caused it. The eight files that
+ * render a standings table or a region picker already do this.
  */
 
 type Props = Readonly<

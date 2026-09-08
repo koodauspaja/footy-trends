@@ -65,6 +65,32 @@ auth variables unset and **`@/lib/auth` deliberately not mocked**, since mocking
 it is exactly what would hide this. It fails if anyone restores a static
 `import { auth }`, which is the mutation that was run to prove it.
 
+### And then a flake: a session subscription outliving its jsdom
+
+The same CI run showed a second, subtler failure — one that had *passed* in the
+sibling job, which is what makes it worth writing down. All 1889 tests passed and
+the run still exited non-zero:
+
+```
+ReferenceError: window is not defined
+  at cleanupBroadcastSetup (better-auth/dist/client/broadcast-channel.mjs)
+  at Timeout._onTimeout (nanostores/lifecycle/index.js)
+This error originated in "tests/unit/app/foreign/team/[id]/page.test.tsx"
+```
+
+That file has nothing to do with favourites. better-auth's client opens a
+broadcast channel when `useSession` subscribes, and nanostores runs its cleanup a
+second *after* the last unsubscribe — so React unmounts the star at the end of a
+test, the file finishes, vitest tears down its jsdom, and the timer then fires
+into whatever file happens to be running. It lands somewhere different each run,
+which is why one CI job saw it and the other did not, and why it does not
+reproduce locally on a faster machine.
+
+The eight files whose import graph contains the toggle now mock
+`@/lib/auth-client`. Signed out is what they already assumed; saying so
+explicitly just avoids starting the timer. The requirement is written at the top
+of `favourite-toggle.tsx`, where someone adding the ninth will be reading.
+
 ### Two copies of the id rule
 
 `parseTeamKey` and the two team actions each validated the provider id, both with
