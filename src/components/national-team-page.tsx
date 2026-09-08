@@ -23,10 +23,10 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
-    <details className="mb-10 border-zinc-200 border-b pb-4" open>
+    <details className="mb-10 border-border-subtle border-b pb-4" open>
       <summary className="mb-3 cursor-pointer list-none">
         <h2 className="inline font-semibold text-xl">{year.year}</h2>
-        <span className="ml-2 text-sm text-zinc-500">{`(${matchCountLabel(year.matches.length)})`}</span>
+        <span className="ml-2 text-sm text-muted">{`(${matchCountLabel(year.matches.length)})`}</span>
       </summary>
       <MatchListTable
         matches={year.matches}

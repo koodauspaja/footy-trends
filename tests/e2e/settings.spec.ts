@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openAccountMenu, signedInAs, waitForSession } from "./session";
 
 /**
  * The account settings page, from specs/024-account-settings.md.
@@ -8,42 +9,6 @@ import { expect, type Page, test } from "@playwright/test";
  * That covers what the page renders and how it behaves; it does not cover the
  * round trip through Google, which stays a human check on staging.
  */
-/**
- * Waits until the session has actually resolved in the browser.
- *
- * Without this, `toHaveURL` matches on the first check — before the redirect
- * has had a chance to fire — so a test asserting "no redirect happened" passes
- * whether or not the escape hatch works. Verified: removing the suppression
- * check leaves those assertions green until this wait is added.
- */
-async function waitForSession(page: Page) {
-  await expect(page.getByRole("button", { name: /^Tili:/ })).toBeVisible();
-}
-
-async function signedInAs(page: Page, name: string, defaultRegion: string | null = null) {
-  await page.route("**/api/auth/get-session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        session: {
-          id: "e2e-session",
-          token: "e2e-token",
-          userId: "e2e-user",
-          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        },
-        user: {
-          id: "e2e-user",
-          name,
-          email: "e2e@example.com",
-          emailVerified: true,
-          image: null,
-        },
-        defaultRegion,
-      }),
-    });
-  });
-}
-
 test.describe("Settings, signed out", () => {
   test("explains itself instead of redirecting", async ({ page }) => {
     await page.goto("/asetukset");
@@ -137,7 +102,7 @@ for (const scheme of ["light", "dark"] as const) {
       // which put these at 1.17:1 in dark mode — present, but invisible.
       await signedInAs(page, "Matti Meikäläinen");
       await page.goto("/ulkomaat");
-      await page.getByRole("button", { name: /^Tili:/ }).click();
+      await openAccountMenu(page);
 
       expect(await contrastOf(page, "Asetukset")).toBeGreaterThanOrEqual(4.5);
     });
@@ -155,7 +120,7 @@ test.describe("The account menu", () => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto("/ulkomaat");
 
-    await page.getByRole("button", { name: /^Tili:/ }).click();
+    await openAccountMenu(page);
     await expect(page.getByRole("link", { name: "Asetukset" })).toBeVisible();
 
     // Well below the header, on ordinary page content.
@@ -164,7 +129,7 @@ test.describe("The account menu", () => {
     await expect(page.getByRole("link", { name: "Asetukset" })).toHaveCount(0);
     // Still usable afterwards — the rescue must not have left the trigger in a
     // state that swallows the next click.
-    await page.getByRole("button", { name: /^Tili:/ }).click();
+    await openAccountMenu(page);
     await expect(page.getByRole("link", { name: "Asetukset" })).toBeVisible();
   });
 
@@ -172,7 +137,7 @@ test.describe("The account menu", () => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto("/ulkomaat");
 
-    await page.getByRole("button", { name: /^Tili:/ }).click();
+    await openAccountMenu(page);
     await page.getByRole("link", { name: "Asetukset" }).click();
 
     await expect(page).toHaveURL(/\/asetukset$/);

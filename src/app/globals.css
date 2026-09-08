@@ -1,22 +1,86 @@
-@import "tailwindcss";
+/*
+ * `source` narrows what Tailwind scans for class names to `src`.
+ *
+ * Left to auto-detect, it reads every file in the project — tests and Markdown
+ * included — and emits a utility for any candidate it finds. Measured: the
+ * table in tests/unit/app/theme-tokens.test.ts, which exists to *forbid*
+ * shades, put `.bg-zinc-50`, `.bg-amber-50`, `.bg-slate-100` and three more
+ * into the shipped stylesheet, and a spec file added `.border-zinc-200`. Dead
+ * weight, and the wrong thing for a grep of the bundle to find.
+ */
+@import "tailwindcss" source("../");
 
+/*
+ * Every colour the app renders is a token here, and every token has a value in
+ * both schemes.
+ *
+ * Before #269 only `--background` and `--foreground` flipped, while 23 files
+ * painted with fixed light greys. In dark mode the page turned near-black and
+ * the components did not follow: muted text landed at 2.56:1 against it, and
+ * the account menu — which pinned a white surface while its text followed the
+ * theme — reached 1.17:1 and was effectively invisible (#273).
+ *
+ * The rule that prevents a repeat is simple: a component names a role, never a
+ * shade. `text-muted`, not a numbered zinc. A shade cannot know what is behind
+ * it; a role can be given a value per scheme, once, here.
+ *
+ * Every pairing below is measured rather than eyeballed, and
+ * tests/e2e/dark-mode.spec.ts re-measures them in a real browser in both
+ * schemes, so a regression fails rather than merely looking wrong to whoever
+ * happens to be in dark mode.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Secondary text: labels, dates, "Tämä laite". 7.73:1 on the page. */
+  --muted: #52525b;
+  /* Decorative only — the breadcrumb separator, which is aria-hidden. */
+  --faint: #a1a1aa;
+  /* Inputs, selects, buttons. */
+  --border: #d4d4d8;
+  /* Dividers and card edges, one step quieter than a control. */
+  --border-subtle: #e4e4e7;
+  /* Raised surfaces: menu panels, hovered rows. */
+  --surface: #fafafa;
+
+  /* The amber fallback banner. 8.75:1 of text on its own background. */
+  --notice-background: #fffbeb;
+  --notice-border: #fcd34d;
+  --notice-foreground: #78350f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+
+    /* 7.72:1 on the dark page — the light scheme's 7.73 mirrored. */
+    --muted: #a1a1aa;
+    --faint: #71717a;
+    --border: #3f3f46;
+    --border-subtle: #27272a;
+    --surface: #18181b;
+
+    --notice-background: #451a03;
+    --notice-border: #b45309;
+    --notice-foreground: #fde68a;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-surface: var(--surface);
+  --color-notice-background: var(--notice-background);
+  --color-notice-border: var(--notice-border);
+  --color-notice-foreground: var(--notice-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {

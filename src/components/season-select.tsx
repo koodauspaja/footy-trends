@@ -15,11 +15,11 @@ type SeasonSelectProps = {
 export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<SeasonSelectProps>) {
   return (
     <>
-      <label className="text-sm text-zinc-600" htmlFor="kausi">
+      <label className="text-sm text-muted" htmlFor="kausi">
         Kausi
       </label>
       <select
-        className="rounded border border-zinc-300 px-3 py-2"
+        className="rounded border border-border px-3 py-2"
         defaultValue={selectedSeasonId}
         id="kausi"
         name="kausi"

@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
  */
 export function Notice({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <output className="mb-6 block rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    <output className="mb-6 block rounded border border-notice-border bg-notice-background px-3 py-2 text-sm text-notice-foreground">
       {children}
     </output>
   );

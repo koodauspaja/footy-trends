@@ -422,7 +422,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
   return (
     <section>
       <h2 className="mb-2 font-semibold text-xl">{HEAD_TO_HEAD_HEADING}</h2>
-      <p className="mb-4 text-sm text-zinc-600">{view.windowSentence}</p>
+      <p className="mb-4 text-sm text-muted">{view.windowSentence}</p>
       {view.headToHeadRows.length === 0 ? (
         <p>{HEAD_TO_HEAD_EMPTY}</p>
       ) : (
@@ -469,9 +469,9 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
         <span className="mx-3 font-semibold">{view.score}</span>
         <TeamName href={view.awayHref} isWinner={view.winnerSide === "away"} name={view.awayName} />
       </p>
-      <p className="mb-1 text-sm text-zinc-600">{view.kickoff}</p>
+      <p className="mb-1 text-sm text-muted">{view.kickoff}</p>
       {view.contextLines.map((line) => (
-        <p className="text-sm text-zinc-600" key={line}>
+        <p className="text-sm text-muted" key={line}>
           {line}
         </p>
       ))}

@@ -51,7 +51,7 @@ const FIELD_NAME: Record<RegionSegment, keyof Preferences> = {
   maajoukkueet: "defaultCompetitionNational",
 };
 
-const SELECT_CLASS = "rounded border border-zinc-300 px-2 py-1 text-sm";
+const SELECT_CLASS = "rounded border border-border px-2 py-1 text-sm";
 const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
 
@@ -136,7 +136,7 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-zinc-600">
+        <p className="mt-1 text-sm text-muted">
           Valitsemasi alue avataan suoraan, kun siirryt etusivulle. Pääset silti aina alueen
           valintaan.
         </p>
@@ -172,7 +172,7 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
         </div>
 
         <button
-          className="mt-4 rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50"
+          className="mt-4 rounded border border-border px-3 py-2 text-sm hover:bg-surface"
           disabled={pending}
           type="submit"
         >
@@ -209,16 +209,16 @@ function DeviceList({ devices }: Readonly<{ devices: Device[] | null }>) {
         {(devices ?? []).map((device) => (
           <li className="text-sm" key={device.id}>
             <span>{device.description}</span>
-            {device.current && <span className="ml-2 text-zinc-600">Tämä laite</span>}
-            <span className="ml-2 text-zinc-600">{device.lastUsed}</span>
+            {device.current && <span className="ml-2 text-muted">Tämä laite</span>}
+            <span className="ml-2 text-muted">{device.lastUsed}</span>
           </li>
         ))}
       </ul>
       {!unknown && others.length === 0 ? (
-        <p className="text-sm text-zinc-600">Olet kirjautunut sisään vain tällä laitteella.</p>
+        <p className="text-sm text-muted">Olet kirjautunut sisään vain tällä laitteella.</p>
       ) : (
         <button
-          className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50"
+          className="rounded border border-border px-3 py-2 text-sm hover:bg-surface"
           disabled={pending}
           onClick={() => {
             startTransition(async () => {
@@ -262,16 +262,16 @@ function DeleteAccount() {
         Vahvistus
       </label>
       <input
-        className="mb-3 block rounded border border-zinc-300 px-2 py-1 text-sm"
+        className="mb-3 block rounded border border-border px-2 py-1 text-sm"
         id="confirmation"
         onChange={(event) => setConfirmation(event.target.value)}
         placeholder={CONFIRMATION}
         type="text"
         value={confirmation}
       />
-      <p className="mb-3 text-sm text-zinc-600">Kirjoita {CONFIRMATION} vahvistaaksesi.</p>
+      <p className="mb-3 text-sm text-muted">Kirjoita {CONFIRMATION} vahvistaaksesi.</p>
       <button
-        className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
         disabled={!armed || pending}
         onClick={() => {
           startTransition(async () => {

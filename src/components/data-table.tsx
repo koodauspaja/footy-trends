@@ -100,7 +100,7 @@ export function DataTable<T>({ rows, columns, rowKey }: Readonly<DataTableProps<
           ))}
         </colgroup>
         <thead>
-          <tr className="border-zinc-300 border-b text-sm text-zinc-600">
+          <tr className="border-border border-b text-sm text-muted">
             {columns.map((column) => (
               <th
                 className={`p-3 ${alignClass(column.align)}`}
@@ -114,7 +114,7 @@ export function DataTable<T>({ rows, columns, rowKey }: Readonly<DataTableProps<
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr className="border-zinc-200 border-b" key={rowKey(row)}>
+            <tr className="border-border-subtle border-b" key={rowKey(row)}>
               {columns.map((column) => {
                 const className =
                   `p-3 ${alignClass(column.align)} ${column.cellClassName ?? ""}`.trim();

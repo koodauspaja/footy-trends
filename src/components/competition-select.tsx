@@ -23,7 +23,7 @@ export function CompetitionSelect({
 
   return (
     <>
-      <label className="text-sm text-zinc-600" htmlFor="kilpailu">
+      <label className="text-sm text-muted" htmlFor="kilpailu">
         Kilpailu
       </label>
       {selected && (
@@ -37,7 +37,7 @@ export function CompetitionSelect({
         />
       )}
       <select
-        className="rounded border border-zinc-300 px-3 py-2"
+        className="rounded border border-border px-3 py-2"
         defaultValue={selectedCompetitionCode}
         id="kilpailu"
         name="kilpailu"

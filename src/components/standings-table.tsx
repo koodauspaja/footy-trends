@@ -113,7 +113,7 @@ export function StandingsTable({
  */
 export function StandingsLegend() {
   return (
-    <p className="mt-4 text-sm text-zinc-500">
+    <p className="mt-4 text-sm text-muted">
       O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit,
       ME = maaliero, P = pisteet.
     </p>
