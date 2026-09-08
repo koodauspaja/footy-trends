@@ -1,86 +1,136 @@
 /**
  * Counts what code review keeps finding in this repository, by class.
  *
- *   npm run review:findings           # the last 10 merged pull requests
- *   npm run review:findings -- 25     # the last 25
+ *   GH_TOKEN=$(gh auth token) npm run review:findings        # last 10 merges
+ *   GH_TOKEN=$(gh auth token) npm run review:findings -- 25  # last 25
  *
- * Why this exists as a script rather than a paragraph in a document: the tally
- * in `skills/self-review.md` was measured once, on 2026-09-08, and a measurement
- * nobody can repeat becomes folklore the moment the codebase moves. Running
- * this is how that list is kept honest — and how it earns the right to shrink
- * when a class stops appearing.
+ * Why this exists as a command rather than a paragraph in a document: the table
+ * in `skills/self-review.md` was measured once, on 2026-09-08, and a
+ * measurement nobody can repeat becomes folklore the moment the codebase moves.
+ * Running this is how that list is kept honest — and how a class earns its
+ * removal when it stops appearing.
  *
- * Reads review comments through `gh`, which is already required for every other
- * workflow in this repository, so there is no token to configure and nothing
- * new to keep secret.
+ * **Reads the API over HTTPS rather than shelling out to `gh`.** Spawning a
+ * binary found on `PATH` is a vulnerability Sonar flags and is right to: the
+ * command a script runs should not depend on what happens to be earlier in
+ * someone's path. `gh auth token` supplies the credential; nothing is stored.
  */
-import { execFileSync } from "node:child_process";
-import { type Finding, format, tally } from "./review-findings-plan";
+import {
+  type ApiComment,
+  type ApiPull,
+  type Finding,
+  findingsFrom,
+  format,
+  mergedPullNumbers,
+  tally,
+} from "./review-findings-plan";
 
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
 
-/** Enough to see a pattern, few enough that the API calls stay quick. */
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
+
+/** Enough to see a pattern, few enough that the requests stay quick. */
 const DEFAULT_PULL_COUNT = 10;
 
+const REPOSITORY = "koodauspaja/footy-trends";
+const API = "https://api.github.com";
+
+/** The API's maximum, so a page count is the fewest requests that can work. */
+const PER_PAGE = 100;
+
 /**
- * Sourcery is the reviewer whose findings this counts.
+ * Enough closed pull requests to find the newest merges among them.
  *
- * Human review comments are deliberately excluded: they arrive as
- * conversation — "why this and not that?" — and are not the same measurement.
+ * Merged and closed-unmerged are one list in the API, so this over-fetches on
+ * purpose: asking for exactly `count` closed ones could return `count`
+ * abandoned branches and no merges at all.
  */
-const REVIEWER = "sourcery-ai[bot]";
+const CLOSED_PAGES = 3;
 
-function gh(args: string[]): string {
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+async function get<T>(path: string, token: string): Promise<T> {
+  const response = await fetch(`${API}${path}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub answered ${response.status} for ${path}`);
+  }
+  return (await response.json()) as T;
 }
 
-/** The most recently merged pull requests, newest first. */
-function recentPulls(count: number): number[] {
-  const json = gh([
-    "pr",
-    "list",
-    "--state",
-    "merged",
-    "--limit",
-    String(count),
-    "--json",
-    "number",
-  ]);
-  return (JSON.parse(json) as { number: number }[]).map((pull) => pull.number);
+/** Every review comment on one pull request, across as many pages as it has. */
+async function commentsFor(pull: number, token: string): Promise<ApiComment[]> {
+  const collected: ApiComment[] = [];
+
+  // Paged until a short page arrives. A pull request with more than 100
+  // comments is not hypothetical here — #270 had 18 from one reviewer alone,
+  // and a busy one carries replies too.
+  for (let page = 1; ; page++) {
+    const batch = await get<ApiComment[]>(
+      `/repos/${REPOSITORY}/pulls/${pull}/comments?per_page=${PER_PAGE}&page=${page}`,
+      token
+    );
+    collected.push(...batch);
+    if (batch.length < PER_PAGE) return collected;
+  }
 }
 
-function findingsFor(pull: number): Finding[] {
-  const json = gh([
-    "api",
-    `repos/{owner}/{repo}/pulls/${pull}/comments?per_page=100`,
-    "--paginate",
-  ]);
-  const comments = JSON.parse(json) as { user: { login: string }; path: string; body: string }[];
-
-  return comments
-    .filter((comment) => comment.user.login === REVIEWER)
-    .map((comment) => ({ pull, path: comment.path, body: comment.body }));
-}
-
-function main(): void {
+async function main(): Promise<void> {
   const requested = Number(process.argv[2] ?? DEFAULT_PULL_COUNT);
   const count = Number.isSafeInteger(requested) && requested > 0 ? requested : DEFAULT_PULL_COUNT;
 
-  let pulls: number[];
-  try {
-    pulls = recentPulls(count);
-  } catch (error) {
-    // Almost always `gh` missing or unauthenticated, which is worth saying
-    // plainly rather than as a stack trace.
-    err(`Could not list pull requests: ${error instanceof Error ? error.message : String(error)}`);
-    err("This needs the GitHub CLI, authenticated: `gh auth login`.");
+  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  if (!token) {
+    err("Set GH_TOKEN. With the GitHub CLI already authenticated:");
+    err("  GH_TOKEN=$(gh auth token) npm run review:findings");
     process.exitCode = 1;
     return;
   }
 
-  const findings = pulls.flatMap((pull) => findingsFor(pull));
+  /**
+   * One `try` around every request, not just the first. An earlier version
+   * guarded the listing and left the per-pull fetches outside, so a token
+   * expiring mid-run printed a stack trace and no table — the "failure path
+   * dropped" class this command exists to count.
+   */
+  let findings: Finding[] = [];
+  let fetching = "the pull request list";
+  try {
+    const closed: ApiPull[] = [];
+    for (let page = 1; page <= CLOSED_PAGES; page++) {
+      const batch = await get<ApiPull[]>(
+        `/repos/${REPOSITORY}/pulls?state=closed&per_page=${PER_PAGE}&page=${page}`,
+        token
+      );
+      closed.push(...batch);
+      if (batch.length < PER_PAGE) break;
+    }
+
+    for (const pull of mergedPullNumbers(closed, count)) {
+      fetching = `the comments on #${pull}`;
+      findings = [...findings, ...findingsFrom(pull, await commentsFor(pull, token))];
+    }
+  } catch (error) {
+    err(`Could not read ${fetching}: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+    return;
+  }
+
   out(format(tally(findings), findings.length));
 }
 
-main();
+// The same shape as `backfill.ts` and `verify-sentry.ts`: anything the guards
+// inside `main` did not anticipate still leaves a sentence and an exit code
+// rather than a stack trace.
+main().catch((error: unknown) => {
+  err(`Counting review findings failed: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+});

@@ -2,7 +2,7 @@
 
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
-to. Not general advice — six classes, each measured from the review history,
+to. Not general advice — seven classes, each measured from the review history,
 each with a counter that takes minutes.
 
 When to use
@@ -10,7 +10,7 @@ When to use
 - After any fix commit, on the part that changed. Findings from a round of
   fixes are as common as findings from the original work.
 
-## Why these six
+## Why these seven
 
 Measured with `npm run review:findings`, which counts every Sourcery inline
 comment on recent merged pull requests and sorts it by class. On 2026-09-08,
@@ -18,22 +18,30 @@ across the last 14 merged PRs:
 
 | Findings | Class | Pull requests |
 |---|---|---|
-| **14** | **a test that proves nothing** | #265 #267 #270 #275 #279 #283 #285 |
-| 9 | a failure path dropped, or turned into a plausible wrong value | #265 #267 #270 #283 |
-| 7 | a parser accepting what it should not | #282 #283 #285 |
-| 7 | a comment or spec contradicting the code beside it | #265 #270 #282 #283 |
-| 2 | a guard covering the named line instead of the class | #265 #270 |
+| **11** | **a test that proves nothing** | #265 #267 #270 #275 #279 #283 #285 |
+| 9 | a parser accepting what it should not | #282 #283 #285 |
+| 8 | a failure path dropped, or turned into a plausible wrong value | #265 #267 #270 #283 |
+| 6 | a comment or spec contradicting the code beside it | #270 #276 #283 |
 | 2 | English reaching a Finnish UI | #270 |
-| 7 | unclassified | #265 #270 #276 #283 |
+| 1 | a guard covering the named line instead of the class | #265 |
+| 11 | unclassified | #265 #270 #282 #283 |
+
+    GH_TOKEN=$(gh auth token) npm run review:findings -- 14
 
 Re-run it. The numbers are a snapshot, and a class that stops appearing has
 earned its removal from this document as much as a new one earns its place.
+
+**`unclassified` is a quarter of the total, and that is the honest number.** A
+finding is filed by the words it uses, so the table is a coarse indicator of
+where to look — not a verdict on any one finding, and no substitute for reading
+them.
 
 ---
 
 ## 1. A test that proves nothing
 
-The largest class by a distance, and present in seven different pull requests.
+The largest class, and present in seven different pull requests — more than any
+other.
 
 **What it looks like.** An escape-hatch e2e that passed with the escape hatch
 removed. Focus tests built on 5 ms sleeps. `renderPage()` called twice where
@@ -116,12 +124,27 @@ rule that is only written down is not a check.
 **The counter.** Read every new string a reader can see. Browser and
 platform names, provider errors and library defaults are the usual leaks.
 
+## 7. A shared key that is not per-reader
+
+**What it looks like.** `/api/avatar/me?v=<timestamp>` — one path for every
+reader, cached `private, immutable` for a year, with a query parameter that two
+readers could hold identically. Switching accounts in one browser profile would
+have served the first reader's picture to the second, without the authenticated
+route being asked at all.
+
+**The counter.** For anything cached, name the two things separately: what makes
+it change when the content changes, and what keeps one reader's copy off another
+reader's URL. A per-user timestamp answers the first and not the second. If one
+value has to do both jobs, it has to be unguessable and unique — not merely
+fresh.
+
 ---
 
 ## The pass itself
 
-1. `npm run review:findings` if it has been a while — it takes seconds and
-   tells you which of these to weight.
+1. `GH_TOKEN=$(gh auth token) npm run review:findings` if it has been a while —
+   it takes seconds and tells you which of these to weight. Every third or
+   fourth merge is often enough.
 2. Read the whole diff as if reviewing someone else's work.
 3. For every test added: run its mutation.
 4. For every call added that can fail: name its catcher and its reader-visible
