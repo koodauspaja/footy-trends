@@ -19,22 +19,20 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
  */
 
 /**
- * `unknown`, not a shape.
+ * Every reader below takes `unknown` rather than a shape.
  *
  * better-auth's own session type declares none of these fields, so a parameter
  * typed as "an object that might have them" has no overlap with what callers
  * hold and TypeScript rejects the call outright. `unknown` says the true thing:
- * these arrive untyped, and the narrowing below is the whole job.
+ * these arrive untyped, and the narrowing here is the whole job.
  */
-type SessionLike = unknown;
-
-function fieldOf(session: SessionLike, name: "defaultRegion" | "avatarVersion"): unknown {
+function fieldOf(session: unknown, name: "defaultRegion" | "avatarVersion"): unknown {
   if (typeof session !== "object" || session === null) return undefined;
   return (session as Record<string, unknown>)[name];
 }
 
 /** The reader's start-page preference, or null when they have none we recognise. */
-export function defaultRegionOf(session: SessionLike): RegionSegment | null {
+export function defaultRegionOf(session: unknown): RegionSegment | null {
   const region = fieldOf(session, "defaultRegion");
   return isRegionSegment(region) ? region : null;
 }
@@ -47,7 +45,7 @@ export function defaultRegionOf(session: SessionLike): RegionSegment | null {
  * `immutable` for a year, so a new upload has to be a new URL or the browser
  * keeps showing the old one — see `src/app/api/avatar/me/route.ts`.
  */
-export function avatarSourceOf(session: SessionLike, googleImage: string | null): string | null {
+export function avatarSourceOf(session: unknown, googleImage: string | null): string | null {
   const version = fieldOf(session, "avatarVersion");
   // A non-finite or non-positive version is not a version. It would still build
   // a URL that the handler would answer, but it would be a cache key nothing

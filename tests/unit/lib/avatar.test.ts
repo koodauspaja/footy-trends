@@ -9,21 +9,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * speaks, when it stays quiet, and that it cannot take an upload down with it.
  */
 
-const { execute, insert, onConflictDoUpdate, rows, deleteWhere, logger } = vi.hoisted(() => {
-  const execute = vi.fn();
-  const onConflictDoUpdate = vi.fn(async () => undefined);
-  const insert = vi.fn(() => ({ values: () => ({ onConflictDoUpdate }) }));
-  const rows = { current: [] as unknown[] };
-  const deleteWhere = vi.fn(async () => undefined);
-  return {
-    execute,
-    insert,
-    onConflictDoUpdate,
-    rows,
-    deleteWhere,
-    logger: { warn: vi.fn(), error: vi.fn() },
-  };
-});
+const { execute, insert, onConflictDoUpdate, returning, stored, rows, deleteWhere, logger } =
+  vi.hoisted(() => {
+    const execute = vi.fn();
+    const stored = { current: new Date("2026-09-08T10:00:00Z") };
+    const returning = vi.fn(async () => [{ updatedAt: stored.current }]);
+    const onConflictDoUpdate = vi.fn(() => ({ returning }));
+    const insert = vi.fn(() => ({ values: () => ({ onConflictDoUpdate }) }));
+    const rows = { current: [] as unknown[] };
+    const deleteWhere = vi.fn(async () => undefined);
+    return {
+      execute,
+      insert,
+      onConflictDoUpdate,
+      returning,
+      stored,
+      rows,
+      deleteWhere,
+      logger: { warn: vi.fn(), error: vi.fn() },
+    };
+  });
 
 vi.mock("@/db", () => ({
   db: {
@@ -100,13 +105,26 @@ describe("saveAvatar", () => {
     );
   });
 
-  it("returns the version it stored", async () => {
-    const before = Date.now();
+  it("returns the version the database stored, not the one it was asked for", async () => {
+    /**
+     * The version is the cache key in a year-long `immutable` URL, and
+     * `greatest(now(), updated_at + 1ms)` may move it forward past the current
+     * millisecond. Reporting a locally generated timestamp would hand the
+     * browser a URL that does not exist.
+     */
+    stored.current = new Date("2030-01-01T00:00:00.123Z");
 
-    const version = await saveAvatar("user-1", BYTES, "image/webp");
-
-    expect(version).toBeGreaterThanOrEqual(before);
+    expect(await saveAvatar("user-1", BYTES, "image/webp")).toBe(stored.current.getTime());
     expect(onConflictDoUpdate).toHaveBeenCalled();
+    expect(returning).toHaveBeenCalled();
+  });
+
+  it("says so rather than inventing a version when nothing comes back", async () => {
+    returning.mockResolvedValueOnce([]);
+
+    await expect(saveAvatar("user-1", BYTES, "image/webp")).rejects.toThrow(
+      "Storing the avatar returned no row"
+    );
   });
 
   it("keeps the upload when the measurement itself fails", async () => {

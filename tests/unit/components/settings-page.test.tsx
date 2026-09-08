@@ -594,18 +594,30 @@ describe("Profiilikuva", () => {
     await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
   });
 
-  it("treats a rejected invocation as the size limit, which is all it can be", async () => {
-    // The client already refused anything over the cap, so a rejection on this
-    // path is Next's body limit — the one failure that cannot return a reason.
-    saveAvatarAction.mockRejectedValue(new Error("Body exceeded 10mb limit."));
+  it.each([
+    ["a dropped connection", new Error("Failed to fetch")],
+    ["Next's body limit", new Error("Body exceeded 10mb limit.")],
+  ])("reports %s as a save failure, not as a wrong diagnosis", async (_case, error) => {
+    /**
+     * A rejected invocation cannot be told apart from here — the message is
+     * redacted in production, so a dropped connection and a body limit arrive
+     * identically. Naming one of them would be wrong more often than right,
+     * and the size case is already caught before anything is sent.
+     */
+    saveAvatarAction.mockRejectedValue(error);
     renderPicture(null);
     chooseFile(imageOf(1024));
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
     await waitFor(() =>
-      expect(screen.getByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")).toBeInTheDocument()
+      expect(
+        screen.getByText("Kuvan tallentaminen epäonnistui. Yritä uudelleen.")
+      ).toBeInTheDocument()
     );
+    expect(
+      screen.queryByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")
+    ).not.toBeInTheDocument();
   });
 
   it("falls back to the Google picture when the reader removes their own", async () => {

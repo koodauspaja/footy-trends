@@ -206,6 +206,19 @@ export function SettingsPage({
   );
 }
 
+/**
+ * Which picture the reader is on, in their own words.
+ *
+ * The three states are the fallback chain read out loud — the reader's own,
+ * then Google's, then the name — so the sentence and the picture beside it
+ * cannot disagree.
+ */
+function pictureInUse(version: number | null, googleImage: string | null): string {
+  if (version !== null) return "Käytössä oma kuvasi.";
+  if (googleImage !== null) return "Käytössä Google-tilisi kuva.";
+  return "Ei kuvaa käytössä. Valikossa näkyy nimesi.";
+}
+
 /** The Finnish for each way an upload can be refused, from specs/025-custom-avatar.md. */
 const AVATAR_ERRORS = {
   missing: "Valitse ensin kuva.",
@@ -245,12 +258,6 @@ function ProfilePicture({
   const { refetch } = useSession();
 
   const source = current === null ? googleImage : `/api/avatar/me?v=${current}`;
-  const state =
-    current !== null
-      ? "Käytössä oma kuvasi."
-      : googleImage !== null
-        ? "Käytössä Google-tilisi kuva."
-        : "Ei kuvaa käytössä. Valikossa näkyy nimesi.";
 
   function announce(outcome: null | "saved" | "removed", failure: AvatarError | null) {
     setSaved(outcome);
@@ -270,7 +277,7 @@ function ProfilePicture({
           // biome-ignore lint/performance/noImgElement: the Google avatar is an arbitrary remote host, and our own is a route handler; next/image would buy nothing for a 64px preview
           <img alt="" className="h-16 w-16 rounded-full object-cover" src={source} />
         )}
-        <span className="text-sm text-muted">{state}</span>
+        <span className="text-sm text-muted">{pictureInUse(current, googleImage)}</span>
       </div>
 
       <label className="mb-1 block text-sm" htmlFor="avatar">
@@ -327,9 +334,16 @@ function ProfilePicture({
                   announce(null, outcome.reason);
                 }
               } catch {
-                // The invocation itself was rejected. Past the checks above,
-                // the body limit is the only thing this can be.
-                announce(null, "too-large");
+                /**
+                 * The invocation itself was rejected, and what a rejection
+                 * means is not knowable from here: a dropped connection, a
+                 * crashed server and Next's body limit all arrive the same
+                 * way, and in production the message is redacted. So it gets
+                 * the generic notice rather than a specific one that would be
+                 * wrong more often than right — the size case is already
+                 * caught above, before anything is sent.
+                 */
+                announce(null, "failed");
               }
             });
           }}

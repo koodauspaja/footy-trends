@@ -50,12 +50,8 @@ describe("avatar storage", () => {
     expect(await getAvatar(USER_ID)).toBeNull();
   });
 
-  it("replaces rather than accumulates, and moves the version forward", async () => {
+  it("replaces rather than accumulates", async () => {
     const first = await saveAvatar(USER_ID, BYTES, "image/webp");
-    // The version is a millisecond timestamp, so two writes in the same
-    // millisecond would produce the same URL and the browser would keep showing
-    // the old picture.
-    await new Promise((resolve) => setTimeout(resolve, 5));
     const replacement = Buffer.from([0x52, 0x49, 0x46, 0x46]);
     const second = await saveAvatar(USER_ID, replacement, "image/webp");
 
@@ -63,6 +59,48 @@ describe("avatar storage", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.bytes).toEqual(replacement);
     expect(second).toBeGreaterThan(first);
+  });
+
+  it("gives every replacement a version after the last", async () => {
+    /**
+     * The version is the cache key in a year-long `immutable` URL, so a repeat
+     * of an earlier version would leave the reader looking at the old picture
+     * indefinitely.
+     *
+     * Measured honestly: this case passes under a plain `now()` too, because
+     * five sequential round trips do not land inside one millisecond. It is
+     * here for the ordering, and the test below is the one that fails without
+     * `greatest(now(), updated_at + 1ms)`.
+     */
+    const versions: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      versions.push(await saveAvatar(USER_ID, Buffer.from([i]), "image/webp"));
+    }
+
+    expect(new Set(versions).size).toBe(versions.length);
+    expect([...versions].sort((a, b) => a - b)).toEqual(versions);
+    // And the last write is what is stored, not merely the last version.
+    expect((await getAvatar(USER_ID))?.version).toBe(versions.at(-1));
+  });
+
+  it("keeps every concurrent upload on a version of its own", async () => {
+    /**
+     * **The test that earns the SQL.** Three uploads in flight together share a
+     * `now()` — verified by mutation: replacing `greatest(now(), updated_at +
+     * interval '1 millisecond')` with plain `now()` fails exactly this case and
+     * nothing else in the file.
+     *
+     * It is also the case application-side read-then-write could not survive.
+     * Postgres serialises the upsert on the primary key, so each statement sees
+     * the previous one's row.
+     */
+    const results = await Promise.all([
+      saveAvatar(USER_ID, Buffer.from([1]), "image/webp"),
+      saveAvatar(USER_ID, Buffer.from([2]), "image/webp"),
+      saveAvatar(USER_ID, Buffer.from([3]), "image/webp"),
+    ]);
+
+    expect(new Set(results).size).toBe(3);
   });
 
   it("removes one reader's picture and leaves everyone else's alone", async () => {

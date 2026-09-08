@@ -64,21 +64,39 @@ export async function saveAvatar(
   bytes: Buffer,
   contentType: string
 ): Promise<number> {
-  const updatedAt = new Date();
+  /**
+   * The new version, decided by Postgres rather than by the process making the
+   * request, and guaranteed to move forward.
+   *
+   * `now()` alone is not enough. The version is the cache key in an `immutable`
+   * URL, so two replacements landing in the same millisecond would produce the
+   * same URL for different bytes and the reader would keep seeing the old
+   * picture for a year. `greatest(...)` against the row's own value makes the
+   * database resolve that, which also settles it for two concurrent uploads —
+   * a read-then-write in application code could not.
+   */
+  const nextVersion = sql`greatest(now(), ${userAvatar.updatedAt} + interval '1 millisecond')`;
 
-  await db
+  const [row] = await db
     .insert(userAvatar)
-    .values({ userId, bytes, contentType, updatedAt })
+    .values({ userId, bytes, contentType })
     // One row per reader, by primary key: an upload replaces rather than
     // accumulates.
     .onConflictDoUpdate({
       target: userAvatar.userId,
-      set: { bytes, contentType, updatedAt },
-    });
+      set: { bytes, contentType, updatedAt: nextVersion },
+    })
+    // The stored value, not the one we hoped for: `greatest` may have moved it.
+    .returning({ updatedAt: userAvatar.updatedAt });
 
   await warnIfTableIsGrowing();
 
-  return updatedAt.getTime();
+  // The insert always writes exactly one row, so this is unreachable — but the
+  // type says the array may be empty and inventing a version would be worse
+  // than saying so.
+  if (row === undefined) throw new Error("Storing the avatar returned no row");
+
+  return row.updatedAt.getTime();
 }
 
 /** Removes one reader's avatar. Removing one that does not exist is not an error. */
