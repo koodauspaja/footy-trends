@@ -104,6 +104,12 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    /**
+     * Ykkönen's 2026 split, added alongside Veikkausliiga's (#272). Group 3
+     * carries a −3 `starting_points` deduction, which is the `seeded: false`
+     * convention doing its other job.
+     */
+    spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
   M1L: {
     spljp24: { 2: { parent: 1, seeded: false } },
@@ -171,6 +177,13 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    /**
+     * Added when the 2026 split began (#272). `seeded: false` is measured, not
+     * carried over from 2025: TASO reports `starting_points` 0 for both groups
+     * while `points` already includes Runkosarja — KuPS 43 from 22 played, with
+     * none of those 22 in Mestaruussarja itself.
+     */
+    spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
 };
 
