@@ -11,7 +11,23 @@ const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
   deleteAccount: vi.fn(async () => ({ ok: true })),
 }));
 
+const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
+  // Typed by hand: inferred from the happy path alone, the mock would not
+  // accept the rejections half these tests exist to cover.
+  saveAvatarAction:
+    vi.fn<
+      (
+        formData: FormData
+      ) => Promise<
+        | { ok: true; version: number }
+        | { ok: false; reason: "missing" | "too-large" | "unsupported" | "unreadable" | "failed" }
+      >
+    >(),
+  removeAvatarAction: vi.fn<() => Promise<{ ok: boolean }>>(),
+}));
+
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
+vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
 vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch }) }));
 
 const REGION_OPTIONS: RegionOptions[] = [
@@ -56,7 +72,13 @@ function renderPage(
   devices: Device[] | null = [THIS_DEVICE]
 ) {
   return render(
-    <SettingsPage devices={devices} preferences={preferences} regionOptions={REGION_OPTIONS} />
+    <SettingsPage
+      avatarVersion={null}
+      googleImage={null}
+      devices={devices}
+      preferences={preferences}
+      regionOptions={REGION_OPTIONS}
+    />
   );
 }
 
@@ -357,6 +379,8 @@ describe("a dropdown after the server sends the saved value back", () => {
 
     rerender(
       <SettingsPage
+        avatarVersion={null}
+        googleImage={null}
         devices={[THIS_DEVICE]}
         preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
         regionOptions={REGION_OPTIONS}
@@ -372,6 +396,8 @@ describe("a dropdown after the server sends the saved value back", () => {
 
     rerender(
       <SettingsPage
+        avatarVersion={null}
+        googleImage={null}
         devices={[THIS_DEVICE]}
         preferences={{ ...NO_PREFERENCES, defaultRegion: "kotimaa" }}
         regionOptions={REGION_OPTIONS}
@@ -385,6 +411,8 @@ describe("a dropdown after the server sends the saved value back", () => {
     // Unsetting has to travel the same path as setting.
     const { rerender } = render(
       <SettingsPage
+        avatarVersion={null}
+        googleImage={null}
         devices={[THIS_DEVICE]}
         preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
         regionOptions={REGION_OPTIONS}
@@ -394,6 +422,8 @@ describe("a dropdown after the server sends the saved value back", () => {
 
     rerender(
       <SettingsPage
+        avatarVersion={null}
+        googleImage={null}
         devices={[THIS_DEVICE]}
         preferences={NO_PREFERENCES}
         regionOptions={REGION_OPTIONS}
@@ -419,6 +449,8 @@ describe("a dropdown after the server sends the saved value back", () => {
     // any unrelated reason looks like.
     rerender(
       <SettingsPage
+        avatarVersion={null}
+        googleImage={null}
         devices={[THIS_DEVICE]}
         preferences={{ ...NO_PREFERENCES }}
         regionOptions={REGION_OPTIONS}
@@ -426,5 +458,191 @@ describe("a dropdown after the server sends the saved value back", () => {
     );
 
     expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+  });
+});
+
+describe("Profiilikuva", () => {
+  const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
+  const VERSION = 1757325600000;
+
+  /** A file of a given size, whose bytes never matter — the server decodes. */
+  function imageOf(bytes: number): File {
+    return new File([new Uint8Array(bytes)], "kuva.png", { type: "image/png" });
+  }
+
+  function renderPicture(avatarVersion: number | null, googleImage: string | null = GOOGLE) {
+    return render(
+      <SettingsPage
+        avatarVersion={avatarVersion}
+        devices={[THIS_DEVICE]}
+        googleImage={googleImage}
+        preferences={NO_PREFERENCES}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+  }
+
+  function chooseFile(file: File) {
+    const input = screen.getByLabelText("Valitse kuva");
+    // `fireEvent.change` with a `files` list is the only way to put a File on a
+    // file input in jsdom; `userEvent.upload` needs a real one.
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    fireEvent.change(input);
+  }
+
+  beforeEach(() => {
+    saveAvatarAction.mockClear();
+    saveAvatarAction.mockResolvedValue({ ok: true, version: VERSION });
+    removeAvatarAction.mockClear();
+    removeAvatarAction.mockResolvedValue({ ok: true });
+  });
+
+  it.each([
+    ["their own picture", VERSION, GOOGLE, "Käytössä oma kuvasi."],
+    ["Google's picture", null, GOOGLE, "Käytössä Google-tilisi kuva."],
+    ["neither", null, null, "Ei kuvaa käytössä. Valikossa näkyy nimesi."],
+  ])("says which picture is in use — %s", (_case, version, google, expected) => {
+    renderPicture(version, google);
+
+    expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("previews the stored picture at its version, not the Google one", () => {
+    // The version is what makes an `immutable` response safe, so it has to be
+    // in the URL the preview asks for.
+    const { container } = renderPicture(VERSION);
+
+    expect(container.querySelector("img")).toHaveAttribute("src", `/api/avatar/me?v=${VERSION}`);
+  });
+
+  it("offers removal only when there is something to remove", () => {
+    renderPicture(null);
+    expect(screen.queryByRole("button", { name: "Poista oma kuva" })).not.toBeInTheDocument();
+
+    renderPicture(VERSION);
+    expect(screen.getByRole("button", { name: "Poista oma kuva" })).toBeInTheDocument();
+  });
+
+  it("stores a chosen file and shows the new picture without a reload", async () => {
+    const { container } = renderPicture(null);
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() => expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument());
+    expect(container.querySelector("img")).toHaveAttribute("src", `/api/avatar/me?v=${VERSION}`);
+    // The header reads the version off the session, so it only changes once
+    // the session is refetched.
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("clears a chosen file when the reader empties the input", async () => {
+    // Picking a file and then cancelling out of the dialog leaves the input
+    // empty; the previous choice must not still be waiting to be uploaded.
+    renderPicture(null);
+    chooseFile(imageOf(1024));
+
+    const input = screen.getByLabelText("Valitse kuva");
+    Object.defineProperty(input, "files", { value: [], configurable: true });
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() => expect(screen.getByText("Valitse ensin kuva.")).toBeInTheDocument());
+    expect(saveAvatarAction).not.toHaveBeenCalled();
+  });
+
+  it("asks for a file before calling anything", async () => {
+    renderPicture(null);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() => expect(screen.getByText("Valitse ensin kuva.")).toBeInTheDocument());
+    expect(saveAvatarAction).not.toHaveBeenCalled();
+  });
+
+  it("refuses an oversized file in the browser, before the upload starts", async () => {
+    /**
+     * Not validation — the server decides what is stored. This exists so the
+     * reader is told *which* rule they hit: past Next's configured body limit
+     * the action is rejected before it runs, and a rejection carries no reason.
+     */
+    renderPicture(null);
+    chooseFile(imageOf(9 * 1024 * 1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")).toBeInTheDocument()
+    );
+    expect(saveAvatarAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["too-large", "Kuva on liian suuri. Enimmäiskoko on 8 Mt."],
+    ["unsupported", "Tuetut kuvatyypit ovat JPEG, PNG, WebP ja HEIC."],
+    ["unreadable", "Kuvaa ei voitu lukea. Kokeile toista kuvaa."],
+    ["failed", "Kuvan tallentaminen epäonnistui. Yritä uudelleen."],
+  ] as const)("renders the %s rejection in its own words", async (reason, message) => {
+    // Four strings rather than one, because the reader's next action differs:
+    // pick a smaller file, a different format, another image, or try again.
+    saveAvatarAction.mockResolvedValue({ ok: false, reason });
+    renderPicture(null);
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
+  });
+
+  it("treats a rejected invocation as the size limit, which is all it can be", async () => {
+    // The client already refused anything over the cap, so a rejection on this
+    // path is Next's body limit — the one failure that cannot return a reason.
+    saveAvatarAction.mockRejectedValue(new Error("Body exceeded 10mb limit."));
+    renderPicture(null);
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")).toBeInTheDocument()
+    );
+  });
+
+  it("falls back to the Google picture when the reader removes their own", async () => {
+    const { container } = renderPicture(VERSION);
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
+
+    await waitFor(() => expect(screen.getByText("Oma kuva poistettu.")).toBeInTheDocument());
+    expect(container.querySelector("img")).toHaveAttribute("src", GOOGLE);
+    expect(screen.getByText("Käytössä Google-tilisi kuva.")).toBeInTheDocument();
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("keeps the picture when removal fails", async () => {
+    removeAvatarAction.mockResolvedValue({ ok: false });
+    const { container } = renderPicture(VERSION);
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Kuvan poistaminen epäonnistui. Yritä uudelleen.")
+      ).toBeInTheDocument()
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", `/api/avatar/me?v=${VERSION}`);
+  });
+
+  it("reports a rejected removal too, rather than looking as if it worked", async () => {
+    removeAvatarAction.mockRejectedValue(new Error("network"));
+    renderPicture(VERSION);
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Kuvan poistaminen epäonnistui. Yritä uudelleen.")
+      ).toBeInTheDocument()
+    );
   });
 });

@@ -10,9 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("postgres", () => ({ default: vi.fn(() => ({ end: vi.fn() })) }));
 vi.mock("drizzle-orm/postgres-js", () => ({ drizzle: vi.fn(() => ({})) }));
 
-const { customSession, getDefaultRegionFor } = vi.hoisted(() => ({
+const { customSession, getSessionExtrasFor } = vi.hoisted(() => ({
   customSession: vi.fn((fn: unknown) => ({ id: "custom-session", fn })),
-  getDefaultRegionFor: vi.fn(async () => "kotimaa"),
+  getSessionExtrasFor: vi.fn(async () => ({
+    defaultRegion: "kotimaa",
+    avatarVersion: 1757325600000,
+  })),
 }));
 
 const { betterAuth, drizzleAdapter, nextCookies } = vi.hoisted(() => ({
@@ -25,7 +28,7 @@ vi.mock("better-auth", () => ({ betterAuth }));
 vi.mock("better-auth/adapters/drizzle", () => ({ drizzleAdapter }));
 vi.mock("better-auth/next-js", () => ({ nextCookies }));
 vi.mock("better-auth/plugins/custom-session", () => ({ customSession }));
-vi.mock("@/lib/preferences", () => ({ getDefaultRegionFor }));
+vi.mock("@/lib/preferences", () => ({ getSessionExtrasFor }));
 
 const REQUIRED = {
   BETTER_AUTH_SECRET: "test-secret",
@@ -102,12 +105,16 @@ describe("auth configuration", () => {
     const user = { id: "user-1", name: "Matti" };
     const session = { id: "session-1" };
 
+    // Both extras are spread onto the session the browser already fetches:
+    // the start-page preference, and the avatar version the client turns into
+    // `/api/avatar/me?v=…`.
     expect(await enrich({ user, session })).toEqual({
       user,
       session,
       defaultRegion: "kotimaa",
+      avatarVersion: 1757325600000,
     });
-    expect(getDefaultRegionFor).toHaveBeenCalledWith("user-1");
+    expect(getSessionExtrasFor).toHaveBeenCalledWith("user-1");
   });
 
   it("enables account deletion, which the settings page needs", async () => {

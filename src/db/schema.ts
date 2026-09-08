@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   index,
   integer,
   pgTable,
@@ -352,5 +353,41 @@ export const userPreferences = pgTable("user_preferences", {
   defaultCompetitionForeign: text("default_competition_foreign"),
   defaultCompetitionNational: text("default_competition_national"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Postgres `bytea`, which drizzle has no built-in column for.
+ *
+ * `Buffer` on the way in and out, which is what `sharp` produces and what the
+ * route handler hands to a `Response`.
+ */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+/**
+ * One reader's own profile picture, from specs/025-custom-avatar.md.
+ *
+ * A separate table rather than a column on `user`: better-auth owns that table
+ * and writes it from the Google profile on every sign-in, and image bytes have
+ * no business in a row read on every session lookup.
+ */
+export const userAvatar = pgTable("user_avatar", {
+  // The foreign key *is* the primary key. One avatar per reader, an upload
+  // replaces rather than accumulates, and `on delete cascade` is what makes
+  // account deletion complete without a second code path to forget.
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // Always the output of our own re-encode, never the bytes that were uploaded.
+  bytes: bytea("bytes").notNull(),
+  // Stored rather than assumed: this column outlives whatever `sharp` is
+  // configured to emit today, and the route handler must not guess.
+  contentType: text("content_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  // Load-bearing, not bookkeeping: its epoch-millisecond value is the
+  // cache-busting version in the image URL, which is what makes an `immutable`
+  // response safe.
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

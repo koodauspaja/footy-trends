@@ -5,6 +5,7 @@ import { PageShell } from "@/components/page-shell";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { auth } from "@/lib/auth";
+import { getAvatar } from "@/lib/avatar";
 import { competitionOptionsFor, fallbackLabelFor } from "@/lib/competition-preferences";
 import { logger } from "@/lib/logger";
 import { NO_PREFERENCES, toPreferences } from "@/lib/regions";
@@ -112,9 +113,27 @@ export default async function Settings() {
     options: competitionOptionsFor(region),
   }));
 
+  /**
+   * Which picture the reader is on, from specs/025-custom-avatar.md. Read on
+   * the server like everything else here — the version is what the preview URL
+   * carries, and a failure costs the section its picture rather than the page.
+   */
+  let avatarVersion: number | null = null;
+  try {
+    avatarVersion = (await getAvatar(session.user.id))?.version ?? null;
+  } catch (error) {
+    logger.error({ err: error }, "Reading the avatar on the settings page failed");
+  }
+
   return (
     <PageShell heading={HEADING}>
-      <SettingsPage devices={devices} preferences={preferences} regionOptions={regionOptions} />
+      <SettingsPage
+        avatarVersion={avatarVersion}
+        devices={devices}
+        googleImage={session.user.image ?? null}
+        preferences={preferences}
+        regionOptions={regionOptions}
+      />
     </PageShell>
   );
 }

@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
+import { avatarSourceOf } from "@/lib/session-extras";
 
 // `shrink-0` keeps the button its full width when a long name shares the row.
 const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
@@ -126,7 +127,13 @@ function AuthButtons() {
   // a 320px viewport in #266.
   return (
     <AccountMenu
-      image={session.user.image ?? null}
+      /**
+       * The reader's own picture first, then Google's, then their name —
+       * extending by one the fallback chain specs/024 established
+       * (specs/025-custom-avatar.md). The version rides on the session the
+       * browser already fetches, so this costs no extra request.
+       */
+      image={avatarSourceOf(session, session.user.image ?? null)}
       name={session.user.name}
       onSignOut={() => {
         // `then(onFulfilled, onRejected)` rather than `.then().catch()`, so a

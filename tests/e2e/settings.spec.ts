@@ -26,6 +26,26 @@ test.describe("Settings, signed out", () => {
     await expect(page.getByRole("button", { name: "Poista tili" })).toHaveCount(0);
   });
 
+  test("offers no profile picture controls", async ({ page }) => {
+    // specs/025-custom-avatar.md. There is no identity to attach a picture to.
+    await page.goto("/asetukset");
+
+    await expect(page.getByRole("heading", { name: "Profiilikuva" })).toHaveCount(0);
+    await expect(page.getByLabel("Valitse kuva")).toHaveCount(0);
+  });
+
+  test("will not serve an avatar to nobody", async ({ request }) => {
+    /**
+     * The handler reads the session and nothing else — there is no id in the
+     * URL to guess, so this is the whole of its unauthenticated surface.
+     * Asserted end to end rather than only in a unit test, because the answer
+     * depends on real middleware and real cookies.
+     */
+    const response = await request.get("/api/avatar/me");
+
+    expect(response.status()).toBe(401);
+  });
+
   test("is reachable on the Finnish URL, and the English one redirects", async ({ page }) => {
     await page.goto("/settings");
 
