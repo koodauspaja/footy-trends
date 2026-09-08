@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { userPreferences } from "@/db/schema";
+import { user, userAvatar, userPreferences } from "@/db/schema";
 import { logger } from "@/lib/logger";
 import { type Preferences, type RegionSegment, resolveRegion, toPreferences } from "@/lib/regions";
 
@@ -23,25 +23,57 @@ export const getPreferencesFor = cache(async (userId: string): Promise<Preferenc
 });
 
 /**
- * Just the start-page preference, for the session payload the browser fetches.
+ * What the browser needs from the session beyond better-auth's own fields.
+ *
+ * `avatarVersion` is the avatar's random cache token, or null when the reader
+ * has no custom picture — the client builds `/api/avatar/me?v=…` from it. See
+ * specs/025-custom-avatar.md.
+ */
+export type SessionExtras = {
+  defaultRegion: RegionSegment | null;
+  avatarVersion: string | null;
+};
+
+const NO_EXTRAS: SessionExtras = { defaultRegion: null, avatarVersion: null };
+
+/**
+ * The fields the session payload carries, for the browser that already fetches
+ * it.
  *
  * Separate from `getPreferencesFor` because it runs inside better-auth's
- * `customSession` on every `/api/auth/get-session` call: reading one column and
+ * `customSession` on every `/api/auth/get-session` call: reading two columns and
  * swallowing failure keeps a database blip from turning a session lookup — and
  * therefore the whole header — into an error. A reader who cannot be redirected
- * simply sees the region picker, which is the app's stock behaviour.
+ * simply sees the region picker, which is the app's stock behaviour, and one
+ * whose avatar version is missing gets the Google picture, which is the
+ * fallback that already exists.
+ *
+ * **One query for both**, by a left join from `user`: the preference row and
+ * the avatar row are independently optional, and either may be absent for a
+ * reader who has one and not the other. Joining from `user` is what keeps a
+ * missing preference row from hiding a present avatar. Adding a field here must
+ * not add a round trip to every page load.
  */
-export async function getDefaultRegionFor(userId: string): Promise<RegionSegment | null> {
+export async function getSessionExtrasFor(userId: string): Promise<SessionExtras> {
   try {
     const [row] = await db
-      .select({ defaultRegion: userPreferences.defaultRegion })
-      .from(userPreferences)
-      .where(eq(userPreferences.userId, userId))
+      .select({
+        defaultRegion: userPreferences.defaultRegion,
+        avatarVersion: userAvatar.version,
+      })
+      .from(user)
+      .leftJoin(userPreferences, eq(userPreferences.userId, user.id))
+      .leftJoin(userAvatar, eq(userAvatar.userId, user.id))
+      .where(eq(user.id, userId))
       .limit(1);
 
-    return row === undefined ? null : resolveRegion(row.defaultRegion);
+    if (row === undefined) return NO_EXTRAS;
+    return {
+      defaultRegion: resolveRegion(row.defaultRegion),
+      avatarVersion: row.avatarVersion,
+    };
   } catch (error) {
-    logger.error({ err: error, userId }, "Reading the default region failed");
-    return null;
+    logger.error({ err: error, userId }, "Reading the session extras failed");
+    return NO_EXTRAS;
   }
 }

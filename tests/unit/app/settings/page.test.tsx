@@ -6,45 +6,52 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * scores as 100% — it only measures files a test imports — while Sonar
  * correctly reports 0%.
  */
-const { getSession, listSessions, currentPreferencesRow, logger, state } = vi.hoisted(() => {
-  const state = {
-    signedIn: true,
-    listThrows: false,
-    sessionThrows: false,
-    row: null as unknown,
-  };
-  return {
-    state,
-    getSession: vi.fn(async () => {
-      if (state.sessionThrows) throw new Error("database down");
-      return state.signedIn
-        ? { user: { id: "user-1", name: "Matti" }, session: { token: "current-token" } }
-        : null;
-    }),
-    listSessions: vi.fn(async () => {
-      if (state.listThrows) throw new Error("boom");
-      return [
-        {
-          id: "s1",
-          token: "current-token",
-          userAgent:
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-          updatedAt: new Date().toISOString(),
-        },
-        // `user_agent` is nullable: behind some proxies the header never
-        // arrives, and the row still has to render as something recognisable.
-        {
-          id: "s2",
-          token: "other-token",
-          userAgent: null,
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-    }),
-    currentPreferencesRow: vi.fn(async () => state.row),
-    logger: { error: vi.fn() },
-  };
-});
+const { getSession, listSessions, currentPreferencesRow, getAvatar, logger, state } = vi.hoisted(
+  () => {
+    const state = {
+      signedIn: true,
+      listThrows: false,
+      sessionThrows: false,
+      avatarThrows: false,
+      row: null as unknown,
+    };
+    return {
+      state,
+      getSession: vi.fn(async () => {
+        if (state.sessionThrows) throw new Error("database down");
+        return state.signedIn
+          ? { user: { id: "user-1", name: "Matti" }, session: { token: "current-token" } }
+          : null;
+      }),
+      listSessions: vi.fn(async () => {
+        if (state.listThrows) throw new Error("boom");
+        return [
+          {
+            id: "s1",
+            token: "current-token",
+            userAgent:
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+            updatedAt: new Date().toISOString(),
+          },
+          // `user_agent` is nullable: behind some proxies the header never
+          // arrives, and the row still has to render as something recognisable.
+          {
+            id: "s2",
+            token: "other-token",
+            userAgent: null,
+            updatedAt: new Date().toISOString(),
+          },
+        ];
+      }),
+      currentPreferencesRow: vi.fn(async () => state.row),
+      getAvatar: vi.fn(async () => {
+        if (state.avatarThrows) throw new Error("database down");
+        return null;
+      }),
+      logger: { error: vi.fn() },
+    };
+  }
+);
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession, listSessions } } }));
@@ -63,6 +70,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("@/lib/logger", () => ({ logger }));
+vi.mock("@/lib/avatar", () => ({ getAvatar }));
 
 async function renderPage() {
   const { default: Settings } = await import("@/app/settings/page");
@@ -73,6 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.signedIn = true;
   state.listThrows = false;
+  state.avatarThrows = false;
   state.sessionThrows = false;
   state.row = null;
   // `clearAllMocks` clears calls but not implementations, so a
@@ -170,6 +179,23 @@ describe("the settings route", () => {
     expect(
       screen.queryByText("Olet kirjautunut sisään vain tällä laitteella.")
     ).not.toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it("keeps the page when the avatar cannot be read", async () => {
+    /**
+     * A failed lookup costs the reader their picture, not their settings. The
+     * section still renders — with the Google image, or the fallback text —
+     * because "no custom picture" and "we could not tell" look the same to
+     * someone who has none, and withholding the whole page would be a much
+     * larger loss than the one that happened.
+     */
+    state.avatarThrows = true;
+
+    await renderPage();
+
+    expect(screen.getByRole("heading", { name: "Profiilikuva" })).toBeInTheDocument();
+    expect(screen.getByText("Aloitusnäkymä")).toBeInTheDocument();
     expect(logger.error).toHaveBeenCalled();
   });
 });

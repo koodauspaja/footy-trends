@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
 import { useSession } from "@/lib/auth-client";
+import { removeAvatarAction, saveAvatarAction } from "@/lib/avatar-actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/avatar-limits";
 import type { CompetitionOption } from "@/lib/competition-preferences";
 import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
 import {
@@ -37,6 +39,10 @@ type Props = Readonly<{
   /** `null` when the list could not be read — distinct from an empty list. */
   devices: Device[] | null;
   regionOptions: RegionOptions[];
+  /** The reader's own picture's cache token, or null when they have none. */
+  avatarVersion: string | null;
+  /** What Google gave us, which is the fallback when there is no custom picture. */
+  googleImage: string | null;
 }>;
 
 const REGION_LABELS: Record<RegionSegment, string> = {
@@ -55,7 +61,13 @@ const SELECT_CLASS = "rounded border border-border px-2 py-1 text-sm";
 const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
 
-export function SettingsPage({ preferences, devices, regionOptions }: Props) {
+export function SettingsPage({
+  preferences,
+  devices,
+  regionOptions,
+  avatarVersion,
+  googleImage,
+}: Props) {
   const [saved, setSaved] = useState<null | "ok" | "error" | "stale">(null);
   const [pending, startTransition] = useTransition();
   const { refetch } = useSession();
@@ -187,9 +199,195 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
         )}
       </form>
 
+      <ProfilePicture googleImage={googleImage} version={avatarVersion} />
       <DeviceList devices={devices} />
       <DeleteAccount />
     </>
+  );
+}
+
+/**
+ * Which picture the reader is on, in their own words.
+ *
+ * The three states are the fallback chain read out loud — the reader's own,
+ * then Google's, then the name — so the sentence and the picture beside it
+ * cannot disagree.
+ */
+function pictureInUse(version: string | null, googleImage: string | null): string {
+  if (version !== null) return "Käytössä oma kuvasi.";
+  if (googleImage !== null) return "Käytössä Google-tilisi kuva.";
+  return "Ei kuvaa käytössä. Valikossa näkyy nimesi.";
+}
+
+/** The Finnish for each way an upload can be refused, from specs/025-custom-avatar.md. */
+const AVATAR_ERRORS = {
+  missing: "Valitse ensin kuva.",
+  "too-large": "Kuva on liian suuri. Enimmäiskoko on 8 Mt.",
+  unsupported: "Tuetut kuvatyypit ovat JPEG, PNG, WebP ja HEIC.",
+  unreadable: "Kuvaa ei voitu lukea. Kokeile toista kuvaa.",
+  failed: "Kuvan tallentaminen epäonnistui. Yritä uudelleen.",
+} as const;
+
+type AvatarError = keyof typeof AVATAR_ERRORS;
+
+/**
+ * The reader's own profile picture, from specs/025-custom-avatar.md.
+ *
+ * `version` is what makes the preview update: the stored image is served with a
+ * year-long `immutable` cache, which is only safe because a new upload changes
+ * the URL. Holding it in state rather than reading the prop directly is what
+ * lets an upload replace the picture without a reload.
+ */
+function ProfilePicture({
+  version,
+  googleImage,
+}: Readonly<{ version: string | null; googleImage: string | null }>) {
+  const [current, setCurrent] = useState<string | null>(version);
+  /**
+   * The chosen file in state rather than read off the form at submit time.
+   *
+   * The size check needs it before anything is sent, and a `<form action>`
+   * would hand the action a `FormData` built from the DOM — one more place for
+   * the file to be missing, and untestable outside a real browser.
+   */
+  const [chosen, setChosen] = useState<File | null>(null);
+  const [error, setError] = useState<AvatarError | null>(null);
+  const [saved, setSaved] = useState<null | "saved" | "removed">(null);
+  const [removeFailed, setRemoveFailed] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const { refetch } = useSession();
+
+  const source = current === null ? googleImage : `/api/avatar/me?v=${encodeURIComponent(current)}`;
+
+  function announce(outcome: null | "saved" | "removed", failure: AvatarError | null) {
+    setSaved(outcome);
+    setError(failure);
+    setRemoveFailed(false);
+  }
+
+  return (
+    <section className={SECTION_CLASS}>
+      <h2 className={HEADING_CLASS}>Profiilikuva</h2>
+      <p className="mb-3 text-sm">Kuva näkyy vain sinulle, tilivalikossa.</p>
+
+      <div className="mb-3 flex items-center gap-3">
+        {source === null ? (
+          <span aria-hidden="true" className="h-16 w-16 rounded-full border border-border-subtle" />
+        ) : (
+          // biome-ignore lint/performance/noImgElement: the Google avatar is an arbitrary remote host, and our own is a route handler; next/image would buy nothing for a 64px preview
+          <img alt="" className="h-16 w-16 rounded-full object-cover" src={source} />
+        )}
+        <span className="text-sm text-muted">{pictureInUse(current, googleImage)}</span>
+      </div>
+
+      <label className="mb-1 block text-sm" htmlFor="avatar">
+        Valitse kuva
+      </label>
+      <input
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+        className="mb-1 block text-sm"
+        disabled={pending}
+        id="avatar"
+        name="avatar"
+        onChange={(event) => {
+          setChosen(event.target.files?.[0] ?? null);
+          announce(null, null);
+        }}
+        type="file"
+      />
+      <p className="mb-3 text-sm text-muted">JPEG, PNG, WebP tai HEIC, enintään 8 Mt.</p>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending}
+          onClick={() => {
+            if (chosen === null || chosen.size === 0) {
+              announce(null, "missing");
+              return;
+            }
+            /**
+             * Checked here as well as on the server, and not as validation —
+             * the server is the truth for what gets stored. It is so that the
+             * reader who picks a 20 MB file is told *which* rule they hit: past
+             * Next's configured body limit the action is rejected before it
+             * runs, and a rejection cannot carry a reason.
+             */
+            if (chosen.size > MAX_UPLOAD_BYTES) {
+              announce(null, "too-large");
+              return;
+            }
+
+            const formData = new FormData();
+            formData.set("avatar", chosen);
+
+            startTransition(async () => {
+              try {
+                const outcome = await saveAvatarAction(formData);
+                if (outcome.ok) {
+                  setCurrent(outcome.version);
+                  announce("saved", null);
+                  // The header reads the avatar version off the session, so it
+                  // only changes once the session is refetched.
+                  refetch();
+                } else {
+                  announce(null, outcome.reason);
+                }
+              } catch {
+                /**
+                 * The invocation itself was rejected, and what a rejection
+                 * means is not knowable from here: a dropped connection, a
+                 * crashed server and Next's body limit all arrive the same
+                 * way, and in production the message is redacted. So it gets
+                 * the generic notice rather than a specific one that would be
+                 * wrong more often than right — the size case is already
+                 * caught above, before anything is sent.
+                 */
+                announce(null, "failed");
+              }
+            });
+          }}
+          type="button"
+        >
+          Tallenna kuva
+        </button>
+        {/* Only when there is something to remove: a button that is always
+            disabled tells the reader nothing. */}
+        {current !== null && (
+          <button
+            className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                try {
+                  const outcome = await removeAvatarAction();
+                  if (outcome.ok) {
+                    setCurrent(null);
+                    setChosen(null);
+                    announce("removed", null);
+                    refetch();
+                  } else {
+                    announce(null, null);
+                    setRemoveFailed(true);
+                  }
+                } catch {
+                  announce(null, null);
+                  setRemoveFailed(true);
+                }
+              });
+            }}
+            type="button"
+          >
+            Poista oma kuva
+          </button>
+        )}
+      </div>
+
+      {saved === "saved" && <Notice>Profiilikuva päivitetty.</Notice>}
+      {saved === "removed" && <Notice>Oma kuva poistettu.</Notice>}
+      {error !== null && <Notice>{AVATAR_ERRORS[error]}</Notice>}
+      {removeFailed && <Notice>Kuvan poistaminen epäonnistui. Yritä uudelleen.</Notice>}
+    </section>
   );
 }
 

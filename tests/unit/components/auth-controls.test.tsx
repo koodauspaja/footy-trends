@@ -27,8 +27,17 @@ function signedOut() {
   sessionState.current = { data: null, isPending: false };
 }
 
-function signedInAs(name: string) {
-  sessionState.current = { data: { user: { name, image: null } }, isPending: false };
+function signedInAs(
+  name: string,
+  extras: { image?: string | null; avatarVersion?: string | null } = {}
+) {
+  sessionState.current = {
+    data: {
+      user: { name, image: extras.image ?? null },
+      avatarVersion: extras.avatarVersion ?? null,
+    },
+    isPending: false,
+  };
 }
 
 /**
@@ -302,5 +311,42 @@ describe("a URL rewrite that itself fails", () => {
     // told the reader their sign-out failed, which it did not.
     expect(replace).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Which picture the account menu shows", () => {
+  const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
+
+  /**
+   * The chain specs/025-custom-avatar.md extends by one: the reader's own
+   * picture, then Google's, then their name. The version rides on the session
+   * the browser already fetches, so preferring the custom one costs no extra
+   * request.
+   */
+  it("prefers the reader's own picture over Google's", () => {
+    signedInAs("Matti", { image: GOOGLE, avatarVersion: "avatar-token" });
+
+    const { container } = render(<AuthControls />);
+
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/avatar/me?v=avatar-token");
+  });
+
+  it("falls back to Google's picture when there is no custom one", () => {
+    signedInAs("Matti", { image: GOOGLE, avatarVersion: null });
+
+    const { container } = render(<AuthControls />);
+
+    expect(container.querySelector("img")).toHaveAttribute("src", GOOGLE);
+  });
+
+  it("falls back to the name when there is neither", () => {
+    // 024's behaviour, unchanged: an avatar that cannot load must never leave
+    // an unlabelled button behind.
+    signedInAs("Matti", { image: null, avatarVersion: null });
+
+    const { container } = render(<AuthControls />);
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Tili:/ })).toHaveTextContent("Matti");
   });
 });

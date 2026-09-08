@@ -5,7 +5,7 @@ import { customSession } from "better-auth/plugins/custom-session";
 import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import { displayNameFor } from "@/lib/auth-profile";
-import { getDefaultRegionFor } from "@/lib/preferences";
+import { getSessionExtrasFor } from "@/lib/preferences";
 
 /**
  * Reads a variable that sign-in cannot work without, and says which one is
@@ -86,14 +86,18 @@ export const auth = betterAuth({
      * needs the value in the browser. Enriching `/api/auth/get-session` costs
      * no extra round trip, where a second client fetch would.
      *
-     * Only `defaultRegion` — the one field the client acts on. The settings
-     * page reads the rest server-side, so shipping them here would be payload
-     * on every page load for nothing.
+     * Only what the client acts on: the start-page preference, and whether
+     * there is a custom avatar to ask for (specs/025-custom-avatar.md). The
+     * settings page reads the rest server-side, so shipping it here would be
+     * payload on every page load for nothing.
+     *
+     * Both come from one query — see `getSessionExtrasFor`. A field added here
+     * must not cost a round trip on every page load.
      */
     customSession(async ({ user, session }) => ({
       user,
       session,
-      defaultRegion: await getDefaultRegionFor(user.id),
+      ...(await getSessionExtrasFor(user.id)),
     })),
     /**
      * Must be last in the plugin list: it writes better-auth's `Set-Cookie`

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { user, userPreferences } from "@/db/schema";
 import { preferredCompetitionFor } from "@/lib/competition-preferences";
-import { getDefaultRegionFor, getPreferencesFor } from "@/lib/preferences";
+import { getPreferencesFor, getSessionExtrasFor } from "@/lib/preferences";
 import { saveSettings } from "@/lib/settings-actions";
 
 /**
@@ -50,7 +50,7 @@ describe("saving and reading back", () => {
     expect(await saveSettings(form({ defaultRegion: "kotimaa" }))).toEqual({ ok: true });
 
     // This is the value better-auth puts on the session the browser reads.
-    expect(await getDefaultRegionFor(USER_ID)).toBe("kotimaa");
+    expect((await getSessionExtrasFor(USER_ID)).defaultRegion).toBe("kotimaa");
   });
 
   it("stores each competition against the region that will read it", async () => {
@@ -77,7 +77,7 @@ describe("saving and reading back", () => {
 
     await saveSettings(form({ defaultRegion: "", defaultCompetitionDomestic: "" }));
 
-    expect(await getDefaultRegionFor(USER_ID)).toBeNull();
+    expect((await getSessionExtrasFor(USER_ID)).defaultRegion).toBeNull();
     expect(preferredCompetitionFor("kotimaa", await getPreferencesFor(USER_ID))).toBeNull();
   });
 
@@ -88,13 +88,13 @@ describe("saving and reading back", () => {
     const rows = await db.select().from(userPreferences).where(eq(userPreferences.userId, USER_ID));
 
     expect(rows).toHaveLength(1);
-    expect(await getDefaultRegionFor(USER_ID)).toBe("ulkomaat");
+    expect((await getSessionExtrasFor(USER_ID)).defaultRegion).toBe("ulkomaat");
   });
 
   it("refuses to store a region nothing can resolve", async () => {
     await saveSettings(form({ defaultRegion: "eurooppa" }));
 
-    expect(await getDefaultRegionFor(USER_ID)).toBeNull();
+    expect((await getSessionExtrasFor(USER_ID)).defaultRegion).toBeNull();
   });
 
   it("keeps a competition that has left the registry out of the resolvers", async () => {

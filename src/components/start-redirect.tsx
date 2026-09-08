@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
-import { isRegionSegment } from "@/lib/regions";
+import { defaultRegionOf } from "@/lib/session-extras";
 
 /**
  * The query parameter that always shows the region picker, whatever is stored.
@@ -27,13 +27,13 @@ function Redirect() {
 
     /**
      * `defaultRegion` is added to the session response by better-auth's
-     * `customSession` plugin (see src/lib/auth.ts). The browser client is not
-     * typed for server-side plugins, so it arrives as `unknown` and
-     * `isRegionSegment` does the narrowing — which is the check we would want
-     * regardless, since a region retired from the app must not redirect anyone.
+     * `customSession` plugin (see src/lib/auth.ts), and the browser client is
+     * not typed for server-side plugins — `defaultRegionOf` does the narrowing,
+     * which is the check we would want regardless, since a region retired from
+     * the app must not redirect anyone.
      */
-    const region = (session as { defaultRegion?: unknown }).defaultRegion;
-    if (!isRegionSegment(region)) return;
+    const region = defaultRegionOf(session);
+    if (region === null) return;
 
     // `replace`, not `push`: the front page must not become a step the reader
     // has to click past twice on the way back.

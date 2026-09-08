@@ -6,6 +6,7 @@ import {
   session,
   tasoMatches,
   user,
+  userAvatar,
   userPreferences,
   verification,
 } from "@/db/schema";
@@ -221,5 +222,35 @@ describe("user_preferences table", () => {
 
     expect(optional).toHaveLength(4);
     for (const column of optional) expect(column.notNull).toBe(false);
+  });
+});
+
+describe("user_avatar table", () => {
+  it("stores the image as bytea, not as text", () => {
+    // drizzle has no built-in `bytea`, so this column is a `customType` whose
+    // whole job is that one word. Encoded as text, a WebP would come back
+    // corrupt — and the round trip is only proved against a real database in
+    // tests/integration/avatar.test.ts, which cannot say what the *declared*
+    // type is.
+    const { columns } = getTableConfig(userAvatar);
+    const bytes = columns.find((column) => column.name === "bytes");
+
+    expect(bytes?.getSQLType()).toBe("bytea");
+    expect(bytes?.notNull).toBe(true);
+  });
+
+  it("keys on the user, so an upload replaces rather than accumulates", () => {
+    const { columns, foreignKeys } = getTableConfig(userAvatar);
+
+    expect(columns.find((column) => column.name === "user_id")?.primary).toBe(true);
+    // The cascade is what makes account deletion complete without a second
+    // code path — specs/024 promises it is irreversible and total.
+    expect(foreignKeys[0]?.onDelete).toBe("cascade");
+    // Resolved rather than read off the config: which table it cascades *from*
+    // is the whole guarantee, and a reference pointing somewhere else would
+    // satisfy every assertion above.
+    const reference = foreignKeys[0]?.reference();
+    expect(reference?.foreignTable).toBe(user);
+    expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
   });
 });

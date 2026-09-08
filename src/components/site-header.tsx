@@ -6,7 +6,7 @@ import { AuthControls, AuthNotice } from "@/components/auth-controls";
 import { SHOW_PICKER_PARAM } from "@/components/start-redirect";
 import { useSession } from "@/lib/auth-client";
 import { regionCrumbFor } from "@/lib/breadcrumb";
-import { isRegionSegment } from "@/lib/regions";
+import { defaultRegionOf } from "@/lib/session-extras";
 
 /**
  * `Etusivu / Kotimaa` — the front page, then the region the reader is inside.
@@ -32,9 +32,7 @@ export function SiteHeader() {
    * region they are already in and look broken. No setting may make a page
    * unreachable by clicking — see specs/024-account-settings.md.
    */
-  const hasStartPage = isRegionSegment(
-    (session as { defaultRegion?: unknown } | null)?.defaultRegion
-  );
+  const hasStartPage = defaultRegionOf(session) !== null;
   const homeHref = hasStartPage ? `/?${SHOW_PICKER_PARAM}=1` : "/";
 
   return (
