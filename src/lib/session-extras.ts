@@ -8,7 +8,7 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
  * for server-side plugins, so `defaultRegion` and `avatarVersion` arrive as
  * `unknown` however the server declares them. That is worth narrowing rather
  * than asserting: a region retired from the app must not redirect anyone, and a
- * version that is not a number must not become a URL.
+ * version that is not a string or is empty must not become a URL.
  *
  * **Why here rather than at each call site.** The cast was written twice
  * already — in `site-header.tsx` and `start-redirect.tsx` — and this spec adds
