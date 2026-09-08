@@ -158,9 +158,11 @@ when the picture was set.
 | 404 | Signed in with no custom avatar |
 | Headers | `Cache-Control: private, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` |
 
-`immutable` is safe only because the URL carries `?v=<updatedAt epoch ms>`: a new
+`immutable` is safe only because the URL carries `?v=<random token>`: a new
 upload produces a new URL, and the old one is never requested again. Without the
-version parameter this cache policy would pin a stale picture for a year.
+version parameter this cache policy would pin a stale picture for a year — and
+without the token being *random* rather than a timestamp, two readers could
+share a URL. See "Why the version is random" above.
 
 `private` because the response is scoped to one reader's session — a shared
 cache must never hold it.
@@ -171,10 +173,11 @@ The `customSession` plugin already enriches `/api/auth/get-session` with
 `defaultRegion`. It gains one more field:
 
 ```ts
-avatarVersion: number | null   // updatedAt epoch ms, or null when there is none
+avatarVersion: string | null   // the avatar's random token, or null when there is none
 ```
 
-The client builds `/api/avatar/me?v=${avatarVersion}` when it is non-null. This
+The client builds `/api/avatar/me?v=${avatarVersion}` when it is non-null,
+escaping it rather than trusting its shape. This
 adds no round trip — the browser already fetches the session, and the header is
 client-rendered precisely so the four `STATIC_BY_DESIGN` pages stay prerendered
 (#182).
@@ -204,7 +207,7 @@ and neither belongs on an edge runtime.
 
 | Action | Signature | Returns |
 |---|---|---|
-| `saveAvatar` | `(formData: FormData) => Promise<AvatarResult>` | `{ ok: true, version: number }` or `{ ok: false, reason }` |
+| `saveAvatar` | `(formData: FormData) => Promise<AvatarResult>` | `{ ok: true, version: string }` or `{ ok: false, reason }` |
 | `removeAvatar` | `() => Promise<ActionResult>` | `{ ok: true }` or `{ ok: false }` |
 
 `reason` is one of `"missing" | "too-large" | "unsupported" | "unreadable" |
@@ -287,6 +290,7 @@ already revalidates.
 | Account deleted | Row goes with the user by cascade. Verified in an integration test, not assumed. |
 | Two tabs, one uploads | The other keeps the old picture until its next session fetch. The URL is versioned, so it never shows a *wrong* image — only an old one. |
 | `?v=` missing or wrong | The handler ignores it entirely and serves the current row; it is a cache key, not an argument. |
+| A session carrying a non-string or empty version | Treated as "no custom picture" and the Google image is used, rather than building a URL every such reader would share. |
 
 ## Performance & Limits
 

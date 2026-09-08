@@ -34,9 +34,10 @@ describe("GET /api/avatar/me", () => {
 
   it("caches for a year, privately, and refuses to be sniffed", async () => {
     /**
-     * `immutable` is only safe because the URL carries `?v=<updatedAt>`: a new
-     * upload is a new URL. `private` because the response is scoped to one
-     * reader's session and a shared cache must never hold it.
+     * `immutable` is only safe because the URL carries `?v=<random token>`: a
+     * new upload is a new URL, and no two readers share one. `private` because
+     * the response is scoped to one reader's session and a shared cache must
+     * never hold it.
      */
     const response = await GET();
 

@@ -18,9 +18,14 @@ export const dynamic = "force-dynamic";
 
 /**
  * A year, and `immutable` — which is only safe because the URL carries
- * `?v=<updatedAt epoch ms>`. A new upload produces a new URL, so the old one is
- * never requested again. Without the version parameter this would pin a stale
- * picture for a year.
+ * `?v=<random token>`. A new upload produces a new URL, so the old one is never
+ * requested again. Without the version parameter this would pin a stale picture
+ * for a year.
+ *
+ * The token is random rather than a timestamp for a second reason: this path is
+ * the same for every reader, so the parameter is the only thing keeping one
+ * reader's cached image off another's URL. Two timestamps landing in the same
+ * millisecond would have shared one. See `avatar.ts`.
  *
  * `private` because the response is scoped to one reader's session: a shared
  * cache must never hold it.
