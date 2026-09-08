@@ -10,6 +10,7 @@
  *   npm run release:version -- --print=notes     # markdown release notes
  */
 import { execFileSync } from "node:child_process";
+import { executablePath, overrideNameFor } from "./executable";
 import {
   type Commit,
   decideVersion,
@@ -24,7 +25,17 @@ const RECORD = "\u001e";
 const FIELD = "\u001f";
 
 function git(args: string[]): string {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  // Absolute, not resolved through `PATH` — see `executable.ts`. This script
+  // cuts a release, so it throws rather than degrading: a release built by
+  // whatever `git` happened to be first in someone's path is not a release
+  // anyone should trust.
+  const binary = executablePath("git");
+  if (binary === null) {
+    throw new Error(
+      `git not found. Set ${overrideNameFor("git")} to its absolute path if it is installed somewhere unusual.`
+    );
+  }
+  return execFileSync(binary, args, { encoding: "utf8" }).trim();
 }
 
 // `process.stdout.write` rather than `console.log`: this is a command-line

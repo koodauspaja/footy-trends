@@ -272,3 +272,24 @@ export function decideFreshness(input: {
     ].join("\n"),
   };
 }
+
+/**
+ * The fingerprint's entries in a fixed order, so the same working tree always
+ * produces the same list.
+ *
+ * **Not `entries.sort()`, and not `localeCompare` either.** The bare sort was
+ * the CRITICAL Sonar finding; `localeCompare` — the fix it suggests — would be
+ * worse than the bug, because it orders by locale and ICU version. This list is
+ * compared against one written by an earlier run, possibly on another machine
+ * in CI, so an ordering that depends on the machine would report a clean tree
+ * as stale and send someone re-running e2e for nothing.
+ *
+ * Code-unit comparison is the same on every platform, which is the only
+ * property this needs.
+ */
+export function inFixedOrder(entries: string[]): string[] {
+  return [...entries].sort((left, right) => {
+    if (left < right) return -1;
+    return left > right ? 1 : 0;
+  });
+}

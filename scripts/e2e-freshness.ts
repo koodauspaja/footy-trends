@@ -16,6 +16,7 @@ import {
   missingPrerequisites,
   parseMarker,
 } from "./e2e-freshness-plan";
+import { executablePath } from "./executable";
 
 /**
  * What the last passing run cannot vouch for, as `path (kind)` strings.
@@ -49,7 +50,12 @@ function changesSince(marker: Marker): string[] {
  * "not available", which warns rather than blocks.
  */
 function dockerIsRunning(): boolean {
-  const probe = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
+  // Absolute, not resolved through `PATH` — see `executable.ts`. No docker
+  // found reads exactly as docker not running, which is what this reports.
+  const binary = executablePath("docker");
+  if (binary === null) return false;
+
+  const probe = spawnSync(binary, ["info", "--format", "{{.ServerVersion}}"], {
     stdio: "ignore",
     timeout: 5000,
   });

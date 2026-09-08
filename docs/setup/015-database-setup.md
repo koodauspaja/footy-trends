@@ -26,7 +26,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env, see .env.example}
       POSTGRES_DB: footy-trends
     ports:
       - "5432:5432"
@@ -47,6 +47,7 @@ Update your local `.env`:
 
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/footy-trends
+POSTGRES_PASSWORD=postgres
 ```
 
 ---
