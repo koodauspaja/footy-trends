@@ -343,3 +343,88 @@ describe("a server action that rejects before returning anything", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("a dropdown after the server sends the saved value back", () => {
+  /**
+   * #271: the selects were uncontrolled, so `defaultValue` applied on mount and
+   * was ignored on every later render. After a save the server revalidates and
+   * sends the stored preferences back as new props — and the dropdown kept
+   * showing the old value beside `Asetukset tallennettu.`
+   */
+  it("shows a newly saved competition", () => {
+    const { rerender } = renderPage();
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("");
+
+    rerender(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+  });
+
+  it("shows a newly saved start region", () => {
+    // All four selects had the same defect, not only the one reported.
+    const { rerender } = renderPage();
+
+    rerender(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={{ ...NO_PREFERENCES, defaultRegion: "kotimaa" }}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+
+    expect(screen.getByLabelText("Mistä sovellus aloittaa")).toHaveValue("kotimaa");
+  });
+
+  it("shows a preference that was cleared back to the default", () => {
+    // Unsetting has to travel the same path as setting.
+    const { rerender } = render(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+
+    rerender(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={NO_PREFERENCES}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("");
+  });
+
+  it("does not discard an edit the reader has not saved yet", () => {
+    // The other half of the fix: a re-render that does not change the *stored*
+    // value must leave a half-made choice alone. Otherwise picking a
+    // competition and then having the page re-render for any reason would
+    // silently undo it.
+    //
+    // `rerender`, not a second `renderPage()`. Mounting a second component
+    // would leave the first one untouched and assert on that — which passes
+    // whatever the component does on re-render, and so tests nothing.
+    const { rerender } = renderPage();
+    fireEvent.change(screen.getByLabelText("Kotimaan oletussarja"), { target: { value: "M1L" } });
+
+    // The same stored preferences, new object identity — what a re-render for
+    // any unrelated reason looks like.
+    rerender(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={{ ...NO_PREFERENCES }}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
+  });
+});

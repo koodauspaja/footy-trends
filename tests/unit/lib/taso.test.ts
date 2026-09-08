@@ -515,20 +515,37 @@ describe("taso mapping", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ groups: [{ group_id: "1" }] }),
+      json: async () => ({ category: { groups: [{ group_id: "1" }] } }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const groups = await getSeasonGroups("spljp26", "VL");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://spl.torneopal.net/taso/rest/getGroups?competition_id=spljp26&category_id=VL",
+      // `getCategory`, not `getGroups`: TASO refuses the latter outright (#272).
+      "https://spl.torneopal.net/taso/rest/getCategory?competition_id=spljp26&category_id=VL",
       expect.any(Object)
     );
     expect(groups).toEqual([{ group_id: "1" }]);
   });
 
-  it("treats a groups response with no groups field as no groups", async () => {
+  it("does not read a top-level groups field, which is the old endpoint's shape", async () => {
+    // Guards the switch itself: reading `groups` again would silently return
+    // nothing from `getCategory`, which is the failure this bug was (#272).
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ groups: [{ group_id: "9" }] }),
+      })
+    );
+
+    expect(await getSeasonGroups("spljp26", "VL")).toEqual([]);
+  });
+
+  it("treats a category response with no groups field as no groups", async () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal(
       "fetch",
@@ -884,12 +901,16 @@ describe("taso caching", () => {
   it("caches a season's groups per competition and category", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ groups: [] }), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify({ category: { groups: [] } }), { status: 200 }))
     );
 
     await getSeasonGroups("spljp26", "VL");
 
-    expect(getCachedMock).toHaveBeenCalledWith("taso:groups:spljp26:VL", 900, expect.any(Function));
+    expect(getCachedMock).toHaveBeenCalledWith(
+      "taso:category:spljp26:VL",
+      900,
+      expect.any(Function)
+    );
   });
 
   it("does not reach the provider when the cache answers, even with nothing", async () => {
