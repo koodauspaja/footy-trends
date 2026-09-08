@@ -1,6 +1,7 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { favoriteCompetition, favoriteTeam, matches, tasoMatches } from "@/db/schema";
+import { favoriteCompetition, favoriteTeam, matches, tasoMatches, user } from "@/db/schema";
+import { regionOfCompetition } from "@/lib/competitions";
 import {
   competitionKey,
   type FavouriteSource,
@@ -17,6 +18,9 @@ import type { RegionSegment } from "@/lib/regions";
  * the two identities have different shapes, and one table would hold four
  * nullable columns and a rule about which pair is legal.
  */
+
+/** The transaction handle drizzle hands `db.transaction`. */
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type Favourites = { teams: string[]; competitions: string[] };
 
@@ -59,11 +63,32 @@ export async function getFavouriteKeys(userId: string): Promise<Favourites> {
   };
 }
 
+/**
+ * Runs a toggle with this reader's `user` row locked.
+ *
+ * **The cap needs it.** Counting and then inserting is two statements, and two
+ * tabs at forty-nine both read forty-nine and both insert — the unique index
+ * does not object, because they are different favourites. Read Committed does
+ * not help: each statement takes its own snapshot, so a conditional insert
+ * races the same way.
+ *
+ * The lock is on the reader's own `user` row, so it serialises only that
+ * reader's favourite writes — a toggle waits for their other tab and for
+ * nobody else.
+ */
+async function withUserLocked<T>(userId: string, run: (tx: Transaction) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select 1 from ${user} where ${user.id} = ${userId} for update`);
+    return run(tx);
+  });
+}
+
 async function countFor(
+  tx: Transaction,
   table: typeof favoriteTeam | typeof favoriteCompetition,
   userId: string
 ): Promise<number> {
-  const [row] = await db
+  const [row] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(table)
     .where(eq(table.userId, userId));
@@ -88,23 +113,25 @@ export async function toggleFavouriteTeam(
     eq(favoriteTeam.teamProviderId, teamProviderId)
   );
 
-  const removed = await db.delete(favoriteTeam).where(where).returning({ id: favoriteTeam.id });
-  if (removed.length > 0) return { ok: true, favorite: false };
+  return withUserLocked(userId, async (tx) => {
+    const removed = await tx.delete(favoriteTeam).where(where).returning({ id: favoriteTeam.id });
+    if (removed.length > 0) return { ok: true, favorite: false };
 
-  // Counted after the delete, so unfavouriting at the cap always works — a
-  // reader who cannot remove one because they have too many would be stuck.
-  if ((await countFor(favoriteTeam, userId)) >= MAX_FAVOURITES_PER_KIND) {
-    return { ok: false, reason: "limit" };
-  }
+    // Counted after the delete, so unfavouriting at the cap always works — a
+    // reader who cannot remove one because they have too many would be stuck.
+    if ((await countFor(tx, favoriteTeam, userId)) >= MAX_FAVOURITES_PER_KIND) {
+      return { ok: false, reason: "limit" };
+    }
 
-  await db
-    .insert(favoriteTeam)
-    .values({ userId, source, teamProviderId })
-    // Two tabs, or a double click: the unique index makes the second a no-op
-    // rather than an error the reader has to understand.
-    .onConflictDoNothing();
+    await tx
+      .insert(favoriteTeam)
+      .values({ userId, source, teamProviderId })
+      // Two tabs, or a double click: the unique index makes the second a no-op
+      // rather than an error the reader has to understand.
+      .onConflictDoNothing();
 
-  return { ok: true, favorite: true };
+    return { ok: true, favorite: true };
+  });
 }
 
 export async function toggleFavouriteCompetition(
@@ -118,22 +145,24 @@ export async function toggleFavouriteCompetition(
     eq(favoriteCompetition.competitionCode, code)
   );
 
-  const removed = await db
-    .delete(favoriteCompetition)
-    .where(where)
-    .returning({ id: favoriteCompetition.id });
-  if (removed.length > 0) return { ok: true, favorite: false };
+  return withUserLocked(userId, async (tx) => {
+    const removed = await tx
+      .delete(favoriteCompetition)
+      .where(where)
+      .returning({ id: favoriteCompetition.id });
+    if (removed.length > 0) return { ok: true, favorite: false };
 
-  if ((await countFor(favoriteCompetition, userId)) >= MAX_FAVOURITES_PER_KIND) {
-    return { ok: false, reason: "limit" };
-  }
+    if ((await countFor(tx, favoriteCompetition, userId)) >= MAX_FAVOURITES_PER_KIND) {
+      return { ok: false, reason: "limit" };
+    }
 
-  await db
-    .insert(favoriteCompetition)
-    .values({ userId, region, competitionCode: code })
-    .onConflictDoNothing();
+    await tx
+      .insert(favoriteCompetition)
+      .values({ userId, region, competitionCode: code })
+      .onConflictDoNothing();
 
-  return { ok: true, favorite: true };
+    return { ok: true, favorite: true };
+  });
 }
 
 /** Removing something that is not there is not an error — the list already says what it should. */
@@ -192,6 +221,15 @@ export type FavouriteTeamView = {
   teamProviderId: number;
   /** From stored matches, or null when nothing is stored for this team. */
   name: string | null;
+  /**
+   * Where this team's page lives, or null when we could not tell.
+   *
+   * Derived, never stored. A favourite is `(source, teamProviderId)` and
+   * deliberately carries no region — but `football-data` covers both club
+   * competitions and national sides, which live under different URLs, so the
+   * region has to come from the competitions its matches were played in.
+   */
+  region: RegionSegment | null;
 };
 
 /**
@@ -226,6 +264,7 @@ export async function resolveTeamNames(
             homeName: matches.homeTeamName,
             awayId: matches.awayTeamProviderId,
             awayName: matches.awayTeamName,
+            competitionCode: matches.competitionCode,
           })
           .from(matches)
           .where(
@@ -253,14 +292,36 @@ export async function resolveTeamNames(
   ]);
 
   const names = new Map<string, string>();
-  const remember = (source: FavouriteSource, rows: typeof footballDataRows) => {
-    for (const row of rows) {
-      names.set(teamKey(source, row.homeId), row.homeName);
-      names.set(teamKey(source, row.awayId), row.awayName);
+  const regions = new Map<string, RegionSegment>();
+
+  for (const row of tasoRows) {
+    names.set(teamKey("taso", row.homeId), row.homeName);
+    names.set(teamKey("taso", row.awayId), row.awayName);
+    // TASO is domestic football and nothing else.
+    regions.set(teamKey("taso", row.homeId), "kotimaa");
+    regions.set(teamKey("taso", row.awayId), "kotimaa");
+  }
+
+  for (const row of footballDataRows) {
+    names.set(teamKey("football-data", row.homeId), row.homeName);
+    names.set(teamKey("football-data", row.awayId), row.awayName);
+
+    /**
+     * The competition decides the region, because the provider does not.
+     * Finland's national side and a Spanish club are both `football-data`
+     * teams, and their pages live under `/maajoukkueet` and `/ulkomaat`.
+     * Without this, every national-team favourite linked to a club URL.
+     */
+    const registry = regionOfCompetition(row.competitionCode);
+    if (registry === null) continue;
+    const segment: RegionSegment = registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
+    // First match wins, and a team is only ever in one of the two registries:
+    // clubs do not play the World Cup.
+    for (const id of [row.homeId, row.awayId]) {
+      const key = teamKey("football-data", id);
+      if (!regions.has(key)) regions.set(key, segment);
     }
-  };
-  remember("football-data", footballDataRows);
-  remember("taso", tasoRows);
+  }
 
   return teams.map((team) => ({
     ...team,
@@ -268,5 +329,6 @@ export async function resolveTeamNames(
     // entry stays removable — a favourite nobody can delete would be worse
     // than one with no name.
     name: names.get(teamKey(team.source, team.teamProviderId)) ?? null,
+    region: regions.get(teamKey(team.source, team.teamProviderId)) ?? null,
   }));
 }

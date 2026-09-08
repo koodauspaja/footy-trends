@@ -202,7 +202,8 @@ Strings rather than objects: they are compared, not read, and `"taso:60731"` is
 one `includes` instead of a `find` with two fields.
 
 **Bounded on purpose.** Fifty of each, **measured at 2326 bytes** (334 gzipped)
-with both caps filled — see Open Questions. The cap is enforced on write, and
+with both caps filled — see Open Questions. The cap is enforced on write, under a
+row lock on the reader's own `user` row so that two tabs cannot both pass it, and
 `Suosikkeja voi olla enintään 50.` says so.
 
 Every read of these two fields goes through `favouriteKeysOf(session, kind)` in
@@ -246,6 +247,9 @@ without a reload and the other stars on the page follow when the session lands.
 | Favouriting twice (two tabs, double click) | The unique index makes the second a no-op; the action returns the state rather than an error |
 | A competition retired from the registry | **Kept**, and reported as `Sarjaa ei enää ole.` on `/suosikit` with its `Poista suosikeista` button — validated against the registry on read the way a stored `defaultCompetition` is, but never hidden, because a row nobody can see is a row nobody can remove |
 | A team with no stored matches | Rendered as `Joukkuetta ei löytynyt.` with no link, and removable — the entry must not become unreachable |
+| A team we can name but cannot place | Its name, unlinked. A `football-data` team's region comes from the competitions its matches were played in, and a competition can leave the registry; `Joukkuetta ei löytynyt.` would be false about a team just named |
+| A national side favourited from `/maajoukkueet` | Links to `/maajoukkueet/joukkue/:id`. The same standings page renders clubs and national sides, so the provider does not decide the region — the competition does |
+| Two tabs adding at forty-nine | One is refused. The count and the insert run inside a transaction holding a `for update` lock on the reader's own `user` row, because two statements are not atomic and both tabs would otherwise read forty-nine |
 | The fifty-first favourite | Refused with `Suosikkeja voi olla enintään 50.`; nothing is written |
 | Signed out mid-session, then a toggle | `{ ok: false, reason: "failed" }`; the header has already fallen back to `Kirjaudu sisään` |
 | Account deleted | Both tables cascade. Verified in an integration test, not assumed |

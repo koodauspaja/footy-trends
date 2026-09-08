@@ -8,6 +8,7 @@ const { state, logger } = vi.hoisted(() => ({
     deleted: new Map<unknown, unknown[]>(),
     inserts: [] as { table: unknown; values: unknown }[],
     emptyCount: false,
+    locks: 0,
     limits: [] as number[],
     queried: [] as unknown[],
     throws: false,
@@ -37,39 +38,49 @@ vi.mock("@/db", () => {
       Promise.resolve().then(bare).then(resolve, reject),
   });
 
+  const client = {
+    select: () => ({
+      from: (table: unknown) => ({
+        where: () =>
+          thenable(
+            () => rowsFor(table),
+            // A bare `await` on a `select` is `countFor`; the bounded list
+            // read always ends in `.limit()`.
+            () => {
+              if (state.throws) throw new Error("database down");
+              return state.emptyCount ? [] : [{ n: state.counts.get(table) ?? 0 }];
+            }
+          ),
+      }),
+    }),
+    selectDistinct: () => ({
+      from: (table: unknown) => ({
+        where: () =>
+          thenable(
+            () => rowsFor(table),
+            () => rowsFor(table)
+          ),
+      }),
+    }),
+    delete: (table: unknown) => ({
+      where: () => ({ returning: async () => state.deleted.get(table) ?? [] }),
+    }),
+    insert: (table: unknown) => ({
+      values: (values: unknown) => ({
+        onConflictDoNothing: async () => state.inserts.push({ table, values }),
+      }),
+    }),
+    // The row lock the cap depends on. Recorded rather than ignored: a toggle
+    // that stopped taking it would still pass every other assertion here.
+    execute: async () => {
+      state.locks += 1;
+    },
+  };
+
   return {
     db: {
-      select: () => ({
-        from: (table: unknown) => ({
-          where: () =>
-            thenable(
-              () => rowsFor(table),
-              // A bare `await` on a `select` is `countFor`; the bounded list
-              // read always ends in `.limit()`.
-              () => {
-                if (state.throws) throw new Error("database down");
-                return state.emptyCount ? [] : [{ n: state.counts.get(table) ?? 0 }];
-              }
-            ),
-        }),
-      }),
-      selectDistinct: () => ({
-        from: (table: unknown) => ({
-          where: () =>
-            thenable(
-              () => rowsFor(table),
-              () => rowsFor(table)
-            ),
-        }),
-      }),
-      delete: (table: unknown) => ({
-        where: () => ({ returning: async () => state.deleted.get(table) ?? [] }),
-      }),
-      insert: (table: unknown) => ({
-        values: (values: unknown) => ({
-          onConflictDoNothing: async () => state.inserts.push({ table, values }),
-        }),
-      }),
+      ...client,
+      transaction: async (run: (tx: typeof client) => Promise<unknown>) => run(client),
     },
   };
 });
@@ -84,6 +95,7 @@ beforeEach(() => {
   state.queried = [];
   state.throws = false;
   state.emptyCount = false;
+  state.locks = 0;
   logger.error.mockClear();
 });
 
@@ -158,6 +170,19 @@ describe("toggleFavouriteTeam", () => {
       ok: true,
       favorite: true,
     });
+  });
+
+  it("takes the reader's row lock before counting, so two tabs cannot both pass the cap", async () => {
+    /**
+     * Counting and then inserting is two statements: at forty-nine, two tabs
+     * both read forty-nine and both insert, and the unique index does not
+     * object because they are different favourites. The lock is the only thing
+     * that stops fifty-one.
+     */
+    const { toggleFavouriteTeam } = await import("@/lib/favourites");
+    await toggleFavouriteTeam("user-1", "taso", 60731);
+
+    expect(state.locks).toBe(1);
   });
 
   it("still lets a reader at the cap remove one", async () => {
@@ -260,15 +285,17 @@ describe("resolveTeamNames", () => {
         { source: "taso", teamProviderId: 60732 },
       ])
     ).toEqual([
-      { source: "taso", teamProviderId: 60731, name: "FC Kiisto" },
-      { source: "taso", teamProviderId: 60732, name: "PK-35" },
+      { source: "taso", teamProviderId: 60731, name: "FC Kiisto", region: "kotimaa" },
+      { source: "taso", teamProviderId: 60732, name: "PK-35", region: "kotimaa" },
     ]);
   });
 
   it("keeps the two providers' id spaces apart", async () => {
     // 317 is a real id in both tables and a different club in each. Resolving
     // by id alone would print one club's name over the other's row.
-    state.rows.set(matches, [{ homeId: 317, homeName: "Rangers", awayId: 1, awayName: "Muu" }]);
+    state.rows.set(matches, [
+      { homeId: 317, homeName: "Rangers", awayId: 1, awayName: "Muu", competitionCode: "PL" },
+    ]);
     state.rows.set(tasoMatches, [{ homeId: 317, homeName: "Ilves", awayId: 2, awayName: "Muu" }]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
@@ -278,8 +305,8 @@ describe("resolveTeamNames", () => {
         { source: "taso", teamProviderId: 317 },
       ])
     ).toEqual([
-      { source: "football-data", teamProviderId: 317, name: "Rangers" },
-      { source: "taso", teamProviderId: 317, name: "Ilves" },
+      { source: "football-data", teamProviderId: 317, name: "Rangers", region: "ulkomaat" },
+      { source: "taso", teamProviderId: 317, name: "Ilves", region: "kotimaa" },
     ]);
   });
 
@@ -288,7 +315,51 @@ describe("resolveTeamNames", () => {
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "taso", teamProviderId: 60731 }])).toEqual([
-      { source: "taso", teamProviderId: 60731, name: null },
+      { source: "taso", teamProviderId: 60731, name: null, region: null },
+    ]);
+  });
+
+  it("sends a national side to its own region, not to the club pages", async () => {
+    /**
+     * The bug this exists for: `football-data` covers club competitions *and*
+     * national sides, and the same standings page renders both, so both can be
+     * favourited. Linking every football-data team to `/ulkomaat/joukkue/:id`
+     * sent Suomi to a club URL.
+     */
+    state.rows.set(matches, [
+      { homeId: 8722, homeName: "Suomi", awayId: 759, awayName: "Ruotsi", competitionCode: "WC" },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
+      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+    ]);
+  });
+
+  it("keeps the first region it saw when a team has matches in two competitions", async () => {
+    // Deterministic rather than last-write-wins: a club plays several club
+    // competitions, and all of them are `ulkomaat`, so the only thing that must
+    // not happen is the answer changing with row order.
+    state.rows.set(matches, [
+      { homeId: 86, homeName: "Real Madrid", awayId: 81, awayName: "Barca", competitionCode: "PD" },
+      { homeId: 86, homeName: "Real Madrid", awayId: 5, awayName: "Bayern", competitionCode: "CL" },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
+      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: "ulkomaat" },
+    ]);
+  });
+
+  it("reports no region for a competition the registry no longer has", async () => {
+    // Better an unlinked row than a link to another club's page.
+    state.rows.set(matches, [
+      { homeId: 86, homeName: "Real Madrid", awayId: 81, awayName: "Barca", competitionCode: "XX" },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
+      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
     ]);
   });
 

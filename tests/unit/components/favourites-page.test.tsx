@@ -104,12 +104,19 @@ describe("what it shows", () => {
     expect(removeButtons()).toHaveLength(2);
   });
 
-  it("does not link a team whose page we could not work out", () => {
-    // Name but no href: a source with no page of its own. The name is still
-    // worth showing; a link to nowhere is not.
+  it("names a team whose page we could not work out, without linking it", () => {
+    /**
+     * Name but no href: we know who it is, but not which region's page it
+     * belongs to — its competitions have left the registry. Saying
+     * `Joukkuetta ei löytynyt.` here would be false about a team we just
+     * named, and a link to nowhere is not the alternative.
+     */
     renderPage({ teams: [{ ...ILVES, href: null }] });
 
+    expect(screen.getByText("Ilves")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Ilves" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
+    expect(removeButtons()).toHaveLength(2);
   });
 });
 

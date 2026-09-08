@@ -10,9 +10,10 @@ import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { auth } from "@/lib/auth";
 import { competitionNameFor, competitionOptionsFor } from "@/lib/competition-preferences";
-import { type FavouriteSource, parseCompetitionKey, parseTeamKey } from "@/lib/favourite-keys";
+import { parseCompetitionKey, parseTeamKey } from "@/lib/favourite-keys";
 import { getFavouriteKeys, resolveTeamNames } from "@/lib/favourites";
 import { logger } from "@/lib/logger";
+import type { RegionSegment } from "@/lib/regions";
 
 const HEADING = "Suosikit";
 
@@ -28,16 +29,17 @@ export const metadata: Metadata = { title: HEADING };
 export const dynamic = "force-dynamic";
 
 /**
- * Where a team's page lives, which depends on which provider it came from.
+ * Where a team's page lives.
  *
- * Exhaustive on the two sources rather than falling back to null: the key was
- * already parsed by `parseTeamKey`, so a third source cannot arrive here, and a
- * branch that cannot run is a branch nothing can check.
+ * **Not derivable from the source alone.** `football-data` covers club
+ * competitions *and* national sides, whose pages live under `/ulkomaat` and
+ * `/maajoukkueet` — the same `CompetitionStandingsPage` renders both, so both
+ * can be favourited. `resolveTeamNames` works the region out from the
+ * competitions a team's stored matches were played in; null when it could not,
+ * which renders as an unlinked row rather than a link to the wrong club.
  */
-function teamHrefFor(source: FavouriteSource, teamProviderId: number): string {
-  return source === "taso"
-    ? `/kotimaa/joukkue/${teamProviderId}`
-    : `/ulkomaat/joukkue/${teamProviderId}`;
+function teamHrefFor(region: RegionSegment | null, teamProviderId: number): string | null {
+  return region === null ? null : `/${region}/joukkue/${teamProviderId}`;
 }
 
 export default async function Favourites() {
@@ -80,7 +82,7 @@ export default async function Favourites() {
 
     teams = (await resolveTeamNames(parsedTeams)).map((team) => ({
       ...team,
-      href: team.name === null ? null : teamHrefFor(team.source, team.teamProviderId),
+      href: team.name === null ? null : teamHrefFor(team.region, team.teamProviderId),
     }));
 
     competitions = keys.competitions

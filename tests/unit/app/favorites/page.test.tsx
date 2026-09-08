@@ -135,8 +135,8 @@ describe("the favourites route", () => {
   it("sends each team to its own provider's page", async () => {
     state.keys = { teams: ["taso:60731", "football-data:86"], competitions: [] };
     state.names = [
-      { source: "taso", teamProviderId: 60731, name: "Ilves" },
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid" },
+      { source: "taso", teamProviderId: 60731, name: "Ilves", region: "kotimaa" },
+      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: "ulkomaat" },
     ];
 
     await renderPage();
@@ -152,9 +152,40 @@ describe("the favourites route", () => {
     expect(getFavouriteKeys).toHaveBeenCalledWith("user-1");
   });
 
+  it("sends a national side to its own region, not to the club pages", async () => {
+    // `football-data` covers clubs and national sides, and the same standings
+    // page renders both — so the region comes from the team's competitions,
+    // never from its provider.
+    state.keys = { teams: ["football-data:8722"], competitions: [] };
+    state.names = [
+      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+    ];
+
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "Suomi" })).toHaveAttribute(
+      "href",
+      "/maajoukkueet/joukkue/8722"
+    );
+  });
+
+  it("does not link a team whose region could not be worked out", async () => {
+    // A name but no region: better an unlinked row than a link to a different
+    // club's page.
+    state.keys = { teams: ["football-data:86"], competitions: [] };
+    state.names = [
+      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
+    ];
+
+    await renderPage();
+
+    expect(screen.getByText("Real Madrid")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Real Madrid" })).not.toBeInTheDocument();
+  });
+
   it("does not link a team it could not name", async () => {
     state.keys = { teams: ["taso:60731"], competitions: [] };
-    state.names = [{ source: "taso", teamProviderId: 60731, name: null }];
+    state.names = [{ source: "taso", teamProviderId: 60731, name: null, region: null }];
 
     await renderPage();
 

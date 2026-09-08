@@ -89,7 +89,10 @@ test.describe("Favourites, signed in", () => {
     await expect(stars.first()).toBeVisible();
 
     const rows = await page.locator("tbody tr").count();
-    expect(await stars.count()).toBe(rows);
+    // The auto-retrying matcher rather than `expect(await count())`: it waits
+    // for the stars to finish arriving and says what it saw when it fails
+    // (Sonar S5906).
+    await expect(stars).toHaveCount(rows);
     /**
      * Each star names its own team: twenty identical buttons would be unusable
      * with a screen reader. Scoped to one table, because a Veikkausliiga season

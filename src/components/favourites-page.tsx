@@ -119,10 +119,15 @@ export function FavouritesPage({ teams, competitions }: Props) {
                 className="flex items-center gap-3 text-sm"
                 key={`${entry.source}:${entry.teamProviderId}`}
               >
-                {/* No stored matches means no name and no page worth linking
-                    to — but the entry stays, and stays removable. */}
-                {entry.name === null || entry.href === null ? (
+                {/* Three cases, not two. No stored matches means no name at
+                    all. A name without a page — a competition the registry no
+                    longer has, so its region is unknown — is still worth
+                    showing: "not found" would be a false statement about a team
+                    we just named. Either way the entry stays removable. */}
+                {entry.name === null ? (
                   <span className="text-muted">Joukkuetta ei löytynyt.</span>
+                ) : entry.href === null ? (
+                  <span>{entry.name}</span>
                 ) : (
                   <Link className="hover:underline" href={entry.href}>
                     {entry.name}

@@ -115,6 +115,35 @@ describe("favourite teams", () => {
     });
   });
 
+  it("does not let two concurrent toggles both pass the cap", async () => {
+    /**
+     * The race the row lock exists for, run for real: at forty-nine, two tabs
+     * each count forty-nine and each insert, and the unique index does not
+     * object because they are different teams. Without the lock this ends at
+     * fifty-one; with it, one of the two is refused.
+     *
+     * Both toggles are started before either is awaited — awaiting the first
+     * would serialise them and assert nothing.
+     */
+    await db.insert(favoriteTeam).values(
+      Array.from({ length: MAX_FAVOURITES_PER_KIND - 1 }, (_unused, index) => ({
+        userId: USER_ID,
+        source: "taso",
+        teamProviderId: 1000 + index,
+      }))
+    );
+
+    const results = await Promise.all([
+      toggleFavouriteTeam(USER_ID, "taso", 8001),
+      toggleFavouriteTeam(USER_ID, "taso", 8002),
+    ]);
+
+    const rows = await db.select().from(favoriteTeam).where(eq(favoriteTeam.userId, USER_ID));
+    expect(rows).toHaveLength(MAX_FAVOURITES_PER_KIND);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results).toContainEqual({ ok: false, reason: "limit" });
+  });
+
   it("removes one that is not there without complaining", async () => {
     await expect(removeFavouriteTeam(USER_ID, "taso", 60731)).resolves.toBeUndefined();
   });

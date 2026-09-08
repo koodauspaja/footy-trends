@@ -116,6 +116,36 @@ covering the named line*, caught by that pass rather than by review.
 | `revalidatePath` | Both `/suosikit` and `/favorites` | #292 established the reader's URL is what matters; the folder path is revalidated beside it because this page answers under both spellings and the extra call costs nothing. It cannot be exercised end to end — the action needs a real session. |
 | A retired competition, a nameless team | Kept and reported, never hidden | A row nobody can see is a row nobody can remove. Both render with their `Poista suosikeista` button. |
 
+## What review found, and it was right twice
+
+Sourcery raised three; two were real bugs and are fixed here.
+
+**A national side linked to a club page.** `CompetitionStandingsPage` renders
+both `/ulkomaat` and `/maajoukkueet`, so both put a star on their rows — and both
+store `football-data:<id>`. `/suosikit` then sent every one of them to
+`/ulkomaat/joukkue/:id`. The provider cannot decide the region, so
+`resolveTeamNames` now reads each team's `competition_code` from its stored
+matches and maps it through the registry (`regionOfCompetition`). A code the
+registry no longer has yields no region, which renders as the team's name
+unlinked — which turned out to expose a third case the component did not have:
+it was saying `Joukkuetta ei löytynyt.` about a team it had just named.
+
+**The cap had a race.** Counting and then inserting is two statements: at
+forty-nine, two tabs both read forty-nine and both insert, and the unique index
+does not object because they are different teams. Read Committed does not help —
+each statement takes its own snapshot, so a conditional insert races identically.
+The toggle now runs in a transaction holding `for update` on the reader's own
+`user` row, which serialises that reader's writes and nobody else's. Proven
+against real Postgres by starting both toggles before awaiting either: with the
+lock, fifty rows and one `limit` refusal; without it, fifty-one.
+
+**The third was wrong, and the existing test says so.** The claim was that
+`getSessionExtrasFor` returns early for a reader with no preferences row, hiding
+their favourites. It selects **from `user`** with left joins, so that early
+return means "no such user", not "no preferences" — and
+`tests/integration/favourites.test.ts` already asserts both lists arrive for a
+reader who has never saved a setting.
+
 ## Measurements
 
 Numbers in the spec that were measured rather than estimated, recorded here so
