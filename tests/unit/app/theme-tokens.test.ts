@@ -7,7 +7,12 @@ import { HARDCODED_COLOUR_CLASS, paintsWithShade } from "../../shared/hardcoded-
 
 const SRC_DIR = path.join(process.cwd(), "src");
 
-/** `hover:bg-surface` is a variant of `bg-surface`; the rule is about the utility. */
+/**
+ * `hover:bg-surface` is a variant of `bg-surface`; the rule is about the
+ * utility. A utility never contains a colon, so the last one always ends the
+ * variants — including an arbitrary variant that carries colons of its own,
+ * like `supports-[display:grid]:`.
+ */
 function withoutVariants(className: string): string {
   return className.slice(className.lastIndexOf(":") + 1);
 }
@@ -122,6 +127,10 @@ describe("theme tokens", () => {
       ["as a literal colour", '<div className="bg-[#fafafa]" />'],
       ["as a literal colour with opacity", '<div className="bg-[#fafafa]/50" />'],
       ["behind a variant", '<div className="disabled:text-gray-400" />'],
+      ["behind an arbitrary variant", '<div className="data-[state=open]:bg-zinc-500" />'],
+      ["behind a selector variant", '<div className="[&>svg]:text-red-500" />'],
+      ["marked important, v4 style", '<div className="bg-zinc-500!" />'],
+      ["marked important, v3 style", '<div className="!bg-zinc-500" />'],
       // The indirections a scan of `className` alone would walk straight past.
       ["one hop away in a constant", 'const PANEL = "bg-zinc-50";\n<div className={PANEL} />'],
       ["inside a helper call", '<div className={clsx("rounded", "bg-amber-50")} />'],
@@ -152,6 +161,14 @@ describe("theme tokens", () => {
       [".disabled\\:text-gray-400:disabled"],
       [".dark\\:bg-slate-100"],
       [".sm\\:hover\\:border-zinc-200:hover"],
+      // These four are copied from a build rather than written by hand: each
+      // was put into a component, `npm run build` run, and the selector read
+      // out of the emitted CSS. A guessed fixture proves the guard matches
+      // what I imagined Tailwind writes.
+      [".data-\\[state\\=open\\]\\:bg-zinc-500[data-state=open]"],
+      [".\\[\\&\\>svg\\]\\:text-red-500>svg"],
+      [".bg-zinc-500\\!"],
+      [".\\!bg-fuchsia-500"],
     ])("catches %s", (selector) => {
       expect(paintsWithShade(selector)).toBe(true);
     });

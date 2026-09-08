@@ -49,27 +49,45 @@ const PAINTING_UTILITY =
 const OPACITY_MODIFIER = "(?:\\/(?:\\d+|\\[[^\\]]*\\]))?";
 
 /**
+ * Tailwind's important marker. v4 writes it as a suffix (`bg-zinc-500!`) and
+ * v3 as a prefix (`!bg-zinc-500`); both are allowed here, because which one a
+ * given file uses is not the point — the shade is.
+ */
+const IMPORTANT = "!?";
+
+/**
+ * One variant, which is not always a word. `hover:` and `sm:` are, but an
+ * arbitrary variant carries a bracketed expression — `data-[state=open]:`,
+ * `[&>svg]:`, `supports-[display:grid]:` — and a prefix that only allowed
+ * `[\w-]+` stopped at the first bracket, letting `data-[state=open]:bg-zinc-500`
+ * through both guards.
+ */
+const VARIANT = "(?:(?:[\\w-]|\\[[^\\]]*\\])+:)";
+
+/**
  * A painting utility whose colour is a shade or a literal, with no anchors, so
  * each guard can anchor it for what it is matching: a bare class name in the
  * source, or a class inside a CSS selector.
  */
-const HARDCODED_COLOUR_SOURCE = `${PAINTING_UTILITY}-(?:(?:${SHADES.join("|")})(?:-\\d{2,3})?|\\[(?:#|rgb|hsl|oklch|lab)[^\\]]*\\])${OPACITY_MODIFIER}`;
+const HARDCODED_COLOUR_SOURCE = `${IMPORTANT}${PAINTING_UTILITY}-(?:(?:${SHADES.join("|")})(?:-\\d{2,3})?|\\[(?:#|rgb|hsl|oklch|lab)[^\\]]*\\])${OPACITY_MODIFIER}${IMPORTANT}`;
 
-/** One class name, as written in a `className`. */
+/**
+ * One class name, as written in a `className`, with its variants already
+ * stripped by the caller.
+ */
 export const HARDCODED_COLOUR_CLASS = new RegExp(`^${HARDCODED_COLOUR_SOURCE}$`);
 
 /**
- * The same utility as it appears in a CSS selector.
+ * The same utility as it appears in a CSS selector, variants and all.
  *
- * `(?:[\w-]+:)*` is the variant prefix, and leaving it out was a real gap:
- * Tailwind writes `hover:bg-zinc-500/15` as `.hover\:bg-zinc-500\/15:hover`,
- * where the dot sits before `hover` rather than before `bg`, so a pattern
- * anchored on `\.bg` walked straight past every variant of every shade. The
- * trailing guard stops a role from matching on a prefix of a longer one.
+ * The variant prefix is what makes this differ from the class form, and
+ * leaving it out was a real gap: Tailwind writes `hover:bg-zinc-500/15` as
+ * `.hover\:bg-zinc-500\/15:hover`, where the dot sits before `hover` rather
+ * than before `bg`, so a pattern anchored on `\.bg` walked past every variant
+ * of every shade. The trailing guard stops a role from matching on a prefix of
+ * a longer one.
  */
-const HARDCODED_COLOUR_SELECTOR = new RegExp(
-  `\\.(?:[\\w-]+:)*${HARDCODED_COLOUR_SOURCE}(?![\\w-])`
-);
+const HARDCODED_COLOUR_SELECTOR = new RegExp(`\\.${VARIANT}*${HARDCODED_COLOUR_SOURCE}(?![\\w-])`);
 
 /**
  * Whether one CSS selector paints with a shade.
