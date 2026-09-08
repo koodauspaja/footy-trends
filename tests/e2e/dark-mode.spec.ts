@@ -51,44 +51,67 @@ async function lowContrastText(page: Page): Promise<Offender[]> {
       return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
     };
 
-    /** The first ancestor that actually paints something. */
-    const backgroundBehind = (element: Element): string => {
-      let node: Element | null = element;
-      while (node !== null) {
-        const colour = getComputedStyle(node).backgroundColor;
-        if (colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent") return colour;
-        node = node.parentElement;
-      }
-      return getComputedStyle(document.body).backgroundColor;
-    };
-
-    /**
-     * Everything the element and its ancestors fade it by, multiplied
-     * together. `disabled:opacity-50` is the case in the app today, and the
-     * reader sees the faded colour rather than the declared one — so measuring
-     * `style.color` alone would pass text that is not legible.
-     */
-    const fade = (element: Element): number => {
-      let alpha = 1;
-      let node: Element | null = element;
-      while (node !== null) {
-        alpha *= Number.parseFloat(getComputedStyle(node).opacity);
-        node = node.parentElement;
-      }
-      return alpha;
-    };
-
-    /** What the reader actually sees: the text faded onto what is behind it. */
-    const painted = (
-      fg: [number, number, number],
-      bg: [number, number, number],
-      alpha: number
+    /** One colour laid over another at `alpha`, which is what the GPU does. */
+    const over = (
+      top: [number, number, number],
+      alpha: number,
+      bottom: [number, number, number]
     ): [number, number, number] =>
-      [0, 1, 2].map((i) => (fg[i] ?? 0) * alpha + (bg[i] ?? 0) * (1 - alpha)) as [
+      [0, 1, 2].map((i) => (top[i] ?? 0) * alpha + (bottom[i] ?? 0) * (1 - alpha)) as [
         number,
         number,
         number,
       ];
+
+    const paints = (colour: string) => colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent";
+
+    /**
+     * The two colours the reader's eye actually compares: the painted text,
+     * and the painted surface directly behind it.
+     *
+     * Opacity is why this is not simply `style.color` against the first
+     * ancestor that paints. CSS fades an element's **entire** subtree, its own
+     * background included, over whatever sits behind that element — so a fade
+     * is never applied to the text alone. Text and surface fade together
+     * toward the same backdrop, and the ratio between them collapses as both
+     * converge on it. A surface painted *outside* the fade does not move,
+     * while the text over it does.
+     *
+     * So each is faded by its own node's opacity and every ancestor's, never
+     * by a descendant's, and both are composited onto the page behind them.
+     */
+    const paintedPair = (
+      element: Element,
+      colour: [number, number, number]
+    ): { fg: [number, number, number]; bg: [number, number, number] } | null => {
+      const chain: Element[] = [];
+      for (let node: Element | null = element; node !== null; node = node.parentElement) {
+        chain.push(node);
+      }
+
+      const fadeFrom = (index: number) =>
+        chain
+          .slice(index)
+          .reduce((alpha, node) => alpha * Number.parseFloat(getComputedStyle(node).opacity), 1);
+
+      const surfaceIndex = chain.findIndex((node) =>
+        paints(getComputedStyle(node).backgroundColor)
+      );
+      // Behind everything is the page itself, which is opaque by definition —
+      // `body` is the one element `globals.css` has always painted.
+      const backdrop = toRgb(getComputedStyle(document.body).backgroundColor);
+      if (backdrop === null) return null;
+      if (surfaceIndex === -1) {
+        return { fg: over(colour, fadeFrom(0), backdrop), bg: backdrop };
+      }
+
+      const surface = toRgb(getComputedStyle(chain[surfaceIndex] as Element).backgroundColor);
+      if (surface === null) return null;
+      return {
+        fg: over(colour, fadeFrom(0), backdrop),
+        bg: over(surface, fadeFrom(surfaceIndex), backdrop),
+      };
+    };
 
     const offenders: Offender[] = [];
 
@@ -111,25 +134,27 @@ async function lowContrastText(page: Page): Promise<Offender[]> {
       if (element.getBoundingClientRect().height === 0) continue;
 
       const colour = style.color;
-      const behind = backgroundBehind(element);
-      const [fg, bg] = [toRgb(colour), toRgb(behind)];
-      if (fg === null || bg === null) continue;
+      const declared = toRgb(colour);
+      if (declared === null) continue;
 
-      const alpha = fade(element);
+      const alpha = Number.parseFloat(style.opacity);
       // Fully transparent text is not text the reader is meant to read; it is
       // a fade-out mid-transition or a hidden node without `visibility`.
       if (alpha === 0) continue;
 
-      const [lighter, darker] = [luminance(painted(fg, bg, alpha)), luminance(bg)].sort(
-        (a, b) => b - a
-      );
+      const painted = paintedPair(element, declared);
+      if (painted === null) continue;
+      const { fg, bg } = painted;
+      const behind = `rgb(${bg.map(Math.round).join(", ")})`;
+
+      const [lighter, darker] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
       const contrast = ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 
       if (contrast < threshold) {
         offenders.push({
           text: own.slice(0, 40),
           contrast: Number(contrast.toFixed(2)),
-          colour: alpha === 1 ? colour : `${colour} at ${alpha} opacity`,
+          colour: `rgb(${fg.map(Math.round).join(", ")})`,
           behind,
         });
       }
@@ -226,6 +251,36 @@ for (const scheme of ["light", "dark"] as const) {
       // the fade makes it unreadable, so a sweep that ignored opacity would
       // report nothing here.
       expect(offenders.map((offender) => offender.text)).toEqual(["Melkein näkymätön"]);
+    });
+
+    /**
+     * The case that fading the text alone gets *backwards*.
+     *
+     * A panel that both paints a background and carries opacity fades as one
+     * group: its surface goes with its text. Measuring faded text against the
+     * panel's raw background reports a contrast the reader never sees — here a
+     * near-black surface behind pale grey text, which reads as excellent while
+     * the panel is in fact almost invisible. Both colours must be composited.
+     */
+    test("catches a faded panel, whose surface fades along with its text", async ({ page }) => {
+      await page.goto("/");
+      await page.evaluate(() => {
+        // The app's own two poles, so the panel is maximally legible *before*
+        // the fade in either scheme — measuring the raw surface would call
+        // this the best contrast on the page.
+        const panel = document.createElement("div");
+        panel.style.opacity = "0.1";
+        panel.style.backgroundColor = "var(--foreground)";
+        const text = document.createElement("p");
+        text.textContent = "Haalistunut paneeli";
+        text.style.color = "var(--background)";
+        panel.append(text);
+        document.body.append(panel);
+      });
+
+      const offenders = await lowContrastText(page);
+
+      expect(offenders.map((offender) => offender.text)).toEqual(["Haalistunut paneeli"]);
     });
   });
 }
