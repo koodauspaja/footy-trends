@@ -421,7 +421,11 @@ export type TasoGroup = {
   teams?: TasoGroupTeam[];
 };
 
-type GroupsResponse = { groups?: TasoGroup[] };
+/**
+ * `getCategory`'s shape. The groups sit under `category`, where `getGroups`
+ * returned them at the top level — see `getSeasonGroups` for why we moved.
+ */
+type CategoryResponse = { category?: { groups?: TasoGroup[] } };
 
 /**
  * One `getGroups` team row, flattened and typed for storage.
@@ -502,18 +506,37 @@ export function normalizeGroupTeams(
   });
 }
 
-/** Every group TASO currently returns for one category's season, with its own precomputed standings. */
+/**
+ * Every group TASO currently returns for one category's season, with its own
+ * precomputed standings.
+ *
+ * **Reads `getCategory`, not `getGroups`** (#272). TASO answers `getGroups`
+ * with `{"status":"error","error":"Not allowed"}` for every category and season
+ * we tried, including ones whose data we already hold — while `getCategories`
+ * with the same key and headers returns 200, so it is the endpoint rather than
+ * the credential. Driving tulospalvelu.palloliitto.fi through a browser and
+ * capturing every `taso/rest` request shows the site itself never calls
+ * `getGroups`; it reads standings from `getCategory`.
+ *
+ * The failure was invisible because `getSyncedGroupTeams` falls back to stored
+ * rows. Groups we had already synced kept rendering their last-known numbers,
+ * so only a *new* group showed the problem — which is why a split round opened
+ * at zero while finished seasons looked fine.
+ *
+ * The team rows carry the same field names either way; only the nesting
+ * differs.
+ */
 export async function getSeasonGroups(
   competitionId: string,
   categoryId: string
 ): Promise<TasoGroup[]> {
-  const response = await getCached<GroupsResponse>(
-    `taso:groups:${competitionId}:${categoryId}`,
+  const response = await getCached<CategoryResponse>(
+    `taso:category:${competitionId}:${categoryId}`,
     GROUPS_CACHE_TTL_SECONDS,
     () =>
-      request<GroupsResponse>(
-        `/getGroups?competition_id=${competitionId}&category_id=${categoryId}`
+      request<CategoryResponse>(
+        `/getCategory?competition_id=${competitionId}&category_id=${categoryId}`
       )
   );
-  return response.groups ?? [];
+  return response.category?.groups ?? [];
 }
