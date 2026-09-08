@@ -63,8 +63,12 @@ function dockerIsRunning(): boolean {
 }
 
 /** Same stdout/stderr helpers as the backfill scripts, which `noConsole` forbids. */
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 function readMarker(): string | null {
   return existsSync(MARKER_PATH) ? readFileSync(MARKER_PATH, "utf8") : null;

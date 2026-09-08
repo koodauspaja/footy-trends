@@ -41,8 +41,12 @@ function git(args: string[]): string {
 // `process.stdout.write` rather than `console.log`: this is a command-line
 // tool whose output is the product, and the repository lints `noConsole` as an
 // error precisely so that stray debugging does not reach production code.
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 // Sorted by version, not by date: a patch tagged after a minor must not win.
 function stableTags(): string[] {
