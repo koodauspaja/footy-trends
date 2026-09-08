@@ -2035,6 +2035,12 @@ describe("resolveTasoSeasonContext", () => {
       ["is empty", ""],
       ["is whitespace", "  "],
       ["is negative", "-1"],
+      // All digits, but not a group — the comment beside the check says a
+      // group id is a positive integer, and this made it a liar.
+      ["is zero", "0"],
+      // Long enough that `Number` rounds it. Left unchecked this lands on a
+      // real integer and can be attributed to a configured group.
+      ["is beyond the safe integer range", "99999999999999999999"],
     ])("skips a group whose id %s, rather than throwing", async (_case, groupId) => {
       // Deliberately a competition with **no** configured groups. Under
       // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2

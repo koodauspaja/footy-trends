@@ -888,13 +888,21 @@ function reportUnconfiguredContinuations(
      * `"2abc"` as 2, so a malformed id would be attributed to a real group —
      * either suppressing this error or raising it against the wrong one. And
      * `Number` reads `""` as 0, which `Number.isInteger` then accepts, so an
-     * empty id would become group 0. A group id is a positive integer or it is
-     * not an id.
+     * empty id would become group 0. A group id is a positive integer within
+     * the safe range, or it is not an id — and both ends of that are checked,
+     * because `"0"` and a twenty-digit string are both all-digits.
      */
     const rawId = group.group_id ?? "";
     if (!/^\d+$/.test(rawId)) continue;
 
     const groupId = Number(rawId);
+    // The digits check alone is not enough, and the two gaps are opposite
+    // ends of the same range. `"0"` is all digits but is not a group, and a
+    // long enough digit string converts to a rounded value or `Infinity` —
+    // which could be attributed to a real configured group. Both would have
+    // contradicted the sentence above this.
+    if (!Number.isSafeInteger(groupId) || groupId <= 0) continue;
+
     if (configured[groupId] !== undefined) continue;
 
     logger.error(
