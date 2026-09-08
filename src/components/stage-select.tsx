@@ -21,11 +21,11 @@ export function StageSelect({
 }: Readonly<StageSelectProps>) {
   return (
     <>
-      <label className="text-sm text-zinc-600" htmlFor="vaihe">
+      <label className="text-sm text-muted" htmlFor="vaihe">
         Vaihe
       </label>
       <select
-        className="rounded border border-zinc-300 px-3 py-2"
+        className="rounded border border-border px-3 py-2"
         value={selectedStage}
         id="vaihe"
         name="vaihe"

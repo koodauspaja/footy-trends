@@ -16,7 +16,7 @@ export default function Domestic() {
         {DOMESTIC_COMPETITIONS.map((competition) => (
           <li key={competition.code}>
             <Link
-              className="flex items-center gap-3 rounded border border-zinc-200 px-4 py-3 hover:bg-zinc-50"
+              className="flex items-center gap-3 rounded border border-border-subtle px-4 py-3 hover:bg-surface"
               href={`/kotimaa/sarjataulukko?kilpailu=${competition.code}`}
             >
               <span aria-hidden className="text-xl leading-none">

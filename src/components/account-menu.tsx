@@ -112,7 +112,7 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
       {open && (
         <div
           /**
-           * `bg-background text-foreground`, not `bg-white`. Those two tokens
+           * `bg-background text-foreground`, not `bg-background`. Those two tokens
            * are the ones `globals.css` flips under `prefers-color-scheme`, and
            * `body` already uses them — so the panel and its contents move
            * together. Hardcoding a white surface while the text followed the
@@ -123,18 +123,18 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
            * a second colour scheme to maintain. See #269 for the app-wide
            * version of this problem.
            */
-          className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-zinc-500/40 bg-background py-1 text-foreground shadow-sm"
+          className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-border bg-background py-1 text-foreground shadow-sm"
           id={menuId}
         >
           <Link
-            className="block px-4 py-2 text-sm hover:bg-zinc-500/15"
+            className="block px-4 py-2 text-sm hover:bg-surface"
             href="/asetukset"
             onClick={() => close(false)}
           >
             Asetukset
           </Link>
           <button
-            className="block w-full px-4 py-2 text-left text-sm hover:bg-zinc-500/15"
+            className="block w-full px-4 py-2 text-left text-sm hover:bg-surface"
             onClick={() => {
               close(false);
               onSignOut();

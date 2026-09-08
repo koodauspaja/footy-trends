@@ -125,11 +125,11 @@ function CupRoundSection({
   teamHref: (teamProviderId: number) => string;
 }>) {
   return (
-    <details className="mb-10 border-zinc-200 border-b pb-4" open>
+    <details className="mb-10 border-border-subtle border-b pb-4" open>
       <summary className="mb-3 cursor-pointer list-none">
         <h2 className="inline font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
         {group.kind === "match-list" && (
-          <span className="ml-2 text-sm text-zinc-500">{`(${group.matches.length} ottelua)`}</span>
+          <span className="ml-2 text-sm text-muted">{`(${group.matches.length} ottelua)`}</span>
         )}
       </summary>
       <GroupBody group={group} isCup teamHref={teamHref} />

@@ -20,7 +20,7 @@ export function SeasonForm({ actionPath, competitionCode, children }: Readonly<S
       <input type="hidden" name="kilpailu" value={competitionCode} />
       {children}
       <noscript>
-        <button className="rounded border border-zinc-300 px-3 py-2" type="submit">
+        <button className="rounded border border-border px-3 py-2" type="submit">
           Näytä
         </button>
       </noscript>

@@ -38,7 +38,7 @@ export function SiteHeader() {
   const homeHref = hasStartPage ? `/?${SHOW_PICKER_PARAM}=1` : "/";
 
   return (
-    <header className="border-zinc-200 border-b">
+    <header className="border-border-subtle border-b">
       {/* Wraps rather than truncates. A narrow viewport with the longest
           breadcrumb (`Maajoukkueet`) and a long Google display name overflows a
           single non-wrapping row, pushing the sign-out control off-screen. The
@@ -53,7 +53,7 @@ export function SiteHeader() {
           </Link>
           {region !== null && (
             <>
-              <span aria-hidden="true" className="text-zinc-400">
+              <span aria-hidden="true" className="text-faint">
                 /
               </span>
               <Link className="hover:underline" href={region.href}>
