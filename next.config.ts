@@ -1,4 +1,7 @@
-import { withSentryConfig } from "@sentry/nextjs";
+// From `@sentry/nextjs/config`, not the package root: the root export is
+// deprecated as of 10.73.0 and stops working in v11, and it printed a warning
+// on every build until #293.
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
