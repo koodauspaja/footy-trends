@@ -224,6 +224,13 @@ describe("taso mapping", () => {
       ["is zero", "0"],
       ["is negative", "-1"],
       ["is past what an integer column holds", "99999999999999999999"],
+      // The four `Number` reads as a perfectly good positive integer. These
+      // are the dangerous ones: nothing fails, and the row is filed under a
+      // group, team or match that exists and is not this one.
+      ["is hexadecimal", "0x10"],
+      ["is in exponent notation", "1e2"],
+      ["carries a leading plus", "+2"],
+      ["carries a leading space", " 2"],
     ] as const;
 
     it.each(
@@ -851,7 +858,7 @@ describe("normalizeGroupTeams", () => {
    * team, because a group with no teams contributes no rows anyway and would
    * pass this test with the validation removed.
    */
-  it.each([
+  const UNUSABLE_IDS = [
     ["is empty", ""],
     ["is whitespace", "  "],
     ["begins with digits but is not a number", "2abc"],
@@ -859,33 +866,66 @@ describe("normalizeGroupTeams", () => {
     ["is zero", "0"],
     ["is negative", "-1"],
     ["is past what an integer column holds", "99999999999999999999"],
-  ])("stores nothing for a group whose id %s, teams and all", (_case, groupId) => {
-    expect(
-      normalizeGroupTeams(
-        [{ group_id: groupId, teams: [{ team_id: "60731", team_name: "HJK", points: 67 }] }],
+    // `Number` reads each of these as a positive integer, so nothing fails —
+    // the row is simply filed under a group or team that is not its own.
+    ["is hexadecimal", "0x10"],
+    ["is in exponent notation", "1e2"],
+    ["carries a leading plus", "+2"],
+    ["carries a leading space", " 2"],
+  ] as const;
+
+  it.each(UNUSABLE_IDS)(
+    "stores nothing for a group whose id %s, teams and all",
+    (_case, groupId) => {
+      expect(
+        normalizeGroupTeams(
+          [{ group_id: groupId, teams: [{ team_id: "60731", team_name: "HJK", points: 67 }] }],
+          "VL",
+          "spljp26",
+          2026
+        )
+      ).toEqual([]);
+    }
+  );
+
+  it.each(UNUSABLE_IDS)(
+    "drops only the team whose id %s, keeping the rest of the group",
+    (_case, teamId) => {
+      const rows = normalizeGroupTeams(
+        [
+          {
+            group_id: "2",
+            teams: [
+              { team_id: teamId, team_name: "Unusable" },
+              { team_id: "60731", team_name: "HJK" },
+            ],
+          },
+        ],
         "VL",
         "spljp26",
         2026
-      )
-    ).toEqual([]);
-  });
+      );
 
-  it.each([
-    ["is empty", ""],
-    ["is whitespace", "  "],
-    ["begins with digits but is not a number", "2abc"],
-    ["is a decimal", "2.5"],
-    ["is zero", "0"],
-    ["is negative", "-1"],
-    ["is past what an integer column holds", "99999999999999999999"],
-  ])("drops only the team whose id %s, keeping the rest of the group", (_case, teamId) => {
-    const rows = normalizeGroupTeams(
+      expect(rows).toEqual([expect.objectContaining({ teamProviderId: 60731, teamName: "HJK" })]);
+    }
+  );
+
+  it("reads a stat TASO sends as a decimal string, and only as a decimal string", () => {
+    // `final_group_standing` really does arrive as a string, so the string
+    // path is not hypothetical — and `Number` would read "1e2" as 100, a
+    // standing nobody holds.
+    const [row] = normalizeGroupTeams(
       [
         {
           group_id: "2",
           teams: [
-            { team_id: teamId, team_name: "Unusable" },
-            { team_id: "60731", team_name: "HJK" },
+            {
+              team_id: "60731",
+              starting_points: "-6" as unknown as number,
+              final_group_standing: "3",
+              points: "1e2" as unknown as number,
+              goals_for: "0x10" as unknown as number,
+            },
           ],
         },
       ],
@@ -894,7 +934,12 @@ describe("normalizeGroupTeams", () => {
       2026
     );
 
-    expect(rows).toEqual([expect.objectContaining({ teamProviderId: 60731, teamName: "HJK" })]);
+    expect(row).toMatchObject({
+      startingPoints: -6,
+      finalGroupStanding: 3,
+      points: null,
+      goalsFor: null,
+    });
   });
 
   it("keeps a stat that is legitimately zero or negative, which no id may be", () => {

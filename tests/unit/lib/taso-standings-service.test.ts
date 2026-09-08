@@ -2052,6 +2052,13 @@ describe("resolveTasoSeasonContext", () => {
       // Long enough that `Number` rounds it. Left unchecked this lands on a
       // real integer and can be attributed to a configured group.
       ["is beyond the safe integer range", "99999999999999999999"],
+      // `Number` reads all four as positive integers, so the detector would
+      // both report and store them — under a group that exists and is not the
+      // one TASO named.
+      ["is hexadecimal", "0x10"],
+      ["is in exponent notation", "1e2"],
+      ["carries a leading plus", "+2"],
+      ["carries a leading space", " 2"],
     ])("neither reports nor stores a group whose id %s", async (_case, groupId) => {
       // Deliberately a competition with **no** configured groups. Under
       // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2

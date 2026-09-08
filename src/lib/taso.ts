@@ -516,12 +516,18 @@ const INT4_MAX = 2_147_483_647;
  * usable — `undefined` and `null` both mean "not reported", and a knockout
  * group omits the stat fields entirely.
  *
- * `Number` answers for far more strings than it should: `"2abc"` is NaN,
- * `"1e400"` is Infinity, `"2.5"` is a number no integer column takes, and each
- * of those would fail at the driver instead of here.
+ * Two separate rules, because `Number` alone answers for far more than it
+ * should. It reads formats TASO does not write — `"0x10"` as 16, `"1e2"` as
+ * 100, `"+2"` and `" 2"` as 2, `""` as 0 — and each of those is a made-up
+ * value that looks exactly like a reported one. And it reads `"2abc"` as NaN,
+ * `"1e400"` as Infinity and `"2.5"` as a decimal, none of which an `integer`
+ * column takes, so they would fail at the driver rather than here. So: a
+ * string is a decimal integer or it is nothing, and the number it converts to
+ * has to be one the column can hold.
  */
 function optionalNumber(value: number | string | null | undefined): number | null {
-  if (value === undefined || value === null || value === "") return null;
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && !/^-?\d+$/.test(value)) return null;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < INT4_MIN || parsed > INT4_MAX) return null;
   return parsed;
@@ -533,12 +539,12 @@ function optionalNumber(value: number | string | null | undefined): number | nul
  *
  * Separate from `optionalNumber` because an id is a *key*. An unusable stat
  * costs one column; an unusable id costs the row its identity, and a
- * plausible-looking wrong one files real data under something else. The two
- * traps sit at opposite ends of the same range: `Number.parseInt("2abc")` is
- * 2, which would attribute a malformed group to a real one, while `Number("")`
- * and `Number("  ")` are 0, which `Number.isInteger` accepts and which no TASO
- * entity has. An id is a positive integer the column can hold, or it is not an
- * id.
+ * plausible-looking wrong one files real data under something else — which is
+ * why the string-format rule above matters most here: `"0x10"` reported as
+ * group 16 is not a rejected id, it is a real group's table with a foreign
+ * team in it. Sign and zero are the rest of it: `Number("-0")` and `Number("")`
+ * are zero, which `Number.isInteger` accepts and which no TASO entity has. An
+ * id is a positive decimal integer the column can hold, or it is not an id.
  */
 export function parseProviderId(value: number | string | null | undefined): number | null {
   const parsed = optionalNumber(value);
