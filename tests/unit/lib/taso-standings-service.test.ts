@@ -2026,12 +2026,25 @@ describe("resolveTasoSeasonContext", () => {
       // `group_id` is optional in TASO's shape, so absent is as possible as
       // malformed, and both are the same non-answer.
       ["is missing entirely", undefined],
+      // `Number.parseInt` would read this as 2 and attribute a malformed group
+      // to a real one — suppressing the error, or raising it against the wrong
+      // group.
+      ["begins with digits but is not a number", "2abc"],
+      ["is a decimal", "2.5"],
+      // `Number` would read these as 0, which `Number.isInteger` accepts.
+      ["is empty", ""],
+      ["is whitespace", "  "],
+      ["is negative", "-1"],
     ])("skips a group whose id %s, rather than throwing", async (_case, groupId) => {
+      // Deliberately a competition with **no** configured groups. Under
+      // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2
+      // and is absorbed as "already configured" — the test would pass while the
+      // malformed group was silently attributed to a real one.
       mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
       getSeasonGroupsMock.mockResolvedValue([continuation(groupId as string)]);
 
       await expect(
-        getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined)
+        getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined)
       ).resolves.toBeDefined();
 
       expect(loggerErrorMock).not.toHaveBeenCalledWith(

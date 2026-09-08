@@ -860,6 +860,15 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
  * `import_match_group_id` is included when TASO supplies it, because it names
  * the parent and turns the log into something actionable. It is `"0"` for older
  * seasons, so it is a hint rather than a source of truth — see `TasoGroup`.
+ *
+ * **Scope, stated because it is narrower than it looks.** This runs only where
+ * groups are actually fetched, so a finished season that already has stored
+ * rows returns before reaching it and is never re-checked. That is deliberate:
+ * a split appears in the season being played, so the case this exists to catch
+ * — a new continuation group nobody has configured — is always a season that
+ * refreshes. Re-checking finished seasons would mean calling TASO on every
+ * render of every archive page, which is exactly what the short-circuit above
+ * exists to prevent.
  */
 function reportUnconfiguredContinuations(
   groups: TasoGroup[],
@@ -872,11 +881,21 @@ function reportUnconfiguredContinuations(
   for (const group of groups) {
     if (group.group_type !== "additional_group_stage") continue;
 
-    // `Number.parseInt` rather than a shared helper: `optionalNumber` is
-    // private to taso.ts, and a group id that will not parse is the same
-    // non-answer as one already configured.
-    const groupId = Number.parseInt(group.group_id ?? "", 10);
-    if (Number.isNaN(groupId) || configured[groupId] !== undefined) continue;
+    /**
+     * Digits only, checked as a string before converting.
+     *
+     * Neither obvious numeric parse is safe here. `Number.parseInt` reads
+     * `"2abc"` as 2, so a malformed id would be attributed to a real group —
+     * either suppressing this error or raising it against the wrong one. And
+     * `Number` reads `""` as 0, which `Number.isInteger` then accepts, so an
+     * empty id would become group 0. A group id is a positive integer or it is
+     * not an id.
+     */
+    const rawId = group.group_id ?? "";
+    if (!/^\d+$/.test(rawId)) continue;
+
+    const groupId = Number(rawId);
+    if (configured[groupId] !== undefined) continue;
 
     logger.error(
       {
