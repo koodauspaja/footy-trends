@@ -33,6 +33,38 @@ matching `/favorites` → `/suosikit` redirect that every other page pair has. T
 e2e suite found it: `/favorites` answered 200 at its own URL, which is exactly
 the split-brain the redirect table exists to prevent.
 
+### The actions module broke 114 tests that have nothing to do with it
+
+Caught by CI, not by me: **the unit job has no environment at all**, deliberately
+(#158), and my machine has a `.env`. Locally all 1885 tests passed; in CI eight
+test files failed to import at all, and `favourite-actions.ts` was in every stack
+trace.
+
+`@/lib/auth` constructs better-auth at module scope and throws without
+`BETTER_AUTH_SECRET`. A `"use server"` module is imported *by name* from client
+components — Next replaces it with a network stub at build, so production never
+evaluates that chain in a browser and never noticed. Any environment without the
+transform does. specs/026 is simply the first feature whose toggle renders inside
+`standings-table` and the region picker, so the server chain reached
+`app/domestic/page`, `app/foreign/page`, `app/national-teams/pages`, three
+standings pages, a team page and `standings-table` itself.
+
+The fix is not eight `vi.mock` lines. That would be a guard per call site, and
+the ninth test to render a standings table would fail the same way with nothing
+to explain it. `currentUserId` had also been written **three times** — in
+`settings-actions.ts`, `avatar-actions.ts` and `favourite-actions.ts` — which is
+the same "three copies of a rule" that produced `session-extras.ts`.
+
+`src/lib/current-user.ts` now holds both: one `currentUserId`, and `@/lib/auth`
+imported lazily so that no module a client component can import constructs
+better-auth by being imported. All three action modules use it, so the two that
+were only *latently* broken are fixed too.
+
+`tests/unit/lib/current-user.test.ts` asserts the invariant directly — with the
+auth variables unset and **`@/lib/auth` deliberately not mocked**, since mocking
+it is exactly what would hide this. It fails if anyone restores a static
+`import { auth }`, which is the mutation that was run to prove it.
+
 ### Two copies of the id rule
 
 `parseTeamKey` and the two team actions each validated the provider id, both with
@@ -54,6 +86,7 @@ covering the named line*, caught by that pass rather than by review.
 | The star's position in the picker | Beside the link, not inside it | A `<button>` inside an `<a>` is invalid HTML, and clicking it would navigate as well as toggle. |
 | Team names | Resolved from stored matches on read, never stored on the row | A club that renamed would otherwise show its old name until someone re-favourited it — and #254 exists precisely because a renamed club must be told apart from one that does not exist. |
 | The count in the cap check | After the delete, not before | Checking first would strand a reader at fifty with no way down: they could not remove a favourite because they had too many. |
+| Reaching better-auth from an action | `currentUserId()` / `authApi()` in `current-user.ts`, importing `@/lib/auth` lazily | A module a client component can import must not construct better-auth by being imported. Production hides this behind Next's transform; every other environment sees it. |
 | `revalidatePath` | Both `/suosikit` and `/favorites` | #292 established the reader's URL is what matters; the folder path is revalidated beside it because this page answers under both spellings and the extra call costs nothing. It cannot be exercised end to end — the action needs a real session. |
 | A retired competition, a nameless team | Kept and reported, never hidden | A row nobody can see is a row nobody can remove. Both render with their `Poista suosikeista` button. |
 

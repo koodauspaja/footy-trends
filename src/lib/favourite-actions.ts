@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { currentUserId } from "@/lib/current-user";
 import { isFavouriteSource, isTeamProviderId } from "@/lib/favourite-keys";
 import {
   removeFavouriteCompetition,
@@ -38,18 +37,6 @@ const FAVOURITES_PATHS = ["/suosikit", "/favorites"] as const;
 
 function revalidateFavourites(): void {
   for (const path of FAVOURITES_PATHS) revalidatePath(path);
-}
-
-/**
- * The signed-in user's id, or null.
- *
- * The rule every write in this app follows: **no action accepts a user id from
- * the client**, which removes "favourite something for someone else" as a
- * category rather than checking for it. See `settings-actions.ts`.
- */
-async function currentUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user.id ?? null;
 }
 
 export async function toggleFavouriteTeamAction(

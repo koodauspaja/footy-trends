@@ -303,6 +303,7 @@ without a reload and the other stars on the page follow when the session lands.
 | `lib/favourite-keys.test.ts` (new) | What a key *is*: both providers stay apart; the id bound is the column's, not `Number.isSafeInteger`; a code containing a colon survives; a retired code still parses |
 | `lib/favourites.test.ts` (new) | Identity round trips; the cap refuses the fifty-first but never blocks a removal; names resolve from either side of a stored match; no query for a provider nobody favourited |
 | `lib/favourite-actions.test.ts` (new) | Signed out writes nothing; the user id comes from the session, never the caller; each action returns a result rather than rejecting; the cap refusal survives as its own reason |
+| `lib/current-user.test.ts` (new) | Each of the three action modules imports cleanly with the auth variables unset, and `@/lib/auth` still refuses to construct without them |
 | `lib/session-extras.test.ts` | `favouriteKeysOf` reads each kind from its own field and answers `[]` for any payload that is not a list of strings |
 | `components/favourite-toggle.test.tsx` (new) | Both labels; nothing at all when signed out; **nothing on the server, so hydration cannot mismatch**; a failed toggle returns the star to its previous state rather than leaving it wrong |
 | `components/favourites-page.test.tsx` (new) | Both sections; both empty states; removal updates the list; a retired competition and a team with no matches still render and stay removable |
@@ -354,6 +355,8 @@ and specs/025 document.
 | `src/lib/favourite-keys.ts` | new — what a favourite *is*, with no database: the half a client component may import |
 | `src/lib/favourites.ts` | new — reads and writes, the cap, bulk name resolution |
 | `src/lib/favourite-actions.ts` | new — the four actions |
+| `src/lib/current-user.ts` | new — one `currentUserId`, with `@/lib/auth` imported lazily so no module a client component can import constructs better-auth on import |
+| `src/lib/settings-actions.ts`, `src/lib/avatar-actions.ts` | use the shared helper, dropping their own copies |
 | `src/lib/preferences.ts` | the session extras gain both lists |
 | `src/lib/session-extras.ts` | `favouriteKeysOf`, the single read point |
 | `src/lib/auth.ts` | `customSession` carries them |
