@@ -118,7 +118,7 @@ export default async function Settings() {
    * the server like everything else here — the version is what the preview URL
    * carries, and a failure costs the section its picture rather than the page.
    */
-  let avatarVersion: number | null = null;
+  let avatarVersion: string | null = null;
   try {
     avatarVersion = (await getAvatar(session.user.id))?.version ?? null;
   } catch (error) {

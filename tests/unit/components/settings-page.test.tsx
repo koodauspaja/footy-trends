@@ -19,7 +19,7 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
       (
         formData: FormData
       ) => Promise<
-        | { ok: true; version: number }
+        | { ok: true; version: string }
         | { ok: false; reason: "missing" | "too-large" | "unsupported" | "unreadable" | "failed" }
       >
     >(),
@@ -463,14 +463,14 @@ describe("a dropdown after the server sends the saved value back", () => {
 
 describe("Profiilikuva", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
-  const VERSION = 1757325600000;
+  const VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
 
   /** A file of a given size, whose bytes never matter — the server decodes. */
   function imageOf(bytes: number): File {
     return new File([new Uint8Array(bytes)], "kuva.png", { type: "image/png" });
   }
 
-  function renderPicture(avatarVersion: number | null, googleImage: string | null = GOOGLE) {
+  function renderPicture(avatarVersion: string | null, googleImage: string | null = GOOGLE) {
     return render(
       <SettingsPage
         avatarVersion={avatarVersion}

@@ -124,13 +124,29 @@ export const userAvatar = pgTable("user_avatar", {
   // Stored rather than assumed: the column outlives whatever `sharp` is
   // configured to emit today, and the route handler must not guess.
   contentType: text("content_type").notNull(),
+  // The cache key in the image URL: a random token per write, not a timestamp.
+  // See "Why the version is random" below.
+  version: text("version").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 ```
 
-`updatedAt` is load-bearing, not bookkeeping: its epoch-millisecond value is the
-cache-busting version in the image URL.
+### Why the version is random
+
+`/api/avatar/me` is **one URL for every reader**, so the query parameter is the
+only thing separating one reader's cached image from another's — and the
+response is `private, immutable` for a year.
+
+A millisecond timestamp fails that twice over. Two writes by the same reader in
+one millisecond produce the same URL for different bytes, and — the sharper
+case, raised in review — two *different* readers whose avatars were saved in the
+same millisecond hold byte-identical URLs, so a browser profile used by both
+would serve the first one's picture to the second. A random token per write
+removes the collision rather than making it unlikely, and says nothing about
+when the picture was set.
+
+`updatedAt` stays as ordinary bookkeeping.
 
 ### Serving — `GET /api/avatar/me`
 

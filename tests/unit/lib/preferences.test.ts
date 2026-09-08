@@ -55,10 +55,10 @@ describe("getPreferencesFor", () => {
 });
 
 describe("getSessionExtrasFor", () => {
-  const AVATAR_AT = new Date("2026-09-08T10:00:00Z");
+  const AVATAR_VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
 
   it("returns the stored region", async () => {
-    rows.current = [{ defaultRegion: "ulkomaat", avatarUpdatedAt: null }];
+    rows.current = [{ defaultRegion: "ulkomaat", avatarVersion: null }];
     const { getSessionExtrasFor } = await import("@/lib/preferences");
 
     expect(await getSessionExtrasFor("user-1")).toEqual({
@@ -67,15 +67,16 @@ describe("getSessionExtrasFor", () => {
     });
   });
 
-  it("returns the avatar version as epoch milliseconds", async () => {
-    // The client builds `/api/avatar/me?v=…` from this, which is what makes an
-    // `immutable` response safe: a new upload is a new URL.
-    rows.current = [{ defaultRegion: null, avatarUpdatedAt: AVATAR_AT }];
+  it("returns the avatar's cache token", async () => {
+    // The client builds `/api/avatar/me?v=…` from this. It is a random token
+    // rather than a timestamp, because the path is the same for every reader
+    // and the response is cached `private, immutable` for a year.
+    rows.current = [{ defaultRegion: null, avatarVersion: AVATAR_VERSION }];
     const { getSessionExtrasFor } = await import("@/lib/preferences");
 
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
-      avatarVersion: AVATAR_AT.getTime(),
+      avatarVersion: AVATAR_VERSION,
     });
   });
 
@@ -83,12 +84,12 @@ describe("getSessionExtrasFor", () => {
     // The two rows are independently optional. Joining from `user` is what
     // stops a missing preference row hiding a present avatar — a join from
     // `user_preferences` would return nothing at all here.
-    rows.current = [{ defaultRegion: null, avatarUpdatedAt: AVATAR_AT }];
+    rows.current = [{ defaultRegion: null, avatarVersion: AVATAR_VERSION }];
     const { getSessionExtrasFor } = await import("@/lib/preferences");
 
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
-      avatarVersion: AVATAR_AT.getTime(),
+      avatarVersion: AVATAR_VERSION,
     });
   });
 
@@ -102,7 +103,7 @@ describe("getSessionExtrasFor", () => {
   });
 
   it("ignores a region that is no longer one of the three", async () => {
-    rows.current = [{ defaultRegion: "eurooppa", avatarUpdatedAt: null }];
+    rows.current = [{ defaultRegion: "eurooppa", avatarVersion: null }];
     const { getSessionExtrasFor } = await import("@/lib/preferences");
 
     expect(await getSessionExtrasFor("user-1")).toEqual({

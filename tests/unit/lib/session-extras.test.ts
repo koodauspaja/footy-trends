@@ -31,12 +31,17 @@ describe("defaultRegionOf", () => {
 });
 
 describe("avatarSourceOf", () => {
-  it("prefers the reader's own picture, with the version in the URL", () => {
-    // The image is served `immutable` for a year, so the version has to be in
-    // the URL or a new upload would never be fetched.
-    expect(avatarSourceOf({ avatarVersion: 1757325600000 }, GOOGLE)).toBe(
-      "/api/avatar/me?v=1757325600000"
+  it("prefers the reader's own picture, with the token in the URL", () => {
+    // The image is served `private, immutable` for a year on a path shared by
+    // every reader, so the token both busts the cache on a new upload and keeps
+    // one reader's cached picture off another's URL.
+    expect(avatarSourceOf({ avatarVersion: "3f6c1a2e-9b40" }, GOOGLE)).toBe(
+      "/api/avatar/me?v=3f6c1a2e-9b40"
     );
+  });
+
+  it("escapes the token rather than trusting its shape", () => {
+    expect(avatarSourceOf({ avatarVersion: "a b&c" }, GOOGLE)).toBe("/api/avatar/me?v=a%20b%26c");
   });
 
   it("falls back to Google's picture, and then to nothing", () => {
@@ -45,14 +50,13 @@ describe("avatarSourceOf", () => {
   });
 
   it.each([
-    ["zero", 0],
-    ["negative", -1],
-    ["infinite", Number.POSITIVE_INFINITY],
-    ["not a number", "1757325600000"],
-    ["NaN", Number.NaN],
+    ["empty", ""],
+    ["a number", 1757325600000],
+    ["null", null],
+    ["an object", {}],
   ])("ignores a version that is %s and uses Google's picture", (_case, avatarVersion) => {
-    // Each of these would still build a URL the handler would answer — and a
-    // cache key nothing could ever invalidate.
+    // Each of these would still build a URL the handler would answer — with a
+    // cache key shared by everyone else who had one.
     expect(avatarSourceOf({ avatarVersion }, GOOGLE)).toBe(GOOGLE);
   });
 

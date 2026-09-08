@@ -18,7 +18,7 @@ const BYTES = Buffer.from([0x52, 0x49, 0x46, 0x46]);
 beforeEach(() => {
   vi.clearAllMocks();
   getSession.mockResolvedValue({ user: { id: "user-1" } });
-  getAvatar.mockResolvedValue({ bytes: BYTES, contentType: "image/webp", version: 1757325600000 });
+  getAvatar.mockResolvedValue({ bytes: BYTES, contentType: "image/webp", version: "avatar-token" });
 });
 
 describe("GET /api/avatar/me", () => {

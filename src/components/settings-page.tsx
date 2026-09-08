@@ -39,8 +39,8 @@ type Props = Readonly<{
   /** `null` when the list could not be read — distinct from an empty list. */
   devices: Device[] | null;
   regionOptions: RegionOptions[];
-  /** `updatedAt` in epoch ms for the reader's own picture, or null when they have none. */
-  avatarVersion: number | null;
+  /** The reader's own picture's cache token, or null when they have none. */
+  avatarVersion: string | null;
   /** What Google gave us, which is the fallback when there is no custom picture. */
   googleImage: string | null;
 }>;
@@ -213,7 +213,7 @@ export function SettingsPage({
  * then Google's, then the name — so the sentence and the picture beside it
  * cannot disagree.
  */
-function pictureInUse(version: number | null, googleImage: string | null): string {
+function pictureInUse(version: string | null, googleImage: string | null): string {
   if (version !== null) return "Käytössä oma kuvasi.";
   if (googleImage !== null) return "Käytössä Google-tilisi kuva.";
   return "Ei kuvaa käytössä. Valikossa näkyy nimesi.";
@@ -241,8 +241,8 @@ type AvatarError = keyof typeof AVATAR_ERRORS;
 function ProfilePicture({
   version,
   googleImage,
-}: Readonly<{ version: number | null; googleImage: string | null }>) {
-  const [current, setCurrent] = useState<number | null>(version);
+}: Readonly<{ version: string | null; googleImage: string | null }>) {
+  const [current, setCurrent] = useState<string | null>(version);
   /**
    * The chosen file in state rather than read off the form at submit time.
    *
@@ -257,7 +257,7 @@ function ProfilePicture({
   const [pending, startTransition] = useTransition();
   const { refetch } = useSession();
 
-  const source = current === null ? googleImage : `/api/avatar/me?v=${current}`;
+  const source = current === null ? googleImage : `/api/avatar/me?v=${encodeURIComponent(current)}`;
 
   function announce(outcome: null | "saved" | "removed", failure: AvatarError | null) {
     setSaved(outcome);

@@ -9,26 +9,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * speaks, when it stays quiet, and that it cannot take an upload down with it.
  */
 
-const { execute, insert, onConflictDoUpdate, returning, stored, rows, deleteWhere, logger } =
-  vi.hoisted(() => {
-    const execute = vi.fn();
-    const stored = { current: new Date("2026-09-08T10:00:00Z") };
-    const returning = vi.fn(async () => [{ updatedAt: stored.current }]);
-    const onConflictDoUpdate = vi.fn(() => ({ returning }));
-    const insert = vi.fn(() => ({ values: () => ({ onConflictDoUpdate }) }));
-    const rows = { current: [] as unknown[] };
-    const deleteWhere = vi.fn(async () => undefined);
-    return {
-      execute,
-      insert,
-      onConflictDoUpdate,
-      returning,
-      stored,
-      rows,
-      deleteWhere,
-      logger: { warn: vi.fn(), error: vi.fn() },
-    };
-  });
+const { execute, insert, onConflictDoUpdate, rows, deleteWhere, logger } = vi.hoisted(() => {
+  const execute = vi.fn();
+  const stored = { current: new Date("2026-09-08T10:00:00Z") };
+  const returning = vi.fn(async () => [{ updatedAt: stored.current }]);
+  const onConflictDoUpdate = vi.fn(() => ({ returning }));
+  const insert = vi.fn(() => ({ values: () => ({ onConflictDoUpdate }) }));
+  const rows = { current: [] as unknown[] };
+  const deleteWhere = vi.fn(async () => undefined);
+  return {
+    execute,
+    insert,
+    onConflictDoUpdate,
+    returning,
+    stored,
+    rows,
+    deleteWhere,
+    logger: { warn: vi.fn(), error: vi.fn() },
+  };
+});
 
 vi.mock("@/db", () => ({
   db: {
@@ -56,16 +55,13 @@ beforeEach(() => {
 });
 
 describe("getAvatar", () => {
-  it("reports the version as epoch milliseconds", async () => {
-    // What the image URL carries, which is what makes a year-long `immutable`
-    // response safe.
-    const updatedAt = new Date("2026-09-08T10:00:00Z");
-    rows.current = [{ bytes: BYTES, contentType: "image/webp", updatedAt }];
+  it("returns the stored row as it is", async () => {
+    rows.current = [{ bytes: BYTES, contentType: "image/webp", version: "v-1" }];
 
     expect(await getAvatar("user-1")).toEqual({
       bytes: BYTES,
       contentType: "image/webp",
-      version: updatedAt.getTime(),
+      version: "v-1",
     });
   });
 
@@ -105,26 +101,18 @@ describe("saveAvatar", () => {
     );
   });
 
-  it("returns the version the database stored, not the one it was asked for", async () => {
+  it("mints a new version on every write", async () => {
     /**
-     * The version is the cache key in a year-long `immutable` URL, and
-     * `greatest(now(), updated_at + 1ms)` may move it forward past the current
-     * millisecond. Reporting a locally generated timestamp would hand the
-     * browser a URL that does not exist.
+     * The version is the whole cache key of a URL shared by every reader, so
+     * two writes — by one reader or by two — must never produce the same one.
+     * Randomness removes the collision rather than making it unlikely.
      */
-    stored.current = new Date("2030-01-01T00:00:00.123Z");
+    const first = await saveAvatar("user-1", BYTES, "image/webp");
+    const second = await saveAvatar("user-1", BYTES, "image/webp");
 
-    expect(await saveAvatar("user-1", BYTES, "image/webp")).toBe(stored.current.getTime());
+    expect(first).not.toBe(second);
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
     expect(onConflictDoUpdate).toHaveBeenCalled();
-    expect(returning).toHaveBeenCalled();
-  });
-
-  it("says so rather than inventing a version when nothing comes back", async () => {
-    returning.mockResolvedValueOnce([]);
-
-    await expect(saveAvatar("user-1", BYTES, "image/webp")).rejects.toThrow(
-      "Storing the avatar returned no row"
-    );
   });
 
   it("keeps the upload when the measurement itself fails", async () => {
@@ -135,7 +123,7 @@ describe("saveAvatar", () => {
      */
     execute.mockRejectedValue(new Error("permission denied for pg_total_relation_size"));
 
-    await expect(saveAvatar("user-1", BYTES, "image/webp")).resolves.toEqual(expect.any(Number));
+    await expect(saveAvatar("user-1", BYTES, "image/webp")).resolves.toEqual(expect.any(String));
     expect(logger.error).toHaveBeenCalled();
     expect(logger.warn).not.toHaveBeenCalled();
   });

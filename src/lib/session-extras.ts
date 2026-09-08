@@ -42,16 +42,18 @@ export function defaultRegionOf(session: unknown): RegionSegment | null {
  * null for the name.
  *
  * The version is *in* the URL rather than beside it. The image is served
- * `immutable` for a year, so a new upload has to be a new URL or the browser
- * keeps showing the old one — see `src/app/api/avatar/me/route.ts`.
+ * `private, immutable` for a year on a path that is the same for every reader,
+ * so the token is doing two jobs: a new upload has to be a new URL, and one
+ * reader's cached picture must never be reachable at another's URL. See
+ * `src/app/api/avatar/me/route.ts`.
  */
 export function avatarSourceOf(session: unknown, googleImage: string | null): string | null {
   const version = fieldOf(session, "avatarVersion");
-  // A non-finite or non-positive version is not a version. It would still build
-  // a URL that the handler would answer, but it would be a cache key nothing
-  // could invalidate.
-  if (typeof version === "number" && Number.isFinite(version) && version > 0) {
-    return `/api/avatar/me?v=${version}`;
+  // An empty or non-string version is not a version. It would still build a URL
+  // the handler would answer, but with a cache key shared by everyone who had
+  // one — which is the collision the random token exists to remove.
+  if (typeof version === "string" && version !== "") {
+    return `/api/avatar/me?v=${encodeURIComponent(version)}`;
   }
   return googleImage;
 }

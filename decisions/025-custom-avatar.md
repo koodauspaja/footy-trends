@@ -78,6 +78,30 @@ which is what separates `unreadable` from `unsupported`.
 **The cascade is tested against a real database.** It is the whole reason the
 bytes live in Postgres, and a mocked query builder cannot prove a foreign key.
 
+## The cache key changed twice, under review
+
+The version in `/api/avatar/me?v=…` started as `updatedAt` in epoch
+milliseconds. Review found two faults in that, in order:
+
+1. **Two writes in one millisecond share a URL.** Fixed first with
+   `greatest(now(), updated_at + interval '1 millisecond')` in the upsert, so
+   Postgres guaranteed a strictly increasing value even for concurrent writes.
+2. **Two *readers* can share a URL.** The path is the same for everybody, so a
+   per-user timestamp is not a per-user key: two accounts whose avatars were
+   saved in the same millisecond hold identical URLs, and a `private,
+   immutable` response cached in a shared browser profile would serve the first
+   account's picture to the second.
+
+The second finding subsumes the first. A random token per write — `randomUUID()`
+— cannot collide within a reader or across readers, so the monotonic SQL went
+away with it, and the code is simpler than before either fix. It also stops the
+URL disclosing when a picture was set.
+
+**The migration was regenerated rather than amended by a second one.** The table
+is new in this PR and exists in no deployed environment, so a fresh `0012` that
+creates it with the column beats shipping an `ALTER TABLE` for a table nobody
+has.
+
 ## Known limit
 
 The signed-in body of `/asetukset` is still not reachable end to end: it reads

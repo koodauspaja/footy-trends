@@ -17,7 +17,7 @@ import { logger } from "@/lib/logger";
  */
 
 export type SaveAvatarResult =
-  | { ok: true; version: number }
+  | { ok: true; version: string }
   | { ok: false; reason: AvatarRejection | "failed" };
 
 export type ActionResult = { ok: true } | { ok: false };

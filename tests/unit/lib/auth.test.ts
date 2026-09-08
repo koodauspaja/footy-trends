@@ -14,7 +14,7 @@ const { customSession, getSessionExtrasFor } = vi.hoisted(() => ({
   customSession: vi.fn((fn: unknown) => ({ id: "custom-session", fn })),
   getSessionExtrasFor: vi.fn(async () => ({
     defaultRegion: "kotimaa",
-    avatarVersion: 1757325600000,
+    avatarVersion: "avatar-token",
   })),
 }));
 
@@ -112,7 +112,7 @@ describe("auth configuration", () => {
       user,
       session,
       defaultRegion: "kotimaa",
-      avatarVersion: 1757325600000,
+      avatarVersion: "avatar-token",
     });
     expect(getSessionExtrasFor).toHaveBeenCalledWith("user-1");
   });

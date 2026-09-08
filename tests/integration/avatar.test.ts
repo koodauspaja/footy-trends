@@ -43,7 +43,7 @@ describe("avatar storage", () => {
 
     expect(stored?.bytes).toEqual(BYTES);
     expect(stored?.contentType).toBe("image/webp");
-    expect(stored?.version).toEqual(expect.any(Number));
+    expect(stored?.version).toEqual(expect.any(String));
   });
 
   it("returns null for a reader who has none", async () => {
@@ -58,42 +58,25 @@ describe("avatar storage", () => {
     const rows = await db.select().from(userAvatar).where(eq(userAvatar.userId, USER_ID));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.bytes).toEqual(replacement);
-    expect(second).toBeGreaterThan(first);
+    expect(second).not.toBe(first);
   });
 
-  it("gives every replacement a version after the last", async () => {
-    /**
-     * The version is the cache key in a year-long `immutable` URL, so a repeat
-     * of an earlier version would leave the reader looking at the old picture
-     * indefinitely.
-     *
-     * Measured honestly: this case passes under a plain `now()` too, because
-     * five sequential round trips do not land inside one millisecond. It is
-     * here for the ordering, and the test below is the one that fails without
-     * `greatest(now(), updated_at + 1ms)`.
-     */
-    const versions: number[] = [];
+  it("gives every replacement a version of its own", async () => {
+    // The version is the cache key in a year-long `immutable` URL, so a repeat
+    // would leave the reader looking at the old picture indefinitely.
+    const versions: string[] = [];
     for (let i = 0; i < 5; i++) {
       versions.push(await saveAvatar(USER_ID, Buffer.from([i]), "image/webp"));
     }
 
     expect(new Set(versions).size).toBe(versions.length);
-    expect([...versions].sort((a, b) => a - b)).toEqual(versions);
-    // And the last write is what is stored, not merely the last version.
     expect((await getAvatar(USER_ID))?.version).toBe(versions.at(-1));
   });
 
   it("keeps every concurrent upload on a version of its own", async () => {
-    /**
-     * **The test that earns the SQL.** Three uploads in flight together share a
-     * `now()` — verified by mutation: replacing `greatest(now(), updated_at +
-     * interval '1 millisecond')` with plain `now()` fails exactly this case and
-     * nothing else in the file.
-     *
-     * It is also the case application-side read-then-write could not survive.
-     * Postgres serialises the upsert on the primary key, so each statement sees
-     * the previous one's row.
-     */
+    // Three requests in flight together shared a millisecond under the previous
+    // timestamp scheme, which is what a random token removes rather than makes
+    // unlikely.
     const results = await Promise.all([
       saveAvatar(USER_ID, Buffer.from([1]), "image/webp"),
       saveAvatar(USER_ID, Buffer.from([2]), "image/webp"),
@@ -101,6 +84,21 @@ describe("avatar storage", () => {
     ]);
 
     expect(new Set(results).size).toBe(3);
+  });
+
+  it("never gives two readers the same version, which is a shared URL", async () => {
+    /**
+     * **The finding this scheme exists for.** `/api/avatar/me` is one path for
+     * everybody, so the query parameter is the only thing separating one
+     * reader's cached image from another's — and the response is `private,
+     * immutable` for a year. Under a millisecond timestamp two readers could
+     * hold the same URL, and a browser profile used by both would have served
+     * the first one's picture to the second.
+     */
+    const mine = await saveAvatar(USER_ID, BYTES, "image/webp");
+    const theirs = await saveAvatar(OTHER_ID, BYTES, "image/webp");
+
+    expect(mine).not.toBe(theirs);
   });
 
   it("removes one reader's picture and leaves everyone else's alone", async () => {

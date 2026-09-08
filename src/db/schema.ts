@@ -380,14 +380,25 @@ export const userAvatar = pgTable("user_avatar", {
   userId: text("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
+  /**
+   * The cache key in the image URL, and a random token rather than a
+   * timestamp.
+   *
+   * `/api/avatar/me` is one URL for every reader, so the query parameter is the
+   * only thing separating one reader's cached image from another's. A
+   * millisecond timestamp collides across readers — two avatars saved in the
+   * same millisecond produce byte-identical URLs — and the response is cached
+   * `private, immutable` for a year, so a shared browser profile could serve
+   * the previous account's picture to the next one. A random token cannot
+   * collide, and unlike a timestamp it says nothing about when.
+   */
+  version: text("version").notNull(),
   // Always the output of our own re-encode, never the bytes that were uploaded.
   bytes: bytea("bytes").notNull(),
   // Stored rather than assumed: this column outlives whatever `sharp` is
   // configured to emit today, and the route handler must not guess.
   contentType: text("content_type").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  // Load-bearing, not bookkeeping: its epoch-millisecond value is the
-  // cache-busting version in the image URL, which is what makes an `immutable`
-  // response safe.
+  // Bookkeeping only. `version` is what the URL carries — see above.
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

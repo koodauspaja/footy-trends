@@ -36,7 +36,7 @@ function signedIn() {
 beforeEach(() => {
   vi.clearAllMocks();
   processAvatar.mockResolvedValue({ ok: true, bytes: BYTES, contentType: "image/webp" });
-  saveAvatar.mockResolvedValue(1757325600000);
+  saveAvatar.mockResolvedValue("avatar-token");
   deleteAvatar.mockResolvedValue(undefined);
 });
 
@@ -44,7 +44,7 @@ describe("saveAvatarAction", () => {
   it("stores the processed bytes and returns the new version", async () => {
     signedIn();
 
-    expect(await saveAvatarAction(formWith(IMAGE))).toEqual({ ok: true, version: 1757325600000 });
+    expect(await saveAvatarAction(formWith(IMAGE))).toEqual({ ok: true, version: "avatar-token" });
     expect(saveAvatar).toHaveBeenCalledWith("user-1", BYTES, "image/webp");
     expect(revalidatePath).toHaveBeenCalledWith("/settings");
   });

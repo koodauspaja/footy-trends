@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { userAvatar } from "@/db/schema";
@@ -14,7 +15,7 @@ import { logger } from "@/lib/logger";
  * construction rather than by a reconciliation job.
  */
 
-export type StoredAvatar = { bytes: Buffer; contentType: string; version: number };
+export type StoredAvatar = { bytes: Buffer; contentType: string; version: string };
 
 /**
  * The database's size limit, and the share of it this table may take before
@@ -39,64 +40,52 @@ export async function getAvatar(userId: string): Promise<StoredAvatar | null> {
     .select({
       bytes: userAvatar.bytes,
       contentType: userAvatar.contentType,
-      updatedAt: userAvatar.updatedAt,
+      version: userAvatar.version,
     })
     .from(userAvatar)
     .where(eq(userAvatar.userId, userId))
     .limit(1);
 
-  if (row === undefined) return null;
-  return {
-    bytes: row.bytes,
-    contentType: row.contentType,
-    version: row.updatedAt.getTime(),
-  };
+  return row ?? null;
 }
 
 /**
  * Stores one reader's avatar, replacing whatever was there.
  *
- * Returns the new version — `updatedAt` in epoch milliseconds — which is what
- * the image URL carries so that an `immutable` response can be safe.
+ * Returns the new version, which is what the image URL carries.
  */
 export async function saveAvatar(
   userId: string,
   bytes: Buffer,
   contentType: string
-): Promise<number> {
+): Promise<string> {
   /**
-   * The new version, decided by Postgres rather than by the process making the
-   * request, and guaranteed to move forward.
+   * A fresh random token per write, not a timestamp.
    *
-   * `now()` alone is not enough. The version is the cache key in an `immutable`
-   * URL, so two replacements landing in the same millisecond would produce the
-   * same URL for different bytes and the reader would keep seeing the old
-   * picture for a year. `greatest(...)` against the row's own value makes the
-   * database resolve that, which also settles it for two concurrent uploads —
-   * a read-then-write in application code could not.
+   * `/api/avatar/me` is one URL for every reader, so this parameter is the only
+   * thing keeping one reader's cached image apart from another's — and the
+   * response is `private, immutable` for a year. Two readers whose avatars were
+   * saved in the same millisecond would have shared a URL, and a browser
+   * profile used by both would have served the first one's picture to the
+   * second. Randomness removes the collision rather than making it unlikely,
+   * and it also stops the URL disclosing when the picture was set.
    */
-  const nextVersion = sql`greatest(now(), ${userAvatar.updatedAt} + interval '1 millisecond')`;
+  const version = randomUUID();
+  const updatedAt = new Date();
 
-  const [row] = await db
+  await db
     .insert(userAvatar)
-    .values({ userId, bytes, contentType })
+    .values({ userId, version, bytes, contentType, updatedAt })
     // One row per reader, by primary key: an upload replaces rather than
     // accumulates.
     .onConflictDoUpdate({
       target: userAvatar.userId,
-      set: { bytes, contentType, updatedAt: nextVersion },
-    })
-    // The stored value, not the one we hoped for: `greatest` may have moved it.
-    .returning({ updatedAt: userAvatar.updatedAt });
+      set: { version, bytes, contentType, updatedAt },
+    });
 
   await warnIfTableIsGrowing();
 
-  // The insert always writes exactly one row, so this is unreachable — but the
-  // type says the array may be empty and inventing a version would be worse
-  // than saying so.
-  if (row === undefined) throw new Error("Storing the avatar returned no row");
-
-  return row.updatedAt.getTime();
+  return version;
 }
 
 /** Removes one reader's avatar. Removing one that does not exist is not an error. */

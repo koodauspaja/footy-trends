@@ -25,13 +25,13 @@ export const getPreferencesFor = cache(async (userId: string): Promise<Preferenc
 /**
  * What the browser needs from the session beyond better-auth's own fields.
  *
- * `avatarVersion` is `updatedAt` in epoch milliseconds, or null when the reader
+ * `avatarVersion` is the avatar's random cache token, or null when the reader
  * has no custom picture — the client builds `/api/avatar/me?v=…` from it. See
  * specs/025-custom-avatar.md.
  */
 export type SessionExtras = {
   defaultRegion: RegionSegment | null;
-  avatarVersion: number | null;
+  avatarVersion: string | null;
 };
 
 const NO_EXTRAS: SessionExtras = { defaultRegion: null, avatarVersion: null };
@@ -59,7 +59,7 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
     const [row] = await db
       .select({
         defaultRegion: userPreferences.defaultRegion,
-        avatarUpdatedAt: userAvatar.updatedAt,
+        avatarVersion: userAvatar.version,
       })
       .from(user)
       .leftJoin(userPreferences, eq(userPreferences.userId, user.id))
@@ -70,7 +70,7 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
     if (row === undefined) return NO_EXTRAS;
     return {
       defaultRegion: resolveRegion(row.defaultRegion),
-      avatarVersion: row.avatarUpdatedAt?.getTime() ?? null,
+      avatarVersion: row.avatarVersion,
     };
   } catch (error) {
     logger.error({ err: error, userId }, "Reading the session extras failed");

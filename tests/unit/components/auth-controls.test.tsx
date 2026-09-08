@@ -29,7 +29,7 @@ function signedOut() {
 
 function signedInAs(
   name: string,
-  extras: { image?: string | null; avatarVersion?: number | null } = {}
+  extras: { image?: string | null; avatarVersion?: string | null } = {}
 ) {
   sessionState.current = {
     data: {
@@ -324,11 +324,11 @@ describe("Which picture the account menu shows", () => {
    * request.
    */
   it("prefers the reader's own picture over Google's", () => {
-    signedInAs("Matti", { image: GOOGLE, avatarVersion: 1757325600000 });
+    signedInAs("Matti", { image: GOOGLE, avatarVersion: "avatar-token" });
 
     const { container } = render(<AuthControls />);
 
-    expect(container.querySelector("img")).toHaveAttribute("src", "/api/avatar/me?v=1757325600000");
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/avatar/me?v=avatar-token");
   });
 
   it("falls back to Google's picture when there is no custom one", () => {
