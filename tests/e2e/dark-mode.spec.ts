@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { HARDCODED_COLOUR_SOURCE } from "../shared/hardcoded-colour";
+import { paintsWithShade } from "../shared/hardcoded-colour";
 import { openAccountMenu, signedInAs } from "./session";
 
 /**
@@ -188,7 +188,7 @@ async function expectLegible(page: Page, where: string, scheme: string) {
 test("ships no shade utility, whatever the source scan picks up", async ({ page }) => {
   await page.goto("/");
 
-  const shades = await page.evaluate((pattern) => {
+  const selectors = await page.evaluate(() => {
     /**
      * Every selector in the sheet, however deeply nested.
      *
@@ -208,7 +208,7 @@ test("ships no shade utility, whatever the source scan picks up", async ({ page 
         ...("cssRules" in rule ? selectorsOf((rule as CSSGroupingRule).cssRules) : []),
       ]);
 
-    const selectors = [...document.styleSheets].flatMap((sheet) => {
+    return [...document.styleSheets].flatMap((sheet) => {
       try {
         return selectorsOf(sheet.cssRules);
       } catch {
@@ -216,12 +216,13 @@ test("ships no shade utility, whatever the source scan picks up", async ({ page 
         return [];
       }
     });
+  });
 
-    const shade = new RegExp(pattern);
-    // Tailwind escapes `:` and `/` in selectors; the class underneath is what
-    // this is about.
-    return selectors.filter((selector) => shade.test(selector.replaceAll("\\", "")));
-  }, `\\.${HARDCODED_COLOUR_SOURCE}(?![\\w-])`);
+  // Collected in the browser, judged here: the rule itself stays in one place,
+  // shared with the source guard, rather than crossing into `evaluate` as a
+  // pattern string and becoming a second copy.
+  expect(selectors.length).toBeGreaterThan(50);
+  const shades = selectors.filter(paintsWithShade);
 
   expect(shades).toEqual([]);
 });

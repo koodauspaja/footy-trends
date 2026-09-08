@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { HARDCODED_COLOUR_CLASS } from "../../shared/hardcoded-colour";
+import { HARDCODED_COLOUR_CLASS, paintsWithShade } from "../../shared/hardcoded-colour";
 
 const SRC_DIR = path.join(process.cwd(), "src");
 
@@ -132,6 +132,42 @@ describe("theme tokens", () => {
       ["in a lookup table", 'const BY_STATE = { open: "text-emerald-600" };'],
     ])("%s", (_case, source) => {
       expect(hardcodedColoursIn(source)).not.toEqual([]);
+    });
+  });
+
+  /**
+   * The selector half of the same rule, which `tests/e2e/dark-mode.spec.ts`
+   * applies to the stylesheet the running app serves. Covered here because a
+   * browser run is slow and this is where a gap gets noticed: the variant
+   * prefix was missing, and Tailwind writes `hover:bg-zinc-500/15` as
+   * `.hover\:bg-zinc-500\/15:hover`, where the dot sits before `hover` — so
+   * every variant of every shade walked past the bundle guard.
+   */
+  describe("in a stylesheet selector", () => {
+    it.each([
+      [".text-zinc-600"],
+      [".bg-\\[\\#fafafa\\]"],
+      [".bg-\\[\\#fafafa\\]\\/50"],
+      [".hover\\:bg-zinc-500\\/15:hover"],
+      [".disabled\\:text-gray-400:disabled"],
+      [".dark\\:bg-slate-100"],
+      [".sm\\:hover\\:border-zinc-200:hover"],
+    ])("catches %s", (selector) => {
+      expect(paintsWithShade(selector)).toBe(true);
+    });
+
+    it.each([
+      [".text-muted"],
+      [".bg-surface"],
+      [".border-border-subtle"],
+      [".hover\\:bg-surface:hover"],
+      [".text-notice-foreground"],
+      [".disabled\\:opacity-50:disabled"],
+      // A role whose name merely starts like a shade's would be a false
+      // positive; the trailing guard is what stops it.
+      [".text-redacted"],
+    ])("leaves %s alone", (selector) => {
+      expect(paintsWithShade(selector)).toBe(false);
     });
   });
 
