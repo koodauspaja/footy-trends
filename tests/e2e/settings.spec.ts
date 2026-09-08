@@ -86,6 +86,64 @@ test.describe("Settings, signed out", () => {
  * What follows is everything that genuinely can be driven end to end: the
  * signed-out page, the account menu, and the client-side start-page redirect.
  */
+/**
+ * Reads the contrast of an element against what is actually painted behind it,
+ * walking up for the first non-transparent background — the panel, not the
+ * page. jsdom has no layout or computed colours, so this can only be measured
+ * in a real browser.
+ */
+async function contrastOf(page: Page, name: string): Promise<number> {
+  return page.getByRole("link", { name }).evaluate((element) => {
+    const toRgb = (css: string) => {
+      const canvas = document.createElement("canvas").getContext("2d");
+      if (canvas === null) return [0, 0, 0];
+      canvas.fillStyle = css;
+      const hex = canvas.fillStyle as string;
+      return [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+    };
+    const luminance = (rgb: number[]) => {
+      const [r, g, b] = rgb.map((channel) => {
+        const s = channel / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+    };
+
+    let behind: Element | null = element;
+    let background = "rgba(0, 0, 0, 0)";
+    while (behind !== null) {
+      const colour = getComputedStyle(behind).backgroundColor;
+      if (colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent") {
+        background = colour;
+        break;
+      }
+      behind = behind.parentElement;
+    }
+
+    const [a, b] = [
+      luminance(toRgb(getComputedStyle(element).color)),
+      luminance(toRgb(background)),
+    ].sort((x, y) => y - x);
+    return ((a ?? 0) + 0.05) / ((b ?? 0) + 0.05);
+  });
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  test.describe(`The account menu in ${scheme} mode`, () => {
+    test.use({ colorScheme: scheme });
+
+    test("renders its items legibly against the panel behind them", async ({ page }) => {
+      // #273: the panel hardcoded `bg-white` while the text followed the theme,
+      // which put these at 1.17:1 in dark mode — present, but invisible.
+      await signedInAs(page, "Matti Meikäläinen");
+      await page.goto("/ulkomaat");
+      await page.getByRole("button", { name: /^Tili:/ }).click();
+
+      expect(await contrastOf(page, "Asetukset")).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+}
+
 test.describe("The account menu", () => {
   /**
    * Outside-click dismissal is only ever driven with a synthesised
