@@ -130,6 +130,15 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
           className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-border bg-background py-1 text-foreground shadow-sm"
           id={menuId}
         >
+          {/* Above `Asetukset`, so the reader's own things sit together and the
+              one they open most is first (specs/026-favourites.md). */}
+          <Link
+            className="block px-4 py-2 text-sm hover:bg-surface"
+            href="/suosikit"
+            onClick={() => close(false)}
+          >
+            Suosikit
+          </Link>
           <Link
             className="block px-4 py-2 text-sm hover:bg-surface"
             href="/asetukset"

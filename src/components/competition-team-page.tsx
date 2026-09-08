@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContextNotices } from "@/components/context-notices";
+import { FavouriteToggle } from "@/components/favourite-toggle";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
@@ -195,6 +196,24 @@ export async function CompetitionTeamPage({
   const heading =
     teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
 
+  /**
+   * The toggle names the club rather than the heading, because the heading
+   * carries the competition and the season too — and a favourite follows the
+   * club across both (specs/022, specs/026-favourites.md).
+   *
+   * Nothing renders when the name is unknown: a favourite whose label cannot be
+   * resolved would be a star with nothing to say what it is following.
+   */
+  const favourite =
+    teamName === null ? null : (
+      <FavouriteToggle
+        kind="team"
+        name={teamName}
+        source="football-data"
+        teamProviderId={teamProviderId}
+      />
+    );
+
   const played = seasons.status === "ok" ? seasons.seasons : [];
   // Either lookup failing is an outage, and neither is a club that does not exist.
   const lookups = nameStatus === "error" ? "error" : seasons.status;
@@ -219,7 +238,7 @@ export async function CompetitionTeamPage({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   return (
-    <PageShell heading={heading}>
+    <PageShell heading={heading} headingAction={favourite}>
       <p className="mb-6">
         <Link
           className="text-sm hover:underline"

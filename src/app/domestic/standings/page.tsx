@@ -76,7 +76,7 @@ function GroupBody({
     return (
       <>
         {group.kind === "pass-through" && <Notice>{TASO_FALLBACK_MESSAGE}</Notice>}
-        <StandingsTable standings={group.standings} teamHref={teamHref} />
+        <StandingsTable favouriteSource="taso" standings={group.standings} teamHref={teamHref} />
       </>
     );
   }

@@ -18,6 +18,11 @@ vi.mock("@/db", () => {
   return { db: { select: () => ({ from: joinable }) } };
 });
 vi.mock("@/lib/logger", () => ({ logger }));
+// The favourites are their own two queries and their own tests; here they only
+// have to arrive on the payload.
+vi.mock("@/lib/favourites", () => ({
+  favouritesForSession: async () => ({ teams: ["taso:60731"], competitions: ["kotimaa:VL"] }),
+}));
 
 const ROW = {
   defaultRegion: "kotimaa",
@@ -64,6 +69,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: "ulkomaat",
       avatarVersion: null,
+      favoriteTeams: ["taso:60731"],
+      favoriteCompetitions: ["kotimaa:VL"],
     });
   });
 
@@ -77,6 +84,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
       avatarVersion: AVATAR_VERSION,
+      favoriteTeams: ["taso:60731"],
+      favoriteCompetitions: ["kotimaa:VL"],
     });
   });
 
@@ -90,6 +99,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
       avatarVersion: AVATAR_VERSION,
+      favoriteTeams: ["taso:60731"],
+      favoriteCompetitions: ["kotimaa:VL"],
     });
   });
 
@@ -99,6 +110,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
       avatarVersion: null,
+      favoriteTeams: [],
+      favoriteCompetitions: [],
     });
   });
 
@@ -109,6 +122,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
       avatarVersion: null,
+      favoriteTeams: ["taso:60731"],
+      favoriteCompetitions: ["kotimaa:VL"],
     });
   });
 
@@ -121,6 +136,8 @@ describe("getSessionExtrasFor", () => {
     expect(await getSessionExtrasFor("user-1")).toEqual({
       defaultRegion: null,
       avatarVersion: null,
+      favoriteTeams: [],
+      favoriteCompetitions: [],
     });
     expect(logger.error).toHaveBeenCalled();
   });

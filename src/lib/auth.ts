@@ -86,10 +86,15 @@ export const auth = betterAuth({
      * needs the value in the browser. Enriching `/api/auth/get-session` costs
      * no extra round trip, where a second client fetch would.
      *
-     * Only what the client acts on: the start-page preference, and whether
-     * there is a custom avatar to ask for (specs/025-custom-avatar.md). The
-     * settings page reads the rest server-side, so shipping it here would be
-     * payload on every page load for nothing.
+     * Only what the client acts on: the start-page preference, whether there
+     * is a custom avatar to ask for (specs/025-custom-avatar.md), and the
+     * reader's favourites (specs/026-favourites.md). The settings page reads
+     * the rest server-side, so shipping it here would be payload on every page
+     * load for nothing.
+     *
+     * The favourites are here for a reason the others are not: the toggle
+     * renders on the region picker, which lives on the four prerendered pages,
+     * so it cannot read a session on the server at all.
      *
      * Both come from one query — see `getSessionExtrasFor`. A field added here
      * must not cost a round trip on every page load.

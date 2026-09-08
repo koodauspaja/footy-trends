@@ -88,7 +88,11 @@ async function renderCupStandings({
           {phases.map((phase) => (
             <section key={phase.group ?? phase.heading}>
               <h2 className="mb-2 font-medium">{phase.heading}</h2>
-              <StandingsTable standings={phase.standings} teamHref={teamHref} />
+              <StandingsTable
+                favouriteSource="football-data"
+                standings={phase.standings}
+                teamHref={teamHref}
+              />
             </section>
           ))}
         </div>
@@ -152,6 +156,7 @@ async function renderLeagueStandings({
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "ok" && (
         <StandingsTable
+          favouriteSource="football-data"
           standings={result.standings}
           teamHref={(teamProviderId) =>
             `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`

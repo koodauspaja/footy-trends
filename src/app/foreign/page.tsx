@@ -6,5 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function Foreign() {
-  return <CompetitionPicker basePath="/ulkomaat" region="foreign" />;
+  return <CompetitionPicker favouriteRegion="ulkomaat" basePath="/ulkomaat" region="foreign" />;
 }

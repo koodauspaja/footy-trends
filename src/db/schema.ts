@@ -402,3 +402,60 @@ export const userAvatar = pgTable("user_avatar", {
   // Bookkeeping only. `version` is what the URL carries — see above.
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * A reader's favourite teams, from specs/026-favourites.md.
+ *
+ * The identity is `(source, team_provider_id)` and **not** a competition:
+ * specs/022 established that a team page spans competitions and seasons, so a
+ * favourite follows the club rather than one of its league entries. The source
+ * is half of it because the two providers' id spaces are independent — 317
+ * already exists in both.
+ */
+export const favoriteTeam = pgTable(
+  "favorite_team",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // "football-data" | "taso", validated on read the way a stored region is.
+    source: text("source").notNull(),
+    teamProviderId: integer("team_provider_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Favouriting twice is a no-op rather than a second row — two tabs and a
+    // double click are the ordinary way it happens.
+    uniqueIndex("favorite_team_identity_idx").on(table.userId, table.source, table.teamProviderId),
+  ]
+);
+
+/**
+ * A reader's favourite competitions.
+ *
+ * A separate table rather than a `kind` column on the one above: a team is a
+ * provider and a number, a competition is a region and a code, and one table
+ * holding both would need four nullable columns plus a constraint saying which
+ * pair is legal — a check where a type will do.
+ */
+export const favoriteCompetition = pgTable(
+  "favorite_competition",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The Finnish URL segment, as `user_preferences.default_region` stores it.
+    region: text("region").notNull(),
+    competitionCode: text("competition_code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("favorite_competition_identity_idx").on(
+      table.userId,
+      table.region,
+      table.competitionCode
+    ),
+  ]
+);

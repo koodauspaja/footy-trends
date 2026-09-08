@@ -8,13 +8,17 @@ import { signIn } from "@/lib/auth-client";
  * rather than a redirect or a middleware bounce. See
  * specs/024-account-settings.md.
  */
-export function SignInPrompt() {
+export function SignInPrompt({
+  // The settings sentence stays the default, so specs/024's page reads exactly
+  // as it did; `/suosikit` passes its own (specs/026-favourites.md).
+  message = "Kirjaudu sisään nähdäksesi asetuksesi.",
+}: Readonly<{ message?: string }> = {}) {
   const pathname = usePathname();
   const router = useRouter();
 
   return (
     <div className="flex flex-col items-start gap-3">
-      <p>Kirjaudu sisään nähdäksesi asetuksesi.</p>
+      <p>{message}</p>
       <button
         className="rounded border border-border px-3 py-2 text-sm hover:bg-surface"
         onClick={() => {

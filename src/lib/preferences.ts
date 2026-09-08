@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { user, userAvatar, userPreferences } from "@/db/schema";
+import { favouritesForSession } from "@/lib/favourites";
 import { logger } from "@/lib/logger";
 import { type Preferences, type RegionSegment, resolveRegion, toPreferences } from "@/lib/regions";
 
@@ -32,9 +33,24 @@ export const getPreferencesFor = cache(async (userId: string): Promise<Preferenc
 export type SessionExtras = {
   defaultRegion: RegionSegment | null;
   avatarVersion: string | null;
+  /**
+   * The reader's favourites as keys, from specs/026-favourites.md.
+   *
+   * They ride here because the toggle renders on the region picker, which lives
+   * on the four pages `rendering-mode.test.ts` keeps prerendered (#182) —
+   * reading a session on the server there would cost them that. The browser
+   * already fetches this payload, so a client toggle costs no extra request.
+   */
+  favoriteTeams: string[];
+  favoriteCompetitions: string[];
 };
 
-const NO_EXTRAS: SessionExtras = { defaultRegion: null, avatarVersion: null };
+const NO_EXTRAS: SessionExtras = {
+  defaultRegion: null,
+  avatarVersion: null,
+  favoriteTeams: [],
+  favoriteCompetitions: [],
+};
 
 /**
  * The fields the session payload carries, for the browser that already fetches
@@ -68,9 +84,18 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
       .limit(1);
 
     if (row === undefined) return NO_EXTRAS;
+
+    // A second round trip rather than more joins. The favourites are two
+    // one-to-many relations, and joining them onto the same row would multiply
+    // it out — a reader with 20 teams and 5 competitions would fetch 100 rows to
+    // learn one region. Two small indexed queries beat that.
+    const favourites = await favouritesForSession(userId);
+
     return {
       defaultRegion: resolveRegion(row.defaultRegion),
       avatarVersion: row.avatarVersion,
+      favoriteTeams: favourites.teams,
+      favoriteCompetitions: favourites.competitions,
     };
   } catch (error) {
     logger.error({ err: error, userId }, "Reading the session extras failed");

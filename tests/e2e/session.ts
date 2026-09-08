@@ -19,7 +19,13 @@ import { expect, type Page } from "@playwright/test";
 export async function signedInAs(
   page: Page,
   name: string,
-  defaultRegion: string | null = null
+  defaultRegion: string | null = null,
+  /**
+   * The favourite keys `customSession` adds (specs/026-favourites.md). The star
+   * is a *client* component, so unlike `/asetukset` this interception really
+   * does reach what it renders.
+   */
+  favourites: { teams?: string[]; competitions?: string[] } = {}
 ): Promise<void> {
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({
@@ -39,6 +45,8 @@ export async function signedInAs(
           image: null,
         },
         defaultRegion,
+        favoriteTeams: favourites.teams ?? [],
+        favoriteCompetitions: favourites.competitions ?? [],
       }),
     });
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avatarSourceOf, defaultRegionOf } from "@/lib/session-extras";
+import { avatarSourceOf, defaultRegionOf, favouriteKeysOf } from "@/lib/session-extras";
 
 /**
  * Reading the fields `customSession` adds, from specs/024-account-settings.md
@@ -64,5 +64,36 @@ describe("avatarSourceOf", () => {
     expect(avatarSourceOf(null, GOOGLE)).toBe(GOOGLE);
     expect(avatarSourceOf(undefined, GOOGLE)).toBe(GOOGLE);
     expect(avatarSourceOf("signed-in", GOOGLE)).toBe(GOOGLE);
+  });
+});
+
+describe("favouriteKeysOf", () => {
+  const SESSION = {
+    favoriteTeams: ["taso:60731", "football-data:86"],
+    favoriteCompetitions: ["kotimaa:VL"],
+  };
+
+  it("reads each kind from its own field", () => {
+    expect(favouriteKeysOf(SESSION, "team")).toEqual(["taso:60731", "football-data:86"]);
+    expect(favouriteKeysOf(SESSION, "competition")).toEqual(["kotimaa:VL"]);
+  });
+
+  it.each([
+    ["a session that is null", null],
+    ["a session that is not an object", "signed-in"],
+    ["a payload with no favourites at all", { user: {} }],
+    ["a field that is a string rather than a list", { favoriteTeams: "taso:60731" }],
+    ["a field that is an object", { favoriteTeams: { "taso:60731": true } }],
+  ])("answers with an empty list for %s", (_case, session) => {
+    // A missing star is a smaller loss than a page that will not render, and
+    // this payload is untyped by better-auth's own client — see the note in
+    // `session-extras.ts` on why the narrowing lives here.
+    expect(favouriteKeysOf(session, "team")).toEqual([]);
+  });
+
+  it("drops entries that are not strings, keeping the rest", () => {
+    expect(favouriteKeysOf({ favoriteTeams: ["taso:60731", 60731, null] }, "team")).toEqual([
+      "taso:60731",
+    ]);
   });
 });
