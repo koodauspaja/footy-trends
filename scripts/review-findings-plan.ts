@@ -229,7 +229,11 @@ export function format(rows: Tally[], total: number): string {
   ];
 
   for (const row of rows) {
-    lines.push(`| ${row.count} | ${row.label} | ${row.pulls.map((n) => `#${n}`).join(" ")} |`);
+    // The pull list is built first rather than interpolated inline: a template
+    // literal inside a template literal is two levels of escaping to read at
+    // once, for one line of output.
+    const pulls = row.pulls.map((pull) => `#${pull}`).join(" ");
+    lines.push(`| ${row.count} | ${row.label} | ${pulls} |`);
   }
 
   lines.push("", "See skills/self-review.md for the counter to each class.");
