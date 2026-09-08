@@ -109,10 +109,22 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
         <label className="mb-1 block text-sm" htmlFor="defaultRegion">
           Mistä sovellus aloittaa
         </label>
+        {/*
+          `key` is what makes an uncontrolled select follow the *stored* value.
+          `defaultValue` applies on mount and is ignored on every later render,
+          so after a save the server would send the new preferences back and the
+          dropdown would keep showing the old one (#271).
+
+          Keyed on the stored value rather than on the props object, which is
+          deliberate: a re-render that does not change what is stored leaves a
+          half-made choice alone, so picking a competition and then re-rendering
+          for any other reason does not silently undo it.
+        */}
         <select
           className={SELECT_CLASS}
           defaultValue={preferences.defaultRegion ?? ""}
           id="defaultRegion"
+          key={preferences.defaultRegion ?? ""}
           name="defaultRegion"
         >
           {/* The unset value is a real option, not a placeholder: no setting
@@ -138,10 +150,12 @@ export function SettingsPage({ preferences, devices, regionOptions }: Props) {
                 <label className="mb-1 block text-sm" htmlFor={name}>
                   {field.label}
                 </label>
+                {/* Keyed on the stored value — see the note above. */}
                 <select
                   className={SELECT_CLASS}
                   defaultValue={preferences[name] ?? ""}
                   id={name}
+                  key={preferences[name] ?? ""}
                   name={name}
                 >
                   {/* A real value, not a placeholder: unsetting must be possible. */}
