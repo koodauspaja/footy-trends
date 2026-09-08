@@ -7,8 +7,29 @@ import { defineConfig } from "vitest/config";
 // tests could not reach Postgres or Redis without exporting the variables by
 // hand first. Node's built-in loader fills process.env here; test workers
 // inherit it. Requires Node >= 20.12, and the project already requires 24.
+/**
+ * Whether the developer exported `LOG_LEVEL` for this run, captured *before*
+ * `.env` is read. `process.loadEnvFile` does not override a variable that is
+ * already set, so anything present now came from the shell.
+ */
+const logLevelWasExported = process.env.LOG_LEVEL !== undefined;
+
 if (existsSync(".env")) {
   process.loadEnvFile(".env");
+}
+
+/**
+ * `.env` must not decide how loud the tests are.
+ *
+ * `.env.example` sets `LOG_LEVEL=info` and the setup docs say to copy it, so
+ * the logger's silent-under-test default was being overridden for anyone who
+ * followed them — the suite kept printing application logs, which is the thing
+ * silencing it was meant to stop. An `LOG_LEVEL=debug npm run test:unit`
+ * survives, because that was exported rather than loaded from the file.
+ */
+if (!logLevelWasExported) {
+  process.env.LOG_LEVEL = undefined;
+  delete process.env.LOG_LEVEL;
 }
 
 export default defineConfig({
