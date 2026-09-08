@@ -408,12 +408,23 @@ describe("a dropdown after the server sends the saved value back", () => {
     // value must leave a half-made choice alone. Otherwise picking a
     // competition and then having the page re-render for any reason would
     // silently undo it.
-    renderPage();
+    //
+    // `rerender`, not a second `renderPage()`. Mounting a second component
+    // would leave the first one untouched and assert on that — which passes
+    // whatever the component does on re-render, and so tests nothing.
+    const { rerender } = renderPage();
     fireEvent.change(screen.getByLabelText("Kotimaan oletussarja"), { target: { value: "M1L" } });
 
-    // A re-render with the same stored preferences, new object identity.
-    renderPage();
+    // The same stored preferences, new object identity — what a re-render for
+    // any unrelated reason looks like.
+    rerender(
+      <SettingsPage
+        devices={[THIS_DEVICE]}
+        preferences={{ ...NO_PREFERENCES }}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
 
-    expect(screen.getAllByLabelText("Kotimaan oletussarja")[0]).toHaveValue("M1L");
+    expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("M1L");
   });
 });
