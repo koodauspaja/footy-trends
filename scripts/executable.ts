@@ -23,7 +23,7 @@ const CANDIDATES = {
     "/opt/homebrew/bin/git",
     // Windows, where nobody develops this today — but a list that silently
     // excludes a platform is worse than one that covers it for two lines.
-    "C:\\Program Files\\Git\\cmd\\git.exe",
+    String.raw`C:\Program Files\Git\cmd\git.exe`,
   ],
   docker: [
     "/usr/bin/docker",
@@ -31,7 +31,7 @@ const CANDIDATES = {
     "/opt/homebrew/bin/docker",
     // Docker Desktop on macOS, when its CLI is not linked into a bin directory.
     "/Applications/Docker.app/Contents/Resources/bin/docker",
-    "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
+    String.raw`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
   ],
 } as const;
 
