@@ -14,11 +14,13 @@ import {
  * stored match. Both must stay on the page, because an entry nobody can see is
  * an entry nobody can remove.
  */
-const { removeTeam, removeCompetition } = vi.hoisted(() => ({
+const { removeTeam, removeCompetition, refetch } = vi.hoisted(() => ({
+  refetch: vi.fn(async () => {}),
   removeTeam: vi.fn<(source: string, id: number) => Promise<{ ok: boolean }>>(),
   removeCompetition: vi.fn<(region: string, code: string) => Promise<{ ok: boolean }>>(),
 }));
 
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ data: null, refetch }) }));
 vi.mock("@/lib/favourite-actions", () => ({
   removeFavouriteTeamAction: removeTeam,
   removeFavouriteCompetitionAction: removeCompetition,
@@ -60,6 +62,7 @@ const removeRow = (name: string) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  refetch.mockResolvedValue(undefined);
   removeTeam.mockResolvedValue({ ok: true });
   removeCompetition.mockResolvedValue({ ok: true });
 });
@@ -131,6 +134,9 @@ describe("removing", () => {
     );
     expect(removeCompetition).toHaveBeenCalledWith("kotimaa", "VL");
     expect(screen.getByText("Ei suosikkisarjoja. Lisää niitä sarjan sivulta.")).toBeInTheDocument();
+    // Every star in the app reads the session payload, so a removal here has to
+    // reach it — otherwise the competition's own page still shows a filled star.
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("takes the team off the list", async () => {
@@ -167,6 +173,8 @@ describe("removing", () => {
       expect(screen.getByText("Poistaminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument()
     );
     expect(screen.getByRole("link", { name: "Ilves" })).toBeInTheDocument();
+    // Nothing changed, so there is nothing for the session to catch up with.
+    expect(refetch).not.toHaveBeenCalled();
   });
 
   it("treats a rejected invocation the same as a refusal", async () => {

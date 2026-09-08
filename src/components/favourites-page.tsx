@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
+import { useSession } from "@/lib/auth-client";
 import {
   removeFavouriteCompetitionAction,
   removeFavouriteTeamAction,
@@ -65,6 +66,7 @@ function TeamLabel({ entry }: Readonly<{ entry: FavouriteTeamEntry }>) {
 }
 
 export function FavouritesPage({ teams, competitions }: Props) {
+  const { refetch } = useSession();
   const [failed, setFailed] = useState(false);
   const [removedKeys, setRemovedKeys] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
@@ -74,10 +76,22 @@ export function FavouritesPage({ teams, competitions }: Props) {
     startTransition(async () => {
       try {
         const outcome = await run();
-        // Hidden locally rather than by a reload: the row is gone as far as the
-        // reader is concerned, and the server has already been told.
-        if (outcome.ok) setRemovedKeys((keys) => [...keys, key]);
-        else setFailed(true);
+        if (outcome.ok) {
+          // Hidden locally rather than by a reload: the row is gone as far as
+          // the reader is concerned, and the server has already been told.
+          setRemovedKeys((keys) => [...keys, key]);
+          /**
+           * And the session has to catch up, for the same reason the toggle
+           * refetches after a write: every star in the app reads its state from
+           * the session payload. Without this, removing a team here and then
+           * following a client-side link to its page shows a filled star for a
+           * favourite that no longer exists — until something else happens to
+           * refresh the session.
+           */
+          await refetch();
+        } else {
+          setFailed(true);
+        }
       } catch {
         setFailed(true);
       }

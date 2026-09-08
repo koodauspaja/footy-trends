@@ -26,7 +26,13 @@ export type Favourites = { teams: string[]; competitions: string[] };
 
 export const NO_FAVOURITES: Favourites = { teams: [], competitions: [] };
 
-/** Whether the write happened, or why it did not. */
+/**
+ * The favourite's state **after** the write, or why there was none.
+ *
+ * `favorite` answers "is it one now", not "did this statement insert a row" —
+ * which is what the star renders, and what makes an insert that lost a race to
+ * an identical one still a true `true`.
+ */
 export type FavouriteWrite = { ok: true; favorite: boolean } | { ok: false; reason: "limit" };
 
 /**

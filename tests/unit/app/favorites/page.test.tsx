@@ -41,7 +41,13 @@ vi.mock("@/lib/favourite-actions", () => ({
   removeFavouriteTeamAction: vi.fn(),
   removeFavouriteCompetitionAction: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
+// Both halves of the page reach the client: `SignInPrompt` uses `signIn`, and
+// the list refetches the session after a removal so every star in the app
+// catches up.
+vi.mock("@/lib/auth-client", () => ({
+  signIn: { social: vi.fn() },
+  useSession: () => ({ data: null, refetch: vi.fn() }),
+}));
 // The sign-in prompt is a client component that reads the router; without this
 // the signed-out branch throws "app router not mounted" rather than rendering.
 vi.mock("next/navigation", () => ({

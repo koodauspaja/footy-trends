@@ -153,12 +153,25 @@ Two comments elsewhere had also become false and were corrected: `auth.ts` still
 claimed the session extras cost one query, when the favourites add two. It now
 carries the measured cost instead.
 
-**The third was wrong, and the existing test says so.** The claim was that
-`getSessionExtrasFor` returns early for a reader with no preferences row, hiding
-their favourites. It selects **from `user`** with left joins, so that early
-return means "no such user", not "no preferences" — and
-`tests/integration/favourites.test.ts` already asserts both lists arrive for a
-reader who has never saved a setting.
+**A removal on `/suosikit` left every other star stale.** The toggle refetches
+the session after a write; the favourites page did not, so removing a team there
+and following a client-side link to its page showed a filled star for a favourite
+that no longer existed. Both write paths now refetch, and the page's test asserts
+it happens on success and *not* on failure.
+
+**Three findings were wrong, and the code says why.** 1. That `getSessionExtrasFor` returns early for a reader with no preferences row,
+   hiding their favourites. It selects **from `user`** with left joins, so that
+   early return means "no such user", not "no preferences" —
+   `tests/integration/favourites.test.ts` already asserts both lists arrive for a
+   reader who has never saved a setting.
+2. That returning `favorite: true` after `onConflictDoNothing` lies when the
+   insert conflicted. `favorite` answers "is it one now", not "did this statement
+   insert" — after a conflict the row exists, so `true` is the true answer, and
+   it is what the star renders. The type now says so, because a careful reader
+   misreading it is evidence the comment was not carrying its weight.
+3. That `taso.ts`'s `parseProviderId` does not enforce the `int4` bound the
+   comment credits it with. It does, through `optionalNumber`, which rejects
+   anything outside `INT4_MIN..INT4_MAX` before the positivity check.
 
 ## Measurements
 
