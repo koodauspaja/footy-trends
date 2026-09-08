@@ -10,6 +10,15 @@ import { executablePath, isRunnable, overrideNameFor } from "../../../scripts/ex
  * ones that would hand the decision back.
  */
 
+/**
+ * Every call below passes `env: {}`.
+ *
+ * Omitting it reads the real environment, so a developer with `GIT_EXECUTABLE`
+ * set — the escape hatch this module documents — would fail tests about code
+ * that is working. Found by setting it and watching two tests that were not
+ * about overrides at all go red.
+ */
+
 /** A filesystem where only these paths exist. */
 function present(...paths: string[]) {
   return (candidate: string) => paths.includes(candidate);
@@ -19,20 +28,20 @@ describe("executablePath", () => {
   it("finds the tool in its usual place", () => {
     const exists = present("/usr/bin/git");
 
-    expect(executablePath("git", { exists })).toBe("/usr/bin/git");
+    expect(executablePath("git", { exists, env: {} })).toBe("/usr/bin/git");
   });
 
   it("prefers the first candidate that exists, not the first listed", () => {
     // A machine with Homebrew git but no /usr/bin/git still gets an answer.
     const exists = present("/opt/homebrew/bin/git");
 
-    expect(executablePath("git", { exists })).toBe("/opt/homebrew/bin/git");
+    expect(executablePath("git", { exists, env: {} })).toBe("/opt/homebrew/bin/git");
   });
 
   it("finds Docker Desktop's own CLI when nothing is linked into a bin directory", () => {
     const exists = present("/Applications/Docker.app/Contents/Resources/bin/docker");
 
-    expect(executablePath("docker", { exists })).toBe(
+    expect(executablePath("docker", { exists, env: {} })).toBe(
       "/Applications/Docker.app/Contents/Resources/bin/docker"
     );
   });
@@ -42,8 +51,8 @@ describe("executablePath", () => {
     // the docker probe reports not running, the release script refuses to run.
     const exists = present();
 
-    expect(executablePath("git", { exists })).toBeNull();
-    expect(executablePath("docker", { exists })).toBeNull();
+    expect(executablePath("git", { exists, env: {} })).toBeNull();
+    expect(executablePath("docker", { exists, env: {} })).toBeNull();
   });
 
   it("takes an absolute override, for a machine that keeps git somewhere else", () => {
@@ -105,11 +114,20 @@ describe("what counts as runnable", () => {
   });
 
   it("accepts the real git, which is an executable file", () => {
-    // A sanity check on the other three: if this returned null, the checks
-    // above would pass for the wrong reason. The suffix is optional because
-    // Windows resolves to `git.exe`, and a test that cannot pass on a platform
-    // this now supports is a test that says the support is not real.
-    expect(executablePath("git")).toMatch(/git(\.exe|\.cmd|\.bat)?$/);
+    /**
+     * A sanity check on the other three: if this returned null, they would pass
+     * for the wrong reason.
+     *
+     * `env: {}` rather than the ambient environment, and an assertion about the
+     * *shape* rather than the name. A developer with `GIT_EXECUTABLE` set to a
+     * wrapper called something else would otherwise fail a test about code that
+     * is working — and the suffix would have to be repeated here every time
+     * `WINDOWS_SUFFIXES` changed.
+     */
+    const resolved = executablePath("git", { env: {} });
+
+    expect(resolved).not.toBeNull();
+    expect(path.isAbsolute(resolved ?? "")).toBe(true);
   });
 });
 
@@ -128,6 +146,15 @@ describe("what Windows counts as runnable", () => {
   it("accepts an .exe by its name, where POSIX would refuse it", () => {
     expect(isRunnable(FIXTURE, "win32")).toBe(true);
     expect(isRunnable(FIXTURE, "linux")).toBe(false);
+  });
+
+  it("refuses a batch file, which Windows runs but Node cannot spawn directly", () => {
+    // `.cmd` and `.bat` are programs to Windows and not to `spawnSync` without
+    // `{ shell: true }`, which the callers deliberately do not pass. Accepting
+    // one would resolve a path that then fails to start.
+    const batch = path.join(process.cwd(), "tests", "fixtures", "executable", "tool.cmd");
+
+    expect(isRunnable(batch, "win32")).toBe(false);
   });
 
   it("refuses a file that is not named like a program", () => {

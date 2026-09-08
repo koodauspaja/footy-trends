@@ -37,8 +37,20 @@ const CANDIDATES = {
 
 export type Tool = keyof typeof CANDIDATES;
 
-/** What Windows treats as runnable, since it has no execute bit to ask about. */
-const WINDOWS_SUFFIXES = [".exe", ".cmd", ".bat"];
+/**
+ * What Windows treats as runnable **and Node can actually launch**.
+ *
+ * `.cmd` and `.bat` are programs as far as Windows is concerned, and accepting
+ * them was the obvious generalisation — a Windows git install really can put
+ * `git.cmd` on the path. But `spawnSync` and `execFileSync` cannot start a
+ * batch file without `{ shell: true }`, which the callers do not pass and
+ * should not: the whole point of this module is that the command is a path we
+ * chose, not a string a shell interprets.
+ *
+ * So accepting them would hand back a path that resolves and then fails to
+ * spawn, which is exactly the failure this check exists to prevent.
+ */
+const WINDOWS_SUFFIXES = [".exe"];
 
 /**
  * Whether a path is something we can actually run.
