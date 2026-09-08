@@ -1,6 +1,6 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-
-import { executablePath, overrideNameFor } from "../../../scripts/executable";
+import { executablePath, isRunnable, overrideNameFor } from "../../../scripts/executable";
 
 /**
  * Where the scripts find `git` and `docker`, from #292.
@@ -106,8 +106,49 @@ describe("what counts as runnable", () => {
 
   it("accepts the real git, which is an executable file", () => {
     // A sanity check on the other three: if this returned null, the checks
-    // above would pass for the wrong reason.
-    expect(executablePath("git")).toMatch(/git$/);
+    // above would pass for the wrong reason. The suffix is optional because
+    // Windows resolves to `git.exe`, and a test that cannot pass on a platform
+    // this now supports is a test that says the support is not real.
+    expect(executablePath("git")).toMatch(/git(\.exe|\.cmd|\.bat)?$/);
+  });
+});
+
+describe("what Windows counts as runnable", () => {
+  /**
+   * `accessSync(path, X_OK)` means nothing on Windows: it succeeds for any
+   * readable file, so the permission check that works on POSIX would accept a
+   * text file named `git.exe`. The name is what Windows actually goes on.
+   *
+   * The fixture is exactly that — a text file with an `.exe` name and no
+   * execute bit — so the same path answers differently on the two platforms,
+   * which is the whole of the rule.
+   */
+  const FIXTURE = path.join(process.cwd(), "tests", "fixtures", "executable", "tool.exe");
+
+  it("accepts an .exe by its name, where POSIX would refuse it", () => {
+    expect(isRunnable(FIXTURE, "win32")).toBe(true);
+    expect(isRunnable(FIXTURE, "linux")).toBe(false);
+  });
+
+  it("refuses a file that is not named like a program", () => {
+    const notAProgram = path.join(process.cwd(), "package.json");
+
+    expect(isRunnable(notAProgram, "win32")).toBe(false);
+  });
+
+  it("refuses a directory whatever it is called", () => {
+    expect(isRunnable(path.join(process.cwd(), "scripts"), "win32")).toBe(false);
+  });
+
+  it("resolves an override by that rule rather than by the execute bit", () => {
+    // End to end through `executablePath`, so the platform actually reaches
+    // the check rather than only being passed to it.
+    expect(executablePath("git", { platform: "win32", env: { GIT_EXECUTABLE: FIXTURE } })).toBe(
+      FIXTURE
+    );
+    expect(
+      executablePath("git", { platform: "linux", env: { GIT_EXECUTABLE: FIXTURE } })
+    ).toBeNull();
   });
 });
 

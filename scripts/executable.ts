@@ -37,6 +37,9 @@ const CANDIDATES = {
 
 export type Tool = keyof typeof CANDIDATES;
 
+/** What Windows treats as runnable, since it has no execute bit to ask about. */
+const WINDOWS_SUFFIXES = [".exe", ".cmd", ".bat"];
+
 /**
  * Whether a path is something we can actually run.
  *
@@ -44,10 +47,19 @@ export type Tool = keyof typeof CANDIDATES;
  * execute bit, would be returned as the binary and fail at `spawnSync` — with a
  * message about the spawn rather than about the path, and with the remaining
  * candidates never tried.
+ *
+ * **Windows is a different question, not the same one.** `accessSync(path,
+ * X_OK)` there succeeds for any readable file, so a text file named `git.exe`
+ * would pass a permission check that means nothing — the name is what Windows
+ * actually goes on.
  */
-function isRunnable(path: string): boolean {
+export function isRunnable(path: string, platform: NodeJS.Platform): boolean {
   try {
     if (!statSync(path).isFile()) return false;
+    if (platform === "win32") {
+      const lower = path.toLowerCase();
+      return WINDOWS_SUFFIXES.some((suffix) => lower.endsWith(suffix));
+    }
     accessSync(path, constants.X_OK);
     return true;
   } catch {
@@ -73,12 +85,17 @@ export function executablePath(
   tool: Tool,
   {
     env = process.env,
+    platform = process.platform,
     // Injected rather than mocked. `node:fs` is a builtin whose namespace does
     // not reliably take a partial module mock, and a test that silently falls
     // through to the real filesystem asserts whatever this machine happens to
     // have installed.
-    exists = isRunnable,
-  }: { env?: Record<string, string | undefined>; exists?: (path: string) => boolean } = {}
+    exists = (candidate: string) => isRunnable(candidate, platform),
+  }: {
+    env?: Record<string, string | undefined>;
+    platform?: NodeJS.Platform;
+    exists?: (path: string) => boolean;
+  } = {}
 ): string | null {
   const override = env[overrideNameFor(tool)];
   if (override !== undefined && override !== "") {
