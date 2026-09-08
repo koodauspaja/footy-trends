@@ -168,6 +168,67 @@ async function backfillFootballData(
 }
 
 /** The TASO half, with its own season discovery and its own refusal to guess. */
+/** What one competition-season did, for the counters the caller keeps. */
+type SeasonOutcome = "stored" | "skipped" | "failed";
+
+/**
+ * One TASO competition-season: its matches, its groups, or the reason neither
+ * was needed.
+ *
+ * Split out of `backfillTaso` because the loop and the work are different
+ * jobs — the loop knows about competitions and seasons, this knows about the
+ * two separate writes and what it means for one to be stored and the other not.
+ */
+async function backfillTasoSeason(
+  taso: <T>(work: () => Promise<T>) => Promise<T>,
+  code: string,
+  seasonId: number,
+  currentTasoSeason: number
+): Promise<SeasonOutcome> {
+  // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`: most
+  // competitions sit under the season umbrella (`spljp26`), but one that
+  // declares its own prefix does not (`M1LCUP26`). The generic one asks TASO
+  // about a competition that does not exist there, and TASO answers with an
+  // empty list rather than an error — so the run reports success having stored
+  // nothing.
+  const competitionId = competitionIdForSeason(code, seasonId);
+  const categoryId = categoryIdForSeason(code, seasonId);
+
+  try {
+    // Two questions, not one. Matches and groups are separate writes, so a
+    // season whose matches stored and whose groups then failed must still retry
+    // the groups — a single season-level skip would strand them.
+    const hasMatches = await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason);
+    const hasGroups = await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason);
+
+    if (hasMatches && hasGroups) {
+      out(`  ${code} ${seasonId}: already stored, skipped`);
+      return "skipped";
+    }
+
+    let matchCount = "skipped";
+    if (!hasMatches) {
+      const providerMatches = await taso(() => getTasoMatches(competitionId, categoryId, seasonId));
+      await synchronizeTasoMatches(providerMatches);
+      matchCount = `${providerMatches.length} matches`;
+    }
+
+    let groupCount = "skipped";
+    if (!hasGroups) {
+      const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
+      const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
+      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
+      groupCount = `${teams.length} group rows`;
+    }
+
+    out(`  ${code} ${seasonId}: ${matchCount}, ${groupCount}`);
+    return "stored";
+  } catch (error) {
+    err(`  ${code} ${seasonId}: FAILED — ${describeError(error)}`);
+    return "failed";
+  }
+}
+
 async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Promise<HalfResult> {
   let failures = 0;
   let skipped = 0;
@@ -224,43 +285,9 @@ async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Pr
       // asks TASO about a competition that does not exist there, and TASO
       // answers with an empty list rather than an error — so the run reports
       // success having stored nothing.
-      const competitionId = competitionIdForSeason(competition.code, seasonId);
-      const categoryId = categoryIdForSeason(competition.code, seasonId);
-      try {
-        // Two questions, not one. Matches and groups are separate writes, so a
-        // season whose matches stored and whose groups then failed must still
-        // retry the groups — a single season-level skip would strand them.
-        const hasMatches = await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason);
-        const hasGroups = await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason);
-
-        if (hasMatches && hasGroups) {
-          skipped += 1;
-          out(`  ${competition.code} ${seasonId}: already stored, skipped`);
-          continue;
-        }
-
-        let matchCount = "skipped";
-        if (!hasMatches) {
-          const providerMatches = await taso(() =>
-            getTasoMatches(competitionId, categoryId, seasonId)
-          );
-          await synchronizeTasoMatches(providerMatches);
-          matchCount = `${providerMatches.length} matches`;
-        }
-
-        let groupCount = "skipped";
-        if (!hasGroups) {
-          const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
-          const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-          await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
-          groupCount = `${teams.length} group rows`;
-        }
-
-        out(`  ${competition.code} ${seasonId}: ${matchCount}, ${groupCount}`);
-      } catch (error) {
-        failures += 1;
-        err(`  ${competition.code} ${seasonId}: FAILED — ${describeError(error)}`);
-      }
+      const outcome = await backfillTasoSeason(taso, competition.code, seasonId, currentTasoSeason);
+      if (outcome === "skipped") skipped += 1;
+      if (outcome === "failed") failures += 1;
     }
   }
 

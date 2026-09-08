@@ -31,18 +31,39 @@ export type VersionDecision = {
 // nobody uses reads as a plan rather than as dead weight.
 const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary>.+)$/;
 
+/**
+ * One conventional-commit subject, taken apart.
+ *
+ * The three call sites used to run `CONVENTIONAL.exec` themselves and reach
+ * into `.groups` for one field each, which left the regex and its readers in
+ * different functions — invisible to a reader, and to Sonar, which reported the
+ * names as unused. Parsing in one place beside the pattern is what makes the
+ * groups obviously read.
+ */
+function parseSubject(subject: string): {
+  type: string | undefined;
+  breaking: boolean;
+  summary: string | undefined;
+} {
+  const groups = CONVENTIONAL.exec(subject)?.groups;
+  return {
+    type: groups?.type,
+    breaking: groups?.breaking !== undefined,
+    summary: groups?.summary,
+  };
+}
+
 /** `git log` gives subject and body; a breaking change may be declared in either. */
 export type Commit = { subject: string; body?: string };
 
 function isBreaking(commit: Commit): boolean {
-  const match = CONVENTIONAL.exec(commit.subject);
-  if (match?.groups?.breaking) return true;
+  if (parseSubject(commit.subject).breaking) return true;
   // The footer form, which is the only way to declare one without `!`.
   return /^BREAKING[ -]CHANGE:/m.test(commit.body ?? "");
 }
 
 function typeOf(commit: Commit): string | undefined {
-  return CONVENTIONAL.exec(commit.subject)?.groups?.type;
+  return parseSubject(commit.subject).type;
 }
 
 /**
@@ -270,7 +291,7 @@ export type ReleaseEntry = { ref: string | null; description: string };
  * rather than dropping the row's identity entirely.
  */
 export function describeCommit(subject: string): ReleaseEntry {
-  const summary = CONVENTIONAL.exec(subject)?.groups?.summary ?? subject;
+  const summary = parseSubject(subject).summary ?? subject;
   const refs = [...summary.matchAll(/\(#(\d+)\)/g)].map((match) => match[1]);
   // Two passes rather than one `\s*\(#\d+\)`: the optional whitespace in front
   // of the literal is what makes that pattern backtrack, and the engine has to

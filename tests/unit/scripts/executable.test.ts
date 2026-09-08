@@ -86,3 +86,40 @@ describe("executablePath", () => {
     expect(overrideNameFor("docker")).toBe("DOCKER_EXECUTABLE");
   });
 });
+
+describe("what counts as runnable", () => {
+  /**
+   * The default check is `isRunnable`, which is not exported — these drive the
+   * real one through `executablePath`'s default, using paths this machine
+   * genuinely has. Existence alone is not the question: a directory exists.
+   */
+  it("refuses a directory that happens to be named like the tool", () => {
+    expect(executablePath("git", { env: { GIT_EXECUTABLE: "/usr" } })).toBeNull();
+  });
+
+  it("refuses a regular file without the execute bit", () => {
+    // Every repository has one, and `package.json` is not going anywhere.
+    expect(
+      executablePath("git", { env: { GIT_EXECUTABLE: `${process.cwd()}/package.json` } })
+    ).toBeNull();
+  });
+
+  it("accepts the real git, which is an executable file", () => {
+    // A sanity check on the other three: if this returned null, the checks
+    // above would pass for the wrong reason.
+    expect(executablePath("git")).toMatch(/git$/);
+  });
+});
+
+describe("candidates", () => {
+  it("covers Windows as well as macOS and Linux", () => {
+    // Nobody develops this on Windows today. A candidate list that silently
+    // excludes a platform still costs someone an afternoon when they try.
+    const exists = (candidate: string) =>
+      candidate === String.raw`C:\Program Files\Git\cmd\git.exe`;
+
+    expect(executablePath("git", { exists, env: {} })).toBe(
+      String.raw`C:\Program Files\Git\cmd\git.exe`
+    );
+  });
+});
