@@ -418,6 +418,23 @@ export type TasoGroup = {
   group_name?: string;
   phase_number?: string;
   category_notice?: string;
+  /**
+   * TASO's own classification of what the group is. `group_stage` is a first
+   * round, `additional_group_stage` a continuation that carries the first
+   * round's results forward, `knockout_final` a cup bracket.
+   *
+   * This is what lets a missing carry-over entry be *detected* rather than
+   * merely regretted — see `CARRY_OVER_CONFIG` in taso-standings-service.ts.
+   */
+  group_type?: string;
+  /**
+   * The group a continuation inherits from, when TASO says. Populated for
+   * recent seasons — 2026's splits point at group 1 — and `"0"` for older ones
+   * (Kakkonen 2019 and Naisten SM 2015 both report 0 for groups whose parent we
+   * have configured), so it is a useful hint to put in a log and not something
+   * to derive the whole mapping from.
+   */
+  import_match_group_id?: string;
   teams?: TasoGroupTeam[];
 };
 

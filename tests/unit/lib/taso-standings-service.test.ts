@@ -1961,4 +1961,100 @@ describe("resolveTasoSeasonContext", () => {
       "Unable to check the current season for matches"
     );
   });
+
+  describe("an unconfigured continuation group", () => {
+    /**
+     * The failure this exists to end: a hand-maintained config entry goes
+     * missing, nothing errors, and the group quietly drops its parent round
+     * and renders plausible numbers. Veikkausliiga and Ykkönen both reached
+     * their 2026 splits that way (#272, #281).
+     */
+    const continuation = (groupId: string, overrides = {}) => ({
+      group_id: groupId,
+      group_name: "Mestaruussarja",
+      group_type: "additional_group_stage",
+      teams: [],
+      ...overrides,
+    });
+
+    it("is reported, naming the group and TASO's own parent hint", async () => {
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([
+        { group_id: "1", group_name: "Runkosarja", group_type: "group_stage", teams: [] },
+        continuation("9", { import_match_group_id: "1" }),
+      ]);
+
+      await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ groupId: 9, tasoParentHint: "1" }),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it("says nothing for a group that is configured", async () => {
+      // VL group 2 in 2025 has an entry, so this must stay quiet — a detector
+      // that fires on healthy data is noise nobody reads.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("2")]);
+
+      await getSeasonStandings("VL", "spljp25", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it("is reported for a competition with no configuration at all", async () => {
+      // The 2027 shape: a competition splits for the first time and nobody has
+      // touched the config. There is no category key to look under, let alone a
+      // season, and that must still be loud rather than absent.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("2")]);
+
+      await getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: "P18SM", groupId: 2 }),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it.each([
+      ["will not parse", "not-a-number"],
+      // `group_id` is optional in TASO's shape, so absent is as possible as
+      // malformed, and both are the same non-answer.
+      ["is missing entirely", undefined],
+    ])("skips a group whose id %s, rather than throwing", async (_case, groupId) => {
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation(groupId as string)]);
+
+      await expect(
+        getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined)
+      ).resolves.toBeDefined();
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it.each([
+      ["a first round", "group_stage"],
+      ["a cup bracket", "knockout_final"],
+    ])("says nothing for %s", async (_case, groupType) => {
+      // TASO classifies these itself; only `additional_group_stage` carries an
+      // earlier round forward.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("9", { group_type: groupType })]);
+
+      await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+  });
 });

@@ -21,6 +21,7 @@ import {
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
   normalizeGroupTeams,
+  type TasoGroup,
 } from "./taso";
 
 const FINISHED_STATUS = "FINISHED";
@@ -803,6 +804,7 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
 
   try {
     const groups = await getSeasonGroups(competitionId, categoryId);
+    reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
     await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows);
     // Re-read rather than returning `rows`: the caller needs full stored rows,
@@ -840,6 +842,55 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
     return stored;
   }
 });
+
+/**
+ * Says so when a continuation group has no `CARRY_OVER_CONFIG` entry.
+ *
+ * The config is hand-maintained per season, and a missing entry used to fail in
+ * the worst possible way: nothing errored, the group simply dropped its parent
+ * round and rendered plausible-looking numbers — zeros, at the start of a split.
+ * Veikkausliiga and Ykkönen both reached their 2026 splits unconfigured and
+ * nobody found out until a reader noticed the table (#272).
+ *
+ * TASO classifies the groups itself, which is what makes this detectable rather
+ * than guessable: `additional_group_stage` means a continuation that carries an
+ * earlier round forward. Cups use `knockout_final` and first rounds use
+ * `group_stage`, so neither trips this.
+ *
+ * `import_match_group_id` is included when TASO supplies it, because it names
+ * the parent and turns the log into something actionable. It is `"0"` for older
+ * seasons, so it is a hint rather than a source of truth — see `TasoGroup`.
+ */
+function reportUnconfiguredContinuations(
+  groups: TasoGroup[],
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): void {
+  const configured = CARRY_OVER_CONFIG[categoryId]?.[competitionId] ?? {};
+
+  for (const group of groups) {
+    if (group.group_type !== "additional_group_stage") continue;
+
+    // `Number.parseInt` rather than a shared helper: `optionalNumber` is
+    // private to taso.ts, and a group id that will not parse is the same
+    // non-answer as one already configured.
+    const groupId = Number.parseInt(group.group_id ?? "", 10);
+    if (Number.isNaN(groupId) || configured[groupId] !== undefined) continue;
+
+    logger.error(
+      {
+        categoryId,
+        competitionId,
+        seasonId,
+        groupId,
+        groupName: group.group_name,
+        tasoParentHint: group.import_match_group_id,
+      },
+      "Continuation group has no carry-over entry; its standings will omit the parent round"
+    );
+  }
+}
 
 /** One group's stored TASO rows. */
 function groupTeamsFor(teamRows: StoredGroupTeam[], groupId: number): StoredGroupTeam[] {
