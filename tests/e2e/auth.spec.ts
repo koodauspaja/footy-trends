@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openAccountMenu, signedInAs } from "./session";
 
 /**
  * The sign-in control, from specs/023-google-oauth-login.md.
@@ -109,37 +110,6 @@ test.describe("Signed-out pages are unchanged", () => {
  * proves a real sign-in works, and the acceptance criteria still call for a
  * human to confirm that.
  */
-/**
- * `Kirjaudu ulos` moved into the account menu in specs/024-account-settings.md,
- * so every signed-in assertion opens the menu first.
- */
-async function openAccountMenu(page: Page) {
-  await page.getByRole("button", { name: /^Tili:/ }).click();
-}
-
-async function signedInAs(page: Page, name: string) {
-  await page.route("**/api/auth/get-session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        session: {
-          id: "e2e-session",
-          token: "e2e-token",
-          userId: "e2e-user",
-          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        },
-        user: {
-          id: "e2e-user",
-          name,
-          email: "e2e@example.com",
-          emailVerified: true,
-          image: null,
-        },
-      }),
-    });
-  });
-}
-
 const WIDTH = 320;
 
 test.describe("Narrow viewports", () => {

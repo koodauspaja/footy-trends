@@ -112,7 +112,7 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
       {open && (
         <div
           /**
-           * `bg-background text-foreground`, not `bg-background`. Those two tokens
+           * `bg-background text-foreground`, not `bg-white`. Those two tokens
            * are the ones `globals.css` flips under `prefers-color-scheme`, and
            * `body` already uses them — so the panel and its contents move
            * together. Hardcoding a white surface while the text followed the
