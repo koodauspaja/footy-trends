@@ -16,6 +16,7 @@ import {
   missingPrerequisites,
   parseMarker,
 } from "./e2e-freshness-plan";
+import { executablePath } from "./executable";
 
 /**
  * What the last passing run cannot vouch for, as `path (kind)` strings.
@@ -49,7 +50,12 @@ function changesSince(marker: Marker): string[] {
  * "not available", which warns rather than blocks.
  */
 function dockerIsRunning(): boolean {
-  const probe = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
+  // Absolute, not resolved through `PATH` — see `executable.ts`. No docker
+  // found reads exactly as docker not running, which is what this reports.
+  const binary = executablePath("docker");
+  if (binary === null) return false;
+
+  const probe = spawnSync(binary, ["info", "--format", "{{.ServerVersion}}"], {
     stdio: "ignore",
     timeout: 5000,
   });
@@ -57,8 +63,12 @@ function dockerIsRunning(): boolean {
 }
 
 /** Same stdout/stderr helpers as the backfill scripts, which `noConsole` forbids. */
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 function readMarker(): string | null {
   return existsSync(MARKER_PATH) ? readFileSync(MARKER_PATH, "utf8") : null;

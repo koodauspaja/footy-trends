@@ -40,8 +40,12 @@ import {
   tasoSeasonsFor,
 } from "./backfill-plan";
 
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 // 90% of football-data.org's documented 10/minute (docs/setup/007). TASO
 // publishes no limit, so there is no maximum to take a percentage of; 1/second
@@ -108,6 +112,188 @@ async function alreadyStoredTasoGroups(
   return canSkip(row?.n ?? 0, seasonId, currentSeason);
 }
 
+/** How much of one half of the run failed, and how much it did not have to do. */
+type HalfResult = { failures: number; skipped: number };
+
+/**
+ * The football-data half.
+ *
+ * Split out of `backfill` because the two providers share nothing but the
+ * counters: different rate limits, different season discovery, different
+ * failure shapes. Reading them as one function meant holding both at once.
+ */
+async function backfillFootballData(
+  footballData: <T>(work: () => Promise<T>) => Promise<T>
+): Promise<HalfResult> {
+  let failures = 0;
+  let skipped = 0;
+
+  out(`\n=== football-data.org: ${SUPPORTED_COMPETITIONS.length} competitions ===`);
+  for (const competition of SUPPORTED_COMPETITIONS) {
+    let seasons: number[];
+    // The provider's own view of which season is being played, rather than
+    // the calendar year: it is what decides whether a season is finished and
+    // therefore skippable, and football-data's seasons straddle years.
+    let activeSeason: number;
+    try {
+      const context = await footballData(() => getSeasonContext(competition.code));
+      seasons = context.selectableSeasons.map((season) => season.seasonId);
+      activeSeason = context.activeSeasonId;
+    } catch (error) {
+      failures += 1;
+      err(`  ${competition.code}: no season context — ${describeError(error)}`);
+      continue;
+    }
+
+    for (const seasonId of seasons) {
+      try {
+        if (await alreadyStored(competition.code, seasonId, activeSeason)) {
+          skipped += 1;
+          out(`  ${competition.code} ${seasonId}: already stored, skipped`);
+          continue;
+        }
+        const providerMatches = await footballData(() =>
+          getFootballDataMatches(competition.code, seasonId)
+        );
+        await synchronizeFootballDataMatches(providerMatches);
+        out(`  ${competition.code} ${seasonId}: ${providerMatches.length} matches`);
+      } catch (error) {
+        failures += 1;
+        err(`  ${competition.code} ${seasonId}: FAILED — ${describeError(error)}`);
+      }
+    }
+  }
+
+  return { failures, skipped };
+}
+
+/** The TASO half, with its own season discovery and its own refusal to guess. */
+/** What one competition-season did, for the counters the caller keeps. */
+type SeasonOutcome = "stored" | "skipped" | "failed";
+
+/**
+ * One TASO competition-season: its matches, its groups, or the reason neither
+ * was needed.
+ *
+ * Split out of `backfillTaso` because the loop and the work are different
+ * jobs — the loop knows about competitions and seasons, this knows about the
+ * two separate writes and what it means for one to be stored and the other not.
+ */
+async function backfillTasoSeason(
+  taso: <T>(work: () => Promise<T>) => Promise<T>,
+  code: string,
+  seasonId: number,
+  currentTasoSeason: number
+): Promise<SeasonOutcome> {
+  // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`: most
+  // competitions sit under the season umbrella (`spljp26`), but one that
+  // declares its own prefix does not (`M1LCUP26`). The generic one asks TASO
+  // about a competition that does not exist there, and TASO answers with an
+  // empty list rather than an error — so the run reports success having stored
+  // nothing.
+  const competitionId = competitionIdForSeason(code, seasonId);
+  const categoryId = categoryIdForSeason(code, seasonId);
+
+  try {
+    // Two questions, not one. Matches and groups are separate writes, so a
+    // season whose matches stored and whose groups then failed must still retry
+    // the groups — a single season-level skip would strand them.
+    const hasMatches = await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason);
+    const hasGroups = await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason);
+
+    if (hasMatches && hasGroups) {
+      out(`  ${code} ${seasonId}: already stored, skipped`);
+      return "skipped";
+    }
+
+    let matchCount = "skipped";
+    if (!hasMatches) {
+      const providerMatches = await taso(() => getTasoMatches(competitionId, categoryId, seasonId));
+      await synchronizeTasoMatches(providerMatches);
+      matchCount = `${providerMatches.length} matches`;
+    }
+
+    let groupCount = "skipped";
+    if (!hasGroups) {
+      const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
+      const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
+      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
+      groupCount = `${teams.length} group rows`;
+    }
+
+    out(`  ${code} ${seasonId}: ${matchCount}, ${groupCount}`);
+    return "stored";
+  } catch (error) {
+    err(`  ${code} ${seasonId}: FAILED — ${describeError(error)}`);
+    return "failed";
+  }
+}
+
+async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Promise<HalfResult> {
+  let failures = 0;
+  let skipped = 0;
+
+  out(`\n=== TASO: ${DOMESTIC_COMPETITIONS.length} competitions ===`);
+
+  // The current season comes from the provider, not the clock (#219).
+  // `new Date().getUTCFullYear()` contradicted spec 011, and the two
+  // disagree whenever TASO publishes the next season before January or runs
+  // the current one past it. That value decides which seasons are fetched
+  // and, through `canSkip`, which count as finished — so a disagreement can
+  // skip a season that is still gaining matches.
+  //
+  // `getCurrentSeason` rather than `resolveTasoSeasonContext`, which the app
+  // uses: that also computes `defaultSeason`, and answering "does this season
+  // have matches" means *syncing* the season. Thirteen of those turns a
+  // discovery step into a second backfill. Discovery itself is
+  // competition-agnostic (spec 011), so this is one request for the whole
+  // loop, floored per competition below exactly as the app floors it.
+
+  // Two failure shapes, not one. `getCurrentSeason` returns `null` when TASO
+  // answers with no published seasons, and *throws* on a network or HTTP
+  // error — the app's own `discoverCurrentSeason` wraps it in a try for
+  // exactly this reason. Without the catch, a provider outage escapes to the
+  // top-level handler, and the run loses both this refusal and the summary
+  // line that reports how much of the football-data half succeeded.
+  let discovered: number | null;
+  try {
+    discovered = await taso(() => getCurrentSeason());
+  } catch (error) {
+    err(`  TASO season discovery failed — ${describeError(error)}`);
+    discovered = null;
+  }
+
+  if (discovered === null) {
+    failures += 1;
+    err(
+      "  Refusing to guess the current season — backfilling the wrong range is " +
+        "worse than not backfilling. Re-run when TASO answers."
+    );
+  }
+
+  for (const competition of DOMESTIC_COMPETITIONS) {
+    if (discovered === null) break;
+    // Floored at the competition's own first season, the same way
+    // `resolveTasoSeasonContext` floors it: Ykkösliiga did not exist before
+    // 2024, and a ceiling below its floor would produce no seasons at all.
+    const currentTasoSeason = Math.max(discovered, tasoEarliestSeasonFor(competition.code));
+    const seasons = tasoSeasonsFor(tasoEarliestSeasonFor(competition.code), currentTasoSeason);
+    for (const seasonId of seasons) {
+      // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`:
+      // most competitions sit under the season umbrella (`spljp26`), but one
+      // that declares its own prefix does not (`M1LCUP26`). The generic one
+      // asks TASO about a competition that does not exist there, and TASO
+      // answers with an empty list rather than an error — so the run reports
+      // success having stored nothing.
+      const outcome = await backfillTasoSeason(taso, competition.code, seasonId, currentTasoSeason);
+      if (outcome === "skipped") skipped += 1;
+      if (outcome === "failed") failures += 1;
+    }
+  }
+
+  return { failures, skipped };
+}
+
 export async function backfill({ reset }: { reset: boolean }): Promise<number> {
   out(`Rates        football-data ${FOOTBALL_DATA_PER_MINUTE}/min, TASO ${TASO_PER_MINUTE}/min`);
 
@@ -144,133 +330,13 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
     const footballData = pacer(FOOTBALL_DATA_PER_MINUTE);
     const taso = pacer(TASO_PER_MINUTE);
 
-    out(`\n=== football-data.org: ${SUPPORTED_COMPETITIONS.length} competitions ===`);
-    for (const competition of SUPPORTED_COMPETITIONS) {
-      let seasons: number[];
-      // The provider's own view of which season is being played, rather than
-      // the calendar year: it is what decides whether a season is finished and
-      // therefore skippable, and football-data's seasons straddle years.
-      let activeSeason: number;
-      try {
-        const context = await footballData(() => getSeasonContext(competition.code));
-        seasons = context.selectableSeasons.map((season) => season.seasonId);
-        activeSeason = context.activeSeasonId;
-      } catch (error) {
-        failures += 1;
-        err(`  ${competition.code}: no season context — ${describeError(error)}`);
-        continue;
-      }
+    const foreign = await backfillFootballData(footballData);
+    failures += foreign.failures;
+    skipped += foreign.skipped;
 
-      for (const seasonId of seasons) {
-        try {
-          if (await alreadyStored(competition.code, seasonId, activeSeason)) {
-            skipped += 1;
-            out(`  ${competition.code} ${seasonId}: already stored, skipped`);
-            continue;
-          }
-          const providerMatches = await footballData(() =>
-            getFootballDataMatches(competition.code, seasonId)
-          );
-          await synchronizeFootballDataMatches(providerMatches);
-          out(`  ${competition.code} ${seasonId}: ${providerMatches.length} matches`);
-        } catch (error) {
-          failures += 1;
-          err(`  ${competition.code} ${seasonId}: FAILED — ${describeError(error)}`);
-        }
-      }
-    }
-
-    out(`\n=== TASO: ${DOMESTIC_COMPETITIONS.length} competitions ===`);
-
-    // The current season comes from the provider, not the clock (#219).
-    // `new Date().getUTCFullYear()` contradicted spec 011, and the two
-    // disagree whenever TASO publishes the next season before January or runs
-    // the current one past it. That value decides which seasons are fetched
-    // and, through `canSkip`, which count as finished — so a disagreement can
-    // skip a season that is still gaining matches.
-    //
-    // `getCurrentSeason` rather than `resolveTasoSeasonContext`, which the app
-    // uses: that also computes `defaultSeason`, and answering "does this season
-    // have matches" means *syncing* the season. Thirteen of those turns a
-    // discovery step into a second backfill. Discovery itself is
-    // competition-agnostic (spec 011), so this is one request for the whole
-    // loop, floored per competition below exactly as the app floors it.
-
-    // Two failure shapes, not one. `getCurrentSeason` returns `null` when TASO
-    // answers with no published seasons, and *throws* on a network or HTTP
-    // error — the app's own `discoverCurrentSeason` wraps it in a try for
-    // exactly this reason. Without the catch, a provider outage escapes to the
-    // top-level handler, and the run loses both this refusal and the summary
-    // line that reports how much of the football-data half succeeded.
-    let discovered: number | null;
-    try {
-      discovered = await taso(() => getCurrentSeason());
-    } catch (error) {
-      err(`  TASO season discovery failed — ${describeError(error)}`);
-      discovered = null;
-    }
-
-    if (discovered === null) {
-      failures += 1;
-      err(
-        "  Refusing to guess the current season — backfilling the wrong range is " +
-          "worse than not backfilling. Re-run when TASO answers."
-      );
-    }
-
-    for (const competition of DOMESTIC_COMPETITIONS) {
-      if (discovered === null) break;
-      // Floored at the competition's own first season, the same way
-      // `resolveTasoSeasonContext` floors it: Ykkösliiga did not exist before
-      // 2024, and a ceiling below its floor would produce no seasons at all.
-      const currentTasoSeason = Math.max(discovered, tasoEarliestSeasonFor(competition.code));
-      const seasons = tasoSeasonsFor(tasoEarliestSeasonFor(competition.code), currentTasoSeason);
-      for (const seasonId of seasons) {
-        // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`:
-        // most competitions sit under the season umbrella (`spljp26`), but one
-        // that declares its own prefix does not (`M1LCUP26`). The generic one
-        // asks TASO about a competition that does not exist there, and TASO
-        // answers with an empty list rather than an error — so the run reports
-        // success having stored nothing.
-        const competitionId = competitionIdForSeason(competition.code, seasonId);
-        const categoryId = categoryIdForSeason(competition.code, seasonId);
-        try {
-          // Two questions, not one. Matches and groups are separate writes, so a
-          // season whose matches stored and whose groups then failed must still
-          // retry the groups — a single season-level skip would strand them.
-          const hasMatches = await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason);
-          const hasGroups = await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason);
-
-          if (hasMatches && hasGroups) {
-            skipped += 1;
-            out(`  ${competition.code} ${seasonId}: already stored, skipped`);
-            continue;
-          }
-
-          let matchCount = "skipped";
-          if (!hasMatches) {
-            const providerMatches = await taso(() =>
-              getTasoMatches(competitionId, categoryId, seasonId)
-            );
-            await synchronizeTasoMatches(providerMatches);
-            matchCount = `${providerMatches.length} matches`;
-          }
-
-          let groupCount = "skipped";
-          if (!hasGroups) {
-            const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
-            const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-            await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
-            groupCount = `${teams.length} group rows`;
-          }
-
-          out(`  ${competition.code} ${seasonId}: ${matchCount}, ${groupCount}`);
-        } catch (error) {
-          failures += 1;
-          err(`  ${competition.code} ${seasonId}: FAILED — ${describeError(error)}`);
-        }
-      }
-    }
+    const domestic = await backfillTaso(taso);
+    failures += domestic.failures;
+    skipped += domestic.skipped;
   } finally {
     // Settled together, not awaited in sequence: a rejection from the first
     // would skip the second and escape the function, so a run that fetched

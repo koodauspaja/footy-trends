@@ -31,7 +31,12 @@ const REGIONS: readonly RegionCrumb[] = [
  */
 export function regionCrumbFor(pathname: string): RegionCrumb | null {
   // A trailing slash is the same page, and `//` is not a different region.
-  const normalised = pathname.replace(/\/+$/, "");
+  //
+  // A loop rather than `/\/+$/`: that pattern backtracks over a run of slashes,
+  // retrying from each one, which is quadratic on a path made of them. This is
+  // linear and needs no regex engine at all.
+  let normalised = pathname;
+  while (normalised.endsWith("/")) normalised = normalised.slice(0, -1);
   if (normalised === "") return null;
 
   const region = REGIONS.find(

@@ -27,20 +27,43 @@ export type VersionDecision = {
   other: string[];
 };
 
-const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s(?<summary>.+)$/;
+// `scope` is matched but not captured: nothing reads it, and a named group
+// nobody uses reads as a plan rather than as dead weight.
+const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary>.+)$/;
+
+/**
+ * One conventional-commit subject, taken apart.
+ *
+ * The three call sites used to run `CONVENTIONAL.exec` themselves and reach
+ * into `.groups` for one field each, which left the regex and its readers in
+ * different functions — invisible to a reader, and to Sonar, which reported the
+ * names as unused. Parsing in one place beside the pattern is what makes the
+ * groups obviously read.
+ */
+function parseSubject(subject: string): {
+  type: string | undefined;
+  breaking: boolean;
+  summary: string | undefined;
+} {
+  const groups = CONVENTIONAL.exec(subject)?.groups;
+  return {
+    type: groups?.type,
+    breaking: groups?.breaking !== undefined,
+    summary: groups?.summary,
+  };
+}
 
 /** `git log` gives subject and body; a breaking change may be declared in either. */
 export type Commit = { subject: string; body?: string };
 
 function isBreaking(commit: Commit): boolean {
-  const match = CONVENTIONAL.exec(commit.subject);
-  if (match?.groups?.breaking) return true;
+  if (parseSubject(commit.subject).breaking) return true;
   // The footer form, which is the only way to declare one without `!`.
   return /^BREAKING[ -]CHANGE:/m.test(commit.body ?? "");
 }
 
 function typeOf(commit: Commit): string | undefined {
-  return CONVENTIONAL.exec(commit.subject)?.groups?.type;
+  return parseSubject(commit.subject).type;
 }
 
 /**
@@ -86,6 +109,22 @@ export function isMergeSubject(subject: string): boolean {
 }
 
 /**
+ * Which part of the version a bump moves, and what the rest becomes.
+ *
+ * A named function rather than a nested ternary: the three cases are the whole
+ * of semantic versioning's arithmetic, and reading them as one expression means
+ * holding two conditions at once to answer "what happens to patch?".
+ */
+function nextTripleFor(
+  bump: "major" | "minor" | "patch",
+  [major, minor, patch]: [number, number, number]
+): [number, number, number] {
+  if (bump === "major") return [major + 1, 0, 0];
+  if (bump === "minor") return [major, minor + 1, 0];
+  return [major, minor, patch + 1];
+}
+
+/**
  * Thrown rather than falling back, because a mistyped override must not
  * silently produce a version nobody intended.
  */
@@ -115,75 +154,108 @@ export class InvalidFirstReleaseVersion extends Error {
   }
 }
 
-export function decideVersion(
-  commits: Commit[],
-  previousTag: string | null,
-  options: DecideVersionOptions = {}
-): VersionDecision {
+/** The commits that count, grouped by what they mean for the version. */
+function sortCommits(commits: Commit[]): {
+  breaking: string[];
+  features: string[];
+  fixes: string[];
+  other: string[];
+} {
   const considered = commits.filter((c) => !isMergeSubject(c.subject));
+  const subjects = (predicate: (commit: Commit) => boolean) =>
+    considered.filter(predicate).map((c) => c.subject);
 
-  const breaking = considered.filter(isBreaking).map((c) => c.subject);
-  const features = considered
-    .filter((c) => !isBreaking(c) && typeOf(c) === "feat")
-    .map((c) => c.subject);
-  const fixes = considered
-    .filter((c) => !isBreaking(c) && typeOf(c) === "fix")
-    .map((c) => c.subject);
-  const other = considered
-    .filter((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix")
-    .map((c) => c.subject);
+  return {
+    breaking: subjects(isBreaking),
+    features: subjects((c) => !isBreaking(c) && typeOf(c) === "feat"),
+    fixes: subjects((c) => !isBreaking(c) && typeOf(c) === "fix"),
+    other: subjects((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix"),
+  };
+}
 
-  const isFirstRelease = previousTag === null;
-  const previous = previousTag ?? "v0.0.0";
-  const [major, minor, patch] = parseVersion(previous);
-  const reasons: string[] = [];
-
+/**
+ * Which part moves, and the sentence explaining why.
+ *
+ * `reasons` is appended to rather than returned alongside, because the order of
+ * the explanation follows the order of the decisions — the pre-1.0 rule reads
+ * as a correction to the line above it.
+ */
+function decideBump(
+  groups: { breaking: string[]; features: string[]; fixes: string[]; other: string[] },
+  major: number,
+  reasons: string[]
+): Bump {
   let bump: Bump = "patch";
-  if (breaking.length > 0) {
+  if (groups.breaking.length > 0) {
     bump = "major";
-    reasons.push(`${breaking.length} breaking change(s)`);
-  } else if (features.length > 0) {
+    reasons.push(`${groups.breaking.length} breaking change(s)`);
+  } else if (groups.features.length > 0) {
     bump = "minor";
-    reasons.push(`${features.length} feat commit(s)`);
+    reasons.push(`${groups.features.length} feat commit(s)`);
   } else {
-    reasons.push(`no feat or breaking commits; ${fixes.length} fix, ${other.length} other`);
+    reasons.push(
+      `no feat or breaking commits; ${groups.fixes.length} fix, ${groups.other.length} other`
+    );
   }
 
   // Below 1.0.0 a breaking change moves the minor, not the major: reaching
   // 1.0.0 is a statement that the thing is stable, and that is a decision to
   // take deliberately rather than one to arrive at because a commit had a `!`.
   if (bump === "major" && major === 0) {
-    bump = "minor";
     reasons.push("pre-1.0, so a breaking change moves the minor; 1.0.0 stays a deliberate call");
+    return "minor";
+  }
+  return bump;
+}
+
+/**
+ * The first release cannot be derived. `release` already holds the whole
+ * history, so the commits in the promotion range describe only what happened
+ * since the branch was cut — one docs commit would otherwise name the first
+ * production release v0.0.1. v0.1.0 is the floor; going straight to v1.0.0 is a
+ * statement about stability and stays a deliberate call.
+ */
+function firstReleaseVersion(override: string | undefined, reasons: string[]): string {
+  reasons.push(
+    "no previous tag: first release, so the range describes only what followed the branch point"
+  );
+
+  const named = override?.trim();
+  if (named === undefined || named === "") {
+    reasons.push("defaulting to v0.1.0; set FIRST_RELEASE_VERSION to name it deliberately");
+    return "v0.1.0";
   }
 
-  const nextTriple =
-    bump === "major"
-      ? [major + 1, 0, 0]
-      : bump === "minor"
-        ? [major, minor + 1, 0]
-        : [major, minor, patch + 1];
+  if (!isStableVersionTag(named)) throw new InvalidFirstReleaseVersion(named);
+  const next = named.startsWith("v") ? named : `v${named}`;
+  reasons.push(`named explicitly by FIRST_RELEASE_VERSION: ${next}`);
+  return next;
+}
+
+export function decideVersion(
+  commits: Commit[],
+  previousTag: string | null,
+  options: DecideVersionOptions = {}
+): VersionDecision {
+  const { breaking, features, fixes, other } = sortCommits(commits);
+
+  const isFirstRelease = previousTag === null;
+  const previous = previousTag ?? "v0.0.0";
+  const [major, minor, patch] = parseVersion(previous);
+  const reasons: string[] = [];
+
+  const bump = decideBump({ breaking, features, fixes, other }, major, reasons);
+
+  const nextTriple = nextTripleFor(bump, [major, minor, patch]);
 
   // The first release cannot be derived. `release` already holds the whole
   // history, so the commits in the promotion range describe only what happened
   // since the branch was cut — one docs commit would otherwise name the first
   // production release v0.0.1. v0.1.0 is the floor; going straight to v1.0.0 is
   // a statement about stability and stays a deliberate call.
-  let next = `v${nextTriple.join(".")}`;
-  if (isFirstRelease) {
-    reasons.push(
-      "no previous tag: first release, so the range describes only what followed the branch point"
-    );
-    const override = options.firstReleaseVersion?.trim();
-    if (override !== undefined && override !== "") {
-      if (!isStableVersionTag(override)) throw new InvalidFirstReleaseVersion(override);
-      next = override.startsWith("v") ? override : `v${override}`;
-      reasons.push(`named explicitly by FIRST_RELEASE_VERSION: ${next}`);
-    } else {
-      next = "v0.1.0";
-      reasons.push("defaulting to v0.1.0; set FIRST_RELEASE_VERSION to name it deliberately");
-    }
-  }
+  const next = isFirstRelease
+    ? firstReleaseVersion(options.firstReleaseVersion, reasons)
+    : `v${nextTriple.join(".")}`;
 
   return {
     previous,
@@ -219,9 +291,16 @@ export type ReleaseEntry = { ref: string | null; description: string };
  * rather than dropping the row's identity entirely.
  */
 export function describeCommit(subject: string): ReleaseEntry {
-  const summary = CONVENTIONAL.exec(subject)?.groups?.summary ?? subject;
+  const summary = parseSubject(subject).summary ?? subject;
   const refs = [...summary.matchAll(/\(#(\d+)\)/g)].map((match) => match[1]);
-  const text = summary.replace(/\s*\(#\d+\)/g, "").trim();
+  // Two passes rather than one `\s*\(#\d+\)`: the optional whitespace in front
+  // of the literal is what makes that pattern backtrack, and the engine has to
+  // retry every prefix of a run of spaces before failing. Removing the refs and
+  // then collapsing whitespace is linear and says what it does.
+  const text = summary
+    .replaceAll(/\(#\d+\)/g, "")
+    .replaceAll(/\s+/g, " ")
+    .trim();
 
   return {
     ref: refs.length === 0 ? null : `#${refs[0]}`,
@@ -236,7 +315,7 @@ export function describeCommit(subject: string): ReleaseEntry {
  * cheaper than forbidding the character in commit messages.
  */
 function escapeTableCell(text: string): string {
-  return text.replace(/\|/g, "\\|");
+  return text.replaceAll("|", String.raw`\|`);
 }
 
 /** Markdown release notes: a table per section, matching the v1.0.0 release. */

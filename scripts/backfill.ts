@@ -19,8 +19,12 @@
 import { existsSync } from "node:fs";
 import { authoriseReset, databaseNameFrom, describeTarget } from "./backfill-plan";
 
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 // Captured before `.env` is loaded, so `.env` cannot supply it. Blank counts as
 // missing: `DATABASE_URL= npm run backfill` otherwise passes a null check and
