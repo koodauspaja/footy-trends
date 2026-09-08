@@ -46,7 +46,9 @@ describe("saveAvatarAction", () => {
 
     expect(await saveAvatarAction(formWith(IMAGE))).toEqual({ ok: true, version: "avatar-token" });
     expect(saveAvatar).toHaveBeenCalledWith("user-1", BYTES, "image/webp");
-    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    // The reader's URL, not the App Router folder behind the rewrite — the same
+    // path `settings-actions.ts` revalidates.
+    expect(revalidatePath).toHaveBeenCalledWith("/asetukset");
   });
 
   it("stores nothing for a signed-out caller", async () => {
@@ -105,7 +107,9 @@ describe("removeAvatarAction", () => {
 
     expect(await removeAvatarAction()).toEqual({ ok: true });
     expect(deleteAvatar).toHaveBeenCalledWith("user-1");
-    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    // The reader's URL, not the App Router folder behind the rewrite — the same
+    // path `settings-actions.ts` revalidates.
+    expect(revalidatePath).toHaveBeenCalledWith("/asetukset");
   });
 
   it("removes nothing for a signed-out caller", async () => {

@@ -264,7 +264,9 @@ Anything that throws in 3–6 becomes `"unreadable"`. Nothing is written.
 
 No Redis. The picture is per-reader and read on a settings page and a header —
 the browser cache holds it, keyed by a URL that changes when the picture does.
-`revalidatePath("/settings")` after a write, as the other settings actions do.
+`revalidatePath("/asetukset")` after a write — the reader's URL, not the App
+Router folder behind the rewrite, which is the path `settings-actions.ts`
+already revalidates.
 
 ## Edge Cases
 

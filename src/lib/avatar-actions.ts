@@ -49,7 +49,10 @@ export async function saveAvatarAction(formData: FormData): Promise<SaveAvatarRe
     if (!processed.ok) return { ok: false, reason: processed.reason };
 
     const version = await saveAvatar(userId, processed.bytes, processed.contentType);
-    revalidatePath("/settings");
+    // `/asetukset`, the URL the reader is actually on — the App Router folder is
+    // `settings` only because `next.config.ts` rewrites it. `signOutOtherSessions`
+    // in settings-actions.ts revalidates the same path for the same reason.
+    revalidatePath("/asetukset");
     return { ok: true, version };
   } catch (error) {
     logger.error({ err: error }, "Storing an avatar failed");
@@ -63,7 +66,7 @@ export async function removeAvatarAction(): Promise<ActionResult> {
     if (userId === null) return { ok: false };
 
     await deleteAvatar(userId);
-    revalidatePath("/settings");
+    revalidatePath("/asetukset");
     return { ok: true };
   } catch (error) {
     logger.error({ err: error }, "Removing an avatar failed");
