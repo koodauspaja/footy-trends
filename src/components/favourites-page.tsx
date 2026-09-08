@@ -42,6 +42,28 @@ const HEADING_CLASS = "mb-3 font-medium text-lg";
 const REMOVE_CLASS =
   "rounded border border-border px-2 py-1 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";
 
+/**
+ * How one favourited team reads, in three cases rather than two.
+ *
+ * No stored matches means no name at all. A name without a page — its
+ * competitions have left the registry, so we cannot say which region owns it —
+ * is still worth showing: `Joukkuetta ei löytynyt.` would be false about a team
+ * we just named. Either way the row keeps its `Poista suosikeista`.
+ */
+function TeamLabel({ entry }: Readonly<{ entry: FavouriteTeamEntry }>) {
+  if (entry.name === null) {
+    return <span className="text-muted">Joukkuetta ei löytynyt.</span>;
+  }
+  if (entry.href === null) {
+    return <span>{entry.name}</span>;
+  }
+  return (
+    <Link className="hover:underline" href={entry.href}>
+      {entry.name}
+    </Link>
+  );
+}
+
 export function FavouritesPage({ teams, competitions }: Props) {
   const [failed, setFailed] = useState(false);
   const [removedKeys, setRemovedKeys] = useState<string[]>([]);
@@ -119,20 +141,7 @@ export function FavouritesPage({ teams, competitions }: Props) {
                 className="flex items-center gap-3 text-sm"
                 key={`${entry.source}:${entry.teamProviderId}`}
               >
-                {/* Three cases, not two. No stored matches means no name at
-                    all. A name without a page — a competition the registry no
-                    longer has, so its region is unknown — is still worth
-                    showing: "not found" would be a false statement about a team
-                    we just named. Either way the entry stays removable. */}
-                {entry.name === null ? (
-                  <span className="text-muted">Joukkuetta ei löytynyt.</span>
-                ) : entry.href === null ? (
-                  <span>{entry.name}</span>
-                ) : (
-                  <Link className="hover:underline" href={entry.href}>
-                    {entry.name}
-                  </Link>
-                )}
+                <TeamLabel entry={entry} />
                 <button
                   className={REMOVE_CLASS}
                   disabled={pending}

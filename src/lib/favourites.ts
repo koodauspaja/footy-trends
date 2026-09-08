@@ -100,7 +100,15 @@ async function countFor(
  *
  * A toggle rather than separate add and remove calls, because the control is a
  * toggle: two actions would mean the client deciding which to call from state
- * it might have wrong, and a double click sending the same add twice.
+ * it might have wrong.
+ *
+ * **Two concurrent toggles of the same team flip it twice**, and it ends where
+ * it started. That is what a toggle means, and it is now honest rather than
+ * accidental: before the row lock, both transactions found nothing to delete
+ * and both inserted, and the unique index quietly turned the second into a
+ * no-op. Each caller is still told what its own write did, so a tab never
+ * shows a state the database does not have. The button is disabled while its
+ * own request is in flight, so this needs two tabs, not two clicks.
  */
 export async function toggleFavouriteTeam(
   userId: string,
@@ -126,8 +134,13 @@ export async function toggleFavouriteTeam(
     await tx
       .insert(favoriteTeam)
       .values({ userId, source, teamProviderId })
-      // Two tabs, or a double click: the unique index makes the second a no-op
-      // rather than an error the reader has to understand.
+      /**
+       * Unreachable through this function — the lock serialises a reader's
+       * writes, and the delete above already ran — and kept anyway, so that a
+       * future caller writing outside the lock degrades to a no-op instead of
+       * an error the reader would have to understand. The unique index is the
+       * thing that makes it true; this only chooses what happens when it fires.
+       */
       .onConflictDoNothing();
 
     return { ok: true, favorite: true };

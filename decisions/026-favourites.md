@@ -139,6 +139,20 @@ The toggle now runs in a transaction holding `for update` on the reader's own
 against real Postgres by starting both toggles before awaiting either: with the
 lock, fifty rows and one `limit` refusal; without it, fifty-one.
 
+**The lock then changed what a double toggle does, which review also caught.**
+Before it, two tabs toggling the same absent team both found nothing to delete
+and both inserted, and the unique index turned the second into a no-op — so it
+ended favourited *by accident*. Serialised, it flips twice and ends where it
+started, which is what a toggle means. The comment claiming the no-op was the
+intended behaviour is now a comment saying what actually happens, and
+`tests/integration/favourites.test.ts` asserts it against real Postgres. The
+`onConflictDoNothing` stays, unreachable through this path, so that a future
+caller writing outside the lock degrades to a no-op rather than an error.
+
+Two comments elsewhere had also become false and were corrected: `auth.ts` still
+claimed the session extras cost one query, when the favourites add two. It now
+carries the measured cost instead.
+
 **The third was wrong, and the existing test says so.** The claim was that
 `getSessionExtrasFor` returns early for a reader with no preferences row, hiding
 their favourites. It selects **from `user`** with left joins, so that early

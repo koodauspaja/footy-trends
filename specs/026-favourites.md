@@ -244,7 +244,8 @@ without a reload and the other stars on the page follow when the session lands.
 
 | Case | Behaviour |
 |---|---|
-| Favouriting twice (two tabs, double click) | The unique index makes the second a no-op; the action returns the state rather than an error |
+| Favouriting twice from two tabs | It flips twice and ends where it started — what a toggle means. Each tab is told what *its own* write did, so none shows a state the database does not have. A double click cannot do this: the button is disabled while its own request is in flight |
+| The same row written twice anyway | The unique index makes it a no-op rather than an error. Unreachable through the toggle now that a row lock serialises a reader's writes, and kept for a future caller outside it |
 | A competition retired from the registry | **Kept**, and reported as `Sarjaa ei enää ole.` on `/suosikit` with its `Poista suosikeista` button — validated against the registry on read the way a stored `defaultCompetition` is, but never hidden, because a row nobody can see is a row nobody can remove |
 | A team with no stored matches | Rendered as `Joukkuetta ei löytynyt.` with no link, and removable — the entry must not become unreachable |
 | A team we can name but cannot place | Its name, unlinked. A `football-data` team's region comes from the competitions its matches were played in, and a competition can leave the registry; `Joukkuetta ei löytynyt.` would be false about a team just named |

@@ -115,6 +115,28 @@ describe("favourite teams", () => {
     });
   });
 
+  it("flips twice when two tabs toggle the same team at once, ending where it started", async () => {
+    /**
+     * What a toggle means, made honest by the row lock. Before it, both
+     * transactions found nothing to delete and both inserted, and the unique
+     * index quietly turned the second into a no-op — so a double press left the
+     * team favourited by accident rather than by design.
+     *
+     * Each caller is still told what its own write did, so no tab shows a state
+     * the database does not have. Two tabs are required: the button is disabled
+     * while its own request is in flight.
+     */
+    const results = await Promise.all([
+      toggleFavouriteTeam(USER_ID, "taso", 60731),
+      toggleFavouriteTeam(USER_ID, "taso", 60731),
+    ]);
+
+    expect(results.map((result) => result.ok && result.favorite).toSorted()).toEqual([false, true]);
+    expect(await db.select().from(favoriteTeam).where(eq(favoriteTeam.userId, USER_ID))).toEqual(
+      []
+    );
+  });
+
   it("does not let two concurrent toggles both pass the cap", async () => {
     /**
      * The race the row lock exists for, run for real: at forty-nine, two tabs

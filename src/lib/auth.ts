@@ -96,8 +96,13 @@ export const auth = betterAuth({
      * renders on the region picker, which lives on the four prerendered pages,
      * so it cannot read a session on the server at all.
      *
-     * Both come from one query — see `getSessionExtrasFor`. A field added here
-     * must not cost a round trip on every page load.
+     * **The cost, since this runs on every `/api/auth/get-session`.** The region
+     * and the avatar version come from one query, a left join from `user`. The
+     * favourites are two more, in parallel, because they are one-to-many and
+     * joining them onto that row would multiply it out. Measured with both caps
+     * filled: 15.1 ms against 2.6 ms with nothing stored, and 2326 bytes of
+     * payload (334 gzipped). Anything added here pays on every page load, so
+     * measure it the same way rather than assuming it is free.
      */
     customSession(async ({ user, session }) => ({
       user,
