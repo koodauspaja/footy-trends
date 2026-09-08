@@ -681,7 +681,18 @@ describe("getSeasonStandings", () => {
     const group = result.status === "ok" ? result.groups[0] : undefined;
     expect(group?.kind).toBe("own-calculated");
     expect(group?.kind === "own-calculated" && group.standings).toHaveLength(2);
-    expect(loggerWarnMock).toHaveBeenCalled();
+
+    // Nothing stored to fall back to, so this is an error rather than a
+    // warning: every table in the group would otherwise render as zeros, which
+    // reads as a result rather than a failure. That is how a refused endpoint
+    // stayed invisible for months (#272).
+    // Logged at error, with the stored count: zero rows means every table in
+    // the group renders as zeros, which reads as a result rather than a
+    // failure. That is how a refused endpoint stayed invisible (#272).
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ stored: 0 }),
+      expect.stringContaining("falling back to stored group standings")
+    );
   });
 
   it("leaves a group with no round filtering alone when a round is selected", async () => {

@@ -233,7 +233,7 @@ function parentGroupId(categoryId: string, competitionId: string, groupId: numbe
  */
 
 /**
- * A pass-through group's standing, straight from TASO's own `getGroups`
+ * A pass-through group's standing, straight from TASO's own `getCategory`
  * numbers — used whenever our own full-season calculation does not reproduce
  * TASO's published points for the group, whatever the cause. Spec 009 chose
  * this path by shape (no `CARRY_OVER_CONFIG` entry); it is now chosen by
@@ -274,11 +274,11 @@ export type TasoTeamStanding = {
  *
  * - `own-calculated` — `calculateStandings` over the group's own matches
  *   (plus its parent's, for a carry-over group). Has a round selector.
- * - `pass-through` — TASO's own precomputed `getGroups` numbers, selected
+ * - `pass-through` — TASO's own precomputed `getCategory` numbers, selected
  *   when our calculated full-season points do not reproduce TASO's published
  *   ones. No round selector.
  * - `match-list` — a group with no table at all, rendered as its matches.
- *   Two causes: a knockout group, where `getGroups` returns one row per
+ *   Two causes: a knockout group, where `getCategory` returns one row per
  *   bracket *slot* rather than per team so a table would repeat an advancing
  *   team (specs/010-playoff-group-match-list.md); and a group TASO returns
  *   with no teams whatsoever, which is how an unplayed qualifying match
@@ -806,9 +806,23 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
       )
       .orderBy(desc(tasoGroupTeams.updatedAt));
   } catch (error) {
-    logger.warn(
-      { err: error, categoryId, competitionId, seasonId },
-      "TASO group refresh failed; using stored group standings"
+    /**
+     * `error`, not `warn` — raised in #272.
+     *
+     * This was a warning, on the reasoning that stale standings are survivable.
+     * They are; what is not is the case where **nothing** is stored, because
+     * then every table in the group renders as zeros, which looks like a real
+     * result rather than a failure. That is exactly how a refused `getGroups`
+     * endpoint stayed invisible for months, until a brand-new split group
+     * appeared with no rows to fall back to.
+     *
+     * `stored` carries the count so the two situations are still tellable
+     * apart, without a second severity — and therefore without a branch that
+     * only a contrived test can reach.
+     */
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, stored: stored.length },
+      "TASO group refresh failed; falling back to stored group standings"
     );
     return stored;
   }
@@ -1067,7 +1081,7 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
  * Every group TASO returns for the season, each rendered own-calculated
  * (via `calculateStandings`, including the parent group's matches for a
  * carry-over continuation group), pass-through (TASO's own precomputed
- * `getGroups` numbers), or playoff (its matches, no table). Ordered by
+ * `getCategory` numbers), or playoff (its matches, no table). Ordered by
  * `group_id` ascending — `phase_number` is confirmed unreliable for
  * ordering.
  */
@@ -1181,7 +1195,7 @@ function buildGroup(
   const groupName = groupNameOf(seasonMatches, groupId);
   const teamRows = groupTeamsFor(allTeamRows, groupId);
   // Whether TASO's groups are known for this season *at all*. Without that
-  // distinction, an unreachable `getGroups` with nothing yet stored would make
+  // distinction, an unreachable `getCategory` with nothing yet stored would make
   // every group look team-less and turn the whole season into match lists.
   const seasonHasGroupData = allTeamRows.length > 0;
 
