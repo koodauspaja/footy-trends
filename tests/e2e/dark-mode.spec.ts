@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { HARDCODED_COLOUR_SOURCE } from "../shared/hardcoded-colour";
 import { openAccountMenu, signedInAs } from "./session";
 
 /**
@@ -187,7 +188,7 @@ async function expectLegible(page: Page, where: string, scheme: string) {
 test("ships no shade utility, whatever the source scan picks up", async ({ page }) => {
   await page.goto("/");
 
-  const shades = await page.evaluate(() => {
+  const shades = await page.evaluate((pattern) => {
     /**
      * Every selector in the sheet, however deeply nested.
      *
@@ -216,12 +217,11 @@ test("ships no shade utility, whatever the source scan picks up", async ({ page 
       }
     });
 
-    const shade =
-      /\.(?:bg|text|border|ring|divide|outline|decoration|shadow|from|via|to|caret|accent|fill|stroke|placeholder)-(?:white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\b/;
+    const shade = new RegExp(pattern);
     // Tailwind escapes `:` and `/` in selectors; the class underneath is what
     // this is about.
     return selectors.filter((selector) => shade.test(selector.replaceAll("\\", "")));
-  });
+  }, `\\.${HARDCODED_COLOUR_SOURCE}(?![\\w-])`);
 
   expect(shades).toEqual([]);
 });

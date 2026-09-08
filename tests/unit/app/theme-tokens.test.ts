@@ -3,58 +3,9 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { HARDCODED_COLOUR_CLASS } from "../../shared/hardcoded-colour";
 
 const SRC_DIR = path.join(process.cwd(), "src");
-
-/**
- * Tailwind's own palette, plus the two absolutes. A class naming any of these
- * is naming a *shade*, which cannot know what is painted behind it — the whole
- * failure #269 describes, where 23 files kept painting for a white page after
- * the page turned near-black.
- */
-const SHADES = [
-  "white",
-  "black",
-  "slate",
-  "gray",
-  "zinc",
-  "neutral",
-  "stone",
-  "red",
-  "orange",
-  "amber",
-  "yellow",
-  "lime",
-  "green",
-  "emerald",
-  "teal",
-  "cyan",
-  "sky",
-  "blue",
-  "indigo",
-  "violet",
-  "purple",
-  "fuchsia",
-  "pink",
-  "rose",
-];
-
-/**
- * Any utility that paints, followed by a shade or by a literal colour in
- * square brackets. `bg-surface` and `text-muted` are roles and pass;
- * `bg-white`, `text-zinc-600` and `bg-[#fafafa]` are shades and do not.
- *
- * The trailing `/…` is Tailwind's opacity modifier, and leaving it out was a
- * real hole rather than a hypothetical one: the account menu's hover used to
- * be `hover:bg-zinc-500/15`, so the one class this project has actually had to
- * delete would have walked back in past a guard written to keep it out.
- */
-const PAINTING_UTILITY =
-  "(?:bg|text|border|ring|divide|outline|decoration|shadow|from|via|to|caret|accent|fill|stroke|placeholder)";
-const OPACITY_MODIFIER = "(?:\\/(?:\\d+|\\[[^\\]]*\\]))?";
-const HARDCODED_COLOUR = new RegExp(
-  `^${PAINTING_UTILITY}-(?:(?:${SHADES.join("|")})(?:-\\d{2,3})?|\\[(?:#|rgb|hsl|oklch|lab)[^\\]]*\\])${OPACITY_MODIFIER}$`
-);
 
 /** `hover:bg-surface` is a variant of `bg-surface`; the rule is about the utility. */
 function withoutVariants(className: string): string {
@@ -91,7 +42,7 @@ function hardcodedColoursIn(source: string, fileName = "snippet.tsx"): string[] 
   };
   visit(parsed);
 
-  return found.filter((name) => name !== "" && HARDCODED_COLOUR.test(withoutVariants(name)));
+  return found.filter((name) => name !== "" && HARDCODED_COLOUR_CLASS.test(withoutVariants(name)));
 }
 
 /** Every class name any string in one file could contribute, offending or not. */
