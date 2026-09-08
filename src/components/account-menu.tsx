@@ -100,7 +100,7 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
         {image === null ? (
           // No avatar to show, so the name is the control. An image that cannot
           // load must never leave an unlabelled button behind.
-          <span className="text-zinc-600">{name}</span>
+          <span className="text-foreground">{name}</span>
         ) : (
           // Empty alt: the button is already named by `aria-label`, and
           // repeating the reader's name would just be noise.
@@ -111,18 +111,30 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
 
       {open && (
         <div
-          className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-zinc-200 bg-white py-1 shadow-sm"
+          /**
+           * `bg-background text-foreground`, not `bg-white`. Those two tokens
+           * are the ones `globals.css` flips under `prefers-color-scheme`, and
+           * `body` already uses them — so the panel and its contents move
+           * together. Hardcoding a white surface while the text followed the
+           * theme is what left this at 1.17:1 in dark mode (#273).
+           *
+           * The border and hover are alpha tints of a mid grey rather than
+           * fixed light greys, so they read against either background without
+           * a second colour scheme to maintain. See #269 for the app-wide
+           * version of this problem.
+           */
+          className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-zinc-500/40 bg-background py-1 text-foreground shadow-sm"
           id={menuId}
         >
           <Link
-            className="block px-4 py-2 text-sm hover:bg-zinc-50"
+            className="block px-4 py-2 text-sm hover:bg-zinc-500/15"
             href="/asetukset"
             onClick={() => close(false)}
           >
             Asetukset
           </Link>
           <button
-            className="block w-full px-4 py-2 text-left text-sm hover:bg-zinc-50"
+            className="block w-full px-4 py-2 text-left text-sm hover:bg-zinc-500/15"
             onClick={() => {
               close(false);
               onSignOut();
