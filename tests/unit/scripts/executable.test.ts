@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { executablePath, isRunnable, overrideNameFor } from "../../../scripts/executable";
+import { executablePath, looksRunnable, overrideNameFor } from "../../../scripts/executable";
 
 /**
  * Where the scripts find `git` and `docker`, from #292.
@@ -98,7 +98,7 @@ describe("executablePath", () => {
 
 describe("what counts as runnable", () => {
   /**
-   * The default check is `isRunnable`, which is not exported — these drive the
+   * The default check is `looksRunnable`, which is not exported — these drive the
    * real one through `executablePath`'s default, using paths this machine
    * genuinely has. Existence alone is not the question: a directory exists.
    */
@@ -131,7 +131,7 @@ describe("what counts as runnable", () => {
   });
 });
 
-describe("what Windows counts as runnable", () => {
+describe("what Windows counts as runnable-looking", () => {
   /**
    * `accessSync(path, X_OK)` means nothing on Windows: it succeeds for any
    * readable file, so the permission check that works on POSIX would accept a
@@ -144,8 +144,22 @@ describe("what Windows counts as runnable", () => {
   const FIXTURE = path.join(process.cwd(), "tests", "fixtures", "executable", "tool.exe");
 
   it("accepts an .exe by its name, where POSIX would refuse it", () => {
-    expect(isRunnable(FIXTURE, "win32")).toBe(true);
-    expect(isRunnable(FIXTURE, "linux")).toBe(false);
+    expect(looksRunnable(FIXTURE, "win32")).toBe(true);
+    expect(looksRunnable(FIXTURE, "linux")).toBe(false);
+  });
+
+  it("cannot promise the file will start, and does not claim to", () => {
+    /**
+     * The fixture is a text file with an `.exe` name, and `win32` accepts it.
+     * That is the documented limit rather than a defect: reading a PE header
+     * would only move the line, since a truncated binary passes that too, and
+     * POSIX's execute bit says nothing about a corrupt binary either.
+     *
+     * The screen exists for the failures that actually happen — a directory, a
+     * data file, an override pointing at the wrong thing — and the name says
+     * `looks` so nobody reads it as a guarantee.
+     */
+    expect(looksRunnable(FIXTURE, "win32")).toBe(true);
   });
 
   it("refuses a batch file, which Windows runs but Node cannot spawn directly", () => {
@@ -154,17 +168,17 @@ describe("what Windows counts as runnable", () => {
     // one would resolve a path that then fails to start.
     const batch = path.join(process.cwd(), "tests", "fixtures", "executable", "tool.cmd");
 
-    expect(isRunnable(batch, "win32")).toBe(false);
+    expect(looksRunnable(batch, "win32")).toBe(false);
   });
 
   it("refuses a file that is not named like a program", () => {
     const notAProgram = path.join(process.cwd(), "package.json");
 
-    expect(isRunnable(notAProgram, "win32")).toBe(false);
+    expect(looksRunnable(notAProgram, "win32")).toBe(false);
   });
 
   it("refuses a directory whatever it is called", () => {
-    expect(isRunnable(path.join(process.cwd(), "scripts"), "win32")).toBe(false);
+    expect(looksRunnable(path.join(process.cwd(), "scripts"), "win32")).toBe(false);
   });
 
   it("resolves an override by that rule rather than by the execute bit", () => {

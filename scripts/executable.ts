@@ -53,19 +53,28 @@ export type Tool = keyof typeof CANDIDATES;
 const WINDOWS_SUFFIXES = [".exe"];
 
 /**
- * Whether a path is something we can actually run.
+ * Whether a path *looks* like something we can run — a screen, not a proof.
  *
- * Existence is not enough: a directory named `git`, or a file without the
- * execute bit, would be returned as the binary and fail at `spawnSync` — with a
- * message about the spawn rather than about the path, and with the remaining
- * candidates never tried.
+ * Existence alone is not enough: a directory named `git`, or a file without the
+ * execute bit, would be returned as the binary and fail at `spawnSync` with a
+ * message about the spawn rather than the path, and with the remaining
+ * candidates never tried. This rules those out.
+ *
+ * **What it cannot do is promise the file will start**, and the name says
+ * `looks` because of it. A `.exe` may be a text file with an `.exe` name; a
+ * POSIX file with the execute bit may be a corrupt binary or a script with a
+ * bad shebang. Neither platform's cheap check is a guarantee — reading a PE or
+ * ELF header would only move the line, since a truncated binary passes that
+ * too.
+ *
+ * The value is in the failures it does catch, which are the ones that actually
+ * happen: a directory, a data file, an override pointing at the wrong thing.
  *
  * **Windows is a different question, not the same one.** `accessSync(path,
- * X_OK)` there succeeds for any readable file, so a text file named `git.exe`
- * would pass a permission check that means nothing — the name is what Windows
- * actually goes on.
+ * X_OK)` there succeeds for any readable file, so a permission check would mean
+ * nothing — the name is what Windows goes on, and what `spawnSync` can start.
  */
-export function isRunnable(path: string, platform: NodeJS.Platform): boolean {
+export function looksRunnable(path: string, platform: NodeJS.Platform): boolean {
   try {
     if (!statSync(path).isFile()) return false;
     if (platform === "win32") {
@@ -102,7 +111,7 @@ export function executablePath(
     // not reliably take a partial module mock, and a test that silently falls
     // through to the real filesystem asserts whatever this machine happens to
     // have installed.
-    exists = (candidate: string) => isRunnable(candidate, platform),
+    exists = (candidate: string) => looksRunnable(candidate, platform),
   }: {
     env?: Record<string, string | undefined>;
     platform?: NodeJS.Platform;
