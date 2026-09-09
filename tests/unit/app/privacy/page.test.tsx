@@ -18,22 +18,29 @@ describe("the privacy policy", () => {
     expect(screen.getByRole("heading", { name: "Tietosuojaseloste", level: 1 })).toBeVisible();
   });
 
-  it("names every table that stores personal data", () => {
+  /**
+   * One row per thing the schema stores, so a column added without a sentence
+   * here fails rather than quietly making the policy incomplete.
+   *
+   * The phrases are specific on purpose: "profiilikuva" alone would be
+   * satisfied by the *Google* picture and hide the uploaded one, and
+   * "Suosikkijoukkueesi" alone would hide favourite competitions.
+   */
+  it.each([
+    ["user.name", "Nimi"],
+    ["user.email", "sähköpostiosoite"],
+    ["user.image", "Google-profiilikuvasi osoite"],
+    ["account (Google's tokens)", "Googlen antamat kirjautumistunnisteet"],
+    ["session.userAgent", "millä selaimella"],
+    ["user_preferences.defaultRegion", "aloitusnäkymä"],
+    ["user_preferences.defaultCompetition*", "oletussarjat"],
+    ["user_avatar", "Itse lataamasi profiilikuva"],
+    ["favorite_team", "Suosikkijoukkueesi"],
+    ["favorite_competition", "-sarjasi"],
+  ])("describes what %s stores", (_column, phrase) => {
     render(<Privacy />);
 
-    // `user`, `account`, `session`, `user_preferences`, `user_avatar` and the
-    // two favourite tables — in the reader's language rather than the schema's.
-    const body = document.body.textContent ?? "";
-    for (const claim of [
-      "sähköpostiosoite",
-      "kirjautumistunnisteet",
-      "Istunnot",
-      "oletussarjat",
-      "profiilikuva",
-      "Suosikkijoukkueesi",
-    ]) {
-      expect(body).toContain(claim);
-    }
+    expect(document.body.textContent).toContain(phrase);
   });
 
   it("names each third party that receives data", () => {
