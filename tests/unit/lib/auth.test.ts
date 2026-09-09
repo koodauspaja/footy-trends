@@ -63,23 +63,21 @@ async function loadConfig(): Promise<any> {
 }
 
 describe("resolving the client IP, from #309", () => {
-  it("reads the address from Envoy's header, then x-real-ip", async () => {
+  it("reads the address from Envoy's header, and from nothing else", async () => {
     // Without a header better-auth resolves no IP at all and rate limiting
     // collapses to one shared per-path bucket, where one attacker locks
-    // everyone out. Railway fronts applications with Envoy and its
-    // `x-forwarded-for` arrives with two entries, which better-auth refuses to
-    // read unaided.
+    // everyone out. Railway fronts applications with Envoy, which resolves the
+    // external client itself; its `x-forwarded-for` arrives with two entries,
+    // which better-auth refuses to read unaided.
     //
-    // Both, most specific first: `getIP` takes the first header that resolves,
-    // so naming one that does not arrive costs nothing and the other answers.
+    // `x-real-ip` is deliberately absent. Reading a header the edge might pass
+    // through would give an attacker a fresh bucket per forged value, which is
+    // worse than sharing one.
     setEnv();
 
     const config = await loadConfig();
 
-    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual([
-      "x-envoy-external-address",
-      "x-real-ip",
-    ]);
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
   });
 
   it("trusts no proxy unless one is configured", async () => {
@@ -116,10 +114,7 @@ describe("resolving the client IP, from #309", () => {
 
     const config = await loadConfig();
 
-    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual([
-      "x-envoy-external-address",
-      "x-real-ip",
-    ]);
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
   });
 });
 

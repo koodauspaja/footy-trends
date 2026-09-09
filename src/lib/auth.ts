@@ -35,11 +35,16 @@ function required(name: string): string {
  * alongside it.
  *
  * Railway fronts applications with Envoy, which sets `x-envoy-external-address`
- * to the address it resolved as the external client, and `x-real-ip` beside it.
- * Both are single-value, so better-auth reads either unaided. Both are the
- * default, the more specific one first: `getIP` walks the list and takes the
- * first that *resolves*, so naming a header that does not arrive costs nothing
- * and the second one answers.
+ * to the address it resolved as the external client. It is single-value, so
+ * better-auth reads it unaided, and it is the **only** default.
+ *
+ * `x-real-ip` arrives too and was in this list, but a header is only worth
+ * reading if the edge is known to overwrite what a client sends. Trusting one
+ * that is passed through would let an attacker rotate it for a fresh bucket per
+ * request — worse than the shared bucket this replaces, where they at least
+ * share the limit. If Envoy's header turns out not to arrive, the symptom is the
+ * old warning and the old shared bucket: no client resolves, nothing regresses,
+ * and `AUTH_CLIENT_IP_HEADERS` adds a header back without a release.
  *
  * Reading both from the environment is what makes that reversible: if a platform turns out to pass a client-supplied
  * `x-real-ip` through, the correction is a Railway variable rather than a

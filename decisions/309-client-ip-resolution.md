@@ -46,8 +46,9 @@ it was meant to fix.
 
 | Decision | Choice | Why |
 |---|---|---|
-| Which header carries the client | `x-envoy-external-address`, then `x-real-ip` | Both are single-value, which is the form better-auth resolves unaided. Railway fronts applications with Envoy, which resolves the external client itself, so it is the more specific of the two and goes first. `getIP` stops at the first header that *resolves*, so naming one that does not arrive costs nothing. |
-| Whether `x-forwarded-for` belongs in that list, last | No | Reading its leftmost entry is safe only while the edge strips what a client sends. Measured today: it does. But if that ever changed, an attacker would get a **fresh bucket per forged address** — strictly worse than the shared bucket being replaced. A fallback whose failure mode is worse than the status quo is not a fallback. |
+| Which header carries the client | `x-envoy-external-address`, alone | Single-value, which is the form better-auth resolves unaided, and Railway fronts applications with Envoy, which resolves the external client itself. |
+| Whether `x-real-ip` belongs beside it | No | It arrives, and it was in the list for one round. A header is only worth reading if the edge is *known* to overwrite what a client sends, and that was never measured for this one — trusting a passed-through header gives an attacker a fresh bucket per forged value, which is worse than the shared bucket being replaced. If Envoy's header turns out not to arrive, the symptom is the old warning and the old bucket: nothing regresses, and it is visible at once. Sourcery raised this and was right. |
+| Whether `x-forwarded-for` belongs in that list, last | No | Same rule, and the same asymmetry. Reading its leftmost entry is safe only while the edge strips what a client sends; measured today, it does — but a fallback whose failure mode is worse than the status quo is not a fallback. |
 | Constant or configuration | `AUTH_CLIENT_IP_HEADERS` and `AUTH_TRUSTED_PROXIES`, both from the environment | The header choice rests on a platform behaviour nobody controls. As configuration, a wrong answer is a Railway variable; as a constant it is a release. Standing instruction: decide now in a way that can be changed once it can be measured. |
 | `trustedProxies` when unset | Omitted from the object, not passed as `[]` | better-auth's chain mode does not engage for an empty array anyway, so the two behave identically — but an absent option says "nothing is trusted" where an empty one says "nothing in particular", and only one of those is readable a year from now. |
 | What the diagnostic reports | Counts, classifications and indices — never an address | `/api/health` is public. The shape is enough to pick a configuration, and a test asserts the response body does not contain an address it was given. |
@@ -90,3 +91,8 @@ Agreement between a header and the forwarded chain is **not** provenance — a
 client setting the header to their own address agrees for the same reason the
 edge would. Only the sentinel distinguishes them. Sourcery found that claim
 stated as fact in a doc comment, and it was right.
+
+That same distinction is why `x-real-ip` came back out of the default list. The
+principle is one line: **read a header only where the edge is known to overwrite
+it**, and "known" means a sentinel came back overwritten, not that the header
+looked plausible.
