@@ -26,19 +26,26 @@ import {
  * Uses `postgres` directly rather than the app's `db`, so the setup pulls in no
  * application module and cannot be affected by one.
  */
+/** Names this fixture's seeding, so two of them serialise and nothing else does. */
+const FIXTURE_LOCK_KEY = 3_040_026;
+
 async function seedFixtureSeason(url: string): Promise<void> {
   const sql = postgres(url);
   try {
     /**
-     * One transaction, so the season is never half-written.
+     * One transaction, holding a lock, because atomicity alone is not enough.
      *
-     * `taso_match_id` is globally unique, so two runs interleaving the delete
-     * and the inserts would collide on it — one seeing rows the other had just
-     * written, or deleting rows it was about to need. Two concurrent e2e runs
-     * already fight over port 3001 and one of them dies there, but atomicity
-     * costs nothing and does not depend on that staying true.
+     * `taso_match_id` is globally unique. Two transactions can both delete the
+     * fixture and then both insert, and the second takes a duplicate-key error
+     * — a transaction makes each *all-or-nothing*, which is not the same as
+     * making them take turns. The advisory lock is what makes them take turns:
+     * it is held to the end of the transaction and released with it, so the
+     * second seeder waits and then finds exactly what the first wrote.
+     *
+     * The key is an arbitrary constant, private to this fixture.
      */
     await sql.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock(${FIXTURE_LOCK_KEY})`;
       await tx`
         delete from taso_matches
         where season_id = ${SEASON} and category_id = ${CATEGORY_ID}
