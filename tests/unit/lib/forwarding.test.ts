@@ -51,7 +51,20 @@ describe("forwardingShape", () => {
     ["just outside carrier-grade NAT", "100.128.0.1", "public"],
     ["IPv6 loopback", "::1", "private"],
     ["IPv6 unique-local", "fd00::1", "private"],
+    ["IPv6 link-local", "fe80::1", "private"],
     ["IPv6 public", "2001:db8::1", "public"],
+    ["IPv6 uncompressed", "2001:0db8:0000:0000:0000:0000:0000:0001", "public"],
+    // An IPv4 address wearing an IPv6 spelling. Calling this public would put a
+    // real proxy hop on the wrong side of the decision the diagnostic informs.
+    ["IPv4-mapped private", "::ffff:10.0.0.1", "private"],
+    ["IPv4-mapped public", "::ffff:203.0.113.5", "public"],
+    ["IPv4-compatible private", "::10.0.0.1", "private"],
+    // Colons alone used to be enough to be called a public hop — the answer
+    // most likely to be acted on, and the hardest to notice is wrong.
+    ["text with colons", "not:an:address", "invalid"],
+    ["too many groups", "1:2:3:4:5:6:7:8:9", "invalid"],
+    ["a group that is too long", "12345::1", "invalid"],
+    ["two compressions", "1::2::3", "invalid"],
     ["an octet past 255", "999.1.1.1", "invalid"],
     ["not an address at all", "unknown", "invalid"],
   ])("classifies %s", (_case, value, expected) => {

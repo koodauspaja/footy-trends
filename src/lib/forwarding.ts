@@ -46,22 +46,51 @@ function isPrivateIpv4(value: string): boolean {
   return first === 100 && second >= 64 && second <= 127;
 }
 
+/** Whether a string is a syntactically valid IPv6 address. */
+function isIpv6(value: string): boolean {
+  const halves = value.split("::");
+  if (halves.length > 2) return false;
+
+  const groupsIn = (part: string) => (part === "" ? [] : part.split(":"));
+  const groups = halves.flatMap(groupsIn);
+  if (!groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) return false;
+
+  // Compressed forms stand for at least one omitted group, so they carry fewer
+  // than eight; an uncompressed address carries exactly eight.
+  return halves.length === 2 ? groups.length < 8 : groups.length === 8;
+}
+
+/** An IPv4 address, already matched against the pattern. */
+function classifyIpv4(value: string): HopKind {
+  if (value.split(".").some((octet) => Number(octet) > 255)) return "invalid";
+  return isPrivateIpv4(value) ? "private" : "public";
+}
+
 function classify(entry: string): HopKind {
   const value = entry.trim();
 
   // No empty-string guard: `forwardingShape` filters those out before calling
   // this, and an empty value falls through to "invalid" anyway. A branch that
   // cannot be taken reads as a handled case rather than an impossible one.
-  if (IPV4.test(value)) {
-    if (value.split(".").some((octet) => Number(octet) > 255)) return "invalid";
-    return isPrivateIpv4(value) ? "private" : "public";
-  }
+  if (IPV4.test(value)) return classifyIpv4(value);
 
-  // IPv6, loosely: anything with a colon that is not obviously text. Only the
-  // private/public split matters here, and `::1` and `fc00::/7` are the private
-  // ones worth naming.
   if (value.includes(":")) {
     const lower = value.toLowerCase();
+
+    /**
+     * An IPv4 address wearing an IPv6 spelling — `::ffff:10.0.0.1` is the
+     * private `10.0.0.1`, and calling it public would put a real proxy hop on
+     * the wrong side of the decision this diagnostic exists to inform.
+     */
+    const mapped = /^::(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(lower);
+    const embedded = mapped?.[1];
+    if (embedded !== undefined) return classifyIpv4(embedded);
+
+    // Validated rather than assumed from the presence of a colon: `not:an:address`
+    // was being reported as a public hop, which is the answer most likely to be
+    // acted on and the one hardest to notice is wrong.
+    if (!isIpv6(lower)) return "invalid";
+
     const isLoopback = lower === "::1";
     const isUniqueLocal = lower.startsWith("fc") || lower.startsWith("fd");
     const isLinkLocal = lower.startsWith("fe80");
