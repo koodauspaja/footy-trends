@@ -62,6 +62,32 @@ describe("the privacy policy", () => {
     expect(document.body.textContent).toContain("Poista tili");
   });
 
+  it("does not claim deletion reaches the log store, because it does not", () => {
+    /**
+     * Account deletion cascades through our database. It cannot reach entries
+     * Axiom already holds, and a page promising otherwise would be false for
+     * every reader who ever hit an error path.
+     *
+     * What makes that acceptable is the second half: the id is a random string,
+     * so once the account it referred to is gone, nothing can connect it to a
+     * person.
+     */
+    render(<Privacy />);
+
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("Poikkeuksena lokit");
+    expect(body).toContain("eikä sitä voi yhdistää");
+  });
+
+  it("names a contact address, which a policy needs", () => {
+    render(<Privacy />);
+
+    expect(screen.getByRole("link", { name: "info@koodauspaja.fi" })).toHaveAttribute(
+      "href",
+      "mailto:info@koodauspaja.fi"
+    );
+  });
+
   it("has a title of its own", () => {
     expect(metadata.title).toBe("Tietosuojaseloste");
   });

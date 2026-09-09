@@ -84,7 +84,8 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Axiom</strong> — lokit. Jos jokin epäonnistuu, lokiin voi tallentua
-            käyttäjätunnisteesi. Se on satunnainen tunnusluku, ei nimi eikä sähköpostiosoite.
+            käyttäjätunnisteesi. Se on satunnaisesti arvottu merkkijono, ei nimi eikä
+            sähköpostiosoite, eikä siitä voi päätellä kuka olet.
           </li>
         </ul>
         <p className="mt-3">
@@ -95,9 +96,14 @@ export default function Privacy() {
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Kuinka kauan tietoja säilytetään</h2>
-        <p>
+        <p className="mb-3">
           Niin kauan kuin tilisi on olemassa. Kun poistat tilin, kaikki edellä luetellut tiedot
           poistetaan samalla.
+        </p>
+        <p>
+          Poikkeuksena lokit: jos jokin on aiemmin epäonnistunut, käyttäjätunnisteesi on voinut
+          tallentua lokiin, ja lokit säilyvät oman säilytysaikansa. Tunniste ei kuitenkaan enää
+          viittaa mihinkään — tili, jota se tarkoitti, on poistettu — eikä sitä voi yhdistää sinuun.
         </p>
       </section>
 
@@ -119,6 +125,17 @@ export default function Privacy() {
         <p>
           Käytämme yhtä evästettä, joka pitää kirjautumisesi voimassa. Sitä ei aseteta ennen kuin
           kirjaudut sisään. Seuranta- tai mainosevästeitä ei ole.
+        </p>
+      </section>
+
+      <section className={SECTION}>
+        <h2 className={HEADING_2}>Yhteystiedot</h2>
+        <p>
+          Rekisterinpitäjä on Koodauspaja. Tietosuojaa koskevat kysymykset:{" "}
+          <a className="hover:underline" href="mailto:info@koodauspaja.fi">
+            info@koodauspaja.fi
+          </a>
+          .
         </p>
       </section>
 
