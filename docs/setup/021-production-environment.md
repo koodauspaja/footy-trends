@@ -152,7 +152,7 @@ more once the Sentry configs read their settings from the environment.
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
 | `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-envoy-external-address`, then `x-real-ip` if that one does not arrive — see *Rate limiting needs a client address* below |
-| `AUTH_TRUSTED_PROXIES` | optional | Leave unset. Only needed if the client address has to come from a multi-hop `x-forwarded-for` |
+| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
