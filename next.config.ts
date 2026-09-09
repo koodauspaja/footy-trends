@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
       { source: "/suosikit", destination: "/favorites" },
       // The privacy policy, added in #302.
       { source: "/tietosuoja", destination: "/privacy" },
+      // The terms of service, added in #303.
+      { source: "/kayttoehdot", destination: "/terms" },
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
@@ -66,6 +68,7 @@ const nextConfig: NextConfig = {
       // rewrite above, exactly as `/settings` is.
       { source: "/favorites", destination: "/suosikit", permanent: true },
       { source: "/privacy", destination: "/tietosuoja", permanent: true },
+      { source: "/terms", destination: "/kayttoehdot", permanent: true },
       // The foreign pages moved under /ulkomaat.
       { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },
