@@ -59,7 +59,17 @@ export function testDatabaseUrl(): string {
  * would leave the suite connecting to something that still does not exist.
  */
 export function databaseNameFor(url: string): string {
-  return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  /**
+   * Validated here rather than only where the URL is derived, because an
+   * explicit `TEST_DATABASE_URL` skips that path entirely — and an empty name
+   * reaches Postgres as `create database ""`. One check, at the single place
+   * the identifier is produced, is what stops the two from disagreeing.
+   */
+  if (name === "") {
+    throw new Error(`The test database URL names no database: ${url}`);
+  }
+  return name;
 }
 
 /**

@@ -78,6 +78,15 @@ describe("databaseNameFor", () => {
     );
   });
 
+  it("refuses a URL that names no database, however it was arrived at", () => {
+    // `testDatabaseUrl` checks the derived path, but an explicit
+    // `TEST_DATABASE_URL` never goes through it — and an empty name reaches
+    // Postgres as `create database ""`.
+    expect(() => databaseNameFor("postgresql://postgres@localhost:5432")).toThrow(
+      /names no database/
+    );
+  });
+
   it("leaves an ordinary name alone", () => {
     expect(databaseNameFor("postgresql://postgres@localhost:5432/footy-trends_test")).toBe(
       "footy-trends_test"
