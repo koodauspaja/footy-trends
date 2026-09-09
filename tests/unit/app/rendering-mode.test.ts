@@ -53,8 +53,17 @@ function parse(file: string): ts.SourceFile {
  * comment mentioning the word was enough to make the guard skip it.
  */
 function takesRequestProps(source: ts.SourceFile): boolean {
+  /**
+   * **Any parameter at all**, rather than one whose text mentions `params`.
+   *
+   * A Next page component is called with exactly one prop object, and its only
+   * members are `params` and `searchParams` — both request-scoped. So a page
+   * that declares a parameter is request-dependent whatever it calls it, and
+   * `function Page(props)` reading `props.searchParams` is the case name
+   * matching missed. Declaring nothing is the only shape a static page has.
+   */
   const declaresRequestProp = (parameters: readonly ts.ParameterDeclaration[]) =>
-    parameters.some((parameter) => /\b(searchParams|params)\b/.test(parameter.getText(source)));
+    parameters.length > 0;
 
   /** Any callable, however it was written. */
   const isCallable = (
@@ -195,7 +204,14 @@ function moduleSpecifiers(source: ts.SourceFile): string[] {
       statement.moduleSpecifier !== undefined &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
-      found.push(statement.moduleSpecifier.text);
+      // `export { type Foo } from "./m"` is erased too, and marks its type-only
+      // ness per element rather than on the statement.
+      const clause = statement.exportClause;
+      const allTypes =
+        clause !== undefined &&
+        ts.isNamedExports(clause) &&
+        clause.elements.every((element) => element.isTypeOnly);
+      if (!allTypes) found.push(statement.moduleSpecifier.text);
     }
   }
 
