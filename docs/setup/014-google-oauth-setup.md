@@ -115,7 +115,7 @@ project**.
 | `GOOGLE_CLIENT_ID` | dev project | dev project | **prod project** |
 | `GOOGLE_CLIENT_SECRET` | dev project | dev project | **prod project** |
 | `BETTER_AUTH_SECRET` | any random string | its own | **its own** |
-| `BETTER_AUTH_URL` | `http://localhost:3000` | the staging host | the production host |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | `https://<staging host>` | `https://<production host>` |
 
 Generate each secret with:
 
@@ -130,7 +130,9 @@ leak from the looser environment is also a leak from production. Note that
 changing it invalidates every session cookie, so everyone signed in is signed
 out; choose it before opening sign-up rather than after.
 
-**`BETTER_AUTH_URL` must be that environment's own host.** better-auth builds
+**`BETTER_AUTH_URL` is a full origin, not a hostname** — scheme included, no
+trailing slash and no path, exactly as the local value shows. **And it must be
+that environment's own.** better-auth builds
 the OAuth callback from it, so a staging value in production sends Google's
 redirect to staging — and it fails *after* the reader has consented, which reads
 as "sign-in is broken" rather than "one variable is wrong".
@@ -153,9 +155,10 @@ signing in**, before a consent screen can leave Testing. The app publishes both:
 | Privacy policy | `https://<production host>/tietosuoja` |
 | Terms of service | `https://<production host>/kayttoehdot` |
 
-Both are static pages, guarded as such by
-`tests/unit/app/rendering-mode.test.ts` so they cannot start reading a session
-and become unreachable to a signed-out visitor. Enter them on the production
+Both are static pages, and `tests/unit/app/rendering-mode.test.ts` asserts they
+stay that way: it checks that neither takes request props nor opts out of
+prerendering, so one cannot quietly start reading a session and become
+unreachable to a signed-out visitor. Enter them on the production
 project's consent screen.
 
 ---

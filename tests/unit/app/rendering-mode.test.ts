@@ -113,6 +113,28 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * Helmarit (#167) is the same shape — paramless and data-backed — so this
  * guards the class rather than the one file.
  */
+describe("a page declared static by design really is static", () => {
+  /**
+   * The other half of `STATIC_BY_DESIGN`, and the one that was missing.
+   *
+   * The check below *skips* every file on that list, so the list on its own
+   * exempts rather than guarantees: a page could join it and then quietly start
+   * reading a session or a search param, and nothing would say so. That matters
+   * most for the two pages Google requires reachable **without signing in** —
+   * `/tietosuoja` and `/kayttoehdot` — where becoming dynamic is not a
+   * performance regression but a broken legal requirement (#264, #302, #303).
+   *
+   * Asserting the inverse turns the list into a promise: a declared-static page
+   * takes no request props and opts out of nothing.
+   */
+  it.each([...STATIC_BY_DESIGN])("%s neither takes request props nor opts out", (relative) => {
+    const source = parse(path.join(APP_DIR, relative));
+
+    expect(takesRequestProps(source)).toBe(false);
+    expect(optsOutOfPrerender(source)).toBe(false);
+  });
+});
+
 describe("pages are not prerendered unless declared static", () => {
   it("every page takes request props, opts out, or is declared static by design", async () => {
     const offenders: string[] = [];
