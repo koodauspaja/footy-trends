@@ -23,12 +23,15 @@ export function SiteFooter() {
             Käyttöehdot
           </Link>
         </nav>
-        {/* football-data.org's free tier requires this in "a visible section of
-            your application or website" — so it is on every page rather than on
-            the terms page alone. Their own wording, in English, because it is
-            the attribution they ask for rather than a sentence of ours (#303). */}
+        {/* football-data.org's free tier asks for this in "a visible section of
+            your application or website", so it is on every page rather than on
+            the terms page alone (#303).
+
+            In Finnish, because CLAUDE.md admits no exceptions and their
+            requirement is a *credit* rather than a fixed string: the part that
+            has to survive is their name and a link to them, and both do. */}
         <p>
-          Data provided by{" "}
+          Tiedot tarjoaa{" "}
           <a className="hover:underline" href="https://www.football-data.org/">
             football-data.org
           </a>

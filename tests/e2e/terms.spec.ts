@@ -22,10 +22,12 @@ test.describe("Terms of service", () => {
   test("carries football-data.org's attribution on an ordinary page", async ({ page }) => {
     // Their free tier asks for it in "a visible section of your application or
     // website", so the check is on a standings page rather than on the terms.
+    // In Finnish, per CLAUDE.md — what their requirement needs is the credit,
+    // and their name and link both survive the translation.
     await page.goto("/ulkomaat/sarjataulukko");
 
     const footer = page.getByRole("contentinfo");
-    await expect(footer).toContainText("Data provided by football-data.org");
+    await expect(footer).toContainText("Tiedot tarjoaa football-data.org");
     await expect(footer.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",
       "https://www.football-data.org/"

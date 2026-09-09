@@ -29,14 +29,17 @@ describe("SiteFooter", () => {
      * website" (#303). The footer is on every page, which is the strongest
      * reading of that; the terms page alone would be the weakest.
      *
-     * Their wording, in English, because it is the credit they ask for rather
-     * than a sentence of ours — the one deliberate exception to the
-     * Finnish-only rule, and it is a proper noun either way.
+     * In Finnish, because CLAUDE.md admits no exceptions. What their
+     * requirement actually needs is the credit — their name, visible, with a
+     * link — and that survives the translation.
      */
     render(<SiteFooter />);
 
-    expect(screen.getByRole("contentinfo").textContent).toContain(
-      "Data provided by football-data.org"
+    const footer = screen.getByRole("contentinfo");
+    expect(footer.textContent).toContain("Tiedot tarjoaa football-data.org");
+    expect(screen.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
+      "href",
+      "https://www.football-data.org/"
     );
   });
 

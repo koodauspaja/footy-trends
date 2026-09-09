@@ -17,11 +17,11 @@ describe("the terms of service", () => {
     expect(screen.getByRole("heading", { name: "Käyttöehdot", level: 1 })).toBeVisible();
   });
 
-  it("attributes football-data.org in their own wording", () => {
-    // "Data provided by football-data.org", which their FAQ asks for.
+  it("attributes football-data.org, by name and by link", () => {
+    // Their FAQ asks for a visible credit. In Finnish, per CLAUDE.md.
     render(<Terms />);
 
-    expect(document.body.textContent).toContain("data provided by");
+    expect(document.body.textContent).toContain("tiedot tarjoaa");
     expect(screen.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",
       "https://www.football-data.org/"
@@ -44,9 +44,21 @@ describe("the terms of service", () => {
     render(<Terms />);
 
     const body = document.body.textContent ?? "";
-    for (const claim of ["luvalla", "lisenssi", "sopimuksen mukaisesti"]) {
-      expect(body).not.toContain(claim);
-    }
+    /**
+     * Stems rather than whole words, because Finnish inflects: `luvalla`,
+     * `luvan`, `lisenssi`, `lisenssin`, `sopimuksella` are all the same claim
+     * wearing different endings, and a list of exact strings would miss most of
+     * them.
+     *
+     * Anchored at a word start, because the unanchored version matched
+     * `kuuluvat` — "belong to", which is the opposite claim and the very
+     * sentence this test wants the page to keep.
+     *
+     * A guard, not a proof: no pattern catches every way of implying
+     * permission. The assertion carrying the weight is the positive one below,
+     * that the page says the rights belong to the providers.
+     */
+    expect(body).not.toMatch(/\b(luva|luvan|lisenss|sopimukse)/i);
     expect(body).toContain("oikeudet niihin");
   });
 

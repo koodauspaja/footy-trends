@@ -46,7 +46,7 @@ export default function Terms() {
         </p>
         <ul className={LIST}>
           <li>
-            <strong>Ulkomaiset sarjat ja maajoukkueet:</strong> data provided by{" "}
+            <strong>Ulkomaiset sarjat ja maajoukkueet:</strong> tiedot tarjoaa{" "}
             <a className="hover:underline" href="https://www.football-data.org/">
               football-data.org
             </a>
