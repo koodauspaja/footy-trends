@@ -47,10 +47,14 @@ Do this **twice**, once per project.
 1. **APIs & Services** → **OAuth consent screen**
 2. User type: **External**
 3. App name `Footy Trends`, your email as support and developer contact
-4. **Scopes**: save without adding any. The defaults `openid`, `email` and
+4. **App information**: Google will not let an External app publish without an
+   **application home page** and an **authorised domain**. Give the production
+   project the production host for both; the development project needs neither
+   while it stays in Testing.
+5. **Scopes**: save without adding any. The defaults `openid`, `email` and
    `profile` are added automatically. Requesting anything beyond these is what
    would trigger a full Google verification review.
-5. **Test users**:
+6. **Test users**:
    - *Development project*: add the accounts that develop the app. This list is
      what keeps localhost and staging closed, and it stays.
    - *Production project*: no list is needed once the screen is published.
@@ -153,18 +157,30 @@ The honest check is a real sign-in, per environment:
   the failure the two-project split exists to prevent, and it is worth checking
   rather than assuming.
 
-The consent screen alone can be confirmed without any app code by opening the
-authorisation URL directly:
+A consent screen can also be confirmed without any app code by opening the
+authorisation URL directly. **The client id and the redirect URI have to come
+from the same project**, or Google answers `redirect_uri_mismatch` before the
+screen ever appears — the production client does not carry the localhost URI.
+
+For the **development** project:
 
 ```
-https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:3000/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
+https://accounts.google.com/o/oauth2/v2/auth?client_id=<dev client id>&redirect_uri=http://localhost:3000/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
 ```
 
-It will fail after consent when nothing is listening, which is expected. The
+For the **production** project, use its client id and its own callback:
+
+```
+https://accounts.google.com/o/oauth2/v2/auth?client_id=<prod client id>&redirect_uri=https://<production host>/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
+```
+
+Either will fail after consent when nothing is listening, which is expected. The
 point is that the consent screen appears and names the right app.
 
 ## Done when
 - [ ] Both Google Cloud projects exist, with their own consent screens
+- [ ] The production project has an application home page and authorised domain,
+      without which Google will not publish it
 - [ ] The development project is in **Testing** with its test-user list; the
       production project is **published**
 - [ ] Each project has an OAuth client carrying only its own redirect URIs

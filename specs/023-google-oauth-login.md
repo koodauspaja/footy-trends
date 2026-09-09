@@ -17,7 +17,7 @@ Verified against the repository on 2026-09-07:
 
 | Claim | State |
 |---|---|
-| OAuth credentials exist | Yes — `docs/setup/014-google-oauth-setup.md`, consent screen in **Testing** mode |
+| OAuth credentials exist | Yes — `docs/setup/014-google-oauth-setup.md`. Consent screen in **Testing** mode when this spec shipped; production has since moved to its own published project (#264) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `.env.example` | Yes, unused by any code |
 | Auth library in `package.json` | **None** |
 | `users` / `sessions` / `accounts` tables in `src/db/schema.ts` | **None** — only `matches`, `taso_matches`, `taso_group_teams` |
@@ -32,7 +32,7 @@ Confirmed in chat before writing, because each one changes what gets built:
 | Library | **better-auth 1.7.3** | Stable release; peer-depends on `drizzle-orm ^0.45.2`, this repo's exact pin; `next ^16` supported. NextAuth v5 is still `5.0.0-beta.32`, and v4 predates the App Router. |
 | Sessions | **Database sessions** | Sign-out revokes immediately, and a real `user` row exists from day one for #117. |
 | Visible scope | **Sign in / sign out only** | No page gates behind login. Gating arrives with the features that need it. |
-| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. |
+| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. **Superseded by #264:** production now runs its own Google Cloud project with a published consent screen, while local and staging keep this one and its test-user list. See `docs/setup/014-google-oauth-setup.md`. |
 
 ## Scope
 

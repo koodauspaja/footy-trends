@@ -524,7 +524,7 @@ repository can reproduce them.
       inherited from the duplicated environment. Datastore and observability
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
-- [ ] The auth variables are deliberately left unset
+- [x] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
 - [x] All three Sentry configs — server, edge and client — read their settings
       from the environment
 - [x] Session Replay is decided **and applied in code** — the integration is
