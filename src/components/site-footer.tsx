@@ -35,7 +35,7 @@ export function SiteFooter() {
           <a className="hover:underline" href="https://www.football-data.org/">
             football-data.org
           </a>
-          {". Kotimaan sarjat: Suomen Palloliitto."}
+          {". Kotimaan sarjat ja maajoukkueiden ottelut: Suomen Palloliitto."}
         </p>
       </div>
     </footer>

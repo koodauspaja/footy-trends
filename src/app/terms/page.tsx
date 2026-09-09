@@ -46,14 +46,15 @@ export default function Terms() {
         </p>
         <ul className={LIST}>
           <li>
-            <strong>Ulkomaiset sarjat ja maajoukkueet:</strong> tiedot tarjoaa{" "}
+            <strong>Ulkomaiset sarjat ja arvokisat:</strong> tiedot tarjoaa{" "}
             <a className="hover:underline" href="https://www.football-data.org/">
               football-data.org
             </a>
             .
           </li>
           <li>
-            <strong>Kotimaiset sarjat ja cupit:</strong> Suomen Palloliiton tulospalvelu.
+            <strong>Kotimaiset sarjat ja cupit sekä Huuhkajien ja Helmarien ottelut:</strong> Suomen
+            Palloliiton tulospalvelu.
           </li>
         </ul>
       </section>

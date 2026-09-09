@@ -28,10 +28,21 @@ describe("the terms of service", () => {
     );
   });
 
-  it("names Palloliitto as the source of domestic data", () => {
+  it("splits the two sources the way the code actually does", () => {
+    /**
+     * `/maajoukkueet` mixes both providers, which the first version of this
+     * page got wrong: it credited football-data.org with the national teams.
+     * `national-team.ts` says otherwise — "These matches are TASO's while
+     * `/maajoukkueet/ottelu/:id` is football-data's" — so Huuhkajat's and
+     * Helmarit's own matches come from Palloliitto, and only the tournaments
+     * (MM, EM) come from football-data.org.
+     */
     render(<Terms />);
 
-    expect(document.body.textContent).toContain("Suomen Palloliiton tulospalvelu");
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("Ulkomaiset sarjat ja arvokisat");
+    expect(body).toContain("Huuhkajien ja Helmarien ottelut");
+    expect(body).toContain("Suomen Palloliiton tulospalvelu");
   });
 
   it("claims no licence or permission from either provider", () => {

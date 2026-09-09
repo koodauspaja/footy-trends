@@ -37,6 +37,9 @@ describe("SiteFooter", () => {
 
     const footer = screen.getByRole("contentinfo");
     expect(footer.textContent).toContain("Tiedot tarjoaa football-data.org");
+    // Palloliitto covers the domestic competitions *and* the national teams'
+    // own matches — see `national-team.ts`.
+    expect(footer.textContent).toContain("maajoukkueiden ottelut: Suomen Palloliitto");
     expect(screen.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",
       "https://www.football-data.org/"
