@@ -30,12 +30,18 @@ export function SiteFooter() {
             In Finnish, because CLAUDE.md admits no exceptions and their
             requirement is a *credit* rather than a fixed string: the part that
             has to survive is their name and a link to them, and both do. */}
+        {/* A joint credit rather than a split one. Both providers appear on
+            `/maajoukkueet` — the tournaments are football-data's, the Finnish
+            teams' own match lists are Palloliitto's — and a single footer line
+            cannot draw that boundary without getting it wrong, which it did
+            twice. The precise split is on `/kayttoehdot`, where there is room
+            for it. */}
         <p>
           Tiedot tarjoaa{" "}
           <a className="hover:underline" href="https://www.football-data.org/">
             football-data.org
           </a>
-          {". Kotimaan sarjat ja maajoukkueiden ottelut: Suomen Palloliitto."}
+          {" ja Suomen Palloliitto."}
         </p>
       </div>
     </footer>

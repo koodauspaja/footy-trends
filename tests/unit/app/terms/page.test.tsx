@@ -43,6 +43,9 @@ describe("the terms of service", () => {
     expect(body).toContain("Ulkomaiset sarjat ja arvokisat");
     expect(body).toContain("Huuhkajien ja Helmarien ottelut");
     expect(body).toContain("Suomen Palloliiton tulospalvelu");
+    // And the case that broke both earlier attempts: the national-team pages
+    // are not one provider's or the other's, they are both.
+    expect(body).toContain("Maajoukkuesivuilla on tietoja molemmista lähteistä");
   });
 
   it("claims no licence or permission from either provider", () => {

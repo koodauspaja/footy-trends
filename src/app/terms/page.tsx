@@ -57,6 +57,10 @@ export default function Terms() {
             Palloliiton tulospalvelu.
           </li>
         </ul>
+        <p className="mt-3">
+          Maajoukkuesivuilla on tietoja molemmista lähteistä: arvokisojen ottelut tulevat
+          football-data.orgista ja Huuhkajien ja Helmarien omat otteluluettelot Palloliitolta.
+        </p>
       </section>
 
       <section className={SECTION}>

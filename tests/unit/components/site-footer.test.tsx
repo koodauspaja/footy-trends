@@ -36,10 +36,13 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     const footer = screen.getByRole("contentinfo");
-    expect(footer.textContent).toContain("Tiedot tarjoaa football-data.org");
-    // Palloliitto covers the domestic competitions *and* the national teams'
-    // own matches — see `national-team.ts`.
-    expect(footer.textContent).toContain("maajoukkueiden ottelut: Suomen Palloliitto");
+    /**
+     * A joint credit, deliberately drawing no line between the two. Both
+     * providers appear on `/maajoukkueet`, and a one-line footer that tries to
+     * say which is which gets it wrong — it did, twice, in opposite directions.
+     * The split lives on the terms page.
+     */
+    expect(footer.textContent).toContain("Tiedot tarjoaa football-data.org ja Suomen Palloliitto.");
     expect(screen.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",
       "https://www.football-data.org/"

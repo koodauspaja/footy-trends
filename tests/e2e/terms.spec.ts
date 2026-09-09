@@ -27,7 +27,7 @@ test.describe("Terms of service", () => {
     await page.goto("/ulkomaat/sarjataulukko");
 
     const footer = page.getByRole("contentinfo");
-    await expect(footer).toContainText("Tiedot tarjoaa football-data.org");
+    await expect(footer).toContainText("Tiedot tarjoaa football-data.org ja Suomen Palloliitto.");
     await expect(footer.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",
       "https://www.football-data.org/"
