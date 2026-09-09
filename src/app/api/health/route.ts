@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { forwardingShape } from "@/lib/forwarding";
 import { logger } from "@/lib/logger";
 import { redis } from "@/lib/redis";
 import { getCurrentSeason } from "@/lib/taso";
@@ -97,6 +98,20 @@ export async function GET(request: Request) {
     }
   }
 
+  /**
+   * Opt-in, like `?providers=1` above, and for the same reason: a platform
+   * probe hits this constantly and has no use for it.
+   *
+   * It answers the one question #309 turns on — how many hops arrive in
+   * `x-forwarded-for`, and which of them are infrastructure — because
+   * better-auth refuses to resolve a client IP from a multi-hop header unless
+   * `trustedProxies` says which to skip. Counts and classifications only: this
+   * endpoint is public, so it never reports an address.
+   */
+  const forwarding = new URL(request.url).searchParams.has("forwarded")
+    ? forwardingShape(request.headers)
+    : undefined;
+
   const status = healthy ? 200 : 503;
   logger.info(
     { method: "GET", path: "/api/health", status, durationMs: Date.now() - startedAt, checks },
@@ -108,6 +123,7 @@ export async function GET(request: Request) {
       status: healthy ? "ok" : "error",
       checks,
       commit: deployedCommit(),
+      ...(forwarding === undefined ? {} : { forwarding }),
       timestamp: new Date().toISOString(),
     },
     { status }
