@@ -366,10 +366,12 @@ Suggested literals, chosen to be obviously non-secret at a glance:
       keys listed above.
 - [ ] Signed out, every page shows `Kirjaudu sisään` in the header — verified by
       loading a page in each of the three regions plus `/`.
-- [ ] Clicking `Kirjaudu sisään` reaches Google's consent screen for the
-      `footy-trends` OAuth client.
-- [ ] Completing sign-in returns to the page the reader
-      started on, with their name and `Kirjaudu ulos` in the header.
+- [ ] Clicking `Kirjaudu sisään` reaches Google's consent screen for **that
+      environment's own** OAuth client — `footy-trends` locally and on staging,
+      the production project's client on production (#264).
+- [ ] Completing sign-in returns to the page the reader started on, with their
+      name and `Kirjaudu ulos` in the header. Any Google account can do this —
+      the test-user list gates nothing for these scopes (#264).
 - [ ] That sign-in creates exactly one `user` row, one `account` row with
       `providerId = 'google'`, and one `session` row.
 - [ ] Signing in a second time with the same account creates a second `session`
