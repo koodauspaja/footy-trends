@@ -111,6 +111,19 @@ Worth doing before cutting a release, and worth reaching for when a spec
 passes locally but fails in CI: `dev` and a production build do not always
 behave the same, which is how #189 was found.
 
+## The pre-commit hook
+
+`.husky/pre-commit` runs `biome check .` and `tsc --noEmit` before every commit,
+because CI failing on either is a five-minute round trip for something that
+takes seconds locally — which is exactly what happened on #304.
+
+Both run against the whole repository rather than staged files only. Biome can
+check a file in isolation; `tsc` cannot, and a change in one file breaking
+another is the case a staged-files-only typecheck would miss.
+
+It skips quietly when dependencies are not installed, and `git commit
+--no-verify` bypasses it.
+
 ## The pre-push hook
 
 `npm run test:e2e` is easy to forget, and this suite is the only thing that

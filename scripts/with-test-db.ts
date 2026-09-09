@@ -19,10 +19,15 @@ if (existsSync(".env")) {
   process.loadEnvFile(".env");
 }
 
+/** `process.stderr.write` rather than `console.error`, as every other script here does. */
+function fail(line: string): never {
+  process.stderr.write(`${line}\n`);
+  process.exit(1);
+}
+
 const [command, ...args] = process.argv.slice(2);
 if (command === undefined) {
-  console.error("Usage: tsx scripts/with-test-db.ts <command> [args...]");
-  process.exit(1);
+  fail("Usage: tsx scripts/with-test-db.ts <command> [args...]");
 }
 
 async function main(): Promise<void> {
@@ -33,14 +38,13 @@ async function main(): Promise<void> {
     env: { ...process.env, DATABASE_URL: url },
   });
 
-  child.on("exit", (code, signal) => {
-    // A signalled child has no exit code; reporting 1 keeps the failure visible
-    // rather than reading as success.
-    process.exit(code ?? (signal === null ? 1 : 1));
+  child.on("exit", (code) => {
+    // A signalled child has no exit code. Reporting 1 keeps the failure visible
+    // rather than letting it read as success.
+    process.exit(code ?? 1);
   });
   child.on("error", (error) => {
-    console.error(`Could not run ${command}:`, error.message);
-    process.exit(1);
+    fail(`Could not run ${command}: ${error.message}`);
   });
 }
 

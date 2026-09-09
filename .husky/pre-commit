@@ -1,0 +1,28 @@
+# Lint and typecheck before a commit is made, because CI failing on either is
+# a five-minute round trip for something that takes seconds here (#304).
+#
+# Both run against the whole repository rather than staged files only: Biome
+# checks a file in isolation, but `tsc` cannot — a change in one file breaks
+# another, and a staged-files-only typecheck would miss exactly that.
+#
+# Dependencies may not be installed on a fresh clone, and a hook that fails
+# for that reason would be the first thing a new contributor meets. Skip
+# quietly instead; `npm install` puts the check back.
+if [ ! -x node_modules/.bin/biome ]; then
+  echo "lint/typecheck skipped: run npm install to enable it."
+  exit 0
+fi
+
+if ! node_modules/.bin/biome check .; then
+  echo ""
+  echo "Commit blocked: Biome found problems. 'npx biome check --write .' fixes most."
+  echo "To commit anyway, use 'git commit --no-verify'."
+  exit 1
+fi
+
+if ! node_modules/.bin/tsc --noEmit; then
+  echo ""
+  echo "Commit blocked: typecheck failed."
+  echo "To commit anyway, use 'git commit --no-verify'."
+  exit 1
+fi
