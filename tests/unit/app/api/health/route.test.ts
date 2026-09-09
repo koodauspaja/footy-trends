@@ -337,7 +337,7 @@ describe("the forwarding diagnostic", () => {
     expect(body.forwarding).toEqual({
       entries: 2,
       hops: ["public", "private"],
-      hasRealIp: false,
+      candidates: {},
     });
   });
 
