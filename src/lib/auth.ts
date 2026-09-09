@@ -34,8 +34,14 @@ function required(name: string): string {
  * *replaces* `x-forwarded-for` rather than appending, and sets `x-real-ip`
  * alongside it.
  *
- * `x-real-ip` is therefore the default. Reading both from the environment is
- * what makes that reversible: if a platform turns out to pass a client-supplied
+ * Railway fronts applications with Envoy, which sets `x-envoy-external-address`
+ * to the address it resolved as the external client, and `x-real-ip` beside it.
+ * Both are single-value, so better-auth reads either unaided. Both are the
+ * default, the more specific one first: `getIP` walks the list and takes the
+ * first that *resolves*, so naming a header that does not arrive costs nothing
+ * and the second one answers.
+ *
+ * Reading both from the environment is what makes that reversible: if a platform turns out to pass a client-supplied
  * `x-real-ip` through, the correction is a Railway variable rather than a
  * release. `/api/health?forwarded=1` reports which header agrees with the chain,
  * which is how that gets checked rather than assumed.
@@ -47,7 +53,7 @@ function headerList(name: string): string[] {
     .filter((entry) => entry !== "");
 }
 
-const DEFAULT_CLIENT_IP_HEADERS = ["x-real-ip"];
+const DEFAULT_CLIENT_IP_HEADERS = ["x-envoy-external-address", "x-real-ip"];
 
 /**
  * The better-auth server instance, from specs/023-google-oauth-login.md.
