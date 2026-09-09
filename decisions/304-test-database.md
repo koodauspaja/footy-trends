@@ -44,6 +44,8 @@ concurrency and portability surface.
 | 2 | `node_modules/.bin/vitest` is a `.cmd` shim on Windows | Yes — the same trap `scripts/executable.ts` documents; the wrapper runs Node directly |
 | 3 | Concurrent seeding still collides on a unique id | Yes, **and my first fix was insufficient** — see below |
 | 3 | The PR template's spec and decision fields | Yes — this file, and the spec named in the PR |
+| 4 | `TEST_DATABASE_URL` skipped the "names no database" check | Yes — validation moved to where the identifier is produced |
+| 5 | Concurrent `migrate()`, which the create-lock did not cover | Yes — a session-level advisory lock, and see below |
 
 **A transaction is not a lock.** The first attempt wrapped the seed in one
 transaction and called the race fixed. It was not: two transactions can both
@@ -66,10 +68,45 @@ bracket slot `specs/010-playoff-group-match-list.md` was written against cannot
 be stored at all. The schema already prevents it; the classification rule is what
 remains, and that is what the fixture covers.
 
+## The encoding warning was not what I first said it was
+
+SonarCloud reported "problems with file encoding in the source code". I read that
+as an unset `sonar.sourceEncoding` and set it — which was reasonable practice and
+**did not fix anything**, because the warning had a different cause: the scanner
+was indexing eight binary files as text.
+
+```
+WARN Invalid character encountered in file .../src/app/favicon.ico at line 1
+WARN Invalid character encountered in file .../tests/fixtures/avatar/landscape.webp at line 1
+```
+
+A favicon and the avatar image fixtures. They are excluded by extension now,
+and on **both** sides: `sonar.exclusions` governs sources only, and
+`sonar.tests=tests` re-indexes everything under `tests/` — which is why the
+existing `tests/**` exclusion had never stopped the fixtures warning.
+
+The property stays, because stating the charset is worth doing on its own. Its
+comment no longer claims to fix the warning.
+
 ## Known limit
 
-The concurrency fixes are not unit-tested. Both need two connections racing on a
-real Postgres, which is an integration concern rather than a unit one, and the
-file is deliberately thin I/O around `create database` and one seeding
-transaction. The pure halves — deriving the URL and the identifier — are tested,
-and mutation-checked.
+The concurrency fixes are not unit-tested. They need connections racing on a real
+Postgres, which is an integration concern rather than a unit one, and the file is
+deliberately thin I/O. The pure halves — deriving the URL and the identifier —
+are tested and mutation-checked.
+
+They were, however, **measured**. Running `ensureTestDatabase()` four times
+concurrently against a dropped database failed immediately with
+
+```
+duplicate key value violates unique constraint "pg_database_datname_index"
+```
+
+which is `23505`, not the `42P04` I had been catching: `duplicate_database`
+is what the loser sees when the winner has *finished*, while genuinely
+simultaneous statements collide on the catalog index instead. Both are caught
+now, and four concurrent setups from nothing succeed three runs out of three.
+
+That is the lesson of this whole issue in miniature. Review found the race;
+reasoning about it produced a fix that was still wrong twice over; running it is
+what settled it.

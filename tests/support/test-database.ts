@@ -21,6 +21,9 @@ import postgres from "postgres";
  */
 const SUFFIX = "_test";
 
+/** Names this repository's test-database migration, so two of them serialise. */
+const MIGRATION_LOCK_KEY = 3_040_304;
+
 /** `postgres://…/footy-trends` → `postgres://…/footy-trends_test`. */
 export function testDatabaseUrl(): string {
   const override = process.env.TEST_DATABASE_URL;
@@ -97,13 +100,20 @@ export async function ensureTestDatabase(): Promise<string> {
         await admin.unsafe(`create database "${name.replace(/"/g, '""')}"`);
       } catch (error) {
         /**
-         * `42P04` is `duplicate_database`: something else created it between the
-         * check above and this statement. Two suites started together is the
-         * ordinary way that happens, and both wanting the database to exist is
-         * agreement rather than conflict — so the one that lost the race carries
-         * on to migrate it. Any other failure is real and still thrown.
+         * Something else created it between the check above and this statement.
+         * Two suites started together is the ordinary way that happens, and both
+         * wanting the database to exist is agreement rather than conflict — so
+         * the one that lost the race carries on to migrate it.
+         *
+         * **Two codes, measured rather than assumed.** `42P04` is
+         * `duplicate_database`, raised when the loser starts after the winner
+         * finished. Genuinely simultaneous statements instead surface the
+         * catalog's own unique violation, `23505` on
+         * `pg_database_datname_index` — which three concurrent calls reproduce
+         * every time, and which a `42P04`-only catch let through.
          */
-        if ((error as { code?: string }).code !== "42P04") throw error;
+        const code = (error as { code?: string }).code;
+        if (code !== "42P04" && code !== "23505") throw error;
       }
     }
   } finally {
@@ -112,8 +122,25 @@ export async function ensureTestDatabase(): Promise<string> {
 
   const client = postgres(url, { max: 1 });
   try {
-    await migrate(drizzle(client), { migrationsFolder: "./drizzle/migrations" });
+    /**
+     * Migrating is the other half of the race, and catching `42P04` above did
+     * nothing for it: both processes then arrive here and run the same
+     * migrations against the same database.
+     *
+     * A session lock rather than a transaction one, because `migrate` opens its
+     * own transactions — an `xact` lock would be released by the first of them.
+     * The second process waits, then finds the migrations already applied and
+     * does nothing, which is what drizzle's journal is for.
+     */
+    await client`select pg_advisory_lock(${MIGRATION_LOCK_KEY})`;
+    try {
+      await migrate(drizzle(client), { migrationsFolder: "./drizzle/migrations" });
+    } finally {
+      await client`select pg_advisory_unlock(${MIGRATION_LOCK_KEY})`;
+    }
   } finally {
+    // Ends the session, which releases the lock even if unlocking above did not
+    // run — a connection cannot hold one after it is gone.
     await client.end();
   }
 
