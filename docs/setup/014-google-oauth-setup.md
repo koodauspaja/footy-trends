@@ -14,17 +14,32 @@ Railway as environment variables, feeding the better-auth integration in
 
 | | Project | Consent screen | Who can sign in |
 |---|---|---|---|
-| Local + staging | `footy-trends` | **Testing** | only accounts on its test-user list |
+| Local + staging | `footy-trends` | **Testing** | **anyone with a Google account** — see below |
 | Production | `footy-trends-prod` | **Published** | anyone with a Google account |
 
-The reason is that **the publishing status and the test-user list belong to a
-project's consent screen, not to an OAuth client**. Two clients inside one
-project share one consent screen, so publishing for production would have
-un-gated development at the same moment — and keeping development gated is the
-point.
+The reason is that **the publishing status, branding and consent screen belong
+to a project, not to an OAuth client**. Two clients inside one project share one
+screen, so production's published state and development's would be the same
+state. Separate projects keep production's credentials, verification status and
+blast radius apart from development's.
 
-So the test-user list is not leftover state to be cleaned up. It is how the
-development project is meant to stay.
+### The test-user list gates nothing here
+
+**Do not rely on it.** Google enforces the test-user list only for apps
+requesting scopes beyond the basic identity three. This app requests exactly
+`openid`, `email` and `profile`, which are non-sensitive and need no
+verification — so **while the project sits in Testing, any Google account can
+still sign in**. Verified the hard way: several accounts that had never been
+near the project signed in to staging, in a private window, with one address on
+the list.
+
+That means there is **no console setting that restricts who may sign in to
+staging or localhost**. If a restriction is wanted, it has to live in the
+application — an allowlist checked when the session is created, not a list in
+Google.
+
+See <https://support.google.com/cloud/answer/15549945> and
+<https://developers.google.com/workspace/guides/configure-oauth-consent>.
 
 ---
 
@@ -66,8 +81,9 @@ Do this **twice**, once per project.
    `profile` are added automatically. Requesting anything beyond these is what
    would trigger a full Google verification review.
 6. **Test users**:
-   - *Development project*: add the accounts that develop the app. This list is
-     what keeps localhost and staging closed, and it stays.
+   - *Development project*: adding the accounts that develop the app is
+     harmless, but understand it restricts nobody — see *The test-user list
+     gates nothing here*.
    - *Production project*: no list is needed once the screen is published.
 
 ### Publishing status
@@ -169,10 +185,9 @@ The honest check is a real sign-in, per environment:
 
 - **Production**: an account that has never been a test user signs in and comes
   back signed in.
-- **Local and staging**: an account that is *not* on the development project's
-  test-user list is refused by Google, before it reaches the app. Losing that is
-  the failure the two-project split exists to prevent, and it is worth checking
-  rather than assuming.
+- **Local and staging**: any Google account signs in, and that is Google's
+  documented behaviour for these scopes rather than a misconfiguration. Do not
+  write a check that expects a refusal — it will not come.
 
 A consent screen can also be confirmed without any app code by opening the
 authorisation URL directly. **The client id and the redirect URI have to come
@@ -198,8 +213,9 @@ point is that the consent screen appears and names the right app.
 - [ ] Both Google Cloud projects exist, with their own consent screens
 - [ ] The production project has an application home page and authorised domain,
       without which Google will not publish it
-- [ ] The development project is in **Testing** with its test-user list; the
-      production project is **published**
+- [ ] The development project is in **Testing**; the production project is
+      **published**. Neither state restricts who may sign in, because the app
+      requests only non-sensitive scopes
 - [ ] Each project has an OAuth client carrying only its own redirect URIs
 - [ ] All four variables are set in `.env`, Railway staging and Railway
       production, each from the right project

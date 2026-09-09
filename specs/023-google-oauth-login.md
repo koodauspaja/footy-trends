@@ -32,7 +32,7 @@ Confirmed in chat before writing, because each one changes what gets built:
 | Library | **better-auth 1.7.3** | Stable release; peer-depends on `drizzle-orm ^0.45.2`, this repo's exact pin; `next ^16` supported. NextAuth v5 is still `5.0.0-beta.32`, and v4 predates the App Router. |
 | Sessions | **Database sessions** | Sign-out revokes immediately, and a real `user` row exists from day one for #117. |
 | Visible scope | **Sign in / sign out only** | No page gates behind login. Gating arrives with the features that need it. |
-| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. **Superseded by #264:** production now runs its own Google Cloud project with a published consent screen, while local and staging keep this one and its test-user list. See `docs/setup/014-google-oauth-setup.md`. |
+| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. **Superseded by #264:** production now runs its own Google Cloud project with a published consent screen, while local and staging keep this one. **And the premise was wrong:** Google enforces a test-user list only for apps requesting more than `openid`/`email`/`profile`, so this app has never been limited to test users in any environment. See `docs/setup/014-google-oauth-setup.md`. |
 
 ## Scope
 
@@ -258,7 +258,7 @@ fills in on the client.
 
 | Case | Behaviour |
 |---|---|
-| Google account not on the Testing-mode test-user list | Google refuses before redirecting back; the reader never reaches our callback. Nothing for the app to handle — Google's own screen is the end of the flow. |
+| Google account not on the Testing-mode test-user list | **This case does not occur.** Google enforces the list only for apps requesting scopes beyond `openid`/`email`/`profile`; with those three, any account signs in. Verified against staging (#264). |
 | Reader cancels at the consent screen | Google returns `error=access_denied`. Land on `/` with `Kirjautuminen epäonnistui. Yritä uudelleen.` |
 | Google profile has no `name` | `user.name` is `required`. Fall back to the local part of the email (`matti.meikalainen@…` → `matti.meikalainen`). Google returns a name under the `profile` scope, so this is a guard against a contract, not an expected path. |
 | Google profile has no `image` | Column is nullable; the header shows the name alone. The header shows no avatar in this spec regardless. |
