@@ -159,15 +159,43 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * failure that matters here: reading a session is how a page meant to be
  * readable signed out stops being prerendered.
  */
-/** Every module a file imports from, in source order. */
+/**
+ * Every module a file pulls in — static and dynamic alike.
+ *
+ * `await import("…")` counts. This repository uses it deliberately to keep
+ * `@/lib/auth` off a module's import path (`current-user.ts`, `viewer.ts`), so
+ * a walk that only read `import` declarations would miss exactly the pattern
+ * the codebase reaches for when it wants an import not to happen eagerly.
+ */
 function moduleSpecifiers(source: ts.SourceFile): string[] {
-  return source.statements.flatMap((statement) =>
-    (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
-    statement.moduleSpecifier !== undefined &&
-    ts.isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
-      : []
-  );
+  const found: string[] = [];
+
+  for (const statement of source.statements) {
+    if (
+      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+      statement.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      found.push(statement.moduleSpecifier.text);
+    }
+  }
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0
+    ) {
+      const [argument] = node.arguments;
+      // A computed specifier cannot be resolved statically, and this repository
+      // has none — every dynamic import here names a literal module.
+      if (argument !== undefined && ts.isStringLiteral(argument)) found.push(argument.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
+
+  return found;
 }
 
 const SRC_DIR = path.join(process.cwd(), "src");
