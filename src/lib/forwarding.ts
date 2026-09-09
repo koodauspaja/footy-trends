@@ -115,8 +115,10 @@ function expandIpv6(value: string): number[] | null {
       if (octets !== null) {
         // Only ever the last component; `1.2.3.4:abcd` is not an address.
         if (index !== parts.length - 1) return null;
-        groups.push((octets[0] as number) * 256 + (octets[1] as number));
-        groups.push((octets[2] as number) * 256 + (octets[3] as number));
+        groups.push(
+          (octets[0] as number) * 256 + (octets[1] as number),
+          (octets[2] as number) * 256 + (octets[3] as number)
+        );
         continue;
       }
       if (!/^[0-9a-f]{1,4}$/.test(raw)) return null;
@@ -132,7 +134,7 @@ function expandIpv6(value: string): number[] | null {
   // Uncompressed carries all eight; `::` stands for at least one omitted group.
   if (halves.length === 1) return left.length === 8 ? left : null;
   const omitted = 8 - left.length - right.length;
-  return omitted < 1 ? null : [...left, ...Array<number>(omitted).fill(0), ...right];
+  return omitted < 1 ? null : [...left, ...new Array<number>(omitted).fill(0), ...right];
 }
 
 /**
