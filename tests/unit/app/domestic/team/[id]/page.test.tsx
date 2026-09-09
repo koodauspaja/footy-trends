@@ -109,15 +109,32 @@ async function renderTeam(
   );
 }
 
-describe("Domestic team page", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
-    getTeamNameMock.mockResolvedValue({ status: "not_found" });
-    getTeamContextMock.mockImplementation(defaultTeamContext);
-    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
-  });
+/**
+ * At file level, not inside the first `describe`.
+ *
+ * Mock implementations live on the module rather than on the block that set
+ * them, so the `describe`s below used to start from whatever the previous one's
+ * last test left behind — a failed match lookup, a competition renamed for one
+ * assertion — and passed only because they are declared in that order.
+ */
+beforeEach(() => {
+  vi.clearAllMocks();
+  getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+  getTeamNameMock.mockResolvedValue({ status: "not_found" });
+  getTeamContextMock.mockImplementation(defaultTeamContext);
+  getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
+  /**
+   * These two are set at hoist time and one test replaces them for good —
+   * `clearAllMocks` clears calls, not implementations. Restored here so a
+   * test inherits nothing from the one before it: without this, everything
+   * declared after the Naisten Liiga case is named by that case rather than
+   * by its own arrangement.
+   */
+  getSeasonCategoryNameMock.mockResolvedValue(null);
+  resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+});
 
+describe("Domestic team page", () => {
   it("shows the team's name in the heading, alongside the competition and season", async () => {
     await renderTeam("1");
 

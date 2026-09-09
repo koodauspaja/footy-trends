@@ -37,6 +37,47 @@ vi.mock("@/lib/standings", async (importOriginal) => {
   return { ...actual, calculateStandings: calculateStandingsMock };
 });
 
+/**
+ * Puts `calculateStandings` back to the real implementation before every test.
+ *
+ * One test below queues a `mockReturnValueOnce` to force a case the real
+ * function's invariants forbid. `clearAllMocks` clears *calls*, not queued
+ * one-shot results — so an unconsumed one is inherited by whatever test runs
+ * next, and which test that is depends on declaration order. `mockReset`
+ * drains the queue; the implementation then has to be set again, because
+ * resetting removes that too.
+ */
+beforeEach(async () => {
+  /**
+   * Every shared mock back to "not configured" before each test.
+   *
+   * `clearAllMocks` clears *calls*, not implementations or queued one-shot
+   * results, and several tests below set a permanent one — a Redis cache hit,
+   * a stored-match list. Inherited, those decide the next test's answer: a
+   * leftover cache hit makes `getStandings` return early, so an assertion about
+   * what reached `calculateStandings` fails with "never called" and does so
+   * only in some orders.
+   */
+  // The logger spies too: several tests assert that a path warned or errored,
+  // and calls left by an earlier test would satisfy a bare `toHaveBeenCalled`
+  // whether or not this one logged anything.
+  loggerWarnMock.mockClear();
+  loggerErrorMock.mockClear();
+
+  redisMock.get.mockReset();
+  redisMock.setex.mockReset();
+  dbMock.select.mockReset();
+  dbMock.insert.mockReset();
+  getSeasonMatchesMock.mockReset();
+
+  // Reset clears the implementation too, and this one is the real function —
+  // the point of the wrapper is that every test gets true standings maths
+  // unless it says otherwise.
+  const actual = await vi.importActual<typeof import("@/lib/standings")>("@/lib/standings");
+  calculateStandingsMock.mockReset();
+  calculateStandingsMock.mockImplementation(actual.calculateStandings);
+});
+
 const COMPETITION_CODE = "PL";
 const ACTIVE_SEASON = 2025;
 const PAST_SEASON = 2024;

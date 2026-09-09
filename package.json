@@ -9,6 +9,7 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run tests/unit --coverage --passWithNoTests",
     "test:integration": "vitest run tests/integration --passWithNoTests",
+    "test:shuffle": "vitest run tests/unit --sequence.shuffle",
     "test:e2e": "playwright test",
     "test:e2e:browser": "playwright install --with-deps chromium",
     "test:watch": "vitest",

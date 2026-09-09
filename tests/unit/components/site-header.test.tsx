@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/site-header";
 
 const { pathname, session } = vi.hoisted(() => ({
@@ -25,6 +25,17 @@ function renderAt(path: string) {
   pathname.current = path;
   render(<SiteHeader />);
 }
+
+/**
+ * Both of these are module-level state that individual tests write to, so
+ * without a reset a test inherits whatever the one before it left behind — and
+ * then passes or fails depending on the order they are declared in. Signed out,
+ * on the front page, is the state each test starts from unless it says otherwise.
+ */
+beforeEach(() => {
+  pathname.current = "/";
+  session.current = { data: null, isPending: false };
+});
 
 describe("SiteHeader", () => {
   it("shows a link back to the front page", () => {

@@ -23,6 +23,21 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   };
 });
 
+/**
+ * At file level, so no test inherits another's arrangement.
+ *
+ * A stored viewer preference decides the competition when the URL says
+ * nothing, and the competition decides which seasons exist — so one left
+ * behind from another block changes both the default competition *and* which
+ * `kausi` values parse. That is two assertions failing for a reason neither
+ * test mentions, in whichever order they happen to run.
+ */
+beforeEach(() => {
+  getViewerPreferences.mockResolvedValue(null);
+  getSeasonCategoryNameMock.mockResolvedValue(null);
+  resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+});
+
 describe("listSelectableTasoSeasons", () => {
   it("lists 2015 up to the given current season, newest first, labeled as bare years", () => {
     const seasons = listSelectableTasoSeasons(2026, 2015);
