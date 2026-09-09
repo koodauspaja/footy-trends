@@ -52,6 +52,21 @@ test using a solid-colour fixture — a square of one colour is identical
 rotated, so it passed with the rotation deleted. A test that asserted the wrong
 Finnish notice, and so protected the bug.
 
+**A second shape of the same class: a test that inherits its neighbour.** Found
+on #299 by shuffling the suite — 4 runs out of 4 failed, twelve tests in one of
+them, while the default order was green. Mock implementations live on the module,
+not on the `describe` that set them, and `clearAllMocks` clears *calls* but
+leaves implementations and queued `mockReturnValueOnce` results in place. So a
+`beforeEach` inside the first `describe` leaves every later one starting from
+whatever the previous block's last test happened to configure: a Redis cache hit,
+a renamed competition, a stored viewer preference that silently decides both the
+default competition and which season parameters parse.
+
+Such a test passes for a reason it does not state, and reordering or renaming one
+changes what it asserts. **The counter is `npm run test:shuffle`**, which runs the
+unit suite in a shuffled order; anything that fails there is a test whose
+arrangement belongs to someone else.
+
 **The counter, and it is not optional: run the mutation.** Break the behaviour
 the test names — delete the line, revert the value, remove the guard — and
 watch that test fail. Then restore. Twenty seconds. If it does not fail, the
@@ -153,6 +168,8 @@ fresh.
    the old one.
 6. `npm run lint`, `npm run typecheck`, `npm run test:unit` (100% on all four
    metrics), `npm run test:integration`, `npm run test:e2e`.
+7. `npm run test:shuffle` when the diff adds or reorders tests — it catches the
+   ones that pass only because of what ran before them.
 
 Related: `skills/open-pr.md` for the review gate itself, `REVIEW_RULES.md` for
 what Sourcery enforces on the diff.

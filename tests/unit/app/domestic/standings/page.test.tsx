@@ -97,14 +97,23 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
 
-describe("Domestic standings page", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    listSeasonRoundsMock.mockResolvedValue([1, 2]);
-    getSeasonCategoryNameMock.mockResolvedValue(null);
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
-  });
+/**
+ * At file level, not inside the first `describe`.
+ *
+ * Mock implementations live on the module, not on the block that set them, so
+ * the two `describe`s below this one used to inherit whatever the last test of
+ * the first one happened to leave — and passed only because they are declared
+ * in that order. Every test now starts from the same arrangement wherever it
+ * sits.
+ */
+beforeEach(() => {
+  vi.clearAllMocks();
+  listSeasonRoundsMock.mockResolvedValue([1, 2]);
+  getSeasonCategoryNameMock.mockResolvedValue(null);
+  getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
+});
 
+describe("Domestic standings page", () => {
   it("shows the Finnish heading and calculated standings for the default (latest) season", async () => {
     await renderStandings();
 
