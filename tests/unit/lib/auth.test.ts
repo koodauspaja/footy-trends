@@ -62,6 +62,62 @@ async function loadConfig(): Promise<any> {
   return betterAuth.mock.calls[0]?.[0];
 }
 
+describe("resolving the client IP, from #309", () => {
+  it("reads the address from Envoy's header, and from nothing else", async () => {
+    // Without a header better-auth resolves no IP at all and rate limiting
+    // collapses to one shared per-path bucket, where one attacker locks
+    // everyone out. Railway fronts applications with Envoy, which resolves the
+    // external client itself; its `x-forwarded-for` arrives with two entries,
+    // which better-auth refuses to read unaided.
+    //
+    // `x-real-ip` is deliberately absent. Reading a header the edge might pass
+    // through would give an attacker a fresh bucket per forged value, which is
+    // worse than sharing one.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
+  });
+
+  it("trusts no proxy unless one is configured", async () => {
+    // Absent rather than empty: an empty list leaves chain mode disabled
+    // anyway, and saying nothing is plainer than saying nothing-in-particular.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress).not.toHaveProperty("trustedProxies");
+  });
+
+  it("takes the header list from the environment, so a wrong guess is not a release", async () => {
+    setEnv({ AUTH_CLIENT_IP_HEADERS: "CF-Connecting-IP, x-real-ip" });
+
+    const config = await loadConfig();
+
+    // Lower-cased, because `Headers.get` is case-insensitive but better-auth
+    // compares the configured name against the key it was given.
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["cf-connecting-ip", "x-real-ip"]);
+  });
+
+  it("passes trusted proxies through when they are configured", async () => {
+    setEnv({ AUTH_TRUSTED_PROXIES: "100.64.0.0/10, 10.0.0.1" });
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.trustedProxies).toEqual(["100.64.0.0/10", "10.0.0.1"]);
+  });
+
+  it("falls back to the default when the variable is set but empty", async () => {
+    // A Railway variable cleared to "" must not disable IP resolution silently.
+    setEnv({ AUTH_CLIENT_IP_HEADERS: " , ,, " });
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
+  });
+});
+
 describe("auth configuration", () => {
   it("registers Google as the only social provider", async () => {
     setEnv();
