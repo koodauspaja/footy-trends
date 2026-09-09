@@ -3,7 +3,12 @@ import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
-import { categoryIdForSeason, categoryIdsFor, earliestSeasonFor } from "./domestic-competitions";
+import {
+  categoryIdForSeason,
+  categoryIdsFor,
+  earliestSeasonFor,
+  isDomesticCup,
+} from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -1275,6 +1280,27 @@ function buildGroup(
 ): GroupStandingsResult {
   const groupName = groupNameOf(seasonMatches, groupId);
   const teamRows = groupTeamsFor(allTeamRows, groupId);
+
+  /**
+   * A cup's groups are **rounds**, and a round is never a points competition —
+   * whatever TASO reports for it.
+   *
+   * This used to fall out of the data rather than being stated: `getGroups`
+   * omitted `points` for a knockout, so `keepsATable` said no. #272 moved to
+   * `getCategory` because TASO had started refusing `getGroups`, and that
+   * endpoint *does* send points for cup rounds — which rendered every round of
+   * Suomen Cup as a league table, took the bracket with it (it is built from
+   * the groups that render as matches) and put a `Kierros` selector on a page
+   * that has no rounds to filter. See specs/015-finnish-cups.md.
+   */
+  if (isDomesticCup(categoryId)) {
+    return {
+      kind: "match-list",
+      groupId,
+      groupName,
+      matches: selectGroupMatches(seasonMatches, groupId),
+    };
+  }
   // Whether TASO's groups are known for this season *at all*. Without that
   // distinction, an unreachable `getCategory` with nothing yet stored would make
   // every group look team-less and turn the whole season into match lists.
