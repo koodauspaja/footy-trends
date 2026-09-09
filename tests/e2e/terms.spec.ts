@@ -50,6 +50,6 @@ test.describe("Terms of service", () => {
     const response = await page.goto("/kayttoehdot");
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByText("päättyneen kauden tietoja ei haeta uudelleen")).toBeVisible();
+    await expect(page.getByText(/vanhempien kausien tietoja ei haeta uudelleen/)).toBeVisible();
   });
 });

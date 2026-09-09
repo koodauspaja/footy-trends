@@ -66,12 +66,20 @@ describe("the terms of service", () => {
     expect(body).toContain("oikeudet niihin");
   });
 
-  it("warns that a finished season is never refetched", () => {
-    // A real limit of the app, not boilerplate: a points deduction applied
-    // after we synced will not appear, which is why #150 exists.
+  it("warns that seasons older than the current one are never refetched", () => {
+    /**
+     * A real limit of the app, not boilerplate: a points deduction applied to a
+     * past season after we synced will not appear, which is why #150 exists.
+     *
+     * The wording matters and review caught it wrong. `needsRefresh` stops
+     * refreshing when `seasonId < activeSeasonId` — *older than the current
+     * one*, not *finished*. A season that has ended but is still the newest
+     * keeps refreshing on the interval, so "päättyneen kauden" claimed a limit
+     * the app does not have.
+     */
     render(<Terms />);
 
-    expect(document.body.textContent).toContain("päättyneen kauden tietoja ei haeta");
+    expect(document.body.textContent).toContain("vanhempien kausien tietoja ei haeta uudelleen");
   });
 
   it("points at deletion and at the privacy policy", () => {

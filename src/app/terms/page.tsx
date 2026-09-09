@@ -66,9 +66,9 @@ export default function Terms() {
         </p>
         <p>
           Yksi tunnettu rajoitus on syytä sanoa ääneen:{" "}
-          <strong>päättyneen kauden tietoja ei haeta uudelleen</strong>. Jos sarjaan tehdään
-          jälkikäteen korjaus — esimerkiksi pistevähennys — se ei välttämättä näy täällä. Älä käytä
-          näitä tietoja mihinkään, jolla on merkitystä.
+          <strong>meneillään olevaa kautta vanhempien kausien tietoja ei haeta uudelleen</strong>.
+          Jos vanhaan kauteen tehdään jälkikäteen korjaus — esimerkiksi pistevähennys — se ei näy
+          täällä. Älä käytä näitä tietoja mihinkään, jolla on merkitystä.
         </p>
       </section>
 
