@@ -34,6 +34,9 @@ describe("AccountMenu", () => {
 
     fireEvent.click(trigger());
 
+    // Above `Asetukset`, so the reader's own things sit together
+    // (specs/026-favourites.md).
+    expect(screen.getByRole("link", { name: "Suosikit" })).toHaveAttribute("href", "/suosikit");
     expect(screen.getByRole("link", { name: "Asetukset" })).toHaveAttribute("href", "/asetukset");
     expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
@@ -105,6 +108,17 @@ describe("AccountMenu", () => {
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger()).toHaveAttribute("aria-controls");
+  });
+
+  it("closes when the favourites link is chosen", () => {
+    // The same closing behaviour as the settings link below; a menu left open
+    // over the page it navigated to is the bug this prevents.
+    renderMenu();
+    fireEvent.click(trigger());
+
+    fireEvent.click(screen.getByRole("link", { name: "Suosikit" }));
+
+    expect(screen.queryByRole("link", { name: "Suosikit" })).not.toBeInTheDocument();
   });
 
   it("closes when the settings link is chosen", () => {

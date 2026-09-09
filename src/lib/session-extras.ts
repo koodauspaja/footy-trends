@@ -26,7 +26,10 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
  * hold and TypeScript rejects the call outright. `unknown` says the true thing:
  * these arrive untyped, and the narrowing here is the whole job.
  */
-function fieldOf(session: unknown, name: "defaultRegion" | "avatarVersion"): unknown {
+function fieldOf(
+  session: unknown,
+  name: "defaultRegion" | "avatarVersion" | "favoriteTeams" | "favoriteCompetitions"
+): unknown {
   if (typeof session !== "object" || session === null) return undefined;
   return (session as Record<string, unknown>)[name];
 }
@@ -56,4 +59,21 @@ export function avatarSourceOf(session: unknown, googleImage: string | null): st
     return `/api/avatar/me?v=${encodeURIComponent(version)}`;
   }
   return googleImage;
+}
+
+/**
+ * The reader's favourite keys of one kind, from the session payload.
+ *
+ * **The single place anything reads favourites from the session**, which is
+ * what keeps that choice reversible: specs/026 sends the whole list because it
+ * rides free on a request the browser already makes, and if it measures heavy
+ * at the cap, this function fetches instead and no caller changes.
+ *
+ * An unusable payload is an empty list rather than an error — a missing star is
+ * a smaller loss than a page that will not render.
+ */
+export function favouriteKeysOf(session: unknown, kind: "team" | "competition"): string[] {
+  const field = fieldOf(session, kind === "team" ? "favoriteTeams" : "favoriteCompetitions");
+  if (!Array.isArray(field)) return [];
+  return field.filter((entry): entry is string => typeof entry === "string");
 }

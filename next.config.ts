@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     return [
       // The account settings page, added in specs/024-account-settings.md.
       { source: "/asetukset", destination: "/settings" },
+      // The favourites page, added in specs/026-favourites.md.
+      { source: "/suosikit", destination: "/favorites" },
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
@@ -58,6 +60,9 @@ const nextConfig: NextConfig = {
     return [
       // English folder paths are not URLs — same rule as every entry below.
       { source: "/settings", destination: "/asetukset", permanent: true },
+      // The favourites page, added in specs/026-favourites.md. Paired with the
+      // rewrite above, exactly as `/settings` is.
+      { source: "/favorites", destination: "/suosikit", permanent: true },
       // The foreign pages moved under /ulkomaat.
       { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },

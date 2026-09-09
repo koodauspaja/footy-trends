@@ -2,6 +2,8 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
   account,
+  favoriteCompetition,
+  favoriteTeam,
   matches,
   session,
   tasoMatches,
@@ -252,5 +254,77 @@ describe("user_avatar table", () => {
     const reference = foreignKeys[0]?.reference();
     expect(reference?.foreignTable).toBe(user);
     expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+  });
+});
+
+describe("favorite_team table", () => {
+  it("makes one reader's favourite of one team unique, so a double click is a no-op", () => {
+    // Two tabs and a double press are the ordinary way this happens; without
+    // the index the reader collects duplicate rows they cannot tell apart.
+    const { indexes } = getTableConfig(favoriteTeam);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "favorite_team_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "user_id",
+      "source",
+      "team_provider_id",
+    ]);
+  });
+
+  it("carries the source, because the two providers' team ids collide", () => {
+    // 317 already exists in both `matches` and `taso_matches` and is a
+    // different club in each.
+    const { columns } = getTableConfig(favoriteTeam);
+    const source = columns.find((column) => column.name === "source");
+
+    expect(source?.notNull).toBe(true);
+    expect(columns.find((column) => column.name === "team_provider_id")?.notNull).toBe(true);
+  });
+
+  it("cascades away with its user, leaving no orphaned favourites", () => {
+    const [foreignKey] = getTableConfig(favoriteTeam).foreignKeys;
+
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+});
+
+describe("favorite_competition table", () => {
+  it("makes one reader's favourite of one competition unique", () => {
+    const { indexes } = getTableConfig(favoriteCompetition);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "favorite_competition_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "user_id",
+      "region",
+      "competition_code",
+    ]);
+  });
+
+  it("is its own table rather than a kind column on the one above", () => {
+    // A team is a provider and a number; a competition is a region and a code.
+    // One table for both would mean four nullable columns and a constraint
+    // saying which pair is legal — a check where a type will do.
+    const columns = getTableConfig(favoriteCompetition).columns.map((column) => column.name);
+
+    expect(columns).toContain("region");
+    expect(columns).toContain("competition_code");
+    expect(columns).not.toContain("source");
+    expect(columns).not.toContain("kind");
+  });
+
+  it("cascades away with its user", () => {
+    const [foreignKey] = getTableConfig(favoriteCompetition).foreignKeys;
+
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
   });
 });

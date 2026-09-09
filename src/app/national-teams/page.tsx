@@ -34,6 +34,7 @@ const WOMENS_TEAM_ENTRY: PickerEntry = {
 export default function NationalTeams() {
   return (
     <CompetitionPicker
+      favouriteRegion="maajoukkueet"
       basePath="/maajoukkueet"
       extraEntries={[MENS_TEAM_ENTRY, WOMENS_TEAM_ENTRY]}
       region="national-teams"

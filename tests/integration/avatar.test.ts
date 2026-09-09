@@ -138,6 +138,10 @@ describe("avatar storage", () => {
     expect(await getSessionExtrasFor(USER_ID)).toEqual({
       defaultRegion: null,
       avatarVersion: version,
+      // specs/026 adds these to the same payload; a reader with no favourites
+      // still gets both lists, so the client never has to test for undefined.
+      favoriteTeams: [],
+      favoriteCompetitions: [],
     });
   });
 });

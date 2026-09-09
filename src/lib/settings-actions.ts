@@ -6,23 +6,11 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { userPreferences } from "@/db/schema";
-import { auth } from "@/lib/auth";
+import { authApi, currentUserId } from "@/lib/current-user";
 import { logger } from "@/lib/logger";
 import { isRegionSegment, type RegionSegment } from "@/lib/regions";
 
 export type ActionResult = { ok: true } | { ok: false };
-
-/**
- * The signed-in user's id, or null.
- *
- * Every write below goes through this. **No action accepts a user id from the
- * client** — that removes the whole class of "change someone else's settings"
- * rather than checking for it. See specs/024-account-settings.md.
- */
-async function currentUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user.id ?? null;
-}
 
 /** Empty string from a `<select>` means "no preference", which is a real value. */
 function orNull(value: FormDataEntryValue | null): string | null {
@@ -73,7 +61,7 @@ export async function saveSettings(formData: FormData): Promise<ActionResult> {
 
 export async function signOutOtherDevices(): Promise<ActionResult> {
   try {
-    await auth.api.revokeOtherSessions({ headers: await headers() });
+    await (await authApi()).revokeOtherSessions({ headers: await headers() });
     revalidatePath("/asetukset");
     return { ok: true };
   } catch (error) {
@@ -93,7 +81,7 @@ export async function deleteAccount(confirmation: string): Promise<ActionResult>
   if (confirmation.trim() !== "POISTA") return { ok: false };
 
   try {
-    await auth.api.deleteUser({ body: {}, headers: await headers() });
+    await (await authApi()).deleteUser({ body: {}, headers: await headers() });
     return { ok: true };
   } catch (error) {
     logger.error({ err: error }, "Deleting the account failed");

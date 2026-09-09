@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { deleteAvatar, saveAvatar } from "@/lib/avatar";
 import { processAvatar } from "@/lib/avatar-image";
 import type { AvatarRejection } from "@/lib/avatar-limits";
+import { currentUserId } from "@/lib/current-user";
 import { logger } from "@/lib/logger";
 
 /**
@@ -21,18 +20,6 @@ export type SaveAvatarResult =
   | { ok: false; reason: AvatarRejection | "failed" };
 
 export type ActionResult = { ok: true } | { ok: false };
-
-/**
- * The signed-in user's id, or null.
- *
- * The same rule as every other write on this page: **no action accepts a user
- * id from the client**, which removes "change someone else's picture" as a
- * category rather than checking for it. See `settings-actions.ts`.
- */
-async function currentUserId(): Promise<string | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return session?.user.id ?? null;
-}
 
 export async function saveAvatarAction(formData: FormData): Promise<SaveAvatarResult> {
   try {

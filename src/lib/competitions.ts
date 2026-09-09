@@ -184,6 +184,18 @@ export const SUPPORTED_COMPETITIONS: Competition[] = [
   },
 ];
 
+/**
+ * Which registry a competition code belongs to, or null when nothing has it.
+ *
+ * The inverse of `competitionsInRegion`, and specs/026 needs it: a favourite
+ * carries `(source, teamProviderId)` and no region, so the only way to know
+ * whether a football-data team is a club or a national side is the competition
+ * its stored matches were played in.
+ */
+export function regionOfCompetition(code: string): CompetitionRegion | null {
+  return SUPPORTED_COMPETITIONS.find((competition) => competition.code === code)?.region ?? null;
+}
+
 /** The competitions one region offers, in registry order. */
 export function competitionsInRegion(region: CompetitionRegion): Competition[] {
   return SUPPORTED_COMPETITIONS.filter((competition) => competition.region === region);
