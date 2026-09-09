@@ -172,7 +172,9 @@ function parseAddress(value: string): Address | null {
   const embedded = IPV4_IN_IPV6.exec(text)?.[1];
   if (embedded !== undefined) {
     const mapped = ipv4Octets(embedded);
-    return mapped === null ? null : { kind: "ipv4", text: embedded, octets: mapped };
+    // `mapped.join` for the same reason as the plain dotted quad above:
+    // `::ffff:010.000.000.001` and `10.0.0.1` are one address.
+    return mapped === null ? null : { kind: "ipv4", text: mapped.join("."), octets: mapped };
   }
 
   // Validated rather than assumed from the presence of a colon: `not:an:address`

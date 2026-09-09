@@ -182,6 +182,14 @@ describe("forwardingShape", () => {
     expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
   });
 
+  it("matches across leading zeros inside an IPv4-mapped address", () => {
+    const shape = forwardingShape(
+      headersOf({ "x-forwarded-for": "::ffff:010.000.000.001", "x-real-ip": "10.0.0.1" })
+    );
+
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
+  });
+
   it("matches across leading zeros in a dotted quad", () => {
     const shape = forwardingShape(
       headersOf({ "x-forwarded-for": "010.000.000.001", "x-real-ip": "10.0.0.1" })

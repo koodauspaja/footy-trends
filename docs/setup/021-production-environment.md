@@ -151,7 +151,7 @@ more once the Sentry configs read their settings from the environment.
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
-| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip`, which is what Railway's edge sets — see *Rate limiting needs a client address* below |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-envoy-external-address`, then `x-real-ip` if that one does not arrive — see *Rate limiting needs a client address* below |
 | `AUTH_TRUSTED_PROXIES` | optional | Leave unset. Only needed if the client address has to come from a multi-hop `x-forwarded-for` |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -202,8 +202,24 @@ with `/api/health?forwarded=1`, which reports the shape of what arrived and
 which header agrees with the chain — never an address, because that endpoint is
 public.
 
-To confirm the fix is live: the boot warning is gone, and the diagnostic reports
-a header whose value matches a forwarded entry.
+**Which header actually supplies the rate-limit identity**, and therefore the one
+to check: `x-envoy-external-address` where it arrives, `x-real-ip` otherwise.
+`getIP` stops at the first header that resolves, so only one of them is in force
+on any given deployment — `/api/health?forwarded=1` lists every candidate that
+arrived, and the earlier of those two is the one being used.
+
+To confirm the fix is live: the boot warning is gone, and a **sentinel** sent as
+that header does not survive to the application. Use an address from TEST-NET-1
+(`192.0.2.0/24`), which is nobody's real source:
+
+```
+curl -s 'https://<host>/api/health?forwarded=1' -H 'x-real-ip: 192.0.2.1'
+```
+
+If that candidate's `matchesEntries` is **empty**, the sentinel arrived intact —
+the client sets the header, it must not be trusted, and `AUTH_CLIENT_IP_HEADERS`
+needs changing. If it is **non-empty**, the edge overwrote it with an address
+that also appears in the forwarded chain, which is the answer you want.
 
 ### The provider keys are shared with staging — accepted risk
 
