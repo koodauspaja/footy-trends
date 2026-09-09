@@ -14,6 +14,32 @@ describe("SiteFooter", () => {
     expect(screen.getByRole("link", { name: "Tietosuoja" })).toHaveAttribute("href", "/tietosuoja");
   });
 
+  it("links to the terms of service", () => {
+    render(<SiteFooter />);
+
+    expect(screen.getByRole("link", { name: "Käyttöehdot" })).toHaveAttribute(
+      "href",
+      "/kayttoehdot"
+    );
+  });
+
+  it("carries football-data.org's attribution on every page", () => {
+    /**
+     * Their free tier requires it in "a visible section of your application or
+     * website" (#303). The footer is on every page, which is the strongest
+     * reading of that; the terms page alone would be the weakest.
+     *
+     * Their wording, in English, because it is the credit they ask for rather
+     * than a sentence of ours — the one deliberate exception to the
+     * Finnish-only rule, and it is a proper noun either way.
+     */
+    render(<SiteFooter />);
+
+    expect(screen.getByRole("contentinfo").textContent).toContain(
+      "Data provided by football-data.org"
+    );
+  });
+
   it("is a labelled landmark, so it is not just loose links at the bottom", () => {
     render(<SiteFooter />);
 

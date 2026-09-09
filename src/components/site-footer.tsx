@@ -14,11 +14,27 @@ import Link from "next/link";
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-border border-t px-4 py-6 text-muted text-sm sm:px-8">
-      <nav className="mx-auto flex w-full max-w-6xl gap-4" aria-label="Sivuston tiedot">
-        <Link className="hover:underline" href="/tietosuoja">
-          Tietosuoja
-        </Link>
-      </nav>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2">
+        <nav className="flex gap-4" aria-label="Sivuston tiedot">
+          <Link className="hover:underline" href="/tietosuoja">
+            Tietosuoja
+          </Link>
+          <Link className="hover:underline" href="/kayttoehdot">
+            Käyttöehdot
+          </Link>
+        </nav>
+        {/* football-data.org's free tier requires this in "a visible section of
+            your application or website" — so it is on every page rather than on
+            the terms page alone. Their own wording, in English, because it is
+            the attribution they ask for rather than a sentence of ours (#303). */}
+        <p>
+          Data provided by{" "}
+          <a className="hover:underline" href="https://www.football-data.org/">
+            football-data.org
+          </a>
+          {". Kotimaan sarjat: Suomen Palloliitto."}
+        </p>
+      </div>
     </footer>
   );
 }

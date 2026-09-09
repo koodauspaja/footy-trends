@@ -26,6 +26,8 @@ const STATIC_BY_DESIGN = new Set([
   // needs it reachable without signing in before the OAuth consent screen can
   // leave Testing, so it must never start reading a session.
   path.join("privacy", "page.tsx"),
+  // The terms of service (#303), for the same reason as the policy above.
+  path.join("terms", "page.tsx"),
 ]);
 
 async function pageFiles(dir: string): Promise<string[]> {
