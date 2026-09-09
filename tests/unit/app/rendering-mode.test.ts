@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
@@ -53,23 +53,60 @@ function parse(file: string): ts.SourceFile {
  * comment mentioning the word was enough to make the guard skip it.
  */
 function takesRequestProps(source: ts.SourceFile): boolean {
-  let found = false;
+  const declaresRequestProp = (parameters: readonly ts.ParameterDeclaration[]) =>
+    parameters.some((parameter) => /\b(searchParams|params)\b/.test(parameter.getText(source)));
 
-  const visit = (node: ts.Node) => {
-    const isDefaultExport =
-      (ts.isFunctionDeclaration(node) || ts.isVariableStatement(node)) &&
-      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-    if (isDefaultExport && ts.isFunctionDeclaration(node)) {
-      for (const parameter of node.parameters) {
-        const text = parameter.getText(source);
-        if (/\b(searchParams|params)\b/.test(text)) found = true;
+  /** Any callable, however it was written. */
+  const isCallable = (
+    node: ts.Node
+  ): node is ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression =>
+    ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+
+  /**
+   * Named callables in the file, so `export default Page` can be followed back
+   * to the declaration it names. Both `function Page()` and
+   * `const Page = () => {}` land here.
+   */
+  const byName = new Map<string, readonly ts.ParameterDeclaration[]>();
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      byName.set(statement.name.text, statement.parameters);
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer;
+        if (initializer && isCallable(initializer) && ts.isIdentifier(declaration.name)) {
+          byName.set(declaration.name.text, initializer.parameters);
+        }
       }
     }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(source, visit);
+  }
 
-  return found;
+  for (const statement of source.statements) {
+    // `export default function Page({ searchParams })` and
+    // `export default async function Page(...)`.
+    if (
+      ts.isFunctionDeclaration(statement) &&
+      statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword) &&
+      declaresRequestProp(statement.parameters)
+    ) {
+      return true;
+    }
+
+    if (!ts.isExportAssignment(statement) || statement.isExportEquals) continue;
+
+    // `export default ({ params }) => …` and `export default function (…) {}`.
+    const expression = statement.expression;
+    if (isCallable(expression) && declaresRequestProp(expression.parameters)) return true;
+
+    // `export default Page`, where `Page` is declared above.
+    if (ts.isIdentifier(expression)) {
+      const parameters = byName.get(expression.text);
+      if (parameters && declaresRequestProp(parameters)) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -122,13 +159,95 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * failure that matters here: reading a session is how a page meant to be
  * readable signed out stops being prerendered.
  */
-function importsRequestState(source: ts.SourceFile): boolean {
-  return source.statements.some(
-    (statement) =>
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      statement.moduleSpecifier.text === "next/headers"
+/** Every module a file imports from, in source order. */
+function moduleSpecifiers(source: ts.SourceFile): string[] {
+  return source.statements.flatMap((statement) =>
+    (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+    statement.moduleSpecifier !== undefined &&
+    ts.isStringLiteral(statement.moduleSpecifier)
+      ? [statement.moduleSpecifier.text]
+      : []
   );
+}
+
+const SRC_DIR = path.join(process.cwd(), "src");
+const EXTENSIONS = [".ts", ".tsx"];
+
+/**
+ * A first-party import resolved to a file on disk, or null when it is not one.
+ *
+ * Handles the two forms this repository uses — `@/lib/x` and `./x` — and
+ * deliberately resolves nothing else. A bare specifier is a package, and a
+ * package cannot make one of our pages dynamic without one of our files
+ * importing it first.
+ */
+function resolveFirstParty(specifier: string, importer: string): string | null {
+  const base = specifier.startsWith("@/")
+    ? path.join(SRC_DIR, specifier.slice(2))
+    : specifier.startsWith(".")
+      ? path.resolve(path.dirname(importer), specifier)
+      : null;
+  if (base === null) return null;
+
+  for (const candidate of [
+    ...EXTENSIONS.map((extension) => `${base}${extension}`),
+    ...EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Whether a page reaches `next/headers` through *any* of its own modules.
+ *
+ * Checking the page's own imports was not enough, and review said so four
+ * times before I stopped arguing and wrote this: `headers()` makes a page
+ * dynamic wherever it is called, so a one-line helper is enough to hide it.
+ *
+ * Only first-party files are followed, so the walk is small and terminates on
+ * the first package boundary. Cycles are handled by the visited set.
+ *
+ * **It stops at `"use server"` modules, and that is not an exemption.** A server
+ * action reached from a client component is replaced by a network stub at build
+ * time — the page never runs its body, so what it imports cannot change the
+ * page's rendering mode. Without this the walk reports every page carrying a
+ * favourite star, via
+ * `favourite-toggle.tsx → favourite-actions.ts → current-user.ts`, and the
+ * build disagrees: all three are `○ (Static)`.
+ */
+function isServerActionModule(source: ts.SourceFile): boolean {
+  const first = source.statements[0];
+  return (
+    first !== undefined &&
+    ts.isExpressionStatement(first) &&
+    ts.isStringLiteral(first.expression) &&
+    first.expression.text === "use server"
+  );
+}
+
+function reachesRequestState(entry: string): string | null {
+  const seen = new Set<string>();
+  const queue = [entry];
+
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (file === undefined || seen.has(file)) continue;
+    seen.add(file);
+
+    const source = parse(file);
+    // The entry page itself is never a server action, so this only ever prunes
+    // a module reached through one.
+    if (file !== entry && isServerActionModule(source)) continue;
+
+    for (const specifier of moduleSpecifiers(source)) {
+      if (specifier === "next/headers") return path.relative(process.cwd(), file);
+      const resolved = resolveFirstParty(specifier, file);
+      if (resolved !== null) queue.push(resolved);
+    }
+  }
+
+  return null;
 }
 
 describe("a page declared static by design really is static", () => {
@@ -145,21 +264,19 @@ describe("a page declared static by design really is static", () => {
    * Asserting the inverse turns the list into a promise: a declared-static page
    * takes no request props and opts out of nothing.
    *
-   * **What it does not catch, deliberately.** It reads one file's syntax, so a
-   * page calling a *helper* that imports `next/headers` still slips past, and
-   * `takesRequestProps` only inspects a default-exported function declaration.
-   * Closing either means resolving the import graph — a great deal of machinery
-   * for a list of six files edited by hand, and machinery whose own correctness
-   * would then need testing.
-   *
-   * The cases it does catch are the ones a person actually writes.
+   * **Both gaps review found are closed.** It follows the page's own
+   * first-party imports rather than reading one file, so a helper cannot hide a
+   * `headers()` call; and `takesRequestProps` handles every default-export form
+   * — declaration, arrow function, function expression, and
+   * `export default Name` followed back to its declaration. Each is
+   * mutation-checked.
    *
    * **Three checks, three different properties** — worth separating, because
    * describing the end-to-end one as simply "stronger" overstates it:
    *
    * | Check | What it actually proves |
    * |---|---|
-   * | this test | the page declares nothing that makes it dynamic |
+   * | this test | nothing the page declares *or imports* makes it dynamic |
    * | `npm run build`'s route table | the page really is prerendered (`○`) |
    * | `privacy.spec.ts` / `terms.spec.ts` | it is **reachable signed out**, with JavaScript blocked |
    *
@@ -172,9 +289,12 @@ describe("a page declared static by design really is static", () => {
 
     expect(takesRequestProps(source)).toBe(false);
     expect(optsOutOfPrerender(source)).toBe(false);
-    // The one that has no export to look for: `headers()` opts the page out by
-    // being called.
-    expect(importsRequestState(source)).toBe(false);
+    /**
+     * `headers()` opts a page out by being *called*, so there is no export to
+     * look for — and it need not be called in the page file. This follows the
+     * page's own first-party imports to the end, so a helper cannot hide it.
+     */
+    expect(reachesRequestState(path.join(APP_DIR, relative))).toBeNull();
   });
 });
 
