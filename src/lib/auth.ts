@@ -24,6 +24,32 @@ function required(name: string): string {
 }
 
 /**
+ * Which headers carry the client's address, and which hops to skip, from #309.
+ *
+ * **Why this is configuration and not a constant.** better-auth resolves an IP
+ * from a *single-value* header on its own, but from `x-forwarded-for` only when
+ * `trustedProxies` names the hops to skip — and behind Railway that header
+ * arrives with two entries, so without help every visitor shares one rate-limit
+ * bucket and one attacker locks everyone out. Measured on staging: the edge
+ * *replaces* `x-forwarded-for` rather than appending, and sets `x-real-ip`
+ * alongside it.
+ *
+ * `x-real-ip` is therefore the default. Reading both from the environment is
+ * what makes that reversible: if a platform turns out to pass a client-supplied
+ * `x-real-ip` through, the correction is a Railway variable rather than a
+ * release. `/api/health?forwarded=1` reports which header agrees with the chain,
+ * which is how that gets checked rather than assumed.
+ */
+function headerList(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "");
+}
+
+const DEFAULT_CLIENT_IP_HEADERS = ["x-real-ip"];
+
+/**
  * The better-auth server instance, from specs/023-google-oauth-login.md.
  *
  * Google is the only provider, sessions live in Postgres, and nothing in the
@@ -33,6 +59,27 @@ function required(name: string): string {
 export const auth = betterAuth({
   secret: required("BETTER_AUTH_SECRET"),
   baseURL: required("BETTER_AUTH_URL"),
+
+  /**
+   * Without this every request resolves to no IP at all, and better-auth falls
+   * back to one shared per-path bucket — the warning in the logs since the
+   * first production deploy (#309).
+   *
+   * `trustedProxies` is passed only when it is set: an empty array would leave
+   * better-auth's chain mode disabled anyway, and an absent option says more
+   * plainly that nothing is being trusted.
+   */
+  advanced: {
+    ipAddress: (() => {
+      const configured = headerList("AUTH_CLIENT_IP_HEADERS");
+      const trustedProxies = headerList("AUTH_TRUSTED_PROXIES");
+
+      return {
+        ipAddressHeaders: configured.length > 0 ? configured : DEFAULT_CLIENT_IP_HEADERS,
+        ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
+      };
+    })(),
+  },
 
   database: drizzleAdapter(db, {
     provider: "pg",

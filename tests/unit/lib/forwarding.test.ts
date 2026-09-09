@@ -19,7 +19,7 @@ describe("forwardingShape", () => {
     });
   });
 
-  it("counts the hops in order, client first", () => {
+  it("preserves the order of forwarded entries", () => {
     // The order is what makes `trustedProxies` decidable, so it is preserved
     // rather than sorted or deduplicated. Which end the reader sits at is a
     // property of the platform, not of this function — measured, not assumed.
@@ -71,6 +71,12 @@ describe("forwardingShape", () => {
     // The IPv6 spelling matches, the dotted quad inside it does not: neither
     // family accepts this, so it is an address in no reading.
     ["IPv4-mapped with an octet past 255", "::ffff:999.1.1.1", "invalid"],
+    // Expanded IPv4-mapped: private, and classifying it as ordinary IPv6 called
+    // a real infrastructure hop public.
+    ["IPv4-mapped private, expanded", "0:0:0:0:0:ffff:0a00:0001", "private"],
+    ["IPv4-mapped public, expanded", "0:0:0:0:0:ffff:cb00:7105", "public"],
+    // ::ffff:0:1 is not mapped — group six must be ffff, not group five.
+    ["IPv6 that merely contains ffff", "ffff::1", "public"],
     // Colons alone used to be enough to be called a public hop — the answer
     // most likely to be acted on, and the hardest to notice is wrong.
     // Valid IPv6 with a dotted tail — rejected as invalid until the address was
@@ -100,7 +106,7 @@ describe("forwardingShape", () => {
     // Absent headers are omitted rather than reported as absent, so `{}` is the
     // whole answer for a request that carried none.
     expect(forwardingShape(headersOf({ "x-real-ip": "203.0.113.5" })).candidates).toEqual({
-      "x-real-ip": { valid: true, matchesEntry: null },
+      "x-real-ip": { valid: true, matchesEntries: [] },
     });
     expect(forwardingShape(headersOf({})).candidates).toEqual({});
   });
@@ -114,7 +120,7 @@ describe("forwardingShape", () => {
         headersOf({ "x-forwarded-for": "203.0.113.5, 100.64.0.1", [name]: "100.64.0.1" })
       );
 
-      expect(shape.candidates[name]).toEqual({ valid: true, matchesEntry: 1 });
+      expect(shape.candidates[name]).toEqual({ valid: true, matchesEntries: [1] });
     }
   );
 
@@ -125,7 +131,7 @@ describe("forwardingShape", () => {
       headersOf({ "x-forwarded-for": "203.0.113.5, 100.64.0.1", "x-real-ip": "203.0.113.5" })
     );
 
-    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntry: 0 });
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
   });
 
   it("matches across two spellings of one address", () => {
@@ -136,7 +142,7 @@ describe("forwardingShape", () => {
       headersOf({ "x-forwarded-for": "::ffff:203.0.113.5", "x-real-ip": "203.0.113.5" })
     );
 
-    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntry: 0 });
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
   });
 
   it("matches two spellings of one IPv6 address", () => {
@@ -147,15 +153,49 @@ describe("forwardingShape", () => {
       })
     );
 
-    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntry: 0 });
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
   });
 
-  it("reports a header matching nothing, which is what a spoofed one looks like", () => {
+  it("reports every matching entry, not just the first", () => {
+    // `A, B, A` with `indexOf` always answered 0, so the diagnostic could not
+    // say which occurrence the platform meant.
+    const shape = forwardingShape(
+      headersOf({
+        "x-forwarded-for": "203.0.113.5, 100.64.0.1, 203.0.113.5",
+        "x-real-ip": "203.0.113.5",
+      })
+    );
+
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0, 2] });
+  });
+
+  it("matches an IPv4-mapped address however it is spelled", () => {
+    // A proxy may emit the expanded form; reading that as ordinary IPv6 reported
+    // no match between two headers carrying one address.
+    const shape = forwardingShape(
+      headersOf({
+        "x-forwarded-for": "0:0:0:0:0:ffff:cb00:7105",
+        "x-real-ip": "203.0.113.5",
+      })
+    );
+
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
+  });
+
+  it("matches across leading zeros in a dotted quad", () => {
+    const shape = forwardingShape(
+      headersOf({ "x-forwarded-for": "010.000.000.001", "x-real-ip": "10.0.0.1" })
+    );
+
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [0] });
+  });
+
+  it("reports a header matching nothing, which is what a sentinel probe looks like", () => {
     const shape = forwardingShape(
       headersOf({ "x-forwarded-for": "203.0.113.5, 100.64.0.1", "x-real-ip": "198.51.100.9" })
     );
 
-    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntry: null });
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: true, matchesEntries: [] });
   });
 
   it("does not match one unparseable value to another", () => {
@@ -165,7 +205,7 @@ describe("forwardingShape", () => {
       headersOf({ "x-forwarded-for": "not:an:address", "x-real-ip": "not:an:address" })
     );
 
-    expect(shape.candidates["x-real-ip"]).toEqual({ valid: false, matchesEntry: null });
+    expect(shape.candidates["x-real-ip"]).toEqual({ valid: false, matchesEntries: [] });
   });
 
   it("still returns no address once the headers are compared", () => {

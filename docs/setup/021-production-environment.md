@@ -151,6 +151,8 @@ more once the Sentry configs read their settings from the environment.
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip`, which is what Railway's edge sets — see *Rate limiting needs a client address* below |
+| `AUTH_TRUSTED_PROXIES` | optional | Leave unset. Only needed if the client address has to come from a multi-hop `x-forwarded-for` |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
@@ -170,6 +172,38 @@ and `NEXTAUTH_URL` this document and 014 originally named: the app uses
 better-auth, not NextAuth. If the old pair is already set, copy the same values
 across — nothing needs regenerating — and delete the `NEXTAUTH_*` variables once
 sign-in works.
+
+### Rate limiting needs a client address
+
+better-auth rate-limits per client IP, and behind a proxy it can only find one
+if a header carries it. It refuses `x-forwarded-for` outright unless the header
+holds a single entry or `trustedProxies` names the hops to skip — Railway's
+arrives with two — so until #309 every visitor shared **one bucket per path**,
+which the logs said on every boot:
+
+```
+WARN [Better Auth]: Rate limiting could not determine a client IP and is
+falling back to a single shared per-path bucket.
+```
+
+That is not merely imprecise. One attacker exhausts the bucket and every real
+visitor is refused with them.
+
+Measured on staging rather than assumed: the edge **replaces**
+`x-forwarded-for` rather than appending to it — a forged header never reaches
+the application — and sets `x-real-ip` beside it. So `x-real-ip` is the default
+and neither variable needs setting here.
+
+**Both are variables rather than constants so a correction is not a release.**
+If a platform ever passes a client-supplied `x-real-ip` through, set
+`AUTH_CLIENT_IP_HEADERS` to a header it does not, or fall back to
+`AUTH_TRUSTED_PROXIES` with the edge's range. Check which header can be trusted
+with `/api/health?forwarded=1`, which reports the shape of what arrived and
+which header agrees with the chain — never an address, because that endpoint is
+public.
+
+To confirm the fix is live: the boot warning is gone, and the diagnostic reports
+a header whose value matches a forwarded entry.
 
 ### The provider keys are shared with staging — accepted risk
 

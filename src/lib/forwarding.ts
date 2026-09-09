@@ -30,15 +30,27 @@ export type CandidateShape = {
   /** Whether the value parses as one address. */
   valid: boolean;
   /**
-   * Which `x-forwarded-for` entry carries the same address, or null for none.
+   * Which `x-forwarded-for` entries carry the same address. Empty for none.
    *
-   * This is the whole measurement. `x-forwarded-for` is written by the edge and
-   * proved unforgeable in the first round, so a header agreeing with one of its
-   * entries was written by the edge too — and the index says which hop it names,
-   * which is how the reader learns whether the client is leftmost or rightmost.
-   * A header that matches nothing is one the client can set.
+   * **Agreement is not provenance**, and reading it as such would trust a
+   * spoofable header: a client who sets this header to their own address agrees
+   * with the chain for the same reason the edge would. What settles it is the
+   * probe — send a **sentinel** the client could not otherwise be, an address
+   * from TEST-NET-1 (`192.0.2.0/24`) that is nobody's real source, and see what
+   * comes back:
+   *
+   * - **empty** — the sentinel survived to the application, so the client sets
+   *   this header and it must not be trusted.
+   * - **non-empty** — the sentinel was overwritten by something matching a hop
+   *   the edge wrote, so the edge sets this header, and the indices say which
+   *   hop it names. That is how the reader learns which end the client is at
+   *   without anything assuming leftmost.
+   *
+   * Every matching index, not the first: a chain may carry one address twice,
+   * and `indexOf` would answer `0` for `A, B, A` no matter which occurrence the
+   * platform meant.
    */
-  matchesEntry: number | null;
+  matchesEntries: number[];
 };
 
 export type ForwardingShape = {
@@ -148,7 +160,9 @@ function parseAddress(value: string): Address | null {
   const text = value.trim().toLowerCase();
 
   const octets = ipv4Octets(text);
-  if (octets !== null) return { kind: "ipv4", text, octets };
+  // `octets.join` rather than the text as written: `010.0.0.1` and `10.0.0.1`
+  // are one address, and comparing the spelling would report two.
+  if (octets !== null) return { kind: "ipv4", text: octets.join("."), octets };
   // Rejected here rather than falling through: a dotted quad with an octet past
   // 255 is not an address, and it is not IPv6 either.
   if (IPV4.test(text)) return null;
@@ -166,6 +180,20 @@ function parseAddress(value: string): Address | null {
   // acted on and the one hardest to notice is wrong.
   const groups = expandIpv6(text);
   if (groups === null) return null;
+
+  /**
+   * The same IPv4-mapped address, expanded rather than compressed —
+   * `0:0:0:0:0:ffff:cb00:7105` is `203.0.113.5`. The regex above only catches
+   * the `::ffff:` spelling with a dotted tail, and a proxy is free to emit
+   * either; classifying one as ordinary IPv6 would call a private hop public.
+   */
+  const isIpv4Mapped = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  if (isIpv4Mapped) {
+    const high = groups[6] as number;
+    const low = groups[7] as number;
+    const mapped = [high >> 8, high & 0xff, low >> 8, low & 0xff];
+    return { kind: "ipv4", text: mapped.join("."), octets: mapped };
+  }
 
   return {
     kind: "ipv6",
@@ -229,13 +257,13 @@ export function forwardingShape(headers: Headers): ForwardingShape {
     if (value === null) continue;
 
     const address = parseAddress(value);
-    // `indexOf` on the parsed text, so a header that failed to parse cannot
+    // Compared on the parsed text, so a header that failed to parse cannot
     // match a hop that also failed to parse — two nulls are not one address.
-    const matchesEntry = address === null ? -1 : hopAddresses.indexOf(address.text);
-    candidates[name] = {
-      valid: address !== null,
-      matchesEntry: matchesEntry === -1 ? null : matchesEntry,
-    };
+    const matchesEntries =
+      address === null
+        ? []
+        : hopAddresses.flatMap((hop, index) => (hop === address.text ? [index] : []));
+    candidates[name] = { valid: address !== null, matchesEntries };
   }
 
   return {
