@@ -48,9 +48,20 @@ Do this **twice**, once per project.
 2. User type: **External**
 3. App name `Footy Trends`, your email as support and developer contact
 4. **App information**: Google will not let an External app publish without an
-   **application home page** and an **authorised domain**. Give the production
-   project the production host for both; the development project needs neither
-   while it stays in Testing.
+   **application home page** and an **authorised domain**, and the two take
+   different shapes:
+
+   | Field | Shape | Example |
+   |---|---|---|
+   | Application home page | a full URL, with scheme | `https://<production host>/` |
+   | Authorised domains | the bare domain, no scheme and no path | `<production host>` |
+
+   Google also expects an authorised domain to be one you can verify in Search
+   Console. A shared platform subdomain may not be, in which case a custom
+   domain is the way through — worth finding out before the publish step rather
+   than during it.
+
+   The development project needs neither while it stays in Testing.
 5. **Scopes**: save without adding any. The defaults `openid`, `email` and
    `profile` are added automatically. Requesting anything beyond these is what
    would trigger a full Google verification review.
