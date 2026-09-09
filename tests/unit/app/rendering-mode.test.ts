@@ -144,6 +144,19 @@ describe("a page declared static by design really is static", () => {
    *
    * Asserting the inverse turns the list into a promise: a declared-static page
    * takes no request props and opts out of nothing.
+   *
+   * **What it does not catch, deliberately.** It reads one file's syntax, so a
+   * page calling a *helper* that imports `next/headers` still slips past, and
+   * `takesRequestProps` only inspects a default-exported function declaration.
+   * Closing either means resolving the import graph — a great deal of machinery
+   * for a list of six files edited by hand, and machinery whose own correctness
+   * would then need testing.
+   *
+   * The cases it does catch are the ones a person actually writes. The
+   * end-to-end check is elsewhere and stronger: `tests/e2e/privacy.spec.ts` and
+   * `terms.spec.ts` load both pages **with JavaScript blocked** and signed out,
+   * which is the property Google's requirement is about and which no static
+   * analysis can substitute for.
    */
   it.each([...STATIC_BY_DESIGN])("%s neither takes request props nor opts out", (relative) => {
     const source = parse(path.join(APP_DIR, relative));
