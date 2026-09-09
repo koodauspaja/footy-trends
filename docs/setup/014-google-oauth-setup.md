@@ -221,7 +221,9 @@ point is that the consent screen appears and names the right app.
       production, each from the right project
 - [ ] The privacy policy and terms URLs are entered on the production consent
       screen
-- [ ] A non-test account can sign in on production, and cannot on staging
+- [ ] A Google account signs in on production. It will also sign in on staging
+      and locally, and that is expected — see *The test-user list gates nothing
+      here*. Do not treat it as a fault to chase
 
 ## Next
 → `015-database-setup.md`
