@@ -152,11 +152,20 @@ describe("a page declared static by design really is static", () => {
    * for a list of six files edited by hand, and machinery whose own correctness
    * would then need testing.
    *
-   * The cases it does catch are the ones a person actually writes. The
-   * end-to-end check is elsewhere and stronger: `tests/e2e/privacy.spec.ts` and
-   * `terms.spec.ts` load both pages **with JavaScript blocked** and signed out,
-   * which is the property Google's requirement is about and which no static
-   * analysis can substitute for.
+   * The cases it does catch are the ones a person actually writes.
+   *
+   * **Three checks, three different properties** — worth separating, because
+   * describing the end-to-end one as simply "stronger" overstates it:
+   *
+   * | Check | What it actually proves |
+   * |---|---|
+   * | this test | the page declares nothing that makes it dynamic |
+   * | `npm run build`'s route table | the page really is prerendered (`○`) |
+   * | `privacy.spec.ts` / `terms.spec.ts` | it is **reachable signed out**, with JavaScript blocked |
+   *
+   * The e2e specs do *not* prove the page is static — a server-rendered page
+   * returns HTML without JavaScript too. They prove the property Google's
+   * requirement is about, which is reachability rather than rendering mode.
    */
   it.each([...STATIC_BY_DESIGN])("%s neither takes request props nor opts out", (relative) => {
     const source = parse(path.join(APP_DIR, relative));
