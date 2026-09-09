@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { testDatabaseUrl } from "../../support/test-database";
+import { databaseNameFor, testDatabaseUrl } from "../../support/test-database";
 
 /**
  * How the test database's URL is derived, from #304.
@@ -62,5 +62,25 @@ describe("testDatabaseUrl", () => {
     vi.stubEnv("DATABASE_URL", undefined);
 
     expect(() => testDatabaseUrl()).toThrow(/docker compose up -d/);
+  });
+});
+
+describe("databaseNameFor", () => {
+  it("decodes the name, because `create database` takes an identifier", () => {
+    /**
+     * The URL half and the identifier half genuinely differ here.
+     * `postgres://…/footy%20trends_test` connects to a database called
+     * `footy trends_test`; creating one literally named `footy%20trends_test`
+     * leaves the suite connecting to something that still does not exist.
+     */
+    expect(databaseNameFor("postgresql://postgres@localhost:5432/footy%20trends_test")).toBe(
+      "footy trends_test"
+    );
+  });
+
+  it("leaves an ordinary name alone", () => {
+    expect(databaseNameFor("postgresql://postgres@localhost:5432/footy-trends_test")).toBe(
+      "footy-trends_test"
+    );
   });
 });

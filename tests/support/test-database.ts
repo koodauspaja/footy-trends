@@ -37,13 +37,29 @@ export function testDatabaseUrl(): string {
   const url = new URL(base);
   // `pathname` is "/name"; an empty one means the connection string names no
   // database, which is not something to paper over with a default.
-  const name = url.pathname.replace(/^\//, "");
-  if (name === "") {
+  //
+  // The suffix is appended to the **encoded** name, so a percent-encoded one
+  // stays encoded and still addresses the database it did before. Decoding here
+  // and re-assigning would hand back a URL that no longer round-trips.
+  const encodedName = url.pathname.replace(/^\//, "");
+  if (encodedName === "") {
     throw new Error(`DATABASE_URL names no database, so no test database can be derived: ${base}`);
   }
 
-  url.pathname = `/${name}${SUFFIX}`;
+  url.pathname = `/${encodedName}${SUFFIX}`;
   return url.toString();
+}
+
+/**
+ * The database's **name**, as `create database` needs it.
+ *
+ * Decoded, because this is an identifier rather than a URL component:
+ * `postgres://…/footy%20trends_test` connects to a database called
+ * `footy trends_test`, so creating one literally named `footy%20trends_test`
+ * would leave the suite connecting to something that still does not exist.
+ */
+export function databaseNameFor(url: string): string {
+  return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
 }
 
 /**
@@ -56,7 +72,7 @@ export function testDatabaseUrl(): string {
  */
 export async function ensureTestDatabase(): Promise<string> {
   const url = testDatabaseUrl();
-  const name = new URL(url).pathname.replace(/^\//, "");
+  const name = databaseNameFor(url);
 
   const adminUrl = new URL(url);
   adminUrl.pathname = "/postgres";
@@ -67,7 +83,18 @@ export async function ensureTestDatabase(): Promise<string> {
     // cannot be parameterised — hence the explicit quoting. The name comes from
     // our own connection string, never from user input.
     if (existing === undefined) {
-      await admin.unsafe(`create database "${name.replace(/"/g, '""')}"`);
+      try {
+        await admin.unsafe(`create database "${name.replace(/"/g, '""')}"`);
+      } catch (error) {
+        /**
+         * `42P04` is `duplicate_database`: something else created it between the
+         * check above and this statement. Two suites started together is the
+         * ordinary way that happens, and both wanting the database to exist is
+         * agreement rather than conflict — so the one that lost the race carries
+         * on to migrate it. Any other failure is real and still thrown.
+         */
+        if ((error as { code?: string }).code !== "42P04") throw error;
+      }
     }
   } finally {
     await admin.end();
