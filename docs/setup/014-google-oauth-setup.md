@@ -73,7 +73,10 @@ Do this **twice**, once per project.
 ### Publishing status
 
 - The **development** project stays in **Testing**.
-- The **production** project is **published** (Testing → In production).
+- The **production** project is **published** (Testing → In production) — but
+  **not yet**. Publishing requires the privacy policy and terms URLs from
+  Step 5, so do that step first and come back here. Google refuses the
+  transition without them.
 
 A published app without Google verification still shows an "unverified app"
 interstitial to first-time visitors. That is tolerable for non-sensitive scopes
