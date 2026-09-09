@@ -505,6 +505,61 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
+  it("renders a cup's rounds as match lists even when TASO reports points for them", async () => {
+    /**
+     * The regression #272 introduced without anyone seeing it. TASO's
+     * `getGroups` omitted points for a knockout, so a cup round classified as a
+     * match list by accident of the data; `getCategory`, which the app moved to
+     * when TASO started refusing `getGroups`, sends points for those rounds.
+     *
+     * Every round of Suomen Cup then rendered as a league table, which also
+     * removed the bracket — it is built from the groups that render as matches —
+     * and put a `Kierros` selector on a page with no rounds to filter.
+     */
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, groupName: "Neljäs kierros", matchday: null })],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      // MSC is Miesten Suomen Cup, whose format is "cup" in the registry.
+      "MSC",
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 1) : undefined;
+    expect(group?.kind).toBe("match-list");
+  });
+
+  it("still gives a league group its table when points are reported", async () => {
+    // The other side of the same rule: the cup check must not swallow leagues,
+    // which is the failure mode of fixing this in `keepsATable` instead.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1 })],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 1) : undefined;
+    expect(group?.kind).not.toBe("match-list");
+  });
+
   it("subtracts a points deduction carried in starting_points", async () => {
     // Veikkausliiga 2016's PK-35 Vantaa, in miniature: TASO's published points
     // are the calculated total minus 6, and the app showed the wrong one until

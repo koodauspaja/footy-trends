@@ -1,4 +1,14 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { testDatabaseUrl } from "./tests/support/test-database";
+
+// This file is evaluated before `global-setup.ts`, so the variables it reads
+// have to be loaded here rather than there. Playwright does not populate
+// `process.env` from `.env` files, the same gap `vitest.config.ts` and
+// `src/db/migrate.ts` each note.
+if (existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 // Locally: requires Postgres/Redis running (docker compose up -d) and a
 // configured FOOTBALL_DATA_API_KEY and TASO_API_KEY in .env, same as npm run
@@ -13,6 +23,17 @@ import { defineConfig, devices } from "@playwright/test";
  * single command under a start-up timeout a full build would blow through.
  */
 const againstProductionBuild = process.env.E2E_TARGET === "build";
+
+/**
+ * The suite runs its own server, on its own port, against its own database
+ * (#304).
+ *
+ * Port 3001 rather than 3000 so `npm run dev` can keep running beside it. The
+ * two are now genuinely separate: development browses the development database,
+ * and the suite never sees what that browsing synced.
+ */
+const PORT = process.env.E2E_PORT ?? "3001";
+const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -52,7 +73,7 @@ export default defineConfig({
     ? [["list"], ["html", { open: "never" }], ["./scripts/e2e-freshness-reporter.ts"]]
     : [["list"], ["./scripts/e2e-freshness-reporter.ts"]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     trace: "on-first-retry",
   },
   projects: [
@@ -62,13 +83,26 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: againstProductionBuild ? "npm start" : "npm run dev",
-    url: "http://localhost:3000",
-    // Never reuse when the point is to test a production build: a `next dev`
-    // already on port 3000 would be silently accepted, and the run would
-    // report on the dev server while claiming to test what ships. That is the
-    // failure mode `E2E_TARGET=build` exists to avoid.
-    reuseExistingServer: !process.env.CI && !againstProductionBuild,
+    // The port is passed explicitly rather than through `PORT`, so that it
+    // holds for both `next dev` and `next start` regardless of how either reads
+    // its environment.
+    command: againstProductionBuild ? `npm start -- -p ${PORT}` : `npm run dev -- -p ${PORT}`,
+    url: BASE_URL,
+    /**
+     * **Never reused, and this is load-bearing since #304.** A server already
+     * listening was started by somebody else, against the *development*
+     * database — so reusing it would put the suite back on whatever that
+     * database happens to hold, which is the entire bug this separation fixes.
+     * It also restores the older reason: reusing a `next dev` while
+     * `E2E_TARGET=build` claims to test what ships would report on the dev
+     * server instead.
+     */
+    reuseExistingServer: false,
+    /**
+     * The test database, not the developer's. Everything else is inherited, so
+     * the provider keys and Redis URL still come from `.env`.
+     */
+    env: { ...process.env, DATABASE_URL: testDatabaseUrl() },
     timeout: 120_000,
   },
 });

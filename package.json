@@ -8,7 +8,7 @@
     "start": "next start",
     "test": "npm run test:unit",
     "test:unit": "vitest run tests/unit --coverage --passWithNoTests",
-    "test:integration": "vitest run tests/integration --passWithNoTests",
+    "test:integration": "tsx scripts/with-test-db.ts node_modules/.bin/vitest run tests/integration --passWithNoTests",
     "test:shuffle": "vitest run tests/unit --sequence.shuffle",
     "test:e2e": "playwright test",
     "test:e2e:browser": "playwright install --with-deps chromium",
