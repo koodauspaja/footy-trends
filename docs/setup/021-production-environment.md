@@ -196,8 +196,19 @@ and neither variable needs setting here.
 
 **Both are variables rather than constants so a correction is not a release.**
 If a platform ever passes a client-supplied `x-real-ip` through, set
-`AUTH_CLIENT_IP_HEADERS` to a header it does not, or fall back to
-`AUTH_TRUSTED_PROXIES` with the edge's range. Check which header can be trusted
+`AUTH_CLIENT_IP_HEADERS` to a header it does not.
+
+**`AUTH_TRUSTED_PROXIES` does nothing on its own.** It only applies to
+`x-forwarded-for`, which is deliberately not in the default header list — so
+falling back to the forwarded chain means setting **both**:
+
+```
+AUTH_CLIENT_IP_HEADERS=x-forwarded-for
+AUTH_TRUSTED_PROXIES=<the edge's address or range>
+```
+
+Set only the second and better-auth never reads the chain, and the shared bucket
+stays exactly as it was. Check which header can be trusted
 with `/api/health?forwarded=1`, which reports the shape of what arrived and
 which header agrees with the chain — never an address, because that endpoint is
 public.
