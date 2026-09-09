@@ -58,6 +58,12 @@ beforeEach(async () => {
    * what reached `calculateStandings` fails with "never called" and does so
    * only in some orders.
    */
+  // The logger spies too: several tests assert that a path warned or errored,
+  // and calls left by an earlier test would satisfy a bare `toHaveBeenCalled`
+  // whether or not this one logged anything.
+  loggerWarnMock.mockClear();
+  loggerErrorMock.mockClear();
+
   redisMock.get.mockReset();
   redisMock.setex.mockReset();
   dbMock.select.mockReset();
