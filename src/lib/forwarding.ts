@@ -46,18 +46,56 @@ function isPrivateIpv4(value: string): boolean {
   return first === 100 && second >= 64 && second <= 127;
 }
 
-/** Whether a string is a syntactically valid IPv6 address. */
-function isIpv6(value: string): boolean {
+/** The four octets of a dotted quad, or null when it is not one. */
+function ipv4Octets(value: string): number[] | null {
+  if (!IPV4.test(value)) return null;
+  const octets = value.split(".").map(Number);
+  return octets.some((octet) => octet > 255) ? null : octets;
+}
+
+/**
+ * An IPv6 address expanded to its eight 16-bit groups, or null when it is not
+ * a valid address.
+ *
+ * Expanding rather than pattern-matching the text is what makes the
+ * classification below correct: link-local is `fe80::/10`, which spans `fe80`
+ * through `febf`, and a prefix test on the string reports `fe90::1` as public.
+ *
+ * A dotted-decimal tail is allowed in the final position, which is what makes
+ * `2001:db8::192.0.2.1` a valid address rather than a malformed one.
+ */
+function expandIpv6(value: string): number[] | null {
   const halves = value.split("::");
-  if (halves.length > 2) return false;
+  if (halves.length > 2) return null;
 
-  const groupsIn = (part: string) => (part === "" ? [] : part.split(":"));
-  const groups = halves.flatMap(groupsIn);
-  if (!groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) return false;
+  const groupsIn = (part: string | undefined): number[] | null => {
+    if (part === undefined || part === "") return [];
 
-  // Compressed forms stand for at least one omitted group, so they carry fewer
-  // than eight; an uncompressed address carries exactly eight.
-  return halves.length === 2 ? groups.length < 8 : groups.length === 8;
+    const groups: number[] = [];
+    const parts = part.split(":");
+    for (const [index, raw] of parts.entries()) {
+      const octets = ipv4Octets(raw);
+      if (octets !== null) {
+        // Only ever the last component; `1.2.3.4:abcd` is not an address.
+        if (index !== parts.length - 1) return null;
+        groups.push((octets[0] as number) * 256 + (octets[1] as number));
+        groups.push((octets[2] as number) * 256 + (octets[3] as number));
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(raw)) return null;
+      groups.push(Number.parseInt(raw, 16));
+    }
+    return groups;
+  };
+
+  const left = groupsIn(halves[0]);
+  const right = halves.length === 2 ? groupsIn(halves[1]) : [];
+  if (left === null || right === null) return null;
+
+  // Uncompressed carries all eight; `::` stands for at least one omitted group.
+  if (halves.length === 1) return left.length === 8 ? left : null;
+  const omitted = 8 - left.length - right.length;
+  return omitted < 1 ? null : [...left, ...Array<number>(omitted).fill(0), ...right];
 }
 
 /** An IPv4 address, already matched against the pattern. */
@@ -89,11 +127,15 @@ function classify(entry: string): HopKind {
     // Validated rather than assumed from the presence of a colon: `not:an:address`
     // was being reported as a public hop, which is the answer most likely to be
     // acted on and the one hardest to notice is wrong.
-    if (!isIpv6(lower)) return "invalid";
+    const groups = expandIpv6(lower);
+    if (groups === null) return "invalid";
 
-    const isLoopback = lower === "::1";
-    const isUniqueLocal = lower.startsWith("fc") || lower.startsWith("fd");
-    const isLinkLocal = lower.startsWith("fe80");
+    const first = groups[0] as number;
+    const isLoopback = groups.every((group, index) => (index === 7 ? group === 1 : group === 0));
+    // Ranges, not text prefixes: `fc00::/7` is fc00–fdff and `fe80::/10` is
+    // fe80–febf, so `fe90::1` is link-local while `fec0::1` is not.
+    const isUniqueLocal = first >= 0xfc00 && first <= 0xfdff;
+    const isLinkLocal = first >= 0xfe80 && first <= 0xfebf;
     return isLoopback || isUniqueLocal || isLinkLocal ? "private" : "public";
   }
 
