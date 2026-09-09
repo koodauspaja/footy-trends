@@ -135,7 +135,7 @@ export default function Privacy() {
           <a className="hover:underline" href="mailto:info@koodauspaja.fi">
             info@koodauspaja.fi
           </a>
-          .
+          {"."}
         </p>
       </section>
 
