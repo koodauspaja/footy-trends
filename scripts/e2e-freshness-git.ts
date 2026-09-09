@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readlinkSync } from "node:fs";
-import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
+import { inFixedOrder, WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
+import { executablePath } from "./executable";
 
 /**
  * The git side of the freshness marker, shared by the reporter that writes it
@@ -19,7 +20,14 @@ import { WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
 const HASH_BATCH = 500;
 
 function git(args: string[]): string | null {
-  const run = spawnSync("git", args, {
+  // An absolute path rather than a name resolved through `PATH` — see
+  // `executable.ts`. Not finding git is the same answer as git failing: this
+  // function's `null` already means "git could not tell us", and the caller
+  // warns rather than blocking the push.
+  const binary = executablePath("git");
+  if (binary === null) return null;
+
+  const run = spawnSync(binary, args, {
     encoding: "utf8",
     timeout: 15_000,
     maxBuffer: 32 * 1024 * 1024,
@@ -144,5 +152,8 @@ export function fingerprint(): string[] | null {
   if (hashes === null) return null;
   entries.push(...files.map((file, index) => `${hashes[index]}\t${file}`));
 
-  return entries.sort();
+  // Ordered by `inFixedOrder`, which compares code units rather than by locale
+  // — see the reasoning there. This list is compared against one another run
+  // wrote, so the order has to be the same everywhere.
+  return inFixedOrder(entries);
 }

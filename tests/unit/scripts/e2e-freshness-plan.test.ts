@@ -5,6 +5,7 @@ import {
   describeAge,
   describeChange,
   hashFromEntry,
+  inFixedOrder,
   isFullRun,
   MAX_AGE_MS,
   missingPrerequisites,
@@ -309,5 +310,32 @@ describe("changedBetweenFingerprints", () => {
 describe("describeChange", () => {
   it("names the kind, so a deletion is not mistaken for an edit", () => {
     expect(describeChange("src/a.ts", "deleted")).toBe("src/a.ts (deleted)");
+  });
+});
+
+describe("inFixedOrder", () => {
+  it("orders by code unit, which is the same on every machine", () => {
+    /**
+     * The distinguishing case, and the reason `localeCompare` — what Sonar
+     * suggests for the bare `sort()` this replaced — would be wrong: in an
+     * English locale "a" sorts before "B", while by code unit "B" (66) comes
+     * before "a" (97). This list is compared against one an earlier run wrote,
+     * possibly on another machine, so it must not depend on a locale.
+     */
+    expect(inFixedOrder(["a\tsrc/a.ts", "B\tsrc/b.ts"])).toEqual(["B\tsrc/b.ts", "a\tsrc/a.ts"]);
+  });
+
+  it("is stable for entries that are already ordered, and for equal ones", () => {
+    expect(inFixedOrder(["1\ta", "2\tb"])).toEqual(["1\ta", "2\tb"]);
+    expect(inFixedOrder(["1\ta", "1\ta"])).toEqual(["1\ta", "1\ta"]);
+  });
+
+  it("leaves the caller's array alone", () => {
+    // The fingerprint builds its list in passes; sorting in place would reorder
+    // an array the caller may still be appending to.
+    const entries = ["b", "a"];
+
+    expect(inFixedOrder(entries)).toEqual(["a", "b"]);
+    expect(entries).toEqual(["b", "a"]);
   });
 });

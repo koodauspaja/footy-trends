@@ -57,6 +57,9 @@
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
 - Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.
+- The pass to run **before** requesting a review: `skills/self-review.md` —
+  seven defect classes measured from this repository's own review history, with
+  the counter to each. `npm run review:findings` re-measures them.
 - Release workflow (promoting `main` to `release`): `skills/release.md`.
 - Bug workflow (no new spec; reference the existing one it violates;
   decision record only if the fix involved a real tradeoff):

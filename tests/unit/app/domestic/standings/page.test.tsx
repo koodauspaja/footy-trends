@@ -3,6 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
 
+/**
+ * The favourite star inside this tree calls `useSession`. The real client opens
+ * a broadcast channel whose nanostores cleanup runs a second *after* the last
+ * unsubscribe — by which time this file's jsdom is gone, so it throws
+ * `window is not defined` as an uncaught exception inside whichever file
+ * happens to be running then. Signed out is what these tests already assumed;
+ * this just says so without starting a timer (specs/026-favourites.md).
+ */
+vi.mock("@/lib/auth-client", () => ({
+  useSession: () => ({ data: null, refetch: vi.fn() }),
+}));
+
 const listSeasonRoundsMock = vi.fn<() => Promise<number[]>>();
 const getSeasonCategoryNameMock = vi.fn<() => Promise<string | null>>();
 const getSeasonStandingsMock = vi.fn<() => Promise<SeasonStandingsResult>>();
@@ -85,14 +97,23 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
 
-describe("Domestic standings page", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    listSeasonRoundsMock.mockResolvedValue([1, 2]);
-    getSeasonCategoryNameMock.mockResolvedValue(null);
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
-  });
+/**
+ * At file level, not inside the first `describe`.
+ *
+ * Mock implementations live on the module, not on the block that set them, so
+ * the two `describe`s below this one used to inherit whatever the last test of
+ * the first one happened to leave — and passed only because they are declared
+ * in that order. Every test now starts from the same arrangement wherever it
+ * sits.
+ */
+beforeEach(() => {
+  vi.clearAllMocks();
+  listSeasonRoundsMock.mockResolvedValue([1, 2]);
+  getSeasonCategoryNameMock.mockResolvedValue(null);
+  getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
+});
 
+describe("Domestic standings page", () => {
   it("shows the Finnish heading and calculated standings for the default (latest) season", async () => {
     await renderStandings();
 

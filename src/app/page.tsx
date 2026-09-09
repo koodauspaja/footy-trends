@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
+import { StartRedirect } from "@/components/start-redirect";
 
 const HEADING = "Valitse alue";
 
@@ -20,15 +21,17 @@ const REGIONS = [
 export default function Home() {
   return (
     <PageShell heading={HEADING}>
+      {/* Client-side, so this page keeps its prerender — see the component. */}
+      <StartRedirect />
       <ul className="flex flex-col gap-3">
         {REGIONS.map((region) => (
           <li key={region.href}>
             <Link
-              className="flex flex-col gap-1 rounded border border-zinc-200 px-4 py-3 hover:bg-zinc-50"
+              className="flex flex-col gap-1 rounded border border-border-subtle px-4 py-3 hover:bg-surface"
               href={region.href}
             >
               <span className="font-medium">{region.label}</span>
-              <span className="text-sm text-zinc-600">{region.description}</span>
+              <span className="text-sm text-muted">{region.description}</span>
             </Link>
           </li>
         ))}

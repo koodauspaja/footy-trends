@@ -1,3 +1,5 @@
+import { preferredCompetitionFor } from "@/lib/competition-preferences";
+import { getViewerPreferences } from "@/lib/viewer";
 import {
   categoryIdForSeason,
   competitionIdForSeason,
@@ -99,7 +101,10 @@ export async function resolveDomesticPageContext(
   const competitionCode =
     competitionParam.kind === "valid"
       ? competitionParam.code
-      : (defaults?.competitionCode ?? DEFAULT_DOMESTIC_COMPETITION_CODE);
+      : (defaults?.competitionCode ??
+        // Only reached when neither the URL nor a team context has settled it.
+        preferredCompetitionFor("kotimaa", await getViewerPreferences()) ??
+        DEFAULT_DOMESTIC_COMPETITION_CODE);
   const competitionName = getDomesticCompetitionName(competitionCode);
 
   const { currentSeason, defaultSeason } = await resolveTasoSeasonContext(competitionCode);
@@ -112,8 +117,13 @@ export async function resolveDomesticPageContext(
   // invalid alike. An invalid one still gets its notice; what it falls back to
   // is the team's own season when the resolved competition is the one being
   // shown, and the competition's default otherwise.
+  // Optional-chained on both sides, then `??` for the fallback. Reading
+  // `defaults.seasonId` directly inside the true branch does not typecheck —
+  // TypeScript does not narrow `defaults` from the comparison above — and
+  // spelling out `defaults !== undefined` trades that for a lint finding.
   const seasonFallback =
-    defaults?.competitionCode === competitionCode ? defaults.seasonId : defaultSeason;
+    (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
+    defaultSeason;
   const seasonId = season.kind === "valid" ? season.seasonId : seasonFallback;
   const seasonLabel = String(seasonId);
   const competitionId = competitionIdForSeason(competitionCode, seasonId);

@@ -34,13 +34,29 @@ import {
   type Outcome,
 } from "./verify-sentry-plan";
 
-const out = (line = ""): void => void process.stdout.write(`${line}\n`);
-const err = (line = ""): void => void process.stderr.write(`${line}\n`);
+function out(line = ""): void {
+  process.stdout.write(`${line}\n`);
+}
+function err(line = ""): void {
+  process.stderr.write(`${line}\n`);
+}
 
 /** Long enough for a slow network, short enough that a dead one does not hang a person. */
 const FLUSH_TIMEOUT_MS = 10_000;
 
 if (existsSync(".env")) process.loadEnvFile(".env");
+
+/**
+ * What actually happened, as one of three answers.
+ *
+ * Named rather than nested ternaries: "no event id" and "an event id that never
+ * flushed" are different failures with different causes — one is configuration,
+ * the other the network — and reading them as one expression hides that.
+ */
+function outcomeOf(eventId: string | undefined, flushed: boolean): Outcome {
+  if (eventId === undefined) return { kind: "not-sent" };
+  return flushed ? { kind: "sent", eventId } : { kind: "not-flushed", eventId };
+}
 
 async function main(): Promise<void> {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() ?? "";
@@ -71,12 +87,7 @@ async function main(): Promise<void> {
   const eventId = Sentry.captureException(new Error(marker));
   const flushed = await Sentry.flush(FLUSH_TIMEOUT_MS);
 
-  const outcome: Outcome =
-    eventId === undefined
-      ? { kind: "not-sent" }
-      : flushed
-        ? { kind: "sent", eventId }
-        : { kind: "not-flushed", eventId };
+  const outcome: Outcome = outcomeOf(eventId, flushed);
 
   if (outcome.kind === "sent") {
     out(describeOutcome(outcome, marker));

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
+import { FavouriteToggle } from "@/components/favourite-toggle";
+import type { FavouriteSource } from "@/lib/favourite-keys";
 
 const statColumns = [
   ["O", "Ottelut", (row: StandingsRow) => row.played],
@@ -52,9 +54,22 @@ function cell(value: number | null): string {
 export function StandingsTable({
   standings,
   teamHref,
+  favouriteSource,
 }: Readonly<{
   standings: readonly StandingsRow[];
   teamHref: (teamProviderId: number) => string;
+  /**
+   * Which provider's id space the rows are in, so a row can offer a favourite
+   * toggle (specs/026-favourites.md).
+   *
+   * Passed rather than derived from the region: `/maajoukkueet` shows
+   * football-data's World Cup standings *and* TASO's national-team pages, so
+   * the region does not decide the provider.
+   *
+   * Optional, and a table without it simply shows no stars — a bracket or a
+   * pass-through group has rows that are not teams anyone can follow.
+   */
+  favouriteSource?: FavouriteSource;
 }>) {
   const columns: Array<DataTableColumn<StandingsRow>> = [
     {
@@ -74,9 +89,21 @@ export function StandingsTable({
         row.teamProviderId === 0 ? (
           row.teamName
         ) : (
-          <Link className="hover:underline" href={teamHref(row.teamProviderId)}>
-            {row.teamName}
-          </Link>
+          <span className="flex items-center gap-1">
+            <Link className="hover:underline" href={teamHref(row.teamProviderId)}>
+              {row.teamName}
+            </Link>
+            {/* No id, no star: the same rule as the link above it, since a
+                pass-through group's row is not a team anyone can follow. */}
+            {favouriteSource !== undefined && (
+              <FavouriteToggle
+                kind="team"
+                name={row.teamName}
+                source={favouriteSource}
+                teamProviderId={row.teamProviderId}
+              />
+            )}
+          </span>
         ),
     },
     ...statColumns.map(([short, title, value]) => ({
@@ -113,7 +140,7 @@ export function StandingsTable({
  */
 export function StandingsLegend() {
   return (
-    <p className="mt-4 text-sm text-zinc-500">
+    <p className="mt-4 text-sm text-muted">
       O = ottelut, V = voitot, T = tasapelit, H = häviöt, TM = tehdyt maalit, PM = päästetyt maalit,
       ME = maaliero, P = pisteet.
     </p>

@@ -135,9 +135,9 @@ few config files — so documentation-, spec-, decision-, test- and
 
 ## Step 4 — Set the environment variables
 
-Ten variables are read by `src/` today. Two are injected by Railway once the
-databases are attached; the other eight are set by hand. Step 5 adds six more
-once the Sentry configs read their settings from the environment.
+Fourteen variables are read by `src/` today. Two are injected by Railway once
+the databases are attached; the other twelve are set by hand. Step 5 adds six
+more once the Sentry configs read their settings from the environment.
 
 | Variable | Source | Note |
 |---|---|---|
@@ -147,18 +147,29 @@ once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
+| `GOOGLE_CLIENT_ID` | manual | From `docs/setup/014-google-oauth-setup.md` |
+| `GOOGLE_CLIENT_SECRET` | manual | Shown once at creation; see 014 |
+| `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`. Changing it invalidates every session cookie |
+| `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
 | `LOG_LEVEL` | manual | See Step 6 |
 
-### Not set here
+### The four authentication variables are required, as of specs/023
 
-`.env.example` also lists `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-`NEXTAUTH_SECRET` and `NEXTAUTH_URL`. Nothing in `src/` reads any of them —
-they belong to the authentication work that has not shipped. Leave them unset
-rather than provisioning credentials nothing consumes; an unused secret is
-still a secret to rotate and leak.
+They are in the table above rather than in a "not set here" list, because
+`specs/023-google-oauth-login.md` shipped the sign-in that reads them. This
+section previously said nothing in `src/` read them and to leave them unset;
+that stopped being true when `src/lib/auth.ts` landed, and it fails loudly —
+the module throws on a missing variable, naming it, rather than letting the
+break surface when a reader first clicks `Kirjaudu sisään`.
+
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` **replace** the `NEXTAUTH_SECRET`
+and `NEXTAUTH_URL` this document and 014 originally named: the app uses
+better-auth, not NextAuth. If the old pair is already set, copy the same values
+across — nothing needs regenerating — and delete the `NEXTAUTH_*` variables once
+sign-in works.
 
 ### The provider keys are shared with staging — accepted risk
 

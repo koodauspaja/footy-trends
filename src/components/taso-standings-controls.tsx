@@ -44,11 +44,11 @@ export function TasoStandingsControls({
           same way. */}
       {availableRounds.length > 0 && (
         <>
-          <label className="text-sm text-zinc-600" htmlFor="kierros">
+          <label className="text-sm text-muted" htmlFor="kierros">
             Kierros
           </label>
           <select
-            className="rounded border border-zinc-300 px-3 py-2"
+            className="rounded border border-border px-3 py-2"
             defaultValue={selectedRound ?? ""}
             id="kierros"
             name="kierros"

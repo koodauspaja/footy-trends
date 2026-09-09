@@ -106,7 +106,7 @@ function TieSide({
       <span className={`shrink-0 text-sm tabular-nums${isWinner ? " font-semibold" : ""}`}>
         {goals ?? "–"}
         {penalties !== null && (
-          <span className="ml-1 font-normal text-zinc-500">{`(${penalties})`}</span>
+          <span className="ml-1 font-normal text-muted">{`(${penalties})`}</span>
         )}
       </span>
     </div>
@@ -127,7 +127,7 @@ function TieCard({
 
   return (
     <li className="relative">
-      <div className="rounded border border-zinc-200 px-3 py-2">
+      <div className="rounded border border-border-subtle px-3 py-2">
         <TieSide
           goals={tie.aggregateHome}
           isWinner={tie.winnerTeamProviderId === tie.home.teamProviderId}
@@ -142,13 +142,10 @@ function TieCard({
           team={tie.away}
           teamHref={teamHref}
         />
-        {suffix && <p className="mt-1 text-xs text-zinc-500">{suffix}</p>}
+        {suffix && <p className="mt-1 text-xs text-muted">{suffix}</p>}
       </div>
       {!isLastRound && (
-        <span
-          aria-hidden="true"
-          className="-right-4 absolute top-1/2 w-4 border-zinc-300 border-t"
-        />
+        <span aria-hidden="true" className="-right-4 absolute top-1/2 w-4 border-border border-t" />
       )}
     </li>
   );
@@ -173,7 +170,7 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
       <div className="flex w-max gap-8">
         {aligned.map((round, index) => (
           <section className="flex w-56 shrink-0 flex-col" key={round.stage}>
-            <h3 className="mb-3 font-medium text-sm text-zinc-600">{getStageName(round.stage)}</h3>
+            <h3 className="mb-3 font-medium text-sm text-muted">{getStageName(round.stage)}</h3>
             <ul className="flex flex-1 flex-col justify-around gap-4">
               {round.ties.map((tie) => (
                 <TieCard
@@ -216,7 +213,7 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
             {twoLegged && <col className="w-[38%]" />}
           </colgroup>
           <thead>
-            <tr className="border-zinc-300 border-b text-sm text-zinc-600">
+            <tr className="border-border border-b text-sm text-muted">
               <th className="p-3">Pvm</th>
               <th className="p-3">Ottelupari</th>
               <th className="p-3">{twoLegged ? "Yhteistulos" : "Lopputulos"}</th>
@@ -225,7 +222,7 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
           </thead>
           <tbody>
             {round.ties.map((tie) => (
-              <tr className="border-zinc-200 border-b" key={tie.key}>
+              <tr className="border-border-subtle border-b" key={tie.key}>
                 <td className="p-3">{matchDateFormatter.format(tie.startsAt)}</td>
                 <td className="p-3">
                   <TeamName
@@ -244,7 +241,7 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
                 </td>
                 <td className="p-3">{formatAggregate(tie)}</td>
                 {twoLegged && (
-                  <td className="p-3 text-sm text-zinc-600">
+                  <td className="p-3 text-sm text-muted">
                     {tie.legs.map((leg) => (
                       <div key={leg.providerMatchId}>
                         {`${matchDateFormatter.format(leg.kickoffAt)} ${leg.homeTeamName} – ${leg.awayTeamName} ${formatLeg(leg)}`}

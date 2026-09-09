@@ -1,4 +1,7 @@
-import { withSentryConfig } from "@sentry/nextjs";
+// From `@sentry/nextjs/config`, not the package root: the root export is
+// deprecated as of 10.73.0 and stops working in v11, and it printed a warning
+// on every build until #293.
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -7,6 +10,14 @@ const nextConfig: NextConfig = {
   // browser always shows the Finnish path.
   async rewrites() {
     return [
+      // The account settings page, added in specs/024-account-settings.md.
+      { source: "/asetukset", destination: "/settings" },
+      // The favourites page, added in specs/026-favourites.md.
+      { source: "/suosikit", destination: "/favorites" },
+      // The privacy policy, added in #302.
+      { source: "/tietosuoja", destination: "/privacy" },
+      // The terms of service, added in #303.
+      { source: "/kayttoehdot", destination: "/terms" },
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
@@ -51,6 +62,13 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      // English folder paths are not URLs — same rule as every entry below.
+      { source: "/settings", destination: "/asetukset", permanent: true },
+      // The favourites page, added in specs/026-favourites.md. Paired with the
+      // rewrite above, exactly as `/settings` is.
+      { source: "/favorites", destination: "/suosikit", permanent: true },
+      { source: "/privacy", destination: "/tietosuoja", permanent: true },
+      { source: "/terms", destination: "/kayttoehdot", permanent: true },
       // The foreign pages moved under /ulkomaat.
       { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
       { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },
@@ -141,6 +159,27 @@ const nextConfig: NextConfig = {
       { source: "/foreign/matches", destination: "/ulkomaat/ottelut", permanent: true },
       { source: "/foreign/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
     ];
+  },
+
+  experimental: {
+    serverActions: {
+      /**
+       * Raised from Next's default of 1 MB, for the avatar upload in
+       * specs/025-custom-avatar.md.
+       *
+       * Without this the app's own 8 MB cap would be fiction: Next rejects an
+       * oversized action body with a 413 *before* the action runs, so every
+       * upload between 1 MB and 8 MB — which is most phone photographs — would
+       * fail as a rejected invocation rather than as the "image is too large"
+       * notice, and that notice would be unreachable except for files the
+       * client already refused.
+       *
+       * 10 MB against a cap of 8: the gap absorbs multipart framing, which is
+       * bytes on the wire that are not bytes of the image. The app's cap stays
+       * the one the reader meets.
+       */
+      bodySizeLimit: "10mb",
+    },
   },
 };
 

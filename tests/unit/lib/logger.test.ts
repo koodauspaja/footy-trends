@@ -55,6 +55,27 @@ describe("logger", () => {
     );
   });
 
+  it("is silent by default under test, so app logs are not test output", async () => {
+    // A page test that renders a competition page reaches getViewerPreferences,
+    // whose headers() call throws outside a request scope — the graceful
+    // degradation working as designed — and printed a stack trace every time.
+    setNodeEnv("test");
+    delete process.env.LOG_LEVEL;
+
+    await import("@/lib/logger");
+
+    expect(mockedPino).toHaveBeenCalledWith(expect.objectContaining({ level: "silent" }));
+  });
+
+  it("still obeys LOG_LEVEL under test, so a developer can turn them back on", async () => {
+    setNodeEnv("test");
+    process.env.LOG_LEVEL = "debug";
+
+    await import("@/lib/logger");
+
+    expect(mockedPino).toHaveBeenCalledWith(expect.objectContaining({ level: "debug" }));
+  });
+
   it("uses info level by default in production", async () => {
     setNodeEnv("production");
     delete process.env.LOG_LEVEL;

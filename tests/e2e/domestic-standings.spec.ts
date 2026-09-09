@@ -43,15 +43,26 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     await expect(rows.nth(5)).toContainText("33");
   });
 
-  test("renders all five groups for 2022, with the playoff groups as match lists", async ({
+  /**
+   * The rendering rules, against the seeded season rather than a real one
+   * (#304).
+   *
+   * These used to assert on 2019, 2022, 2023 and 2024, and passed only on a
+   * database synced before #272 — TASO omitted `points` for a knockout group
+   * through the endpoint the app read then, so those groups classified as match
+   * lists. `getCategory` sends points for them, so no live season produces this
+   * shape any more and the assertions were describing a provider outage.
+   *
+   * Seeded, they also cost nothing: a completed season with stored rows is
+   * never refetched, so this page makes no provider request at all.
+   */
+  test("renders a league group as a table and a knockout group as its matches", async ({
     page,
   }) => {
-    await page.goto("/kotimaa/sarjataulukko?kausi=2022");
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
 
-    // 2022 is the widest season TASO has: Runkosarja, the two split groups,
-    // plus Eurolopputurnaus and its 2-team final — an acceptance criterion
-    // in specs/009-veikkausliiga.md.
-    // exact: true — "Eurolopputurnaus" is otherwise a substring of
+    await expect(page.getByRole("heading", { name: "Runkosarja", level: 2 })).toBeVisible();
+    // exact — "Eurolopputurnaus" is otherwise a substring of
     // "Eurolopputurnausfinaali" and matches both headings.
     await expect(
       page.getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 })
@@ -59,74 +70,59 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     await expect(
       page.getByRole("heading", { name: "Eurolopputurnausfinaali", exact: true, level: 2 })
     ).toBeVisible();
-    await expect(page.getByRole("table")).toHaveCount(5);
 
-    // Eurolopputurnaus is a knockout, not a points competition, so it
-    // renders its matches instead of a table. This previously asserted
-    // toHaveCount(6) against a 4-team group — it was counting TASO's
-    // per-bracket-slot rows, i.e. asserting the duplication as correct.
-    // See specs/010-playoff-group-match-list.md.
-    const playoff = page.getByRole("table").nth(3);
-    await expect(playoff.locator("thead")).toContainText("Kierros");
-    await expect(playoff.locator("thead")).not.toContainText("Sija");
-    await expect(playoff.locator("tbody tr")).toHaveCount(3);
+    // The league group keeps a table: TASO reports points for it.
+    const league = page.getByRole("table").first();
+    await expect(league.locator("thead")).toContainText("Sija");
+    await expect(league.locator("tbody tr")).toHaveCount(4);
+    await expect(league.locator("tbody tr").first()).toContainText("Fixture HJK");
+
     await expect(page.locator("body")).not.toContainText("null");
   });
 
-  test("a playoff group does not repeat an advancing team, and logs no duplicate-key error", async ({
-    page,
-  }) => {
+  test("a knockout group renders its matches, with no standings columns", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
+
+    /**
+     * Located by heading rather than by `nth()`. The old assertions indexed
+     * tables positionally, so a season with one group more or fewer silently
+     * retargeted them — which is exactly how they came to assert the wrong
+     * thing without anyone noticing.
+     */
+    const knockout = page
+      .getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 })
+      .locator("xpath=following::table[1]");
+
+    await expect(knockout.locator("thead")).toContainText("Kierros");
+    await expect(knockout.locator("thead")).not.toContainText("Sija");
+    // Three matches in the fixture's knockout group.
+    await expect(knockout.locator("tbody tr")).toHaveCount(3);
+  });
+
+  test("the two-legged final renders as matches too", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
+
+    const final = page
+      .getByRole("heading", { name: "Eurolopputurnausfinaali", exact: true, level: 2 })
+      .locator("xpath=following::table[1]");
+
+    await expect(final.locator("thead")).toContainText("Kierros");
+    await expect(final.locator("tbody tr")).toHaveCount(2);
+  });
+
+  test("draws a bracket above the groups, and logs no duplicate-key error", async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
 
-    await page.goto("/kotimaa/sarjataulukko?kausi=2023");
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
 
-    // 2023's Eurolopputurnaus is the worst case: TASO returns 8 slot rows
-    // for 5 distinct teams, FC Honka occupying three of them. As a table
-    // that produced three identical React keys.
-    const playoff = page.getByRole("table").nth(3);
-    await expect(playoff.locator("thead")).toContainText("Kierros");
-    // Five stored matches; the sixth TASO row is the final's dateless
-    // aggregate, which is never stored and must not appear as a fixture.
-    await expect(playoff.locator("tbody tr")).toHaveCount(5);
+    // The bracket is built from the groups that render as match lists, so it
+    // appears exactly when one does — see specs/010-playoff-group-match-list.md.
+    await expect(page.getByRole("heading", { name: "Pudotuspelit", level: 2 })).toBeVisible();
 
     expect(consoleErrors.filter((text) => text.includes("same key"))).toEqual([]);
-  });
-
-  test("2024's Eurolopputurnaus also renders as a match list, not a table", async ({ page }) => {
-    // The fourth and last season with a playoff group. Same 8-slots-for-5-
-    // teams shape as 2023, and named in this feature's acceptance criteria,
-    // so it is asserted directly rather than inferred from the shared path.
-    await page.goto("/kotimaa/sarjataulukko?kausi=2024");
-
-    const playoff = page.getByRole("table").nth(3);
-    await expect(playoff.locator("thead")).toContainText("Kierros");
-    await expect(playoff.locator("thead")).not.toContainText("Sija");
-    await expect(page.locator("body")).not.toContainText("null");
-  });
-
-  test("2019's split groups stay standings tables while its playoff groups become match lists", async ({
-    page,
-  }) => {
-    await page.goto("/kotimaa/sarjataulukko?kausi=2019");
-
-    // Mestaruussarja and Haastajasarja are real league groups with real
-    // points, so they render as tables whichever way they are calculated.
-    // (They were the counter-example to "playoff = anything we can't
-    // own-calculate" until #133 gave 2019 a carry-over entry; the rule stays
-    // a positive test on the data precisely so it does not depend on the
-    // config being complete.)
-    const mestaruussarja = page.getByRole("table").nth(1);
-    await expect(mestaruussarja.locator("thead")).toContainText("Sija");
-    await expect(mestaruussarja.locator("tbody tr")).toHaveCount(6);
-    await expect(mestaruussarja.locator("tbody")).toContainText("KuPS");
-
-    // EL-lopputurnaus and EL-finaali, the same shape as Eurolopputurnaus
-    // under an older name.
-    await expect(page.getByRole("table").nth(3).locator("thead")).toContainText("Kierros");
-    await expect(page.getByRole("table").nth(4).locator("thead")).toContainText("Kierros");
   });
 
   test("a restarted-numbering season's round filter counts one stage, not two (#133)", async ({

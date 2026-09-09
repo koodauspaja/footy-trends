@@ -5,6 +5,38 @@ Chromium browser, against a real Postgres/Redis and the live
 football-data.org API — the same setup used for local development
 (`npm run dev`), not a mocked provider.
 
+## The suite has its own database, and its own port
+
+Since #304, `npm run test:e2e` runs against **`<your database>_test`**, on
+**port 3001**, with its own server. Nothing here reads or writes the database
+`npm run dev` uses.
+
+That is not tidiness. Six specs used to pass only on machines whose database had
+been synced *before* #272, because a completed season is never refetched and so
+never corrects itself — they asserted a shape that only a stale database has, and
+failed for everyone else, CI included. Ambient data cannot decide a test result
+if the test does not share the database.
+
+| | |
+|---|---|
+| Database | `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended to the name |
+| Created and migrated | automatically, by `tests/e2e/global-setup.ts` |
+| Port | 3001, so `npm run dev` can keep running on 3000 |
+| Server reuse | never — a server already listening was started against the *development* database |
+
+`tests/integration` uses the same database, through
+`scripts/with-test-db.ts`. It creates and deletes rows, and used to do that in
+whatever database the developer was signed into.
+
+### One season is seeded, not fetched
+
+`tests/e2e/fixtures/veikkausliiga-2017.ts` is written into the test database
+before the suite runs. It exists because the rendering rules those specs check —
+a knockout group showing its matches instead of a table, and the bracket built
+from them — depend on a shape TASO no longer produces through the endpoint the
+app reads. Seeding also costs nothing: a completed season with stored rows is
+never refetched, so those pages make no provider request at all.
+
 ## Prerequisites
 
 - `docker compose up -d` (Postgres + Redis running locally)
@@ -13,8 +45,12 @@ football-data.org API — the same setup used for local development
   `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
   being missing, rather than letting every spec time out against a generic
   error page
-- Chromium installed for Playwright: `npx playwright install chromium`
-  (one-time, not run automatically on `npm install`)
+- Chromium installed for Playwright: `npm run test:e2e:browser`
+  (one-time, not run automatically on `npm install`). The same script the
+  release workflow runs, so a local browser matches CI's. Not `npx`, which may
+  fetch a package on demand and run its lifecycle scripts; this resolves the
+  playwright already in `node_modules`. Its `--with-deps` installs the shared
+  libraries a headless browser needs on Linux and is a no-op on macOS
 
 ## Running
 
@@ -22,9 +58,11 @@ football-data.org API — the same setup used for local development
 npm run test:e2e
 ```
 
-`playwright.config.ts` starts `next dev` for you if nothing is already
-listening on `http://localhost:3000`, and reuses an already-running dev
-server otherwise — so `npm run dev` in another terminal works too.
+`playwright.config.ts` starts the server itself, on port 3001, pointed at the
+test database. It never reuses one that is already listening: that server
+belongs to somebody else and is on the development database, which is the whole
+thing this separation removes. `npm run dev` on port 3000 is unaffected and can
+keep running.
 
 ### The suite runs serially, everywhere
 
@@ -72,6 +110,19 @@ same situation.
 Worth doing before cutting a release, and worth reaching for when a spec
 passes locally but fails in CI: `dev` and a production build do not always
 behave the same, which is how #189 was found.
+
+## The pre-commit hook
+
+`.husky/pre-commit` runs `biome check .` and `tsc --noEmit` before every commit,
+because CI failing on either is a five-minute round trip for something that
+takes seconds locally — which is exactly what happened on #304.
+
+Both run against the whole repository rather than staged files only. Biome can
+check a file in isolation; `tsc` cannot, and a change in one file breaking
+another is the case a staged-files-only typecheck would miss.
+
+It skips quietly when dependencies are not installed, and `git commit
+--no-verify` bypasses it.
 
 ## The pre-push hook
 

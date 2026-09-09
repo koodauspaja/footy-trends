@@ -505,6 +505,61 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
+  it("renders a cup's rounds as match lists even when TASO reports points for them", async () => {
+    /**
+     * The regression #272 introduced without anyone seeing it. TASO's
+     * `getGroups` omitted points for a knockout, so a cup round classified as a
+     * match list by accident of the data; `getCategory`, which the app moved to
+     * when TASO started refusing `getGroups`, sends points for those rounds.
+     *
+     * Every round of Suomen Cup then rendered as a league table, which also
+     * removed the bracket — it is built from the groups that render as matches —
+     * and put a `Kierros` selector on a page with no rounds to filter.
+     */
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, groupName: "Neljäs kierros", matchday: null })],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      // MSC is Miesten Suomen Cup, whose format is "cup" in the registry.
+      "MSC",
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 1) : undefined;
+    expect(group?.kind).toBe("match-list");
+  });
+
+  it("still gives a league group its table when points are reported", async () => {
+    // The other side of the same rule: the cup check must not swallow leagues,
+    // which is the failure mode of fixing this in `keepsATable` instead.
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1 })],
+      [
+        groupTeam({ groupId: 1, teamProviderId: 1, points: 3 }),
+        groupTeam({ groupId: 1, teamProviderId: 2, points: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 1) : undefined;
+    expect(group?.kind).not.toBe("match-list");
+  });
+
   it("subtracts a points deduction carried in starting_points", async () => {
     // Veikkausliiga 2016's PK-35 Vantaa, in miniature: TASO's published points
     // are the calculated total minus 6, and the app showed the wrong one until
@@ -681,7 +736,18 @@ describe("getSeasonStandings", () => {
     const group = result.status === "ok" ? result.groups[0] : undefined;
     expect(group?.kind).toBe("own-calculated");
     expect(group?.kind === "own-calculated" && group.standings).toHaveLength(2);
-    expect(loggerWarnMock).toHaveBeenCalled();
+
+    // Nothing stored to fall back to, so this is an error rather than a
+    // warning: every table in the group would otherwise render as zeros, which
+    // reads as a result rather than a failure. That is how a refused endpoint
+    // stayed invisible for months (#272).
+    // Logged at error, with the stored count: zero rows means every table in
+    // the group renders as zeros, which reads as a result rather than a
+    // failure. That is how a refused endpoint stayed invisible (#272).
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ stored: 0 }),
+      expect.stringContaining("falling back to stored group standings")
+    );
   });
 
   it("leaves a group with no round filtering alone when a round is selected", async () => {
@@ -1949,5 +2015,160 @@ describe("resolveTasoSeasonContext", () => {
       expect.objectContaining({ currentSeason: 2027 }),
       "Unable to check the current season for matches"
     );
+  });
+
+  describe("an unconfigured continuation group", () => {
+    /**
+     * The failure this exists to end: a hand-maintained config entry goes
+     * missing, nothing errors, and the group quietly drops its parent round
+     * and renders plausible numbers. Veikkausliiga and Ykkönen both reached
+     * their 2026 splits that way (#272, #281).
+     */
+    const continuation = (groupId: string, overrides = {}) => ({
+      group_id: groupId,
+      group_name: "Mestaruussarja",
+      group_type: "additional_group_stage",
+      teams: [],
+      ...overrides,
+    });
+
+    /**
+     * A group with a team is the only shape that can reach storage, so the
+     * tests about ids that are not ids use it. With `teams: []` they would
+     * pass with every id check deleted, because an empty group contributes no
+     * rows whatever its id.
+     */
+    const withTeam = (groupId: string) =>
+      continuation(groupId, {
+        teams: [{ team_id: "60731", team_name: "HJK", points: 12 }],
+      });
+
+    it("is reported, naming the group and TASO's own parent hint", async () => {
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([
+        { group_id: "1", group_name: "Runkosarja", group_type: "group_stage", teams: [] },
+        continuation("9", { import_match_group_id: "1" }),
+      ]);
+
+      await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ groupId: 9, tasoParentHint: "1" }),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it("says nothing for a group that is configured", async () => {
+      // VL group 2 in 2025 has an entry, so this must stay quiet — a detector
+      // that fires on healthy data is noise nobody reads.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("2")]);
+
+      await getSeasonStandings("VL", "spljp25", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it("is reported for a competition with no configuration at all", async () => {
+      // The 2027 shape: a competition splits for the first time and nobody has
+      // touched the config. There is no category key to look under, let alone a
+      // season, and that must still be loud rather than absent.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("2")]);
+
+      await getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ categoryId: "P18SM", groupId: 2 }),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
+
+    it.each([
+      ["will not parse", "not-a-number"],
+      // `group_id` is optional in TASO's shape, so absent is as possible as
+      // malformed, and both are the same non-answer.
+      ["is missing entirely", undefined],
+      // `Number.parseInt` would read this as 2 and attribute a malformed group
+      // to a real one — suppressing the error, or raising it against the wrong
+      // group.
+      ["begins with digits but is not a number", "2abc"],
+      ["is a decimal", "2.5"],
+      // `Number` would read these as 0, which `Number.isInteger` accepts.
+      ["is empty", ""],
+      ["is whitespace", "  "],
+      ["is negative", "-1"],
+      // All digits, but not a group — the comment beside the check says a
+      // group id is a positive integer, and this made it a liar.
+      ["is zero", "0"],
+      // Long enough that `Number` rounds it. Left unchecked this lands on a
+      // real integer and can be attributed to a configured group.
+      ["is beyond the safe integer range", "99999999999999999999"],
+      // `Number` reads all four as positive integers, so the detector would
+      // both report and store them — under a group that exists and is not the
+      // one TASO named.
+      ["is hexadecimal", "0x10"],
+      ["is in exponent notation", "1e2"],
+      ["carries a leading plus", "+2"],
+      ["carries a leading space", " 2"],
+    ])("neither reports nor stores a group whose id %s", async (_case, groupId) => {
+      // Deliberately a competition with **no** configured groups. Under
+      // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2
+      // and is absorbed as "already configured" — the test would pass while the
+      // malformed group was silently attributed to a real one.
+      mockInsert();
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([withTeam(groupId as string)]);
+
+      await expect(
+        getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined)
+      ).resolves.toBeDefined();
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+      // Staying quiet is only half of it, and was all the first fix did
+      // (#285). A group whose id is unusable must not reach the table either:
+      // `"0"` would be stored as group 0, and an over-long id fails the insert
+      // for the whole season's snapshot.
+      expect(dbMock.insert).not.toHaveBeenCalled();
+    });
+
+    it("stores a continuation whose id is real, so the check above can fail", async () => {
+      // The positive control for the table above: same shape, same path, an id
+      // that is an id. Without this, deleting every group from the pipeline
+      // would leave that table green.
+      const { values } = mockInsert();
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([withTeam("9")]);
+
+      await getSeasonStandings("P18SM", "spljp27", PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(dbMock.insert).toHaveBeenCalledWith(tasoGroupTeams);
+      expect(values).toHaveBeenCalledWith([
+        expect.objectContaining({ groupId: 9, teamProviderId: 60731, points: 12 }),
+      ]);
+    });
+
+    it.each([
+      ["a first round", "group_stage"],
+      ["a cup bracket", "knockout_final"],
+    ])("says nothing for %s", async (_case, groupType) => {
+      // TASO classifies these itself; only `additional_group_stage` carries an
+      // earlier round forward.
+      mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
+      getSeasonGroupsMock.mockResolvedValue([continuation("9", { group_type: groupType })]);
+
+      await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined);
+
+      expect(loggerErrorMock).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("no carry-over entry")
+      );
+    });
   });
 });

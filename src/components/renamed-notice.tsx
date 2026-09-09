@@ -13,5 +13,5 @@
 export function RenamedNotice({ renamedTo }: Readonly<{ renamedTo: string | null }>) {
   if (renamedTo === null) return null;
 
-  return <p className="-mt-4 mb-4 text-sm text-zinc-500">nykyisin {renamedTo}</p>;
+  return <p className="-mt-4 mb-4 text-sm text-muted">nykyisin {renamedTo}</p>;
 }

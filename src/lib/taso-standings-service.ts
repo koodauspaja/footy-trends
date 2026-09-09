@@ -3,7 +3,12 @@ import { cache } from "react";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
-import { categoryIdForSeason, categoryIdsFor, earliestSeasonFor } from "./domestic-competitions";
+import {
+  categoryIdForSeason,
+  categoryIdsFor,
+  earliestSeasonFor,
+  isDomesticCup,
+} from "./domestic-competitions";
 import { logger } from "./logger";
 import {
   calculateStandings,
@@ -21,6 +26,8 @@ import {
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
   normalizeGroupTeams,
+  parseProviderId,
+  type TasoGroup,
 } from "./taso";
 
 const FINISHED_STATUS = "FINISHED";
@@ -104,6 +111,12 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    /**
+     * Ykkönen's 2026 split, added alongside Veikkausliiga's (#272). Group 3
+     * carries a −3 `starting_points` deduction, which is the `seeded: false`
+     * convention doing its other job.
+     */
+    spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
   M1L: {
     spljp24: { 2: { parent: 1, seeded: false } },
@@ -171,6 +184,13 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
+    /**
+     * Added when the 2026 split began (#272). `seeded: false` is measured, not
+     * carried over from 2025: TASO reports `starting_points` 0 for both groups
+     * while `points` already includes Runkosarja — KuPS 43 from 22 played, with
+     * none of those 22 in Mestaruussarja itself.
+     */
+    spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
 };
 
@@ -233,7 +253,7 @@ function parentGroupId(categoryId: string, competitionId: string, groupId: numbe
  */
 
 /**
- * A pass-through group's standing, straight from TASO's own `getGroups`
+ * A pass-through group's standing, straight from TASO's own `getCategory`
  * numbers — used whenever our own full-season calculation does not reproduce
  * TASO's published points for the group, whatever the cause. Spec 009 chose
  * this path by shape (no `CARRY_OVER_CONFIG` entry); it is now chosen by
@@ -274,11 +294,11 @@ export type TasoTeamStanding = {
  *
  * - `own-calculated` — `calculateStandings` over the group's own matches
  *   (plus its parent's, for a carry-over group). Has a round selector.
- * - `pass-through` — TASO's own precomputed `getGroups` numbers, selected
+ * - `pass-through` — TASO's own precomputed `getCategory` numbers, selected
  *   when our calculated full-season points do not reproduce TASO's published
  *   ones. No round selector.
  * - `match-list` — a group with no table at all, rendered as its matches.
- *   Two causes: a knockout group, where `getGroups` returns one row per
+ *   Two causes: a knockout group, where `getCategory` returns one row per
  *   bracket *slot* rather than per team so a table would repeat an advancing
  *   team (specs/010-playoff-group-match-list.md); and a group TASO returns
  *   with no teams whatsoever, which is how an unplayed qualifying match
@@ -790,6 +810,7 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
 
   try {
     const groups = await getSeasonGroups(competitionId, categoryId);
+    reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
     await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows);
     // Re-read rather than returning `rows`: the caller needs full stored rows,
@@ -806,13 +827,92 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
       )
       .orderBy(desc(tasoGroupTeams.updatedAt));
   } catch (error) {
-    logger.warn(
-      { err: error, categoryId, competitionId, seasonId },
-      "TASO group refresh failed; using stored group standings"
+    /**
+     * `error`, not `warn` — raised in #272.
+     *
+     * This was a warning, on the reasoning that stale standings are survivable.
+     * They are; what is not is the case where **nothing** is stored, because
+     * then every table in the group renders as zeros, which looks like a real
+     * result rather than a failure. That is exactly how a refused `getGroups`
+     * endpoint stayed invisible for months, until a brand-new split group
+     * appeared with no rows to fall back to.
+     *
+     * `stored` carries the count so the two situations are still tellable
+     * apart, without a second severity — and therefore without a branch that
+     * only a contrived test can reach.
+     */
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, stored: stored.length },
+      "TASO group refresh failed; falling back to stored group standings"
     );
     return stored;
   }
 });
+
+/**
+ * Says so when a continuation group has no `CARRY_OVER_CONFIG` entry.
+ *
+ * The config is hand-maintained per season, and a missing entry used to fail in
+ * the worst possible way: nothing errored, the group simply dropped its parent
+ * round and rendered plausible-looking numbers — zeros, at the start of a split.
+ * Veikkausliiga and Ykkönen both reached their 2026 splits unconfigured and
+ * nobody found out until a reader noticed the table (#272).
+ *
+ * TASO classifies the groups itself, which is what makes this detectable rather
+ * than guessable: `additional_group_stage` means a continuation that carries an
+ * earlier round forward. Cups use `knockout_final` and first rounds use
+ * `group_stage`, so neither trips this.
+ *
+ * `import_match_group_id` is included when TASO supplies it, because it names
+ * the parent and turns the log into something actionable. It is `"0"` for older
+ * seasons, so it is a hint rather than a source of truth — see `TasoGroup`.
+ *
+ * **Scope, stated because it is narrower than it looks.** This runs only where
+ * groups are actually fetched, so a finished season that already has stored
+ * rows returns before reaching it and is never re-checked. That is deliberate:
+ * a split appears in the season being played, so the case this exists to catch
+ * — a new continuation group nobody has configured — is always a season that
+ * refreshes. Re-checking finished seasons would mean calling TASO on every
+ * render of every archive page, which is exactly what the short-circuit above
+ * exists to prevent.
+ */
+function reportUnconfiguredContinuations(
+  groups: TasoGroup[],
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): void {
+  const configured = CARRY_OVER_CONFIG[categoryId]?.[competitionId] ?? {};
+
+  for (const group of groups) {
+    if (group.group_type !== "additional_group_stage") continue;
+
+    /**
+     * The same validation `normalizeGroupTeams` applies before storing the
+     * group, deliberately from the same function rather than a second copy of
+     * the rule: a group this reports on and a group we store must be the same
+     * set, or one of them is describing data the other never saw. What it
+     * rejects, and why each rejection matters, is documented on
+     * `parseProviderId`.
+     */
+    const groupId = parseProviderId(group.group_id);
+    if (groupId === null) continue;
+
+    if (configured[groupId] !== undefined) continue;
+
+    logger.error(
+      {
+        categoryId,
+        competitionId,
+        seasonId,
+        groupId,
+        groupName: group.group_name,
+        tasoParentHint: group.import_match_group_id,
+      },
+      "Continuation group has no carry-over entry; its standings will omit the parent round"
+    );
+  }
+}
 
 /** One group's stored TASO rows. */
 function groupTeamsFor(teamRows: StoredGroupTeam[], groupId: number): StoredGroupTeam[] {
@@ -1067,7 +1167,7 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
  * Every group TASO returns for the season, each rendered own-calculated
  * (via `calculateStandings`, including the parent group's matches for a
  * carry-over continuation group), pass-through (TASO's own precomputed
- * `getGroups` numbers), or playoff (its matches, no table). Ordered by
+ * `getCategory` numbers), or playoff (its matches, no table). Ordered by
  * `group_id` ascending — `phase_number` is confirmed unreliable for
  * ordering.
  */
@@ -1180,8 +1280,29 @@ function buildGroup(
 ): GroupStandingsResult {
   const groupName = groupNameOf(seasonMatches, groupId);
   const teamRows = groupTeamsFor(allTeamRows, groupId);
+
+  /**
+   * A cup's groups are **rounds**, and a round is never a points competition —
+   * whatever TASO reports for it.
+   *
+   * This used to fall out of the data rather than being stated: `getGroups`
+   * omitted `points` for a knockout, so `keepsATable` said no. #272 moved to
+   * `getCategory` because TASO had started refusing `getGroups`, and that
+   * endpoint *does* send points for cup rounds — which rendered every round of
+   * Suomen Cup as a league table, took the bracket with it (it is built from
+   * the groups that render as matches) and put a `Kierros` selector on a page
+   * that has no rounds to filter. See specs/015-finnish-cups.md.
+   */
+  if (isDomesticCup(categoryId)) {
+    return {
+      kind: "match-list",
+      groupId,
+      groupName,
+      matches: selectGroupMatches(seasonMatches, groupId),
+    };
+  }
   // Whether TASO's groups are known for this season *at all*. Without that
-  // distinction, an unreachable `getGroups` with nothing yet stored would make
+  // distinction, an unreachable `getCategory` with nothing yet stored would make
   // every group look team-less and turn the whole season into match lists.
   const seasonHasGroupData = allTeamRows.length > 0;
 
