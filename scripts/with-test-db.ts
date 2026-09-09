@@ -33,7 +33,18 @@ if (command === undefined) {
 async function main(): Promise<void> {
   const url = await ensureTestDatabase();
 
-  const child = spawn(command as string, args, {
+  /**
+   * `node` means *this* Node, and a package binary is run through it rather
+   * than through `node_modules/.bin`.
+   *
+   * npm exposes those binaries as `.cmd` shims on Windows, which `spawn`
+   * cannot execute without a shell — the same trap `scripts/executable.ts`
+   * documents. Handing the runtime an `.mjs` entry sidesteps shims and PATH
+   * lookup together, and guarantees the child runs on the Node that started it.
+   */
+  const executable = command === "node" ? process.execPath : (command as string);
+
+  const child = spawn(executable, args, {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: url },
   });
