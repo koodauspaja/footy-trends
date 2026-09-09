@@ -53,7 +53,7 @@ function headerList(name: string): string[] {
     .filter((entry) => entry !== "");
 }
 
-const DEFAULT_CLIENT_IP_HEADERS = ["x-envoy-external-address", "x-real-ip"];
+const DEFAULT_CLIENT_IP_HEADERS = ["x-envoy-external-address"];
 
 /**
  * The better-auth server instance, from specs/023-google-oauth-login.md.
