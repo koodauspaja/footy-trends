@@ -147,9 +147,9 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
-| `GOOGLE_CLIENT_ID` | manual | From `docs/setup/014-google-oauth-setup.md` |
-| `GOOGLE_CLIENT_SECRET` | manual | Shown once at creation; see 014 |
-| `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`. Changing it invalidates every session cookie |
+| `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use, see `docs/setup/014-google-oauth-setup.md` |
+| `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
+| `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -524,7 +524,7 @@ repository can reproduce them.
       inherited from the duplicated environment. Datastore and observability
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
-- [ ] The auth variables are deliberately left unset
+- [x] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
 - [x] All three Sentry configs — server, edge and client — read their settings
       from the environment
 - [x] Session Replay is decided **and applied in code** — the integration is
