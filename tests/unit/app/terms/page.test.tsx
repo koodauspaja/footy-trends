@@ -50,6 +50,10 @@ describe("the terms of service", () => {
      * wearing different endings, and a list of exact strings would miss most of
      * them.
      *
+     * `lupa` is listed separately from `luva` because of consonant gradation —
+     * the nominative keeps its `p` and the inflected forms do not, so a stem
+     * list built from `luvalla` alone lets "Meillä on lupa" straight through.
+     *
      * Anchored at a word start, because the unanchored version matched
      * `kuuluvat` — "belong to", which is the opposite claim and the very
      * sentence this test wants the page to keep.
@@ -58,7 +62,7 @@ describe("the terms of service", () => {
      * permission. The assertion carrying the weight is the positive one below,
      * that the page says the rights belong to the providers.
      */
-    expect(body).not.toMatch(/\b(luva|luvan|lisenss|sopimukse)/i);
+    expect(body).not.toMatch(/\b(lupa|luva|lisenss|sopimukse)/i);
     expect(body).toContain("oikeudet niihin");
   });
 
