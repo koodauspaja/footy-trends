@@ -166,13 +166,32 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * `@/lib/auth` off a module's import path (`current-user.ts`, `viewer.ts`), so
  * a walk that only read `import` declarations would miss exactly the pattern
  * the codebase reaches for when it wants an import not to happen eagerly.
+ *
+ * **`import type` does not count.** It is erased at compile time, so it creates
+ * no runtime dependency and cannot make a page dynamic. Counting it would fail
+ * a page that is genuinely static — a false alarm, which is the worse kind for
+ * a guard: the true one gets investigated, the false one gets the guard
+ * deleted. `current-user.ts` imports `@/lib/auth` exactly this way.
  */
 function moduleSpecifiers(source: ts.SourceFile): string[] {
   const found: string[] = [];
 
   for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const clause = statement.importClause;
+      // `import type X from` and `import { type X }` alike: erased, so not a
+      // dependency. A bare `import "…"` has no clause and is a real side effect.
+      const typeOnly =
+        clause?.isTypeOnly === true ||
+        (clause?.namedBindings !== undefined &&
+          ts.isNamedImports(clause.namedBindings) &&
+          clause.namedBindings.elements.every((element) => element.isTypeOnly));
+      if (!typeOnly) found.push(statement.moduleSpecifier.text);
+    }
+
     if (
-      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+      ts.isExportDeclaration(statement) &&
+      !statement.isTypeOnly &&
       statement.moduleSpecifier !== undefined &&
       ts.isStringLiteral(statement.moduleSpecifier)
     ) {
