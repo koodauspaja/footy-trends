@@ -248,6 +248,7 @@ without a reload and the other stars on the page follow when the session lands.
 | The same row written twice anyway | The unique index makes it a no-op rather than an error. Unreachable through the toggle now that a row lock serialises a reader's writes, and kept for a future caller outside it |
 | A competition retired from the registry | **Kept**, and reported as `Sarjaa ei enää ole.` on `/suosikit` with its `Poista suosikeista` button — validated against the registry on read the way a stored `defaultCompetition` is, but never hidden, because a row nobody can see is a row nobody can remove |
 | A team with no stored matches | Rendered as `Joukkuetta ei löytynyt.` with no link, and removable — the entry must not become unreachable |
+| A club that has renamed | Its current name — the newest match it appears in wins, by `distinct on … order by kickoff_at desc`. Unordered rows would show whichever the planner returned last, which is the failure that resolving names on read exists to prevent |
 | A team we can name but cannot place | Its name, unlinked. A `football-data` team's region comes from the competitions its matches were played in, and a competition can leave the registry; `Joukkuetta ei löytynyt.` would be false about a team just named |
 | A national side favourited from `/maajoukkueet` | Links to `/maajoukkueet/joukkue/:id`. The same standings page renders clubs and national sides, so the provider does not decide the region — the competition does |
 | Two tabs adding at forty-nine | One is refused. The count and the insert run inside a transaction holding a `for update` lock on the reader's own `user` row, because two statements are not atomic and both tabs would otherwise read forty-nine |
@@ -265,7 +266,7 @@ without a reload and the other stars on the page follow when the session lands.
 | Added to the session payload | **Measured: 2326 bytes at the cap** (334 gzipped), on a request the browser already makes |
 | Queries per session read | Three: the existing `LEFT JOIN`, plus the two favourite reads in parallel |
 | Session read at the cap | **Measured: 15.1 ms, against 2.6 ms with nothing stored** |
-| Queries for `/suosikit` | Two for the keys, plus one per provider that has a favourite (so at most two) to resolve team names from stored matches |
+| Queries for `/suosikit` | Two for the keys, plus two per provider that has a favourite (home and away side, `distinct on` so each returns at most one row per team) |
 | Extra queries on a standings page | **Zero.** The toggle reads the session the browser already has |
 
 ## Security & Secrets

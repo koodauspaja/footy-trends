@@ -159,6 +159,32 @@ and following a client-side link to its page showed a filled star for a favourit
 that no longer existed. Both write paths now refetch, and the page's test asserts
 it happens on success and *not* on failure.
 
+**A third round found three more, all real.** The star's local answer was never
+handed back, so it outranked the session for as long as the component stayed
+mounted and a change made in another tab would never appear. It is now cleared by
+an effect — but **only once the session agrees**, because dropping it while the
+session still disagrees would show an empty star for a favourite the reader just
+added, which is the failure the local answer exists to prevent. Both directions
+are mutation-tested.
+
+The resolved name was also nondeterministic: `select distinct` over unordered
+rows, filled into a `Map`, gives whichever name the planner returned last — so a
+renamed club could show either. It is now `distinct on` with
+`order by kickoff_at desc`, four queries (each side of each provider) each
+returning at most one row per team, merged by date. **Only a real database can
+check that**, since a mock returns the rows it was handed whatever the SQL says,
+so the proof is an integration test — and deleting the `desc` fails it.
+
+And the page rendered in query order while the spec promised registry order for
+competitions and alphabetical for teams. Both are now sorted, retired
+competitions and nameless teams last.
+
+**One of those tests proved nothing when first written**, and the mutation is what
+said so: sorting `Ilves, Zurich, Äänekoski` gives the same answer with a plain
+`<` as with the Finnish collation. The fixture is now `Ilves, ÅIFK, Ähtäri` —
+the Finnish alphabet ends Z, Å, Ä, Ö while UTF-16 puts Ä before Å, so only
+`localeCompare(…, "fi")` passes it.
+
 **Three findings were wrong, and the code says why.** 1. That `getSessionExtrasFor` returns early for a reader with no preferences row,
    hiding their favourites. It selects **from `user`** with left joins, so that
    early return means "no such user", not "no preferences" —

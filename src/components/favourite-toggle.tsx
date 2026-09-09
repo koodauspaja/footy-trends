@@ -74,14 +74,36 @@ export function FavouriteToggle(props: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  if (!mounted || !session) return null;
-
   const key =
     props.kind === "team"
       ? teamKey(props.source, props.teamProviderId)
       : competitionKey(props.region, props.code);
 
+  // Computed before the early return below, because the effect that follows is
+  // a hook and hooks cannot run conditionally. `favouriteKeysOf` answers `[]`
+  // for a session that is null, which is the right answer for a signed-out
+  // reader anyway.
   const stored = favouriteKeysOf(session, props.kind).includes(key);
+
+  /**
+   * Hand the state back to the session the moment it agrees.
+   *
+   * The local answer exists to cover the gap between a write and the refetch
+   * that reflects it. Kept past that, it would outrank the session for as long
+   * as this component stays mounted, so a change made in another tab would
+   * never appear — the star would be right once and then frozen.
+   *
+   * Only when they agree: a session that still disagrees has not caught up, and
+   * dropping our answer there would show an empty star for a favourite the
+   * reader just added, which is the failure this local state was added to
+   * prevent.
+   */
+  useEffect(() => {
+    if (own !== null && own === stored) setOwn(null);
+  }, [own, stored]);
+
+  if (!mounted || !session) return null;
+
   const favourite = own ?? stored;
 
   return (

@@ -199,6 +199,78 @@ describe("the favourites route", () => {
     expect(screen.queryByRole("link", { name: /joukkue/ })).not.toBeInTheDocument();
   });
 
+  it("lists competitions in registry order, not the order they were favourited", async () => {
+    /**
+     * specs/026 promises the registry's own order. Query order is whatever the
+     * planner returns, so without sorting the page rearranges itself as the
+     * reader adds favourites.
+     */
+    state.keys = { teams: [], competitions: ["kotimaa:M1L", "kotimaa:VL"] };
+
+    await renderPage();
+
+    const links = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(links).toEqual(["Veikkausliiga", "Ykkösliiga"]);
+  });
+
+  it("groups the regions in the order the app shows them", async () => {
+    state.keys = { teams: [], competitions: ["ulkomaat:PL", "kotimaa:VL"] };
+
+    await renderPage();
+
+    const links = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(links?.[0]).toBe("Veikkausliiga");
+  });
+
+  it("puts a retired competition last in its region rather than first", async () => {
+    // It has no place in the registry order, and it still has a row to remove.
+    state.keys = { teams: [], competitions: ["kotimaa:GONE", "kotimaa:VL"] };
+
+    await renderPage();
+
+    const rows = screen.getAllByRole("listitem").map((row) => row.textContent);
+    expect(rows?.[0]).toContain("Veikkausliiga");
+    expect(rows?.[1]).toContain("Sarjaa ei enää ole.");
+  });
+
+  it("lists teams alphabetically, by the Finnish collation", async () => {
+    /**
+     * The fixture is chosen so it can only pass one way. The Finnish alphabet
+     * ends Z, Å, Ä, Ö; UTF-16 puts Ä (U+00C4) before Å (U+00C5). So a plain
+     * `<` comparison answers `Ähtäri, ÅIFK` and only `localeCompare(…, "fi")`
+     * answers `ÅIFK, Ähtäri`.
+     *
+     * A `Zurich`/`Äänekoski` fixture would have proved nothing: both orderings
+     * agree there, which is how the first version of this test passed with the
+     * collation removed.
+     */
+    state.keys = { teams: ["taso:1", "taso:2", "taso:3"], competitions: [] };
+    state.names = [
+      { source: "taso", teamProviderId: 1, name: "Ähtäri", region: "kotimaa" },
+      { source: "taso", teamProviderId: 2, name: "ÅIFK", region: "kotimaa" },
+      { source: "taso", teamProviderId: 3, name: "Ilves", region: "kotimaa" },
+    ];
+
+    await renderPage();
+
+    const links = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(links).toEqual(["Ilves", "ÅIFK", "Ähtäri"]);
+  });
+
+  it("puts a team it could not name last, rather than sorting it as an empty string", async () => {
+    state.keys = { teams: ["taso:1", "taso:2"], competitions: [] };
+    state.names = [
+      { source: "taso", teamProviderId: 1, name: null, region: null },
+      { source: "taso", teamProviderId: 2, name: "Ilves", region: "kotimaa" },
+    ];
+
+    await renderPage();
+
+    const rows = screen.getAllByRole("listitem").map((row) => row.textContent);
+    expect(rows?.[0]).toContain("Ilves");
+    expect(rows?.[1]).toContain("Joukkuetta ei löytynyt.");
+  });
+
   it("has a title of its own", async () => {
     const route = await import("@/app/favorites/page");
 

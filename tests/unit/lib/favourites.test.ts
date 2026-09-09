@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { favoriteCompetition, favoriteTeam, matches, tasoMatches } from "@/db/schema";
+import { favoriteCompetition, favoriteTeam, matches } from "@/db/schema";
 
 const { state, logger } = vi.hoisted(() => ({
   state: {
     rows: new Map<unknown, unknown[]>(),
+    sides: new Map<string, unknown[]>(),
     counts: new Map<unknown, number>(),
     deleted: new Map<unknown, unknown[]>(),
     inserts: [] as { table: unknown; values: unknown }[],
@@ -53,13 +54,23 @@ vi.mock("@/db", () => {
           ),
       }),
     }),
-    selectDistinct: () => ({
+    /**
+     * `distinct on` is per side — one query for home, one for away — so the
+     * mock keys rows by side too. Anything less could not tell "found the team
+     * playing away" from "found nothing", which is half of what these tests
+     * are about.
+     */
+    selectDistinctOn: (columns: { name: string }[]) => ({
       from: (table: unknown) => ({
-        where: () =>
-          thenable(
-            () => rowsFor(table),
-            () => rowsFor(table)
-          ),
+        where: () => ({
+          orderBy: async () => {
+            const side = columns[0]?.name.startsWith("home") === true ? "home" : "away";
+            const key = `${table === matches ? "matches" : "taso_matches"}:${side}`;
+            if (state.throws) throw new Error("database down");
+            state.queried.push(key);
+            return state.sides.get(key) ?? [];
+          },
+        }),
       }),
     }),
     delete: (table: unknown) => ({
@@ -88,6 +99,7 @@ vi.mock("@/lib/logger", () => ({ logger }));
 
 beforeEach(() => {
   state.rows.clear();
+  state.sides.clear();
   state.counts.clear();
   state.deleted.clear();
   state.inserts = [];
@@ -272,10 +284,14 @@ describe("favouritesForSession", () => {
 });
 
 describe("resolveTeamNames", () => {
-  it("names a team from either side of a stored match", async () => {
-    state.rows.set(tasoMatches, [
-      { homeId: 60731, homeName: "FC Kiisto", awayId: 60999, awayName: "Vieras" },
-      { homeId: 61000, homeName: "Koti", awayId: 60732, awayName: "PK-35" },
+  const at = (iso: string) => new Date(iso);
+
+  it("names a team from whichever side it played", async () => {
+    state.sides.set("taso_matches:home", [
+      { id: 60731, name: "FC Kiisto", competitionCode: "VL", kickoffAt: at("2026-05-01") },
+    ]);
+    state.sides.set("taso_matches:away", [
+      { id: 60732, name: "PK-35", competitionCode: "VL", kickoffAt: at("2026-05-01") },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
@@ -290,13 +306,50 @@ describe("resolveTeamNames", () => {
     ]);
   });
 
+  it("prefers the more recent of a team's two sides", async () => {
+    /**
+     * A club that renamed has matches stored under both names. The newer one is
+     * the current one, and picking it is the whole reason names are resolved on
+     * read rather than written onto the favourite.
+     */
+    state.sides.set("matches:home", [
+      { id: 86, name: "Old Name FC", competitionCode: "PD", kickoffAt: at("2024-05-01") },
+    ]);
+    state.sides.set("matches:away", [
+      { id: 86, name: "New Name FC", competitionCode: "PD", kickoffAt: at("2026-05-01") },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
+      { source: "football-data", teamProviderId: 86, name: "New Name FC", region: "ulkomaat" },
+    ]);
+  });
+
+  it("keeps the older name when the older match is the away one", async () => {
+    // The same assertion with the sides swapped: the answer must come from the
+    // dates, not from the order the two queries happen to be merged in.
+    state.sides.set("matches:home", [
+      { id: 86, name: "New Name FC", competitionCode: "PD", kickoffAt: at("2026-05-01") },
+    ]);
+    state.sides.set("matches:away", [
+      { id: 86, name: "Old Name FC", competitionCode: "PD", kickoffAt: at("2024-05-01") },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
+      { source: "football-data", teamProviderId: 86, name: "New Name FC", region: "ulkomaat" },
+    ]);
+  });
+
   it("keeps the two providers' id spaces apart", async () => {
     // 317 is a real id in both tables and a different club in each. Resolving
     // by id alone would print one club's name over the other's row.
-    state.rows.set(matches, [
-      { homeId: 317, homeName: "Rangers", awayId: 1, awayName: "Muu", competitionCode: "PL" },
+    state.sides.set("matches:home", [
+      { id: 317, name: "Rangers", competitionCode: "PL", kickoffAt: at("2026-05-01") },
     ]);
-    state.rows.set(tasoMatches, [{ homeId: 317, homeName: "Ilves", awayId: 2, awayName: "Muu" }]);
+    state.sides.set("taso_matches:home", [
+      { id: 317, name: "Ilves", competitionCode: "VL", kickoffAt: at("2026-05-01") },
+    ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(
@@ -310,6 +363,51 @@ describe("resolveTeamNames", () => {
     ]);
   });
 
+  it("sends a national side to its own region, not to the club pages", async () => {
+    /**
+     * `football-data` covers club competitions *and* national sides, and the
+     * same standings page renders both, so both can be favourited. Linking
+     * every football-data team to `/ulkomaat/joukkue/:id` sent Suomi to a club
+     * URL.
+     */
+    state.sides.set("matches:home", [
+      { id: 8722, name: "Suomi", competitionCode: "WC", kickoffAt: at("2026-05-01") },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
+      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+    ]);
+  });
+
+  it("takes the region from the most recent competition, as it takes the name", async () => {
+    // One row per team per side, so the region and the name always come from
+    // the same match — they cannot disagree.
+    state.sides.set("matches:home", [
+      { id: 8722, name: "Suomi", competitionCode: "PL", kickoffAt: at("2020-05-01") },
+    ]);
+    state.sides.set("matches:away", [
+      { id: 8722, name: "Suomi", competitionCode: "WC", kickoffAt: at("2026-05-01") },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
+      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+    ]);
+  });
+
+  it("reports no region for a competition the registry no longer has", async () => {
+    // Better an unlinked row than a link to another club's page.
+    state.sides.set("matches:home", [
+      { id: 86, name: "Real Madrid", competitionCode: "XX", kickoffAt: at("2026-05-01") },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
+      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
+    ]);
+  });
+
   it("reports a team with no stored match as nameless rather than dropping it", async () => {
     // A favourite nobody can see is a favourite nobody can remove.
     const { resolveTeamNames } = await import("@/lib/favourites");
@@ -319,56 +417,11 @@ describe("resolveTeamNames", () => {
     ]);
   });
 
-  it("sends a national side to its own region, not to the club pages", async () => {
-    /**
-     * The bug this exists for: `football-data` covers club competitions *and*
-     * national sides, and the same standings page renders both, so both can be
-     * favourited. Linking every football-data team to `/ulkomaat/joukkue/:id`
-     * sent Suomi to a club URL.
-     */
-    state.rows.set(matches, [
-      { homeId: 8722, homeName: "Suomi", awayId: 759, awayName: "Ruotsi", competitionCode: "WC" },
-    ]);
-    const { resolveTeamNames } = await import("@/lib/favourites");
-
-    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
-      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
-    ]);
-  });
-
-  it("keeps the first region it saw when a team has matches in two competitions", async () => {
-    // Deterministic rather than last-write-wins: a club plays several club
-    // competitions, and all of them are `ulkomaat`, so the only thing that must
-    // not happen is the answer changing with row order.
-    state.rows.set(matches, [
-      { homeId: 86, homeName: "Real Madrid", awayId: 81, awayName: "Barca", competitionCode: "PD" },
-      { homeId: 86, homeName: "Real Madrid", awayId: 5, awayName: "Bayern", competitionCode: "CL" },
-    ]);
-    const { resolveTeamNames } = await import("@/lib/favourites");
-
-    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: "ulkomaat" },
-    ]);
-  });
-
-  it("reports no region for a competition the registry no longer has", async () => {
-    // Better an unlinked row than a link to another club's page.
-    state.rows.set(matches, [
-      { homeId: 86, homeName: "Real Madrid", awayId: 81, awayName: "Barca", competitionCode: "XX" },
-    ]);
-    const { resolveTeamNames } = await import("@/lib/favourites");
-
-    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
-    ]);
-  });
-
   it("does not query a provider nobody favourited", async () => {
-    state.rows.set(matches, []);
     const { resolveTeamNames } = await import("@/lib/favourites");
     await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }]);
 
-    expect(state.queried).toEqual([matches]);
+    expect(state.queried).toEqual(["matches:home", "matches:away"]);
   });
 
   it("queries nothing at all for an empty list", async () => {

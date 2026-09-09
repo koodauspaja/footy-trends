@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { favoriteCompetition, favoriteTeam, matches, tasoMatches, user } from "@/db/schema";
 import { regionOfCompetition } from "@/lib/competitions";
@@ -234,6 +234,24 @@ export async function favouritesForSession(userId: string): Promise<Favourites> 
   }
 }
 
+/** One team's most recent appearance, from whichever side it played. */
+type TeamSide = { id: number; name: string; competitionCode: string; kickoffAt: Date };
+
+/**
+ * Which region owns a team's page.
+ *
+ * The competition decides it, because the provider does not: Finland's national
+ * side and a Spanish club are both `football-data` teams, and their pages live
+ * under `/maajoukkueet` and `/ulkomaat`. Null for a competition the registry no
+ * longer has — better an unlinked row than a link to some other club.
+ */
+function regionFor(source: FavouriteSource, competitionCode: string): RegionSegment | null {
+  if (source === "taso") return "kotimaa";
+  const registry = regionOfCompetition(competitionCode);
+  if (registry === null) return null;
+  return registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
+}
+
 /** One favourite team, ready to render. */
 export type FavouriteTeamView = {
   source: FavouriteSource;
@@ -274,80 +292,98 @@ export async function resolveTeamNames(
   const footballDataIds = idsFor("football-data");
   const tasoIds = idsFor("taso");
 
-  const [footballDataRows, tasoRows] = await Promise.all([
+  /**
+   * One row per team, carrying that team's **most recent** appearance.
+   *
+   * `distinct on` rather than a plain `select distinct`: a club that renamed has
+   * matches stored under both names, and a `Map` filled from unordered rows
+   * shows whichever the planner happened to return last. The whole reason names
+   * are resolved rather than stored is to show the *current* one, so the
+   * ordering is the feature rather than a detail.
+   *
+   * It is also far less data — one row per team instead of one per match.
+   */
+  /**
+   * Four queries rather than one clever one, and written out rather than
+   * abstracted: `distinct on` needs the concrete column to group by, and a
+   * helper taking a union of two tables' columns loses exactly the typing that
+   * makes this safe. Each returns at most one row per team.
+   */
+  const noSides = Promise.resolve([] as TeamSide[]);
+  const [footballDataHome, footballDataAway, tasoHome, tasoAway] = await Promise.all([
     footballDataIds.length === 0
-      ? Promise.resolve([])
+      ? noSides
       : db
-          .selectDistinct({
-            homeId: matches.homeTeamProviderId,
-            homeName: matches.homeTeamName,
-            awayId: matches.awayTeamProviderId,
-            awayName: matches.awayTeamName,
+          .selectDistinctOn([matches.homeTeamProviderId], {
+            id: matches.homeTeamProviderId,
+            name: matches.homeTeamName,
             competitionCode: matches.competitionCode,
+            kickoffAt: matches.kickoffAt,
           })
           .from(matches)
-          .where(
-            or(
-              inArray(matches.homeTeamProviderId, footballDataIds),
-              inArray(matches.awayTeamProviderId, footballDataIds)
-            )
-          ),
-    tasoIds.length === 0
-      ? Promise.resolve([])
+          .where(inArray(matches.homeTeamProviderId, footballDataIds))
+          .orderBy(matches.homeTeamProviderId, desc(matches.kickoffAt)),
+    footballDataIds.length === 0
+      ? noSides
       : db
-          .selectDistinct({
-            homeId: tasoMatches.homeTeamProviderId,
-            homeName: tasoMatches.homeTeamName,
-            awayId: tasoMatches.awayTeamProviderId,
-            awayName: tasoMatches.awayTeamName,
+          .selectDistinctOn([matches.awayTeamProviderId], {
+            id: matches.awayTeamProviderId,
+            name: matches.awayTeamName,
+            competitionCode: matches.competitionCode,
+            kickoffAt: matches.kickoffAt,
+          })
+          .from(matches)
+          .where(inArray(matches.awayTeamProviderId, footballDataIds))
+          .orderBy(matches.awayTeamProviderId, desc(matches.kickoffAt)),
+    tasoIds.length === 0
+      ? noSides
+      : db
+          .selectDistinctOn([tasoMatches.homeTeamProviderId], {
+            id: tasoMatches.homeTeamProviderId,
+            name: tasoMatches.homeTeamName,
+            competitionCode: tasoMatches.competitionCode,
+            kickoffAt: tasoMatches.kickoffAt,
           })
           .from(tasoMatches)
-          .where(
-            or(
-              inArray(tasoMatches.homeTeamProviderId, tasoIds),
-              inArray(tasoMatches.awayTeamProviderId, tasoIds)
-            )
-          ),
+          .where(inArray(tasoMatches.homeTeamProviderId, tasoIds))
+          .orderBy(tasoMatches.homeTeamProviderId, desc(tasoMatches.kickoffAt)),
+    tasoIds.length === 0
+      ? noSides
+      : db
+          .selectDistinctOn([tasoMatches.awayTeamProviderId], {
+            id: tasoMatches.awayTeamProviderId,
+            name: tasoMatches.awayTeamName,
+            competitionCode: tasoMatches.competitionCode,
+            kickoffAt: tasoMatches.kickoffAt,
+          })
+          .from(tasoMatches)
+          .where(inArray(tasoMatches.awayTeamProviderId, tasoIds))
+          .orderBy(tasoMatches.awayTeamProviderId, desc(tasoMatches.kickoffAt)),
   ]);
 
-  const names = new Map<string, string>();
-  const regions = new Map<string, RegionSegment>();
-
-  for (const row of tasoRows) {
-    names.set(teamKey("taso", row.homeId), row.homeName);
-    names.set(teamKey("taso", row.awayId), row.awayName);
-    // TASO is domestic football and nothing else.
-    regions.set(teamKey("taso", row.homeId), "kotimaa");
-    regions.set(teamKey("taso", row.awayId), "kotimaa");
-  }
-
-  for (const row of footballDataRows) {
-    names.set(teamKey("football-data", row.homeId), row.homeName);
-    names.set(teamKey("football-data", row.awayId), row.awayName);
-
-    /**
-     * The competition decides the region, because the provider does not.
-     * Finland's national side and a Spanish club are both `football-data`
-     * teams, and their pages live under `/maajoukkueet` and `/ulkomaat`.
-     * Without this, every national-team favourite linked to a club URL.
-     */
-    const registry = regionOfCompetition(row.competitionCode);
-    if (registry === null) continue;
-    const segment: RegionSegment = registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
-    // First match wins, and a team is only ever in one of the two registries:
-    // clubs do not play the World Cup.
-    for (const id of [row.homeId, row.awayId]) {
-      const key = teamKey("football-data", id);
-      if (!regions.has(key)) regions.set(key, segment);
+  /** The newer of a team's two sides: every club plays home and away. */
+  const newest = new Map<string, TeamSide>();
+  const consider = (source: FavouriteSource, rows: TeamSide[]) => {
+    for (const row of rows) {
+      const key = teamKey(source, row.id);
+      const held = newest.get(key);
+      if (held === undefined || held.kickoffAt < row.kickoffAt) newest.set(key, row);
     }
-  }
+  };
+  consider("football-data", footballDataHome);
+  consider("football-data", footballDataAway);
+  consider("taso", tasoHome);
+  consider("taso", tasoAway);
 
-  return teams.map((team) => ({
-    ...team,
-    // Null rather than a placeholder: the page says so in Finnish, and the
-    // entry stays removable — a favourite nobody can delete would be worse
-    // than one with no name.
-    name: names.get(teamKey(team.source, team.teamProviderId)) ?? null,
-    region: regions.get(teamKey(team.source, team.teamProviderId)) ?? null,
-  }));
+  return teams.map((team) => {
+    const row = newest.get(teamKey(team.source, team.teamProviderId));
+    return {
+      ...team,
+      // Null rather than a placeholder: the page says so in Finnish, and the
+      // entry stays removable — a favourite nobody can delete would be worse
+      // than one with no name.
+      name: row?.name ?? null,
+      region: row === undefined ? null : regionFor(team.source, row.competitionCode),
+    };
+  });
 }

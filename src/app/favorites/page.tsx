@@ -13,7 +13,7 @@ import { competitionNameFor, competitionOptionsFor } from "@/lib/competition-pre
 import { parseCompetitionKey, parseTeamKey } from "@/lib/favourite-keys";
 import { getFavouriteKeys, resolveTeamNames } from "@/lib/favourites";
 import { logger } from "@/lib/logger";
-import type { RegionSegment } from "@/lib/regions";
+import { REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
 
 const HEADING = "Suosikit";
 
@@ -80,7 +80,19 @@ export default async function Favourites() {
       .map(parseTeamKey)
       .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null);
 
-    teams = (await resolveTeamNames(parsedTeams)).map((team) => ({
+    /**
+     * Alphabetically, as the spec promises — and by the Finnish collation, so
+     * Ä sorts after Z rather than beside A. A team we could not name has no
+     * place in that order, so it goes last rather than sorting as "".
+     */
+    const named = (await resolveTeamNames(parsedTeams)).toSorted((left, right) => {
+      if (left.name === null || right.name === null) {
+        return Number(left.name === null) - Number(right.name === null);
+      }
+      return left.name.localeCompare(right.name, "fi");
+    });
+
+    teams = named.map((team) => ({
       ...team,
       href: team.name === null ? null : teamHrefFor(team.region, team.teamProviderId),
     }));
@@ -88,6 +100,28 @@ export default async function Favourites() {
     competitions = keys.competitions
       .map(parseCompetitionKey)
       .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null)
+      /**
+       * Registry order, as the spec promises: within a region the order the
+       * registry itself lists them, and the regions in the order the app shows
+       * them. Insertion order would mean the page rearranges itself as the
+       * reader adds favourites, and query order is not even that stable.
+       *
+       * A code the registry no longer has sorts last, with the rest of its
+       * region — it still has a row and still has to be removable.
+       */
+      .toSorted((left, right) => {
+        const byRegion =
+          REGION_SEGMENTS.indexOf(left.region) - REGION_SEGMENTS.indexOf(right.region);
+        if (byRegion !== 0) return byRegion;
+
+        const order = (entry: { region: RegionSegment; code: string }) => {
+          const index = competitionOptionsFor(entry.region).findIndex(
+            (option) => option.code === entry.code
+          );
+          return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+        };
+        return order(left) - order(right);
+      })
       .map(({ region, code }) => {
         // Validated against the registry on read, never trusted from the row:
         // a competition can be retired long after someone favourited it, and

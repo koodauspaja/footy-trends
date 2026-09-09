@@ -1,11 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { favoriteCompetition, favoriteTeam, user } from "@/db/schema";
+import { favoriteCompetition, favoriteTeam, matches, user } from "@/db/schema";
 import { MAX_FAVOURITES_PER_KIND } from "@/lib/favourite-keys";
 import {
   getFavouriteKeys,
   removeFavouriteTeam,
+  resolveTeamNames,
   toggleFavouriteCompetition,
   toggleFavouriteTeam,
 } from "@/lib/favourites";
@@ -188,6 +189,94 @@ describe("favourite competitions", () => {
     expect((await getFavouriteKeys(USER_ID)).competitions.toSorted()).toEqual([
       "kotimaa:VL",
       "ulkomaat:VL",
+    ]);
+  });
+});
+
+describe("resolving a team's name", () => {
+  /** A provider id nothing else in the suite uses, so these rows stand alone. */
+  const RENAMED = 987_654;
+  const PROVIDER_MATCH_IDS = [997_001, 997_002];
+
+  function matchRow(overrides: Partial<typeof matches.$inferInsert>) {
+    return {
+      providerMatchId: 997_001,
+      competitionCode: "PL",
+      seasonId: 2026,
+      kickoffAt: new Date("2026-08-01T15:00:00Z"),
+      matchday: 1,
+      status: "FINISHED",
+      stage: null,
+      groupName: null,
+      regularTimeHome: null,
+      regularTimeAway: null,
+      extraTimeHome: null,
+      extraTimeAway: null,
+      penaltiesHome: null,
+      penaltiesAway: null,
+      homeTeamProviderId: RENAMED,
+      homeTeamName: "Old Name FC",
+      awayTeamProviderId: 111_111,
+      awayTeamName: "Someone Else",
+      homeGoals: 1,
+      awayGoals: 0,
+      ...overrides,
+    };
+  }
+
+  afterEach(async () => {
+    await db.delete(matches).where(inArray(matches.providerMatchId, PROVIDER_MATCH_IDS));
+  });
+
+  it("gives the newest name a club played under, not whichever row came back last", async () => {
+    /**
+     * Only a real database can check this: the ordering lives in the SQL, so a
+     * mock returns the rows it was handed whatever the query says. A club that
+     * renamed has matches stored under both names, and resolving names on read
+     * exists precisely so the current one shows.
+     */
+    await db.insert(matches).values([
+      matchRow({ providerMatchId: 997_001, kickoffAt: new Date("2024-08-01T15:00:00Z") }),
+      matchRow({
+        providerMatchId: 997_002,
+        kickoffAt: new Date("2026-08-01T15:00:00Z"),
+        homeTeamName: "New Name FC",
+      }),
+    ]);
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: RENAMED }])).toEqual([
+      {
+        source: "football-data",
+        teamProviderId: RENAMED,
+        name: "New Name FC",
+        region: "ulkomaat",
+      },
+    ]);
+  });
+
+  it("looks at both sides, and still takes the newer", async () => {
+    // The newer appearance is an away one here, so a query that only read the
+    // home side — or merged the two by side rather than by date — would answer
+    // with the older name.
+    await db.insert(matches).values([
+      matchRow({ providerMatchId: 997_001, kickoffAt: new Date("2024-08-01T15:00:00Z") }),
+      matchRow({
+        providerMatchId: 997_002,
+        kickoffAt: new Date("2026-08-01T15:00:00Z"),
+        homeTeamProviderId: 111_111,
+        homeTeamName: "Someone Else",
+        awayTeamProviderId: RENAMED,
+        awayTeamName: "New Name FC",
+      }),
+    ]);
+
+    expect(await resolveTeamNames([{ source: "football-data", teamProviderId: RENAMED }])).toEqual([
+      {
+        source: "football-data",
+        teamProviderId: RENAMED,
+        name: "New Name FC",
+        region: "ulkomaat",
+      },
     ]);
   });
 });

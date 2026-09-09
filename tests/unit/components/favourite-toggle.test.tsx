@@ -33,6 +33,24 @@ const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch }),
 }));
+
+/**
+ * A refetch that actually brings back what the server now holds.
+ *
+ * The default mock returns a session frozen at render time, which would let the
+ * component look right for the wrong reason: it clears its local answer after a
+ * refetch, so a session that never changes would snap the star back and the
+ * test would be asserting the bug.
+ */
+function serverNowSays(favourites: { teams?: string[]; competitions?: string[] }) {
+  refetch.mockImplementation(async () => {
+    session.data = {
+      user: { id: "user-1" },
+      favoriteTeams: favourites.teams ?? [],
+      favoriteCompetitions: favourites.competitions ?? [],
+    };
+  });
+}
 vi.mock("@/lib/favourite-actions", () => ({
   toggleFavouriteTeamAction: toggleTeam,
   toggleFavouriteCompetitionAction: toggleCompetition,
@@ -51,6 +69,7 @@ const remove = () => screen.getByRole("button", { name: "Poista suosikeista: Ilv
 
 beforeEach(() => {
   vi.clearAllMocks();
+  refetch.mockImplementation(async () => {});
   session.data = null;
   toggleTeam.mockResolvedValue({ ok: true, favorite: true });
   toggleCompetition.mockResolvedValue({ ok: true, favorite: true });
@@ -112,6 +131,7 @@ describe("reading the session", () => {
 describe("writing", () => {
   it("adds, and asks the session to catch up", async () => {
     signedIn();
+    serverNowSays({ teams: ["taso:60731"] });
     render(team());
 
     fireEvent.click(add());
@@ -121,8 +141,29 @@ describe("writing", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  it("hands the state back to the session once it has caught up", async () => {
+    /**
+     * The local answer covers the gap until the refetch lands, and must not
+     * outlive it. Left in place it would outrank the session for as long as
+     * this component stays mounted — so a change made in another tab would
+     * never appear here, and the star would be right once and then frozen.
+     */
+    signedIn();
+    serverNowSays({ teams: ["taso:60731"] });
+    render(team());
+    fireEvent.click(add());
+    await waitFor(() => expect(remove()).toBeInTheDocument());
+
+    // Another tab removes it, and this session refetch brings that back.
+    session.data = { user: { id: "user-1" }, favoriteTeams: [] };
+    fireEvent.click(remove());
+
+    await waitFor(() => expect(add()).toBeInTheDocument());
+  });
+
   it("removes", async () => {
     signedIn({ favoriteTeams: ["taso:60731"] });
+    serverNowSays({ teams: [] });
     toggleTeam.mockResolvedValue({ ok: true, favorite: false });
     render(team());
 
@@ -135,15 +176,22 @@ describe("writing", () => {
     // The session is refetched, not instantly updated. Without local state the
     // star springs back for a moment, which reads as the write having failed.
     signedIn({ favoriteTeams: [] });
+    // The session has *not* caught up yet — `refetch` resolves with the old
+    // answer, which is exactly the gap the local state exists to cover.
     render(team());
 
     fireEvent.click(add());
 
-    await waitFor(() => expect(remove()).toBeInTheDocument());
+    // Waits for the write *and* its refetch to finish before asserting, so this
+    // is the settled state rather than a moment during the transition.
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+    await waitFor(() => expect(remove()).toHaveAttribute("aria-busy", "false"));
+    expect(remove()).toHaveAttribute("aria-pressed", "true");
   });
 
   it("sends a competition to the competition action", async () => {
     signedIn();
+    serverNowSays({ competitions: ["kotimaa:VL"] });
     render(<FavouriteToggle code="VL" kind="competition" name="Veikkausliiga" region="kotimaa" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Lisää suosikkeihin: Veikkausliiga" }));
