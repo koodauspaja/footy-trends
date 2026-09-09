@@ -113,6 +113,24 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * Helmarit (#167) is the same shape — paramless and data-backed — so this
  * guards the class rather than the one file.
  */
+/**
+ * Whether a page imports request-scoped state.
+ *
+ * `headers()`, `cookies()` and `draftMode()` each opt a page out of
+ * prerendering **by being called** — no `force-dynamic` export appears, so
+ * checking for one misses this entirely. It is also the exact shape of the
+ * failure that matters here: reading a session is how a page meant to be
+ * readable signed out stops being prerendered.
+ */
+function importsRequestState(source: ts.SourceFile): boolean {
+  return source.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === "next/headers"
+  );
+}
+
 describe("a page declared static by design really is static", () => {
   /**
    * The other half of `STATIC_BY_DESIGN`, and the one that was missing.
@@ -132,6 +150,9 @@ describe("a page declared static by design really is static", () => {
 
     expect(takesRequestProps(source)).toBe(false);
     expect(optsOutOfPrerender(source)).toBe(false);
+    // The one that has no export to look for: `headers()` opts the page out by
+    // being called.
+    expect(importsRequestState(source)).toBe(false);
   });
 });
 
