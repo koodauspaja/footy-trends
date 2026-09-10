@@ -14,10 +14,12 @@ import {
 } from "@/db/schema";
 
 describe("matches table", () => {
-  it("declares a unique index on the provider match id and four lookup indexes", () => {
+  it("declares a unique index on the provider match id and six lookup indexes", () => {
     const { indexes } = getTableConfig(matches);
 
-    expect(indexes).toHaveLength(5);
+    // Six, not four: specs/027 adds one folded-name index per team column, so
+    // team search can match `jarvenpaa` against `Järvenpää` without a scan.
+    expect(indexes).toHaveLength(7);
     expect(
       indexes.find((index) => index.config.name === "matches_provider_match_id_idx")?.config
     ).toMatchObject({
@@ -75,10 +77,11 @@ describe("matches table", () => {
 });
 
 describe("taso_matches table", () => {
-  it("declares a unique index on the taso match id and three lookup indexes", () => {
+  it("declares a unique index on the taso match id and five lookup indexes", () => {
     const { indexes } = getTableConfig(tasoMatches);
 
-    expect(indexes).toHaveLength(4);
+    // The TASO half of specs/027's folded-name indexes.
+    expect(indexes).toHaveLength(6);
     expect(
       indexes.find((index) => index.config.name === "taso_matches_taso_match_id_idx")?.config
     ).toMatchObject({
