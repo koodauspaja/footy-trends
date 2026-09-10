@@ -30,6 +30,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unconditionally, not at the end of each test body: a failed assertion left
+  // fake timers installed for every later test in the file, turning one failure
+  // into a cascade of unrelated ones.
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -62,6 +66,18 @@ describe("redisRateLimitStorage", () => {
     expect(await (await storage()).consume("k", RULE)).toEqual({
       allowed: false,
       retryAfter: 2,
+    });
+  });
+
+  it("asks for a second when under half of one remains", async () => {
+    // Redis `TTL` answers in whole seconds rounded to nearest, so a key with
+    // 400 ms left reports 0. Passing that on invites an immediate retry that is
+    // refused again, and the in-memory path already rounds up to 1.
+    evalMock.mockResolvedValue([4, 0]);
+
+    expect(await (await storage()).consume("k", RULE)).toEqual({
+      allowed: false,
+      retryAfter: 1,
     });
   });
 
@@ -144,7 +160,6 @@ describe("redisRateLimitStorage", () => {
     vi.setSystemTime(new Date("2026-01-01T00:00:04Z"));
 
     expect(await store.consume("k", RULE)).toEqual({ allowed: false, retryAfter: 6 });
-    vi.useRealTimers();
   });
 
   it("opens a fresh in-memory window once the old one elapses", async () => {
@@ -159,7 +174,6 @@ describe("redisRateLimitStorage", () => {
     vi.setSystemTime(new Date("2026-01-01T00:00:11Z"));
 
     expect((await store.consume("k", RULE)).allowed).toBe(true);
-    vi.useRealTimers();
   });
 
   it("sweeps expired entries so a long outage does not grow without bound", async () => {
@@ -175,7 +189,6 @@ describe("redisRateLimitStorage", () => {
 
     const { fallbackSize } = await import("@/lib/rate-limit-storage");
     expect(fallbackSize()).toBe(1);
-    vi.useRealTimers();
   });
 
   it("keeps entries whose window is still open when it sweeps", async () => {
@@ -194,7 +207,6 @@ describe("redisRateLimitStorage", () => {
 
     const { fallbackSize } = await import("@/lib/rate-limit-storage");
     expect(fallbackSize()).toBe(10_001);
-    vi.useRealTimers();
   });
 
   it("refuses to trust a reply that is not two numbers", async () => {
@@ -233,6 +245,59 @@ describe("redisRateLimitStorage", () => {
     evalMock.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     await store.consume("k", RULE);
     expect(logError).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not hand out a second allowance when Redis comes back", async () => {
+    // The client spent its window in memory during the outage. Redis's key
+    // expired or was never written, so INCR restarts it at 1 inside a window
+    // already used up — both allowances would be spendable back to back.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 4; i++) await store.consume("k", RULE);
+
+    // Redis is back, and answers as though this key were new.
+    evalMock.mockReset();
+    evalMock.mockResolvedValue([1, 10]);
+    vi.setSystemTime(new Date("2026-01-01T00:00:05Z"));
+
+    expect((await store.consume("k", RULE)).allowed).toBe(false);
+  });
+
+  it("lets Redis take over once the in-memory window closes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 4; i++) await store.consume("k", RULE);
+
+    evalMock.mockReset();
+    evalMock.mockResolvedValue([1, 10]);
+    vi.setSystemTime(new Date("2026-01-01T00:00:11Z"));
+
+    expect((await store.consume("k", RULE)).allowed).toBe(true);
+
+    const { fallbackSize } = await import("@/lib/rate-limit-storage");
+    expect(fallbackSize()).toBe(0);
+  });
+
+  it("still refuses on Redis's own count during a recovery window", async () => {
+    // The stricter of the two answers wins, in both directions.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    await store.consume("k", RULE);
+
+    evalMock.mockReset();
+    evalMock.mockResolvedValue([9, 4]);
+    vi.setSystemTime(new Date("2026-01-01T00:00:02Z"));
+
+    expect(await store.consume("k", RULE)).toEqual({ allowed: false, retryAfter: 4 });
   });
 
   it("does not announce a recovery that never followed an outage", async () => {

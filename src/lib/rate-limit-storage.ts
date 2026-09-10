@@ -73,6 +73,22 @@ const fallback = new Map<string, { count: number; expiresAt: number }>();
  */
 const FALLBACK_SWEEP_AT = 10_000;
 
+/**
+ * How long to tell a refused client to wait, from Redis's `TTL`.
+ *
+ * `TTL` answers in **whole seconds, rounded to nearest**, so a key with 400 ms
+ * left reports `0`. Reporting that verbatim invites an immediate retry that is
+ * refused again; a second is both honest and the smallest useful answer, and it
+ * matches what the in-memory path produces from `Math.ceil`.
+ *
+ * `-1` means the key somehow has no expiry and `-2` that it went between the
+ * `INCR` and the `TTL`. The configured window is the honest answer for both,
+ * rather than a negative `retryAfter`.
+ */
+function retryAfterFrom(ttl: number, rule: { window: number }): number {
+  return ttl >= 0 ? Math.max(ttl, 1) : rule.window;
+}
+
 /** How many keys the fallback is holding. Exported for the sweep test only. */
 export function fallbackSize(): number {
   return fallback.size;
@@ -142,12 +158,37 @@ export function redisRateLimitStorage(): RateLimitStorage {
           logger.info("Rate limit counters are reachable again");
         }
 
-        if (count <= rule.max) return { allowed: true, retryAfter: null };
+        const decision =
+          count <= rule.max
+            ? { allowed: true, retryAfter: null }
+            : { allowed: false, retryAfter: retryAfterFrom(ttl, rule) };
 
-        // A TTL of -1 means the key somehow has no expiry and -2 that it went
-        // between the INCR and the TTL; the configured window is the honest
-        // answer for both, rather than a negative retryAfter.
-        return { allowed: false, retryAfter: ttl > 0 ? ttl : rule.window };
+        /**
+         * A window counted in memory keeps being enforced until it closes.
+         *
+         * Recovery cleared the flag above, and switching straight back to Redis
+         * would hand a client that had just spent its allowance in memory a
+         * **second** one: its Redis key expired or was never written during the
+         * outage, so `INCR` starts it at 1 inside a window it has already used
+         * up. Both allowances would be spendable back to back.
+         *
+         * So while the in-memory entry is still live, the stricter of the two
+         * answers wins. Redis keeps counting underneath, and takes over on its
+         * own once the entry lapses.
+         */
+        const held = fallback.get(key);
+        if (held !== undefined) {
+          if (Date.now() < held.expiresAt) {
+            const inMemory = consumeInMemory(key, rule);
+            return inMemory.allowed ? decision : inMemory;
+          }
+          // Lapsed, and nothing will consult it again — dropping it here keeps
+          // the map from holding one dead entry per client seen during an
+          // outage until the size threshold happens to sweep.
+          fallback.delete(key);
+        }
+
+        return decision;
       } catch (error) {
         /**
          * **Degrade, do not disable.** Refusing every sign-in because a cache

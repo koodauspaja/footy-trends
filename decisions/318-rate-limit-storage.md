@@ -66,6 +66,20 @@ separating from the odds: **the thing it replaced could not fail.** Weighing
 "how likely is a Redis outage, and how bad" was the wrong frame, because a
 fallback removes the question rather than answering it, for about twenty lines.
 
+## What the second review round changed
+
+Three findings, all of them real, and the middle one is the sort a test would
+never have caught because nothing was wrong with any single call:
+
+| Finding | Why it mattered |
+|---|---|
+| A `TTL` of `0` reported the whole window | Redis answers `TTL` in whole seconds **rounded to nearest**, so a key with 400 ms left reports `0` — and `ttl > 0` fell through to `rule.window`. Now floored at one second, which is also what the in-memory path's `Math.ceil` produces, so the two paths agree. |
+| Recovery handed out a **second allowance** | Clearing the degraded flag switched straight back to Redis. A client that had just spent its window in memory met a Redis key that had expired or never existed, so `INCR` restarted it at 1 *inside a window it had already used up* — both allowances spendable back to back. An in-memory entry is now enforced until it closes, with the stricter of the two answers winning. |
+| Fake timers restored at the end of a test body | A failed assertion left them installed for every later test in the file, turning one failure into a cascade of unrelated ones. Moved into `afterEach`, and verified with a throwaway spec that throws on purpose. |
+
+The second is worth keeping in mind beyond this file: a fallback is not finished
+when it starts working, only when **coming back** is also correct.
+
 ## What is still unproven
 
 That the counters actually land in Redis on a deployed instance. The unit tests
