@@ -46,8 +46,8 @@ it was meant to fix.
 
 | Decision | Choice | Why |
 |---|---|---|
-| Which header carries the client | `x-envoy-external-address`, alone | Single-value, which is the form better-auth resolves unaided, and Railway fronts applications with Envoy, which resolves the external client itself. |
-| Whether `x-real-ip` belongs beside it | No | It arrives, and it was in the list for one round. A header is only worth reading if the edge is *known* to overwrite what a client sends, and that was never measured for this one — trusting a passed-through header gives an attacker a fresh bucket per forged value, which is worse than the shared bucket being replaced. If Envoy's header turns out not to arrive, the symptom is the old warning and the old bucket: nothing regresses, and it is visible at once. Sourcery raised this and was right. |
+| Which header carries the client | `x-real-ip`, alone | The only candidate a sentinel proved the edge overwrites. Single-value, which is the form better-auth resolves unaided. |
+| Whether `x-envoy-external-address` belongs there | No — and it shipped there for one release | Railway fronts applications with Envoy, so it looked like the more specific choice, and the review argued it was the safer one. Both were reasoning from plausibility. The sentinel says Railway never sets it and passes a client's through. |
 | Whether `x-forwarded-for` belongs in that list, last | No | Same rule, and the same asymmetry. Reading its leftmost entry is safe only while the edge strips what a client sends; measured today, it does — but a fallback whose failure mode is worse than the status quo is not a fallback. |
 | Constant or configuration | `AUTH_CLIENT_IP_HEADERS` and `AUTH_TRUSTED_PROXIES`, both from the environment | The header choice rests on a platform behaviour nobody controls. As configuration, a wrong answer is a Railway variable; as a constant it is a release. Standing instruction: decide now in a way that can be changed once it can be measured. |
 | `trustedProxies` when unset | Omitted from the object, not passed as `[]` | better-auth's chain mode does not engage for an empty array anyway, so the two behave identically — but an absent option says "nothing is trusted" where an empty one says "nothing in particular", and only one of those is readable a year from now. |
@@ -78,6 +78,33 @@ Two forged entries would have arrived as four. This is a stronger guarantee than
 #309 assumed, and it also disproves a comment #311 had already shipped saying
 Railway appends — an unmeasured claim, written into a file, three hours before
 anything measured it.
+
+## The correction, and the rule that came out of it
+
+The first configuration shipped `["x-envoy-external-address", "x-real-ip"]`; review
+argued `x-real-ip` was the risk and it was dropped; the sentinel probe then showed
+the exact inverse. Sending `192.0.2.1` (TEST-NET-1, nobody's real source) as each
+candidate:
+
+| sent as | result | verdict |
+|---|---|---|
+| `x-real-ip` | overwritten by the edge, matching forwarded entry 0 | trustworthy |
+| `x-envoy-external-address` | arrived intact | client-controlled |
+| `cf-connecting-ip`, `true-client-ip` | arrived intact | client-controlled |
+
+**An absent header a client may set is worse than no configuration at all.**
+Ordinary visitors resolve nothing and keep sharing a bucket, while an attacker
+sets the header and gets a fresh one per request. That is what was live on
+staging for one deploy.
+
+The rule worth keeping is one line, and it is not about Envoy or Railway:
+
+> List a header only where a sentinel has come back **overwritten**. Plausible
+> provenance is not measured provenance.
+
+Everyone in the loop — the issue, the first configuration, and the review that
+corrected it — reasoned from what the platform *ought* to send. The probe took
+about a minute.
 
 ## Verifying it, which no test can do
 

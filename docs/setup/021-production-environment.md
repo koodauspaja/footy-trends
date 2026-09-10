@@ -151,7 +151,7 @@ more once the Sentry configs read their settings from the environment.
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
-| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-envoy-external-address` alone — see *Rate limiting needs a client address* below |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below |
 | `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -193,23 +193,33 @@ Measured on staging rather than assumed: the edge **replaces**
 `x-forwarded-for` rather than appending to it — a forged header never reaches
 the application — and sets `x-real-ip` beside it.
 
-Railway fronts applications with Envoy, which resolves the external client itself
-and reports it as `x-envoy-external-address`. That is single-value, which is the
-form better-auth reads unaided, and it is the **only** default. Neither variable
-needs setting here.
+**The rule, and it is the whole section:** list a header only where the edge is
+*measured* to overwrite it. A header the platform passes through is not a client
+address, it is something the caller typed — and trusting one gives an attacker a
+**fresh bucket per forged value**, which is worse than everyone sharing one,
+where at least they share the limit too.
 
-`x-real-ip` arrives too and is deliberately not in that list. A header is only
-worth reading if the edge is known to overwrite what a client sends; trusting one
-that is passed through would give an attacker a **fresh bucket per forged
-value** — worse than the shared bucket this replaces, where they at least share
-the limit with everyone else.
+Measured on staging by sending `192.0.2.1` — TEST-NET-1, nobody's real source —
+as each candidate in turn:
 
-**Both are variables rather than constants so a correction is not a release.**
-If Envoy's header does not arrive on some deployment, better-auth resolves
-nothing and the warning and shared bucket return exactly as they were — no
-regression, and visible at once. Adding a header that does arrive is then a
-Railway variable rather than a release, and only after the sentinel below shows
-the edge overwrites it.
+| sent as | result | verdict |
+|---|---|---|
+| `x-real-ip` | overwritten by the edge, matching forwarded entry 0 | **trustworthy** |
+| `x-envoy-external-address` | arrived intact | client-controlled |
+| `cf-connecting-ip` | arrived intact | client-controlled |
+| `true-client-ip` | arrived intact | client-controlled |
+
+So `x-real-ip` is the only default, and neither variable needs setting here.
+
+`x-envoy-external-address` was the default for one release, on the reasoning that
+Railway fronts applications with Envoy. It does — but it does not forward that
+header, and an **absent** header a client may set is the worst of the three
+cases: nothing resolves for ordinary visitors, and an attacker resolves whatever
+they like. Plausible provenance is not measured provenance.
+
+**Both are variables rather than constants so a correction is not a release** —
+which is what made the correction above a Railway variable's worth of urgency
+rather than an outage.
 
 **`AUTH_TRUSTED_PROXIES` does nothing on its own.** It only applies to
 `x-forwarded-for`, which is deliberately not in the default header list — so
@@ -228,12 +238,11 @@ chain and which single-value headers agree with it, never an address, because
 that endpoint is public.
 
 To confirm the fix is live: the boot warning is gone, and a **sentinel** sent as
-`x-envoy-external-address` does not survive to the application. Use an address from TEST-NET-1
+`x-real-ip` does not survive to the application. Use an address from TEST-NET-1
 (`192.0.2.0/24`), which is nobody's real source:
 
 ```
-curl -s 'https://<host>/api/health?forwarded=1' \
-  -H 'x-envoy-external-address: 192.0.2.1'
+curl -s 'https://<host>/api/health?forwarded=1' -H 'x-real-ip: 192.0.2.1'
 ```
 
 If that candidate's `matchesEntries` is **empty**, the sentinel arrived intact —
