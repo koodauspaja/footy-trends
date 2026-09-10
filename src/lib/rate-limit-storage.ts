@@ -16,6 +16,10 @@ import { redis } from "@/lib/redis";
  * resets on every deploy and, more seriously, would become one limiter per
  * instance the moment the service ran two — with nothing reporting that the
  * limit had quietly multiplied.
+ *
+ * **What happens when Redis is down.** The count continues in memory rather
+ * than being abandoned, so an outage degrades this to exactly that default
+ * instead of removing the limit. See `consumeInMemory`.
  */
 
 /**
@@ -47,6 +51,58 @@ return {count, redis.call('TTL', KEYS[1])}
 let degraded = false;
 
 /**
+ * The counters used while Redis is unreachable — one process's own, which is
+ * exactly what better-auth does by default.
+ *
+ * **Why not simply allow the request.** Failing fully open would make an outage
+ * remove the limit altogether, and that is a protection this change would then
+ * have *taken away*: an in-process `Map` cannot have an outage, so before this
+ * module there was nothing to lose. Falling back here means a Redis failure
+ * degrades a shared limiter into a per-instance one — no worse than the state
+ * this replaces, in any scenario.
+ */
+const fallback = new Map<string, { count: number; expiresAt: number }>();
+
+/**
+ * How many keys the fallback will hold before it sweeps expired ones.
+ *
+ * Windows here are ten to sixty seconds, so in a long outage almost everything
+ * in the map is already dead. Sweeping on a threshold rather than on a timer
+ * keeps this to one pass when it is actually needed, and stops a long outage
+ * from growing the map without bound.
+ */
+const FALLBACK_SWEEP_AT = 10_000;
+
+/** How many keys the fallback is holding. Exported for the sweep test only. */
+export function fallbackSize(): number {
+  return fallback.size;
+}
+
+function consumeInMemory(
+  key: string,
+  rule: { window: number; max: number }
+): { allowed: boolean; retryAfter: number | null } {
+  const now = Date.now();
+  const entry = fallback.get(key);
+
+  if (entry === undefined || now >= entry.expiresAt) {
+    if (fallback.size >= FALLBACK_SWEEP_AT) {
+      for (const [existing, held] of fallback) {
+        if (now >= held.expiresAt) fallback.delete(existing);
+      }
+    }
+    // A fixed window from the first request, matching the Lua script's guarded
+    // EXPIRE rather than sliding forward with each one.
+    fallback.set(key, { count: 1, expiresAt: now + rule.window * 1000 });
+    return { allowed: true, retryAfter: null };
+  }
+
+  entry.count += 1;
+  if (entry.count <= rule.max) return { allowed: true, retryAfter: null };
+  return { allowed: false, retryAfter: Math.ceil((entry.expiresAt - now) / 1000) };
+}
+
+/**
  * better-auth's `rateLimit.customStorage` shape, declared here rather than
  * imported.
  *
@@ -67,7 +123,19 @@ export function redisRateLimitStorage(): RateLimitStorage {
   return {
     async consume(key, rule) {
       try {
-        const [count, ttl] = (await redis.eval(CONSUME, 1, key, rule.window)) as [number, number];
+        const reply = await redis.eval(CONSUME, 1, key, rule.window);
+
+        /**
+         * Validated rather than cast. `as [number, number]` on an unexpected
+         * reply left `count` as `undefined`, and `undefined <= rule.max` is
+         * false — so a malformed answer would have **refused every request**
+         * rather than falling back. A shape that is not two numbers is a
+         * failure like any other.
+         */
+        if (!Array.isArray(reply) || typeof reply[0] !== "number" || typeof reply[1] !== "number") {
+          throw new TypeError("Rate limit script returned an unexpected shape");
+        }
+        const [count, ttl] = reply;
 
         if (degraded) {
           degraded = false;
@@ -82,21 +150,28 @@ export function redisRateLimitStorage(): RateLimitStorage {
         return { allowed: false, retryAfter: ttl > 0 ? ttl : rule.window };
       } catch (error) {
         /**
-         * **Failing open is deliberate.** With the counters unreachable the
-         * choice is between refusing every sign-in and enforcing no limit, and
-         * an outage of the cache must not take authentication down with it —
-         * the same call `/api/health` already makes, where Redis is non-fatal
-         * because the app serves fine without its cache.
+         * **Degrade, do not disable.** Refusing every sign-in because a cache
+         * is down would take authentication with it — the call `/api/health`
+         * already makes, where Redis is non-fatal. But allowing everything
+         * would mean this module had *removed* a protection that an in-process
+         * `Map` was providing perfectly well, since a `Map` cannot have an
+         * outage.
          *
-         * It is logged at error rather than warn because the protection is gone
-         * while this is true, which is worth waking up to even though nothing
-         * is broken for a reader.
+         * So the count continues in memory: shared limiter becomes
+         * per-instance limiter, which is what better-auth does by default and
+         * what this repository ran until now.
+         *
+         * Logged at error rather than warn because the guarantee is weaker for
+         * as long as this lasts, even though nothing is broken for a reader.
          */
         if (!degraded) {
           degraded = true;
-          logger.error({ err: error }, "Rate limit counters unreachable; requests are not limited");
+          logger.error(
+            { err: error },
+            "Rate limit counters unreachable; counting in this instance's memory"
+          );
         }
-        return { allowed: true, retryAfter: null };
+        return consumeInMemory(key, rule);
       }
     },
   };

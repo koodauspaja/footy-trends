@@ -98,10 +98,9 @@ describe("redisRateLimitStorage", () => {
     expect(script).toContain("EXPIRE");
   });
 
-  it("allows the request when the counters are unreachable, and says so", async () => {
-    // Failing open is deliberate: refusing every sign-in because a cache is down
-    // would take authentication with it. Logged at error, because the
-    // protection is gone for as long as it lasts.
+  it("keeps serving when the counters are unreachable, and says so", async () => {
+    // Refusing every sign-in because a cache is down would take authentication
+    // with it. Logged at error, because the guarantee is weaker while it lasts.
     evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
     expect(await (await storage()).consume("k", RULE)).toEqual({
@@ -111,15 +110,112 @@ describe("redisRateLimitStorage", () => {
     expect(logError).toHaveBeenCalledTimes(1);
   });
 
+  it("still enforces the limit while Redis is unreachable", async () => {
+    // The point of the fallback. Allowing everything would mean this module had
+    // *removed* a protection, because the in-process Map it replaced cannot
+    // have an outage.
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    const outcomes = [];
+    for (let i = 0; i < 5; i++) outcomes.push((await store.consume("k", RULE)).allowed);
+
+    expect(outcomes).toEqual([true, true, true, false, false]);
+  });
+
+  it("counts each client separately while unreachable", async () => {
+    // A per-instance limiter is still a per-client one; sharing a bucket here
+    // would reintroduce the very bug #309 fixed.
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 4; i++) await store.consume("first", RULE);
+
+    expect((await store.consume("second", RULE)).allowed).toBe(true);
+  });
+
+  it("reports the time left in the in-memory window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 3; i++) await store.consume("k", RULE);
+    vi.setSystemTime(new Date("2026-01-01T00:00:04Z"));
+
+    expect(await store.consume("k", RULE)).toEqual({ allowed: false, retryAfter: 6 });
+    vi.useRealTimers();
+  });
+
+  it("opens a fresh in-memory window once the old one elapses", async () => {
+    // A fixed window from the first request, like the Lua script's guarded
+    // EXPIRE — not one that slides forward with every rejected attempt.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 4; i++) await store.consume("k", RULE);
+    vi.setSystemTime(new Date("2026-01-01T00:00:11Z"));
+
+    expect((await store.consume("k", RULE)).allowed).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("sweeps expired entries so a long outage does not grow without bound", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 10_000; i++) await store.consume(`client-${i}`, RULE);
+    // Every one of those windows has closed; the next new key triggers the sweep.
+    vi.setSystemTime(new Date("2026-01-01T00:01:00Z"));
+    await store.consume("after-the-sweep", RULE);
+
+    const { fallbackSize } = await import("@/lib/rate-limit-storage");
+    expect(fallbackSize()).toBe(1);
+    vi.useRealTimers();
+  });
+
+  it("keeps entries whose window is still open when it sweeps", async () => {
+    // The sweep drops what has expired, not everything it walks past. Clearing
+    // indiscriminately would hand every client a fresh allowance at exactly the
+    // moment the map is busiest.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    const store = await storage();
+
+    for (let i = 0; i < 10_000; i++) await store.consume(`client-${i}`, RULE);
+    // Half a window later: the sweep runs, and every entry is still live.
+    vi.setSystemTime(new Date("2026-01-01T00:00:05Z"));
+    await store.consume("one-more", RULE);
+
+    const { fallbackSize } = await import("@/lib/rate-limit-storage");
+    expect(fallbackSize()).toBe(10_001);
+    vi.useRealTimers();
+  });
+
+  it("refuses to trust a reply that is not two numbers", async () => {
+    // `as [number, number]` on a malformed reply left `count` undefined, and
+    // `undefined <= max` is false — so it would have refused every request
+    // instead of falling back.
+    evalMock.mockResolvedValue(["not", "numbers"]);
+
+    expect((await (await storage()).consume("k", RULE)).allowed).toBe(true);
+    expect(logError).toHaveBeenCalledTimes(1);
+  });
+
   it("logs an outage once rather than once per request", async () => {
     // Rate limiting runs on every auth request; a line each would flood the logs
     // for as long as Redis was down.
     evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
     const store = await storage();
 
-    await store.consume("k", RULE);
-    await store.consume("k", RULE);
-    await store.consume("k", RULE);
+    await store.consume("a", RULE);
+    await store.consume("b", RULE);
+    await store.consume("c", RULE);
 
     expect(logError).toHaveBeenCalledTimes(1);
   });
