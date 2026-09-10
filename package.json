@@ -38,7 +38,8 @@
     "postgres": "3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "sharp": "0.35.4"
+    "sharp": "0.35.4",
+    "tsx": "4.23.13"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
@@ -55,7 +56,6 @@
     "husky": "9.1.7",
     "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
-    "tsx": "4.23.13",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   },
