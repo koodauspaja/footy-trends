@@ -118,6 +118,32 @@ describe("resolving the client IP, from #309", () => {
   });
 });
 
+describe("where rate-limit counters live, from #318", () => {
+  it("counts in Redis rather than in this instance's memory", async () => {
+    // better-auth's default is an in-process Map: it resets on every deploy and
+    // becomes one limiter per instance the moment there are two.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.rateLimit.customStorage).toEqual(
+      expect.objectContaining({ consume: expect.any(Function) })
+    );
+  });
+
+  it("leaves sessions in Postgres", async () => {
+    // `secondaryStorage` is the option better-auth documents for this, and it
+    // also moves sessions — reads come from it and rows are deleted from the
+    // database — which would make sign-in depend on Redis being up.
+    // `customStorage` is consulted first, so only the counters move.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.secondaryStorage).toBeUndefined();
+  });
+});
+
 describe("auth configuration", () => {
   it("registers Google as the only social provider", async () => {
     setEnv();
