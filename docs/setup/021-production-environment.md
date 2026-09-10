@@ -266,9 +266,14 @@ than `openid`, `email` and `profile` — this app requests exactly those three, 
 staging accepted **any** Google account from #116 until #314. Measured, not
 assumed: sign-ins succeeded from several accounts that were never on the list.
 
-Adding or removing a person is a change to this variable and nothing else. No
-code change, no new image, and the next sign-in reflects it — the value is read
-per request rather than captured at startup.
+Adding or removing a person is a change to this variable and nothing else — no
+code change and no pull request. **Railway restarts the service when a variable
+changes**, so expect a brief redeploy; what it does not need is a new build from
+source, or anyone with repository access.
+
+The value is read per request rather than captured at startup. On Railway that
+saves no restart, since the process is replaced anyway; it is there so the
+answer never depends on when the module happened to be imported.
 
 A refused sign-in writes no `user` row: better-auth's `user.validateUserInfo`
 gate runs before `create-user`, and again on every later sign-in, so an account
