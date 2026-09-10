@@ -153,6 +153,7 @@ more once the Sentry configs read their settings from the environment.
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
 | `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below |
 | `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
+| `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
@@ -249,6 +250,30 @@ If that candidate's `matchesEntries` is **empty**, the sentinel arrived intact �
 the client sets the header, it must not be trusted, and `AUTH_CLIENT_IP_HEADERS`
 needs changing. If it is **non-empty**, the edge overwrote it with an address
 that also appears in the forwarded chain, which is the answer you want.
+
+### Sign-in is restricted only where a list says so
+
+`AUTH_ALLOWED_EMAILS` is a comma-separated list of addresses allowed to sign in.
+**Unset means no restriction**, which is what production wants: its consent
+screen is published and open to the public, and this document exists for
+production.
+
+It matters here only so nobody sets it by copying staging's variables across.
+
+Staging sets it because the restriction everyone believed was in place was not.
+Google enforces its Testing mode test-user list only for apps requesting more
+than `openid`, `email` and `profile` — this app requests exactly those three, so
+staging accepted **any** Google account from #116 until #314. Measured, not
+assumed: sign-ins succeeded from several accounts that were never on the list.
+
+Adding or removing a person is a change to this variable and nothing else. No
+code change, no new image, and the next sign-in reflects it — the value is read
+per request rather than captured at startup.
+
+A refused sign-in writes no `user` row: better-auth's `user.validateUserInfo`
+gate runs before `create-user`, and again on every later sign-in, so an account
+created before a list existed is refused from then on rather than
+grandfathered.
 
 ### The provider keys are shared with staging — accepted risk
 

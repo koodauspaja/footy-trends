@@ -211,6 +211,54 @@ describe("a failed request is reported, not dropped", () => {
   });
 });
 
+const RESTRICTED =
+  "Kirjautuminen on rajoitettu tässä ympäristössä. Pyydä käyttöoikeutta ylläpidolta.";
+const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
+
+describe("a sign-in the allowlist refused, from #314", () => {
+  it("names the cause when it arrives behind the one the app already set", () => {
+    // The real shape of the URL, and the reason this reads `getAll`.
+    // `errorCallbackURL` is `/?error=auth`, and better-auth's
+    // `appendQueryParams` concatenates rather than replaces — so the reader
+    // lands on both, and `get("error")` would answer the least specific one.
+    searchParams.current = new URLSearchParams("error=auth&error=sign_in_not_allowed");
+
+    render(<AuthNotice />);
+
+    expect(screen.getByText(RESTRICTED)).toBeInTheDocument();
+  });
+
+  it("names it whichever order the parameters arrive in", () => {
+    searchParams.current = new URLSearchParams("error=sign_in_not_allowed&error=auth");
+
+    render(<AuthNotice />);
+
+    expect(screen.getByText(RESTRICTED)).toBeInTheDocument();
+  });
+
+  it("tells the reader to ask for access rather than to try again", () => {
+    // Every other cause says "try again" because that is the reader's next
+    // move. Here it is not: retrying fails identically forever.
+    searchParams.current = new URLSearchParams("error=sign_in_not_allowed");
+
+    render(<AuthNotice />);
+
+    expect(screen.queryByText(SIGN_IN_FAILED)).not.toBeInTheDocument();
+  });
+
+  it("still says only that sign-in failed for every other cause", () => {
+    // Naming Google's causes would leak whether an account is on a list, and
+    // the reader's next move is identical for all of them.
+    for (const error of ["access_denied", "server_error", "auth", "state_not_found"]) {
+      searchParams.current = new URLSearchParams({ error });
+      const { unmount } = render(<AuthNotice />);
+
+      expect(screen.getByText(SIGN_IN_FAILED)).toBeInTheDocument();
+      unmount();
+    }
+  });
+});
+
 describe("an error code taken straight off the query string", () => {
   // `MESSAGES` is a Map for this reason: as an object literal, each of these
   // keys resolves to an inherited member — `Object.prototype`, or a function —

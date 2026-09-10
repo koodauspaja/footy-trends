@@ -7,6 +7,7 @@ import { account, session, user, verification } from "@/db/schema";
 import { displayNameFor } from "@/lib/auth-profile";
 import { getSessionExtrasFor } from "@/lib/preferences";
 import { redisRateLimitStorage } from "@/lib/rate-limit-storage";
+import { signInRefusal } from "@/lib/sign-in-allowlist";
 
 /**
  * Reads a variable that sign-in cannot work without, and says which one is
@@ -136,6 +137,27 @@ export const auth = betterAuth({
   },
 
   user: {
+    /**
+     * Who may sign in at all, where an environment says so (#314).
+     *
+     * **This hook and not `databaseHooks.user.create.before`.** That one fires
+     * only when an account is created, so anyone who signed in before a list
+     * existed would keep their access forever. `validateUserInfo` runs before
+     * `create-user`, on `link-account`, and on every OAuth `sign-in` — read
+     * from better-auth 1.7.3's source rather than its documentation, where
+     * `link-account.mjs` passes `action: "sign-in"` for an account that already
+     * exists.
+     *
+     * Running before `create-user` is what keeps a refused attempt from leaving
+     * a `user` row behind, which #314 asks for explicitly.
+     *
+     * Returning `{ error }` becomes a `403` that the OAuth callback turns into
+     * a redirect carrying `error=<code>`; `auth-controls.tsx` renders the
+     * Finnish for it. The code is deliberately not the reason — see
+     * `sign-in-refusal.ts`.
+     */
+    validateUserInfo: ({ user }) => signInRefusal(user.email),
+
     /**
      * Off by default in better-auth. Enabled for the settings page's
      * `Poista tili`, from specs/024-account-settings.md.

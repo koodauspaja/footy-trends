@@ -6,6 +6,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 import { avatarSourceOf } from "@/lib/session-extras";
+import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
 // `shrink-0` keeps the button its full width when a long name shares the row.
 const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
@@ -26,7 +27,19 @@ const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
  * child and throw during render. A `Map` has no inherited keys, which removes
  * the case rather than guarding against it.
  */
-const MESSAGES = new Map([["signout", "Uloskirjautuminen epäonnistui. Yritä uudelleen."]]);
+const MESSAGES = new Map([
+  ["signout", "Uloskirjautuminen epäonnistui. Yritä uudelleen."],
+  /**
+   * The one sign-in failure worth naming, from #314. Every other cause says
+   * `SIGN_IN_FAILED` because the reader's next move is the same — try again.
+   * Here it is not: trying again will fail identically forever, and the reader
+   * has to ask for access instead. Telling them to retry would be false.
+   */
+  [
+    SIGN_IN_NOT_ALLOWED,
+    "Kirjautuminen on rajoitettu tässä ympäristössä. Pyydä käyttöoikeutta ylläpidolta.",
+  ],
+]);
 
 /** Every Google-side failure says the same thing — see `SignInError` below. */
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
@@ -163,10 +176,20 @@ function AuthButtons() {
  * and describes a different thing having failed.
  */
 function SignInError() {
-  const error = useSearchParams().get("error");
-  if (error === null) return null;
+  /**
+   * `getAll`, not `get`, and this is load-bearing rather than defensive.
+   *
+   * `errorCallbackURL` already carries `?error=auth`, and better-auth's
+   * `appendQueryParams` **concatenates** its own `error=<code>` rather than
+   * replacing it — so the reader lands on `/?error=auth&error=<code>` and
+   * `get("error")` answers `"auth"`, the least specific of the two. A named
+   * cause would have been silently unreachable.
+   */
+  const errors = useSearchParams().getAll("error");
+  if (errors.length === 0) return null;
 
-  return <Notice>{MESSAGES.get(error) ?? SIGN_IN_FAILED}</Notice>;
+  const named = errors.find((code) => MESSAGES.has(code));
+  return <Notice>{named === undefined ? SIGN_IN_FAILED : MESSAGES.get(named)}</Notice>;
 }
 
 /**
