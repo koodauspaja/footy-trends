@@ -19,9 +19,13 @@ const VARIABLE = "AUTH_ALLOWED_EMAILS";
 /**
  * The configured addresses, lower-cased, or an empty list when unrestricted.
  *
- * Read on every call rather than at module scope: the point of a variable is
- * that adding a person is a Railway change, and a value captured at import
- * would need a new image to take effect.
+ * Read on every call rather than at module scope. This does **not** save a
+ * restart on Railway, which redeploys the service whenever a variable changes —
+ * an earlier version of this comment claimed it did, and that was wrong. What it
+ * does is make the function honest about its input: it answers from the
+ * environment as it is when asked, so nothing depends on when the module
+ * happened to be imported, and a test can change the variable between cases.
+ * The cost is a string split per sign-in.
  */
 export function allowedSignInEmails(): string[] {
   return (process.env[VARIABLE] ?? "")

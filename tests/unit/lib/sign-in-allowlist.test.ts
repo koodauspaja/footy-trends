@@ -107,8 +107,10 @@ describe("signInRefusal", () => {
   });
 
   it("reflects a variable changed after the module was imported", () => {
-    // The whole point of a variable: adding a person is a Railway change, not a
-    // new image. A value captured at module scope would need a redeploy.
+    // The environment as it is when asked, not as it was when the module was
+    // imported. On Railway this saves no restart — a variable change redeploys
+    // the service either way — but it is what lets these tests change the
+    // variable between cases, and it removes import order from the answer.
     expect(signInRefusal("kalle@example.fi")).toBeUndefined();
 
     vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
