@@ -281,4 +281,34 @@ describe("searching real rows", () => {
     // No manual cleanup: these ids sit inside the range `clearFixtures` sweeps,
     // so a failure above cannot leave them behind for the next test to trip on.
   });
+
+  it("keeps the newest teams when more match than the cap, and drops the oldest", async () => {
+    /**
+     * The cap is applied **in Postgres**, on a subquery ordered by date — so
+     * this is the only place the outer sort direction is observable. With more
+     * matches than the cap, ordering it ascending would keep the *oldest*
+     * twenty, and every assertion about lengths would still pass.
+     */
+    const total = MAX_RESULTS + 5;
+    await db.insert(tasoMatches).values(
+      Array.from({ length: total }, (_, index) => ({
+        ...tasoRow(),
+        providerMatchId: 993300 + index,
+        homeTeamProviderId: 972000 + index,
+        homeTeamName: `Järvenpää ${index}`,
+        // Index 0 is the oldest, the last is the newest.
+        kickoffAt: new Date(Date.UTC(2000 + index, 0, 1)),
+      }))
+    );
+
+    const found = await searchTeams("jarvenpaa");
+    const ids = found.map((team) => team.teamProviderId);
+
+    expect(found).toHaveLength(MAX_RESULTS);
+    // The newest survives the cap; the oldest does not.
+    expect(ids).toContain(972000 + total - 1);
+    expect(ids).not.toContain(972000);
+    // And they come back newest first.
+    expect(ids[0]).toBe(972000 + total - 1);
+  });
 });

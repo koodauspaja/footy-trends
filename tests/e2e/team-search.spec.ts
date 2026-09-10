@@ -28,13 +28,31 @@ test.describe("Team search", () => {
     await expect(page.getByRole("navigation", { name: "Murupolku" })).toBeVisible();
   });
 
-  test("the front page is still prerendered with the field in the tree", async ({ page }) => {
-    // #182: the header is on every page, including the four that must stay
-    // static. A component that read the session on the server would cost them
-    // their prerendering, and this is the end-to-end half of that guard.
-    const response = await page.goto("/");
-    const html = (await response?.text()) ?? "";
+  test("the front page still serves its content without JavaScript", async ({ browser }) => {
+    /**
+     * The previous version of this test asserted only that the served HTML did
+     * **not** contain `Hae joukkuetta` — which `TeamSearch` guarantees by
+     * returning null before hydration. It passed with the component deleted, and
+     * with the page turned dynamic. It proved nothing, which is the largest
+     * class in `skills/self-review.md`, and review caught it.
+     *
+     * This asserts the thing that can actually break: with JavaScript disabled,
+     * the page still arrives complete. A component that read the session on the
+     * server would not fail *this* — but `tests/unit/app/rendering-mode.test.ts`
+     * and the build's route table do distinguish that, and they are where that
+     * guard belongs.
+     */
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/");
 
-    expect(html).not.toContain("Hae joukkuetta");
+    // Server-rendered content, not an empty shell waiting for hydration.
+    await expect(page.getByRole("navigation", { name: "Murupolku" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Kotimaa" }).first()).toBeVisible();
+
+    // And still no search, because there is no session.
+    await expect(page.getByRole("searchbox", { name: "Hae joukkuetta" })).toHaveCount(0);
+
+    await context.close();
   });
 });

@@ -66,13 +66,14 @@ export function foldTerm(term: string): string {
  * `%` and `_` are wildcards to `LIKE`, so a reader typing either would match far
  * more than they asked for — one `%` matches every team there is.
  *
- * `\` first, or escaping the wildcards would then escape their own escapes.
+ * One pass over all three, rather than three passes. Escaping them separately
+ * has to do `\` first — otherwise the escapes it inserts get escaped again by
+ * the later passes — and a rule whose correctness depends on statement order is
+ * one somebody reorders. `$&` is the matched character, so each is prefixed
+ * with a single backslash exactly once.
  */
 export function escapeLike(term: string): string {
-  return term
-    .replaceAll(/\\/g, String.raw`\\`)
-    .replaceAll("%", String.raw`\%`)
-    .replaceAll("_", String.raw`\_`);
+  return term.replaceAll(/[\\%_]/g, String.raw`\$&`);
 }
 
 /** Whether a term is worth querying for at all. */
@@ -111,15 +112,16 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
    * `distinct on` collapses each team to its newest matching row, so a club with
    * two hundred matches contributes one.
    *
-   * **Deliberately not `LIMIT`-ed here.** `distinct on (id)` requires the sort to
-   * begin with `id`, so a `LIMIT` on this query keeps the twenty *lowest ids*
-   * rather than the twenty newest teams — a team that played last week is
-   * dropped in favour of one that has not played since 2019, purely because its
-   * id is larger. The cap belongs after the merge, where the rows are ordered by
-   * date.
+   * **Capped in the database, but not on the inner query.** `distinct on (id)`
+   * requires the sort to begin with `id`, so a `LIMIT` there keeps the twenty
+   * *lowest ids* rather than the twenty newest teams — a club that played last
+   * week dropped for one inactive since 2019, purely because its id is larger.
    *
-   * The row count is bounded by how many distinct **teams** match, not by how
-   * many matches they played: one row each, out of roughly 1,600 teams stored.
+   * So the `distinct on` is a subquery, and the cap sits on the outer select
+   * where the rows can be ordered by date. That keeps both properties at once:
+   * the ranking is by recency, and no more than `MAX_RESULTS` rows per query
+   * ever leave Postgres — a short common term like `ja` cannot pull every
+   * matching team into memory.
    */
   const hits = await Promise.all(
     (
@@ -130,7 +132,7 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
         [tasoMatches, tasoMatches.awayTeamProviderId, tasoMatches.awayTeamName, "taso"],
       ] as const
     ).map(async ([table, idColumn, nameColumn, source]) => {
-      const rows = await db
+      const newestPerTeam = db
         .selectDistinctOn([idColumn], {
           teamProviderId: idColumn,
           kickoffAt: table.kickoffAt,
@@ -143,7 +145,17 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
             ne(nameColumn, "")
           )
         )
-        .orderBy(idColumn, desc(table.kickoffAt));
+        .orderBy(idColumn, desc(table.kickoffAt))
+        .as("newest_per_team");
+
+      const rows = await db
+        .select({
+          teamProviderId: newestPerTeam.teamProviderId,
+          kickoffAt: newestPerTeam.kickoffAt,
+        })
+        .from(newestPerTeam)
+        .orderBy(desc(newestPerTeam.kickoffAt))
+        .limit(MAX_RESULTS);
 
       return rows.map((row) => ({ ...row, source }) as Hit);
     })

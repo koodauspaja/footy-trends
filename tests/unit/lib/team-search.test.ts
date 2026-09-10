@@ -19,28 +19,54 @@ import { matches } from "@/db/schema";
 const { state, resolveTeamNames } = vi.hoisted(() => ({
   state: {
     sides: new Map<string, unknown[]>(),
+    limits: [] as number[],
     queried: 0,
   },
   resolveTeamNames: vi.fn(),
 }));
 
+/**
+ * The chain is `selectDistinctOn(...).as(...)` wrapped in an outer
+ * `select(...).from(sub).orderBy(...).limit(...)`, because the cap has to sit
+ * where the rows are ordered by **date** — `distinct on (id)` forces the inner
+ * sort to begin with `id`.
+ *
+ * The mock keeps that structure rather than flattening it: the inner select
+ * decides *which rows*, the outer one decides *how many*, and a mock that
+ * collapsed them could not tell a missing cap from a mis-ordered one.
+ */
 vi.mock("@/db", () => ({
   db: {
     selectDistinctOn: (columns: { name: string }[]) => ({
       from: (table: unknown) => ({
-        where: () => {
-          return {
-            // No `.limit()`: `distinct on (id)` forces the sort to start with
-            // `id`, so limiting here would keep the lowest ids rather than the
-            // newest teams. The cap is applied after the merge.
-            orderBy: async () => {
-              state.queried += 1;
+        where: () => ({
+          orderBy: () => ({
+            as: () => {
               const side = columns[0]?.name.startsWith("home") === true ? "home" : "away";
               const name = table === matches ? "matches" : "taso_matches";
-              return state.sides.get(`${name}:${side}`) ?? [];
+              return { source: `${name}:${side}` };
             },
-          };
-        },
+          }),
+        }),
+      }),
+    }),
+    select: () => ({
+      from: (sub: { source: string }) => ({
+        orderBy: () => ({
+          limit: async (n: number) => {
+            state.queried += 1;
+            state.limits.push(n);
+            const rows = (state.sides.get(sub.source) ?? []) as {
+              teamProviderId: number;
+              kickoffAt: Date;
+            }[];
+            // Postgres would order and cap; the mock does the same, or the
+            // outer `limit` would be untested.
+            return [...rows]
+              .sort((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime())
+              .slice(0, n);
+          },
+        }),
       }),
     }),
   },
@@ -52,6 +78,7 @@ const at = (iso: string) => new Date(iso);
 
 beforeEach(() => {
   state.sides.clear();
+  state.limits.length = 0;
   state.queried = 0;
   resolveTeamNames.mockReset();
   resolveTeamNames.mockResolvedValue([]);
@@ -161,6 +188,15 @@ describe("searchTeams", () => {
 
     expect(resolved).toHaveLength(MAX_RESULTS);
     expect(resolved[0]?.teamProviderId).toBe(999_999);
+  });
+
+  it("caps each query in the database, not only after merging", async () => {
+    // Otherwise a short common term like `ja` pulls every matching team out of
+    // Postgres before keeping twenty of them.
+    const { MAX_RESULTS, searchTeams } = await import("@/lib/team-search");
+    await searchTeams("ja");
+
+    expect(state.limits).toEqual([MAX_RESULTS, MAX_RESULTS, MAX_RESULTS, MAX_RESULTS]);
   });
 
   it("asks both providers, on both sides", async () => {

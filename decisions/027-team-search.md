@@ -62,13 +62,26 @@ What is in place:
   team via `distinct on`, so the work is bounded by team count rather than by
   match count.
 
-A defect the first version had here, found by review: each of the four queries
-carried its own `LIMIT 20`. `distinct on (id)` forces the sort to begin with
-`id`, so that kept the twenty **lowest ids** rather than the twenty newest
-teams — a club that played last week dropped for one inactive since 2019,
-purely because its id is larger. The cap now applies only after the merge, where
-the rows are ordered by date, and there is a regression test that fails if it
-moves back.
+The cap took **two** rounds of review to get right, and both rounds were fair.
+
+1. The first version put `LIMIT 20` on each of the four queries. `distinct on
+   (id)` forces the sort to begin with `id`, so it kept the twenty **lowest
+   ids** — a club that played last week dropped for one inactive since 2019,
+   purely because its id was larger.
+2. I then removed the inner `LIMIT` entirely and capped only after merging in
+   TypeScript. That fixed the ranking and broke the bound: a short common term
+   pulled **every** matching team out of Postgres to keep twenty of them.
+
+The shape that satisfies both is the one review suggested first and I did not
+take: the `distinct on` is a **subquery**, and the cap sits on the outer select
+where the rows can be ordered by date. Ranking by recency, and never more than
+`MAX_RESULTS` rows per query leaving the database.
+
+The outer sort's *direction* is observable only when more teams match than the
+cap — with fewer, the TypeScript merge re-sorts them and hides it. That is why
+there is an integration test inserting `MAX_RESULTS + 5` teams and asserting the
+newest survives and the oldest does not; the unit suite cannot see it, and a
+mutation reversing the direction passes there.
 
 ## What review found
 
