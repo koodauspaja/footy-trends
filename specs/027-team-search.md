@@ -187,6 +187,9 @@ result set is per-term rather than per-page, and the query is bounded (below).
   match rows. If a substring search exceeds ~200 ms, stop and reconsider before
   shipping: a materialised team table, or `pg_trgm`, are the two candidates.
 
+  **Done:** 17-20 ms median at 30,449 rows, against a ~200 ms threshold. Numbers
+  and method in the decision record.
+
 ## Security & Secrets
 
 - **No new environment variables and no secrets.**
@@ -260,10 +263,9 @@ on 2026-09-10 and folded into the sections above:
 Two things are deliberately **decided but unmeasured**, and both are the
 implementer's to confirm rather than the spec's to assert:
 
-- **Whether a substring `LIKE` is fast enough at production scale.** The local
-  database holds 449 match rows and no football-data rows, so nothing measured
-  here would mean anything. *Performance & Limits* names the threshold, the two
-  fallbacks, and requires the number in the decision record.
+- ~~**Whether a substring `LIKE` is fast enough at production scale.**~~
+  **Measured during implementation**: 17-20 ms median, 38 ms worst, at 30,449
+  generated rows. Neither fallback is warranted.
 - **Whether any two teams genuinely share a name across regions.** If one turns
   up, the competition line distinguishes it and no change is needed; the row was
   designed so that finding out costs nothing.

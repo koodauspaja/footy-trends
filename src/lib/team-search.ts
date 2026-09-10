@@ -1,4 +1,5 @@
 import { and, desc, ne, type SQL, sql } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { competitionNameFor } from "@/lib/competition-preferences";
@@ -40,7 +41,7 @@ export const MAX_RESULTS = 20;
 const FOLD_FROM = "äöåÄÖÅ";
 const FOLD_TO = "aoaAOA";
 
-function foldedColumn(column: SQL | ReturnType<typeof sql.raw>): SQL<string> {
+function foldedColumn(column: PgColumn): SQL<string> {
   return sql<string>`translate(lower(${column}), ${FOLD_FROM}, ${FOLD_TO})`;
 }
 
@@ -68,7 +69,10 @@ export function foldTerm(term: string): string {
  * `\` first, or escaping the wildcards would then escape their own escapes.
  */
 export function escapeLike(term: string): string {
-  return term.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  return term
+    .replaceAll(/\\/g, String.raw`\\`)
+    .replaceAll("%", String.raw`\%`)
+    .replaceAll("_", String.raw`\_`);
 }
 
 /** Whether a term is worth querying for at all. */
@@ -106,6 +110,16 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
    * Four queries, one per searched column, mirroring `resolveTeamNames`.
    * `distinct on` collapses each team to its newest matching row, so a club with
    * two hundred matches contributes one.
+   *
+   * **Deliberately not `LIMIT`-ed here.** `distinct on (id)` requires the sort to
+   * begin with `id`, so a `LIMIT` on this query keeps the twenty *lowest ids*
+   * rather than the twenty newest teams — a team that played last week is
+   * dropped in favour of one that has not played since 2019, purely because its
+   * id is larger. The cap belongs after the merge, where the rows are ordered by
+   * date.
+   *
+   * The row count is bounded by how many distinct **teams** match, not by how
+   * many matches they played: one row each, out of roughly 1,600 teams stored.
    */
   const hits = await Promise.all(
     (
@@ -124,13 +138,12 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
         .from(table)
         .where(
           and(
-            sql`${foldedColumn(sql`${nameColumn}`)} like ${pattern}`,
+            sql`${foldedColumn(nameColumn)} like ${pattern}`,
             ne(idColumn, PLACEHOLDER_TEAM_ID),
             ne(nameColumn, "")
           )
         )
-        .orderBy(idColumn, desc(table.kickoffAt))
-        .limit(MAX_RESULTS);
+        .orderBy(idColumn, desc(table.kickoffAt));
 
       return rows.map((row) => ({ ...row, source }) as Hit);
     })

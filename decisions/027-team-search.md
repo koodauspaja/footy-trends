@@ -32,9 +32,27 @@ database before building anything on top of it.
 
 ## Performance, which the spec required to be measured
 
-**The spec's threshold could not be tested honestly, and that is worth stating
-plainly rather than burying.** The local database holds 449 TASO match rows and
-**zero** football-data rows, so any timing taken here describes nothing.
+**Measured, after review pointed out that shipping it unmeasured was not good
+enough.** The local database holds 449 real rows, so the benchmark generated
+production-shaped data first: 30,449 TASO matches across 2,000 teams — production
+holds roughly 20,600 — with Finnish names so the fold has real work to do.
+
+| term | median | worst of five |
+|---|---|---|
+| `jarvenpaa` | 19 ms | 38 ms |
+| `honka` | 19 ms | 22 ms |
+| `ilves` | 17 ms | 17 ms |
+| `abo` | 17 ms | 20 ms |
+| `ja` (the shortest allowed) | 20 ms | 21 ms |
+
+**An order of magnitude under the spec's 200 ms threshold**, so neither `pg_trgm`
+nor a materialised team table is warranted. The reason it holds is structural
+rather than lucky: `distinct on` collapses the scan to one row per *team*, and
+there are roughly 1,600 teams however many matches they played.
+
+The caveat worth keeping: this is one machine with warm caches, and a leading
+wildcard still cannot use a B-tree. What the numbers rule out is the *shape* of
+the problem being wrong at this scale, not every future scale.
 
 What is in place:
 
@@ -44,11 +62,13 @@ What is in place:
   team via `distinct on`, so the work is bounded by team count rather than by
   match count.
 
-**What remains unproven is the substring `LIKE` at production scale**, and a
-leading-wildcard `LIKE` cannot use those B-trees. The spec names the threshold
-(~200 ms) and the two candidates (`pg_trgm` with a GIN index, or a materialised
-team table). This should be measured against production data before anyone
-treats the feature as finished — the boxes for it stay unticked on #247.
+A defect the first version had here, found by review: each of the four queries
+carried its own `LIMIT 20`. `distinct on (id)` forces the sort to begin with
+`id`, so that kept the twenty **lowest ids** rather than the twenty newest
+teams — a club that played last week dropped for one inactive since 2019,
+purely because its id is larger. The cap now applies only after the merge, where
+the rows are ordered by date, and there is a regression test that fails if it
+moves back.
 
 ## What review found
 

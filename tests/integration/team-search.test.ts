@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { and, gte, inArray, lte } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
@@ -14,7 +14,16 @@ import { MAX_RESULTS, searchTeams } from "@/lib/team-search";
  * reader does not match everything.
  */
 
-const TASO_IDS = [993001, 993002, 993003, 993004, 993005, 993006];
+/**
+ * Every provider match id these fixtures use, as a **range** rather than a list.
+ *
+ * The cap test inserts twenty-five rows of its own. Listing ids separately meant
+ * a failure before its manual cleanup left them in the shared database, to
+ * contaminate every later test and every later run. A range cannot drift from
+ * what the tests actually insert.
+ */
+const TASO_ID_FLOOR = 993_000;
+const TASO_ID_CEILING = 993_999;
 const FD_IDS = [993101, 993102];
 
 /** Far outside anything real, so a fixture can never collide with stored data. */
@@ -74,7 +83,14 @@ function footballDataRow(overrides: Partial<typeof matches.$inferInsert> = {}) {
 }
 
 async function clearFixtures() {
-  await db.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, TASO_IDS));
+  await db
+    .delete(tasoMatches)
+    .where(
+      and(
+        gte(tasoMatches.providerMatchId, TASO_ID_FLOOR),
+        lte(tasoMatches.providerMatchId, TASO_ID_CEILING)
+      )
+    );
   await db.delete(matches).where(inArray(matches.providerMatchId, FD_IDS));
 }
 
@@ -262,12 +278,7 @@ describe("searching real rows", () => {
     );
 
     expect((await searchTeams("jarvenpaa")).length).toBeLessThanOrEqual(MAX_RESULTS);
-
-    await db.delete(tasoMatches).where(
-      inArray(
-        tasoMatches.providerMatchId,
-        Array.from({ length: 25 }, (_, index) => 993200 + index)
-      )
-    );
+    // No manual cleanup: these ids sit inside the range `clearFixtures` sweeps,
+    // so a failure above cannot leave them behind for the next test to trip on.
   });
 });

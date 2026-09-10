@@ -19,7 +19,6 @@ import { matches } from "@/db/schema";
 const { state, resolveTeamNames } = vi.hoisted(() => ({
   state: {
     sides: new Map<string, unknown[]>(),
-    limits: [] as number[],
     queried: 0,
   },
   resolveTeamNames: vi.fn(),
@@ -31,15 +30,15 @@ vi.mock("@/db", () => ({
       from: (table: unknown) => ({
         where: () => {
           return {
-            orderBy: () => ({
-              limit: async (n: number) => {
-                state.limits.push(n);
-                state.queried += 1;
-                const side = columns[0]?.name.startsWith("home") === true ? "home" : "away";
-                const name = table === matches ? "matches" : "taso_matches";
-                return state.sides.get(`${name}:${side}`) ?? [];
-              },
-            }),
+            // No `.limit()`: `distinct on (id)` forces the sort to start with
+            // `id`, so limiting here would keep the lowest ids rather than the
+            // newest teams. The cap is applied after the merge.
+            orderBy: async () => {
+              state.queried += 1;
+              const side = columns[0]?.name.startsWith("home") === true ? "home" : "away";
+              const name = table === matches ? "matches" : "taso_matches";
+              return state.sides.get(`${name}:${side}`) ?? [];
+            },
           };
         },
       }),
@@ -53,7 +52,6 @@ const at = (iso: string) => new Date(iso);
 
 beforeEach(() => {
   state.sides.clear();
-  state.limits.length = 0;
   state.queried = 0;
   resolveTeamNames.mockReset();
   resolveTeamNames.mockResolvedValue([]);
@@ -138,11 +136,31 @@ describe("searchTeams", () => {
     expect(resolveTeamNames).not.toHaveBeenCalled();
   });
 
-  it("bounds every query by the result cap", async () => {
+  it("ranks by recency, not by provider id", async () => {
+    /**
+     * The regression this exists for. `distinct on (id)` forces the sort to
+     * start with `id`, so a `LIMIT` on that query keeps the lowest ids — and a
+     * team that played last week would be dropped for one that has not played
+     * since 2019, purely because its id is larger. The cap belongs after the
+     * merge, where the rows are ordered by date.
+     */
     const { MAX_RESULTS, searchTeams } = await import("@/lib/team-search");
+    state.sides.set("taso_matches:home", [
+      // Twenty low ids, all long inactive.
+      ...Array.from({ length: MAX_RESULTS }, (_, index) => ({
+        teamProviderId: index + 1,
+        kickoffAt: at("2019-01-01"),
+      })),
+      // One high id, active last week.
+      { teamProviderId: 999_999, kickoffAt: at("2026-09-01") },
+    ]);
+
     await searchTeams("honka");
 
-    expect(state.limits).toEqual([MAX_RESULTS, MAX_RESULTS, MAX_RESULTS, MAX_RESULTS]);
+    const resolved = resolveTeamNames.mock.calls[0]?.[0] as { teamProviderId: number }[];
+
+    expect(resolved).toHaveLength(MAX_RESULTS);
+    expect(resolved[0]?.teamProviderId).toBe(999_999);
   });
 
   it("asks both providers, on both sides", async () => {
