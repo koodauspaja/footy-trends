@@ -20,14 +20,10 @@ afterEach(() => {
 });
 
 describe("allowedSignInEmails", () => {
-  it("is empty when the variable is unset", () => {
-    expect(allowedSignInEmails()).toEqual([]);
-  });
-
-  it("is empty when the variable is absent entirely, not merely blank", () => {
-    // `stubEnv(name, undefined)` deletes it, which is what CI and production
-    // actually look like — the `?? ""` fallback is only reachable this way, and
-    // the blank default above hides it.
+  it("is empty when the variable is absent, which is what production looks like", () => {
+    // `stubEnv(name, undefined)` deletes it rather than blanking it, so this is
+    // the only case that reaches the `?? ""` fallback. The `beforeEach` stubs an
+    // empty string, which is a different branch — and covered just below.
     vi.stubEnv("AUTH_ALLOWED_EMAILS", undefined);
 
     expect(allowedSignInEmails()).toEqual([]);
