@@ -80,6 +80,24 @@ never have caught because nothing was wrong with any single call:
 The second is worth keeping in mind beyond this file: a fallback is not finished
 when it starts working, only when **coming back** is also correct.
 
+A fourth finding was **declined**, and recorded here because declining review
+comments deserves the same evidence as accepting them. It said Redis floors
+`TTL` to whole seconds rather than rounding to nearest, and proposed rewriting
+the comment accordingly. Measured against this project's own Redis 8.10:
+
+```
+PX 1600  ->  PTTL=1559  TTL=2      (floor would be 1)
+PX 2400  ->  PTTL=2362  TTL=2      (control: both readings agree)
+PX 1200  ->  PTTL=1167  TTL=1      (control: both readings agree)
+```
+
+Only the 1600 ms case distinguishes the two, and it comes out for rounding —
+`(ttl+500)/1000` in `ttlGenericCommand`. Accepting the suggestion would have
+replaced a correct statement with an incorrect one, in the comment whose job is
+to explain why the floor exists. The consequence is the same either way: a `TTL`
+of `0` means under half a second rather than under a second, and one second
+remains the smallest useful `retryAfter`.
+
 ## What is still unproven
 
 That the counters actually land in Redis on a deployed instance. The unit tests
