@@ -165,15 +165,26 @@ function AuthButtons() {
 }
 
 /**
- * The failure notice, shown after Google sends the reader back without a
- * session — a cancelled consent screen, an account that is not on the Testing
- * mode test-user list, or a provider error — and after a sign-out that failed.
+ * The failure notice, shown after a sign-in that produced no session and after
+ * a sign-out that failed.
  *
- * Every Google-side cause says the same thing, deliberately. Google's `error`
- * parameter tells them apart, but the reader's next action is identical in
- * every case, and naming the cause would leak whether a given account is on the
- * test-user list. Sign-out is the one distinguishable case, because it is ours
- * and describes a different thing having failed.
+ * **Google-side causes all say the same thing, deliberately** — a cancelled
+ * consent screen, a provider error, a state that did not survive. Google's
+ * `error` parameter tells them apart, but the reader's next action is identical
+ * in every case: try again.
+ *
+ * Two causes are named, because for them that advice would be wrong:
+ *
+ * - **The allowlist refused it** (#314). Ours, not Google's: the reader got
+ *   through Google and this app turned them away. Retrying fails identically
+ *   forever, so the notice says to ask for access. It names the environment
+ *   rather than the address, so it reveals nothing about who is on the list.
+ * - **Sign-out failed.** Also ours, and a different thing having failed.
+ *
+ * This comment previously said naming a cause would leak whether an account was
+ * on Google's Testing mode test-user list. #314 measured that premise away: that
+ * list never gated this app, because Google enforces it only beyond
+ * `openid`/`email`/`profile`.
  */
 function SignInError() {
   /**

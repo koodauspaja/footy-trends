@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allowedSignInEmails, refusesSignIn, signInRefusal } from "@/lib/sign-in-allowlist";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
@@ -8,6 +8,13 @@ import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
  * The variable is read on every call rather than at import, so these stub it
  * per test — that property is the point of the design and one of the tests.
  */
+beforeEach(() => {
+  // Stubbed empty rather than trusted to be absent: a developer with this set
+  // locally to exercise the feature would otherwise fail every unrestricted
+  // case, and the failure would look like a bug in the code under test.
+  vi.stubEnv("AUTH_ALLOWED_EMAILS", "");
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -15,6 +22,16 @@ afterEach(() => {
 describe("allowedSignInEmails", () => {
   it("is empty when the variable is unset", () => {
     expect(allowedSignInEmails()).toEqual([]);
+  });
+
+  it("is empty when the variable is absent entirely, not merely blank", () => {
+    // `stubEnv(name, undefined)` deletes it, which is what CI and production
+    // actually look like — the `?? ""` fallback is only reachable this way, and
+    // the blank default above hides it.
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", undefined);
+
+    expect(allowedSignInEmails()).toEqual([]);
+    expect(refusesSignIn("anyone@example.fi")).toBe(false);
   });
 
   it.each([
