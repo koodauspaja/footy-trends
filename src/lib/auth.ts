@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import { displayNameFor } from "@/lib/auth-profile";
 import { getSessionExtrasFor } from "@/lib/preferences";
+import { redisRateLimitStorage } from "@/lib/rate-limit-storage";
 
 /**
  * Reads a variable that sign-in cannot work without, and says which one is
@@ -99,6 +100,21 @@ export const auth = betterAuth({
         ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
       };
     })(),
+  },
+
+  /**
+   * Counters in Redis rather than in one instance's memory (#318).
+   *
+   * better-auth's default is an in-process `Map`: it resets on every deploy,
+   * and it would become one limiter per instance the moment the service ran
+   * two, multiplying the effective limit with nothing reporting that it had.
+   *
+   * `customStorage` and not `secondaryStorage`, which is the documented option
+   * for this: configuring that one also moves **sessions** into Redis, and
+   * sign-in would then need Redis to be up. This moves the counters alone.
+   */
+  rateLimit: {
+    customStorage: redisRateLimitStorage(),
   },
 
   database: drizzleAdapter(db, {
