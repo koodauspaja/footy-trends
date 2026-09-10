@@ -50,6 +50,22 @@ leading-wildcard `LIKE` cannot use those B-trees. The spec names the threshold
 team table). This should be measured against production data before anyone
 treats the feature as finished — the boxes for it stay unticked on #247.
 
+## What review found
+
+Two, both real, both fixed in the same commit:
+
+| Finding | Why it mattered |
+|---|---|
+| The secondary line rendered a **partial** version — a lone `2026` — where the spec asks for both or neither | Spec drift, and worse: the test I wrote **asserted the partial behaviour**, so it would have stayed green forever. The spec's wording was ambiguous and has been tightened rather than left to be misread again |
+| Two searches in flight could resolve out of order, the older overwriting the newer | Silent, and indistinguishable from a correct answer: the reader sees results for a term they already replaced. Guarded with a submission counter, on both the success and the failure path — refusing to submit while pending would also close it, but by discarding what the reader asked for |
+
+A third defect was found while fixing CI rather than by review: the component
+tests fired `submit` on the **input** instead of the form, so React tried to
+build a `FormData` from a non-form element. It threw 31 times per run **locally
+too** — as unhandled errors that vitest still reported as `15 passed`. CI is
+stricter and failed. Reading a green summary without looking at stderr is what
+hid it.
+
 ## Testing notes
 
 `searchTeams` is covered twice on purpose. The unit suite mocks the database and

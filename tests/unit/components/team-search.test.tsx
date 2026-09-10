@@ -31,10 +31,18 @@ function signedIn() {
   sessionState.current = { data: { user: { name: "Miikka" } } };
 }
 
+/** The form itself, not the field: submitting an input makes React build a
+ * `FormData` from a non-form element, which throws. */
+function formOf() {
+  const form = screen.getByRole("searchbox").closest("form");
+  if (form === null) throw new Error("the search field is not inside a form");
+  return form;
+}
+
 async function search(term = "honka") {
   render(<TeamSearch />);
   fireEvent.change(screen.getByRole("searchbox"), { target: { value: term } });
-  fireEvent.submit(screen.getByRole("searchbox"));
+  fireEvent.submit(formOf());
 }
 
 beforeEach(() => {
@@ -142,20 +150,90 @@ describe("TeamSearch", () => {
   });
 
   it.each([
-    ["neither a competition nor a season", { competitionName: null, seasonId: null }, null],
-    ["only a season", { competitionName: null, seasonId: 2026 }, "2026"],
-    ["only a competition", { competitionName: "Veikkausliiga", seasonId: null }, "Veikkausliiga"],
-  ])("omits rather than pads the second line with %s", async (_case, over, expected) => {
+    ["neither a competition nor a season", { competitionName: null, seasonId: null }],
+    ["only a season", { competitionName: null, seasonId: 2026 }],
+    ["only a competition", { competitionName: "Veikkausliiga", seasonId: null }],
+  ])("shows no second line at all with %s", async (_case, over) => {
+    /**
+     * Both or neither, per specs/027. A bare `2026` does not disambiguate two
+     * teams sharing a name, which is the one thing this line is for — and the
+     * first version of this test asserted the partial line, so it would have
+     * kept the drift green forever. Sourcery caught it.
+     */
     signedIn();
     searchTeamsAction.mockResolvedValue({ ok: true, teams: [team(over)] });
     await search();
 
     await screen.findByText("FC Honka");
-    if (expected === null) {
-      expect(screen.queryByText(/·/)).not.toBeInTheDocument();
-    } else {
-      expect(screen.getByText(expected)).toBeInTheDocument();
-    }
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+    expect(screen.queryByText("2026")).not.toBeInTheDocument();
+    expect(screen.queryByText("Veikkausliiga")).not.toBeInTheDocument();
+  });
+
+  it("ignores a slower earlier search that resolves after a later one", async () => {
+    /**
+     * Two searches in flight resolve in whatever order the network gives them.
+     * Without a guard the reader is left looking at results for a term they had
+     * already replaced — silently, and indistinguishable from a correct answer.
+     */
+    signedIn();
+    render(<TeamSearch />);
+
+    let releaseFirst: (value: unknown) => void = () => undefined;
+    searchTeamsAction.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseFirst = resolve;
+      })
+    );
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "first" } });
+    fireEvent.submit(formOf());
+
+    searchTeamsAction.mockResolvedValueOnce({
+      ok: true,
+      teams: [team({ name: "Second Result" })],
+    });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "second" } });
+    fireEvent.submit(formOf());
+
+    await screen.findByText("Second Result");
+
+    // The first search now answers, far too late.
+    releaseFirst({ ok: true, teams: [team({ name: "First Result" })] });
+
+    await waitFor(() => expect(screen.queryByText("First Result")).not.toBeInTheDocument());
+    expect(screen.getByText("Second Result")).toBeInTheDocument();
+  });
+
+  it("ignores a superseded search that fails, rather than reporting its failure", async () => {
+    // The same race on the error path: a stale failure would replace good
+    // results with `Haku epäonnistui.`
+    signedIn();
+    render(<TeamSearch />);
+
+    let rejectFirst: (reason: unknown) => void = () => undefined;
+    searchTeamsAction.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectFirst = reject;
+      })
+    );
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "first" } });
+    fireEvent.submit(formOf());
+
+    searchTeamsAction.mockResolvedValueOnce({
+      ok: true,
+      teams: [team({ name: "Second Result" })],
+    });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "second" } });
+    fireEvent.submit(formOf());
+
+    await screen.findByText("Second Result");
+
+    rejectFirst(new Error("slow network"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Haku epäonnistui. Yritä uudelleen.")).not.toBeInTheDocument()
+    );
+    expect(screen.getByText("Second Result")).toBeInTheDocument();
   });
 
   it("clears a previous message when a new search starts", async () => {
@@ -165,7 +243,7 @@ describe("TeamSearch", () => {
     await screen.findByText("Ei hakutuloksia.");
 
     searchTeamsAction.mockResolvedValue({ ok: true, teams: [team()] });
-    fireEvent.submit(screen.getByRole("searchbox"));
+    fireEvent.submit(formOf());
 
     await waitFor(() => expect(screen.queryByText("Ei hakutuloksia.")).not.toBeInTheDocument());
   });

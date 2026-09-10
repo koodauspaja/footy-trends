@@ -51,9 +51,14 @@ a signed-out visitor sees today's header unchanged.
 | Result list landmark | `aria-label="Hakutulokset"` |
 | Busy state | the field's `aria-busy`, no separate string |
 
-A result row shows the team's **current** name as its primary line. When a team
-has no resolvable competition or season the secondary line is omitted rather
-than filled with a placeholder.
+A result row shows the team's **current** name as its primary line. The
+secondary line appears only when **both** the competition and the season are
+known, and is omitted entirely otherwise — never padded with a placeholder.
+
+Both or neither, because a bare season does not disambiguate two teams sharing a
+name, which is the only thing this line is for. (The original wording here said
+"no resolvable competition or season", which read either way; the first
+implementation took the other reading and rendered a lone `2026`.)
 
 **No region field on the row.** Teams sharing a name across regions are unlikely,
 and where it happens the **competition name already says the region** —
@@ -142,6 +147,8 @@ result set is per-term rather than per-page, and the query is bounded (below).
 | Term is only whitespace | Treated as too short |
 | Signed-out reader | The component renders `null`; the action refuses with `unauthenticated` |
 | No matches | `{ ok: true, teams: [] }`; the field shows `Ei hakutuloksia.` |
+| Only one of competition and season is known | No secondary line at all. In practice this is a TASO national side, whose category no registry can name |
+| Two searches in flight at once | The later one wins. A slower earlier response is discarded rather than allowed to overwrite it, on both the success and the failure path |
 | Team id `0` | Excluded. TASO's unresolved-bracket placeholder, 22 rows measured 2026-09-02, already filtered on the match page by spec 019 |
 | Empty team name | Excluded. One exists in TASO |
 | Two teams with the same name | Both returned, distinguished by competition and season. `FC Honka`, `PK-35` and `TiPS` each carry nine distinct ids |

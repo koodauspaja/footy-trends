@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useSession } from "@/lib/auth-client";
 import type { TeamSearchView } from "@/lib/team-search";
 import { searchTeamsAction } from "@/lib/team-search-actions";
@@ -42,15 +42,17 @@ function teamHref(team: TeamSearchView): string | null {
 /**
  * The competition and season under the name, or nothing.
  *
- * Omitted rather than filled with a placeholder when either is missing — a
- * TASO national-team category has no name in any registry the app carries, and
- * `Tuntematon · 2026` tells the reader less than one line does.
+ * **Both or neither**, which is what specs/027 asks for and what the first
+ * version got wrong. A bare `2026` does not disambiguate two teams sharing a
+ * name — the one thing this line exists for — and a placeholder like
+ * `Tuntematon · 2026` tells the reader less than no line at all.
+ *
+ * A TASO national-team category has no name in any registry the app carries, so
+ * that is the case this actually covers.
  */
 function secondaryLine(team: TeamSearchView): string | null {
-  if (team.competitionName === null) return team.seasonId === null ? null : `${team.seasonId}`;
-  return team.seasonId === null
-    ? team.competitionName
-    : `${team.competitionName} · ${team.seasonId}`;
+  if (team.competitionName === null || team.seasonId === null) return null;
+  return `${team.competitionName} · ${team.seasonId}`;
 }
 
 export function TeamSearch() {
@@ -58,6 +60,21 @@ export function TeamSearch() {
   const [term, setTerm] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
   const [pending, startTransition] = useTransition();
+  /**
+   * Which submission is current, so a slow earlier one cannot overwrite a fast
+   * later one.
+   *
+   * Two searches in flight resolve in whatever order the network gives them,
+   * and the reader would be left looking at results for a term they had already
+   * replaced — silently, and indistinguishable from a correct answer.
+   *
+   * A ref rather than state: the closure that checks it is created before the
+   * re-render, and bumping it must not itself cause one.
+   *
+   * Refusing to submit while one is pending would also close the race, but by
+   * discarding what the reader asked for. The latest intent wins instead.
+   */
+  const latestSubmission = useRef(0);
   /**
    * Rendered only after hydration. The header is server-rendered on every page
    * and prerendered on four of them, where there is no session — and
@@ -78,9 +95,14 @@ export function TeamSearch() {
         onSubmit={(event) => {
           event.preventDefault();
           setState({ kind: "idle" });
+          latestSubmission.current += 1;
+          const submission = latestSubmission.current;
+          const superseded = () => submission !== latestSubmission.current;
+
           startTransition(async () => {
             try {
               const result = await searchTeamsAction(term);
+              if (superseded()) return;
               if (result.ok) {
                 setState(
                   result.teams.length === 0
@@ -97,6 +119,7 @@ export function TeamSearch() {
                 text: result.reason === "too-short" ? TOO_SHORT : FAILED,
               });
             } catch {
+              if (superseded()) return;
               setState({ kind: "message", text: FAILED });
             }
           });
