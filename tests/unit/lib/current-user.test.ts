@@ -19,6 +19,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Deliberately **not** mocking `@/lib/auth`: mocking it is what would hide the
  * failure. The real module has to be reachable and simply never constructed.
  */
+/**
+ * Every test here imports a **real** module graph — that is the point of the
+ * file, and mocking `@/lib/auth` is what would hide what it protects.
+ *
+ * That graph is the largest in the repository: better-auth, its Drizzle adapter,
+ * and the schema. Transforming it cold costs 500-640 ms on an idle machine and
+ * was measured between 588 and 1266 ms while the other 111 files were running —
+ * a 2.5x spread across three runs. Vitest's 5 s default left no room for the
+ * tail of that distribution, and the file failed roughly once in ten full runs
+ * with `Test timed out in 5000ms`, never in isolation (#316).
+ *
+ * These tests assert a guard, not a latency. Thirty seconds is far past any
+ * contention this machine produces, and still fails fast if the import ever
+ * genuinely hangs.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 const ACTION_MODULES = {
   "favourite-actions": () => import("@/lib/favourite-actions"),
   "avatar-actions": () => import("@/lib/avatar-actions"),
