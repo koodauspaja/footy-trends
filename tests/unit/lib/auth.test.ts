@@ -31,6 +31,13 @@ vi.mock("better-auth/plugins/custom-session", () => ({ customSession }));
 vi.mock("@/lib/preferences", () => ({ getSessionExtrasFor }));
 
 const REQUIRED = {
+  /**
+   * Stubbed empty rather than left alone: a developer who sets this locally to
+   * exercise #314 would otherwise turn every "no allowlist" test into a
+   * refusal, and the failure would look like a bug in the code under test.
+   * Same reason the CI unit job runs with no environment at all (#158).
+   */
+  AUTH_ALLOWED_EMAILS: "",
   BETTER_AUTH_SECRET: "test-secret",
   BETTER_AUTH_URL: "http://localhost:3000",
   GOOGLE_CLIENT_ID: "test-client-id",
@@ -115,6 +122,31 @@ describe("resolving the client IP, from #309", () => {
     const config = await loadConfig();
 
     expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip"]);
+  });
+});
+
+describe("who may sign in, from #314", () => {
+  it("gates every identity through the allowlist", async () => {
+    // `validateUserInfo` and not `databaseHooks.user.create.before`: that one
+    // fires only at account creation, so anyone who signed in before a list
+    // existed would keep access forever. This runs on `sign-in` too.
+    setEnv({ AUTH_ALLOWED_EMAILS: "miikka@example.fi" });
+
+    const config = await loadConfig();
+
+    expect(config.user.validateUserInfo({ user: { email: "miikka@example.fi" } })).toBeUndefined();
+    expect(config.user.validateUserInfo({ user: { email: "stranger@example.fi" } })).toEqual({
+      error: "sign_in_not_allowed",
+    });
+  });
+
+  it("admits everyone when no allowlist is configured", async () => {
+    // Production is deliberately open, and local development has no list.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.user.validateUserInfo({ user: { email: "anyone@example.fi" } })).toBeUndefined();
   });
 });
 
