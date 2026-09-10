@@ -34,17 +34,26 @@ function required(name: string): string {
  * *replaces* `x-forwarded-for` rather than appending, and sets `x-real-ip`
  * alongside it.
  *
- * Railway fronts applications with Envoy, which sets `x-envoy-external-address`
- * to the address it resolved as the external client. It is single-value, so
- * better-auth reads it unaided, and it is the **only** default.
+ * **The rule: read a header only where the edge is measured to overwrite it.**
+ * A header the platform passes through is not a client address, it is a request
+ * body — and trusting one lets an attacker rotate it for a fresh bucket per
+ * request, which is worse than the shared bucket this replaces, where they at
+ * least share the limit with everyone.
  *
- * `x-real-ip` arrives too and was in this list, but a header is only worth
- * reading if the edge is known to overwrite what a client sends. Trusting one
- * that is passed through would let an attacker rotate it for a fresh bucket per
- * request — worse than the shared bucket this replaces, where they at least
- * share the limit. If Envoy's header turns out not to arrive, the symptom is the
- * old warning and the old shared bucket: no client resolves, nothing regresses,
- * and `AUTH_CLIENT_IP_HEADERS` adds a header back without a release.
+ * Measured on staging by sending `192.0.2.1` (TEST-NET-1, nobody's real source)
+ * as each candidate and reading `/api/health?forwarded=1`:
+ *
+ * | sent as | result |
+ * |---|---|
+ * | `x-real-ip` | overwritten by the edge, matching forwarded entry 0 |
+ * | `x-envoy-external-address` | **arrived intact** — Railway never sets it |
+ * | `cf-connecting-ip`, `true-client-ip` | arrived intact |
+ *
+ * So `x-real-ip` is the only default. `x-envoy-external-address` was the default
+ * for one release on the reasoning that Railway fronts applications with Envoy;
+ * it does, but it does not forward that header, and an absent header that a
+ * client may set is the worst of the three cases — nothing resolves for ordinary
+ * visitors, and an attacker resolves whatever they like.
  *
  * Reading both from the environment is what makes that reversible: if a platform turns out to pass a client-supplied
  * `x-real-ip` through, the correction is a Railway variable rather than a
@@ -58,7 +67,7 @@ function headerList(name: string): string[] {
     .filter((entry) => entry !== "");
 }
 
-const DEFAULT_CLIENT_IP_HEADERS = ["x-envoy-external-address"];
+const DEFAULT_CLIENT_IP_HEADERS = ["x-real-ip"];
 
 /**
  * The better-auth server instance, from specs/023-google-oauth-login.md.

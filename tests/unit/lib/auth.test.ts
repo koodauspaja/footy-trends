@@ -63,21 +63,21 @@ async function loadConfig(): Promise<any> {
 }
 
 describe("resolving the client IP, from #309", () => {
-  it("reads the address from Envoy's header, and from nothing else", async () => {
-    // Without a header better-auth resolves no IP at all and rate limiting
-    // collapses to one shared per-path bucket, where one attacker locks
-    // everyone out. Railway fronts applications with Envoy, which resolves the
-    // external client itself; its `x-forwarded-for` arrives with two entries,
-    // which better-auth refuses to read unaided.
+  it("reads the address from x-real-ip, the one header the edge overwrites", async () => {
+    // Without a resolvable header better-auth falls back to one shared per-path
+    // bucket, where one attacker locks everyone out. Railway's `x-forwarded-for`
+    // arrives with two entries, which better-auth refuses to read unaided.
     //
-    // `x-real-ip` is deliberately absent. Reading a header the edge might pass
-    // through would give an attacker a fresh bucket per forged value, which is
-    // worse than sharing one.
+    // `x-real-ip` and not `x-envoy-external-address`: a sentinel sent as the
+    // first is overwritten by the edge, and one sent as the second arrives
+    // intact, because Railway never sets it. An absent header a client may set
+    // is worse than no configuration at all — ordinary visitors still share a
+    // bucket and an attacker rotates theirs freely.
     setEnv();
 
     const config = await loadConfig();
 
-    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip"]);
   });
 
   it("trusts no proxy unless one is configured", async () => {
@@ -114,7 +114,7 @@ describe("resolving the client IP, from #309", () => {
 
     const config = await loadConfig();
 
-    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-envoy-external-address"]);
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip"]);
   });
 });
 
