@@ -149,8 +149,14 @@ Merge commits are excluded — a release produces one, and it carries no type.
    the repository. So a domain whose label is missing is named in `Touches:`,
    which describes the release truthfully, and reported on stderr instead of
    being applied. That gap belongs in
-   `docs/setup/002-github-project-board.md`'s table, and the `diff` above is
-   what makes it visible rather than silent.
+   `docs/setup/002-github-project-board.md`'s table, and the `comm` check above
+   is what makes it visible rather than silent.
+
+   **`--print=domains` exits non-zero when the lookup itself failed**, as
+   opposed to finding nothing — a bad token, a rate limit, an unreadable label
+   list. With `set -e` above, that stops the procedure rather than labelling the
+   release with silence. `--print=notes` never fails, because notes must always
+   be publishable.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the

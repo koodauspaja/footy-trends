@@ -99,18 +99,6 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
 /**
- * The domain labels on every issue this release's commits reference.
- *
- * **This can never stop a release.** Everything else in this script reads git
- * and needs no network; this one call does, so every failure — no token, a
- * rate limit, a closed laptop lid — resolves to "no domains" and the notes are
- * published without the line. A version that cannot be cut because GitHub was
- * slow would be a worse trade than notes that say slightly less.
- *
- * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
- * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
- */
-/**
  * The subset that actually exists as a label on the repository.
  *
  * **GitHub creates a label it has never seen** when one is added to an issue —
@@ -162,7 +150,10 @@ async function repositoryLabels(token: string | undefined): Promise<Set<string> 
     }
 
     const payload = (await response.json()) as unknown;
-    if (!Array.isArray(payload)) return null;
+    if (!Array.isArray(payload)) {
+      err("The label list was not an array; no labels are printed.");
+      return null;
+    }
     for (const label of payload) {
       const name = (label as { name?: unknown }).name;
       if (typeof name === "string") names.add(name);
@@ -190,19 +181,34 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
 
   try {
     const known = await repositoryLabels(token);
-    if (known === null) return [];
+    // A failed lookup is not the same as "this release touches nothing", and a
+    // caller that cannot tell them apart will apply no labels and call it done.
+    if (known === null) throw new Error("the repository's labels could not be read");
 
     for (const domain of domains) {
       if (!known.has(domain)) err(`No label named ${domain}; it is in the notes but not applied.`);
     }
     return domains.filter((domain) => known.has(domain));
   } catch (error) {
-    // Same rule as the lookup itself: never stop a release over this.
-    err(`Could not read the repository's labels, so none are printed: ${String(error)}`);
-    return [];
+    err(`Could not read the repository's labels: ${String(error)}`);
+    throw error;
   }
 }
 
+/**
+ * The domain labels on every issue this release's commits reference.
+ *
+ * **This never stops `--print=notes`.** Everything else in this script reads git
+ * and needs no network; this one call does, so every failure — no token, a rate
+ * limit, a closed laptop lid — resolves to "no domains" and the notes publish
+ * without the line. Notes that say slightly less beat a release that cannot be
+ * cut because GitHub was slow.
+ *
+ * `--print=domains` is deliberately stricter: see its branch below.
+ *
+ * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
+ * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
+ */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
   const token = githubToken();
   const refs = issueRefsIn(decision);
@@ -222,17 +228,30 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
             "X-GitHub-Api-Version": "2022-11-28",
           },
         });
-        // Deleted, or simply not ours: skipped rather than failing the whole
-        // line. A reference that is a *pull request* answers 200 here — the
-        // shape check in `labelsOfIssueResponse` is what excludes those.
-        if (!response.ok) return [];
+        /**
+         * A **404** is one reference that is deleted or not ours, and is
+         * skipped. Anything else — 401 on a bad token, 403 on a rate limit — is
+         * the lookup failing rather than that issue being absent, and would
+         * otherwise report every release as touching nothing.
+         *
+         * A reference that is a *pull request* answers 200 here; the shape check
+         * in `labelsOfIssueResponse` is what excludes those.
+         */
+        if (response.status === 404) return [];
+        if (!response.ok) throw new Error(`GitHub answered ${response.status} for issue ${ref}`);
         return labelsOfIssueResponse(await response.json());
       })
     );
     return domainsFrom(labels.flat());
   } catch (error) {
-    err(`Could not read issue labels, so the notes omit the domains: ${String(error)}`);
-    return [];
+    /**
+     * Thrown on, not swallowed. An empty answer has to mean "this release
+     * touches nothing" and nothing else — `--print=notes` catches this and
+     * publishes without the line, while `--print=domains` lets it exit
+     * non-zero so a caller cannot apply no labels and call it done.
+     */
+    err(`Could not read issue labels: ${String(error)}`);
+    throw error;
   }
 }
 
@@ -333,11 +352,20 @@ if (printMode === "version") {
    * Empty output when nothing resolved — the caller applies no labels, which is
    * the same silence the notes keep.
    */
+  /**
+   * **This mode alone may fail.** `--print=notes` must always produce notes, so
+   * it swallows everything; but a caller applying labels has to be able to tell
+   * "this release touches nothing" from "the labels could not be read". The
+   * documented procedure runs under `set -e`, so a non-zero exit stops it rather
+   * than labelling the release with silence.
+   */
   domainsForRelease(decision)
     .then((domains) => labelsThatExist(domains, githubToken()))
-    .catch(() => [] as string[])
     .then((domains) => {
       for (const domain of domains) out(domain);
+    })
+    .catch(() => {
+      process.exitCode = 1;
     });
 } else if (printMode === "notes") {
   /**
