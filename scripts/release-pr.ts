@@ -16,6 +16,8 @@
  * handling instead of `set -e` folklore.
  */
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { executablePath, overrideNameFor } from "./executable";
 import { INITIAL_STATUS, pullNumberFrom, selectStatusOption } from "./release-pr-plan";
 
 const PROJECT_NUMBER = "2";
@@ -28,23 +30,34 @@ function out(line = ""): void {
 }
 
 /**
- * `gh` and `npm` come from `PATH`, unlike the `git` in `release-version.ts`.
- *
- * That rule exists because `git` decides the **version** — a number derived
- * from whichever `git` was first in somebody's path is not one to trust. These
- * two only carry out a decision already made: `gh` talks to GitHub, which
- * answers for itself, and `npm` is how this script was invoked in the first
- * place, so it is already resolved.
+ * Nothing here is resolved through `PATH` — the same rule as the `git` in
+ * `release-version.ts`, and for the same reason: this opens a release, and a
+ * release carried out by whichever binary happened to be first in somebody's
+ * path is not one to trust.
  */
 function gh(args: string[], input?: string): string {
-  return execFileSync("gh", args, {
+  const binary = executablePath("gh");
+  if (binary === null) {
+    throw new Error(
+      `gh not found. Set ${overrideNameFor("gh")} to its absolute path if it is installed somewhere unusual.`
+    );
+  }
+  return execFileSync(binary, args, {
     encoding: "utf8",
     ...(input === undefined ? {} : { input }),
   }).trim();
 }
 
+/**
+ * `release-version.ts`, run through the very Node and the very `tsx` already
+ * running this — both absolute, neither from `PATH`.
+ *
+ * Spawned rather than imported because that file is a script: importing it
+ * would run it, print a report, and set an exit code.
+ */
 function release(mode: string): string {
-  return execFileSync("npm", ["run", "release:version", "--silent", "--", mode], {
+  const tsx = createRequire(`${process.cwd()}/`).resolve("tsx/cli");
+  return execFileSync(process.execPath, [tsx, "scripts/release-version.ts", mode], {
     encoding: "utf8",
   }).trim();
 }
