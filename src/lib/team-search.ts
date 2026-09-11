@@ -87,6 +87,8 @@ export type TeamSearchView = {
   teamProviderId: number;
   name: string;
   region: RegionSegment | null;
+  /** Where this team's page is, or null when it has none. Built by `resolveTeamNames`. */
+  href: string | null;
   /** The Finnish competition name, or null when the registry no longer has it. */
   competitionName: string | null;
   seasonId: number | null;
@@ -190,6 +192,7 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
       teamProviderId: team.teamProviderId,
       name: team.name,
       region: team.region,
+      href: team.href,
       competitionName:
         team.region === null || team.competitionCode === null
           ? null

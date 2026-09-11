@@ -300,6 +300,7 @@ describe("searchTeams", () => {
         region: null,
         competitionCode: null,
         seasonId: null,
+        href: null,
       },
     ]);
     const { searchTeams } = await import("@/lib/team-search");
@@ -317,6 +318,7 @@ describe("searchTeams", () => {
         region: "kotimaa",
         competitionCode: "VL",
         seasonId: 2019,
+        href: "/kotimaa/joukkue/7",
       },
     ]);
     const { searchTeams } = await import("@/lib/team-search");
@@ -327,6 +329,9 @@ describe("searchTeams", () => {
         teamProviderId: 7,
         name: "FC Honka",
         region: "kotimaa",
+        // Passed straight through from `resolveTeamNames`, which is the one
+        // place that knows Finland's pages are not id routes (#325).
+        href: "/kotimaa/joukkue/7",
         competitionName: "Veikkausliiga",
         seasonId: 2019,
       },
@@ -345,6 +350,7 @@ describe("searchTeams", () => {
         region: null,
         competitionCode: "UNL",
         seasonId: 2026,
+        href: null,
       },
     ]);
     const { searchTeams } = await import("@/lib/team-search");
@@ -365,6 +371,7 @@ describe("searchTeams", () => {
         region: "ulkomaat",
         competitionCode: null,
         seasonId: 2026,
+        href: "/kotimaa/joukkue/7",
       },
     ]);
     const { searchTeams } = await import("@/lib/team-search");

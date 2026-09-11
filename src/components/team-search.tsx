@@ -35,10 +35,6 @@ type State =
   | { kind: "results"; teams: TeamSearchView[] }
   | { kind: "message"; text: string };
 
-function teamHref(team: TeamSearchView): string | null {
-  return team.region === null ? null : `/${team.region}/joukkue/${team.teamProviderId}`;
-}
-
 /**
  * The competition and season under the name, or nothing.
  *
@@ -147,7 +143,7 @@ export function TeamSearch() {
       {state.kind === "results" && (
         <ul aria-label={RESULTS_LABEL} className="mt-1 flex flex-col gap-1">
           {state.teams.map((team) => {
-            const href = teamHref(team);
+            const href = team.href;
             const secondary = secondaryLine(team);
             return (
               <li className="text-sm" key={`${team.source}:${team.teamProviderId}`}>

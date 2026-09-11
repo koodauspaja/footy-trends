@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { favoriteCompetition, favoriteTeam, matches, tasoMatches, user } from "@/db/schema";
 import { regionOfCompetition } from "@/lib/competitions";
@@ -9,6 +9,7 @@ import {
   teamKey,
 } from "@/lib/favourite-keys";
 import { logger } from "@/lib/logger";
+import { FINLAND_TEAM_NAME, MENS_TEAM, WOMENS_TEAM } from "@/lib/national-team";
 import type { RegionSegment } from "@/lib/regions";
 
 /**
@@ -260,6 +261,78 @@ type TeamSide = {
 const TASO_NATIONAL_BUCKET_PREFIX = "maajp";
 
 /**
+ * The two categories that say which Finland a TASO team id is, from #325.
+ *
+ * **Why these two and not the tournament categories.** Both national sides carry
+ * an A-friendlies category in *every* bucket, and its id is the same either side
+ * of TASO's `Muut` rename — `national-team.ts` records that. The tournament ids
+ * cannot be used: a `W` prefix looks like it marks the women's game until you
+ * meet `WCQ`, which is the men's World Cup qualifiers.
+ *
+ * The competition *names* would answer it directly, by the ` Huuhkajat` and
+ * ` Helmarit` suffixes — but those come from a live TASO call, and this runs on
+ * every session read.
+ */
+const MENS_FRIENDLIES_CATEGORY = "Miehet-A";
+const WOMENS_FRIENDLIES_CATEGORY = "Naiset-A";
+
+/**
+ * Where a TASO national side's page is, or null when nothing can be said.
+ *
+ * Only Finland has one at all — the opponents appear in TASO's data without
+ * having pages anywhere — and Finland has **two**, so the answer has to come
+ * from the categories the id actually played in.
+ *
+ * Null when the id carries both, or neither: an id that is somehow both teams
+ * cannot be sent to one of them, and #247 already renders an unlinked row
+ * honestly. A wrong link is worse than no link, because it looks like it worked.
+ */
+function nationalTeamPathFor(categories: Set<string>): string | null {
+  const mens = categories.has(MENS_FRIENDLIES_CATEGORY);
+  const womens = categories.has(WOMENS_FRIENDLIES_CATEGORY);
+  if (mens === womens) return null;
+  return mens ? MENS_TEAM.basePath : WOMENS_TEAM.basePath;
+}
+
+/**
+ * Every category a TASO national-team id has played in.
+ *
+ * One query for all of them, and only asked when a candidate exists —
+ * `resolveTeamNames` runs on every session read, and Finland is a handful of
+ * rows out of thousands.
+ */
+async function nationalCategoriesFor(ids: number[]): Promise<Map<number, Set<string>>> {
+  const found = new Map<number, Set<string>>();
+  if (ids.length === 0) return found;
+
+  const bucket = `${TASO_NATIONAL_BUCKET_PREFIX}%`;
+  const rows = await db
+    .selectDistinct({ id: tasoMatches.homeTeamProviderId, category: tasoMatches.categoryId })
+    .from(tasoMatches)
+    .where(
+      and(inArray(tasoMatches.homeTeamProviderId, ids), like(tasoMatches.competitionCode, bucket))
+    )
+    .union(
+      db
+        .selectDistinct({ id: tasoMatches.awayTeamProviderId, category: tasoMatches.categoryId })
+        .from(tasoMatches)
+        .where(
+          and(
+            inArray(tasoMatches.awayTeamProviderId, ids),
+            like(tasoMatches.competitionCode, bucket)
+          )
+        )
+    );
+
+  for (const row of rows) {
+    const held = found.get(row.id) ?? new Set<string>();
+    held.add(row.category);
+    found.set(row.id, held);
+  }
+  return found;
+}
+
+/**
  * Which region owns a team's page.
  *
  * The competition decides it, because the provider does not: Finland's national
@@ -314,6 +387,16 @@ export type FavouriteTeamView = {
    */
   competitionCode: string | null;
   seasonId: number | null;
+  /**
+   * Where this team's page is, or null when it has none.
+   *
+   * Built here rather than by each caller. `/suosikit` and team search were
+   * deriving `/${region}/joukkue/${id}` independently, so Finland's national
+   * sides — whose pages are `/maajoukkueet/huuhkajat` and
+   * `/maajoukkueet/helmarit`, not an id route at all — would have needed the
+   * same exception written twice (#325).
+   */
+  href: string | null;
 };
 
 /**
@@ -436,17 +519,46 @@ export async function resolveTeamNames(
   consider("taso", tasoHome);
   consider("taso", tasoAway);
 
+  /**
+   * Finland is the only TASO national side with a page, and it has two of them.
+   * Matched on the **name**: `isFinlandMatch` does the same, because TASO gives
+   * it no team id that is stable across categories.
+   */
+  const finlandIds = teams
+    .filter((team) => {
+      if (team.source !== "taso") return false;
+      const row = newest.get(teamKey(team.source, team.teamProviderId));
+      return (
+        row?.name === FINLAND_TEAM_NAME &&
+        row.bucket?.startsWith(TASO_NATIONAL_BUCKET_PREFIX) === true
+      );
+    })
+    .map((team) => team.teamProviderId);
+
+  const finlandCategories = await nationalCategoriesFor(finlandIds);
+
   return teams.map((team) => {
     const row = newest.get(teamKey(team.source, team.teamProviderId));
+    const region =
+      row === undefined ? null : regionFor(team.source, row.competitionCode, row.bucket);
+    const national = finlandCategories.get(team.teamProviderId);
+    const href =
+      national !== undefined
+        ? nationalTeamPathFor(national)
+        : region === null || row === undefined
+          ? null
+          : `/${region}/joukkue/${team.teamProviderId}`;
+
     return {
       ...team,
       // Null rather than a placeholder: the page says so in Finnish, and the
       // entry stays removable — a favourite nobody can delete would be worse
       // than one with no name.
       name: row?.name ?? null,
-      region: row === undefined ? null : regionFor(team.source, row.competitionCode, row.bucket),
+      region,
       competitionCode: row?.competitionCode ?? null,
       seasonId: row?.seasonId ?? null,
+      href,
     };
   });
 }
