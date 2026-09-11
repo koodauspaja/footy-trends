@@ -3,15 +3,22 @@
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
  * this file only talks to git and to GitHub, and formats output.
  *
- * The one network call is `domainsForRelease`, and it is written so that it
- * cannot stop a release: every failure resolves to no domains, and the notes
- * publish without the `Touches:` line. Set `GH_TOKEN` to get it.
+ * **Only `--print=json` touches the network**, and it makes two lookups:
+ * `domainsForRelease` reads the labels off the issues the commits reference,
+ * and `labelsThatExist` reads the repository's own label list to filter them.
+ * It needs `GH_TOKEN`, and it deliberately fails rather than answering an empty
+ * list, so a caller applying labels can tell a release that touches nothing
+ * from a lookup that did not work.
+ *
+ * Every other mode reads git alone. `--print=notes` in particular makes no
+ * request at all, so a release can always be cut.
  *
  *   npm run release:version                      # origin/release..origin/main
  *   npm run release:version -- A B               # any two refs
  *   npm run release:version -- --since-last-tag  # last tag..HEAD, for post-merge use
  *   npm run release:version -- --print=version   # just the number, for scripts
  *   npm run release:version -- --print=notes     # markdown release notes
+ *   npm run release:version -- --print=json      # {version, notes, domains}, resolved once
  */
 import { execFileSync } from "node:child_process";
 import { executablePath, overrideNameFor } from "./executable";
@@ -98,26 +105,124 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
 /**
+ * The first **non-empty** of the two token variables.
+ *
+ * `??` falls back only for undefined and null, so `GH_TOKEN=""` — which CI can
+ * set from an unpopulated secret — would otherwise shadow a perfectly good
+ * `GITHUB_TOKEN`.
+ */
+function githubToken(): string | undefined {
+  return [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
+    (candidate) => candidate !== undefined && candidate !== ""
+  );
+}
+
+/**
+ * Every label name on the repository, following pages until one comes up short.
+ *
+ * Authenticated like the issue lookups: unauthenticated requests have their own
+ * much smaller rate limit, so this one call could be refused while every other
+ * succeeded.
+ */
+async function repositoryLabels(token: string | undefined): Promise<Set<string> | null> {
+  const names = new Set<string>();
+
+  for (let page = 1; ; page++) {
+    const response = await fetch(`${API}/labels?per_page=100&page=${page}`, {
+      signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+      },
+    });
+    if (!response.ok) {
+      err(`GitHub answered ${response.status} for the label list; no labels are printed.`);
+      return null;
+    }
+
+    const payload = (await response.json()) as unknown;
+    if (!Array.isArray(payload)) {
+      err("The label list was not an array; no labels are printed.");
+      return null;
+    }
+    for (const label of payload) {
+      const name = (label as { name?: unknown }).name;
+      if (typeof name === "string") names.add(name);
+    }
+    // A short page is the last page. No cap: a repository cannot have so many
+    // labels that this matters, and a cap is how a real label gets called a gap.
+    if (payload.length < 100) return names;
+  }
+}
+
+/**
+ * The subset that actually exists as a label on the repository.
+ *
+ * **GitHub creates a label it has never seen** when one is added to an issue —
+ * verified against a real pull request, where a deliberately misspelled name
+ * appeared in the repository's label list rather than being rejected. So a
+ * domain the taxonomy has drifted away from would not fail loudly; it would
+ * quietly mint a junk label for somebody to find later.
+ *
+ * A domain with no label is reported on stderr: the taxonomy has a gap, which
+ * is worth noticing rather than papering over.
+ */
+async function labelsThatExist(domains: string[], token: string | undefined): Promise<string[]> {
+  if (domains.length === 0) return [];
+
+  try {
+    const known = await repositoryLabels(token);
+    // A failed lookup is not the same as "this release touches nothing", and a
+    // caller that cannot tell them apart will apply no labels and call it done.
+    if (known === null) throw new Error("the repository's labels could not be read");
+
+    for (const domain of domains) {
+      if (!known.has(domain)) err(`No label named ${domain}; it is in the notes but not applied.`);
+    }
+    return domains.filter((domain) => known.has(domain));
+  } catch (error) {
+    err(`Could not read the repository's labels: ${String(error)}`);
+    throw error;
+  }
+}
+
+/**
  * The domain labels on every issue this release's commits reference.
  *
- * **This can never stop a release.** Everything else in this script reads git
- * and needs no network; this one call does, so every failure — no token, a
- * rate limit, a closed laptop lid — resolves to "no domains" and the notes are
- * published without the line. A version that cannot be cut because GitHub was
- * slow would be a worse trade than notes that say slightly less.
+ * **It throws on failure**, and the modes that call it let that through: a
+ * caller applying labels has to tell "this release touches nothing" from "the
+ * labels could not be read" — the first is fine, the second would label a
+ * release with silence. `--print=notes` never calls it, so the notes are
+ * always printable and a release is always cuttable.
  *
  * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
  */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
-  // The first **non-empty** of the two. `??` falls back only for undefined and
-  // null, so `GH_TOKEN=""` — which CI can set — would otherwise shadow a
-  // perfectly good `GITHUB_TOKEN` and silently drop the line.
-  const token = [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
-    (candidate) => candidate !== undefined && candidate !== ""
-  );
   const refs = issueRefsIn(decision);
-  if (token === undefined || refs.length === 0) return [];
+  // Nothing to look up, so nothing to fail at: a release whose commits name no
+  // issue genuinely touches no resolvable domain.
+  if (refs.length === 0) return [];
+
+  /**
+   * A missing token is a failure, not an empty answer.
+   *
+   * These were one condition, which was right while `--print=notes` was the
+   * caller — notes without domains beat a release that cannot be cut. Only
+   * `--print=json` calls this now, and its contract is the opposite one: the
+   * caller applies labels, so "no token" answering the same as "no domains"
+   * would open an unlabelled release and call it done.
+   */
+  const token = githubToken();
+  if (token === undefined) {
+    // Reported before it is thrown, like every other failure in here. The
+    // caller only sees an exit code, so a diagnostic nobody printed is a
+    // release that stopped for no stated reason.
+    const message = `GH_TOKEN or GITHUB_TOKEN is required to resolve the domains of ${refs.length} referenced issues`;
+    err(message);
+    throw new Error(message);
+  }
 
   try {
     const labels = await Promise.all(
@@ -133,17 +238,29 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
             "X-GitHub-Api-Version": "2022-11-28",
           },
         });
-        // Deleted, or simply not ours: skipped rather than failing the whole
-        // line. A reference that is a *pull request* answers 200 here — the
-        // shape check in `labelsOfIssueResponse` is what excludes those.
-        if (!response.ok) return [];
+        /**
+         * A **404** is one reference that is deleted or not ours, and is
+         * skipped. Anything else — 401 on a bad token, 403 on a rate limit — is
+         * the lookup failing rather than that issue being absent, and would
+         * otherwise report every release as touching nothing.
+         *
+         * A reference that is a *pull request* answers 200 here; the shape check
+         * in `labelsOfIssueResponse` is what excludes those.
+         */
+        if (response.status === 404) return [];
+        if (!response.ok) throw new Error(`GitHub answered ${response.status} for issue ${ref}`);
         return labelsOfIssueResponse(await response.json());
       })
     );
     return domainsFrom(labels.flat());
   } catch (error) {
-    err(`Could not read issue labels, so the notes omit the domains: ${String(error)}`);
-    return [];
+    /**
+     * Thrown on, not swallowed. An empty answer has to mean "this release
+     * touches nothing" and nothing else, so `--print=json` exits non-zero
+     * rather than let a caller apply no labels and call it done.
+     */
+    err(`Could not read issue labels: ${String(error)}`);
+    throw error;
   }
 }
 
@@ -235,18 +352,43 @@ if (alreadyTagged !== null) {
  */
 if (printMode === "version") {
   out(decision.next);
-} else if (printMode === "notes") {
+} else if (printMode === "json") {
   /**
-   * A promise rather than a top-level `await`: this file transforms to CommonJS,
-   * where top-level await is not available. `.catch` as well as the try/catch
-   * inside `domainsForRelease`, so no failure mode can leave the notes unprinted
-   * — the point of this branch is that a release is always cuttable.
+   * Version, notes and domains from **one** resolution, for `release-pr.ts`.
+   *
+   * Three separate spawns was the earlier shape, and it resolved the domains
+   * twice: once inside the notes and once for the labels. Nothing forced those
+   * two answers to agree — a label created or renamed between the calls would
+   * have answered two different sets. Asking once removes that rather than
+   * documenting it.
+   *
+   * It fails where `--print=notes` cannot: the caller
+   * applies labels, so a label lookup that failed must stop the release rather
+   * than open it with silence. Nothing is printed on that path, and the runner
+   * asks for this before creating the pull request, so a failure means no
+   * pull request exists to be mislabelled.
    */
   domainsForRelease(decision)
-    .catch(() => [] as string[])
+    .then((resolved) => labelsThatExist(resolved, githubToken()))
     .then((domains) => {
-      out(formatReleaseNotes(decision, domains));
+      out(
+        JSON.stringify({
+          version: decision.next,
+          notes: formatReleaseNotes(decision),
+          domains,
+        })
+      );
+    })
+    .catch(() => {
+      process.exitCode = 1;
     });
+} else if (printMode === "notes") {
+  /**
+   * No network at all, and that is the point: the notes no longer name the
+   * domains — the pull request's labels do — so nothing here can fail, and a
+   * release is always cuttable.
+   */
+  out(formatReleaseNotes(decision));
 } else {
   printReport();
 }

@@ -89,12 +89,24 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
-   GH_TOKEN=$(gh auth token) \
-     npm run release:version --silent -- --print=notes > /tmp/notes.md
-   gh pr create --base release --head main \
-     --title "release: $(npm run release:version --silent -- --print=version)" \
-     --body-file /tmp/notes.md
+   GH_TOKEN=$(gh auth token) npm run release:pr
    ```
+
+   It prints the version and the domains, opens the pull request with the
+   generated notes, labels it with those domains, and puts it on the board in
+   `In Progress`. The card reaches `Done` by itself when the release merges;
+   moving it to `In Review` when you request the review is the one manual step,
+   and `docs/setup/002-github-project-board.md` says why.
+
+   `--dry-run` shows all of it without opening anything, and reads the board
+   too — so it is also the check that the release can be filed.
+
+   **One script rather than a documented sequence of commands.** This was five
+   shell commands here, and review found a defect in them seven rounds running —
+   an `xargs` that runs on empty input, a `$pr` left empty by a failed create, a
+   status id remembered instead of read, a verification whose exit status
+   nothing consumed. A shell block in a document cannot be tested, so each fix
+   only moved the next defect somewhere else.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
@@ -105,8 +117,6 @@ Merge commits are excluded — a release produces one, and it carries no type.
    # release: v1.1.0
 
    Changes since v1.0.0 — 3 features, 6 chores.
-
-   Touches: analytics, auth, infra.
 
    ## Features
 
@@ -125,23 +135,22 @@ Merge commits are excluded — a release produces one, and it carries no type.
    badly written commit subject becomes a badly written release note. That is
    the cost of never having to look anything up during a release.
 
-   **`Touches:` names the parts of the app the release changes**, read from the
-   domain labels on the issues those commits reference — `auth`, `taso`,
-   `standings`, `matches`, `teams`, `ui`, `testing`, `ci`, `infra`, `analytics`.
-   It is the one line that answers step 3's question without reading every
-   subject.
+   **The parts of the app a release changes are its labels**, read from the
+   domain labels on the issues those commits reference and applied to the pull
+   request by `npm run release:pr`. They answer step 3's question without
+   reading every subject, and unlike a line in the body they are what GitHub
+   filters and searches by.
 
-   It needs the GitHub API, which is the only thing in this script that does:
+   The vocabulary is **whatever the repository's domain labels are** — every
+   label that is not one of the kind labels (`enhancement`, `chore`, `bug` and
+   the GitHub defaults). The table of what each covers is in
+   `docs/setup/002-github-project-board.md`; a second copy here is how it would
+   drift the first time one was added.
 
-   ```bash
-   GH_TOKEN=$(gh auth token) npm run release:version --silent -- --print=notes > /tmp/notes.md
-   ```
-
-   **Without a token the line is simply absent, and that is deliberate.** No
-   token, a rate limit, no network — every one of them resolves to "no domains"
-   and the notes publish without it. A release that could not be cut because
-   GitHub was slow would be a worse trade than notes that say slightly less. If
-   the line is missing and you wanted it, the token is what to check.
+   **The notes themselves need no network.** They are derived from git alone,
+   so a release can always be cut. Labelling is stricter, because a label that
+   is silently missing is worse than no release: `npm run release:pr` stops
+   rather than opening a release it could not label, and needs `GH_TOKEN`.
 
    Do **not** write `Closes #N` for issues their own pull requests already
    closed.

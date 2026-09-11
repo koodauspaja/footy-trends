@@ -25,6 +25,12 @@ const CANDIDATES = {
     // excludes a platform is worse than one that covers it for two lines.
     String.raw`C:\Program Files\Git\cmd\git.exe`,
   ],
+  gh: [
+    "/usr/bin/gh",
+    "/usr/local/bin/gh",
+    "/opt/homebrew/bin/gh",
+    String.raw`C:\Program Files\GitHub CLI\gh.exe`,
+  ],
   docker: [
     "/usr/bin/docker",
     "/usr/local/bin/docker",

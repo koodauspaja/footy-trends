@@ -317,32 +317,6 @@ describe("issueRefsIn", () => {
 });
 
 describe("formatReleaseNotes", () => {
-  it("names the domains the release touches", () => {
-    // The question a reviewer is asking at this point, answered in one line.
-    // `skills/release.md` makes reading that list the approval gate.
-    const notes = formatReleaseNotes(decideVersion([c("feat: a thing (#10)")], "v1.0.0"), [
-      "auth",
-      "infra",
-    ]);
-
-    expect(notes).toContain("Touches: auth, infra.");
-  });
-
-  it("omits the line entirely when no domain could be resolved", () => {
-    // No token, no issue references, or no domain labels. Silence is honest;
-    // an empty `Touches:` would read as a bug.
-    const notes = formatReleaseNotes(decideVersion([c("feat: a thing")], "v1.0.0"));
-
-    expect(notes).not.toContain("Touches");
-  });
-
-  it("puts the domains after the summary and before the first section", () => {
-    const notes = formatReleaseNotes(decideVersion([c("feat: a thing (#10)")], "v1.0.0"), ["auth"]);
-
-    expect(notes.indexOf("Changes since")).toBeLessThan(notes.indexOf("Touches:"));
-    expect(notes.indexOf("Touches:")).toBeLessThan(notes.indexOf("## Features"));
-  });
-
   it("groups the commits under the headings that decided the version", () => {
     const notes = formatReleaseNotes(
       decideVersion([c("feat: a thing"), c("fix: another"), c("chore: tidy")], "v1.0.0")
