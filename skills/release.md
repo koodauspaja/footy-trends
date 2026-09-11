@@ -89,74 +89,21 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
-   set -euo pipefail          # any failed step stops the procedure
    export GH_TOKEN=$(gh auth token)
-
    npm run release:version --silent -- --print=notes > /tmp/notes.md
-   npm run release:version --silent -- --print=domains > /tmp/domains.txt
 
    pr=$(gh pr create --base release --head main \
      --title "release: $(npm run release:version --silent -- --print=version)" \
      --body-file /tmp/notes.md)
 
-   # The same domains the notes name, as labels.
-   while read -r domain; do
-     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null
-   done < /tmp/domains.txt
-
-   # Confirm they landed. Compared against the domains only — a release pull
-   # request may carry other labels, and those are not this check's business.
-   gh pr view "$pr" --json labels -q '.labels[].name' | sort > /tmp/applied.txt
-   comm -23 <(sort /tmp/domains.txt) /tmp/applied.txt > /tmp/missing.txt
-   test ! -s /tmp/missing.txt || { echo "not applied:"; cat /tmp/missing.txt; exit 1; }
-
-   item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
-   gh project item-edit --id "$item" \
-     --project-id PVT_kwDOB7brSc4BZbi_ \
-     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
-     --single-select-option-id c224fd41   # In Review
+   # The same domains the notes name, as labels on the pull request.
+   npm run release:version --silent -- --print=domains |
+     xargs -I{} gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]={}"
    ```
 
-   **A release has two board states, not five.** `Backlog`, `Ready` and
-   `In Progress` describe work being planned and done; a release pull request is
-   created already complete and only ever waits on the approval below. So it
-   opens directly in **In Review** and moves to **Done** at step 6. Putting it
-   through the other three would be ceremony that says nothing true.
-
-   `item-add` leaves the card with no status at all, which the board treats as
-   outside every column — hence the second command.
-
-   **Check an option id rather than remembering it.** These are from
-   `docs/setup/002-github-project-board.md`; a wrong one fails with
-   `The single select option Id does not belong to the field`, and if the
-   command's stderr is hidden the card simply does not move while everything
-   looks fine:
-
-   ```bash
-   gh project field-list 2 --owner koodauspaja --format json |
-     jq '.fields[] | select(.name == "Status") | .options'
-   ```
-
-   **`gh pr edit --add-label` does not work here** — it silently no-ops on this
-   repository, which is why the label step goes through the REST API.
-
-   `--print=domains` resolves the domains the same way `--print=notes` does, so
-   neither is a second derivation of the other.
-
-   They are not identical, and the difference is deliberate: `--print=domains`
-   prints only domains that **exist as labels**, because adding an unknown label
-   does not fail — GitHub silently *creates* it, and a typo would leave junk on
-   the repository. So a domain whose label is missing is named in `Touches:`,
-   which describes the release truthfully, and reported on stderr instead of
-   being applied. That gap belongs in
-   `docs/setup/002-github-project-board.md`'s table, and the `comm` check above
-   is what makes it visible rather than silent.
-
-   **`--print=domains` exits non-zero when the lookup itself failed**, as
-   opposed to finding nothing — a bad token, a rate limit, an unreadable label
-   list. With `set -e` above, that stops the procedure rather than labelling the
-   release with silence. `--print=notes` never fails, because notes must always
-   be publishable.
+   Then **look at the pull request**: the labels should match the `Touches:`
+   line. You are opening it and reading it anyway — step 3 is exactly that — so
+   the check is a glance rather than more shell.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
@@ -213,23 +160,7 @@ Merge commits are excluded — a release produces one, and it carries no type.
    integration, and e2e against a production build. A red e2e means production
    is broken; that is what the job is for.
 
-6. **Merge with a merge commit**, then move the board card to `Done`:
-
-   ```bash
-   pr=<the release pull request URL>
-   item=$(gh project item-list 2 --owner koodauspaja --format json --limit 200 |
-     jq -r --arg n "${pr##*/}" '.items[] | select(.content.number == ($n | tonumber)) | .id')
-   gh project item-edit --id "$item" \
-     --project-id PVT_kwDOB7brSc4BZbi_ \
-     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
-     --single-select-option-id 98236657   # Done
-   ```
-
-   The item id is looked up rather than carried from step 4: the review sits
-   between them, often in another shell or another day, and `$item` is long
-   gone by here.
-
-   The ruleset allows nothing else, deliberately:
+6. **Merge with a merge commit.** The ruleset allows nothing else, deliberately:
    a merge commit keeps `main`'s SHAs on `release`, so the deployed commit maps
    back to a commit that exists on `main`. Squash or rebase would mint new ones
    and break that mapping — which is the whole point of wanting a known version

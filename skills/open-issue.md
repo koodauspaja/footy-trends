@@ -37,11 +37,12 @@ Procedure
    - `## Notes`: optional, if helpful
 6. Create the issue with `gh issue create`:
    - use the `enhancement` label
-   - **add a domain label too** — `auth`, `taso`, `football-data`, `standings`,
-     `matches`, `teams`, `ui`, `analytics`, `testing`, `ci`, `infra`. The table
-     with what each covers is in `docs/setup/002-github-project-board.md`.
-     Releases read these off the issues they contain, so an unlabelled issue
-     makes a release describe itself less accurately
+   - **and at least one domain label**, naming the part of the app it touches:
+     `gh issue create ... --label enhancement --label taso`. The table of what
+     each covers is in `docs/setup/002-github-project-board.md`; it is the only
+     list, so this one cannot drift from it. Releases read these off the issues
+     they contain, so an unlabelled issue makes a release describe itself less
+     accurately
    - do not pass any assignee option
 7. Set the Issue Type field to `Feature` — `gh issue create` has no
    `--type` flag, so this needs a follow-up REST call:
