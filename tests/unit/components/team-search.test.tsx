@@ -22,6 +22,7 @@ const team = (over: Partial<Record<string, unknown>> = {}) => ({
   teamProviderId: 7,
   name: "FC Honka",
   region: "kotimaa",
+  href: "/kotimaa/joukkue/7",
   competitionName: "Veikkausliiga",
   seasonId: 2019,
   ...over,
@@ -141,7 +142,9 @@ describe("TeamSearch", () => {
     signedIn();
     searchTeamsAction.mockResolvedValue({
       ok: true,
-      teams: [team({ name: "Suomi", region: null, competitionName: null, seasonId: 2026 })],
+      teams: [
+        team({ name: "Suomi", region: null, href: null, competitionName: null, seasonId: 2026 }),
+      ],
     });
     await search("suomi");
 

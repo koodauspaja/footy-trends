@@ -5,6 +5,7 @@ const { state, logger } = vi.hoisted(() => ({
   state: {
     rows: new Map<unknown, unknown[]>(),
     sides: new Map<string, unknown[]>(),
+    nationalCategories: [] as { id: number; category: string }[],
     counts: new Map<unknown, number>(),
     deleted: new Map<unknown, unknown[]>(),
     inserts: [] as { table: unknown; values: unknown }[],
@@ -60,6 +61,23 @@ vi.mock("@/db", () => {
      * playing away" from "found nothing", which is half of what these tests
      * are about.
      */
+    /**
+     * The Finland lookup from #325: one `selectDistinct(...).union(...)` over
+     * both sides, asked only when a candidate exists. Rows come from
+     * `state.nationalCategories`.
+     */
+    selectDistinct: () => ({
+      from: () => ({
+        where: () => {
+          const rows = state.nationalCategories;
+          return {
+            union: async () => rows,
+            // biome-ignore lint/suspicious/noThenProperty: drizzle's builder is a thenable
+            then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(rows).then(resolve),
+          };
+        },
+      }),
+    }),
     selectDistinctOn: (columns: { name: string }[]) => ({
       from: (table: unknown) => ({
         where: () => ({
@@ -100,6 +118,7 @@ vi.mock("@/lib/logger", () => ({ logger }));
 beforeEach(() => {
   state.rows.clear();
   state.sides.clear();
+  state.nationalCategories = [];
   state.counts.clear();
   state.deleted.clear();
   state.inserts = [];
@@ -322,6 +341,7 @@ describe("resolveTeamNames", () => {
         region: "kotimaa",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/kotimaa/joukkue/60731",
       },
       {
         source: "taso",
@@ -330,6 +350,7 @@ describe("resolveTeamNames", () => {
         region: "kotimaa",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/kotimaa/joukkue/60732",
       },
     ]);
   });
@@ -370,6 +391,7 @@ describe("resolveTeamNames", () => {
         region: "ulkomaat",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/ulkomaat/joukkue/86",
       },
     ]);
   });
@@ -407,6 +429,7 @@ describe("resolveTeamNames", () => {
         region: "ulkomaat",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/ulkomaat/joukkue/86",
       },
     ]);
   });
@@ -449,6 +472,7 @@ describe("resolveTeamNames", () => {
         region: "ulkomaat",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/ulkomaat/joukkue/317",
       },
       {
         source: "taso",
@@ -457,6 +481,7 @@ describe("resolveTeamNames", () => {
         region: "kotimaa",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/kotimaa/joukkue/317",
       },
     ]);
   });
@@ -488,6 +513,7 @@ describe("resolveTeamNames", () => {
         region: "maajoukkueet",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/maajoukkueet/joukkue/8722",
       },
     ]);
   });
@@ -525,6 +551,7 @@ describe("resolveTeamNames", () => {
         region: "maajoukkueet",
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: "/maajoukkueet/joukkue/8722",
       },
     ]);
   });
@@ -551,6 +578,7 @@ describe("resolveTeamNames", () => {
         region: null,
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
+        href: null,
       },
     ]);
   });
@@ -586,6 +614,147 @@ describe("resolveTeamNames", () => {
     expect(team?.region).toBe(expected);
   });
 
+  describe("Finland's own pages, from #325", () => {
+    const suomi = (bucket = "maajp2026") => {
+      state.sides.set("taso_matches:home", [
+        {
+          id: 144368,
+          name: "Suomi",
+          competitionCode: "UNL",
+          bucket,
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+    };
+
+    it.each([
+      ["the men's friendlies category", ["Miehet-A", "UNL"], "/maajoukkueet/huuhkajat"],
+      ["the women's friendlies category", ["Naiset-A", "WUNL"], "/maajoukkueet/helmarit"],
+    ])("links Finland to its own page from %s", async (_case, categories, expected) => {
+      /**
+       * `Miehet-A` and `Naiset-A` and not the tournament ids: both sides carry
+       * an A-friendlies category in every bucket, while a `W` prefix only looks
+       * like it marks the women's game — `WCQ` is the men's World Cup
+       * qualifiers.
+       */
+      suomi();
+      state.nationalCategories = categories.map((category) => ({ id: 144368, category }));
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 144368 }]);
+
+      expect(team?.href).toBe(expected);
+    });
+
+    it.each([
+      ["both, which cannot be one team", ["Miehet-A", "Naiset-A"]],
+      ["neither, so nothing can be said", ["UNL", "WCQ"]],
+      ["nothing at all", []],
+    ])("leaves Finland unlinked when the categories say %s", async (_case, categories) => {
+      // A wrong link is worse than none: it looks like it worked.
+      suomi();
+      state.nationalCategories = categories.map((category) => ({ id: 144368, category }));
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 144368 }]);
+
+      expect(team?.href).toBeNull();
+    });
+
+    it("leaves Finland's opponents unlinked, whatever they played in", async () => {
+      // They have no page in either provider, so there is nowhere to send them.
+      state.sides.set("taso_matches:home", [
+        {
+          id: 147879,
+          name: "Viro",
+          competitionCode: "Miehet-A",
+          bucket: "maajp2026",
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.nationalCategories = [{ id: 147879, category: "Miehet-A" }];
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 147879 }]);
+
+      expect(team?.href).toBeNull();
+    });
+
+    it("does not hand Finland's page to a football-data team with the same id", async () => {
+      /**
+       * The two providers share a numeric id space — there is already a test
+       * above for that, and this is the same hazard one layer down. Keyed by the
+       * bare id, a football-data club numbered like TASO's Finland was handed
+       * `/maajoukkueet/huuhkajat`.
+       */
+      state.sides.set("taso_matches:home", [
+        {
+          id: 144368,
+          name: "Suomi",
+          competitionCode: "UNL",
+          bucket: "maajp2026",
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.sides.set("matches:home", [
+        {
+          id: 144368,
+          name: "Real Madrid",
+          competitionCode: "PD",
+          bucket: null,
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.nationalCategories = [{ id: 144368, category: "Miehet-A" }];
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [finland, club] = await resolveTeamNames([
+        { source: "taso", teamProviderId: 144368 },
+        { source: "football-data", teamProviderId: 144368 },
+      ]);
+
+      expect(finland?.href).toBe("/maajoukkueet/huuhkajat");
+      expect(club?.href).toBe("/ulkomaat/joukkue/144368");
+    });
+
+    it("does not treat a club-bucket team called Suomi as the national side", async () => {
+      // The bucket is what says national, not the name.
+      suomi("spljp26");
+      state.nationalCategories = [{ id: 144368, category: "Miehet-A" }];
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 144368 }]);
+
+      expect(team?.href).toBe("/kotimaa/joukkue/144368");
+    });
+
+    it("does not ask for categories when no team could be Finland", async () => {
+      // `resolveTeamNames` runs on every session read; the extra query is only
+      // worth making when a candidate exists.
+      state.sides.set("taso_matches:home", [
+        {
+          id: 60731,
+          name: "FC Kiisto",
+          competitionCode: "VL",
+          bucket: "spljp26",
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.nationalCategories = [{ id: 60731, category: "Miehet-A" }];
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 60731 }]);
+
+      // The categories above would have produced a Huuhkajat link had they been read.
+      expect(team?.href).toBe("/kotimaa/joukkue/60731");
+    });
+  });
+
   it("reports a team with no stored match as nameless rather than dropping it", async () => {
     // A favourite nobody can see is a favourite nobody can remove.
     const { resolveTeamNames } = await import("@/lib/favourites");
@@ -598,6 +767,7 @@ describe("resolveTeamNames", () => {
         region: null,
         competitionCode: null,
         seasonId: null,
+        href: null,
       },
     ]);
   });

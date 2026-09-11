@@ -33,6 +33,8 @@ const RENAMED = 970003;
 const NAMELESS = 970004;
 const FOREIGN = 970005;
 const OPPONENT = 979999;
+const FINLAND = 970901;
+const OPPONENT_NATION = 970902;
 
 function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
   return {
@@ -241,6 +243,79 @@ describe("searching real rows", () => {
     expect(team?.competitionName).toBe("Veikkausliiga");
     expect(team?.seasonId).toBe(990990);
     expect(team?.region).toBe("kotimaa");
+  });
+
+  it.each([
+    ["Miehet-A", "/maajoukkueet/huuhkajat"],
+    ["Naiset-A", "/maajoukkueet/helmarit"],
+  ])("links Finland to its own page from the %s category (#325)", async (category, expected) => {
+    /**
+     * Finland is the one TASO national side with pages, and it has two. The
+     * A-friendlies category is what tells them apart from stored rows alone —
+     * the tournament ids cannot, since `WCQ` is the men's World Cup qualifiers
+     * despite the `W`.
+     */
+    await db.insert(tasoMatches).values(
+      tasoRow({
+        providerMatchId: 993400,
+        competitionCode: "maajp2026",
+        categoryId: category,
+        homeTeamProviderId: FINLAND,
+        homeTeamName: "Suomi",
+      })
+    );
+
+    const team = (await searchTeams("suomi")).find(
+      (candidate) => candidate.teamProviderId === FINLAND
+    );
+
+    expect(team?.href).toBe(expected);
+  });
+
+  it("leaves Finland unlinked when its categories name both sides", async () => {
+    // One id that is somehow both teams cannot be sent to either.
+    await db.insert(tasoMatches).values([
+      tasoRow({
+        providerMatchId: 993401,
+        competitionCode: "maajp2026",
+        categoryId: "Miehet-A",
+        homeTeamProviderId: FINLAND,
+        homeTeamName: "Suomi",
+      }),
+      tasoRow({
+        providerMatchId: 993402,
+        competitionCode: "maajp2025",
+        categoryId: "Naiset-A",
+        homeTeamProviderId: FINLAND,
+        homeTeamName: "Suomi",
+      }),
+    ]);
+
+    const team = (await searchTeams("suomi")).find(
+      (candidate) => candidate.teamProviderId === FINLAND
+    );
+
+    expect(team?.href).toBeNull();
+  });
+
+  it("leaves Finland's opponents unlinked, even in the same category", async () => {
+    // They have no page in either provider; only Finland does.
+    await db.insert(tasoMatches).values(
+      tasoRow({
+        providerMatchId: 993403,
+        competitionCode: "maajp2026",
+        categoryId: "Miehet-A",
+        homeTeamProviderId: OPPONENT_NATION,
+        homeTeamName: "Suomineito",
+      })
+    );
+
+    const team = (await searchTeams("suomineito")).find(
+      (candidate) => candidate.teamProviderId === OPPONENT_NATION
+    );
+
+    expect(team?.name).toBe("Suomineito");
+    expect(team?.href).toBeNull();
   });
 
   it("gives a TASO national-team side no region, because it has no page", async () => {
