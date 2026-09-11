@@ -8,12 +8,17 @@
  * The board column a release pull request starts in.
  *
  * **In Progress, not In Review.** Opening the pull request is the work
- * starting; the review starts when a reviewer is requested, which is a human
- * step. The board's built-in `Pull request merged` workflow carries the card
- * to Done by itself, so the only move nobody automates is the middle one —
- * GitHub has no built-in workflow for "review requested", and an Actions job
- * could not do it either: `GITHUB_TOKEN` cannot write to a user-level Project,
- * so it would need a personal access token kept as a repository secret.
+ * starting; the review starts when a reviewer is requested.
+ *
+ * That leaves one move unautomated, and deliberately. The board's built-in
+ * `Pull request merged` workflow carries the card to Done on its own, but
+ * GitHub publishes no built-in workflow for "review requested", and an Actions
+ * job cannot stand in for one cheaply: `GITHUB_TOKEN` is scoped to the
+ * repository and cannot access Projects at all, so moving a card from CI needs
+ * a classic personal access token with `project` and `repo`, or a GitHub App
+ * with organization-project write, kept as a repository secret. Requesting the
+ * review is already a human action; asking that human to drag the card is a
+ * smaller cost than a long-lived credential in the repository.
  */
 export const INITIAL_STATUS = "In Progress";
 
