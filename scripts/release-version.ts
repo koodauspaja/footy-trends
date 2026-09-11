@@ -1,7 +1,11 @@
 /**
  * Reads the commits a release would contain and reports the version they
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
- * this file only talks to git and formats output.
+ * this file only talks to git and to GitHub, and formats output.
+ *
+ * The one network call is `domainsForRelease`, and it is written so that it
+ * cannot stop a release: every failure resolves to no domains, and the notes
+ * publish without the `Touches:` line. Set `GH_TOKEN` to get it.
  *
  *   npm run release:version                      # origin/release..origin/main
  *   npm run release:version -- A B               # any two refs
@@ -14,8 +18,11 @@ import { executablePath, overrideNameFor } from "./executable";
 import {
   type Commit,
   decideVersion,
+  domainsFrom,
   formatReleaseNotes,
   isStableVersionTag,
+  issueRefsIn,
+  labelsOfIssueResponse,
   selectPreviousTag,
 } from "./next-version";
 
@@ -83,6 +90,61 @@ function commitsBetween(from: string | null, to: string): Commit[] {
       const [subject = "", body = ""] = entry.split(FIELD);
       return { subject: subject.trim(), body: body.trim() };
     });
+}
+
+const API = "https://api.github.com/repos/koodauspaja/footy-trends";
+
+/** Long enough for a slow answer, short enough that nobody waits on a release. */
+const LABEL_LOOKUP_TIMEOUT_MS = 5000;
+
+/**
+ * The domain labels on every issue this release's commits reference.
+ *
+ * **This can never stop a release.** Everything else in this script reads git
+ * and needs no network; this one call does, so every failure — no token, a
+ * rate limit, a closed laptop lid — resolves to "no domains" and the notes are
+ * published without the line. A version that cannot be cut because GitHub was
+ * slow would be a worse trade than notes that say slightly less.
+ *
+ * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
+ * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
+ */
+async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
+  // The first **non-empty** of the two. `??` falls back only for undefined and
+  // null, so `GH_TOKEN=""` — which CI can set — would otherwise shadow a
+  // perfectly good `GITHUB_TOKEN` and silently drop the line.
+  const token = [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
+    (candidate) => candidate !== undefined && candidate !== ""
+  );
+  const refs = issueRefsIn(decision);
+  if (token === undefined || refs.length === 0) return [];
+
+  try {
+    const labels = await Promise.all(
+      refs.map(async (ref) => {
+        const response = await fetch(`${API}/issues/${ref}`, {
+          // A connection that never settles would leave `Promise.all` pending
+          // forever, and the notes would never print — the one way this could
+          // still stop a release. An abort is caught like any other failure.
+          signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        });
+        // Deleted, or simply not ours: skipped rather than failing the whole
+        // line. A reference that is a *pull request* answers 200 here — the
+        // shape check in `labelsOfIssueResponse` is what excludes those.
+        if (!response.ok) return [];
+        return labelsOfIssueResponse(await response.json());
+      })
+    );
+    return domainsFrom(labels.flat());
+  } catch (error) {
+    err(`Could not read issue labels, so the notes omit the domains: ${String(error)}`);
+    return [];
+  }
 }
 
 const args = process.argv.slice(2);
@@ -162,43 +224,62 @@ if (alreadyTagged !== null) {
   };
 }
 
+/**
+ * One chain, and no `process.exit`.
+ *
+ * `process.exit` does not wait for a backpressured stdout to flush, and
+ * `skills/release.md` pipes this into a file — `--print=notes > /tmp/notes.md`.
+ * Truncated release notes would be published without anything failing. Letting
+ * the process end on its own is what flushes; the branches are exclusive so
+ * nothing runs twice.
+ */
 if (printMode === "version") {
   out(decision.next);
-  process.exit(0);
-}
-
-if (printMode === "notes") {
-  out(formatReleaseNotes(decision));
-  process.exit(0);
-}
-
-out(`Range        ${from ?? "the beginning"}..${to}  (${commits.length} commits)`);
-// `Previous` and `Bump` describe a derivation. On a rerun there was none — the
-// version came off the commit — so printing them would explain how a number was
-// reached that is not the number being used.
-if (alreadyTagged === null) {
-  out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
-  out(`Bump         ${decision.bump}`);
-}
-for (const reason of decision.reasons) out(`             - ${reason}`);
-
-if (decision.isFirstRelease) {
-  out(`\nNext         ${decision.next}   <- first release, chosen not derived`);
-  out("             `release` already contains the whole history, so the range above");
-  out("             is only what followed the branch point. Override if this is a 1.0.\n");
+} else if (printMode === "notes") {
+  /**
+   * A promise rather than a top-level `await`: this file transforms to CommonJS,
+   * where top-level await is not available. `.catch` as well as the try/catch
+   * inside `domainsForRelease`, so no failure mode can leave the notes unprinted
+   * — the point of this branch is that a release is always cuttable.
+   */
+  domainsForRelease(decision)
+    .catch(() => [] as string[])
+    .then((domains) => {
+      out(formatReleaseNotes(decision, domains));
+    });
 } else {
-  out(`\nNext         ${decision.next}\n`);
+  printReport();
 }
 
-const section = (title: string, items: string[]) => {
-  if (items.length === 0) return;
-  out(`${title} (${items.length})`);
-  for (const item of items) out(`  ${item}`);
-  out();
-};
-section("Breaking", decision.breaking);
-section("Features", decision.features);
-section("Fixes", decision.fixes);
-section("Other", decision.other);
+function printReport(): void {
+  out(`Range        ${from ?? "the beginning"}..${to}  (${commits.length} commits)`);
+  // `Previous` and `Bump` describe a derivation. On a rerun there was none — the
+  // version came off the commit — so printing them would explain how a number was
+  // reached that is not the number being used.
+  if (alreadyTagged === null) {
+    out(`Previous     ${decision.previous}${previousTag ? "" : "  (no tags yet)"}`);
+    out(`Bump         ${decision.bump}`);
+  }
+  for (const reason of decision.reasons) out(`             - ${reason}`);
 
-out("The tag is created automatically once this is merged — see skills/release.md.");
+  if (decision.isFirstRelease) {
+    out(`\nNext         ${decision.next}   <- first release, chosen not derived`);
+    out("             `release` already contains the whole history, so the range above");
+    out("             is only what followed the branch point. Override if this is a 1.0.\n");
+  } else {
+    out(`\nNext         ${decision.next}\n`);
+  }
+
+  const section = (title: string, items: string[]) => {
+    if (items.length === 0) return;
+    out(`${title} (${items.length})`);
+    for (const item of items) out(`  ${item}`);
+    out();
+  };
+  section("Breaking", decision.breaking);
+  section("Features", decision.features);
+  section("Fixes", decision.fixes);
+  section("Other", decision.other);
+
+  out("The tag is created automatically once this is merged — see skills/release.md.");
+}
