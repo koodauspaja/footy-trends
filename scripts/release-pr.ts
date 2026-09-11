@@ -70,20 +70,37 @@ function main(): void {
    * One call, before the pull request exists.
    *
    * One because the notes and the labels must describe the same release: asking
-   * separately meant two spawns and two resolutions of the same question.
-   * Before, because this exits non-zero
-   * when the label lookup failed as opposed to finding nothing — so a release is
-   * never opened and then labelled with silence.
+   * separately meant two spawns and two resolutions of the same question. Before,
+   * because this exits non-zero when the label lookup failed as opposed to
+   * finding nothing — so a release is never opened and then labelled with
+   * silence.
    */
   const plan = parseReleasePlan(release("--print=json"));
   if (plan === null) throw new Error("release-version.ts did not answer a usable release plan");
   const { version, notes, domains } = plan;
 
+  /**
+   * The board is read before anything is created, and this ordering is the
+   * finding rather than an accident of it.
+   *
+   * Creating the pull request first meant a board whose Status options had been
+   * renamed left a release opened, labelled and filed under no status — a
+   * half-built release somebody then has to finish by hand. Everything that can
+   * fail on configuration now fails while the only cost is running the command
+   * again.
+   */
+  const fields = JSON.parse(gh(argv.listFields()));
+  const status = selectStatusOption(fields);
+  if (status === null) throw new Error(`The board has no Status option named ${INITIAL_STATUS}`);
+  const projectId = gh(argv.projectId());
+
   out(`Version   ${version}`);
   out(`Domains   ${domains.length === 0 ? "(none)" : domains.join(", ")}`);
 
   if (dryRun) {
-    out("\nDry run: no pull request opened, nothing labelled.\n");
+    // The board has already been read by this point, so a dry run is also the
+    // check that the release can be filed — without creating anything.
+    out(`\nDry run: no pull request opened, nothing labelled. Board would be ${INITIAL_STATUS}.\n`);
     out(notes);
     return;
   }
@@ -103,17 +120,6 @@ function main(): void {
   }
 
   const item = gh(argv.addToProject(url));
-
-  /**
-   * The status ids are read, never remembered. A wrong one fails with "does not
-   * belong to the field", and a command whose stderr is hidden leaves the card
-   * where it was while appearing to work — which is exactly what happened to
-   * several cards while this feature was being built.
-   */
-  const status = selectStatusOption(JSON.parse(gh(argv.listFields())));
-  if (status === null) throw new Error(`The board has no Status option named ${INITIAL_STATUS}`);
-
-  const projectId = gh(argv.projectId());
   gh(argv.setStatus(item, projectId, status));
   out(`Board     ${INITIAL_STATUS} (reaches Done on its own when the pull request merges)`);
 }
