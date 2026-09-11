@@ -97,9 +97,27 @@ Merge commits are excluded — a release produces one, and it carries no type.
      --body-file /tmp/notes.md)
 
    # The same domains the notes name, as labels on the pull request.
-   npm run release:version --silent -- --print=domains |
-     xargs -I{} gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]={}"
+   npm run release:version --silent -- --print=domains > /tmp/domains.txt
+   while read -r domain; do
+     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain"
+   done < /tmp/domains.txt
+
+   # And on the board. It moves itself to Done when the pull request merges —
+   # the project's built-in `Pull request merged` workflow is enabled.
+   item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
+   gh project item-edit --id "$item" \
+     --project-id PVT_kwDOB7brSc4BZbi_ \
+     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
+     --single-select-option-id c224fd41   # In Review
    ```
+
+   A `while` loop rather than `xargs -I{}`: with nothing to apply, some `xargs`
+   implementations still run once with the literal `{}`. That would be a bug in
+   the command, not in GitHub — GitHub's part is only that **adding an unknown
+   label creates it** (verified: it appears at colour `ededed` with no
+   description) rather than refusing, which turns a one-character mistake into a
+   permanent artefact somebody has to find and delete. Hence both the loop and
+   the filtering in `--print=domains`.
 
    Then **look at the pull request**: the labels should match the `Touches:`
    line. You are opening it and reading it anyway — step 3 is exactly that — so

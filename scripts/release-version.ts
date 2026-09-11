@@ -99,20 +99,6 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
 /**
- * The subset that actually exists as a label on the repository.
- *
- * **GitHub creates a label it has never seen** when one is added to an issue —
- * verified against a real pull request, where a deliberately misspelled name
- * appeared in the repository's label list rather than being rejected. So a
- * domain the taxonomy has drifted away from would not fail loudly; it would
- * quietly mint a junk label that someone has to find and delete.
- *
- * Filtered here rather than by the caller, so anything reading
- * `--print=domains` is safe to apply directly. A domain with no label is
- * reported on stderr: it means the taxonomy has a gap, which is worth noticing
- * rather than papering over.
- */
-/**
  * The first **non-empty** of the two token variables.
  *
  * `??` falls back only for undefined and null, so `GH_TOKEN=""` — which CI can

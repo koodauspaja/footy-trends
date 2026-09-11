@@ -210,16 +210,25 @@ description rather than by typo:
 gh label create <name> --description "<what it covers>" --color RRGGBB
 ```
 
-## Step 7 — Release pull requests are not on the board
+## Step 7 — The release pull request goes on the board too
 
-Deliberately. A release pull request is created **already complete** and only
-waits on its approving review, so `Backlog`, `Ready` and `In Progress` would be
-ceremony rather than status — and keeping a card in step with a two-state
-lifecycle costs more than it tells anyone.
+`skills/release.md` adds it and sets it to `In Review`. It reaches `Done` on
+its own: the project's built-in **`Pull request merged`** workflow is enabled,
+so merging the release moves the card without anybody remembering to.
 
-A release is already findable three other ways: its tag, its published GitHub
-Release, and its pull request, which `skills/release.md` labels with the domains
-it touches.
+Two states, not five. `Backlog`, `Ready` and `In Progress` describe work being
+planned and done; a release pull request is created already complete and only
+waits on its approving review.
+
+The status option ids are in Step 1 above. **Read them rather than remembering
+them** — a wrong one fails with `The single select option Id does not belong to
+the field`, and a command whose stderr is hidden leaves the card where it was
+while appearing to succeed:
+
+```bash
+gh project field-list 2 --owner koodauspaja --format json |
+  jq '.fields[] | select(.name == "Status") | .options'
+```
 
 ## Done when
 - [ ] GitHub Project board exists with correct columns
