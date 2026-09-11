@@ -98,6 +98,9 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 /** Long enough for a slow answer, short enough that nobody waits on a release. */
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
+/** Ten pages of a hundred. A repository needing more has a different problem. */
+const LABEL_PAGE_LIMIT = 10;
+
 /**
  * The domain labels on every issue this release's commits reference.
  *
@@ -124,25 +127,54 @@ const LABEL_LOOKUP_TIMEOUT_MS = 5000;
  * reported on stderr: it means the taxonomy has a gap, which is worth noticing
  * rather than papering over.
  */
-async function labelsThatExist(domains: string[]): Promise<string[]> {
+/**
+ * The first **non-empty** of the two token variables.
+ *
+ * `??` falls back only for undefined and null, so `GH_TOKEN=""` — which CI can
+ * set from an unpopulated secret — would otherwise shadow a perfectly good
+ * `GITHUB_TOKEN`.
+ */
+function githubToken(): string | undefined {
+  return [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
+    (candidate) => candidate !== undefined && candidate !== ""
+  );
+}
+
+async function labelsThatExist(domains: string[], token: string | undefined): Promise<string[]> {
   if (domains.length === 0) return [];
 
   try {
-    const response = await fetch(`${API}/labels?per_page=100`, {
-      signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
-      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-    });
-    if (!response.ok) return [];
+    const known = new Set<string>();
+    /**
+     * Paged, not just the first hundred. A repository outgrows one page
+     * eventually, and a domain that happened to sort onto page two would be
+     * treated as missing — named in the notes and silently not applied.
+     */
+    for (let page = 1; page <= LABEL_PAGE_LIMIT; page++) {
+      const response = await fetch(`${API}/labels?per_page=100&page=${page}`, {
+        signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
+        headers: {
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          // Authenticated, like the issue lookups. Unauthenticated requests get
+          // their own much smaller rate limit, so this call could be refused
+          // while every other one succeeded.
+          ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+        },
+      });
+      if (!response.ok) {
+        err(`GitHub answered ${response.status} for the label list; no labels are printed.`);
+        return [];
+      }
 
-    const payload = (await response.json()) as unknown;
-    const known = new Set(
-      Array.isArray(payload)
-        ? payload.flatMap((label) => {
-            const name = (label as { name?: unknown }).name;
-            return typeof name === "string" ? [name] : [];
-          })
-        : []
-    );
+      const payload = (await response.json()) as unknown;
+      if (!Array.isArray(payload) || payload.length === 0) break;
+      for (const label of payload) {
+        const name = (label as { name?: unknown }).name;
+        if (typeof name === "string") known.add(name);
+      }
+      if (payload.length < 100) break;
+    }
 
     for (const domain of domains) {
       if (!known.has(domain)) err(`No label named ${domain}; it is in the notes but not applied.`);
@@ -156,12 +188,7 @@ async function labelsThatExist(domains: string[]): Promise<string[]> {
 }
 
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
-  // The first **non-empty** of the two. `??` falls back only for undefined and
-  // null, so `GH_TOKEN=""` — which CI can set — would otherwise shadow a
-  // perfectly good `GITHUB_TOKEN` and silently drop the line.
-  const token = [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
-    (candidate) => candidate !== undefined && candidate !== ""
-  );
+  const token = githubToken();
   const refs = issueRefsIn(decision);
   if (token === undefined || refs.length === 0) return [];
 
@@ -291,7 +318,7 @@ if (printMode === "version") {
    * the same silence the notes keep.
    */
   domainsForRelease(decision)
-    .then(labelsThatExist)
+    .then((domains) => labelsThatExist(domains, githubToken()))
     .catch(() => [] as string[])
     .then((domains) => {
       for (const domain of domains) out(domain);

@@ -96,10 +96,17 @@ Merge commits are excluded — a release produces one, and it carries no type.
      --body-file /tmp/notes.md)
 
    # The same domains the notes name, as labels, and on the board.
-   npm run release:version --silent -- --print=domains |
-     while read -r domain; do
-       gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null
-     done
+   npm run release:version --silent -- --print=domains > /tmp/domains.txt
+   while read -r domain; do
+     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null ||
+       echo "FAILED to apply $domain" >&2
+   done < /tmp/domains.txt
+
+   # Check they all landed before moving on: a partial set is worse than none,
+   # because it reads as a complete answer.
+   diff <(sort /tmp/domains.txt) \
+        <(gh pr view "$pr" --json labels -q '.labels[].name' | sort) &&
+     echo "labels match the notes"
    item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
    gh project item-edit --id "$item" \
      --project-id PVT_kwDOB7brSc4BZbi_ \
@@ -130,12 +137,17 @@ Merge commits are excluded — a release produces one, and it carries no type.
    **`gh pr edit --add-label` does not work here** — it silently no-ops on this
    repository, which is why the label step goes through the REST API.
 
-   `--print=domains` is the same resolution `--print=notes` used, so the labels
-   and the `Touches:` line cannot disagree. It prints only domains that exist as
-   labels, because **adding an unknown label creates it** rather than failing —
-   a typo would leave junk on the repository for somebody to find later. A
-   domain with no label is reported on stderr instead, which means the taxonomy
-   in `docs/setup/002-github-project-board.md` has a gap.
+   `--print=domains` resolves the domains the same way `--print=notes` does, so
+   neither is a second derivation of the other.
+
+   They are not identical, and the difference is deliberate: `--print=domains`
+   prints only domains that **exist as labels**, because adding an unknown label
+   does not fail — GitHub silently *creates* it, and a typo would leave junk on
+   the repository. So a domain whose label is missing is named in `Touches:`,
+   which describes the release truthfully, and reported on stderr instead of
+   being applied. That gap belongs in
+   `docs/setup/002-github-project-board.md`'s table, and the `diff` above is
+   what makes it visible rather than silent.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
@@ -192,8 +204,23 @@ Merge commits are excluded — a release produces one, and it carries no type.
    integration, and e2e against a production build. A red e2e means production
    is broken; that is what the job is for.
 
-6. **Merge with a merge commit**, then move the board card to `Done`
-   (`--single-select-option-id 98236657`). The ruleset allows nothing else, deliberately:
+6. **Merge with a merge commit**, then move the board card to `Done`:
+
+   ```bash
+   pr=<the release pull request URL>
+   item=$(gh project item-list 2 --owner koodauspaja --format json --limit 200 |
+     jq -r --arg n "${pr##*/}" '.items[] | select(.content.number == ($n | tonumber)) | .id')
+   gh project item-edit --id "$item" \
+     --project-id PVT_kwDOB7brSc4BZbi_ \
+     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
+     --single-select-option-id 98236657   # Done
+   ```
+
+   The item id is looked up rather than carried from step 4: the review sits
+   between them, often in another shell or another day, and `$item` is long
+   gone by here.
+
+   The ruleset allows nothing else, deliberately:
    a merge commit keeps `main`'s SHAs on `release`, so the deployed commit maps
    back to a commit that exists on `main`. Squash or rebase would mint new ones
    and break that mapping — which is the whole point of wanting a known version
