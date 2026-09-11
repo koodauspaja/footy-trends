@@ -212,18 +212,29 @@ gh label create <name> --description "<what it covers>" --color RRGGBB
 
 ## Step 7 — The release pull request goes on the board too
 
-`skills/release.md` adds it and sets it to `In Review`. It reaches `Done` on
-its own: the project's built-in **`Pull request merged`** workflow is enabled,
-so merging the release moves the card without anybody remembering to.
+`npm run release:pr` adds it and sets it to `In Progress` — opening the pull
+request is the work starting. It reaches `Done` on its own: the project's
+built-in **`Pull request merged`** workflow is enabled, so merging the release
+moves the card without anybody remembering to.
 
-Two states, not five. `Backlog`, `Ready` and `In Progress` describe work being
-planned and done; a release pull request is created already complete and only
-waits on its approving review.
+`In Review` in between is a human step, and stays one deliberately. GitHub
+publishes no built-in workflow for "review requested", and `GITHUB_TOKEN` is
+scoped to the repository and [cannot access Projects at
+all](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions),
+so an Actions job would need a classic PAT with `project` and `repo`, or a
+GitHub App with organization-project write, kept as a repository secret.
+Requesting the review is already a human action; a long-lived credential in the
+repository is the larger cost. Worth revisiting if that token is ever needed
+for something else.
 
-The status option ids are in Step 1 above. **Read them rather than remembering
-them** — a wrong one fails with `The single select option Id does not belong to
-the field`, and a command whose stderr is hidden leaves the card where it was
-while appearing to succeed:
+`Backlog` and `Ready` are skipped: they describe work being planned, and a
+release pull request is created already complete.
+
+**Read the status option ids rather than remembering them.** They are not
+listed anywhere in this document on purpose — a wrong one fails with `The
+single select option Id does not belong to the field`, and a command whose
+stderr is hidden leaves the card where it was while appearing to succeed. The
+command that prints them:
 
 ```bash
 gh project field-list 2 --owner koodauspaja --format json |

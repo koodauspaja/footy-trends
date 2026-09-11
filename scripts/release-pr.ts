@@ -60,9 +60,21 @@ function gh(args: string[], input?: string): string {
  */
 function release(mode: string): string {
   const tsx = createRequire(`${process.cwd()}/`).resolve("tsx/cli");
-  return execFileSync(process.execPath, [tsx, "scripts/release-version.ts", mode], {
-    encoding: "utf8",
-  }).trim();
+  try {
+    return execFileSync(process.execPath, [tsx, "scripts/release-version.ts", mode], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    /**
+     * A short message, because the child already wrote the real one.
+     *
+     * `execFileSync` forwards the child's stderr *and* repeats it inside the
+     * error it throws, so rethrowing that verbatim printed the reason twice.
+     * The diagnostic above this line is the child's; this only says which step
+     * stopped.
+     */
+    throw new Error(`release-version.ts ${mode} failed — see the message above`);
+  }
 }
 
 function main(): void {
@@ -124,4 +136,17 @@ function main(): void {
   out(`Board     ${INITIAL_STATUS} (reaches Done on its own when the pull request merges)`);
 }
 
-main();
+/**
+ * The failure the operator sees is the reason, not a Node stack.
+ *
+ * Everything below `main` fails by throwing — a missing token, a board with no
+ * such column, a `gh` that exited non-zero — and an uncaught throw here printed
+ * twelve lines of `node:internal/errors` with the actual cause somewhere above
+ * it, if it was forwarded at all.
+ */
+try {
+  main();
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 1;
+}

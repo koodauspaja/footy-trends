@@ -200,9 +200,29 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
  */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
-  const token = githubToken();
   const refs = issueRefsIn(decision);
-  if (token === undefined || refs.length === 0) return [];
+  // Nothing to look up, so nothing to fail at: a release whose commits name no
+  // issue genuinely touches no resolvable domain.
+  if (refs.length === 0) return [];
+
+  /**
+   * A missing token is a failure, not an empty answer.
+   *
+   * These were one condition, which was right while `--print=notes` was the
+   * caller — notes without domains beat a release that cannot be cut. Only
+   * `--print=json` calls this now, and its contract is the opposite one: the
+   * caller applies labels, so "no token" answering the same as "no domains"
+   * would open an unlabelled release and call it done.
+   */
+  const token = githubToken();
+  if (token === undefined) {
+    // Reported before it is thrown, like every other failure in here. The
+    // caller only sees an exit code, so a diagnostic nobody printed is a
+    // release that stopped for no stated reason.
+    const message = `GH_TOKEN or GITHUB_TOKEN is required to resolve the domains of ${refs.length} referenced issues`;
+    err(message);
+    throw new Error(message);
+  }
 
   try {
     const labels = await Promise.all(

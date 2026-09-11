@@ -94,7 +94,12 @@ Merge commits are excluded — a release produces one, and it carries no type.
 
    It prints the version and the domains, opens the pull request with the
    generated notes, labels it with those domains, and puts it on the board in
-   `In Review`. `--dry-run` shows all of that without opening anything.
+   `In Progress`. The card reaches `Done` by itself when the release merges;
+   moving it to `In Review` when you request the review is the one manual step,
+   and `docs/setup/002-github-project-board.md` says why.
+
+   `--dry-run` shows all of it without opening anything, and reads the board
+   too — so it is also the check that the release can be filed.
 
    **One script rather than a documented sequence of commands.** This was five
    shell commands here, and review found a defect in them seven rounds running —
