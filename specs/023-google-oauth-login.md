@@ -17,7 +17,7 @@ Verified against the repository on 2026-09-07:
 
 | Claim | State |
 |---|---|
-| OAuth credentials exist | Yes — `docs/setup/014-google-oauth-setup.md`, consent screen in **Testing** mode |
+| OAuth credentials exist | Yes — `docs/setup/014-google-oauth-setup.md`. Consent screen in **Testing** mode when this spec shipped; production has since moved to its own published project (#264) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `.env.example` | Yes, unused by any code |
 | Auth library in `package.json` | **None** |
 | `users` / `sessions` / `accounts` tables in `src/db/schema.ts` | **None** — only `matches`, `taso_matches`, `taso_group_teams` |
@@ -32,7 +32,7 @@ Confirmed in chat before writing, because each one changes what gets built:
 | Library | **better-auth 1.7.3** | Stable release; peer-depends on `drizzle-orm ^0.45.2`, this repo's exact pin; `next ^16` supported. NextAuth v5 is still `5.0.0-beta.32`, and v4 predates the App Router. |
 | Sessions | **Database sessions** | Sign-out revokes immediately, and a real `user` row exists from day one for #117. |
 | Visible scope | **Sign in / sign out only** | No page gates behind login. Gating arrives with the features that need it. |
-| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. |
+| Consent screen | **Stays in Testing mode** | Shipping needs no Google Cloud change; the test-user limit is documented, not worked around. **Superseded by #264:** production now runs its own Google Cloud project with a published consent screen, while local and staging keep this one. **And the premise was wrong:** Google enforces a test-user list only for apps requesting more than `openid`/`email`/`profile`, so this app has never been limited to test users in any environment. See `docs/setup/014-google-oauth-setup.md`. |
 
 ## Scope
 
@@ -98,8 +98,9 @@ The reader lands back on the front page with a notice:
 |---|---|
 | Notice | `Kirjautuminen epäonnistui. Yritä uudelleen.` |
 
-This covers a cancelled consent screen, a Google account that is not on the test
-list, and a provider error, deliberately as one string: Google's `error` query
+This covers a cancelled consent screen and a provider error — the "account not
+on the test list" case this once listed never occurs, see the edge-case table
+below — deliberately as one string: Google's `error` query
 parameter distinguishes them, but the reader's next action is the same in every
 case, and naming the cause would leak whether a given account is on the test
 list.
@@ -258,7 +259,7 @@ fills in on the client.
 
 | Case | Behaviour |
 |---|---|
-| Google account not on the Testing-mode test-user list | Google refuses before redirecting back; the reader never reaches our callback. Nothing for the app to handle — Google's own screen is the end of the flow. |
+| Google account not on the Testing-mode test-user list | **This case does not occur.** Google enforces the list only for apps requesting scopes beyond `openid`/`email`/`profile`; with those three, any account signs in. Verified against staging (#264). |
 | Reader cancels at the consent screen | Google returns `error=access_denied`. Land on `/` with `Kirjautuminen epäonnistui. Yritä uudelleen.` |
 | Google profile has no `name` | `user.name` is `required`. Fall back to the local part of the email (`matti.meikalainen@…` → `matti.meikalainen`). Google returns a name under the `profile` scope, so this is a guard against a contract, not an expected path. |
 | Google profile has no `image` | Column is nullable; the header shows the name alone. The header shows no avatar in this spec regardless. |
@@ -285,9 +286,10 @@ fills in on the client.
   sign-in redirect itself.
 - The `matches` and `taso_matches` query paths are untouched.
 - No rate limiting is configured in this spec. better-auth's rate limiter would
-  add a `rateLimit` table; with sign-in as the only endpoint and a test-user-gated
-  consent screen, there is nothing yet to rate limit. Worth revisiting when the
-  consent screen is published.
+  add a `rateLimit` table; with sign-in as the only endpoint and what was
+  believed to be a test-user-gated consent screen, there seemed nothing yet to
+  rate limit. **That reasoning was wrong** — the consent screen never gated
+  anyone, so sign-in has been open from the start. See #309.
 - No pagination anywhere — no list of anything is added.
 
 ## Security & Secrets
@@ -364,10 +366,12 @@ Suggested literals, chosen to be obviously non-secret at a glance:
       keys listed above.
 - [ ] Signed out, every page shows `Kirjaudu sisään` in the header — verified by
       loading a page in each of the three regions plus `/`.
-- [ ] Clicking `Kirjaudu sisään` reaches Google's consent screen for the
-      `footy-trends` OAuth client.
-- [ ] Completing sign-in as a listed test user returns to the page the reader
-      started on, with their name and `Kirjaudu ulos` in the header.
+- [ ] Clicking `Kirjaudu sisään` reaches Google's consent screen for **that
+      environment's own** OAuth client — `footy-trends` locally and on staging,
+      the production project's client on production (#264).
+- [ ] Completing sign-in returns to the page the reader started on, with their
+      name and `Kirjaudu ulos` in the header. Any Google account can do this —
+      the test-user list gates nothing for these scopes (#264).
 - [ ] That sign-in creates exactly one `user` row, one `account` row with
       `providerId = 'google'`, and one `session` row.
 - [ ] Signing in a second time with the same account creates a second `session`
@@ -431,7 +435,7 @@ The signed-in header — including its layout at a 320px viewport with a long
 display name — is covered by intercepting `/api/auth/get-session` and fulfilling
 it with a session, which renders the real component in a real browser.
 
-**E2E still cannot complete a real Google sign-in** — it needs live test-user
+**E2E still cannot complete a real Google sign-in** — it needs live Google
 credentials and Google blocks automated browsers. The signed-in header is
 therefore covered by unit tests plus the manual verification the acceptance
 criteria call for, and this gap is stated here rather than papered over with a
@@ -474,10 +478,11 @@ because each one shaped the spec above.
    with the real values carried over from the `NEXTAUTH_*` pair. CI needs no new
    GitHub secrets at all; every CI value is a dummy literal in the workflow file.
    See "Railway — real values, not dummies" and "CI — no new GitHub secrets".
-3. **Test-mode ceiling — settled, and deferred by choice.** Only listed Google
-   test users can sign in, and this spec ships that way. Opening signup to any
-   Google account is wanted "once we're good for proper launch" and is tracked
-   as its own follow-up rather than smuggled in here — publishing the consent
+3. **Test-mode ceiling — settled, and deferred by choice. The premise was
+   wrong:** this assumed only listed Google test users could sign in. Google
+   enforces that list only for apps requesting more than
+   `openid`/`email`/`profile`, so any account could sign in from the day this
+   shipped (#264). Publishing the consent
    screen is a Google Cloud action with its own consequences (an unverified-app
    warning screen, and a Google verification review once sensitive scopes or
    volume warrant it), and it should land when the app is ready to be launched,
@@ -489,4 +494,4 @@ because each one shaped the spec above.
 |---|---|
 | Publish the OAuth consent screen to Production so any Google account can sign up | A Google Cloud change, not a code change; wanted at launch readiness, not at merge. Blocks nothing here. |
 | Delete the `NEXTAUTH_SECRET` / `NEXTAUTH_URL` variables from Railway | Only safe once the new pair is confirmed live in production. |
-| Revisit better-auth's rate limiter | Nothing to rate limit while the consent screen gates sign-in to a handful of test users; it becomes real the moment the follow-up above ships. |
+| Revisit better-auth's rate limiter | Written as "nothing to rate limit while the consent screen gates sign-in to a handful of test users". It never gated anyone, so this was real from day one — now #309. |

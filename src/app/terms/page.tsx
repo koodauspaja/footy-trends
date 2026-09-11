@@ -50,7 +50,7 @@ export default function Terms() {
             <a className="hover:underline" href="https://www.football-data.org/">
               football-data.org
             </a>
-            .
+            {"."}
           </li>
           <li>
             <strong>Kotimaiset sarjat ja cupit sekä Huuhkajien ja Helmarien ottelut:</strong> Suomen

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
@@ -53,23 +53,69 @@ function parse(file: string): ts.SourceFile {
  * comment mentioning the word was enough to make the guard skip it.
  */
 function takesRequestProps(source: ts.SourceFile): boolean {
-  let found = false;
+  /**
+   * **Any parameter at all**, rather than one whose text mentions `params`.
+   *
+   * A Next page component is called with exactly one prop object, and its only
+   * members are `params` and `searchParams` — both request-scoped. So a page
+   * that declares a parameter is request-dependent whatever it calls it, and
+   * `function Page(props)` reading `props.searchParams` is the case name
+   * matching missed. Declaring nothing is the only shape a static page has.
+   */
+  const declaresRequestProp = (parameters: readonly ts.ParameterDeclaration[]) =>
+    parameters.length > 0;
 
-  const visit = (node: ts.Node) => {
-    const isDefaultExport =
-      (ts.isFunctionDeclaration(node) || ts.isVariableStatement(node)) &&
-      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-    if (isDefaultExport && ts.isFunctionDeclaration(node)) {
-      for (const parameter of node.parameters) {
-        const text = parameter.getText(source);
-        if (/\b(searchParams|params)\b/.test(text)) found = true;
+  /** Any callable, however it was written. */
+  const isCallable = (
+    node: ts.Node
+  ): node is ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression =>
+    ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+
+  /**
+   * Named callables in the file, so `export default Page` can be followed back
+   * to the declaration it names. Both `function Page()` and
+   * `const Page = () => {}` land here.
+   */
+  const byName = new Map<string, readonly ts.ParameterDeclaration[]>();
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      byName.set(statement.name.text, statement.parameters);
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        const initializer = declaration.initializer;
+        if (initializer && isCallable(initializer) && ts.isIdentifier(declaration.name)) {
+          byName.set(declaration.name.text, initializer.parameters);
+        }
       }
     }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(source, visit);
+  }
 
-  return found;
+  for (const statement of source.statements) {
+    // `export default function Page({ searchParams })` and
+    // `export default async function Page(...)`.
+    if (
+      ts.isFunctionDeclaration(statement) &&
+      statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword) &&
+      declaresRequestProp(statement.parameters)
+    ) {
+      return true;
+    }
+
+    if (!ts.isExportAssignment(statement) || statement.isExportEquals) continue;
+
+    // `export default ({ params }) => …` and `export default function (…) {}`.
+    const expression = statement.expression;
+    if (isCallable(expression) && declaresRequestProp(expression.parameters)) return true;
+
+    // `export default Page`, where `Page` is declared above.
+    if (ts.isIdentifier(expression)) {
+      const parameters = byName.get(expression.text);
+      if (parameters && declaresRequestProp(parameters)) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -113,6 +159,208 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * Helmarit (#167) is the same shape — paramless and data-backed — so this
  * guards the class rather than the one file.
  */
+/**
+ * Whether a page imports request-scoped state.
+ *
+ * `headers()`, `cookies()` and `draftMode()` each opt a page out of
+ * prerendering **by being called** — no `force-dynamic` export appears, so
+ * checking for one misses this entirely. It is also the exact shape of the
+ * failure that matters here: reading a session is how a page meant to be
+ * readable signed out stops being prerendered.
+ */
+/**
+ * Every module a file pulls in — static and dynamic alike.
+ *
+ * `await import("…")` counts. This repository uses it deliberately to keep
+ * `@/lib/auth` off a module's import path (`current-user.ts`, `viewer.ts`), so
+ * a walk that only read `import` declarations would miss exactly the pattern
+ * the codebase reaches for when it wants an import not to happen eagerly.
+ *
+ * **`import type` does not count.** It is erased at compile time, so it creates
+ * no runtime dependency and cannot make a page dynamic. Counting it would fail
+ * a page that is genuinely static — a false alarm, which is the worse kind for
+ * a guard: the true one gets investigated, the false one gets the guard
+ * deleted. `current-user.ts` imports `@/lib/auth` exactly this way.
+ */
+function moduleSpecifiers(source: ts.SourceFile): string[] {
+  const found: string[] = [];
+
+  for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const clause = statement.importClause;
+      // `import type X from` and `import { type X }` alike: erased, so not a
+      // dependency. A bare `import "…"` has no clause and is a real side effect.
+      const typeOnly =
+        clause?.isTypeOnly === true ||
+        (clause?.namedBindings !== undefined &&
+          ts.isNamedImports(clause.namedBindings) &&
+          clause.namedBindings.elements.every((element) => element.isTypeOnly));
+      if (!typeOnly) found.push(statement.moduleSpecifier.text);
+    }
+
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.isTypeOnly &&
+      statement.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      // `export { type Foo } from "./m"` is erased too, and marks its type-only
+      // ness per element rather than on the statement.
+      const clause = statement.exportClause;
+      const allTypes =
+        clause !== undefined &&
+        ts.isNamedExports(clause) &&
+        clause.elements.every((element) => element.isTypeOnly);
+      if (!allTypes) found.push(statement.moduleSpecifier.text);
+    }
+  }
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0
+    ) {
+      const [argument] = node.arguments;
+      // A computed specifier cannot be resolved statically, and this repository
+      // has none — every dynamic import here names a literal module.
+      if (argument !== undefined && ts.isStringLiteral(argument)) found.push(argument.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
+
+  return found;
+}
+
+const SRC_DIR = path.join(process.cwd(), "src");
+const EXTENSIONS = [".ts", ".tsx"];
+
+/**
+ * A first-party import resolved to a file on disk, or null when it is not one.
+ *
+ * Handles the two forms this repository uses — `@/lib/x` and `./x` — and
+ * deliberately resolves nothing else. A bare specifier is a package, and a
+ * package cannot make one of our pages dynamic without one of our files
+ * importing it first.
+ */
+function resolveFirstParty(specifier: string, importer: string): string | null {
+  const base = specifier.startsWith("@/")
+    ? path.join(SRC_DIR, specifier.slice(2))
+    : specifier.startsWith(".")
+      ? path.resolve(path.dirname(importer), specifier)
+      : null;
+  if (base === null) return null;
+
+  for (const candidate of [
+    ...EXTENSIONS.map((extension) => `${base}${extension}`),
+    ...EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Whether a page reaches `next/headers` through *any* of its own modules.
+ *
+ * Checking the page's own imports was not enough, and review said so four
+ * times before I stopped arguing and wrote this: `headers()` makes a page
+ * dynamic wherever it is called, so a one-line helper is enough to hide it.
+ *
+ * Only first-party files are followed, so the walk is small and terminates on
+ * the first package boundary. Cycles are handled by the visited set.
+ *
+ * **It stops at `"use server"` modules, and that is not an exemption.** A server
+ * action reached from a client component is replaced by a network stub at build
+ * time — the page never runs its body, so what it imports cannot change the
+ * page's rendering mode. Without this the walk reports every page carrying a
+ * favourite star, via
+ * `favourite-toggle.tsx → favourite-actions.ts → current-user.ts`, and the
+ * build disagrees: all three are `○ (Static)`.
+ */
+function isServerActionModule(source: ts.SourceFile): boolean {
+  const first = source.statements[0];
+  return (
+    first !== undefined &&
+    ts.isExpressionStatement(first) &&
+    ts.isStringLiteral(first.expression) &&
+    first.expression.text === "use server"
+  );
+}
+
+function reachesRequestState(entry: string): string | null {
+  const seen = new Set<string>();
+  const queue = [entry];
+
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (file === undefined || seen.has(file)) continue;
+    seen.add(file);
+
+    const source = parse(file);
+    // The entry page itself is never a server action, so this only ever prunes
+    // a module reached through one.
+    if (file !== entry && isServerActionModule(source)) continue;
+
+    for (const specifier of moduleSpecifiers(source)) {
+      if (specifier === "next/headers") return path.relative(process.cwd(), file);
+      const resolved = resolveFirstParty(specifier, file);
+      if (resolved !== null) queue.push(resolved);
+    }
+  }
+
+  return null;
+}
+
+describe("a page declared static by design really is static", () => {
+  /**
+   * The other half of `STATIC_BY_DESIGN`, and the one that was missing.
+   *
+   * The check below *skips* every file on that list, so the list on its own
+   * exempts rather than guarantees: a page could join it and then quietly start
+   * reading a session or a search param, and nothing would say so. That matters
+   * most for the two pages Google requires reachable **without signing in** —
+   * `/tietosuoja` and `/kayttoehdot` — where becoming dynamic is not a
+   * performance regression but a broken legal requirement (#264, #302, #303).
+   *
+   * Asserting the inverse turns the list into a promise: a declared-static page
+   * takes no request props and opts out of nothing.
+   *
+   * **Both gaps review found are closed.** It follows the page's own
+   * first-party imports rather than reading one file, so a helper cannot hide a
+   * `headers()` call; and `takesRequestProps` handles every default-export form
+   * — declaration, arrow function, function expression, and
+   * `export default Name` followed back to its declaration. Each is
+   * mutation-checked.
+   *
+   * **Three checks, three different properties** — worth separating, because
+   * describing the end-to-end one as simply "stronger" overstates it:
+   *
+   * | Check | What it actually proves |
+   * |---|---|
+   * | this test | nothing the page declares *or imports* makes it dynamic |
+   * | `npm run build`'s route table | the page really is prerendered (`○`) |
+   * | `privacy.spec.ts` / `terms.spec.ts` | it is **reachable signed out**, with JavaScript blocked |
+   *
+   * The e2e specs do *not* prove the page is static — a server-rendered page
+   * returns HTML without JavaScript too. They prove the property Google's
+   * requirement is about, which is reachability rather than rendering mode.
+   */
+  it.each([...STATIC_BY_DESIGN])("%s neither takes request props nor opts out", (relative) => {
+    const source = parse(path.join(APP_DIR, relative));
+
+    expect(takesRequestProps(source)).toBe(false);
+    expect(optsOutOfPrerender(source)).toBe(false);
+    /**
+     * `headers()` opts a page out by being *called*, so there is no export to
+     * look for — and it need not be called in the page file. This follows the
+     * page's own first-party imports to the end, so a helper cannot hide it.
+     */
+    expect(reachesRequestState(path.join(APP_DIR, relative))).toBeNull();
+  });
+});
+
 describe("pages are not prerendered unless declared static", () => {
   it("every page takes request props, opts out, or is declared static by design", async () => {
     const offenders: string[] = [];

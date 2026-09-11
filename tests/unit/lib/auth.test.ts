@@ -31,6 +31,13 @@ vi.mock("better-auth/plugins/custom-session", () => ({ customSession }));
 vi.mock("@/lib/preferences", () => ({ getSessionExtrasFor }));
 
 const REQUIRED = {
+  /**
+   * Stubbed empty rather than left alone: a developer who sets this locally to
+   * exercise #314 would otherwise turn every "no allowlist" test into a
+   * refusal, and the failure would look like a bug in the code under test.
+   * Same reason the CI unit job runs with no environment at all (#158).
+   */
+  AUTH_ALLOWED_EMAILS: "",
   BETTER_AUTH_SECRET: "test-secret",
   BETTER_AUTH_URL: "http://localhost:3000",
   GOOGLE_CLIENT_ID: "test-client-id",
@@ -61,6 +68,113 @@ async function loadConfig(): Promise<any> {
   await import("@/lib/auth");
   return betterAuth.mock.calls[0]?.[0];
 }
+
+describe("resolving the client IP, from #309", () => {
+  it("reads the address from x-real-ip, the one header the edge overwrites", async () => {
+    // Without a resolvable header better-auth falls back to one shared per-path
+    // bucket, where one attacker locks everyone out. Railway's `x-forwarded-for`
+    // arrives with two entries, which better-auth refuses to read unaided.
+    //
+    // `x-real-ip` and not `x-envoy-external-address`: a sentinel sent as the
+    // first is overwritten by the edge, and one sent as the second arrives
+    // intact, because Railway never sets it. An absent header a client may set
+    // is worse than no configuration at all — ordinary visitors still share a
+    // bucket and an attacker rotates theirs freely.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip"]);
+  });
+
+  it("trusts no proxy unless one is configured", async () => {
+    // Absent rather than empty: an empty list leaves chain mode disabled
+    // anyway, and saying nothing is plainer than saying nothing-in-particular.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress).not.toHaveProperty("trustedProxies");
+  });
+
+  it("takes the header list from the environment, so a wrong guess is not a release", async () => {
+    setEnv({ AUTH_CLIENT_IP_HEADERS: "CF-Connecting-IP, x-real-ip" });
+
+    const config = await loadConfig();
+
+    // Lower-cased, because `Headers.get` is case-insensitive but better-auth
+    // compares the configured name against the key it was given.
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["cf-connecting-ip", "x-real-ip"]);
+  });
+
+  it("passes trusted proxies through when they are configured", async () => {
+    setEnv({ AUTH_TRUSTED_PROXIES: "100.64.0.0/10, 10.0.0.1" });
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.trustedProxies).toEqual(["100.64.0.0/10", "10.0.0.1"]);
+  });
+
+  it("falls back to the default when the variable is set but empty", async () => {
+    // A Railway variable cleared to "" must not disable IP resolution silently.
+    setEnv({ AUTH_CLIENT_IP_HEADERS: " , ,, " });
+
+    const config = await loadConfig();
+
+    expect(config.advanced.ipAddress.ipAddressHeaders).toEqual(["x-real-ip"]);
+  });
+});
+
+describe("who may sign in, from #314", () => {
+  it("gates every identity through the allowlist", async () => {
+    // `validateUserInfo` and not `databaseHooks.user.create.before`: that one
+    // fires only at account creation, so anyone who signed in before a list
+    // existed would keep access forever. This runs on `sign-in` too.
+    setEnv({ AUTH_ALLOWED_EMAILS: "miikka@example.fi" });
+
+    const config = await loadConfig();
+
+    expect(config.user.validateUserInfo({ user: { email: "miikka@example.fi" } })).toBeUndefined();
+    expect(config.user.validateUserInfo({ user: { email: "stranger@example.fi" } })).toEqual({
+      error: "sign_in_not_allowed",
+    });
+  });
+
+  it("admits everyone when no allowlist is configured", async () => {
+    // Production is deliberately open, and local development has no list.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.user.validateUserInfo({ user: { email: "anyone@example.fi" } })).toBeUndefined();
+  });
+});
+
+describe("where rate-limit counters live, from #318", () => {
+  it("counts in Redis rather than in this instance's memory", async () => {
+    // better-auth's default is an in-process Map: it resets on every deploy and
+    // becomes one limiter per instance the moment there are two.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.rateLimit.customStorage).toEqual(
+      expect.objectContaining({ consume: expect.any(Function) })
+    );
+  });
+
+  it("leaves sessions in Postgres", async () => {
+    // `secondaryStorage` is the option better-auth documents for this, and it
+    // also moves sessions — reads come from it and rows are deleted from the
+    // database — which would make sign-in depend on Redis being up.
+    // `customStorage` is consulted first, so only the counters move.
+    setEnv();
+
+    const config = await loadConfig();
+
+    expect(config.secondaryStorage).toBeUndefined();
+  });
+});
 
 describe("auth configuration", () => {
   it("registers Google as the only social provider", async () => {

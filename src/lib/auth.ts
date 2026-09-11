@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import { displayNameFor } from "@/lib/auth-profile";
 import { getSessionExtrasFor } from "@/lib/preferences";
+import { redisRateLimitStorage } from "@/lib/rate-limit-storage";
+import { signInRefusal } from "@/lib/sign-in-allowlist";
 
 /**
  * Reads a variable that sign-in cannot work without, and says which one is
@@ -24,6 +26,52 @@ function required(name: string): string {
 }
 
 /**
+ * Which headers carry the client's address, and which hops to skip, from #309.
+ *
+ * **Why this is configuration and not a constant.** better-auth resolves an IP
+ * from a *single-value* header on its own, but from `x-forwarded-for` only when
+ * `trustedProxies` names the hops to skip — and behind Railway that header
+ * arrives with two entries, so without help every visitor shares one rate-limit
+ * bucket and one attacker locks everyone out. Measured on staging: the edge
+ * *replaces* `x-forwarded-for` rather than appending, and sets `x-real-ip`
+ * alongside it.
+ *
+ * **The rule: read a header only where the edge is measured to overwrite it.**
+ * A header the platform passes through is not a client address, it is a request
+ * body — and trusting one lets an attacker rotate it for a fresh bucket per
+ * request, which is worse than the shared bucket this replaces, where they at
+ * least share the limit with everyone.
+ *
+ * Measured on staging by sending `192.0.2.1` (TEST-NET-1, nobody's real source)
+ * as each candidate and reading `/api/health?forwarded=1`:
+ *
+ * | sent as | result |
+ * |---|---|
+ * | `x-real-ip` | overwritten by the edge, matching forwarded entry 0 |
+ * | `x-envoy-external-address` | **arrived intact** — Railway never sets it |
+ * | `cf-connecting-ip`, `true-client-ip` | arrived intact |
+ *
+ * So `x-real-ip` is the only default. `x-envoy-external-address` was the default
+ * for one release on the reasoning that Railway fronts applications with Envoy;
+ * it does, but it does not forward that header, and an absent header that a
+ * client may set is the worst of the three cases — nothing resolves for ordinary
+ * visitors, and an attacker resolves whatever they like.
+ *
+ * Reading both from the environment is what makes that reversible: if a platform turns out to pass a client-supplied
+ * `x-real-ip` through, the correction is a Railway variable rather than a
+ * release. `/api/health?forwarded=1` reports which header agrees with the chain,
+ * which is how that gets checked rather than assumed.
+ */
+function headerList(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "");
+}
+
+const DEFAULT_CLIENT_IP_HEADERS = ["x-real-ip"];
+
+/**
  * The better-auth server instance, from specs/023-google-oauth-login.md.
  *
  * Google is the only provider, sessions live in Postgres, and nothing in the
@@ -33,6 +81,42 @@ function required(name: string): string {
 export const auth = betterAuth({
   secret: required("BETTER_AUTH_SECRET"),
   baseURL: required("BETTER_AUTH_URL"),
+
+  /**
+   * Without this every request resolves to no IP at all, and better-auth falls
+   * back to one shared per-path bucket — the warning in the logs since the
+   * first production deploy (#309).
+   *
+   * `trustedProxies` is passed only when it is set: an empty array would leave
+   * better-auth's chain mode disabled anyway, and an absent option says more
+   * plainly that nothing is being trusted.
+   */
+  advanced: {
+    ipAddress: (() => {
+      const configured = headerList("AUTH_CLIENT_IP_HEADERS");
+      const trustedProxies = headerList("AUTH_TRUSTED_PROXIES");
+
+      return {
+        ipAddressHeaders: configured.length > 0 ? configured : DEFAULT_CLIENT_IP_HEADERS,
+        ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
+      };
+    })(),
+  },
+
+  /**
+   * Counters in Redis rather than in one instance's memory (#318).
+   *
+   * better-auth's default is an in-process `Map`: it resets on every deploy,
+   * and it would become one limiter per instance the moment the service ran
+   * two, multiplying the effective limit with nothing reporting that it had.
+   *
+   * `customStorage` and not `secondaryStorage`, which is the documented option
+   * for this: configuring that one also moves **sessions** into Redis, and
+   * sign-in would then need Redis to be up. This moves the counters alone.
+   */
+  rateLimit: {
+    customStorage: redisRateLimitStorage(),
+  },
 
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -53,6 +137,27 @@ export const auth = betterAuth({
   },
 
   user: {
+    /**
+     * Who may sign in at all, where an environment says so (#314).
+     *
+     * **This hook and not `databaseHooks.user.create.before`.** That one fires
+     * only when an account is created, so anyone who signed in before a list
+     * existed would keep their access forever. `validateUserInfo` runs before
+     * `create-user`, on `link-account`, and on every OAuth `sign-in` — read
+     * from better-auth 1.7.3's source rather than its documentation, where
+     * `link-account.mjs` passes `action: "sign-in"` for an account that already
+     * exists.
+     *
+     * Running before `create-user` is what keeps a refused attempt from leaving
+     * a `user` row behind, which #314 asks for explicitly.
+     *
+     * Returning `{ error }` becomes a `403` that the OAuth callback turns into
+     * a redirect carrying `error=<code>`; `auth-controls.tsx` renders the
+     * Finnish for it. The code is deliberately not the reason — see
+     * `sign-in-refusal.ts`.
+     */
+    validateUserInfo: ({ user }) => signInRefusal(user.email),
+
     /**
      * Off by default in better-auth. Enabled for the settings page's
      * `Poista tili`, from specs/024-account-settings.md.

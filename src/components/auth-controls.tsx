@@ -6,6 +6,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
 import { avatarSourceOf } from "@/lib/session-extras";
+import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
 // `shrink-0` keeps the button its full width when a long name shares the row.
 const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
@@ -26,7 +27,19 @@ const BUTTON_CLASS = "shrink-0 text-sm hover:underline";
  * child and throw during render. A `Map` has no inherited keys, which removes
  * the case rather than guarding against it.
  */
-const MESSAGES = new Map([["signout", "Uloskirjautuminen epäonnistui. Yritä uudelleen."]]);
+const MESSAGES = new Map([
+  ["signout", "Uloskirjautuminen epäonnistui. Yritä uudelleen."],
+  /**
+   * The one sign-in failure worth naming, from #314. Every other cause says
+   * `SIGN_IN_FAILED` because the reader's next move is the same — try again.
+   * Here it is not: trying again will fail identically forever, and the reader
+   * has to ask for access instead. Telling them to retry would be false.
+   */
+  [
+    SIGN_IN_NOT_ALLOWED,
+    "Kirjautuminen on rajoitettu tässä ympäristössä. Pyydä käyttöoikeutta ylläpidolta.",
+  ],
+]);
 
 /** Every Google-side failure says the same thing — see `SignInError` below. */
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
@@ -152,21 +165,42 @@ function AuthButtons() {
 }
 
 /**
- * The failure notice, shown after Google sends the reader back without a
- * session — a cancelled consent screen, an account that is not on the Testing
- * mode test-user list, or a provider error — and after a sign-out that failed.
+ * The failure notice, shown after a sign-in that produced no session and after
+ * a sign-out that failed.
  *
- * Every Google-side cause says the same thing, deliberately. Google's `error`
- * parameter tells them apart, but the reader's next action is identical in
- * every case, and naming the cause would leak whether a given account is on the
- * test-user list. Sign-out is the one distinguishable case, because it is ours
- * and describes a different thing having failed.
+ * **Google-side causes all say the same thing, deliberately** — a cancelled
+ * consent screen, a provider error, a state that did not survive. Google's
+ * `error` parameter tells them apart, but the reader's next action is identical
+ * in every case: try again.
+ *
+ * Two causes are named, because for them that advice would be wrong:
+ *
+ * - **The allowlist refused it** (#314). Ours, not Google's: the reader got
+ *   through Google and this app turned them away. Retrying fails identically
+ *   forever, so the notice says to ask for access. It names the environment
+ *   rather than the address, so it reveals nothing about who is on the list.
+ * - **Sign-out failed.** Also ours, and a different thing having failed.
+ *
+ * This comment previously said naming a cause would leak whether an account was
+ * on Google's Testing mode test-user list. #314 measured that premise away: that
+ * list never gated this app, because Google enforces it only beyond
+ * `openid`/`email`/`profile`.
  */
 function SignInError() {
-  const error = useSearchParams().get("error");
-  if (error === null) return null;
+  /**
+   * `getAll`, not `get`, and this is load-bearing rather than defensive.
+   *
+   * `errorCallbackURL` already carries `?error=auth`, and better-auth's
+   * `appendQueryParams` **concatenates** its own `error=<code>` rather than
+   * replacing it — so the reader lands on `/?error=auth&error=<code>` and
+   * `get("error")` answers `"auth"`, the least specific of the two. A named
+   * cause would have been silently unreachable.
+   */
+  const errors = useSearchParams().getAll("error");
+  if (errors.length === 0) return null;
 
-  return <Notice>{MESSAGES.get(error) ?? SIGN_IN_FAILED}</Notice>;
+  const named = errors.find((code) => MESSAGES.has(code));
+  return <Notice>{named === undefined ? SIGN_IN_FAILED : MESSAGES.get(named)}</Notice>;
 }
 
 /**

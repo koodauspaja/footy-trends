@@ -312,3 +312,44 @@ describe("health commit", () => {
     expect(body.commit).toBeNull();
   });
 });
+
+describe("the forwarding diagnostic", () => {
+  it("is absent unless asked for", async () => {
+    // Opt-in like `?providers=1`: a platform probe hits this constantly and has
+    // no use for it.
+    const { GET } = await import("@/app/api/health/route");
+
+    const body = await (await GET(new Request("http://localhost/api/health"))).json();
+
+    expect(body.forwarding).toBeUndefined();
+  });
+
+  it("reports the shape of the forwarding headers when asked", async () => {
+    const { GET } = await import("@/app/api/health/route");
+
+    const response = await GET(
+      new Request("http://localhost/api/health?forwarded=1", {
+        headers: { "x-forwarded-for": "203.0.113.5, 100.64.0.1" },
+      })
+    );
+    const body = await response.json();
+
+    expect(body.forwarding).toEqual({
+      entries: 2,
+      hops: ["public", "private"],
+      candidates: {},
+    });
+  });
+
+  it("reports no address, because this endpoint is public", async () => {
+    const { GET } = await import("@/app/api/health/route");
+
+    const response = await GET(
+      new Request("http://localhost/api/health?forwarded=1", {
+        headers: { "x-forwarded-for": "203.0.113.5", "x-real-ip": "203.0.113.5" },
+      })
+    );
+
+    expect(await response.text()).not.toContain("203.0.113.5");
+  });
+});

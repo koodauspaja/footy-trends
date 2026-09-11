@@ -1,137 +1,229 @@
 # 014 — Google OAuth setup
 
 ## Goal
-Create a Google Cloud project, enable the OAuth API, and generate credentials
-so the app can offer Google sign-in. No app code in this step — just the
-infrastructure. The credentials will sit in Railway as environment variables,
-ready for the better-auth integration in `specs/023-google-oauth-login.md`.
+Create the Google Cloud projects behind Google sign-in and generate their
+credentials. No app code here — just the infrastructure. The credentials sit in
+Railway as environment variables, feeding the better-auth integration in
+`specs/023-google-oauth-login.md`.
 
 ---
 
-## Step 1 — Create a Google Cloud project
+## Two projects, not one
+
+**There are two Google Cloud projects, and that is deliberate (#264).**
+
+| | Project | Consent screen | Who can sign in |
+|---|---|---|---|
+| Local + staging | `footy-trends` | **Testing** | **anyone with a Google account** — see below |
+| Production | `footy-trends-prod` | **Published** | anyone with a Google account |
+
+The reason is that **the publishing status, branding and consent screen belong
+to a project, not to an OAuth client**. Two clients inside one project share one
+screen, so production's published state and development's would be the same
+state. Separate projects keep production's credentials, verification status and
+blast radius apart from development's.
+
+### The test-user list gates nothing here
+
+**Do not rely on it.** Google enforces the test-user list only for apps
+requesting scopes beyond the basic identity three. This app requests exactly
+`openid`, `email` and `profile`, which are non-sensitive and need no
+verification — so **while the project sits in Testing, any Google account can
+still sign in**. Verified the hard way: several accounts that had never been
+near the project signed in to staging, in a private window, with one address on
+the list.
+
+That means there is **no console setting that restricts who may sign in to
+staging or localhost**. If a restriction is wanted, it has to live in the
+application — an allowlist checked when the session is created, not a list in
+Google.
+
+See <https://support.google.com/cloud/answer/15549945> and
+<https://developers.google.com/workspace/guides/configure-oauth-consent>.
+
+---
+
+## Step 1 — Create the projects
 
 1. Go to https://console.cloud.google.com
-2. Click the project dropdown at the top → **New project**
-3. Name: `footy-trends`
-4. Organisation: leave as default (or select one if you have it)
-5. Click **Create**
-6. Make sure the new project is selected in the dropdown before continuing
+2. Project dropdown → **New project**
+3. Create one for development (`footy-trends`) and one for production
+   (`footy-trends-prod`). A display name can be changed later; the project ID
+   cannot.
+4. Make sure you have the right project selected before each of the steps below
+   — everything after this is per project.
 
 ---
 
-## Step 2 — Configure the OAuth consent screen
+## Step 2 — Configure each consent screen
 
-Before creating credentials, Google requires a consent screen — this is what
-users see when they click "Sign in with Google".
+Do this **twice**, once per project.
 
-1. Go to **APIs & Services** → **OAuth consent screen**
-2. User type: **External** (allows any Google account to sign in)
-3. Click **Create**
-4. Fill in the required fields:
-   - App name: `Footy Trends`
-   - User support email: your email
-   - Developer contact email: your email
-5. Click **Save and continue**
-6. On the **Scopes** screen — click **Save and continue** without adding any
-   (the defaults `openid`, `email`, and `profile` are added automatically)
-7. On the **Test users** screen — add your own Google account and your
-   friend's account
-   - While the app is in **Testing** mode only listed test users can sign in
-   - This is fine for development; you can publish later if needed
-8. Click **Save and continue**
+1. **APIs & Services** → **OAuth consent screen**
+2. User type: **External**
+3. App name `Footy Trends`, your email as support and developer contact
+4. **App information**: Google will not let an External app publish without an
+   **application home page** and an **authorised domain**, and the two take
+   different shapes:
+
+   | Field | Shape | Example |
+   |---|---|---|
+   | Application home page | a full URL, with scheme | `https://<production host>/` |
+   | Authorised domains | the bare domain, no scheme and no path | `<production host>` |
+
+   Google also expects an authorised domain to be one you can verify in Search
+   Console. A shared platform subdomain may not be, in which case a custom
+   domain is the way through — worth finding out before the publish step rather
+   than during it.
+
+   The development project needs neither while it stays in Testing.
+5. **Scopes**: save without adding any. The defaults `openid`, `email` and
+   `profile` are added automatically. Requesting anything beyond these is what
+   would trigger a full Google verification review.
+6. **Test users**:
+   - *Development project*: adding the accounts that develop the app is
+     harmless, but understand it restricts nobody — see *The test-user list
+     gates nothing here*.
+   - *Production project*: no list is needed once the screen is published.
+
+### Publishing status
+
+- The **development** project stays in **Testing**.
+- The **production** project ends **published** (Testing → In production), but
+  that is the last thing you do, not this step. Google refuses the transition
+  until the privacy policy and terms URLs from Step 5 are entered, so finish
+  Step 5 and come back.
+
+A published app without Google verification still shows an "unverified app"
+interstitial to first-time visitors. That is tolerable for non-sensitive scopes
+and a small audience, and it is what the production project does today.
 
 ---
 
-## Step 3 — Create OAuth credentials
+## Step 3 — Create an OAuth client in each project
 
-1. Go to **APIs & Services** → **Credentials**
-2. Click **+ Create credentials** → **OAuth client ID**
-3. Application type: **Web application**
-4. Name: `footy-trends-web`
-5. Under **Authorised redirect URIs**, add both:
-   ```
-   http://localhost:3000/api/auth/callback/google
-   https://YOUR-RAILWAY-URL/api/auth/callback/google
-   ```
-   Replace `YOUR-RAILWAY-URL` with your actual Railway production URL
-   (found in Railway → project → app service → **Settings** → **Domains**)
-6. Click **Create**
-7. A dialog shows your **Client ID** and **Client Secret** — copy both
-   immediately and store in your password manager
+**APIs & Services** → **Credentials** → **+ Create credentials** → **OAuth client
+ID** → **Web application**.
 
-> You can return to this screen later to retrieve the Client ID, but the
-> Client Secret is only shown once at creation. If you lose it, you will
-> need to create a new credential.
+Each project gets its own client, and the redirect URIs are what separate them:
+
+| Project | Authorised redirect URIs |
+|---|---|
+| `footy-trends` (dev) | `http://localhost:3000/api/auth/callback/google`<br>`https://<staging host>/api/auth/callback/google` |
+| `footy-trends-prod` | `https://<production host>/api/auth/callback/google` |
+
+Find each host in Railway → project → the environment → app service →
+**Settings** → **Domains**. Staging and production are different hosts.
+
+> The **Client ID** can be read again later. The **Client secret** is shown once
+> at creation — store it immediately. A lost secret means creating a new client,
+> not recovering the old one.
 
 ---
 
-## Step 4 — Store credentials in Railway
+## Step 4 — Store the credentials
 
-1. Go to Railway → project → app service → **Variables** tab
-2. Add the following variables:
+Four variables per environment. The pair comes from **that environment's own
+project**.
 
-| Name | Value |
-|------|-------|
-| `GOOGLE_CLIENT_ID` | your Client ID from Step 3 |
-| `GOOGLE_CLIENT_SECRET` | your Client Secret from Step 3 |
-| `BETTER_AUTH_SECRET` | a random string (generate with `openssl rand -base64 32`) |
-| `BETTER_AUTH_URL` | your Railway production URL, e.g. `https://footy-trends.up.railway.app` |
+| Name | Local (`.env`) | Railway staging | Railway production |
+|------|----------------|-----------------|--------------------|
+| `GOOGLE_CLIENT_ID` | dev project | dev project | **prod project** |
+| `GOOGLE_CLIENT_SECRET` | dev project | dev project | **prod project** |
+| `BETTER_AUTH_SECRET` | any random string | its own | **its own** |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | `https://<staging host>` | `https://<production host>` |
 
-> **Renamed in `specs/023-google-oauth-login.md`.** This step originally named
-> these `NEXTAUTH_SECRET` and `NEXTAUTH_URL`. The app uses **better-auth**, not
-> NextAuth, which reads the `BETTER_AUTH_*` names. If you already set the old
-> pair, copy the same values across — nothing needs regenerating — and delete
-> the `NEXTAUTH_*` variables once sign-in works. The redirect URI registered in
-> Step 3 is unchanged: better-auth serves the same
-> `/api/auth/callback/google` path.
+Generate each secret with:
 
-Generate the `BETTER_AUTH_SECRET` locally:
 ```bash
 openssl rand -base64 32
 ```
 
----
+**`BETTER_AUTH_SECRET` is per environment, deliberately.** Sharing one would not
+grant access across environments — the databases are separate, so a cookie
+signed elsewhere names a session that does not exist here — but it would mean a
+leak from the looser environment is also a leak from production. Note that
+changing it invalidates every session cookie, so everyone signed in is signed
+out; choose it before opening sign-up rather than after.
 
-## Step 5 — Store credentials locally
+**`BETTER_AUTH_URL` is a full origin, not a hostname** — scheme included, no
+trailing slash and no path, exactly as the local value shows. **And it must be
+that environment's own.** better-auth builds
+the OAuth callback from it, so a staging value in production sends Google's
+redirect to staging — and it fails *after* the reader has consented, which reads
+as "sign-in is broken" rather than "one variable is wrong".
 
-Add to your `.env` file:
-
-```
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-BETTER_AUTH_SECRET=your_random_secret
-BETTER_AUTH_URL=http://localhost:3000
-```
-
-Note that `BETTER_AUTH_URL` differs between local (localhost) and production
-(Railway URL) — Railway overrides it automatically via the Variables tab.
-
----
-
-## Step 6 — Verify the consent screen works
-
-You can confirm the OAuth flow is configured correctly before writing any
-app code by visiting the Google authorisation URL directly in your browser:
-
-```
-https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:3000/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
-```
-
-Replace `YOUR_CLIENT_ID` with your actual Client ID. You should see the
-Google sign-in screen followed by your consent screen. It will fail after
-consent (no app is listening yet) — that is expected. The goal is just to
-confirm the consent screen appears and looks correct.
+> **Renamed in `specs/023-google-oauth-login.md`.** This step originally named
+> these `NEXTAUTH_SECRET` and `NEXTAUTH_URL`. The app uses **better-auth**, not
+> NextAuth, which reads the `BETTER_AUTH_*` names. If the old pair is still set
+> anywhere, copy the values across — nothing needs regenerating — and delete the
+> `NEXTAUTH_*` variables once sign-in works.
 
 ---
+
+## Step 5 — The published project also needs its documents
+
+Google requires a privacy policy and terms of service, reachable **without
+signing in**, before a consent screen can leave Testing. The app publishes both:
+
+| | URL |
+|---|---|
+| Privacy policy | `https://<production host>/tietosuoja` |
+| Terms of service | `https://<production host>/kayttoehdot` |
+
+Both are static pages, and `tests/unit/app/rendering-mode.test.ts` asserts they
+stay that way: it checks that neither takes request props nor opts out of
+prerendering, so one cannot quietly start reading a session and become
+unreachable to a signed-out visitor. Enter them on the production
+project's consent screen.
+
+---
+
+## Step 6 — Verify
+
+The honest check is a real sign-in, per environment:
+
+- **Production**: an account that has never been a test user signs in and comes
+  back signed in.
+- **Local and staging**: any Google account signs in, and that is Google's
+  documented behaviour for these scopes rather than a misconfiguration. Do not
+  write a check that expects a refusal — it will not come.
+
+A consent screen can also be confirmed without any app code by opening the
+authorisation URL directly. **The client id and the redirect URI have to come
+from the same project**, or Google answers `redirect_uri_mismatch` before the
+screen ever appears — the production client does not carry the localhost URI.
+
+For the **development** project:
+
+```
+https://accounts.google.com/o/oauth2/v2/auth?client_id=<dev client id>&redirect_uri=http://localhost:3000/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
+```
+
+For the **production** project, use its client id and its own callback:
+
+```
+https://accounts.google.com/o/oauth2/v2/auth?client_id=<prod client id>&redirect_uri=https://<production host>/api/auth/callback/google&response_type=code&scope=openid%20email%20profile
+```
+
+Either will fail after consent when nothing is listening, which is expected. The
+point is that the consent screen appears and names the right app.
 
 ## Done when
-- [ ] Google Cloud project `footy-trends` created
-- [ ] OAuth consent screen configured with test users added
-- [ ] OAuth client ID and secret generated
-- [ ] `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, and
-      `BETTER_AUTH_URL` stored in Railway variables
-- [ ] Same variables added to local `.env`
-- [ ] Consent screen verified in browser
+- [ ] Both Google Cloud projects exist, with their own consent screens
+- [ ] The production project has an application home page and authorised domain,
+      without which Google will not publish it
+- [ ] The development project is in **Testing**; the production project is
+      **published**. Neither state restricts who may sign in, because the app
+      requests only non-sensitive scopes
+- [ ] Each project has an OAuth client carrying only its own redirect URIs
+- [ ] All four variables are set in `.env`, Railway staging and Railway
+      production, each from the right project
+- [ ] The privacy policy and terms URLs are entered on the production consent
+      screen
+- [ ] A Google account signs in on production. It will also sign in on staging
+      and locally, and that is expected — see *The test-user list gates nothing
+      here*. Do not treat it as a fault to chase
 
 ## Next
 → `015-database-setup.md`

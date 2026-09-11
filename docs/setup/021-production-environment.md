@@ -147,10 +147,13 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
-| `GOOGLE_CLIENT_ID` | manual | From `docs/setup/014-google-oauth-setup.md` |
-| `GOOGLE_CLIENT_SECRET` | manual | Shown once at creation; see 014 |
-| `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`. Changing it invalidates every session cookie |
+| `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use, see `docs/setup/014-google-oauth-setup.md` |
+| `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
+| `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below |
+| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
+| `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
@@ -170,6 +173,112 @@ and `NEXTAUTH_URL` this document and 014 originally named: the app uses
 better-auth, not NextAuth. If the old pair is already set, copy the same values
 across — nothing needs regenerating — and delete the `NEXTAUTH_*` variables once
 sign-in works.
+
+### Rate limiting needs a client address
+
+better-auth rate-limits per client IP, and behind a proxy it can only find one
+if a header carries it. It refuses `x-forwarded-for` outright unless the header
+holds a single entry or `trustedProxies` names the hops to skip — Railway's
+arrives with two — so until #309 every visitor shared **one bucket per path**,
+which the logs said on every boot:
+
+```
+WARN [Better Auth]: Rate limiting could not determine a client IP and is
+falling back to a single shared per-path bucket.
+```
+
+That is not merely imprecise. One attacker exhausts the bucket and every real
+visitor is refused with them.
+
+Measured on staging rather than assumed: the edge **replaces**
+`x-forwarded-for` rather than appending to it — a forged header never reaches
+the application — and sets `x-real-ip` beside it.
+
+**The rule, and it is the whole section:** list a header only where the edge is
+*measured* to overwrite it. A header the platform passes through is not a client
+address, it is something the caller typed — and trusting one gives an attacker a
+**fresh bucket per forged value**, which is worse than everyone sharing one,
+where at least they share the limit too.
+
+Measured on staging by sending `192.0.2.1` — TEST-NET-1, nobody's real source —
+as each candidate in turn:
+
+| sent as | result | verdict |
+|---|---|---|
+| `x-real-ip` | overwritten by the edge, matching forwarded entry 0 | **trustworthy** |
+| `x-envoy-external-address` | arrived intact | client-controlled |
+| `cf-connecting-ip` | arrived intact | client-controlled |
+| `true-client-ip` | arrived intact | client-controlled |
+
+So `x-real-ip` is the only default, and neither variable needs setting here.
+
+`x-envoy-external-address` was the default for one release, on the reasoning that
+Railway fronts applications with Envoy. It does — but it does not forward that
+header, and an **absent** header a client may set is the worst of the three
+cases: nothing resolves for ordinary visitors, and an attacker resolves whatever
+they like. Plausible provenance is not measured provenance.
+
+**Both are variables rather than constants so a correction is not a release** —
+which is what made the correction above a Railway variable's worth of urgency
+rather than an outage.
+
+**`AUTH_TRUSTED_PROXIES` does nothing on its own.** It only applies to
+`x-forwarded-for`, which is deliberately not in the default header list — so
+falling back to the forwarded chain means setting **both**:
+
+```
+AUTH_CLIENT_IP_HEADERS=x-forwarded-for
+AUTH_TRUSTED_PROXIES=<the edge's address or range>
+```
+
+Set only the second and better-auth never reads the chain, and the shared bucket
+stays exactly as it was.
+
+`/api/health?forwarded=1` reports what arrived — the shape of the forwarded
+chain and which single-value headers agree with it, never an address, because
+that endpoint is public.
+
+To confirm the fix is live: the boot warning is gone, and a **sentinel** sent as
+`x-real-ip` does not survive to the application. Use an address from TEST-NET-1
+(`192.0.2.0/24`), which is nobody's real source:
+
+```
+curl -s 'https://<host>/api/health?forwarded=1' -H 'x-real-ip: 192.0.2.1'
+```
+
+If that candidate's `matchesEntries` is **empty**, the sentinel arrived intact —
+the client sets the header, it must not be trusted, and `AUTH_CLIENT_IP_HEADERS`
+needs changing. If it is **non-empty**, the edge overwrote it with an address
+that also appears in the forwarded chain, which is the answer you want.
+
+### Sign-in is restricted only where a list says so
+
+`AUTH_ALLOWED_EMAILS` is a comma-separated list of addresses allowed to sign in.
+**Unset means no restriction**, which is what production wants: its consent
+screen is published and open to the public, and this document exists for
+production.
+
+It matters here only so nobody sets it by copying staging's variables across.
+
+Staging sets it because the restriction everyone believed was in place was not.
+Google enforces its Testing mode test-user list only for apps requesting more
+than `openid`, `email` and `profile` — this app requests exactly those three, so
+staging accepted **any** Google account from #116 until #314. Measured, not
+assumed: sign-ins succeeded from several accounts that were never on the list.
+
+Adding or removing a person is a change to this variable and nothing else — no
+code change and no pull request. **Railway restarts the service when a variable
+changes**, so expect a brief redeploy; what it does not need is a new build from
+source, or anyone with repository access.
+
+The value is read per request rather than captured at startup. On Railway that
+saves no restart, since the process is replaced anyway; it is there so the
+answer never depends on when the module happened to be imported.
+
+A refused sign-in writes no `user` row: better-auth's `user.validateUserInfo`
+gate runs before `create-user`, and again on every later sign-in, so an account
+created before a list existed is refused from then on rather than
+grandfathered.
 
 ### The provider keys are shared with staging — accepted risk
 
@@ -524,7 +633,7 @@ repository can reproduce them.
       inherited from the duplicated environment. Datastore and observability
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
-- [ ] The auth variables are deliberately left unset
+- [x] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
 - [x] All three Sentry configs — server, edge and client — read their settings
       from the environment
 - [x] Session Replay is decided **and applied in code** — the integration is
