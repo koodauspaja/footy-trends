@@ -342,6 +342,29 @@ const KIND_LABELS = new Set([
   "help wanted",
 ]);
 
+/**
+ * The labels on one `/issues/{n}` response, or none when it is a pull request.
+ *
+ * **GitHub answers `/issues/{n}` for pull requests too**, with a `pull_request`
+ * field and a `200`. This repository's squash commits name both — `fix: a thing
+ * (#309) (#315)` — so without this check a labelled pull request would
+ * contribute domains the issue never had.
+ *
+ * Pull requests here carry no labels today, which is exactly why it is worth
+ * checking: nothing would look wrong until someone labelled one.
+ */
+export function labelsOfIssueResponse(payload: unknown): string[] {
+  if (typeof payload !== "object" || payload === null) return [];
+  const record = payload as { pull_request?: unknown; labels?: unknown };
+  if (record.pull_request !== undefined) return [];
+  if (!Array.isArray(record.labels)) return [];
+
+  return record.labels.flatMap((label) => {
+    const name = (label as { name?: unknown }).name;
+    return typeof name === "string" ? [name] : [];
+  });
+}
+
 /** Which parts of the app a set of issue labels names, sorted and deduplicated. */
 export function domainsFrom(labels: Iterable<string>): string[] {
   return [...new Set([...labels].filter((label) => !KIND_LABELS.has(label)))].sort((a, b) =>

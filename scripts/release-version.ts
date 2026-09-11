@@ -22,6 +22,7 @@ import {
   formatReleaseNotes,
   isStableVersionTag,
   issueRefsIn,
+  labelsOfIssueResponse,
   selectPreviousTag,
 } from "./next-version";
 
@@ -120,13 +121,11 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
             "X-GitHub-Api-Version": "2022-11-28",
           },
         });
-        // A reference that is a pull request, or deleted, or simply not ours:
-        // skipped rather than failing the whole line.
+        // Deleted, or simply not ours: skipped rather than failing the whole
+        // line. A reference that is a *pull request* answers 200 here — the
+        // shape check in `labelsOfIssueResponse` is what excludes those.
         if (!response.ok) return [];
-        const issue = (await response.json()) as { labels?: { name?: string }[] };
-        return (issue.labels ?? []).flatMap((label) =>
-          typeof label.name === "string" ? [label.name] : []
-        );
+        return labelsOfIssueResponse(await response.json());
       })
     );
     return domainsFrom(labels.flat());

@@ -8,6 +8,7 @@ import {
   isMergeSubject,
   isStableVersionTag,
   issueRefsIn,
+  labelsOfIssueResponse,
   parseVersion,
   selectPreviousTag,
 } from "../../../scripts/next-version";
@@ -231,6 +232,43 @@ describe("domainsFrom", () => {
 
   it("answers nothing for no labels at all", async () => {
     expect(domainsFrom([])).toEqual([]);
+  });
+});
+
+describe("labelsOfIssueResponse", () => {
+  it("reads the label names off an issue", async () => {
+    expect(labelsOfIssueResponse({ labels: [{ name: "auth" }, { name: "taso" }] })).toEqual([
+      "auth",
+      "taso",
+    ]);
+  });
+
+  it("ignores a pull request, which GitHub answers from the same endpoint", async () => {
+    /**
+     * `/issues/{n}` returns pull requests too, with a 200. This repository's
+     * squash commits name both — `fix: a thing (#309) (#315)` — so a labelled
+     * pull request would otherwise contribute domains the issue never had.
+     */
+    expect(
+      labelsOfIssueResponse({ pull_request: { url: "…" }, labels: [{ name: "auth" }] })
+    ).toEqual([]);
+  });
+
+  it.each([
+    ["no labels field", {}],
+    ["labels that are not an array", { labels: "auth" }],
+    ["not an object at all", "auth"],
+    ["null", null],
+  ])("answers nothing for %s", async (_case, payload) => {
+    // The response is parsed JSON from a network call; its shape is not ours to
+    // assume.
+    expect(labelsOfIssueResponse(payload)).toEqual([]);
+  });
+
+  it("skips a label whose name is missing or not a string", async () => {
+    expect(labelsOfIssueResponse({ labels: [{ name: "auth" }, {}, { name: 7 }] })).toEqual([
+      "auth",
+    ]);
   });
 });
 
