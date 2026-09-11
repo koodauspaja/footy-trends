@@ -89,40 +89,19 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
-   set -e   # a failed step stops the procedure rather than half-releasing
-   export GH_TOKEN=$(gh auth token)
-   npm run release:version --silent -- --print=notes > /tmp/notes.md
-
-   pr=$(gh pr create --base release --head main \
-     --title "release: $(npm run release:version --silent -- --print=version)" \
-     --body-file /tmp/notes.md)
-
-   # The same domains the notes name, as labels on the pull request.
-   npm run release:version --silent -- --print=domains > /tmp/domains.txt
-   while read -r domain; do
-     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain"
-   done < /tmp/domains.txt
-
-   # And on the board. It moves itself to Done when the pull request merges —
-   # the project's built-in `Pull request merged` workflow is enabled.
-   item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
-   gh project item-edit --id "$item" \
-     --project-id PVT_kwDOB7brSc4BZbi_ \
-     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
-     --single-select-option-id c224fd41   # In Review — check it below if this fails
+   GH_TOKEN=$(gh auth token) npm run release:pr
    ```
 
-   A `while` loop rather than `xargs -I{}`: with nothing to apply, some `xargs`
-   implementations still run once with the literal `{}`. That would be a bug in
-   the command, not in GitHub — GitHub's part is only that **adding an unknown
-   label creates it** (verified: it appears at colour `ededed` with no
-   description) rather than refusing, which turns a one-character mistake into a
-   permanent artefact somebody has to find and delete. Hence both the loop and
-   the filtering in `--print=domains`.
+   It prints the version and the domains, opens the pull request with the
+   generated notes, labels it with those domains, and puts it on the board in
+   `In Review`. `--dry-run` shows all of that without opening anything.
 
-   Then **look at the pull request**: the labels should match the `Touches:`
-   line. You are opening it and reading it anyway — step 3 is exactly that — so
-   the check is a glance rather than more shell.
+   **One script rather than a documented sequence of commands.** This was five
+   shell commands here, and review found a defect in them seven rounds running —
+   an `xargs` that runs on empty input, a `$pr` left empty by a failed create, a
+   status id remembered instead of read, a verification whose exit status
+   nothing consumed. A shell block in a document cannot be tested, so each fix
+   only moved the next defect somewhere else.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
@@ -154,22 +133,20 @@ Merge commits are excluded — a release produces one, and it carries no type.
    the cost of never having to look anything up during a release.
 
    **`Touches:` names the parts of the app the release changes**, read from the
-   domain labels on the issues those commits reference — `auth`, `taso`,
-   `standings`, `matches`, `teams`, `ui`, `testing`, `ci`, `infra`, `analytics`.
-   It is the one line that answers step 3's question without reading every
-   subject.
+   domain labels on the issues those commits reference. It is the one line that
+   answers step 3's question without reading every subject.
 
-   It needs the GitHub API, which is the only thing in this script that does:
+   The vocabulary is **whatever the repository's domain labels are** — every
+   label that is not one of the kind labels (`enhancement`, `chore`, `bug` and
+   the GitHub defaults). The table of what each covers is in
+   `docs/setup/002-github-project-board.md`; a second copy here is how it would
+   drift the first time one was added.
 
-   ```bash
-   GH_TOKEN=$(gh auth token) npm run release:version --silent -- --print=notes > /tmp/notes.md
-   ```
-
-   **Without a token the line is simply absent, and that is deliberate.** No
-   token, a rate limit, no network — every one of them resolves to "no domains"
-   and the notes publish without it. A release that could not be cut because
-   GitHub was slow would be a worse trade than notes that say slightly less. If
-   the line is missing and you wanted it, the token is what to check.
+   **Without a token the line is simply absent.** No token, no network — the
+   notes publish without it, because a release that could not be cut because
+   GitHub was slow is a worse trade than notes that say slightly less. Applying
+   the labels is stricter: `npm run release:pr` stops rather than opening a
+   release it cannot label.
 
    Do **not** write `Closes #N` for issues their own pull requests already
    closed.

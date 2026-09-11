@@ -3,7 +3,8 @@
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
  * this file only talks to git and to GitHub, and formats output.
  *
- * The one network call is `domainsForRelease`. `--print=notes` can never fail
+ * The network calls are `domainsForRelease` and, for `--print=domains`, the
+ * repository-label lookup behind it. `--print=notes` can never fail
  * because of it; `--print=domains` deliberately can, so a caller applying labels
  * can tell a release that touches nothing from a lookup that did not work. Set
  * `GH_TOKEN` to get either.
