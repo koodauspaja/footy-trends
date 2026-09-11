@@ -3,9 +3,10 @@
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
  * this file only talks to git and to GitHub, and formats output.
  *
- * The network calls are `domainsForRelease` and, for `--print=domains`, the
- * repository-label lookup behind it. `--print=notes` can never fail
- * because of it; `--print=domains` deliberately can, so a caller applying labels
+ * The only network call is `domainsForRelease` and the repository-label lookup
+ * behind it, and only `--print=json` makes it. `--print=notes` makes none at
+ * all, so the notes are always printable; `--print=json` deliberately can fail,
+ * so a caller applying labels
  * can tell a release that touches nothing from a lookup that did not work. Set
  * `GH_TOKEN` to get either.
  *
@@ -14,7 +15,7 @@
  *   npm run release:version -- --since-last-tag  # last tag..HEAD, for post-merge use
  *   npm run release:version -- --print=version   # just the number, for scripts
  *   npm run release:version -- --print=notes     # markdown release notes
- *   npm run release:version -- --print=domains   # one domain per line, for labels
+ *   npm run release:version -- --print=json      # {version, notes, domains}, resolved once
  */
 import { execFileSync } from "node:child_process";
 import { executablePath, overrideNameFor } from "./executable";
@@ -186,14 +187,11 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
 /**
  * The domain labels on every issue this release's commits reference.
  *
- * **It throws on failure**, and the two print modes then disagree on purpose:
- *
- * - `--print=notes` catches it and publishes without the `Touches:` line. Notes
- *   that say slightly less beat a release that cannot be cut because GitHub was
- *   slow, and everything else in this script reads git and needs no network.
- * - `--print=domains` lets it exit non-zero, because a caller applying labels
- *   has to tell "this release touches nothing" from "the labels could not be
- *   read" — the first is fine, the second would label a release with silence.
+ * **It throws on failure**, and the modes that call it let that through: a
+ * caller applying labels has to tell "this release touches nothing" from "the
+ * labels could not be read" — the first is fine, the second would label a
+ * release with silence. `--print=notes` never calls it, so the notes are
+ * always printable and a release is always cuttable.
  *
  * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
@@ -235,9 +233,8 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
   } catch (error) {
     /**
      * Thrown on, not swallowed. An empty answer has to mean "this release
-     * touches nothing" and nothing else — `--print=notes` catches this and
-     * publishes without the line, while `--print=domains` lets it exit
-     * non-zero so a caller cannot apply no labels and call it done.
+     * touches nothing" and nothing else, so `--print=json` exits non-zero
+     * rather than let a caller apply no labels and call it done.
      */
     err(`Could not read issue labels: ${String(error)}`);
     throw error;
@@ -332,42 +329,43 @@ if (alreadyTagged !== null) {
  */
 if (printMode === "version") {
   out(decision.next);
-} else if (printMode === "domains") {
+} else if (printMode === "json") {
   /**
-   * The same resolution the notes use, one domain per line, for labelling the
-   * release pull request (#361). One call and not two derivations: labels that
-   * disagreed with the `Touches:` line would be worse than either alone.
+   * Version, notes and domains from **one** resolution, for `release-pr.ts`.
    *
-   * Empty output when nothing resolved — the caller applies no labels, which is
-   * the same silence the notes keep.
-   */
-  /**
-   * **This mode alone may fail.** `--print=notes` must always produce notes, so
-   * it swallows everything; but a caller applying labels has to be able to tell
-   * "this release touches nothing" from "the labels could not be read". The
-   * documented procedure runs under `set -e`, so a non-zero exit stops it rather
-   * than labelling the release with silence.
+   * Three separate spawns was the earlier shape, and it resolved the domains
+   * twice: once inside the notes and once for the labels. Nothing forced those
+   * two answers to agree — a label created or renamed between the calls would
+   * have answered two different sets. Asking once removes that rather than
+   * documenting it.
+   *
+   * It fails where `--print=notes` cannot: the caller
+   * applies labels, so a label lookup that failed must stop the release rather
+   * than open it with silence. Nothing is printed on that path, and the runner
+   * asks for this before creating the pull request, so a failure means no
+   * pull request exists to be mislabelled.
    */
   domainsForRelease(decision)
-    .then((domains) => labelsThatExist(domains, githubToken()))
+    .then((resolved) => labelsThatExist(resolved, githubToken()))
     .then((domains) => {
-      for (const domain of domains) out(domain);
+      out(
+        JSON.stringify({
+          version: decision.next,
+          notes: formatReleaseNotes(decision),
+          domains,
+        })
+      );
     })
     .catch(() => {
       process.exitCode = 1;
     });
 } else if (printMode === "notes") {
   /**
-   * A promise rather than a top-level `await`: this file transforms to CommonJS,
-   * where top-level await is not available. `.catch` as well as the try/catch
-   * inside `domainsForRelease`, so no failure mode can leave the notes unprinted
-   * — the point of this branch is that a release is always cuttable.
+   * No network at all, and that is the point: the notes no longer name the
+   * domains — the pull request's labels do — so nothing here can fail, and a
+   * release is always cuttable.
    */
-  domainsForRelease(decision)
-    .catch(() => [] as string[])
-    .then((domains) => {
-      out(formatReleaseNotes(decision, domains));
-    });
+  out(formatReleaseNotes(decision));
 } else {
   printReport();
 }

@@ -390,7 +390,7 @@ export function issueRefsIn(decision: VersionDecision): number[] {
   return [...found];
 }
 
-export function formatReleaseNotes(decision: VersionDecision, domains: string[] = []): string {
+export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, subjects: string[]): string => {
     if (subjects.length === 0) return "";
     const rows = subjects
@@ -424,23 +424,13 @@ export function formatReleaseNotes(decision: VersionDecision, domains: string[] 
       "point is in this release too, and is not listed.\n\n"
     : `Changes since ${decision.previous}${describeCounts(decision)}.\n\n`;
 
-  /**
-   * What the release touches, from the labels on the issues its commits name.
-   *
-   * A summary line rather than a column or a second grouping: the question a
-   * reviewer is asking at this point is "what does this change", and repeating
-   * the domains on every row answers it more slowly. `skills/release.md` makes
-   * reading that list the approval gate.
-   *
-   * Absent when nothing could be resolved — no issue references, no domain
-   * labels, or no network. A release must never fail to be cut over this, so
-   * silence is the honest rendering rather than an empty or apologetic line.
-   */
-  const touches = domains.length === 0 ? "" : `Touches: ${domains.join(", ")}.\n\n`;
-
+  // What the release touches is on the pull request as labels, put there by
+  // `release-pr.ts`. It was also a `Touches:` line here, and two renderings of
+  // one fact is one more than can be kept true — the labels are the ones a
+  // reader filters and searches by, so they are the ones that stayed.
   // A release with nothing to list would otherwise publish an empty body,
   // which reads as a mistake rather than as a deliberate no-change release.
-  return `# release: ${decision.next}\n\n${preamble}${touches}${body || "No categorised commits in this range.\n"}`.trimEnd();
+  return `# release: ${decision.next}\n\n${preamble}${body || "No categorised commits in this range.\n"}`.trimEnd();
 }
 
 /** ` — 3 features, 6 chores`, naming only the categories that have anything. */

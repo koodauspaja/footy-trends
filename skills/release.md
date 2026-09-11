@@ -113,8 +113,6 @@ Merge commits are excluded — a release produces one, and it carries no type.
 
    Changes since v1.0.0 — 3 features, 6 chores.
 
-   Touches: analytics, auth, infra.
-
    ## Features
 
    | | |
@@ -132,9 +130,11 @@ Merge commits are excluded — a release produces one, and it carries no type.
    badly written commit subject becomes a badly written release note. That is
    the cost of never having to look anything up during a release.
 
-   **`Touches:` names the parts of the app the release changes**, read from the
-   domain labels on the issues those commits reference. It is the one line that
-   answers step 3's question without reading every subject.
+   **The parts of the app a release changes are its labels**, read from the
+   domain labels on the issues those commits reference and applied to the pull
+   request by `npm run release:pr`. They answer step 3's question without
+   reading every subject, and unlike a line in the body they are what GitHub
+   filters and searches by.
 
    The vocabulary is **whatever the repository's domain labels are** — every
    label that is not one of the kind labels (`enhancement`, `chore`, `bug` and
@@ -142,11 +142,10 @@ Merge commits are excluded — a release produces one, and it carries no type.
    `docs/setup/002-github-project-board.md`; a second copy here is how it would
    drift the first time one was added.
 
-   **Without a token the line is simply absent.** No token, no network — the
-   notes publish without it, because a release that could not be cut because
-   GitHub was slow is a worse trade than notes that say slightly less. Applying
-   the labels is stricter: `npm run release:pr` stops rather than opening a
-   release it cannot label.
+   **The notes themselves need no network.** They are derived from git alone,
+   so a release can always be cut. Labelling is stricter, because a label that
+   is silently missing is worse than no release: `npm run release:pr` stops
+   rather than opening a release it could not label, and needs `GH_TOKEN`.
 
    Do **not** write `Closes #N` for issues their own pull requests already
    closed.

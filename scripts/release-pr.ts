@@ -18,10 +18,13 @@
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { executablePath, overrideNameFor } from "./executable";
-import { INITIAL_STATUS, pullNumberFrom, selectStatusOption } from "./release-pr-plan";
-
-const PROJECT_NUMBER = "2";
-const PROJECT_OWNER = "koodauspaja";
+import {
+  gh as argv,
+  INITIAL_STATUS,
+  parseReleasePlan,
+  pullNumberFrom,
+  selectStatusOption,
+} from "./release-pr-plan";
 
 const dryRun = process.argv.includes("--dry-run");
 
@@ -63,14 +66,18 @@ function release(mode: string): string {
 }
 
 function main(): void {
-  const version = release("--print=version");
-  const notes = release("--print=notes");
   /**
-   * Before the pull request exists, deliberately. `--print=domains` exits
-   * non-zero when the lookup failed as opposed to finding nothing, so a release
-   * is never opened and then labelled with silence.
+   * One call, before the pull request exists.
+   *
+   * One because the notes and the labels must describe the same release: asking
+   * separately meant two spawns and two resolutions of the same question.
+   * Before, because this exits non-zero
+   * when the label lookup failed as opposed to finding nothing — so a release is
+   * never opened and then labelled with silence.
    */
-  const domains = release("--print=domains").split("\n").filter(Boolean);
+  const plan = parseReleasePlan(release("--print=json"));
+  if (plan === null) throw new Error("release-version.ts did not answer a usable release plan");
+  const { version, notes, domains } = plan;
 
   out(`Version   ${version}`);
   out(`Domains   ${domains.length === 0 ? "(none)" : domains.join(", ")}`);
@@ -81,21 +88,7 @@ function main(): void {
     return;
   }
 
-  const url = gh(
-    [
-      "pr",
-      "create",
-      "--base",
-      "release",
-      "--head",
-      "main",
-      "--title",
-      `release: ${version}`,
-      "--body-file",
-      "-",
-    ],
-    notes
-  );
+  const url = gh(argv.createPullRequest(version), notes);
   out(`Opened    ${url}`);
 
   const number = pullNumberFrom(url);
@@ -105,30 +98,11 @@ function main(): void {
   // throws, and nothing below runs — which is the whole reason this is not a
   // shell loop that carries on regardless.
   for (const domain of domains) {
-    gh([
-      "api",
-      `repos/:owner/:repo/issues/${number}/labels`,
-      "-X",
-      "POST",
-      "-f",
-      `labels[]=${domain}`,
-    ]);
+    gh(argv.addLabel(number, domain));
     out(`Labelled  ${domain}`);
   }
 
-  const item = gh([
-    "project",
-    "item-add",
-    PROJECT_NUMBER,
-    "--owner",
-    PROJECT_OWNER,
-    "--url",
-    url,
-    "--format",
-    "json",
-    "-q",
-    ".id",
-  ]);
+  const item = gh(argv.addToProject(url));
 
   /**
    * The status ids are read, never remembered. A wrong one fails with "does not
@@ -136,38 +110,11 @@ function main(): void {
    * where it was while appearing to work — which is exactly what happened to
    * several cards while this feature was being built.
    */
-  // Read, never remembered — see `selectStatusOption`.
-  const status = selectStatusOption(
-    JSON.parse(
-      gh(["project", "field-list", PROJECT_NUMBER, "--owner", PROJECT_OWNER, "--format", "json"])
-    )
-  );
+  const status = selectStatusOption(JSON.parse(gh(argv.listFields())));
   if (status === null) throw new Error(`The board has no Status option named ${INITIAL_STATUS}`);
 
-  const projectId = gh([
-    "project",
-    "view",
-    PROJECT_NUMBER,
-    "--owner",
-    PROJECT_OWNER,
-    "--format",
-    "json",
-    "-q",
-    ".id",
-  ]);
-
-  gh([
-    "project",
-    "item-edit",
-    "--id",
-    item,
-    "--project-id",
-    projectId,
-    "--field-id",
-    status.fieldId,
-    "--single-select-option-id",
-    status.optionId,
-  ]);
+  const projectId = gh(argv.projectId());
+  gh(argv.setStatus(item, projectId, status));
   out(`Board     ${INITIAL_STATUS} (reaches Done on its own when the pull request merges)`);
 }
 
