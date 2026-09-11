@@ -89,6 +89,7 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
+   set -e   # a failed step stops the procedure rather than half-releasing
    export GH_TOKEN=$(gh auth token)
    npm run release:version --silent -- --print=notes > /tmp/notes.md
 
@@ -108,7 +109,7 @@ Merge commits are excluded — a release produces one, and it carries no type.
    gh project item-edit --id "$item" \
      --project-id PVT_kwDOB7brSc4BZbi_ \
      --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
-     --single-select-option-id c224fd41   # In Review
+     --single-select-option-id c224fd41   # In Review — check it below if this fails
    ```
 
    A `while` loop rather than `xargs -I{}`: with nothing to apply, some `xargs`

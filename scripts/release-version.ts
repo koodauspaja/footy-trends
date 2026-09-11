@@ -3,9 +3,10 @@
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
  * this file only talks to git and to GitHub, and formats output.
  *
- * The one network call is `domainsForRelease`, and it is written so that it
- * cannot stop a release: every failure resolves to no domains, and the notes
- * publish without the `Touches:` line. Set `GH_TOKEN` to get it.
+ * The one network call is `domainsForRelease`. `--print=notes` can never fail
+ * because of it; `--print=domains` deliberately can, so a caller applying labels
+ * can tell a release that touches nothing from a lookup that did not work. Set
+ * `GH_TOKEN` to get either.
  *
  *   npm run release:version                      # origin/release..origin/main
  *   npm run release:version -- A B               # any two refs
@@ -184,13 +185,14 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
 /**
  * The domain labels on every issue this release's commits reference.
  *
- * **This never stops `--print=notes`.** Everything else in this script reads git
- * and needs no network; this one call does, so every failure — no token, a rate
- * limit, a closed laptop lid — resolves to "no domains" and the notes publish
- * without the line. Notes that say slightly less beat a release that cannot be
- * cut because GitHub was slow.
+ * **It throws on failure**, and the two print modes then disagree on purpose:
  *
- * `--print=domains` is deliberately stricter: see its branch below.
+ * - `--print=notes` catches it and publishes without the `Touches:` line. Notes
+ *   that say slightly less beat a release that cannot be cut because GitHub was
+ *   slow, and everything else in this script reads git and needs no network.
+ * - `--print=domains` lets it exit non-zero, because a caller applying labels
+ *   has to tell "this release touches nothing" from "the labels could not be
+ *   read" — the first is fine, the second would label a release with silence.
  *
  * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
