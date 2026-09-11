@@ -94,6 +94,9 @@ function commitsBetween(from: string | null, to: string): Commit[] {
 
 const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 
+/** Long enough for a slow answer, short enough that nobody waits on a release. */
+const LABEL_LOOKUP_TIMEOUT_MS = 5000;
+
 /**
  * The domain labels on every issue this release's commits reference.
  *
@@ -107,14 +110,23 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
  */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
-  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+  // The first **non-empty** of the two. `??` falls back only for undefined and
+  // null, so `GH_TOKEN=""` — which CI can set — would otherwise shadow a
+  // perfectly good `GITHUB_TOKEN` and silently drop the line.
+  const token = [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
+    (candidate) => candidate !== undefined && candidate !== ""
+  );
   const refs = issueRefsIn(decision);
-  if (token === undefined || token === "" || refs.length === 0) return [];
+  if (token === undefined || refs.length === 0) return [];
 
   try {
     const labels = await Promise.all(
       refs.map(async (ref) => {
         const response = await fetch(`${API}/issues/${ref}`, {
+          // A connection that never settles would leave `Promise.all` pending
+          // forever, and the notes would never print — the one way this could
+          // still stop a release. An abort is caught like any other failure.
+          signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${token}`,
@@ -212,12 +224,18 @@ if (alreadyTagged !== null) {
   };
 }
 
+/**
+ * One chain, and no `process.exit`.
+ *
+ * `process.exit` does not wait for a backpressured stdout to flush, and
+ * `skills/release.md` pipes this into a file — `--print=notes > /tmp/notes.md`.
+ * Truncated release notes would be published without anything failing. Letting
+ * the process end on its own is what flushes; the branches are exclusive so
+ * nothing runs twice.
+ */
 if (printMode === "version") {
   out(decision.next);
-  process.exit(0);
-}
-
-if (printMode === "notes") {
+} else if (printMode === "notes") {
   /**
    * A promise rather than a top-level `await`: this file transforms to CommonJS,
    * where top-level await is not available. `.catch` as well as the try/catch
@@ -228,7 +246,6 @@ if (printMode === "notes") {
     .catch(() => [] as string[])
     .then((domains) => {
       out(formatReleaseNotes(decision, domains));
-      process.exit(0);
     });
 } else {
   printReport();
