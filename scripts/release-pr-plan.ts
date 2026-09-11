@@ -4,8 +4,18 @@
  * `e2e-freshness-plan.ts` and its entry point.
  */
 
-/** The board column a release pull request starts in. */
-export const INITIAL_STATUS = "In Review";
+/**
+ * The board column a release pull request starts in.
+ *
+ * **In Progress, not In Review.** Opening the pull request is the work
+ * starting; the review starts when a reviewer is requested, which is a human
+ * step. The board's built-in `Pull request merged` workflow carries the card
+ * to Done by itself, so the only move nobody automates is the middle one —
+ * GitHub has no built-in workflow for "review requested", and an Actions job
+ * could not do it either: `GITHUB_TOKEN` cannot write to a user-level Project,
+ * so it would need a personal access token kept as a repository secret.
+ */
+export const INITIAL_STATUS = "In Progress";
 
 /** One `gh project field-list` field, as far as this needs to know it. */
 export type ProjectField = {
