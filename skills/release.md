@@ -89,12 +89,53 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
-   GH_TOKEN=$(gh auth token) \
-     npm run release:version --silent -- --print=notes > /tmp/notes.md
-   gh pr create --base release --head main \
+   export GH_TOKEN=$(gh auth token)
+   npm run release:version --silent -- --print=notes > /tmp/notes.md
+   pr=$(gh pr create --base release --head main \
      --title "release: $(npm run release:version --silent -- --print=version)" \
-     --body-file /tmp/notes.md
+     --body-file /tmp/notes.md)
+
+   # The same domains the notes name, as labels, and on the board.
+   npm run release:version --silent -- --print=domains |
+     while read -r domain; do
+       gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null
+     done
+   item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
+   gh project item-edit --id "$item" \
+     --project-id PVT_kwDOB7brSc4BZbi_ \
+     --field-id PVTSSF_lADOB7brSc4BZbi_zhUaPJM \
+     --single-select-option-id c224fd41   # In Review
    ```
+
+   **A release has two board states, not five.** `Backlog`, `Ready` and
+   `In Progress` describe work being planned and done; a release pull request is
+   created already complete and only ever waits on the approval below. So it
+   opens directly in **In Review** and moves to **Done** at step 6. Putting it
+   through the other three would be ceremony that says nothing true.
+
+   `item-add` leaves the card with no status at all, which the board treats as
+   outside every column — hence the second command.
+
+   **Check an option id rather than remembering it.** These are from
+   `docs/setup/002-github-project-board.md`; a wrong one fails with
+   `The single select option Id does not belong to the field`, and if the
+   command's stderr is hidden the card simply does not move while everything
+   looks fine:
+
+   ```bash
+   gh project field-list 2 --owner koodauspaja --format json |
+     jq '.fields[] | select(.name == "Status") | .options'
+   ```
+
+   **`gh pr edit --add-label` does not work here** — it silently no-ops on this
+   repository, which is why the label step goes through the REST API.
+
+   `--print=domains` is the same resolution `--print=notes` used, so the labels
+   and the `Touches:` line cannot disagree. It prints only domains that exist as
+   labels, because **adding an unknown label creates it** rather than failing —
+   a typo would leave junk on the repository for somebody to find later. A
+   domain with no label is reported on stderr instead, which means the taxonomy
+   in `docs/setup/002-github-project-board.md` has a gap.
 
    **Do not write or edit the body by hand.** `--print=notes` produces the
    agreed shape: a `# release: vX.Y.Z` heading, a one-line summary with the
@@ -151,7 +192,8 @@ Merge commits are excluded — a release produces one, and it carries no type.
    integration, and e2e against a production build. A red e2e means production
    is broken; that is what the job is for.
 
-6. **Merge with a merge commit.** The ruleset allows nothing else, deliberately:
+6. **Merge with a merge commit**, then move the board card to `Done`
+   (`--single-select-option-id 98236657`). The ruleset allows nothing else, deliberately:
    a merge commit keeps `main`'s SHAs on `release`, so the deployed commit maps
    back to a commit that exists on `main`. Squash or rebase would mint new ones
    and break that mapping — which is the whole point of wanting a known version

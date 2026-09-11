@@ -12,6 +12,7 @@
  *   npm run release:version -- --since-last-tag  # last tag..HEAD, for post-merge use
  *   npm run release:version -- --print=version   # just the number, for scripts
  *   npm run release:version -- --print=notes     # markdown release notes
+ *   npm run release:version -- --print=domains   # one domain per line, for labels
  */
 import { execFileSync } from "node:child_process";
 import { executablePath, overrideNameFor } from "./executable";
@@ -109,6 +110,51 @@ const LABEL_LOOKUP_TIMEOUT_MS = 5000;
  * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
  * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
  */
+/**
+ * The subset that actually exists as a label on the repository.
+ *
+ * **GitHub creates a label it has never seen** when one is added to an issue —
+ * verified against a real pull request, where a deliberately misspelled name
+ * appeared in the repository's label list rather than being rejected. So a
+ * domain the taxonomy has drifted away from would not fail loudly; it would
+ * quietly mint a junk label that someone has to find and delete.
+ *
+ * Filtered here rather than by the caller, so anything reading
+ * `--print=domains` is safe to apply directly. A domain with no label is
+ * reported on stderr: it means the taxonomy has a gap, which is worth noticing
+ * rather than papering over.
+ */
+async function labelsThatExist(domains: string[]): Promise<string[]> {
+  if (domains.length === 0) return [];
+
+  try {
+    const response = await fetch(`${API}/labels?per_page=100`, {
+      signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
+      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    });
+    if (!response.ok) return [];
+
+    const payload = (await response.json()) as unknown;
+    const known = new Set(
+      Array.isArray(payload)
+        ? payload.flatMap((label) => {
+            const name = (label as { name?: unknown }).name;
+            return typeof name === "string" ? [name] : [];
+          })
+        : []
+    );
+
+    for (const domain of domains) {
+      if (!known.has(domain)) err(`No label named ${domain}; it is in the notes but not applied.`);
+    }
+    return domains.filter((domain) => known.has(domain));
+  } catch (error) {
+    // Same rule as the lookup itself: never stop a release over this.
+    err(`Could not read the repository's labels, so none are printed: ${String(error)}`);
+    return [];
+  }
+}
+
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
   // The first **non-empty** of the two. `??` falls back only for undefined and
   // null, so `GH_TOKEN=""` — which CI can set — would otherwise shadow a
@@ -235,6 +281,21 @@ if (alreadyTagged !== null) {
  */
 if (printMode === "version") {
   out(decision.next);
+} else if (printMode === "domains") {
+  /**
+   * The same resolution the notes use, one domain per line, for labelling the
+   * release pull request (#361). One call and not two derivations: labels that
+   * disagreed with the `Touches:` line would be worse than either alone.
+   *
+   * Empty output when nothing resolved — the caller applies no labels, which is
+   * the same silence the notes keep.
+   */
+  domainsForRelease(decision)
+    .then(labelsThatExist)
+    .catch(() => [] as string[])
+    .then((domains) => {
+      for (const domain of domains) out(domain);
+    });
 } else if (printMode === "notes") {
   /**
    * A promise rather than a top-level `await`: this file transforms to CommonJS,

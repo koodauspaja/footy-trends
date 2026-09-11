@@ -163,6 +163,77 @@ mandatory.
 
 ---
 
+## Step 6 — Label an issue with the part of the app it touches
+
+Every issue carries **two kinds of label**, and they answer different
+questions.
+
+**What kind of work it is**, which the templates set for you and which pairs
+with the Issue Type field — `enhancement` → Feature, `chore` → Task, `bug` →
+Bug. CLAUDE.md makes that pairing a hard rule.
+
+**Which part of the app it touches**, which is added by hand:
+
+| label | what it covers |
+|---|---|
+| `auth` | Sign-in, accounts, sessions, and what they gate |
+| `taso` | Palloliitto's TASO provider and Finnish football |
+| `football-data` | The football-data.org provider and its competitions |
+| `standings` | League tables, positions and rounds |
+| `matches` | Match lists, match pages and head-to-head |
+| `teams` | Team pages, team search, and how a team is identified |
+| `ui` | Navigation, copy, theming and page chrome |
+| `analytics` | Trends, charts, predictions and their calibration |
+| `testing` | Test suites, fixtures, coverage and flakes |
+| `ci` | Workflows, review gates, release tooling and dependencies |
+| `infra` | Deployment, production environment, logging and datastores |
+
+`analytics` has three sub-labels for the shape of the work rather than its
+subject — `charts`, `predictions`, `calibration`.
+
+An issue may carry several. Most bugs and chores belong to the same domain as
+the spec they came from, which is the quickest way to pick one: a TASO
+rendering bug is `taso`, a flake in its test is `testing`.
+
+**These are not decoration.** `skills/release.md` reads them off the issues a
+release contains and both names them in the release notes and applies them to
+the release pull request, so an unlabelled issue makes a release describe
+itself less accurately.
+
+Adding a label that does not exist **creates it**, silently — verified against
+a real pull request, where a deliberately misspelled name appeared in the
+repository's label list rather than being rejected. So spell them from this
+table, and if a genuinely new domain is needed, create it deliberately with a
+description rather than by typo:
+
+```bash
+gh label create <name> --description "<what it covers>" --color RRGGBB
+```
+
+## Step 7 — The release pull request is on the board too
+
+`skills/release.md` adds it, labels it with the domains the release touches,
+and moves it between exactly **two** columns:
+
+| when | column |
+|---|---|
+| opened, waiting on its approving review | `In Review` |
+| merged | `Done` |
+
+`Backlog`, `Ready` and `In Progress` describe work being planned and done. A
+release pull request is created already complete, so those three would be
+ceremony rather than status.
+
+The option ids are above. **Read them rather than remembering them** — a wrong
+one fails with `The single select option Id does not belong to the field`, and
+a command whose stderr is hidden will leave the card where it was while
+appearing to succeed:
+
+```bash
+gh project field-list 2 --owner koodauspaja --format json |
+  jq '.fields[] | select(.name == "Status") | .options'
+```
+
 ## Done when
 - [ ] GitHub Project board exists with correct columns
 - [ ] Feature and bug issue templates work
