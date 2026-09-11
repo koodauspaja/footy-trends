@@ -287,6 +287,10 @@ const WOMENS_FRIENDLIES_CATEGORY = "Naiset-A";
  * cannot be sent to one of them, and #247 already renders an unlinked row
  * honestly. A wrong link is worse than no link, because it looks like it worked.
  */
+function idRouteFor(region: RegionSegment | null, teamProviderId: number): string | null {
+  return region === null ? null : `/${region}/joukkue/${teamProviderId}`;
+}
+
 function nationalTeamPathFor(categories: Set<string>): string | null {
   const mens = categories.has(MENS_FRIENDLIES_CATEGORY);
   const womens = categories.has(WOMENS_FRIENDLIES_CATEGORY);
@@ -301,8 +305,8 @@ function nationalTeamPathFor(categories: Set<string>): string | null {
  * `resolveTeamNames` runs on every session read, and Finland is a handful of
  * rows out of thousands.
  */
-async function nationalCategoriesFor(ids: number[]): Promise<Map<number, Set<string>>> {
-  const found = new Map<number, Set<string>>();
+async function nationalCategoriesFor(ids: number[]): Promise<Map<string, Set<string>>> {
+  const found = new Map<string, Set<string>>();
   if (ids.length === 0) return found;
 
   const bucket = `${TASO_NATIONAL_BUCKET_PREFIX}%`;
@@ -325,9 +329,13 @@ async function nationalCategoriesFor(ids: number[]): Promise<Map<number, Set<str
     );
 
   for (const row of rows) {
-    const held = found.get(row.id) ?? new Set<string>();
+    // Keyed by `teamKey`, not by the bare id: the two providers share a numeric
+    // id space, and a football-data team numbered like TASO's Finland would
+    // otherwise be handed Finland's page.
+    const key = teamKey("taso", row.id);
+    const held = found.get(key) ?? new Set<string>();
     held.add(row.category);
-    found.set(row.id, held);
+    found.set(key, held);
   }
   return found;
 }
@@ -541,13 +549,11 @@ export async function resolveTeamNames(
     const row = newest.get(teamKey(team.source, team.teamProviderId));
     const region =
       row === undefined ? null : regionFor(team.source, row.competitionCode, row.bucket);
-    const national = finlandCategories.get(team.teamProviderId);
+    const national = finlandCategories.get(teamKey(team.source, team.teamProviderId));
     const href =
-      national !== undefined
-        ? nationalTeamPathFor(national)
-        : region === null || row === undefined
-          ? null
-          : `/${region}/joukkue/${team.teamProviderId}`;
+      national === undefined
+        ? idRouteFor(region, team.teamProviderId)
+        : nationalTeamPathFor(national);
 
     return {
       ...team,

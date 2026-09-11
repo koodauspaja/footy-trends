@@ -682,6 +682,45 @@ describe("resolveTeamNames", () => {
       expect(team?.href).toBeNull();
     });
 
+    it("does not hand Finland's page to a football-data team with the same id", async () => {
+      /**
+       * The two providers share a numeric id space — there is already a test
+       * above for that, and this is the same hazard one layer down. Keyed by the
+       * bare id, a football-data club numbered like TASO's Finland was handed
+       * `/maajoukkueet/huuhkajat`.
+       */
+      state.sides.set("taso_matches:home", [
+        {
+          id: 144368,
+          name: "Suomi",
+          competitionCode: "UNL",
+          bucket: "maajp2026",
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.sides.set("matches:home", [
+        {
+          id: 144368,
+          name: "Real Madrid",
+          competitionCode: "PD",
+          bucket: null,
+          seasonId: 2026,
+          kickoffAt: at("2026-05-01"),
+        },
+      ]);
+      state.nationalCategories = [{ id: 144368, category: "Miehet-A" }];
+      const { resolveTeamNames } = await import("@/lib/favourites");
+
+      const [finland, club] = await resolveTeamNames([
+        { source: "taso", teamProviderId: 144368 },
+        { source: "football-data", teamProviderId: 144368 },
+      ]);
+
+      expect(finland?.href).toBe("/maajoukkueet/huuhkajat");
+      expect(club?.href).toBe("/ulkomaat/joukkue/144368");
+    });
+
     it("does not treat a club-bucket team called Suomi as the national side", async () => {
       // The bucket is what says national, not the name.
       suomi("spljp26");
