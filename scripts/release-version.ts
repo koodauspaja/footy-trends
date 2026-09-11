@@ -3,12 +3,15 @@
  * imply. All the judgement lives in `next-version.ts`, which is unit tested;
  * this file only talks to git and to GitHub, and formats output.
  *
- * The only network call is `domainsForRelease` and the repository-label lookup
- * behind it, and only `--print=json` makes it. `--print=notes` makes none at
- * all, so the notes are always printable; `--print=json` deliberately can fail,
- * so a caller applying labels
- * can tell a release that touches nothing from a lookup that did not work. Set
- * `GH_TOKEN` to get either.
+ * **Only `--print=json` touches the network**, and it makes two lookups:
+ * `domainsForRelease` reads the labels off the issues the commits reference,
+ * and `labelsThatExist` reads the repository's own label list to filter them.
+ * It needs `GH_TOKEN`, and it deliberately fails rather than answering an empty
+ * list, so a caller applying labels can tell a release that touches nothing
+ * from a lookup that did not work.
+ *
+ * Every other mode reads git alone. `--print=notes` in particular makes no
+ * request at all, so a release can always be cut.
  *
  *   npm run release:version                      # origin/release..origin/main
  *   npm run release:version -- A B               # any two refs
