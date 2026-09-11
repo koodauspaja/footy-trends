@@ -98,9 +98,6 @@ const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 /** Long enough for a slow answer, short enough that nobody waits on a release. */
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
-/** Ten pages of a hundred. A repository needing more has a different problem. */
-const LABEL_PAGE_LIMIT = 10;
-
 /**
  * The domain labels on every issue this release's commits reference.
  *
@@ -140,41 +137,60 @@ function githubToken(): string | undefined {
   );
 }
 
+/**
+ * Every label name on the repository, following pages until one comes up short.
+ *
+ * Authenticated like the issue lookups: unauthenticated requests have their own
+ * much smaller rate limit, so this one call could be refused while every other
+ * succeeded.
+ */
+async function repositoryLabels(token: string | undefined): Promise<Set<string> | null> {
+  const names = new Set<string>();
+
+  for (let page = 1; ; page++) {
+    const response = await fetch(`${API}/labels?per_page=100&page=${page}`, {
+      signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+      },
+    });
+    if (!response.ok) {
+      err(`GitHub answered ${response.status} for the label list; no labels are printed.`);
+      return null;
+    }
+
+    const payload = (await response.json()) as unknown;
+    if (!Array.isArray(payload)) return null;
+    for (const label of payload) {
+      const name = (label as { name?: unknown }).name;
+      if (typeof name === "string") names.add(name);
+    }
+    // A short page is the last page. No cap: a repository cannot have so many
+    // labels that this matters, and a cap is how a real label gets called a gap.
+    if (payload.length < 100) return names;
+  }
+}
+
+/**
+ * The subset that actually exists as a label on the repository.
+ *
+ * **GitHub creates a label it has never seen** when one is added to an issue —
+ * verified against a real pull request, where a deliberately misspelled name
+ * appeared in the repository's label list rather than being rejected. So a
+ * domain the taxonomy has drifted away from would not fail loudly; it would
+ * quietly mint a junk label for somebody to find later.
+ *
+ * A domain with no label is reported on stderr: the taxonomy has a gap, which
+ * is worth noticing rather than papering over.
+ */
 async function labelsThatExist(domains: string[], token: string | undefined): Promise<string[]> {
   if (domains.length === 0) return [];
 
   try {
-    const known = new Set<string>();
-    /**
-     * Paged, not just the first hundred. A repository outgrows one page
-     * eventually, and a domain that happened to sort onto page two would be
-     * treated as missing — named in the notes and silently not applied.
-     */
-    for (let page = 1; page <= LABEL_PAGE_LIMIT; page++) {
-      const response = await fetch(`${API}/labels?per_page=100&page=${page}`, {
-        signal: AbortSignal.timeout(LABEL_LOOKUP_TIMEOUT_MS),
-        headers: {
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          // Authenticated, like the issue lookups. Unauthenticated requests get
-          // their own much smaller rate limit, so this call could be refused
-          // while every other one succeeded.
-          ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
-        },
-      });
-      if (!response.ok) {
-        err(`GitHub answered ${response.status} for the label list; no labels are printed.`);
-        return [];
-      }
-
-      const payload = (await response.json()) as unknown;
-      if (!Array.isArray(payload) || payload.length === 0) break;
-      for (const label of payload) {
-        const name = (label as { name?: unknown }).name;
-        if (typeof name === "string") known.add(name);
-      }
-      if (payload.length < 100) break;
-    }
+    const known = await repositoryLabels(token);
+    if (known === null) return [];
 
     for (const domain of domains) {
       if (!known.has(domain)) err(`No label named ${domain}; it is in the notes but not applied.`);

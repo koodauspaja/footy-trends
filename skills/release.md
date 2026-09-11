@@ -89,24 +89,27 @@ Merge commits are excluded — a release produces one, and it carries no type.
 4. **Open the release pull request**, `main` into `release`:
 
    ```bash
+   set -euo pipefail          # any failed step stops the procedure
    export GH_TOKEN=$(gh auth token)
+
    npm run release:version --silent -- --print=notes > /tmp/notes.md
+   npm run release:version --silent -- --print=domains > /tmp/domains.txt
+
    pr=$(gh pr create --base release --head main \
      --title "release: $(npm run release:version --silent -- --print=version)" \
      --body-file /tmp/notes.md)
 
-   # The same domains the notes name, as labels, and on the board.
-   npm run release:version --silent -- --print=domains > /tmp/domains.txt
+   # The same domains the notes name, as labels.
    while read -r domain; do
-     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null ||
-       echo "FAILED to apply $domain" >&2
+     gh api "repos/:owner/:repo/issues/${pr##*/}/labels" -X POST -f "labels[]=$domain" >/dev/null
    done < /tmp/domains.txt
 
-   # Check they all landed before moving on: a partial set is worse than none,
-   # because it reads as a complete answer.
-   diff <(sort /tmp/domains.txt) \
-        <(gh pr view "$pr" --json labels -q '.labels[].name' | sort) &&
-     echo "labels match the notes"
+   # Confirm they landed. Compared against the domains only — a release pull
+   # request may carry other labels, and those are not this check's business.
+   gh pr view "$pr" --json labels -q '.labels[].name' | sort > /tmp/applied.txt
+   comm -23 <(sort /tmp/domains.txt) /tmp/applied.txt > /tmp/missing.txt
+   test ! -s /tmp/missing.txt || { echo "not applied:"; cat /tmp/missing.txt; exit 1; }
+
    item=$(gh project item-add 2 --owner koodauspaja --url "$pr" --format json -q .id)
    gh project item-edit --id "$item" \
      --project-id PVT_kwDOB7brSc4BZbi_ \
