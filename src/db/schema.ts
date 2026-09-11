@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -83,6 +84,24 @@ export const matches = pgTable(
     // order, so carrying `kickoff_at` here buys nothing. See
     // specs/020-context-free-team-page.md.
     index("matches_away_team_idx").on(table.awayTeamProviderId),
+    /**
+     * Team search folds Finnish letters before matching, so the index has to
+     * store the folded form — an index on the raw column cannot serve a query
+     * on `translate(lower(...))`. See specs/027-team-search.md.
+     *
+     * `translate` rather than `unaccent`: the extension is not installed, and
+     * `unaccent` is not `IMMUTABLE`, so it cannot be indexed at all.
+     *
+     * These serve exact and prefix matching. A leading-wildcard `LIKE '%x%'`
+     * cannot use a B-tree, which is why 027 requires the substring query to be
+     * measured at production scale before anyone trusts it.
+     */
+    index("matches_home_team_name_folded_idx").on(
+      sql`translate(lower(${table.homeTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
+    ),
+    index("matches_away_team_name_folded_idx").on(
+      sql`translate(lower(${table.awayTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
+    ),
   ]
 );
 
@@ -145,6 +164,13 @@ export const tasoMatches = pgTable(
     // As on `matches` above. Measured on 20,604 stored rows: 1.03 ms and 144
     // buffers without it, 0.20 ms and 94 with.
     index("taso_matches_away_team_idx").on(table.awayTeamProviderId),
+    /** The TASO half of the same search, from specs/027-team-search.md. */
+    index("taso_matches_home_team_name_folded_idx").on(
+      sql`translate(lower(${table.homeTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
+    ),
+    index("taso_matches_away_team_name_folded_idx").on(
+      sql`translate(lower(${table.awayTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
+    ),
   ]
 );
 

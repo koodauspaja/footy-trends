@@ -288,10 +288,24 @@ describe("resolveTeamNames", () => {
 
   it("names a team from whichever side it played", async () => {
     state.sides.set("taso_matches:home", [
-      { id: 60731, name: "FC Kiisto", competitionCode: "VL", kickoffAt: at("2026-05-01") },
+      {
+        id: 60731,
+        name: "FC Kiisto",
+        competitionCode: "VL",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     state.sides.set("taso_matches:away", [
-      { id: 60732, name: "PK-35", competitionCode: "VL", kickoffAt: at("2026-05-01") },
+      {
+        id: 60732,
+        name: "PK-35",
+        competitionCode: "VL",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
@@ -301,8 +315,22 @@ describe("resolveTeamNames", () => {
         { source: "taso", teamProviderId: 60732 },
       ])
     ).toEqual([
-      { source: "taso", teamProviderId: 60731, name: "FC Kiisto", region: "kotimaa" },
-      { source: "taso", teamProviderId: 60732, name: "PK-35", region: "kotimaa" },
+      {
+        source: "taso",
+        teamProviderId: 60731,
+        name: "FC Kiisto",
+        region: "kotimaa",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
+      {
+        source: "taso",
+        teamProviderId: 60732,
+        name: "PK-35",
+        region: "kotimaa",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
@@ -313,15 +341,36 @@ describe("resolveTeamNames", () => {
      * read rather than written onto the favourite.
      */
     state.sides.set("matches:home", [
-      { id: 86, name: "Old Name FC", competitionCode: "PD", kickoffAt: at("2024-05-01") },
+      {
+        id: 86,
+        name: "Old Name FC",
+        competitionCode: "PD",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2024-05-01"),
+      },
     ]);
     state.sides.set("matches:away", [
-      { id: 86, name: "New Name FC", competitionCode: "PD", kickoffAt: at("2026-05-01") },
+      {
+        id: 86,
+        name: "New Name FC",
+        competitionCode: "PD",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
-      { source: "football-data", teamProviderId: 86, name: "New Name FC", region: "ulkomaat" },
+      {
+        source: "football-data",
+        teamProviderId: 86,
+        name: "New Name FC",
+        region: "ulkomaat",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
@@ -329,15 +378,36 @@ describe("resolveTeamNames", () => {
     // The same assertion with the sides swapped: the answer must come from the
     // dates, not from the order the two queries happen to be merged in.
     state.sides.set("matches:home", [
-      { id: 86, name: "New Name FC", competitionCode: "PD", kickoffAt: at("2026-05-01") },
+      {
+        id: 86,
+        name: "New Name FC",
+        competitionCode: "PD",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     state.sides.set("matches:away", [
-      { id: 86, name: "Old Name FC", competitionCode: "PD", kickoffAt: at("2024-05-01") },
+      {
+        id: 86,
+        name: "Old Name FC",
+        competitionCode: "PD",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2024-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
-      { source: "football-data", teamProviderId: 86, name: "New Name FC", region: "ulkomaat" },
+      {
+        source: "football-data",
+        teamProviderId: 86,
+        name: "New Name FC",
+        region: "ulkomaat",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
@@ -345,10 +415,24 @@ describe("resolveTeamNames", () => {
     // 317 is a real id in both tables and a different club in each. Resolving
     // by id alone would print one club's name over the other's row.
     state.sides.set("matches:home", [
-      { id: 317, name: "Rangers", competitionCode: "PL", kickoffAt: at("2026-05-01") },
+      {
+        id: 317,
+        name: "Rangers",
+        competitionCode: "PL",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     state.sides.set("taso_matches:home", [
-      { id: 317, name: "Ilves", competitionCode: "VL", kickoffAt: at("2026-05-01") },
+      {
+        id: 317,
+        name: "Ilves",
+        competitionCode: "VL",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
@@ -358,8 +442,22 @@ describe("resolveTeamNames", () => {
         { source: "taso", teamProviderId: 317 },
       ])
     ).toEqual([
-      { source: "football-data", teamProviderId: 317, name: "Rangers", region: "ulkomaat" },
-      { source: "taso", teamProviderId: 317, name: "Ilves", region: "kotimaa" },
+      {
+        source: "football-data",
+        teamProviderId: 317,
+        name: "Rangers",
+        region: "ulkomaat",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
+      {
+        source: "taso",
+        teamProviderId: 317,
+        name: "Ilves",
+        region: "kotimaa",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
@@ -371,12 +469,26 @@ describe("resolveTeamNames", () => {
      * URL.
      */
     state.sides.set("matches:home", [
-      { id: 8722, name: "Suomi", competitionCode: "WC", kickoffAt: at("2026-05-01") },
+      {
+        id: 8722,
+        name: "Suomi",
+        competitionCode: "WC",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
-      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+      {
+        source: "football-data",
+        teamProviderId: 8722,
+        name: "Suomi",
+        region: "maajoukkueet",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
@@ -384,28 +496,94 @@ describe("resolveTeamNames", () => {
     // One row per team per side, so the region and the name always come from
     // the same match — they cannot disagree.
     state.sides.set("matches:home", [
-      { id: 8722, name: "Suomi", competitionCode: "PL", kickoffAt: at("2020-05-01") },
+      {
+        id: 8722,
+        name: "Suomi",
+        competitionCode: "PL",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2020-05-01"),
+      },
     ]);
     state.sides.set("matches:away", [
-      { id: 8722, name: "Suomi", competitionCode: "WC", kickoffAt: at("2026-05-01") },
+      {
+        id: 8722,
+        name: "Suomi",
+        competitionCode: "WC",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 8722 }])).toEqual([
-      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+      {
+        source: "football-data",
+        teamProviderId: 8722,
+        name: "Suomi",
+        region: "maajoukkueet",
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
   });
 
   it("reports no region for a competition the registry no longer has", async () => {
     // Better an unlinked row than a link to another club's page.
     state.sides.set("matches:home", [
-      { id: 86, name: "Real Madrid", competitionCode: "XX", kickoffAt: at("2026-05-01") },
+      {
+        id: 86,
+        name: "Real Madrid",
+        competitionCode: "XX",
+        bucket: null,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
     ]);
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "football-data", teamProviderId: 86 }])).toEqual([
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
+      {
+        source: "football-data",
+        teamProviderId: 86,
+        name: "Real Madrid",
+        region: null,
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+      },
     ]);
+  });
+
+  it.each([
+    ["a national-team bucket", "maajp2026", null],
+    ["next year's national-team bucket, unlisted anywhere", "maajp2031", null],
+    ["a club bucket", "spljp26", "kotimaa"],
+  ])("gives a TASO team from %s the region %s", async (_case, bucket, expected) => {
+    /**
+     * Only the club game has a TASO team page. `/maajoukkueet/joukkue/[id]` is
+     * football-data's, and `/kotimaa/joukkue/[id]` is scoped to the domestic
+     * bucket — so a national-team id would 404 on one and find nothing on the
+     * other. Null makes it an unlinked row instead, which both `/suosikit` and
+     * team search already render.
+     *
+     * The prefix is what is checked, not a list: TASO adds a bucket every year.
+     */
+    state.sides.set("taso_matches:home", [
+      {
+        id: 60731,
+        name: "Suomi",
+        competitionCode: "UNL",
+        bucket,
+        seasonId: 2026,
+        kickoffAt: at("2026-05-01"),
+      },
+    ]);
+    const { resolveTeamNames } = await import("@/lib/favourites");
+
+    const [team] = await resolveTeamNames([{ source: "taso", teamProviderId: 60731 }]);
+
+    expect(team?.region).toBe(expected);
   });
 
   it("reports a team with no stored match as nameless rather than dropping it", async () => {
@@ -413,7 +591,14 @@ describe("resolveTeamNames", () => {
     const { resolveTeamNames } = await import("@/lib/favourites");
 
     expect(await resolveTeamNames([{ source: "taso", teamProviderId: 60731 }])).toEqual([
-      { source: "taso", teamProviderId: 60731, name: null, region: null },
+      {
+        source: "taso",
+        teamProviderId: 60731,
+        name: null,
+        region: null,
+        competitionCode: null,
+        seasonId: null,
+      },
     ]);
   });
 

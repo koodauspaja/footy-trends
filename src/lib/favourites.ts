@@ -235,7 +235,29 @@ export async function favouritesForSession(userId: string): Promise<Favourites> 
 }
 
 /** One team's most recent appearance, from whichever side it played. */
-type TeamSide = { id: number; name: string; competitionCode: string; kickoffAt: Date };
+type TeamSide = {
+  id: number;
+  name: string;
+  competitionCode: string;
+  /**
+   * TASO's `competition_id`, which is a **season bucket** rather than a
+   * competition — `spljp19` for the club game, `maajp18` for national teams.
+   * Null for football-data, which has no such split.
+   */
+  bucket: string | null;
+  seasonId: number;
+  kickoffAt: Date;
+};
+
+/**
+ * TASO's season buckets for national-team football.
+ *
+ * These decide whether a TASO team has a page at all, so the prefix is checked
+ * rather than the exact id: the set grows by one every year (`maajp2026` and so
+ * on), and a list would silently start sending next season's teams to the wrong
+ * place.
+ */
+const TASO_NATIONAL_BUCKET_PREFIX = "maajp";
 
 /**
  * Which region owns a team's page.
@@ -245,8 +267,23 @@ type TeamSide = { id: number; name: string; competitionCode: string; kickoffAt: 
  * under `/maajoukkueet` and `/ulkomaat`. Null for a competition the registry no
  * longer has — better an unlinked row than a link to some other club.
  */
-function regionFor(source: FavouriteSource, competitionCode: string): RegionSegment | null {
-  if (source === "taso") return "kotimaa";
+function regionFor(
+  source: FavouriteSource,
+  competitionCode: string,
+  bucket: string | null
+): RegionSegment | null {
+  if (source === "taso") {
+    /**
+     * Only the club game has a TASO team page. `/maajoukkueet/joukkue/[id]` is
+     * football-data's, built by `CompetitionTeamPage`, so a TASO national-team
+     * id resolves to nothing there — and `/kotimaa/joukkue/[id]` is scoped to
+     * `{ kind: "taso", bucket: "domestic" }`, so it cannot find one either.
+     *
+     * Null rather than a guess: a row that is not a link is honest, and both
+     * `/suosikit` and the search results already render that case.
+     */
+    return bucket?.startsWith(TASO_NATIONAL_BUCKET_PREFIX) === true ? null : "kotimaa";
+  }
   const registry = regionOfCompetition(competitionCode);
   if (registry === null) return null;
   return registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
@@ -267,6 +304,16 @@ export type FavouriteTeamView = {
    * region has to come from the competitions its matches were played in.
    */
   region: RegionSegment | null;
+  /**
+   * The competition and season of that most recent appearance, or null when
+   * nothing is stored.
+   *
+   * Carried for specs/027, where a result row has to tell two teams sharing a
+   * name apart — `FC Honka` is nine different teams. They come from the row this
+   * function already reads, so answering them costs nothing extra.
+   */
+  competitionCode: string | null;
+  seasonId: number | null;
 };
 
 /**
@@ -318,6 +365,8 @@ export async function resolveTeamNames(
             id: matches.homeTeamProviderId,
             name: matches.homeTeamName,
             competitionCode: matches.competitionCode,
+            bucket: sql<string | null>`null`,
+            seasonId: matches.seasonId,
             kickoffAt: matches.kickoffAt,
           })
           .from(matches)
@@ -330,6 +379,8 @@ export async function resolveTeamNames(
             id: matches.awayTeamProviderId,
             name: matches.awayTeamName,
             competitionCode: matches.competitionCode,
+            bucket: sql<string | null>`null`,
+            seasonId: matches.seasonId,
             kickoffAt: matches.kickoffAt,
           })
           .from(matches)
@@ -341,7 +392,12 @@ export async function resolveTeamNames(
           .selectDistinctOn([tasoMatches.homeTeamProviderId], {
             id: tasoMatches.homeTeamProviderId,
             name: tasoMatches.homeTeamName,
-            competitionCode: tasoMatches.competitionCode,
+            // TASO's `category_id`, not its `competition_id`: the latter is a
+            // season bucket (`spljp19`, `maajp18`) and the former is the
+            // competition (`VL`, `WCQ`) that the registries can name.
+            competitionCode: tasoMatches.categoryId,
+            bucket: tasoMatches.competitionCode,
+            seasonId: tasoMatches.seasonId,
             kickoffAt: tasoMatches.kickoffAt,
           })
           .from(tasoMatches)
@@ -353,7 +409,12 @@ export async function resolveTeamNames(
           .selectDistinctOn([tasoMatches.awayTeamProviderId], {
             id: tasoMatches.awayTeamProviderId,
             name: tasoMatches.awayTeamName,
-            competitionCode: tasoMatches.competitionCode,
+            // TASO's `category_id`, not its `competition_id`: the latter is a
+            // season bucket (`spljp19`, `maajp18`) and the former is the
+            // competition (`VL`, `WCQ`) that the registries can name.
+            competitionCode: tasoMatches.categoryId,
+            bucket: tasoMatches.competitionCode,
+            seasonId: tasoMatches.seasonId,
             kickoffAt: tasoMatches.kickoffAt,
           })
           .from(tasoMatches)
@@ -383,7 +444,9 @@ export async function resolveTeamNames(
       // entry stays removable — a favourite nobody can delete would be worse
       // than one with no name.
       name: row?.name ?? null,
-      region: row === undefined ? null : regionFor(team.source, row.competitionCode),
+      region: row === undefined ? null : regionFor(team.source, row.competitionCode, row.bucket),
+      competitionCode: row?.competitionCode ?? null,
+      seasonId: row?.seasonId ?? null,
     };
   });
 }
