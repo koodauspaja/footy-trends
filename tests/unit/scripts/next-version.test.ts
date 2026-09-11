@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   decideVersion,
   describeCommit,
+  domainsFrom,
   formatReleaseNotes,
   InvalidFirstReleaseVersion,
   isMergeSubject,
   isStableVersionTag,
+  issueRefsIn,
   parseVersion,
   selectPreviousTag,
 } from "../../../scripts/next-version";
@@ -201,7 +203,108 @@ describe("decideVersion", () => {
   });
 });
 
+describe("domainsFrom", () => {
+  it("drops the labels that say what kind of work it is", async () => {
+    // `enhancement` and `chore` describe the issue, not the part of the app.
+    expect(domainsFrom(["enhancement", "auth", "chore", "taso"])).toEqual(["auth", "taso"]);
+  });
+
+  it("keeps a label it has never seen, because the taxonomy will grow", async () => {
+    // A denylist, not an allowlist: an allowlist would silently omit every
+    // domain added after this was written, and the line would still render.
+    expect(domainsFrom(["enhancement", "brand-new-domain"])).toEqual(["brand-new-domain"]);
+  });
+
+  it("deduplicates across issues and sorts, so the line is stable", async () => {
+    // Two issues in one release commonly share a domain; naming it twice, or in
+    // whichever order the API answered, makes a diffable line noisy.
+    expect(domainsFrom(["taso", "auth", "taso", "analytics"])).toEqual([
+      "analytics",
+      "auth",
+      "taso",
+    ]);
+  });
+
+  it("answers nothing when every label is a kind", async () => {
+    expect(domainsFrom(["enhancement", "bug"])).toEqual([]);
+  });
+
+  it("answers nothing for no labels at all", async () => {
+    expect(domainsFrom([])).toEqual([]);
+  });
+});
+
+describe("issueRefsIn", () => {
+  it("finds the issue behind every commit, across all four sections", async () => {
+    const decision = decideVersion(
+      [c("feat: a thing (#10)"), c("fix: another (#20)"), c("chore: tidy (#30)")],
+      "v1.0.0"
+    );
+
+    expect(issueRefsIn(decision).sort((a, b) => a - b)).toEqual([10, 20, 30]);
+  });
+
+  it("takes both refs when a squash carries the issue and the pull request", async () => {
+    // `fix: ... (#309) (#315)` is this repository's usual shape.
+    const decision = decideVersion([c("fix: a thing (#309) (#315)")], "v1.0.0");
+
+    expect(issueRefsIn(decision).sort((a, b) => a - b)).toEqual([309, 315]);
+  });
+
+  it("names an issue once however many commits reference it", async () => {
+    const decision = decideVersion(
+      [c("fix: first half (#309)"), c("fix: second half (#309)")],
+      "v1.0.0"
+    );
+
+    expect(issueRefsIn(decision)).toEqual([309]);
+  });
+
+  it.each([
+    ["issue zero, which cannot exist", "fix: a thing (#0)"],
+    ["a number too large to be an id", "fix: a thing (#99999999999999999999)"],
+  ])("ignores %s rather than asking GitHub about it", async (_case, subject) => {
+    // These reach the network as a URL. A reference that cannot be an issue is
+    // dropped here instead of becoming a request that answers 404.
+    const decision = decideVersion([c(subject)], "v1.0.0");
+
+    expect(issueRefsIn(decision)).toEqual([]);
+  });
+
+  it("answers nothing when no commit references an issue", async () => {
+    const decision = decideVersion([c("chore: tidy")], "v1.0.0");
+
+    expect(issueRefsIn(decision)).toEqual([]);
+  });
+});
+
 describe("formatReleaseNotes", () => {
+  it("names the domains the release touches", () => {
+    // The question a reviewer is asking at this point, answered in one line.
+    // `skills/release.md` makes reading that list the approval gate.
+    const notes = formatReleaseNotes(decideVersion([c("feat: a thing (#10)")], "v1.0.0"), [
+      "auth",
+      "infra",
+    ]);
+
+    expect(notes).toContain("Touches: auth, infra.");
+  });
+
+  it("omits the line entirely when no domain could be resolved", () => {
+    // No token, no issue references, or no domain labels. Silence is honest;
+    // an empty `Touches:` would read as a bug.
+    const notes = formatReleaseNotes(decideVersion([c("feat: a thing")], "v1.0.0"));
+
+    expect(notes).not.toContain("Touches");
+  });
+
+  it("puts the domains after the summary and before the first section", () => {
+    const notes = formatReleaseNotes(decideVersion([c("feat: a thing (#10)")], "v1.0.0"), ["auth"]);
+
+    expect(notes.indexOf("Changes since")).toBeLessThan(notes.indexOf("Touches:"));
+    expect(notes.indexOf("Touches:")).toBeLessThan(notes.indexOf("## Features"));
+  });
+
   it("groups the commits under the headings that decided the version", () => {
     const notes = formatReleaseNotes(
       decideVersion([c("feat: a thing"), c("fix: another"), c("chore: tidy")], "v1.0.0")
