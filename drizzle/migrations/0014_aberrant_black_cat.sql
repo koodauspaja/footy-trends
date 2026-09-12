@@ -1,0 +1,4 @@
+CREATE INDEX "matches_home_team_name_folded_idx" ON "matches" USING btree (translate(lower("home_team_name"), 'äöåÄÖÅ', 'aoaAOA'));--> statement-breakpoint
+CREATE INDEX "matches_away_team_name_folded_idx" ON "matches" USING btree (translate(lower("away_team_name"), 'äöåÄÖÅ', 'aoaAOA'));--> statement-breakpoint
+CREATE INDEX "taso_matches_home_team_name_folded_idx" ON "taso_matches" USING btree (translate(lower("home_team_name"), 'äöåÄÖÅ', 'aoaAOA'));--> statement-breakpoint
+CREATE INDEX "taso_matches_away_team_name_folded_idx" ON "taso_matches" USING btree (translate(lower("away_team_name"), 'äöåÄÖÅ', 'aoaAOA'));

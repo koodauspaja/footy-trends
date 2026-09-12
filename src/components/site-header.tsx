@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AuthControls, AuthNotice } from "@/components/auth-controls";
 import { SHOW_PICKER_PARAM } from "@/components/start-redirect";
+import { TeamSearch } from "@/components/team-search";
 import { useSession } from "@/lib/auth-client";
 import { regionCrumbFor } from "@/lib/breadcrumb";
 import { defaultRegionOf } from "@/lib/session-extras";
@@ -63,6 +64,11 @@ export function SiteHeader() {
         <div className="flex min-w-0 items-center gap-3">
           <AuthControls />
         </div>
+        {/* Last in the wrapping row, so it takes its own full-width line on a
+            narrow screen and sits beside the controls from `sm` up. It renders
+            nothing at all for a signed-out reader, which is why the header is
+            unchanged for one. */}
+        <TeamSearch />
       </div>
       {/* Outside the flex row above: `Notice` is a full-width banner, and the
           row is a single line of breadcrumb and controls. */}

@@ -319,6 +319,77 @@ function escapeTableCell(text: string): string {
 }
 
 /** Markdown release notes: a table per section, matching the v1.0.0 release. */
+/**
+ * Labels that say what *kind* of work an issue is, rather than which part of
+ * the app it touches.
+ *
+ * A denylist and not an allowlist, deliberately: the domain taxonomy was
+ * created in one pass and will grow, and an allowlist would silently omit every
+ * label added after this was written — the failure nobody notices, because the
+ * line still renders and just says less than it should.
+ */
+const KIND_LABELS = new Set([
+  "enhancement",
+  "chore",
+  "bug",
+  "documentation",
+  "dependencies",
+  "duplicate",
+  "invalid",
+  "question",
+  "wontfix",
+  "good first issue",
+  "help wanted",
+]);
+
+/**
+ * The labels on one `/issues/{n}` response, or none when it is a pull request.
+ *
+ * **GitHub answers `/issues/{n}` for pull requests too**, with a `pull_request`
+ * field and a `200`. This repository's squash commits name both — `fix: a thing
+ * (#309) (#315)` — so without this check a labelled pull request would
+ * contribute domains the issue never had.
+ *
+ * Pull requests here carry no labels today, which is exactly why it is worth
+ * checking: nothing would look wrong until someone labelled one.
+ */
+export function labelsOfIssueResponse(payload: unknown): string[] {
+  if (typeof payload !== "object" || payload === null) return [];
+  const record = payload as { pull_request?: unknown; labels?: unknown };
+  if (record.pull_request !== undefined) return [];
+  if (!Array.isArray(record.labels)) return [];
+
+  return record.labels.flatMap((label) => {
+    const name = (label as { name?: unknown }).name;
+    return typeof name === "string" ? [name] : [];
+  });
+}
+
+/** Which parts of the app a set of issue labels names, sorted and deduplicated. */
+export function domainsFrom(labels: Iterable<string>): string[] {
+  return [...new Set([...labels].filter((label) => !KIND_LABELS.has(label)))].sort((a, b) =>
+    a.localeCompare(b, "en")
+  );
+}
+
+/** Every issue a release's commits reference, in the order they first appear. */
+export function issueRefsIn(decision: VersionDecision): number[] {
+  const subjects = [
+    ...decision.breaking,
+    ...decision.features,
+    ...decision.fixes,
+    ...decision.other,
+  ];
+  const found = new Set<number>();
+  for (const subject of subjects) {
+    for (const match of subject.matchAll(/\(#(\d+)\)/g)) {
+      const ref = Number(match[1]);
+      if (Number.isSafeInteger(ref) && ref > 0) found.add(ref);
+    }
+  }
+  return [...found];
+}
+
 export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, subjects: string[]): string => {
     if (subjects.length === 0) return "";
@@ -353,6 +424,10 @@ export function formatReleaseNotes(decision: VersionDecision): string {
       "point is in this release too, and is not listed.\n\n"
     : `Changes since ${decision.previous}${describeCounts(decision)}.\n\n`;
 
+  // What the release touches is on the pull request as labels, put there by
+  // `release-pr.ts`. It was also a `Touches:` line here, and two renderings of
+  // one fact is one more than can be kept true — the labels are the ones a
+  // reader filters and searches by, so they are the ones that stayed.
   // A release with nothing to list would otherwise publish an empty body,
   // which reads as a mistake rather than as a deliberate no-change release.
   return `# release: ${decision.next}\n\n${preamble}${body || "No categorised commits in this range.\n"}`.trimEnd();

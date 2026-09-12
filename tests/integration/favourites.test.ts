@@ -250,6 +250,11 @@ describe("resolving a team's name", () => {
         teamProviderId: RENAMED,
         name: "New Name FC",
         region: "ulkomaat",
+        // Carried since specs/027, from the same row the name comes from.
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+        // Built centrally since #325, so Finland's national sides can differ.
+        href: `/ulkomaat/joukkue/${RENAMED}`,
       },
     ]);
   });
@@ -276,6 +281,11 @@ describe("resolving a team's name", () => {
         teamProviderId: RENAMED,
         name: "New Name FC",
         region: "ulkomaat",
+        // Carried since specs/027, from the same row the name comes from.
+        competitionCode: expect.any(String),
+        seasonId: expect.any(Number),
+        // Built centrally since #325, so Finland's national sides can differ.
+        href: `/ulkomaat/joukkue/${RENAMED}`,
       },
     ]);
   });

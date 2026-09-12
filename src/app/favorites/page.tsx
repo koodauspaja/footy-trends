@@ -28,20 +28,6 @@ export const metadata: Metadata = { title: HEADING };
  */
 export const dynamic = "force-dynamic";
 
-/**
- * Where a team's page lives.
- *
- * **Not derivable from the source alone.** `football-data` covers club
- * competitions *and* national sides, whose pages live under `/ulkomaat` and
- * `/maajoukkueet` — the same `CompetitionStandingsPage` renders both, so both
- * can be favourited. `resolveTeamNames` works the region out from the
- * competitions a team's stored matches were played in; null when it could not,
- * which renders as an unlinked row rather than a link to the wrong club.
- */
-function teamHrefFor(region: RegionSegment | null, teamProviderId: number): string | null {
-  return region === null ? null : `/${region}/joukkue/${teamProviderId}`;
-}
-
 export default async function Favourites() {
   const requestHeaders = await headers();
 
@@ -94,7 +80,9 @@ export default async function Favourites() {
 
     teams = named.map((team) => ({
       ...team,
-      href: team.name === null ? null : teamHrefFor(team.region, team.teamProviderId),
+      // Built by `resolveTeamNames`, so Finland's national sides reach their own
+      // pages rather than an id route that has none (#325).
+      href: team.name === null ? null : team.href,
     }));
 
     competitions = keys.competitions

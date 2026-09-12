@@ -141,8 +141,20 @@ describe("the favourites route", () => {
   it("sends each team to its own provider's page", async () => {
     state.keys = { teams: ["taso:60731", "football-data:86"], competitions: [] };
     state.names = [
-      { source: "taso", teamProviderId: 60731, name: "Ilves", region: "kotimaa" },
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: "ulkomaat" },
+      {
+        source: "taso",
+        teamProviderId: 60731,
+        name: "Ilves",
+        region: "kotimaa",
+        href: "/kotimaa/joukkue/60731",
+      },
+      {
+        source: "football-data",
+        teamProviderId: 86,
+        name: "Real Madrid",
+        region: "ulkomaat",
+        href: "/ulkomaat/joukkue/86",
+      },
     ];
 
     await renderPage();
@@ -164,7 +176,13 @@ describe("the favourites route", () => {
     // never from its provider.
     state.keys = { teams: ["football-data:8722"], competitions: [] };
     state.names = [
-      { source: "football-data", teamProviderId: 8722, name: "Suomi", region: "maajoukkueet" },
+      {
+        source: "football-data",
+        teamProviderId: 8722,
+        name: "Suomi",
+        region: "maajoukkueet",
+        href: "/maajoukkueet/joukkue/8722",
+      },
     ];
 
     await renderPage();
@@ -180,7 +198,13 @@ describe("the favourites route", () => {
     // club's page.
     state.keys = { teams: ["football-data:86"], competitions: [] };
     state.names = [
-      { source: "football-data", teamProviderId: 86, name: "Real Madrid", region: null },
+      {
+        source: "football-data",
+        teamProviderId: 86,
+        name: "Real Madrid",
+        region: null,
+        href: null,
+      },
     ];
 
     await renderPage();
@@ -191,7 +215,7 @@ describe("the favourites route", () => {
 
   it("does not link a team it could not name", async () => {
     state.keys = { teams: ["taso:60731"], competitions: [] };
-    state.names = [{ source: "taso", teamProviderId: 60731, name: null, region: null }];
+    state.names = [{ source: "taso", teamProviderId: 60731, name: null, region: null, href: null }];
 
     await renderPage();
 
@@ -246,9 +270,27 @@ describe("the favourites route", () => {
      */
     state.keys = { teams: ["taso:1", "taso:2", "taso:3"], competitions: [] };
     state.names = [
-      { source: "taso", teamProviderId: 1, name: "Ähtäri", region: "kotimaa" },
-      { source: "taso", teamProviderId: 2, name: "ÅIFK", region: "kotimaa" },
-      { source: "taso", teamProviderId: 3, name: "Ilves", region: "kotimaa" },
+      {
+        source: "taso",
+        teamProviderId: 1,
+        name: "Ähtäri",
+        region: "kotimaa",
+        href: "/kotimaa/joukkue/1",
+      },
+      {
+        source: "taso",
+        teamProviderId: 2,
+        name: "ÅIFK",
+        region: "kotimaa",
+        href: "/kotimaa/joukkue/2",
+      },
+      {
+        source: "taso",
+        teamProviderId: 3,
+        name: "Ilves",
+        region: "kotimaa",
+        href: "/kotimaa/joukkue/3",
+      },
     ];
 
     await renderPage();
@@ -260,8 +302,14 @@ describe("the favourites route", () => {
   it("puts a team it could not name last, rather than sorting it as an empty string", async () => {
     state.keys = { teams: ["taso:1", "taso:2"], competitions: [] };
     state.names = [
-      { source: "taso", teamProviderId: 1, name: null, region: null },
-      { source: "taso", teamProviderId: 2, name: "Ilves", region: "kotimaa" },
+      { source: "taso", teamProviderId: 1, name: null, region: null, href: null },
+      {
+        source: "taso",
+        teamProviderId: 2,
+        name: "Ilves",
+        region: "kotimaa",
+        href: "/kotimaa/joukkue/2",
+      },
     ];
 
     await renderPage();

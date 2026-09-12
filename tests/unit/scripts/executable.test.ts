@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { executablePath, looksRunnable, overrideNameFor } from "../../../scripts/executable";
 
 /**
- * Where the scripts find `git` and `docker`, from #292.
+ * Where the scripts find `git`, `docker` and `gh`, from #292 and #361.
  *
  * The point of the module is that the answer never comes from `PATH`, so every
  * case here is about which absolute path is chosen — and about refusing the
@@ -44,6 +44,19 @@ describe("executablePath", () => {
     expect(executablePath("docker", { exists, env: {} })).toBe(
       "/Applications/Docker.app/Contents/Resources/bin/docker"
     );
+  });
+
+  it("finds gh where Homebrew puts it", () => {
+    // Added for #361: opening the release pull request shells out to `gh`, and
+    // a release carried out by whichever binary was first in somebody's path is
+    // not one to trust.
+    const exists = present("/opt/homebrew/bin/gh");
+
+    expect(executablePath("gh", { exists, env: {} })).toBe("/opt/homebrew/bin/gh");
+  });
+
+  it("answers null when gh is nowhere the list knows", () => {
+    expect(executablePath("gh", { exists: () => false, env: {} })).toBeNull();
   });
 
   it("returns null when the tool is nowhere we look", () => {
