@@ -24,28 +24,30 @@ Workflow
    must be in the `Ready` column ("Spec written and validated — ready for
    Claude Code" — see `docs/setup/002-github-project-board.md`) before any
    implementation begins.
-   - If the issue is in `Backlog` or any other column, stop. Do not create a
-     branch or write code. Confirm the scope with the user and ask them to
-     move the card to `Ready` (or move it yourself only if the user
-     explicitly says to) before continuing.
-   - This applies even after scope has just been clarified in chat —
-     agreeing on scope in conversation is not the same as the card being
-     `Ready`, and does not substitute for it.
-   - Once confirmed `Ready`, move the card to `In Progress` before creating
-     a branch or writing any code.
-   - **Ask whether the issue is good before starting. Every time, without
-     exception.** The human decides whether to read it, and answers either by
-     moving the card to `Ready` and saying to start, or by saying the card may
-     be moved and work may begin. Neither is ever assumed — the same rule as
-     `skills/feature-workflow.md` step 4, and it applies to chores and bugs too,
-     where being told to move it and start is the common case.
-   - No particular wording is required. "looks good, update issue and start
-     work", "you can go ahead with the implementation" and "issue in ready now"
-     are all a start.
+   **Work is authorised by either of these, and either one alone is enough:**
+
+   - a human has moved the card to `Ready` — the column means "ready for
+     Claude Code", so its presence is the authorisation; or
+   - the human says to start. No particular wording is required: "looks good,
+     update issue and start work", "you can go ahead with the implementation"
+     and "issue in ready now" all count.
+
+   Until one of them is true: no branch, no code, no migration, no board
+   change — including no move to `In Progress`. Agreeing the scope in
+   conversation is not either of them, and neither is the AI's own reading of
+   the situation.
+
+   - **If neither is true, ask whether the issue is good.** Every time, without
+     exception. The human then decides whether to read it, and authorises or
+     does not. The same rule as `skills/feature-workflow.md` step 4; it applies
+     to chores and bugs too, where being told to move the card and start is the
+     common case.
    - **When the AI sets `Ready` itself, it must quote the sentence it is acting
      on, in the same message** — as evidence, not as a password. The quote must
      read plainly as an instruction to start. A question about what comes next,
      permission to reshape the work, or silence is not one.
+   - Only once authorised, move the card to `In Progress`, then create the
+     branch.
 3. Create a chore branch named `chore/NNN-short-description` when an issue
    number exists. For unnumbered maintenance work, use
    `chore/short-description`.
@@ -89,7 +91,9 @@ Workflow
    because nothing fails when you do — #158 was implemented, verified, merged
    and closed with all eight boxes empty.
 
-10. Leave the pull request for human review. Do not merge it yourself.
+10. Leave the pull request for human review. **Never merge on your own
+    initiative** — however green it is. Merge only when a human tells you to;
+    that instruction is the allowed final step, not an exception to the rule.
     Before handing it off, apply the Sourcery review gate in
     `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
     every changed path is on that document's short allowlist of unreviewable

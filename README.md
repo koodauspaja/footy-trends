@@ -163,7 +163,7 @@ flowchart TD
   Spec_confirmed{"Open questions answered and the human said GO?"}
   AI_issue["AI updates the GitHub issue with scope and acceptance criteria (skills/open-issue.md)"]
   AI_asks["AI asks: is the issue good?"]
-  Human_ready{"Human moves the card to Ready and says start, or says the AI may move it and start"}
+  Human_ready{"Authorised? Card moved to Ready by a human, OR the human said start — either alone"}
   AI_branch["AI moves the card to In Progress, then branches"]
   AI_implement["AI implements feature within spec (skills/implement-feature.md)"]
   AI_decision["AI writes/updates decision record in decisions/NNN-feature-name.md"]
@@ -185,11 +185,11 @@ flowchart TD
 3. Confirm the spec checklist in chat. Answer the open questions, then say
    **go** — the AI must not treat interest, questions or silence as a go.
 4. The AI updates the GitHub issue, then **asks whether the issue is good**.
-   Decide whether to read it, then authorise the start — by moving the card to
-   `Ready` yourself, or just by saying so. No particular wording is needed:
-   "looks good, update issue and start work" or "issue in ready now" both do it.
-   Nothing is branched or written before that, and if the AI moves the card to
-   `Ready` itself it must quote the sentence it is acting on.
+   Decide whether to read it, then authorise the start. **Either of these alone
+   is enough:** move the card to `Ready` yourself, or say so in any wording —
+   "looks good, update issue and start work" and "issue in ready now" both do
+   it. Nothing is branched or written before that, and if the AI moves the card
+   to `Ready` itself it must quote the sentence it is acting on.
 5. From there the AI proceeds autonomously: branch, implement, write the
    decision record, run the checks, and prepare the PR.
 6. Review the AI-written decision record in `decisions/NNN-feature-name.md`

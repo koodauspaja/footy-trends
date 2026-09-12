@@ -28,9 +28,10 @@ Workflow
    - The issue is how the spec reaches the people who approve it. They read
      the issue, not the chat, and not files on the AI's machine.
 4. **Ask whether the issue is good. Every time, without exception.**
-   - The human decides whether to read it. They answer in one of two ways:
-     they move the card to `Ready` and tell the AI to start, or they say the
-     AI may move the card and start working autonomously.
+   - The human decides whether to read it, then authorises the start. **Either
+     of these alone is enough:** a human moves the card to `Ready` — the column
+     means "ready for Claude Code", so its presence is the authorisation — or
+     the human says to start, in any wording.
    - Until one of those arrives: no branch, no code, no migration, no board
      change.
    - No particular wording is required. "looks good, update issue and start

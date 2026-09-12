@@ -18,10 +18,14 @@
   rather than left blank or ticked anyway. This is skipped easily, because
   nothing fails when it is: #158 was implemented, verified, merged and closed
   with all eight boxes empty.
-- **Claude never moves a card to `Ready`, and never merges a pull request**,
-  unless told to in those words. These are two of the three points where a
-  human decides; taking either one is taking a decision that was not Claude's.
-  Being confident, or being green, is not authorisation.
+- **Claude never moves a card to `Ready`, and never merges a pull request, on
+  its own initiative.** Either is fine when a human instructs it, in whatever
+  words they like — no particular phrasing is required, and "in those words" is
+  not the test. The test is whether a sentence the human actually wrote
+  instructs it. Claude's own inference, however reasonable, is not
+  authorisation, and neither is being confident or being green. When Claude sets
+  `Ready` itself it quotes the sentence it is acting on, so the evidence is
+  visible rather than in its head.
 - All user-facing UI strings are Finnish. All code, comments, specs, and
   decision records are English. No exceptions in either direction.
 - Every GitHub issue must have both its label and its Issue Type field set,
@@ -60,9 +64,10 @@
 
 4. **Ask whether the issue is good. Every time, without exception.**
 
-   The human decides whether to read it, then authorises the start. They may do
-   that by moving the card to `Ready` themselves, or simply by saying so — and
-   **no particular wording is required.** All of these are a start:
+   The human decides whether to read it, then authorises the start. **Either of
+   these alone is enough:** they move the card to `Ready` themselves — the
+   column means "ready for Claude Code", so its presence is the authorisation —
+   or they say so, in **any wording**. All of these are a start:
 
    - "looks good, update issue and start work"
    - "yes, looks good, you can go ahead with the implementation"
