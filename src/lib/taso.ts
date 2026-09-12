@@ -9,6 +9,36 @@ const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
+/**
+ * How long a page render waits for TASO before giving up on it.
+ *
+ * Unbounded before #363, which is how the v1.4.0 release e2e run failed 41
+ * specs: TASO accepted the connection and then stalled, and with nothing
+ * bounding the render the only limit that applied was Playwright's own 30 s.
+ * The same commit passed twenty minutes later. Measured at the time: 47-67 ms
+ * across six fresh connections, and once 19.9 s for a response whose own
+ * `result_time` said 0.061 s — the server answered instantly and the transfer
+ * took twenty seconds.
+ *
+ * Ten seconds, and the number is measured rather than chosen for feel. Five was
+ * tried first and **broke the national-team pages**: that page fans out over
+ * nine seasons, each fanning out again over its categories, so a cold render
+ * legitimately takes about 4.7 s. Most of a request's life there is spent
+ * queued behind the others, and the clock runs while it queues — so a bound
+ * barely above the render's own cost cuts off requests that were going to
+ * succeed. Ten passes the cold suite; five failed four specs.
+ *
+ * That leaves it comfortably above the 4.7 s a healthy cold render costs and
+ * comfortably below the 19.9 s stall it exists to catch. Separate from
+ * football-data's bound on purpose: this is the provider observed stalling,
+ * and tuning one should not move the other.
+ *
+ * This bounds one attempt. `/api/health` passes its own, shorter signal, which
+ * bounds the whole call on top of it — a probe and a page are different
+ * questions, and the two limits stack rather than replace each other.
+ */
+const RENDER_TIMEOUT_MS = 10000;
+
 // Fixed values, not secrets: TASO 403s without headers matching the real
 // tulospalvelu.palloliitto.fi frontend — server-side origin validation, not
 // browser-enforced CORS, so every server-to-server request needs them too.
@@ -45,7 +75,13 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
       Origin: ORIGIN,
       "User-Agent": USER_AGENT,
     }),
-    signal
+    signal,
+    // Bounded here rather than at each call site: every TASO request goes
+    // through this function, so one value covers the ones page renders make
+    // without threading a signal through four exported functions that would
+    // each have to remember to pass it. `/api/health`'s own signal still
+    // bounds the whole call on top of this.
+    RENDER_TIMEOUT_MS
   );
 }
 

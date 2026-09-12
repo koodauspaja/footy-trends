@@ -64,23 +64,42 @@ export async function fetchProviderJson<T>(
   path: string,
   buildHeaders: () => Record<string, string>,
   /**
-   * Bounds the request. Page renders leave this unset and rely on the
-   * platform's own limits; the health endpoint sets it, because an endpoint
-   * that hangs until a probe times out is worse than one that reports a
-   * provider as unreachable. See #182.
+   * Bounds the **whole call**, retries and backoff included. The health
+   * endpoint sets it, because an endpoint that hangs until a probe times out
+   * is worse than one that reports a provider as unreachable. See #182.
    */
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * Bounds **one network attempt**, and each attempt gets a fresh one.
+   *
+   * Deliberately not the same thing as `signal`. A provider that accepts the
+   * connection and then stalls has to be cut off — that is #363, where an
+   * unbounded render let TASO hold 41 e2e specs until Playwright's own 30 s
+   * fired. But a 429 is the one failure worth waiting out, and that wait is up
+   * to `MAX_BACKOFF_SECONDS`. A timeout spanning the whole call would abort
+   * every retry before it completed, turning a recoverable rate limit into the
+   * "could not be loaded" page this retry exists to prevent.
+   *
+   * So the bound applies to the request, and the backoff is left alone.
+   */
+  attemptTimeoutMs?: number
 ): Promise<T> {
   const startedAt = Date.now();
 
   for (let attempt = 1; ; attempt += 1) {
+    // Fresh per attempt: `AbortSignal.timeout` counts from creation, so one
+    // signal reused across attempts would give the retry whatever was left.
+    const attemptSignal =
+      attemptTimeoutMs === undefined ? undefined : AbortSignal.timeout(attemptTimeoutMs);
+    const signals = [signal, attemptSignal].filter((s) => s !== undefined);
+
     let response: Response;
     try {
       response = await fetch(`${baseUrl}${path}`, {
         headers: buildHeaders(),
         // Spread rather than `signal: signal ?? null`, so a caller that passes
-        // none sends exactly the request it sent before.
-        ...(signal ? { signal } : {}),
+        // neither sends exactly the request it sent before.
+        ...(signals.length > 0 ? { signal: AbortSignal.any(signals) } : {}),
       });
     } catch (error) {
       logger.error(
@@ -104,6 +123,8 @@ export async function fetchProviderJson<T>(
         { method: "GET", path, status: response.status, durationMs, retryInSeconds: seconds },
         `${providerLabel} rate limited; retrying`
       );
+      // The caller's signal only. Bounding the backoff by the per-attempt
+      // timeout would defeat the retry entirely — see `attemptTimeoutMs`.
       await wait(seconds * 1000, signal);
       continue;
     }
