@@ -4,10 +4,13 @@ import { AccountMenu } from "@/components/account-menu";
 
 const onSignOut = vi.fn();
 
-function renderMenu(overrides: { name?: string; image?: string | null } = {}) {
+function renderMenu(overrides: { name?: string; image?: string | null; isAdmin?: boolean } = {}) {
   return render(
     <AccountMenu
       image={overrides.image ?? null}
+      // Defaults to a reader, so every existing test keeps asserting the menu a
+      // reader sees, and the admin link only appears where a test asks for it.
+      isAdmin={overrides.isAdmin ?? false}
       name={overrides.name ?? "Matti Meikäläinen"}
       onSignOut={onSignOut}
     />
@@ -229,5 +232,53 @@ describe("AccountMenu", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the Ylläpito link", () => {
+  it("is offered to an admin", async () => {
+    renderMenu({ isAdmin: true });
+    await act(async () => {
+      fireEvent.click(trigger());
+    });
+
+    expect(screen.getByRole("link", { name: "Ylläpito" })).toHaveAttribute("href", "/yllapito");
+  });
+
+  it("is not rendered for a reader", async () => {
+    renderMenu({ isAdmin: false });
+    await act(async () => {
+      fireEvent.click(trigger());
+    });
+
+    expect(screen.queryByRole("link", { name: "Ylläpito" })).toBeNull();
+  });
+
+  it("closes the menu when the link is followed", async () => {
+    // Every other item does this, and a menu left open over the page it just
+    // navigated to is the bug the shared `close(false)` exists to prevent.
+    renderMenu({ isAdmin: true });
+    await act(async () => {
+      fireEvent.click(trigger());
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "Ylläpito" }));
+    });
+
+    expect(screen.queryByRole("link", { name: "Ylläpito" })).toBeNull();
+  });
+
+  it("leaves the reader's own links alone either way", async () => {
+    // The admin entry is an addition, not a replacement: a menu that lost
+    // Suosikit or Asetukset when the role changed would be a regression nobody
+    // is looking for.
+    renderMenu({ isAdmin: true });
+    await act(async () => {
+      fireEvent.click(trigger());
+    });
+
+    expect(screen.getByRole("link", { name: "Suosikit" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Asetukset" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
   });
 });

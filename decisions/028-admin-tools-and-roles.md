@@ -102,3 +102,96 @@ review findings on #368 the same day.
 Only the delivery splits: this pull request is the role and the gate, with no
 user-visible surface, which unblocks #150's forced TASO re-sync without it
 waiting on a user-management page it has no interest in.
+
+---
+
+Below: the second pull request — the page, the management actions, and the one
+thing that did not work the way the spec assumed.
+
+## `notFound()` does not produce a 404, and that was measured
+
+The spec chose 404 over 403 so the route would not confirm its own existence.
+`notFound()` did not deliver it.
+
+`src/app/loading.tsx` puts every segment behind a Suspense boundary, so
+responses stream, and Next commits the status line before `notFound()` can be
+caught. Its documentation states the behaviour outright — "200 for streamed
+responses, and 404 for non-streamed" — and it is a long-standing open issue
+(vercel/next.js#76474, #93239). There is no per-route opt-out.
+
+Measured on a production build, which is what made it real rather than a worry:
+
+| Path | Status |
+|---|---|
+| `/this-route-does-not-exist` | 404 |
+| `/yllapito`, signed out | **200** |
+
+The body was already harmless — the generic not-found page, the app's default
+title, no admin markup, which is what removing the static `metadata` export
+fixed along the way. The **status** was the leak: it told a stranger the route
+was real.
+
+### What was rejected
+
+- **Accepting the 200 and rewriting the criterion.** Honest, free, and it leaves
+  the area probeable. Put to Miikka with the costs; not chosen.
+- **A proxy that reads the role from the database.** Closes the residual gap for
+  signed-in non-admins too, at the cost of a database read in front of every
+  matched request and a second copy of `requireAdmin()`'s logic at the edge.
+  Rejected as too expensive for the remaining exposure.
+
+### What was built
+
+`src/proxy.ts` — `proxy.ts` rather than `middleware.ts`, because Next 16 renamed
+the convention and the build refuses the old name rather than warning. For
+either spelling of the admin path with no session cookie, it rewrites to a path
+that does not exist.
+
+A **rewrite** rather than a hand-built 404 response: Next then produces the same
+output it gives any missing URL. Verified byte-identical — 404 and 11 540 bytes
+for both `/yllapito` and `/this-route-does-not-exist`. A bare `NextResponse`
+with status 404 would have had an empty body, and a body nothing else in the app
+returns is itself a signal.
+
+It reads the **cookie only**, through better-auth's `getSessionCookie`, so it
+costs no query. **It is not the authorisation** and deleting it would leak the
+route's existence rather than let anyone in: `requireAdmin()` still runs on the
+page and on every action. A forged cookie buys only the 200 that every signed-in
+reader already gets.
+
+The residual difference — a signed-in non-admin sees the not-found body with a
+200 — is visible only to someone who already has an account. That is the trade
+Miikka took, and it is written down here so a later reader can retake it.
+
+### The matcher is duplicated, deliberately
+
+Next parses `config.matcher` at build time and refuses anything it cannot read
+statically, so it cannot be `[...ADMIN_PATHS]` — the build fails outright. The
+literals are therefore written twice, and
+`tests/unit/lib/admin-route.test.ts` asserts the two agree, so adding a path in
+one place and not the other fails a test rather than production.
+
+## The role rides on the session, for the menu link only
+
+`getSessionExtrasFor` already selects from `user`, so carrying `role` is one
+more column on a row being read anyway — no extra round trip, unlike the
+favourites that share that payload.
+
+It decides exactly one thing: whether the account menu offers `Ylläpito`. It is
+stale from a role change until the session refreshes, which is tolerable for
+whether a menu item renders and intolerable for whether a page opens. Only one
+of those reads it.
+
+## The last-admin guard locks the admin set, not the target row
+
+The race is two admins acting on each other at once: both count two admins, both
+proceed, and nobody is left. Locking only the target row does not stop it,
+because the two transactions touch different rows.
+
+`select 1 from "user" where role = 'admin' for update` locks the set, so the
+second transaction waits and re-counts. A row becoming an admin concurrently is
+not blocked and does not need to be — it can only make the count larger, which
+refuses less often rather than more dangerously.
+
+The integration test runs both demotions through `Promise.all` against a real
+Postgres, because a mocked transaction cannot demonstrate a lock.

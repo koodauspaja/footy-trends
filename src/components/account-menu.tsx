@@ -6,6 +6,14 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 type Props = Readonly<{
   name: string;
   image: string | null;
+  /**
+   * Whether to offer `Ylläpito`, from specs/028-admin-tools-and-roles.md.
+   *
+   * A convenience, not a control: `requireAdmin()` refuses at the page and at
+   * every action, so a reader who reaches `/yllapito` without this link sees a
+   * 404 regardless.
+   */
+  isAdmin: boolean;
   onSignOut: () => void;
 }>;
 
@@ -18,7 +26,7 @@ type Props = Readonly<{
  *
  * Click, not hover: a hover menu is unreachable on the phones #266 was about.
  */
-export function AccountMenu({ name, image, onSignOut }: Props) {
+export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -146,6 +154,17 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
           >
             Asetukset
           </Link>
+          {/* Last of the links, because it is the least used and belongs to a
+              different job than the reader's own two. */}
+          {isAdmin && (
+            <Link
+              className="block px-4 py-2 text-sm hover:bg-surface"
+              href="/yllapito"
+              onClick={() => close(false)}
+            >
+              Ylläpito
+            </Link>
+          )}
           <button
             className="block w-full px-4 py-2 text-left text-sm hover:bg-surface"
             onClick={() => {

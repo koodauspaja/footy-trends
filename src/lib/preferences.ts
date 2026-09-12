@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { user, userAvatar, userPreferences } from "@/db/schema";
+import { DEFAULT_ROLE, isRole, type Role } from "@/lib/admin-role";
 import { favouritesForSession } from "@/lib/favourites";
 import { logger } from "@/lib/logger";
 import { type Preferences, type RegionSegment, resolveRegion, toPreferences } from "@/lib/regions";
@@ -43,6 +44,22 @@ export type SessionExtras = {
    */
   favoriteTeams: string[];
   favoriteCompetitions: string[];
+  /**
+   * The reader's role, so the account menu can decide whether to offer the
+   * `Ylläpito` link — from specs/028-admin-tools-and-roles.md.
+   *
+   * **It costs nothing to carry.** The query below already selects from `user`;
+   * this is one more column on a row that was being read anyway, so unlike the
+   * favourites it adds no round trip and no measurable payload.
+   *
+   * **It is not an authorisation.** Nothing decides access from this. The link
+   * it hides is a convenience, and `requireAdmin()` — which reads the column
+   * from the database on every request — is what actually refuses. A session is
+   * issued once, so this value can be stale by exactly as long as the session
+   * lives; that is tolerable for whether a menu item renders and intolerable
+   * for whether a page opens, which is why only one of them uses it.
+   */
+  role: Role;
 };
 
 const NO_EXTRAS: SessionExtras = {
@@ -50,6 +67,10 @@ const NO_EXTRAS: SessionExtras = {
   avatarVersion: null,
   favoriteTeams: [],
   favoriteCompetitions: [],
+  // A reader, when we could not find out. The fallback direction that grants
+  // nothing is the only safe one for a field about permission, even one nothing
+  // authorises from.
+  role: DEFAULT_ROLE,
 };
 
 /**
@@ -76,6 +97,7 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
       .select({
         defaultRegion: userPreferences.defaultRegion,
         avatarVersion: userAvatar.version,
+        role: user.role,
       })
       .from(user)
       .leftJoin(userPreferences, eq(userPreferences.userId, user.id))
@@ -96,6 +118,9 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
       avatarVersion: row.avatarVersion,
       favoriteTeams: favourites.teams,
       favoriteCompetitions: favourites.competitions,
+      // Narrowed rather than trusted: the column is `text`, so a value written
+      // by hand — which is how the first admin is made — could be anything.
+      role: isRole(row.role) ? row.role : DEFAULT_ROLE,
     };
   } catch (error) {
     logger.error({ err: error, userId }, "Reading the session extras failed");

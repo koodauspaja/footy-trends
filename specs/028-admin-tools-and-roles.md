@@ -37,6 +37,29 @@ non-admin, not 403. A 403 confirms the page is there, which is a fact a stranger
 has no use for. This mirrors nothing else in the app today because nothing else
 is hidden; it is a deliberate choice for the one area that is.
 
+**`notFound()` alone does not achieve it**, and that was measured rather than
+assumed. `src/app/loading.tsx` puts every segment behind a Suspense boundary, so
+responses stream, and Next commits the 200 status line before `notFound()` can
+be caught — its own documentation says "200 for streamed responses, and 404 for
+non-streamed". On a production build a missing URL answered **404** while
+`/yllapito` answered **200**, which told a signed-out stranger the route was
+real.
+
+So the signed-out case is decided in `src/proxy.ts`, before anything streams: a
+request to either spelling without a session cookie is rewritten to a path that
+does not exist, and Next produces the identical response it gives any missing
+URL — same status, same body, same length, verified at 11 540 bytes against
+`/this-route-does-not-exist`. A rewrite rather than a hand-built 404, because a
+bare 404 would have an empty body, and a body nothing else returns is itself a
+signal.
+
+The proxy reads the **cookie only** — no database, no session validation — and
+is not an authorisation. A signed-in non-admin still reaches the page and is
+refused by `requireAdmin()`, receiving the not-found body with a 200 status.
+That residual difference is visible only to someone who already has an account,
+and closing it would mean a database read in front of every request; the trade
+was taken deliberately.
+
 ### Deletion is the database's cascade, not a procedure
 
 Every table referencing `user` already declares `on delete cascade` — `session`,
@@ -181,8 +204,14 @@ email.
 - **A non-admin calls a server action directly.** `requireAdmin()` refuses. This
   is the case that matters most, because the action is reachable without the
   page.
-- **A signed-out visitor opens `/yllapito`.** 404, identical to a signed-in
-  non-admin's response — the two must be indistinguishable.
+- **A signed-out visitor opens `/yllapito`.** 404, byte-identical to a genuinely
+  missing URL, decided in `src/proxy.ts` before the response streams.
+- **A signed-in non-admin opens `/yllapito`.** The not-found body, with no admin
+  markup and no admin title — but a 200 status, because `notFound()` cannot
+  change a status the stream has already committed. The two are therefore *not*
+  indistinguishable, and that is a deliberate trade: closing it would mean a
+  database read in front of every request, and the residual difference is
+  visible only to someone who already has an account.
 - **An admin's role is revoked while they have the page open.** The next action
   fails the gate; the page is not required to notice sooner.
 - **A user with no name.** `name` is `notNull` and the sign-in path falls back to
@@ -222,7 +251,8 @@ the session.
 
 - [ ] A user whose `role` is `admin` sees an `Ylläpito` link in the account menu; a user whose role is `user` does not
 - [ ] `/yllapito` renders every user with email, name, role, and join date, newest first
-- [ ] A signed-out visitor and a signed-in non-admin both receive **404** from `/yllapito`, and the two responses are indistinguishable
+- [ ] A signed-out visitor receives a **404** byte-identical to a genuinely missing URL, decided before the response streams
+- [ ] A signed-in non-admin receives the not-found body with no admin markup and no admin title
 - [ ] An admin can promote a `user` to `admin`, and the change is visible to that user on their next request
 - [ ] An admin can demote another `admin` to `user`
 - [ ] An admin cannot change their own role, and is told why in Finnish
@@ -282,7 +312,11 @@ nothing — the defect class `skills/self-review.md` names first.
 - `src/lib/admin-role.ts` — the closed set and its parser, no database import
 - `src/lib/admin-guard.ts` — `requireAdmin()`
 - `src/lib/admin-actions.ts` — the three server actions
-- `src/app/yllapito/page.tsx` — the page
+- `src/app/admin/page.tsx` — the page, reached at `/yllapito` through the
+  rewrite in `next.config.ts`, with `/admin` redirecting to it like every other
+  English folder path
+- `src/proxy.ts` and `src/lib/admin-route.ts` — the early 404 for signed-out
+  visitors, and its decision kept testable
 - `src/components/admin-user-table.tsx` — the table and its controls
 - `src/components/account-menu.tsx` — the conditional link
 - `tests/unit/`, `tests/integration/admin.test.ts`, `tests/e2e/admin.spec.ts`

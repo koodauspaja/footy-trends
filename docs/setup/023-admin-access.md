@@ -112,11 +112,15 @@ quickly.
 Sign in as that account. The account menu shows **Ylläpito**, and `/yllapito`
 loads.
 
-A signed-in reader gets **404** there, not 403 — the page does not announce
-itself to people who may not use it. So a 404 from the account you just granted
-means the grant did not work, rather than that the page is missing. That
-distinction only becomes checkable when the page lands; until then a 404 there
-means only that the route does not exist yet.
+A signed-in reader gets the **not-found page** there rather than a 403 — the
+page does not announce itself to people who may not use it. So seeing it from
+the account you just granted means the grant did not work, rather than that the
+page is missing.
+
+(A signed-*out* visitor gets a real 404, answered before the page renders. A
+signed-in non-admin gets the same body with a 200 status, because Next cannot
+change a status once the response has begun streaming — see
+`specs/028-admin-tools-and-roles.md`.)
 
 ---
 
