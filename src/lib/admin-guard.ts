@@ -33,10 +33,22 @@ import { logger } from "@/lib/logger";
  * indistinguishable to the caller so no caller can leak the difference.
  */
 export async function requireAdmin(): Promise<string | null> {
-  const userId = await currentUserId();
-  if (userId === null) return null;
+  /**
+   * Declared outside the `try` so the log can name the caller when there is
+   * one, and inside it when there is not.
+   */
+  let userId: string | null = null;
 
   try {
+    // Inside the guard, not before it. `currentUserId` reads the session
+    // through better-auth, which queries Postgres — so it fails for exactly
+    // the reasons the lookup below does, and leaving it outside meant a
+    // session-read failure threw a 500 instead of refusing. The contract is
+    // that this function refuses rather than raises; a call that can throw
+    // sitting above the `try` quietly broke it.
+    userId = await currentUserId();
+    if (userId === null) return null;
+
     const [row] = await db
       .select({ role: user.role })
       .from(user)
@@ -48,9 +60,10 @@ export async function requireAdmin(): Promise<string | null> {
     // refusing is the only safe reading of it.
     return isAdmin(row?.role) ? userId : null;
   } catch (error) {
-    // A database failure is not permission. Refusing on error means an outage
-    // closes the admin area rather than opening it.
-    logger.error({ err: error, userId }, "Could not read a user's role");
+    // Neither a database failure nor an unreadable session is permission.
+    // Refusing on error means an outage closes the admin area rather than
+    // opening it.
+    logger.error({ err: error, userId }, "Could not determine whether the caller is an admin");
     return null;
   }
 }

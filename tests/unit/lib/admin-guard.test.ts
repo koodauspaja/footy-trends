@@ -93,7 +93,22 @@ describe("requireAdmin", () => {
     await expect(requireAdmin()).resolves.toBeNull();
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), userId: "user-1" }),
-      "Could not read a user's role"
+      "Could not determine whether the caller is an admin"
+    );
+  });
+
+  it("refuses when the session itself cannot be read", async () => {
+    // `currentUserId` goes through better-auth to Postgres, so it fails for the
+    // same reasons the role lookup does. It sat outside the try/catch until
+    // review caught it, which made a session-read failure a 500 rather than a
+    // refusal — the opposite of what this function promises.
+    currentUserId.mockRejectedValue(new Error("session store unreachable"));
+    const { requireAdmin } = await import("@/lib/admin-guard");
+
+    await expect(requireAdmin()).resolves.toBeNull();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), userId: null }),
+      "Could not determine whether the caller is an admin"
     );
   });
 
