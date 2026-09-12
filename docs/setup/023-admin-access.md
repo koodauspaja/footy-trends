@@ -152,3 +152,24 @@ have.
 Each environment has its own database and therefore its own admins. Granting in
 staging grants nothing in production, and the reverse. Run this once per
 environment where somebody needs the access.
+
+---
+
+## Done when
+
+- [ ] `information_schema` shows `user.role` as `text`, default `'user'::text`,
+      not nullable
+- [ ] `select email, role from "user" where role = 'admin'` returns exactly the
+      intended account, and no others
+- [ ] The address used is not written into this repository — it is public
+- [ ] Repeated once per environment that needs an admin; staging and production
+      have separate databases and therefore separate admins
+
+Once `/yllapito` ships:
+
+- [ ] That account sees **Ylläpito** in the account menu and `/yllapito` loads
+- [ ] A signed-in reader gets **404** at `/yllapito`, not 403
+
+## Next
+→ Nothing scheduled. This is a one-time operation per environment; after the
+  first admin exists, `/yllapito` is where admins are added and removed.
