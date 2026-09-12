@@ -835,6 +835,56 @@ describe("getSeasonStandings", () => {
     );
   });
 
+  /**
+   * The two cases above, but for the specific failure #363 introduced.
+   *
+   * A timeout arrives as an `AbortError` thrown from `fetch`, which takes the
+   * same path as any other provider failure — so these pass by construction
+   * rather than by new handling. They are here because "by construction" is an
+   * argument, and the acceptance criterion asked for the behaviour to be
+   * verified: a bound that produced an error page instead of stored data would
+   * be worse than no bound at all.
+   */
+  it("falls back to stored matches when the refresh times out", async () => {
+    mockStoredMatches([match({ updatedAt: new Date(0) })]);
+    getSeasonMatchesMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status).toBe("ok");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(DOMException) }),
+      "TASO refresh failed; using stored matches"
+    );
+  });
+
+  it("reports an error when the refresh times out and nothing is stored", async () => {
+    // The cold-database case: there is nothing to serve, and saying so is the
+    // honest answer. A timeout must not be reported as "no matches".
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result).toEqual({ status: "error", groups: [] });
+  });
+
   it("returns an error when a refresh fails and nothing is stored", async () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
