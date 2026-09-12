@@ -46,10 +46,37 @@ function apiKey(): string {
   return key;
 }
 
-function request<T>(path: string): Promise<T> {
-  return fetchProviderJson<T>("Football data", API_BASE_URL, path, () => ({
-    "X-Auth-Token": apiKey(),
-  }));
+/**
+ * How long a page render waits for football-data before giving up on it.
+ *
+ * Unbounded before #363, for the same reason TASO was — `fetchProviderJson`
+ * took an optional signal and the render path never passed one. Nothing has
+ * been observed stalling here; the bound exists because "we have not seen it
+ * yet" is not a limit, and a render with no deadline has none.
+ *
+ * Separate from TASO's bound on purpose: TASO is self-hosted and is the one
+ * observed stalling, so the two should be tunable without moving each other.
+ * Eight seconds rather than TASO's ten because nothing here fans out the way
+ * the national-team page does — the pages that read football-data issue few
+ * enough requests that no cold render has been seen near this.
+ *
+ * This bounds one attempt, not the call, so it does not cut short the wait
+ * `fetchProviderJson` does after a 429 — that stays governed by the response's
+ * own `Retry-After`.
+ */
+const RENDER_TIMEOUT_MS = 8000;
+
+function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return fetchProviderJson<T>(
+    "Football data",
+    API_BASE_URL,
+    path,
+    () => ({ "X-Auth-Token": apiKey() }),
+    signal,
+    // Every football-data request goes through here, so one value bounds them
+    // all; a caller with its own deadline still bounds the whole call.
+    RENDER_TIMEOUT_MS
+  );
 }
 
 export type SeasonContext = {

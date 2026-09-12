@@ -544,6 +544,10 @@ describe("taso mapping", () => {
           Origin: "https://tulospalvelu.palloliitto.fi",
           "User-Agent": expect.any(String),
         },
+        // Every TASO request carries a per-attempt bound since #363. The exact
+        // signal is not assertable — it is an `AbortSignal.any` of the bound
+        // and whatever the caller passed — but its presence is the guarantee.
+        signal: expect.any(AbortSignal),
       }
     );
     expect(loggerInfoMock).toHaveBeenCalledWith(
@@ -660,25 +664,40 @@ describe("getCurrentSeason", () => {
    * `/api/health?providers=1` bounds this call, because a health endpoint that
    * hangs until the platform probe times out is worse than one reporting a
    * provider as unreachable. See #182.
+   *
+   * The caller's signal no longer reaches `fetch` by identity: since #363 every
+   * TASO request also carries a per-attempt bound, and the two are combined
+   * with `AbortSignal.any`. So this asserts what the caller actually depends on
+   * — that aborting theirs aborts the request — rather than which object
+   * arrived, which was only ever a proxy for it.
    */
-  it("passes an abort signal through to the request when given one", async () => {
-    const fetchMock = mockCompetitions([]);
-    const signal = AbortSignal.timeout(1000);
-
-    await getCurrentSeason(signal);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://spl.torneopal.net/taso/rest/getCompetitions",
-      expect.objectContaining({ signal })
+  it("aborts the request when the caller's signal aborts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal;
+            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+          })
+      )
     );
+    const controller = new AbortController();
+    const pending = getCurrentSeason(controller.signal);
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("health gave up");
   });
 
-  it("sends no signal key at all when none is given, leaving page requests unchanged", async () => {
+  it("bounds a page request even though it passes no signal of its own", async () => {
+    // The inverse of what this asserted before #363. A page render passing no
+    // signal used to mean an unbounded request, which is how a stalled TASO
+    // held 41 e2e specs until Playwright's own 30 s fired.
     const fetchMock = mockCompetitions([]);
 
     await getCurrentSeason();
 
-    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("signal");
+    expect(fetchMock.mock.calls[0]?.[1]).toHaveProperty("signal");
   });
 
   it("requests every competition, unscoped — a competition_id is a season, not a category", async () => {
