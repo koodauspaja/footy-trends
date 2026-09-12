@@ -22,9 +22,14 @@ Rename the default columns to:
 |--------|---------|--------------------------|
 | `Backlog` | Ideas and future features | Whoever files the issue |
 | `Ready` | Spec written and validated — ready for Claude Code | **A human.** Claude may do it only when told to, and must quote the instruction it is acting on |
-| `In progress` | Claude Code is working on it | Claude, once the start is authorised |
-| `In review` | PR open, Sourcery reviewing | Claude, when the PR opens |
+| `In Progress` | Claude Code is working on it | Claude, once the start is authorised |
+| `In Review` | PR open, Sourcery reviewing | Claude, when the PR opens |
 | `Done` | Merged to main, deployed | The board's built-in `Pull request merged` workflow |
+
+**The capitalisation is part of the name.** GitHub matches a status by its
+exact name, so a board built with `In progress` will not be found by tooling
+looking for `In Progress` — and `scripts/release-pr.ts` reads the options by
+name. These are the names the live board uses.
 
 `Ready` is the gate the whole workflow turns on: it is the point where a human
 has read the issue and agreed the work should begin. Claude reaching it on its
