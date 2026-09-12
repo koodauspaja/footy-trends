@@ -27,9 +27,9 @@ const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
  * here was not: it blamed the page's fan-out, claiming requests spend their
  * lives queued behind each other. Measuring that fan-out refuted it — 18-20
  * requests, 12-14 of them concurrent, 0.52 MB in total, JSON parsing too cheap
- * to register, and a per-request worst case of 80-512 ms. Nothing there comes
- * within an order of magnitude of five seconds. Re-run later, five seconds
- * passed all nineteen.
+ * to register, and a per-request worst case of 80-512 ms — roughly a tenth of
+ * the five-second bound it was supposed to be exhausting, not the near-miss
+ * the queueing story needed. Re-run later, five seconds passed all nineteen.
  *
  * So what those runs caught was TASO being slow for an afternoon, not a
  * property of this code — the same afternoon that failed 41 specs on the
