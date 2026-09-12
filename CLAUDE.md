@@ -2,14 +2,26 @@
 
 ## Hard rules
 
-- Do not begin implementation until the spec checklist in
+- **Features only:** do not begin implementation until the spec checklist in
   `skills/write-spec.md` has been confirmed in chat for the feature being
   built. A missing item — especially Edge Cases, Caching, or Acceptance
   Criteria — means stop and ask, not fill in a reasonable-sounding default.
   A guessed edge case is worse than no edge case, because it looks
   intentional in review.
-- Every PR must reference its spec (`specs/NNN-feature-name.md`) and write a
-  decision record (`decisions/NNN-feature-name.md`), per `skills/open-pr.md`.
+- **Features only:** every PR references its spec (`specs/NNN-feature-name.md`)
+  and writes a decision record (`decisions/NNN-feature-name.md`), per
+  `skills/open-pr.md`.
+- **Chores and bugs have neither**, by design. `skills/chore-workflow.md` and
+  `skills/bug-workflow.md` say so outright and forbid creating placeholder files
+  under `specs/` or `decisions/`; a bug writes a decision record only when the
+  fix involved a real tradeoff. Those two skills govern their own work types and
+  have their own numbered steps.
+- **What does not vary by work type are the gates.** Feature, chore or bug, the
+  same three points belong to a human: agreeing the work, authorising the start,
+  and merging. Steps 2, 4 and 7 of the Required workflow below state them for
+  features; `skills/chore-workflow.md` and `skills/bug-workflow.md` state the
+  same two start-side gates in the same words. Nothing about lacking a spec
+  makes a chore cheaper to begin unasked.
 - Before handing off or merging any PR, tick every checkbox its issue has —
   Acceptance criteria always, plus Scope where the template provides it. A box
   is ticked because the outcome was **verified**, not because the code was
@@ -43,6 +55,11 @@
   exact command and board IDs.
 
 ## Required workflow
+
+**This is the feature path.** A chore follows `skills/chore-workflow.md` and a
+bug follows `skills/bug-workflow.md`; they skip steps 1 and 2 because they have
+no spec, and their own step 2 carries the same authorisation gate as step 4
+here. Steps 4, 6 and 7 read the same for all three.
 
 1. Write or update the spec in `specs/NNN-feature-name.md`, following
    `skills/write-spec.md`. **A human initiates the spec and is responsible for

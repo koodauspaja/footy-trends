@@ -18,7 +18,7 @@ npm run dev
 
 App runs at: http://localhost:3000
 
-If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first, confirm the checklist in chat, then update the issue and **ask whether it is good** — work starts only once a human moves the card to `Ready` or says it may be moved.
+If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first, confirm the checklist in chat, then update the issue and **ask whether it is good** — work starts only once a human moves the card to `Ready` or tells you to start.
 
 ---
 
