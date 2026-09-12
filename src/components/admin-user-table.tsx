@@ -82,10 +82,14 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
     });
   };
 
-  if (users.length === 0) return <p className="text-muted">{EMPTY}</p>;
-
   return (
     <section>
+      {/* The heading and the count are rendered whatever the list holds, so the
+          page has the same shape empty as full — an early return for the empty
+          case dropped both, which review caught. In practice an admin is
+          reading this page, so there is always at least one user; the branch
+          exists because "the query answered nothing" and "the table is empty"
+          must not be the same rendering. */}
       <h2 className="font-semibold text-xl">{SECTION}</h2>
       <p className="mb-4 text-muted text-sm">{`${total} käyttäjää`}</p>
 
@@ -95,63 +99,67 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
         </p>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-border border-b">
-              <th className="py-2 pr-4">{COLUMN_EMAIL}</th>
-              <th className="py-2 pr-4">{COLUMN_NAME}</th>
-              <th className="py-2 pr-4">{COLUMN_ROLE}</th>
-              <th className="py-2 pr-4">{COLUMN_JOINED}</th>
-              <th className="py-2">{COLUMN_ACTIONS}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((entry) => {
-              const self = entry.id === currentAdminId;
-              const admin = isAdminRole(entry.role);
-              return (
-                <tr className="border-border/50 border-b" key={entry.id}>
-                  <td className="py-2 pr-4">{entry.email}</td>
-                  <td className="py-2 pr-4">{entry.name}</td>
-                  <td className="py-2 pr-4">{admin ? ROLE_ADMIN : ROLE_USER}</td>
-                  <td className="py-2 pr-4">{joinedFormatter.format(entry.createdAt)}</td>
-                  <td className="py-2">
-                    {/* An admin's own row carries no controls at all. The
+      {users.length === 0 && <p className="text-muted">{EMPTY}</p>}
+
+      {users.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-border border-b">
+                <th className="py-2 pr-4">{COLUMN_EMAIL}</th>
+                <th className="py-2 pr-4">{COLUMN_NAME}</th>
+                <th className="py-2 pr-4">{COLUMN_ROLE}</th>
+                <th className="py-2 pr-4">{COLUMN_JOINED}</th>
+                <th className="py-2">{COLUMN_ACTIONS}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((entry) => {
+                const self = entry.id === currentAdminId;
+                const admin = isAdminRole(entry.role);
+                return (
+                  <tr className="border-border/50 border-b" key={entry.id}>
+                    <td className="py-2 pr-4">{entry.email}</td>
+                    <td className="py-2 pr-4">{entry.name}</td>
+                    <td className="py-2 pr-4">{admin ? ROLE_ADMIN : ROLE_USER}</td>
+                    <td className="py-2 pr-4">{joinedFormatter.format(entry.createdAt)}</td>
+                    <td className="py-2">
+                      {/* An admin's own row carries no controls at all. The
                         actions refuse it anyway, but offering a button whose
                         only outcome is a refusal is a worse answer than not
                         offering it. */}
-                    {self ? null : (
-                      <span className="flex gap-2">
-                        <button
-                          className="underline disabled:opacity-50"
-                          disabled={pending}
-                          onClick={() =>
-                            run(() =>
-                              admin ? demoteUserAction(entry.id) : promoteUserAction(entry.id)
-                            )
-                          }
-                          type="button"
-                        >
-                          {admin ? DEMOTE : PROMOTE}
-                        </button>
-                        <button
-                          className="underline disabled:opacity-50"
-                          disabled={pending}
-                          onClick={() => setConfirming(entry)}
-                          type="button"
-                        >
-                          {DELETE}
-                        </button>
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                      {self ? null : (
+                        <span className="flex gap-2">
+                          <button
+                            className="underline disabled:opacity-50"
+                            disabled={pending}
+                            onClick={() =>
+                              run(() =>
+                                admin ? demoteUserAction(entry.id) : promoteUserAction(entry.id)
+                              )
+                            }
+                            type="button"
+                          >
+                            {admin ? DEMOTE : PROMOTE}
+                          </button>
+                          <button
+                            className="underline disabled:opacity-50"
+                            disabled={pending}
+                            onClick={() => setConfirming(entry)}
+                            type="button"
+                          >
+                            {DELETE}
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {pages > 1 && (
         <nav aria-label="Sivutus" className="mt-4 flex items-center gap-4 text-sm">

@@ -95,10 +95,20 @@ describe("the list", () => {
   });
 
   it("says so when there is nobody, rather than rendering an empty table", () => {
-    renderTable([]);
+    renderTable([], { total: 0 });
 
     expect(screen.getByText("Ei käyttäjiä.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("keeps the heading and the count when the list is empty", () => {
+    // The page has the same shape empty as full. An early return dropped both,
+    // which is what review caught: "the query answered nothing" and "the table
+    // is empty" must not render as the same thing.
+    renderTable([], { total: 0 });
+
+    expect(screen.getByRole("heading", { name: "Käyttäjät" })).toBeInTheDocument();
+    expect(screen.getByText("0 käyttäjää")).toBeInTheDocument();
   });
 });
 
