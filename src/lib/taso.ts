@@ -20,18 +20,27 @@ const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
  * `result_time` said 0.061 s — the server answered instantly and the transfer
  * took twenty seconds.
  *
- * Ten seconds, and the number is measured rather than chosen for feel. Five was
- * tried first and **broke the national-team pages**: that page fans out over
- * nine seasons, each fanning out again over its categories, so a cold render
- * legitimately takes about 4.7 s. Most of a request's life there is spent
- * queued behind the others, and the clock runs while it queues — so a bound
- * barely above the render's own cost cuts off requests that were going to
- * succeed. Ten passes the cold suite; five failed four specs.
+ * Ten seconds, chosen for margin rather than derived from a measurement.
  *
- * That leaves it comfortably above the 4.7 s a healthy cold render costs and
- * comfortably below the 19.9 s stall it exists to catch. Separate from
- * football-data's bound on purpose: this is the provider observed stalling,
- * and tuning one should not move the other.
+ * Five was tried first and failed four national-team specs against a cold
+ * cache, twice over, so the failure was real. The explanation first written
+ * here was not: it blamed the page's fan-out, claiming requests spend their
+ * lives queued behind each other. Measuring that fan-out refuted it — 18-20
+ * requests, 12-14 of them concurrent, 0.52 MB in total, JSON parsing too cheap
+ * to register, and a per-request worst case of 80-512 ms. Nothing there comes
+ * within an order of magnitude of five seconds. Re-run later, five seconds
+ * passed all nineteen.
+ *
+ * So what those runs caught was TASO being slow for an afternoon, not a
+ * property of this code — the same afternoon that failed 41 specs on the
+ * v1.4.0 release and answered one request in 19.9 s while reporting its own
+ * `result_time` as 0.061 s.
+ *
+ * Ten stands because the bound is insurance against exactly those afternoons,
+ * and the cost of it being loose is only how long a stalled render waits before
+ * falling back. It is not a latency budget and should not be read as one.
+ * Separate from football-data's bound so that tuning one does not move the
+ * other.
  *
  * This bounds one attempt. `/api/health` passes its own, shorter signal, which
  * bounds the whole call on top of it — a probe and a page are different
