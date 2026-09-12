@@ -190,7 +190,9 @@ flowchart TD
    "looks good, update issue and start work" and "issue in ready now" both do
    it. Nothing is branched or written before that, and if the AI moves the card
    to `Ready` itself it must quote the sentence it is acting on.
-5. From there the AI proceeds autonomously: branch, implement, write the
+5. If the card is not already `Ready`, the AI must move it to `Ready`,
+   quoting the authorisation; then it must move it to `In Progress` before
+   creating the branch. It then proceeds autonomously: implement, write the
    decision record, run the checks, and prepare the PR.
 6. Review the AI-written decision record in `decisions/NNN-feature-name.md`
    while the work is in progress.
