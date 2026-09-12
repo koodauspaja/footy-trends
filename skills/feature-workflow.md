@@ -27,7 +27,10 @@ Workflow
    criteria.
    - The issue is how the spec reaches the people who approve it. They read
      the issue, not the chat, and not files on the AI's machine.
-4. **Ask whether the issue is good. Every time, without exception.**
+4. **Never start without having asked whether the issue is good and been
+   answered.** A human-set `Ready` card *is* an answer — putting it there is the
+   human saying they read the issue and approved it. In every other situation,
+   ask, and wait.
    - The human decides whether to read it, then authorises the start. **Either
      of these alone is enough:** a human moves the card to `Ready` — the column
      means "ready for Claude Code", so its presence is the authorisation — or
@@ -41,8 +44,11 @@ Workflow
      on, in the same message** — as evidence, not as a password. The quote must
      read plainly as an instruction to start. A question about what comes next,
      permission to reshape the work, or silence is not one.
-   - Once started, move the card to `In Progress` before creating a branch or
-     writing any code.
+   - **The card passes through `Ready` either way.** If the human moved it
+     there, nothing to do. If they authorised the start without moving it, the
+     AI moves it to `Ready` first — quoting the sentence it is acting on — so
+     the board still records that a human approved the work, then moves it to
+     `In Progress` before creating a branch or writing any code.
 5. **Once the start has been authorised**, the AI proceeds autonomously.
    - Create the implementation branch and begin work without waiting for
      additional handholding unless the spec is unclear or blocked.

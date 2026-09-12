@@ -37,16 +37,21 @@ Workflow
    conversation is not either of them, and neither is the AI's own reading of
    the situation.
 
-   - **If neither is true, ask whether the issue is good.** Every time, without
-     exception. The human then decides whether to read it, and authorises or
-     does not. The same rule as `skills/feature-workflow.md` step 4; it applies
-     to chores and bugs too, where being told to move the card and start is the
-     common case.
+   - **Never start without having asked whether the issue is good and been
+     answered.** A human-set `Ready` card *is* an answer — putting it there is
+     the human saying they read the issue and approved it, so the question has
+     already been put and settled. In every other situation, ask, and wait.
+     The same rule as `skills/feature-workflow.md` step 4; it applies to chores
+     and bugs too, where being told to move the card and start is the common
+     case.
    - **When the AI sets `Ready` itself, it must quote the sentence it is acting
      on, in the same message** — as evidence, not as a password. The quote must
      read plainly as an instruction to start. A question about what comes next,
      permission to reshape the work, or silence is not one.
-   - Only once authorised, move the card to `In Progress`, then create the
+   - **The card passes through `Ready` either way.** If the human moved it
+     there, nothing to do. If they authorised the start without moving it, move
+     it to `Ready` first — quoting the sentence being acted on — so the board
+     still records that a human approved the work. Then `In Progress`, then the
      branch.
 3. Create a chore branch named `chore/NNN-short-description` when an issue
    number exists. For unnumbered maintenance work, use

@@ -164,7 +164,7 @@ flowchart TD
   AI_issue["AI updates the GitHub issue with scope and acceptance criteria (skills/open-issue.md)"]
   AI_asks["AI asks: is the issue good?"]
   Human_ready{"Authorised? Card moved to Ready by a human, OR the human said start — either alone"}
-  AI_branch["AI moves the card to In Progress, then branches"]
+  AI_branch["If the card is not already Ready, AI moves it there quoting the authorisation; then In Progress; then branches"]
   AI_implement["AI implements feature within spec (skills/implement-feature.md)"]
   AI_decision["AI writes/updates decision record in decisions/NNN-feature-name.md"]
   AI_checks["AI runs tests, lint, typecheck, skills/self-review.md"]
@@ -213,8 +213,9 @@ When working with this repository, the AI assistant should:
 - implement the feature autonomously within the bounds of the approved spec
 - carry out routine workflow steps without repeated handholding **once work has
   been authorised** — branching, testing, and PR preparation
-- never move a card to `Ready` and never merge a pull request unless told to in
-  those words; those are the two points where a human decides
+- never move a card to `Ready` and never merge a pull request **on its own
+  initiative** — either is fine when a human instructs it, in any wording; those
+  are the two points where a human decides
 - verify changes with the relevant checks before suggesting completion
 - keep user-facing UI strings in Finnish and other repo text in English
 

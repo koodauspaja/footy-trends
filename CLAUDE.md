@@ -62,7 +62,10 @@
    the people who approve it — they read the issue, not the chat, and not files
    on Claude's machine.
 
-4. **Ask whether the issue is good. Every time, without exception.**
+4. **Never start without having asked whether the issue is good and been
+   answered.** A human-set `Ready` card *is* an answer — putting it there is the
+   human saying they read the issue and approved it. In every other situation,
+   ask, and wait.
 
    The human decides whether to read it, then authorises the start. **Either of
    these alone is enough:** they move the card to `Ready` themselves — the
@@ -89,16 +92,22 @@
    If there is nothing quotable that tells Claude to start, the answer is to ask
    — which is this step.
 
-5. Implement autonomously within the spec: decision record in
+5. **The card passes through `Ready` either way**, then `In Progress`, before a
+   branch exists. If the human moved it to `Ready`, nothing to do. If they
+   authorised the start without moving it, Claude moves it there first, quoting
+   the sentence it is acting on — so the board records that a human approved the
+   work rather than showing it appearing in `In Progress` from nowhere.
+
+6. Implement autonomously within the spec: decision record in
    `decisions/NNN-feature-name.md`, tests, the pass in `skills/self-review.md`,
    then a PR per `skills/open-pr.md`, tick the issue's boxes, and move the card
    to `In Review`. The target is **zero** Sourcery and Sonar findings — findings
    answered after the fact are not the same thing.
 
-6. The human checks the result and merges, **or tells Claude to merge**. However
+7. The human checks the result and merges, **or tells Claude to merge**. However
    green it is.
 
-Steps 2, 4 and 6 are the three points where a human decides. Everything Claude
+Steps 2, 4 and 7 are the three points where a human decides. Everything Claude
 does sits between them, never across one.
 
 ## Reference
