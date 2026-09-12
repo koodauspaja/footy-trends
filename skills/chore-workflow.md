@@ -33,6 +33,19 @@ Workflow
      `Ready`, and does not substitute for it.
    - Once confirmed `Ready`, move the card to `In Progress` before creating
      a branch or writing any code.
+   - **Ask whether the issue is good before starting. Every time, without
+     exception.** The human decides whether to read it, and answers either by
+     moving the card to `Ready` and saying to start, or by saying the card may
+     be moved and work may begin. Neither is ever assumed — the same rule as
+     `skills/feature-workflow.md` step 4, and it applies to chores and bugs too,
+     where being told to move it and start is the common case.
+   - No particular wording is required. "looks good, update issue and start
+     work", "you can go ahead with the implementation" and "issue in ready now"
+     are all a start.
+   - **When the AI sets `Ready` itself, it must quote the sentence it is acting
+     on, in the same message** — as evidence, not as a password. The quote must
+     read plainly as an instruction to start. A question about what comes next,
+     permission to reshape the work, or silence is not one.
 3. Create a chore branch named `chore/NNN-short-description` when an issue
    number exists. For unnumbered maintenance work, use
    `chore/short-description`.

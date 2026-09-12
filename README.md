@@ -18,7 +18,7 @@ npm run dev
 
 App runs at: http://localhost:3000
 
-If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first and confirm the checklist in chat before implementation.
+If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first, confirm the checklist in chat, then update the issue and **ask whether it is good** — work starts only once a human moves the card to `Ready` or says it may be moved.
 
 ---
 
@@ -158,36 +158,47 @@ For day-to-day development, follow this sequence:
 
 ```mermaid
 flowchart TD
-  Human_spec["Human writes/refines spec in specs/NNN-feature-name.md"]
+  Human_spec["Human initiates spec in specs/NNN-feature-name.md; AI may draft"]
   Spec_checklist["Use skills/write-spec.md to verify required sections"]
-  Spec_confirmed{Spec checklist confirmed in chat?}
-  AI_issue_branch["AI creates/updates issue and implementation branch (skills/open-issue.md)"]
+  Spec_confirmed{"Open questions answered and the human said GO?"}
+  AI_issue["AI updates the GitHub issue with scope and acceptance criteria (skills/open-issue.md)"]
+  AI_asks["AI asks: is the issue good?"]
+  Human_ready{"Human moves the card to Ready and says start, or says the AI may move it and start"}
+  AI_branch["AI moves the card to In Progress, then branches"]
   AI_implement["AI implements feature within spec (skills/implement-feature.md)"]
   AI_decision["AI writes/updates decision record in decisions/NNN-feature-name.md"]
-  AI_checks["AI runs tests, lint, typecheck, local validation"]
-  AI_open_pr["AI opens PR referencing spec and decision record (skills/open-pr.md)"]
-  Human_review["Human reviews spec, decision record, and implementation"]
-  Human_merge["Human approves and merges in GitHub"]
+  AI_checks["AI runs tests, lint, typecheck, skills/self-review.md"]
+  AI_open_pr["AI opens PR, ticks the issue boxes, moves the card to In Review (skills/open-pr.md)"]
+  Human_merge["Human checks the result and merges, or tells the AI to merge"]
   Ask_for_info["Stop and ask for missing or unclear spec details"]
+  Wait["Wait. No branch, no code, no migration, no board change"]
 
   Human_spec --> Spec_checklist --> Spec_confirmed
-  Spec_confirmed -->|Yes| AI_issue_branch --> AI_implement --> AI_decision --> AI_checks --> AI_open_pr --> Human_review --> Human_merge
+  Spec_confirmed -->|Yes| AI_issue --> AI_asks --> Human_ready
   Spec_confirmed -->|No| Ask_for_info --> Human_spec
+  Human_ready -->|Yes| AI_branch --> AI_implement --> AI_decision --> AI_checks --> AI_open_pr --> Human_merge
+  Human_ready -->|"Not yet"| Wait --> Human_ready
 ```
 
 1. Write or update a feature spec in `specs/NNN-feature-name.md` before coding.
 2. Use `skills/write-spec.md` to check that the spec covers the required sections.
-3. Confirm the spec checklist in chat before implementation begins.
-4. Let the AI proceed autonomously from there: create or update the GitHub issue,
-   create the implementation branch, implement the feature, write the decision
-   record, run the checks, and prepare the PR.
-5. Review the AI-written decision record in `decisions/NNN-feature-name.md`
+3. Confirm the spec checklist in chat. Answer the open questions, then say
+   **go** — the AI must not treat interest, questions or silence as a go.
+4. The AI updates the GitHub issue, then **asks whether the issue is good**.
+   Decide whether to read it, then authorise the start — by moving the card to
+   `Ready` yourself, or just by saying so. No particular wording is needed:
+   "looks good, update issue and start work" or "issue in ready now" both do it.
+   Nothing is branched or written before that, and if the AI moves the card to
+   `Ready` itself it must quote the sentence it is acting on.
+5. From there the AI proceeds autonomously: branch, implement, write the
+   decision record, run the checks, and prepare the PR.
+6. Review the AI-written decision record in `decisions/NNN-feature-name.md`
    while the work is in progress.
-6. Add or update tests, then run `npm run typecheck`, `npm run lint`, and
+7. Add or update tests, then run `npm run typecheck`, `npm run lint`, and
    `npm test`.
-7. Let the AI open a PR using `skills/open-pr.md`, reference the spec and
+8. Let the AI open a PR using `skills/open-pr.md`, reference the spec and
    decisions file, link the issue, and prepare it for review.
-8. Respond to review feedback, make any required changes, and only merge after
+9. Respond to review feedback, make any required changes, and only merge after
    the branch is approved.
 
 ### What the AI should do
@@ -200,8 +211,10 @@ When working with this repository, the AI assistant should:
   `skills/open-pr.md`
 - help draft or refine specs, decision records, tests, and PR descriptions
 - implement the feature autonomously within the bounds of the approved spec
-- carry out routine workflow steps without repeated handholding, including
-  issue creation, branching, testing, and PR preparation
+- carry out routine workflow steps without repeated handholding **once work has
+  been authorised** — branching, testing, and PR preparation
+- never move a card to `Ready` and never merge a pull request unless told to in
+  those words; those are the two points where a human decides
 - verify changes with the relevant checks before suggesting completion
 - keep user-facing UI strings in Finnish and other repo text in English
 

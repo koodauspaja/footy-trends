@@ -18,13 +18,20 @@ so every feature starts with a consistent structure.
 ### Recommended columns
 Rename the default columns to:
 
-| Column | Purpose |
-|--------|---------|
-| `Backlog` | Ideas and future features |
-| `Ready` | Spec written and validated — ready for Claude Code |
-| `In progress` | Claude Code is working on it |
-| `In review` | PR open, Sourcery reviewing |
-| `Done` | Merged to main, deployed |
+| Column | Purpose | Who moves a card into it |
+|--------|---------|--------------------------|
+| `Backlog` | Ideas and future features | Whoever files the issue |
+| `Ready` | Spec written and validated — ready for Claude Code | **A human.** Claude may do it only when told to, and must quote the instruction it is acting on |
+| `In progress` | Claude Code is working on it | Claude, once the start is authorised |
+| `In review` | PR open, Sourcery reviewing | Claude, when the PR opens |
+| `Done` | Merged to main, deployed | The board's built-in `Pull request merged` workflow |
+
+`Ready` is the gate the whole workflow turns on: it is the point where a human
+has read the issue and agreed the work should begin. Claude reaching it on its
+own reasoning defeats the only checkpoint before code gets written — which has
+happened, and is why the quote is required. `CLAUDE.md`'s Required workflow is
+the authority; this table is here so the columns and the rule live in the same
+place.
 
 ---
 
