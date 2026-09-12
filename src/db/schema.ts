@@ -260,6 +260,25 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   // The Google avatar URL. Nullable, and nothing renders it yet.
   image: text("image"),
+  /**
+   * What this user may do, from specs/028-admin-tools-and-roles.md.
+   *
+   * **`text` rather than a Postgres enum.** Adding a value to an enum is a
+   * migration that takes a lock, and the set is validated in TypeScript by
+   * `admin-role.ts` — the same shape `favourite-keys.ts` uses for its own small
+   * closed set. Two values exist and a third is a real design question, not a
+   * column change.
+   *
+   * **Defaulted and not null**, so every row that already exists becomes a
+   * reader without a backfill, and a row inserted by better-auth's sign-up path
+   * — which knows nothing about this column — gets the safe value rather than a
+   * null nobody checks for.
+   *
+   * There is no bootstrap path in the app: the first admin is made by one
+   * documented `UPDATE`, in docs/setup/023-admin-access.md. Every automatic rule
+   * for it would exist forever to serve a single moment.
+   */
+  role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
