@@ -27,15 +27,25 @@ export default async function Admin({
   searchParams,
 }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
   /**
-   * **404, not 403.** A 403 confirms the page is there, which is a fact a
-   * stranger has no use for.
+   * **The not-found page, never a 403.** A 403 says "this exists and you may
+   * not have it", which is a fact a stranger has no use for. Everyone refused
+   * gets the same generic page: no admin markup, no admin title, nothing that
+   * distinguishes it from any other missing URL in the body.
    *
-   * A signed-out visitor never reaches this line: `src/proxy.ts` answers them
-   * before the response streams, because `notFound()` cannot change a status
-   * the stream has already committed. What reaches here is a signed-in
-   * non-admin, who gets the not-found *body* with a 200 — no admin markup and
-   * no admin title, so nothing about the page leaks, though the status does
-   * differ from a missing URL. That trade is recorded in the spec.
+   * **The status is 200, not 404, and that is a framework limit rather than a
+   * choice.** `src/app/loading.tsx` puts every segment behind a Suspense
+   * boundary, so the response streams and Next commits the status line before
+   * `notFound()` is caught — its documentation says "200 for streamed
+   * responses, and 404 for non-streamed". So `/yllapito` is identifiable as a
+   * real route by status alone.
+   *
+   * A proxy was built to close that and deleted again: it could only read the
+   * session *cookie*, not validate it, so `Cookie: better-auth.session_token=x`
+   * walked straight through — measured, 200 against the 404 an absent cookie
+   * got. Machinery whose stated purpose it does not achieve is worse than none.
+   *
+   * What actually refuses is `requireAdmin()`, here and on every action. The
+   * route being discoverable costs an attacker one fact and gains them nothing.
    *
    * `notFound()` throws a Next control-flow signal, so nothing below runs and
    * no query is made for a caller who may not see the answer.

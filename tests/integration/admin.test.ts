@@ -165,8 +165,17 @@ describe("listUsers", () => {
 
   it("counts every user, not just the page", async () => {
     const { total, users } = await listUsers(1);
+    const { USERS_PER_PAGE } = await import("@/lib/admin-user-view");
 
+    // The three this file seeded, at least. Not an exact number: other
+    // integration files insert their own users, and they share a database.
     expect(total).toBeGreaterThanOrEqual(3);
-    expect(users.length).toBeLessThanOrEqual(total);
+    // A page never exceeds its size. Deliberately not `users.length <= total`:
+    // the count and the page are two queries rather than one snapshot, so a
+    // concurrent insert between them can leave the page one row ahead of the
+    // count. That is inherent to reading a live table and harmless for a list
+    // that is refetched on every request — but it is a real race, so the test
+    // must not claim otherwise.
+    expect(users.length).toBeLessThanOrEqual(USERS_PER_PAGE);
   });
 });

@@ -108,68 +108,63 @@ waiting on a user-management page it has no interest in.
 Below: the second pull request — the page, the management actions, and the one
 thing that did not work the way the spec assumed.
 
-## `notFound()` does not produce a 404, and that was measured
+## `notFound()` does not produce a 404, and the attempt to fix it was withdrawn
 
 The spec chose 404 over 403 so the route would not confirm its own existence.
-`notFound()` did not deliver it.
+`notFound()` did not deliver it, and nor did the thing built to compensate.
 
 `src/app/loading.tsx` puts every segment behind a Suspense boundary, so
-responses stream, and Next commits the status line before `notFound()` can be
-caught. Its documentation states the behaviour outright — "200 for streamed
-responses, and 404 for non-streamed" — and it is a long-standing open issue
-(vercel/next.js#76474, #93239). There is no per-route opt-out.
+responses stream and Next commits the status line before `notFound()` is
+caught — its documentation states it outright ("200 for streamed responses, and
+404 for non-streamed") and it is a long-standing open issue (vercel/next.js
+#76474, #93239) with no per-route opt-out.
 
-Measured on a production build, which is what made it real rather than a worry:
+Measured on a production build: `/this-route-does-not-exist` answered 404 while
+`/yllapito` answered **200**.
 
-| Path | Status |
+### The proxy, and why it is gone
+
+`src/proxy.ts` rewrote cookie-less requests to a path that does not exist, so
+Next produced the same response it gives any missing URL — verified
+byte-identical, 404 and 11 540 bytes. It read the cookie only, so it cost no
+query.
+
+Review found it does nothing. `getSessionCookie` **parses** the cookie header
+and returns the string; it does not validate anything. Measured:
+
+| Request to `/yllapito` | |
 |---|---|
-| `/this-route-does-not-exist` | 404 |
-| `/yllapito`, signed out | **200** |
+| no cookie | 404, 11 540 B |
+| `Cookie: better-auth.session_token=totally-made-up` | **200, 10 318 B** |
 
-The body was already harmless — the generic not-found page, the app's default
-title, no admin markup, which is what removing the static `metadata` export
-fixed along the way. The **status** was the leak: it told a stranger the route
-was real.
+One invented header. The proxy stopped nobody who was actually probing, which is
+the only person it existed to stop.
 
-### What was rejected
+A second hole came with it: Next evaluates redirects before the proxy, so
+`/admin` answered **308** while a missing English path answered 404 — the
+redirect table confirmed the route independently.
 
-- **Accepting the 200 and rewriting the criterion.** Honest, free, and it leaves
-  the area probeable. Put to Miikka with the costs; not chosen.
-- **A proxy that reads the role from the database.** Closes the residual gap for
-  signed-in non-admins too, at the cost of a database read in front of every
-  matched request and a second copy of `requireAdmin()`'s logic at the edge.
-  Rejected as too expensive for the remaining exposure.
+I had written into the proxy's own comment that "a forged cookie buys only the
+200 that every signed-in reader already gets". That 200 *is* the disclosure. The
+sentence was a rationalisation, and it was in the file as justification.
 
-### What was built
+### What was decided instead
 
-`src/proxy.ts` — `proxy.ts` rather than `middleware.ts`, because Next 16 renamed
-the convention and the build refuses the old name rather than warning. For
-either spelling of the admin path with no session cookie, it rewrites to a path
-that does not exist.
+Delete it. Miikka's call, on corrected information — my first presentation of
+the options described the cookie check as closing "anonymous probing", which was
+wrong, and overstated the alternative's cost as "a database read in front of
+every request" when the matcher covered two paths nobody visits.
 
-A **rewrite** rather than a hand-built 404 response: Next then produces the same
-output it gives any missing URL. Verified byte-identical — 404 and 11 540 bytes
-for both `/yllapito` and `/this-route-does-not-exist`. A bare `NextResponse`
-with status 404 would have had an empty body, and a body nothing else in the app
-returns is itself a signal.
+Closing it properly means validating the session in front of the route: a
+Node-runtime proxy, or an internal call to the auth endpoint. Not worth it,
+because **the obscurity was never the control**. `requireAdmin()` is, it reads
+the database on every request, and it refuses regardless of what anyone knows
+about the URL. Knowing the route exists gains an attacker one fact and nothing
+else.
 
-It reads the **cookie only**, through better-auth's `getSessionCookie`, so it
-costs no query. **It is not the authorisation** and deleting it would leak the
-route's existence rather than let anyone in: `requireAdmin()` still runs on the
-page and on every action. A forged cookie buys only the 200 that every signed-in
-reader already gets.
-
-The residual difference — a signed-in non-admin sees the not-found body with a
-200 — is visible only to someone who already has an account. That is the trade
-Miikka took, and it is written down here so a later reader can retake it.
-
-### The matcher is duplicated, deliberately
-
-Next parses `config.matcher` at build time and refuses anything it cannot read
-statically, so it cannot be `[...ADMIN_PATHS]` — the build fails outright. The
-literals are therefore written twice, and
-`tests/unit/lib/admin-route.test.ts` asserts the two agree, so adding a path in
-one place and not the other fails a test rather than production.
+So: everyone refused gets the generic not-found page, with a 200 status. The
+body gives nothing away. The status says the route is real, and that is written
+down rather than papered over.
 
 ## The role rides on the session, for the menu link only
 

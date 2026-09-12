@@ -9,17 +9,22 @@ import { expect, test } from "@playwright/test";
  * signed-out visitor cannot reach does not contain some string would prove
  * nothing, which is the first defect class in `skills/self-review.md`.
  *
- * What this *can* prove is the thing that matters to a stranger: the route
- * answers 404 rather than 403, so it does not confirm that an admin area
- * exists.
+ * What this *can* prove is the thing that matters to a stranger: the body of
+ * the refusal names nothing. It is not a 403 and it is not the admin page; it
+ * is the same generic not-found page any missing URL renders.
  */
 test.describe("the admin area", () => {
-  test("answers 404 to a signed-out visitor, rather than 403 or a redirect", async ({ page }) => {
-    const response = await page.goto("/yllapito");
+  test("gives a signed-out visitor the not-found page, naming nothing", async ({ page }) => {
+    await page.goto("/yllapito");
 
-    expect(response?.status()).toBe(404);
-    // Not a redirect to sign-in either: that would answer "there is something
-    // here worth signing in for", which is the same disclosure as a 403.
+    // The **body** is what has to give nothing away. The status is 200 rather
+    // than 404 — Next commits it before `notFound()` is caught whenever the
+    // response streams — so the route is identifiable as real, which the spec
+    // accepts and explains rather than working around.
+    const body = await page.content();
+    expect(body).not.toContain("Ylläpito");
+    expect(body).not.toContain("Käyttäjät");
+    expect(body).not.toContain("Sähköposti");
     expect(new URL(page.url()).pathname).toBe("/yllapito");
   });
 

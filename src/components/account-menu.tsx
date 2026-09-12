@@ -12,12 +12,9 @@ type Props = Readonly<{
    * A convenience, not a control. `requireAdmin()` refuses at the page and at
    * every action, so nothing is reachable by finding the URL.
    *
-   * What the refusal *looks* like depends on who asks, and it is worth being
-   * exact rather than saying "a 404" and being wrong: a signed-out visitor gets
-   * a real 404 from `src/proxy.ts`, decided before the response streams, while
-   * a signed-in non-admin — a demoted admin whose session still says otherwise,
-   * for instance — gets the not-found body with a **200** status, because Next
-   * cannot change a status a stream has already committed. See
+   * Anyone refused — a stranger, or a demoted admin whose session still says
+   * otherwise — gets the generic not-found page with a **200** status, because
+   * Next cannot change a status a stream has already committed. See
    * `specs/028-admin-tools-and-roles.md`.
    */
   isAdmin: boolean;

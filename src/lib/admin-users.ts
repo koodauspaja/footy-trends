@@ -80,12 +80,57 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
  * it can only make the count larger, which is the direction that refuses less
  * often rather than more dangerously.
  */
+/** The transaction handle drizzle hands `db.transaction`, named as `favourites.ts` names it. */
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 async function withAdminsLocked<T>(
   run: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select 1 from ${user} where ${user.role} = 'admin' for update`);
     return run(tx);
+  });
+}
+
+/**
+ * The part both writes share: refuse self, lock the admin set, find the target,
+ * and refuse if this would remove the last admin.
+ *
+ * Extracted because the two callers had it character for character — Sonar put
+ * `admin-users.ts` at 18.1% duplicated lines — and because a guard written
+ * twice is a guard that eventually differs. The caller supplies only what is
+ * different: whether the change would remove an admin, and what to do once it
+ * is allowed.
+ */
+async function guardedWrite(
+  actingAdminId: string,
+  targetUserId: string,
+  /** Whether this change takes the admin role away from the target. */
+  removesAdmin: (targetRole: string) => boolean,
+  apply: (tx: Transaction) => Promise<void>
+): Promise<AdminWriteResult> {
+  // Before the transaction: nothing to lock for a write that cannot happen.
+  if (actingAdminId === targetUserId) return { ok: false, reason: "self" };
+
+  return withAdminsLocked(async (tx) => {
+    const [target] = await tx
+      .select({ role: user.role })
+      .from(user)
+      .where(eq(user.id, targetUserId))
+      .limit(1);
+    if (target === undefined) return { ok: false, reason: "not_found" };
+
+    if (removesAdmin(target.role)) {
+      // Counted inside the lock, so the answer cannot change under us.
+      const [counted] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(user)
+        .where(eq(user.role, "admin"));
+      if ((counted?.n ?? 0) <= 1) return { ok: false, reason: "last_admin" };
+    }
+
+    await apply(tx);
+    return { ok: true };
   });
 }
 
@@ -102,31 +147,15 @@ export async function changeRole(
   targetUserId: string,
   role: Role
 ): Promise<AdminWriteResult> {
-  if (actingAdminId === targetUserId) return { ok: false, reason: "self" };
-
   try {
-    return await withAdminsLocked(async (tx) => {
-      const [target] = await tx
-        .select({ role: user.role })
-        .from(user)
-        .where(eq(user.id, targetUserId))
-        .limit(1);
-      if (target === undefined) return { ok: false, reason: "not_found" };
-
-      // Counted inside the lock, so the answer cannot change under us.
-      const [counted] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(user)
-        .where(eq(user.role, "admin"));
-      const admins = counted?.n ?? 0;
-
-      if (role === DEFAULT_ROLE && target.role === "admin" && admins <= 1) {
-        return { ok: false, reason: "last_admin" };
+    return await guardedWrite(
+      actingAdminId,
+      targetUserId,
+      (targetRole) => role === DEFAULT_ROLE && targetRole === "admin",
+      async (tx) => {
+        await tx.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, targetUserId));
       }
-
-      await tx.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, targetUserId));
-      return { ok: true };
-    });
+    );
   } catch (error) {
     logger.error(
       { err: error, actingAdminId, targetUserId, role },
@@ -152,28 +181,15 @@ export async function deleteUser(
   actingAdminId: string,
   targetUserId: string
 ): Promise<AdminWriteResult> {
-  if (actingAdminId === targetUserId) return { ok: false, reason: "self" };
-
   try {
-    return await withAdminsLocked(async (tx) => {
-      const [target] = await tx
-        .select({ role: user.role })
-        .from(user)
-        .where(eq(user.id, targetUserId))
-        .limit(1);
-      if (target === undefined) return { ok: false, reason: "not_found" };
-
-      const [counted] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(user)
-        .where(eq(user.role, "admin"));
-      if (target.role === "admin" && (counted?.n ?? 0) <= 1) {
-        return { ok: false, reason: "last_admin" };
+    return await guardedWrite(
+      actingAdminId,
+      targetUserId,
+      (targetRole) => targetRole === "admin",
+      async (tx) => {
+        await tx.delete(user).where(eq(user.id, targetUserId));
       }
-
-      await tx.delete(user).where(eq(user.id, targetUserId));
-      return { ok: true };
-    });
+    );
   } catch (error) {
     logger.error({ err: error, actingAdminId, targetUserId }, "Deleting a user failed");
     return { ok: false, reason: "failed" };

@@ -27,9 +27,10 @@ import { logger } from "@/lib/logger";
  * the not-found page, and a thrown error there would be a 500 instead — which
  * both tells a stranger that something exists and reports our refusal as our
  * failure. Callers decide what refusal looks like; this only decides whether to
- * refuse. (What status that refusal carries is `src/proxy.ts`'s problem and is
- * documented there: a signed-out visitor gets a real 404, a signed-in non-admin
- * a 200, because a stream commits its status before `notFound()` is caught.)
+ * refuse. (The refusal carries a 200 rather than a 404, because a streamed
+ * response commits its status before `notFound()` is caught — see
+ * `specs/028-admin-tools-and-roles.md`, which records why that is accepted
+ * rather than worked around.)
  *
  * Both halves of the question are answered here: signed out is `null`, and
  * signed in without the role is `null`, and the two are deliberately
