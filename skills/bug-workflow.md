@@ -26,18 +26,34 @@ Workflow
    - If the issue is ambiguous or missing required information, ask for
      clarification before implementation.
 2. Check the issue's status on the `Footy Trends` GitHub Project board. It
-   must be in the `Ready` column ("Spec written and validated — ready for
+   must be in the `Ready` column ("Issue written and validated — ready for
    Claude Code" — see `docs/setup/002-github-project-board.md`) before any
    implementation begins.
-   - If the issue is in `Backlog` or any other column, stop. Do not create a
-     branch or write code. Confirm the scope with the user and ask them to
-     move the card to `Ready` (or move it yourself only if the user
-     explicitly says to) before continuing.
-   - This applies even after scope has just been clarified in chat —
-     agreeing on scope in conversation is not the same as the card being
-     `Ready`, and does not substitute for it.
-   - Once confirmed `Ready`, move the card to `In Progress` before creating
-     a branch or writing any code.
+   **Work is authorised by either of these, and either one alone is enough:**
+
+   - a human has moved the card to `Ready` — the column means "ready for
+     Claude Code", so its presence is the authorisation; or
+   - the human says to start. No particular wording is required: "looks good,
+     update issue and start work", "you can go ahead with the fix" and "issue
+     in ready now" all count.
+
+   Until one of them is true: no branch, no code, no board change. Agreeing the
+   scope in conversation is not either of them, and neither is the AI's own
+   reading of the situation.
+
+   - **Never start without having asked whether the issue is good and been
+     answered.** A human-set `Ready` card *is* an answer — putting it there is
+     the human saying they read the issue and approved it. In every other
+     situation, ask, and wait.
+   - **When the AI sets `Ready` itself, it must quote the sentence it is acting
+     on, in the same message** — as evidence, not as a password. The quote must
+     read plainly as an instruction to start. A question about what comes next,
+     permission to reshape the work, or silence is not one.
+   - **The card passes through `Ready` either way.** If the human moved it
+     there, nothing to do. If they authorised the start without moving it, move
+     it to `Ready` first, quoting the sentence being acted on, so the board
+     records that a human approved the work. Then `In Progress`, then the
+     branch.
 3. Create a bug branch named `bug/NNN-short-description`, where NNN is the
    **issue** number. A bug has no spec of its own, so the issue is the document
    that defines it — unlike a feature branch, which takes its number from
@@ -96,7 +112,9 @@ Workflow
     because nothing fails when you do — #158 was implemented, verified, merged
     and closed with all eight boxes empty.
 
-11. Leave the pull request for human review. Do not merge it yourself.
+11. Leave the pull request for human review. **Never merge on your own
+    initiative** — however green it is. Merge only when a human tells you to;
+    that instruction is the allowed final step, not an exception to the rule.
     Before handing it off, apply the Sourcery review gate in
     `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
     every changed path is on that document's short allowlist of unreviewable
@@ -114,10 +132,11 @@ Important rules
   already specified or intended, it doesn't specify new behavior.
 - This workflow does not create a file under `decisions/` by default; see
   step 7 for the exception.
-- Never begin implementation (branch creation, code, or tests) before the
-  issue's Project board status is `Ready`. Confirming scope in chat is a
-  precondition for moving the card to `Ready`, not a substitute for it — the
-  two are separate checkpoints.
+- Never begin implementation (branch creation, code, or tests) before the work
+  is authorised — a human-set `Ready` card, or a human saying to start.
+  Confirming scope in chat is neither of those. The AI never moves a card to
+  `Ready` on its own initiative, and when instructed to, it quotes the
+  instruction.
 - User-facing UI strings must be in Finnish.
 - Do not commit secrets, generated artifacts, or unrelated changes.
 - If the fix turns out to require new, unspecified behavior rather than a
