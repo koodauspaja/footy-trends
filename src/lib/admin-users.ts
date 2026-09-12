@@ -2,7 +2,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { DEFAULT_ROLE, isRole, type Role } from "@/lib/admin-role";
-import type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
+import { type AdminUser, type AdminWriteResult, pageCount, windowFor } from "@/lib/admin-user-view";
 import { logger } from "@/lib/logger";
 
 /**
@@ -16,21 +16,28 @@ import { logger } from "@/lib/logger";
  * by a caller that skipped the gate.
  */
 
-/**
- * The most users one page will render.
- *
- * The table is expected to hold tens of rows for the foreseeable future, so the
- * page shows all of them and has no pagination. This cap exists so that if that
- * assumption is ever badly wrong the page degrades to "the newest 500" rather
- * than to an unbounded render. Reaching it is a signal to add pagination, not
- * something to explain to the reader — no Finnish string announces it.
- */
-export const MAX_USERS_LISTED = 500;
-
 export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
 
-/** Newest first, because the question the list answers is usually "who is new". */
-export async function listUsers(): Promise<AdminUser[]> {
+/** One page of users, and how many pages there are. */
+export type UserPage = { users: AdminUser[]; page: number; pages: number; total: number };
+
+/**
+ * One page of users, newest first — because the question the list answers is
+ * usually "who is new".
+ *
+ * **Counted before it is read**, so the window can be clamped: asking for page
+ * nine of four shows page four rather than an empty table with no explanation.
+ * Two queries rather than one, which is the cost of not guessing how many pages
+ * exist. This replaced a hard cap of 500, which bounded the render at the price
+ * of making the oldest accounts unreachable.
+ */
+export async function listUsers(requestedPage: number): Promise<UserPage> {
+  const [counted] = await db.select({ n: sql<number>`count(*)::int` }).from(user);
+  const total = counted?.n ?? 0;
+  const pages = pageCount(total);
+  const page = Math.min(Math.max(1, requestedPage), pages);
+  const { limit, offset } = windowFor(page, total);
+
   const rows = await db
     .select({
       id: user.id,
@@ -40,16 +47,25 @@ export async function listUsers(): Promise<AdminUser[]> {
       createdAt: user.createdAt,
     })
     .from(user)
-    .orderBy(desc(user.createdAt))
-    .limit(MAX_USERS_LISTED);
+    // A second sort key, because `created_at` is not unique: two accounts made
+    // in the same millisecond could otherwise swap between pages and one of
+    // them be shown twice while the other never appears.
+    .orderBy(desc(user.createdAt), desc(user.id))
+    .limit(limit)
+    .offset(offset);
 
   // Narrowed rather than trusted: the column is `text`, and the first admin is
   // made by hand in SQL, so an unrecognised value is possible. It renders as a
   // reader, which is the direction that grants nothing.
-  return rows.map((row) => ({
-    ...row,
-    role: isRole(row.role) ? row.role : DEFAULT_ROLE,
-  }));
+  return {
+    users: rows.map((row) => ({
+      ...row,
+      role: isRole(row.role) ? row.role : DEFAULT_ROLE,
+    })),
+    page,
+    pages,
+    total,
+  };
 }
 
 /**

@@ -19,7 +19,11 @@ const { state, logger } = vi.hoisted(() => ({
     throws: false,
     listed: [] as unknown[],
     limits: [] as number[],
+    offsets: [] as number[],
+    orderKeys: 0,
+    total: 3,
     countMissing: false,
+    totalMissing: false,
   },
   logger: { error: vi.fn() },
 }));
@@ -64,15 +68,28 @@ vi.mock("@/db", () => {
         if (state.throws) throw new Error("database down");
         return run(tx);
       },
-      select: () => ({
-        from: () => ({
-          orderBy: () => ({
-            limit: (n: number) => {
-              state.limits.push(n);
-              return Promise.resolve(state.listed);
+      select: (shape: Record<string, unknown>) => ({
+        from: () => {
+          // `listUsers` counts first, then reads a page. Told apart by shape:
+          // the count selects one aliased column and is awaited directly.
+          if ("n" in shape) return Promise.resolve(state.totalMissing ? [] : [{ n: state.total }]);
+          return {
+            orderBy: (...keys: unknown[]) => {
+              state.orderKeys = keys.length;
+              return {
+                limit: (n: number) => {
+                  state.limits.push(n);
+                  return {
+                    offset: (o: number) => {
+                      state.offsets.push(o);
+                      return Promise.resolve(state.listed);
+                    },
+                  };
+                },
+              };
             },
-          }),
-        }),
+          };
+        },
       }),
     },
   };
@@ -87,6 +104,11 @@ beforeEach(() => {
   state.throws = false;
   state.listed = [];
   state.limits = [];
+  state.offsets = [];
+  state.orderKeys = 0;
+  state.total = 3;
+  state.countMissing = false;
+  state.totalMissing = false;
   state.countMissing = false;
   logger.error.mockReset();
 });
@@ -265,9 +287,10 @@ describe("listUsers", () => {
 
   it("returns the rows as they are when the role is recognised", async () => {
     state.listed = [row({ role: "admin" }), row({ id: "u2" })];
+    state.adminCount = 2;
     const { listUsers } = await import("@/lib/admin-users");
 
-    const users = await listUsers();
+    const { users } = await listUsers(1);
 
     expect(users.map((u) => u.role)).toEqual(["admin", "user"]);
   });
@@ -284,30 +307,53 @@ describe("listUsers", () => {
     state.listed = [row({ role })];
     const { listUsers } = await import("@/lib/admin-users");
 
-    await expect(listUsers().then((u) => u[0]?.role)).resolves.toBe("user");
+    await expect(listUsers(1).then((p) => p.users[0]?.role)).resolves.toBe("user");
   });
 
-  it("bounds the query so a wrong assumption cannot render unbounded", async () => {
-    const { listUsers, MAX_USERS_LISTED } = await import("@/lib/admin-users");
+  it("asks for one page of rows, offset by the page asked for", async () => {
+    state.total = 173;
+    const { listUsers } = await import("@/lib/admin-users");
+    const { USERS_PER_PAGE } = await import("@/lib/admin-user-view");
 
-    await listUsers();
+    await listUsers(3);
 
-    expect(state.limits).toEqual([MAX_USERS_LISTED]);
-    expect(MAX_USERS_LISTED).toBe(500);
+    expect(state.limits).toEqual([USERS_PER_PAGE]);
+    expect(state.offsets).toEqual([USERS_PER_PAGE * 2]);
+  });
+
+  it("clamps a page past the end to the last one that exists", async () => {
+    // Asking for page nine of four shows page four, not an empty table with no
+    // explanation.
+    state.total = 60;
+    const { listUsers } = await import("@/lib/admin-users");
+
+    const page = await listUsers(9);
+
+    expect(page.page).toBe(2);
+    expect(page.pages).toBe(2);
+  });
+
+  it("reports one page for an empty table, so the controls can say 'Sivu 1 / 1'", async () => {
+    state.total = 0;
+    const { listUsers } = await import("@/lib/admin-users");
+
+    const page = await listUsers(1);
+
+    expect(page).toMatchObject({ page: 1, pages: 1, total: 0 });
   });
 });
 
-describe("when the admin count comes back empty", () => {
-  // Postgres `count(*)` always returns a row, so this is defensive rather than
-  // reachable today. It is tested because the fallback decides an
-  // authorisation: reading "no rows" as zero admins refuses, which is the safe
-  // direction, and the alternative would be a crash inside a transaction.
-  beforeEach(() => {
+describe("when a count query comes back empty", () => {
+  /**
+   * Postgres `count(*)` always returns a row, so these are defensive rather
+   * than reachable today. They are tested because each fallback decides
+   * something: two of them decide an authorisation, and reading "no rows" as
+   * zero admins refuses — the safe direction — while the alternative is a crash
+   * inside a transaction.
+   */
+  it("treats it as no admins and refuses the demotion", async () => {
     state.countMissing = true;
     state.target = { role: "admin" };
-  });
-
-  it("treats it as no admins and refuses the demotion", async () => {
     const { changeRole } = await import("@/lib/admin-users");
 
     await expect(changeRole("admin-1", "admin-2", "user")).resolves.toEqual({
@@ -318,6 +364,8 @@ describe("when the admin count comes back empty", () => {
   });
 
   it("treats it as no admins and refuses the deletion", async () => {
+    state.countMissing = true;
+    state.target = { role: "admin" };
     const { deleteUser } = await import("@/lib/admin-users");
 
     await expect(deleteUser("admin-1", "admin-2")).resolves.toEqual({
@@ -325,5 +373,34 @@ describe("when the admin count comes back empty", () => {
       reason: "last_admin",
     });
     expect(state.deletes).toBe(0);
+  });
+
+  it("treats an empty user count as an empty table rather than crashing", async () => {
+    state.totalMissing = true;
+    const { listUsers } = await import("@/lib/admin-users");
+
+    await expect(listUsers(1)).resolves.toMatchObject({ total: 0, page: 1, pages: 1 });
+  });
+});
+
+describe("the page ordering", () => {
+  it("sorts by a second key, so rows cannot swap between pages", async () => {
+    /**
+     * `created_at` is not unique. Two accounts created in the same millisecond
+     * have no defined order between them, so Postgres may return them either
+     * way on each query — which across a page boundary means one is rendered
+     * twice and the other never appears. `id desc` beside it makes the order
+     * total.
+     *
+     * Asserted structurally, on the number of sort keys, because demonstrating
+     * the behaviour needs fifty-one accounts sharing a timestamp and a real
+     * database. Removing the second key survived every other test in this file,
+     * which is why the check exists at all rather than being left to review.
+     */
+    const { listUsers } = await import("@/lib/admin-users");
+
+    await listUsers(1);
+
+    expect(state.orderKeys).toBe(2);
   });
 });

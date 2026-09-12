@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { deleteUserAction, demoteUserAction, promoteUserAction } from "@/lib/admin-actions";
 import {
@@ -31,6 +32,8 @@ const DEMOTE = "Poista ylläpito-oikeudet";
 const DELETE = "Poista tili";
 const CANCEL = "Peruuta";
 const EMPTY = "Ei käyttäjiä.";
+const PREVIOUS = "Edellinen";
+const NEXT = "Seuraava";
 const CONFIRM_BODY = "Tämä poistaa tilin, suosikit, asetukset ja profiilikuvan. Tätä ei voi perua.";
 
 /** Every refusal the actions can report, in Finnish. */
@@ -52,9 +55,15 @@ type Props = Readonly<{
   users: AdminUser[];
   /** The signed-in admin, so their own row offers no controls. */
   currentAdminId: string;
+  /** Which page is shown, how many there are, and how many users in total. */
+  page: number;
+  pages: number;
+  total: number;
+  /** The query parameter carrying the page, so the links and the page agree. */
+  pageParam: string;
 }>;
 
-export function AdminUserTable({ users, currentAdminId }: Props) {
+export function AdminUserTable({ users, currentAdminId, page, pages, total, pageParam }: Props) {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<AdminUser | null>(null);
@@ -78,7 +87,7 @@ export function AdminUserTable({ users, currentAdminId }: Props) {
   return (
     <section>
       <h2 className="font-semibold text-xl">{SECTION}</h2>
-      <p className="mb-4 text-muted text-sm">{`${users.length} käyttäjää`}</p>
+      <p className="mb-4 text-muted text-sm">{`${total} käyttäjää`}</p>
 
       {notice && (
         <p className="mb-4 text-sm" role="alert">
@@ -143,6 +152,25 @@ export function AdminUserTable({ users, currentAdminId }: Props) {
           </tbody>
         </table>
       </div>
+
+      {pages > 1 && (
+        <nav aria-label="Sivutus" className="mt-4 flex items-center gap-4 text-sm">
+          {/* Plain links, not buttons: the page is server-rendered per request,
+              so a page change is a navigation. That also makes each page
+              linkable and the browser's back button work. */}
+          {page > 1 ? (
+            <Link href={`?${pageParam}=${page - 1}`}>{PREVIOUS}</Link>
+          ) : (
+            <span className="text-muted">{PREVIOUS}</span>
+          )}
+          <span className="text-muted">{`Sivu ${page} / ${pages}`}</span>
+          {page < pages ? (
+            <Link href={`?${pageParam}=${page + 1}`}>{NEXT}</Link>
+          ) : (
+            <span className="text-muted">{NEXT}</span>
+          )}
+        </nav>
+      )}
 
       {confirming && (
         <div className="mt-4 rounded border border-border p-4" role="alertdialog">

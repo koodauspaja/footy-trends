@@ -9,9 +9,16 @@ type Props = Readonly<{
   /**
    * Whether to offer `Ylläpito`, from specs/028-admin-tools-and-roles.md.
    *
-   * A convenience, not a control: `requireAdmin()` refuses at the page and at
-   * every action, so a reader who reaches `/yllapito` without this link sees a
-   * 404 regardless.
+   * A convenience, not a control. `requireAdmin()` refuses at the page and at
+   * every action, so nothing is reachable by finding the URL.
+   *
+   * What the refusal *looks* like depends on who asks, and it is worth being
+   * exact rather than saying "a 404" and being wrong: a signed-out visitor gets
+   * a real 404 from `src/proxy.ts`, decided before the response streams, while
+   * a signed-in non-admin — a demoted admin whose session still says otherwise,
+   * for instance — gets the not-found body with a **200** status, because Next
+   * cannot change a status a stream has already committed. See
+   * `specs/028-admin-tools-and-roles.md`.
    */
   isAdmin: boolean;
   onSignOut: () => void;

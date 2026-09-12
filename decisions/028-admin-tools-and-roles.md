@@ -195,3 +195,35 @@ refuses less often rather than more dangerously.
 
 The integration test runs both demotions through `Promise.all` against a real
 Postgres, because a mocked transaction cannot demonstrate a lock.
+
+## The list pages rather than capping
+
+The first version read the newest 500 and stopped. Review pointed out that this
+makes the oldest accounts unmanageable with nobody told, so a Finnish notice was
+added saying the list had been cut off — which made the limit visible without
+removing it.
+
+Miikka's call: "if listing more than 500 at a time is bad (i think it is) how
+about paging or smthing." He is right on both halves — rendering 500 rows at
+once is bad, and a bound that hides data is worse than a bound that pages
+through it.
+
+Fifty per page, the page in the URL as `?sivu=N`, so each page is linkable and
+the back button works. Plain links rather than buttons, because the page is
+server-rendered per request and a page change is a navigation.
+
+Two queries: a `count(*)` and the page. The count buys the clamp — page nine of
+four shows page four instead of an empty table — and the page total, so the
+controls can say `Sivu 2 / 4` and the heading can count every user rather than
+the fifty on screen.
+
+The sort gained a second key. `created_at` is not unique, and without
+`id desc` beside it two accounts created in the same millisecond could swap
+between pages: one rendered twice, the other never reachable. That is the same
+class of defect paging was introduced to remove, so it would have been a poor
+thing to leave in.
+
+`pageFrom` treats anything that is not a positive decimal integer as page one,
+and is tested from both sides — `"0x10"`, `"1e3"`, `"2abc"`, a repeated
+parameter arriving as an array. It reads a query string, which is
+attacker-controlled.

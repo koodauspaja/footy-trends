@@ -238,18 +238,14 @@ describe("AccountMenu", () => {
 describe("the Ylläpito link", () => {
   it("is offered to an admin", async () => {
     renderMenu({ isAdmin: true });
-    await act(async () => {
-      fireEvent.click(trigger());
-    });
+    fireEvent.click(trigger());
 
     expect(screen.getByRole("link", { name: "Ylläpito" })).toHaveAttribute("href", "/yllapito");
   });
 
   it("is not rendered for a reader", async () => {
     renderMenu({ isAdmin: false });
-    await act(async () => {
-      fireEvent.click(trigger());
-    });
+    fireEvent.click(trigger());
 
     expect(screen.queryByRole("link", { name: "Ylläpito" })).toBeNull();
   });
@@ -258,12 +254,8 @@ describe("the Ylläpito link", () => {
     // Every other item does this, and a menu left open over the page it just
     // navigated to is the bug the shared `close(false)` exists to prevent.
     renderMenu({ isAdmin: true });
-    await act(async () => {
-      fireEvent.click(trigger());
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("link", { name: "Ylläpito" }));
-    });
+    fireEvent.click(trigger());
+    fireEvent.click(screen.getByRole("link", { name: "Ylläpito" }));
 
     expect(screen.queryByRole("link", { name: "Ylläpito" })).toBeNull();
   });
@@ -273,9 +265,7 @@ describe("the Ylläpito link", () => {
     // Suosikit or Asetukset when the role changed would be a regression nobody
     // is looking for.
     renderMenu({ isAdmin: true });
-    await act(async () => {
-      fireEvent.click(trigger());
-    });
+    fireEvent.click(trigger());
 
     expect(screen.getByRole("link", { name: "Suosikit" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Asetukset" })).toBeInTheDocument();

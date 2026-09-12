@@ -146,11 +146,27 @@ describe("promoting", () => {
 
 describe("listUsers", () => {
   it("returns the seeded accounts newest first", async () => {
-    const users = await listUsers();
+    const { users } = await listUsers(1);
     const ours = users.filter((entry) => entry.id.startsWith("itest-admin"));
 
     expect(ours).toHaveLength(3);
     const times = ours.map((entry) => entry.createdAt.getTime());
     expect([...times].sort((a, b) => b - a)).toEqual(times);
+  });
+
+  it("reports the page it actually served, clamped to one that exists", async () => {
+    // Asking for page nine of one shows page one rather than an empty table
+    // with no explanation — the failure the old hard cap had, in a new place.
+    const asked = await listUsers(9);
+
+    expect(asked.page).toBe(asked.pages);
+    expect(asked.users.length).toBeGreaterThan(0);
+  });
+
+  it("counts every user, not just the page", async () => {
+    const { total, users } = await listUsers(1);
+
+    expect(total).toBeGreaterThanOrEqual(3);
+    expect(users.length).toBeLessThanOrEqual(total);
   });
 });

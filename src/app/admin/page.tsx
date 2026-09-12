@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminUserTable } from "@/components/admin-user-table";
 import { PageShell } from "@/components/page-shell";
 import { requireAdmin } from "@/lib/admin-guard";
+import { pageFrom } from "@/lib/admin-user-view";
 import { listUsers } from "@/lib/admin-users";
 import { logger } from "@/lib/logger";
 
@@ -15,7 +16,16 @@ const HEADING = "Ylläpito";
  */
 export const dynamic = "force-dynamic";
 
-export default async function Admin() {
+/**
+ * The page number lives in the URL, in Finnish, like every other reader-facing
+ * path in this app. It is read through `pageFrom`, which treats anything that
+ * is not a positive decimal integer as page one.
+ */
+const PAGE_PARAM = "sivu";
+
+export default async function Admin({
+  searchParams,
+}: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
   /**
    * **404, not 403.** A 403 confirms the page is there, which is a fact a
    * stranger has no use for.
@@ -33,9 +43,11 @@ export default async function Admin() {
   const adminId = await requireAdmin();
   if (adminId === null) notFound();
 
-  let users: Awaited<ReturnType<typeof listUsers>>;
+  const requested = pageFrom((await searchParams)[PAGE_PARAM]);
+
+  let page: Awaited<ReturnType<typeof listUsers>>;
   try {
-    users = await listUsers();
+    page = await listUsers(requested);
   } catch (error) {
     // A failed read is not an empty list. Rendering "Ei käyttäjiä." here would
     // tell an admin the app has no users, which is a claim we cannot make from
@@ -46,7 +58,14 @@ export default async function Admin() {
 
   return (
     <PageShell heading={HEADING}>
-      <AdminUserTable currentAdminId={adminId} users={users} />
+      <AdminUserTable
+        currentAdminId={adminId}
+        page={page.page}
+        pageParam={PAGE_PARAM}
+        pages={page.pages}
+        total={page.total}
+        users={page.users}
+      />
     </PageShell>
   );
 }

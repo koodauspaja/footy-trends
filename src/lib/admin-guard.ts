@@ -23,10 +23,13 @@ import { logger } from "@/lib/logger";
  * the demoted admin happened to sign out. Reading the row costs one indexed
  * lookup by primary key and makes the answer current by construction.
  *
- * **It returns null rather than throwing.** The page has to answer 404 for a
- * non-admin, and a thrown error there is a 500 — which both tells a stranger
- * that something exists and reports our refusal as our failure. Callers decide
- * what refusal looks like; this only decides whether to refuse.
+ * **It returns null rather than throwing.** The page answers a non-admin with
+ * the not-found page, and a thrown error there would be a 500 instead — which
+ * both tells a stranger that something exists and reports our refusal as our
+ * failure. Callers decide what refusal looks like; this only decides whether to
+ * refuse. (What status that refusal carries is `src/proxy.ts`'s problem and is
+ * documented there: a signed-out visitor gets a real 404, a signed-in non-admin
+ * a 200, because a stream commits its status before `notFound()` is caught.)
  *
  * Both halves of the question are answered here: signed out is `null`, and
  * signed in without the role is `null`, and the two are deliberately

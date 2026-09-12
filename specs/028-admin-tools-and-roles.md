@@ -32,10 +32,13 @@ accidentally grant admin later. One `UPDATE`, run once, documented in
 
 ### Non-admins are told the page does not exist
 
-`/yllapito` answers **404** for a signed-out visitor and for a signed-in
-non-admin, not 403. A 403 confirms the page is there, which is a fact a stranger
-has no use for. This mirrors nothing else in the app today because nothing else
-is hidden; it is a deliberate choice for the one area that is.
+`/yllapito` never answers 403. A 403 confirms the page is there, which is a fact
+a stranger has no use for. This mirrors nothing else in the app today because
+nothing else is hidden; it is a deliberate choice for the one area that is.
+
+A signed-out visitor gets a real **404**. A signed-in non-admin gets the
+not-found **body** with a 200 status — the difference, and why it could not be
+closed further, is below.
 
 **`notFound()` alone does not achieve it**, and that was measured rather than
 assumed. `src/app/loading.tsx` puts every segment behind a Suspense boundary, so
@@ -107,7 +110,10 @@ admin:
 |---|---|
 | Page heading | `Ylläpito` |
 | Section heading | `Käyttäjät` |
-| Count beside it | `{n} käyttäjää` |
+| Count beside it | `{n} käyttäjää` — the total, not the page |
+| Previous page | `Edellinen` |
+| Next page | `Seuraava` |
+| Position | `Sivu {n} / {m}` |
 | Table: email | `Sähköposti` |
 | Table: name | `Nimi` |
 | Table: role | `Rooli` |
@@ -219,15 +225,23 @@ email.
 
 ## Performance & Limits
 
-The user table is expected to hold tens of rows for the foreseeable future, so
-the page reads all of them, ordered newest first, with **no pagination**. This
-is a deliberate limit rather than an oversight: pagination is easy to add when a
-number justifies it, and a guessed page size would be a decision nobody made.
+The list is **paginated, fifty per page**, newest first, with the page in the
+URL as `?sivu=N`.
 
-A hard cap of **500** rows is applied to the query so that the page degrades to
-"the newest 500" rather than to an unbounded render if that assumption is ever
-badly wrong. No Finnish string announces the cap; if it is ever reached, that is
-a signal to add pagination, not a thing to explain to the reader.
+An earlier version bounded the query at 500 with no paging. That kept the render
+bounded and made the oldest accounts unreachable once the bound was hit — a
+notice saying so made the limit visible without fixing it. Paging removes the
+failure mode rather than announcing it: every account is reachable, and no page
+renders more than fifty rows.
+
+Two queries per render, a `count(*)` and the page itself. The count is what lets
+the page be clamped: asking for page nine of four shows page four rather than an
+empty table with no explanation. Fifty is a judgement rather than a measurement,
+and it is one constant so measuring can change it.
+
+`created_at` is not unique, so the sort is `created_at desc, id desc`. Without
+the second key two accounts created in the same millisecond could swap between
+pages — one shown twice, the other never.
 
 The actions are single-row writes. No rate limiting beyond what already guards
 the session.
