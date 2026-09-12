@@ -71,6 +71,7 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: null,
       favoriteTeams: ["taso:60731"],
       favoriteCompetitions: ["kotimaa:VL"],
+      role: "user",
     });
   });
 
@@ -86,6 +87,7 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: AVATAR_VERSION,
       favoriteTeams: ["taso:60731"],
       favoriteCompetitions: ["kotimaa:VL"],
+      role: "user",
     });
   });
 
@@ -101,6 +103,7 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: AVATAR_VERSION,
       favoriteTeams: ["taso:60731"],
       favoriteCompetitions: ["kotimaa:VL"],
+      role: "user",
     });
   });
 
@@ -112,6 +115,7 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: null,
       favoriteTeams: [],
       favoriteCompetitions: [],
+      role: "user",
     });
   });
 
@@ -124,7 +128,32 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: null,
       favoriteTeams: ["taso:60731"],
       favoriteCompetitions: ["kotimaa:VL"],
+      role: "user",
     });
+  });
+
+  it("carries an admin's role, so the account menu can offer the link", async () => {
+    // Added in specs/028-admin-tools-and-roles.md, and free: the query already
+    // selects from `user`, so this is one more column on a row being read
+    // anyway — unlike the favourites, it costs no round trip.
+    rows.current = [{ defaultRegion: null, avatarVersion: null, role: "admin" }];
+    const { getSessionExtrasFor } = await import("@/lib/preferences");
+
+    await expect(getSessionExtrasFor("user-1").then((e) => e.role)).resolves.toBe("admin");
+  });
+
+  it.each([
+    ["an unrecognised role", "superuser"],
+    ["the wrong case", "Admin"],
+    ["null", null],
+  ])("carries %s as a reader rather than trusting the column", async (_case, role) => {
+    // The first admin is made by hand in SQL, so the column can hold anything.
+    // Falling back to a reader hides a link; falling the other way would offer
+    // one — and the link is the only thing that reads this.
+    rows.current = [{ defaultRegion: null, avatarVersion: null, role }];
+    const { getSessionExtrasFor } = await import("@/lib/preferences");
+
+    await expect(getSessionExtrasFor("user-1").then((e) => e.role)).resolves.toBe("user");
   });
 
   it("swallows a database failure rather than breaking every session read", async () => {
@@ -138,6 +167,7 @@ describe("getSessionExtrasFor", () => {
       avatarVersion: null,
       favoriteTeams: [],
       favoriteCompetitions: [],
+      role: "user",
     });
     expect(logger.error).toHaveBeenCalled();
   });

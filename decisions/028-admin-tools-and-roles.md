@@ -102,3 +102,123 @@ review findings on #368 the same day.
 Only the delivery splits: this pull request is the role and the gate, with no
 user-visible surface, which unblocks #150's forced TASO re-sync without it
 waiting on a user-management page it has no interest in.
+
+---
+
+Below: the second pull request — the page, the management actions, and the one
+thing that did not work the way the spec assumed.
+
+## `notFound()` does not produce a 404, and the attempt to fix it was withdrawn
+
+The spec chose 404 over 403 so the route would not confirm its own existence.
+`notFound()` did not deliver it, and nor did the thing built to compensate.
+
+`src/app/loading.tsx` puts every segment behind a Suspense boundary, so
+responses stream and Next commits the status line before `notFound()` is
+caught — its documentation states it outright ("200 for streamed responses, and
+404 for non-streamed") and it is a long-standing open issue (vercel/next.js
+#76474, #93239) with no per-route opt-out.
+
+Measured on a production build: `/this-route-does-not-exist` answered 404 while
+`/yllapito` answered **200**.
+
+### The proxy, and why it is gone
+
+`src/proxy.ts` rewrote cookie-less requests to a path that does not exist, so
+Next produced the same response it gives any missing URL — verified
+byte-identical, 404 and 11 540 bytes. It read the cookie only, so it cost no
+query.
+
+Review found it does nothing. `getSessionCookie` **parses** the cookie header
+and returns the string; it does not validate anything. Measured:
+
+| Request to `/yllapito` | |
+|---|---|
+| no cookie | 404, 11 540 B |
+| `Cookie: better-auth.session_token=totally-made-up` | **200, 10 318 B** |
+
+One invented header. The proxy stopped nobody who was actually probing, which is
+the only person it existed to stop.
+
+A second hole came with it: Next evaluates redirects before the proxy, so
+`/admin` answered **308** while a missing English path answered 404 — the
+redirect table confirmed the route independently.
+
+I had written into the proxy's own comment that "a forged cookie buys only the
+200 that every signed-in reader already gets". That 200 *is* the disclosure. The
+sentence was a rationalisation, and it was in the file as justification.
+
+### What was decided instead
+
+Delete it. Miikka's call, on corrected information — my first presentation of
+the options described the cookie check as closing "anonymous probing", which was
+wrong, and overstated the alternative's cost as "a database read in front of
+every request" when the matcher covered two paths nobody visits.
+
+Closing it properly means validating the session in front of the route: a
+Node-runtime proxy, or an internal call to the auth endpoint. Not worth it,
+because **the obscurity was never the control**. `requireAdmin()` is, it reads
+the database on every request, and it refuses regardless of what anyone knows
+about the URL. Knowing the route exists gains an attacker one fact and nothing
+else.
+
+So: everyone refused gets the generic not-found page, with a 200 status. The
+body gives nothing away. The status says the route is real, and that is written
+down rather than papered over.
+
+## The role rides on the session, for the menu link only
+
+`getSessionExtrasFor` already selects from `user`, so carrying `role` is one
+more column on a row being read anyway — no extra round trip, unlike the
+favourites that share that payload.
+
+It decides exactly one thing: whether the account menu offers `Ylläpito`. It is
+stale from a role change until the session refreshes, which is tolerable for
+whether a menu item renders and intolerable for whether a page opens. Only one
+of those reads it.
+
+## The last-admin guard locks the admin set, not the target row
+
+The race is two admins acting on each other at once: both count two admins, both
+proceed, and nobody is left. Locking only the target row does not stop it,
+because the two transactions touch different rows.
+
+`select 1 from "user" where role = 'admin' for update` locks the set, so the
+second transaction waits and re-counts. A row becoming an admin concurrently is
+not blocked and does not need to be — it can only make the count larger, which
+refuses less often rather than more dangerously.
+
+The integration test runs both demotions through `Promise.all` against a real
+Postgres, because a mocked transaction cannot demonstrate a lock.
+
+## The list pages rather than capping
+
+The first version read the newest 500 and stopped. Review pointed out that this
+makes the oldest accounts unmanageable with nobody told, so a Finnish notice was
+added saying the list had been cut off — which made the limit visible without
+removing it.
+
+Miikka's call: "if listing more than 500 at a time is bad (i think it is) how
+about paging or smthing." He is right on both halves — rendering 500 rows at
+once is bad, and a bound that hides data is worse than a bound that pages
+through it.
+
+Fifty per page, the page in the URL as `?sivu=N`, so each page is linkable and
+the back button works. Plain links rather than buttons, because the page is
+server-rendered per request and a page change is a navigation.
+
+Two queries: a `count(*)` and the page. The count buys the clamp — page nine of
+four shows page four instead of an empty table — and the page total, so the
+controls can say `Sivu 2 / 4` and the heading can count every user rather than
+the fifty on screen.
+
+The sort gained a second key. `created_at` is not unique, and without
+`id desc` beside it two accounts created in the same millisecond could swap
+between pages: one rendered twice, the other never reachable. That is the same
+class of defect paging was introduced to remove, so it would have been a poor
+thing to leave in.
+
+`pageFrom` treats anything that is not a positive decimal integer as page one,
+and is tested from both sides — `"0x10"`, `"1e3"`, `"2abc"`, a repeated
+parameter arriving as an array. It reads a query string, which is
+attacker-controlled.

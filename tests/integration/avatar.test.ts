@@ -142,6 +142,7 @@ describe("avatar storage", () => {
       // still gets both lists, so the client never has to test for undefined.
       favoriteTeams: [],
       favoriteCompetitions: [],
+      role: "user",
     });
   });
 });

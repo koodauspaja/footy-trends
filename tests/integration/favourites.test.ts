@@ -321,6 +321,7 @@ describe("the session payload", () => {
       avatarVersion: null,
       favoriteTeams: ["taso:60731"],
       favoriteCompetitions: ["kotimaa:VL"],
+      role: "user",
     });
   });
 });
