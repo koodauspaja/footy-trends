@@ -121,17 +121,25 @@ describe("the last-admin guard", () => {
     });
   });
 
-  it("leaves an admin standing when two demotions race", async () => {
-    // The case a mocked transaction cannot show: both callers read the same
-    // count, and only the row lock stops both from proceeding.
+  it("leaves an admin standing when two admins demote each other at once", async () => {
+    /**
+     * The case a mocked transaction cannot show: both callers read the same
+     * count, and only the lock on the admin set stops both from proceeding.
+     *
+     * Each call is **one admin demoting the other**, which is the scenario the
+     * guard exists for. An earlier version passed `READER_ID` as the actor for
+     * both, so neither call was an admin acting and the test passed without
+     * exercising what it described — `changeRole` does not check the actor's
+     * role, because `requireAdmin()` does that a layer up.
+     */
     const [first, second] = await Promise.all([
-      changeRole(READER_ID, SECOND_ADMIN_ID, "user"),
-      changeRole(READER_ID, ADMIN_ID, "user"),
+      changeRole(ADMIN_ID, SECOND_ADMIN_ID, "user"),
+      changeRole(SECOND_ADMIN_ID, ADMIN_ID, "user"),
     ]);
 
     expect([first.ok, second.ok].filter(Boolean)).toHaveLength(1);
-    const admins = await db.select().from(user).where(eq(user.role, "admin"));
-    expect(admins.filter((row) => row.id !== READER_ID)).toHaveLength(1);
+    const survivors = await db.select().from(user).where(eq(user.role, "admin"));
+    expect(survivors.filter((row) => row.id.startsWith("itest-admin"))).toHaveLength(1);
   });
 });
 
