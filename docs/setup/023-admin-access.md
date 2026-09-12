@@ -2,11 +2,16 @@
 
 ## Goal
 
-Make the first admin. Everything after that is done from inside the app, at
-`/yllapito`, by an admin who already exists.
+Make the first admin. Once the `/yllapito` page exists, everything after that is
+done from inside the app by an admin who already exists.
 
 Run this **once per environment**, after the migration adding the `role` column
 has deployed. See `specs/028-admin-tools-and-roles.md` for what an admin can do.
+
+> **Where this stands.** The first pull request for #119 ships the `role` column
+> and `requireAdmin()`, and nothing that renders. Until the second lands, this
+> document is the only way to grant or remove admin, and SQL is the only way to
+> confirm it. The steps below say which parts are live today.
 
 ---
 
@@ -84,36 +89,61 @@ Expect exactly the account you intended, and no others.
 
 ---
 
-## Step 4 — Confirm in the app
+## Step 4 — Confirm the grant
 
-Sign in as that account. The account menu should now show **Ylläpito**, and
-`/yllapito` should load.
+**Today, the readback in Step 3 is the confirmation.** There is nothing to click
+yet: the first pull request for #119 adds the role and the check that reads it,
+and no screen uses either. `requireAdmin()` exists and answers correctly; the
+`/yllapito` page and the account-menu link arrive with the second.
 
-A signed-in reader gets **404** there, not 403 — the page does not announce
-itself to people who may not use it. So "I see a 404" from the account you just
-granted means the grant did not work, rather than that the page is missing.
+So confirm in SQL, and expect exactly the account you intended:
+
+```sql
+select email, role from "user" where role = 'admin';
+```
 
 `requireAdmin()` reads the column on every request rather than trusting the
-session, so the change takes effect on the next page load. Nobody has to sign
-out and back in — and, more importantly, revoking an admin takes effect just as
+session, so the grant takes effect on the next request. Nobody has to sign out
+and back in — and, more importantly, revoking an admin takes effect just as
 quickly.
+
+### Once the page exists
+
+Sign in as that account. The account menu shows **Ylläpito**, and `/yllapito`
+loads.
+
+A signed-in reader gets **404** there, not 403 — the page does not announce
+itself to people who may not use it. So a 404 from the account you just granted
+means the grant did not work, rather than that the page is missing. That
+distinction only becomes checkable when the page lands; until then a 404 there
+means only that the route does not exist yet.
 
 ---
 
 ## Removing an admin
 
-From `/yllapito`, by another admin. That is the point of the column.
-
-Fall back to SQL only if there is no other admin left to do it:
+**Today, in SQL** — there is no page yet:
 
 ```sql
 update "user" set role = 'user', updated_at = now()
  where email = 'former.admin@example.fi';
 ```
 
-The app refuses to remove the **last** admin, so it is not possible to lock
-everyone out from inside the app. SQL has no such guard — check `select email
-from "user" where role = 'admin'` first, or you will be back at Step 3.
+SQL has no guard against removing the last admin, so check before you run it, or
+you will be back at Step 3 with nobody able to grant anything from inside the
+app:
+
+```sql
+select email from "user" where role = 'admin';
+```
+
+`requireAdmin()` reads the column per request, so a revocation takes effect on
+the revoked admin's next request rather than when their session expires.
+
+**Once `/yllapito` exists**, another admin does it there, which is the point of
+the column. The page refuses to remove the last admin, so it will not be
+possible to lock everyone out from inside the app — the guard this SQL does not
+have.
 
 ---
 
