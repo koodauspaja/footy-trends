@@ -112,7 +112,9 @@ Workflow
     because nothing fails when you do — #158 was implemented, verified, merged
     and closed with all eight boxes empty.
 
-11. Leave the pull request for human review. Do not merge it yourself.
+11. Leave the pull request for human review. **Never merge on your own
+    initiative** — however green it is. Merge only when a human tells you to;
+    that instruction is the allowed final step, not an exception to the rule.
     Before handing it off, apply the Sourcery review gate in
     `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
     every changed path is on that document's short allowlist of unreviewable
