@@ -86,10 +86,11 @@ Important rules
 - If required information is missing, stop and ask rather than guessing.
 - The spec is the source of truth; implementation should not diverge from it
   without clear explanation in the decision record.
-- Never begin implementation (branch creation, code, or tests) before the
-  issue's Project board status is `Ready`. Confirming the spec checklist in
-  chat is a precondition for moving the card to `Ready`, not a substitute
-  for it — the two are separate checkpoints.
+- Never begin implementation (branch creation, code, or tests) before the work
+  is authorised — a human-set `Ready` card, or a human saying to start.
+  Confirming scope in chat is neither of those. The AI never moves a card to
+  `Ready` on its own initiative, and when instructed to, it quotes the
+  instruction.
 - Once the spec is confirmed and the card is `Ready`, the AI should continue
   through the workflow without requiring repeated human instruction for
   routine tasks such as branch creation, testing, and PR preparation.

@@ -26,7 +26,7 @@ Workflow
    - If the issue is ambiguous or missing required information, ask for
      clarification before implementation.
 2. Check the issue's status on the `Footy Trends` GitHub Project board. It
-   must be in the `Ready` column ("Spec written and validated — ready for
+   must be in the `Ready` column ("Issue written and validated — ready for
    Claude Code" — see `docs/setup/002-github-project-board.md`) before any
    implementation begins.
    **Work is authorised by either of these, and either one alone is enough:**

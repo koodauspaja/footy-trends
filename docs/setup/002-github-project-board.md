@@ -21,10 +21,16 @@ Rename the default columns to:
 | Column | Purpose | Who moves a card into it |
 |--------|---------|--------------------------|
 | `Backlog` | Ideas and future features | Whoever files the issue |
-| `Ready` | Spec written and validated — ready for Claude Code | **A human.** Claude may do it only when told to, and must quote the instruction it is acting on |
+| `Ready` | Issue written and validated — ready for Claude Code | **A human.** Claude may do it only when told to, and must quote the instruction it is acting on |
 | `In Progress` | Claude Code is working on it | Claude, once the start is authorised |
 | `In Review` | PR open, Sourcery reviewing | Claude, when the PR opens |
 | `Done` | Merged to main, deployed | The board's built-in `Pull request merged` workflow |
+
+**"Issue", not "spec".** Chores and bugs have no feature spec —
+`skills/chore-workflow.md` and `skills/bug-workflow.md` say so outright — and
+they use this column like everything else. Defining `Ready` in terms of a spec
+made valid chore and bug cards look as though they were missing a document that
+does not exist for them.
 
 **The capitalisation is part of the name.** GitHub matches a status by its
 exact name, so a board built with `In progress` will not be found by tooling

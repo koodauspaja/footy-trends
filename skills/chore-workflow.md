@@ -21,7 +21,7 @@ Workflow
    - If the issue is ambiguous or missing required information, ask for
      clarification before implementation.
 2. Check the issue's status on the `Footy Trends` GitHub Project board. It
-   must be in the `Ready` column ("Spec written and validated — ready for
+   must be in the `Ready` column ("Issue written and validated — ready for
    Claude Code" — see `docs/setup/002-github-project-board.md`) before any
    implementation begins.
    **Work is authorised by either of these, and either one alone is enough:**
@@ -114,10 +114,11 @@ Important rules
 - This workflow intentionally does not use `skills/write-spec.md` or create a
   file under `specs/`.
 - This workflow intentionally does not create a file under `decisions/`.
-- Never begin implementation (branch creation, code, or tests) before the
-  issue's Project board status is `Ready`. Confirming scope in chat is a
-  precondition for moving the card to `Ready`, not a substitute for it — the
-  two are separate checkpoints.
+- Never begin implementation (branch creation, code, or tests) before the work
+  is authorised — a human-set `Ready` card, or a human saying to start.
+  Confirming scope in chat is neither of those. The AI never moves a card to
+  `Ready` on its own initiative, and when instructed to, it quotes the
+  instruction.
 - User-facing UI strings must be in Finnish.
 - Do not commit secrets, generated artifacts, or unrelated changes.
 - If the work grows into a user-facing feature or needs product decisions,
