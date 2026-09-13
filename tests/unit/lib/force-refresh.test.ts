@@ -49,6 +49,11 @@ const synchronizeGroupTeams = vi.fn(async () => undefined);
 const synchronizeForeignMatches = vi.fn(async () => undefined);
 const recordSuccess = vi.fn(async () => undefined);
 const recordFailure = vi.fn(async () => undefined);
+/** The probing resolver. Nothing in this engine may call it — it writes. */
+const resolveTasoSeasonContext = vi.fn(async () => ({
+  currentSeason: 2026,
+  defaultSeason: 2026,
+}));
 
 vi.mock("@/lib/refresh-runs", () => ({ recordSuccess, recordFailure }));
 
@@ -96,9 +101,10 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
   return {
     ...actual,
-    resolveTasoSeasonContext: vi.fn(async () => {
+    resolveTasoSeasonContext,
+    resolveTasoSeasonCeiling: vi.fn(async () => {
       if (state.seasonListThrows) throw new Error("TASO unavailable");
-      return { currentSeason: 2026, defaultSeason: 2026 };
+      return { currentSeason: 2026, newestStored: 2026 };
     }),
     synchronizeMatches: synchronizeTasoMatches,
     synchronizeGroupTeams,
@@ -526,6 +532,19 @@ describe("applyRefresh", () => {
 });
 
 describe("listSeasonsFor", () => {
+  it("never calls the resolver that probes by synchronizing", async () => {
+    // `resolveTasoSeasonContext` decides its default season by *syncing* the
+    // current one, which writes. Reaching for it here would mean a preview
+    // mutated current-season rows before an admin approved anything — the one
+    // thing this engine promises not to do.
+    const { listSeasonsFor, previewRefresh } = await import("@/lib/force-refresh");
+
+    await listSeasonsFor(VEIKKAUSLIIGA);
+    await previewRefresh(VEIKKAUSLIIGA, 2026);
+
+    expect(resolveTasoSeasonContext).not.toHaveBeenCalled();
+  });
+
   it("offers the seasons the reader-facing picker offers", async () => {
     const { listSeasonsFor } = await import("@/lib/force-refresh");
 
@@ -585,6 +604,26 @@ describe("input the browser can send", () => {
       });
     }
   );
+
+  it("records the run when an apply cannot learn which seasons exist", async () => {
+    // An attempted run that failed belongs in the log, unlike a malformed
+    // request.
+    state.seasonListThrows = true;
+    const { applyRefresh } = await import("@/lib/force-refresh");
+
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, "hash", "admin-1");
+
+    expect(result).toEqual({ ok: false, reason: "provider" });
+    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "provider", "admin-1");
+  });
+
+  it("does not record a run for a malformed apply request", async () => {
+    const { applyRefresh } = await import("@/lib/force-refresh");
+
+    await applyRefresh({ source: "taso", code: "NOPE" }, 2026, "hash", "admin-1");
+
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
 
   it("refuses an unknown competition on apply too, not only on preview", async () => {
     const { applyRefresh } = await import("@/lib/force-refresh");

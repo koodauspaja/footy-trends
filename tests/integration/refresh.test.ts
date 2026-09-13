@@ -28,7 +28,8 @@ const CATEGORY_ID = "VL";
 const CHOICE = { source: "taso", code: "VL" } as const;
 const ADMIN_ID = "refresh-integration-admin";
 
-const { state } = vi.hoisted(() => ({
+const { state, probingResolver } = vi.hoisted(() => ({
+  probingResolver: { calls: 0 },
   state: {
     providerMatches: [] as unknown[],
     providerGroupTeams: [] as unknown[],
@@ -37,6 +38,13 @@ const { state } = vi.hoisted(() => ({
     groupWriteThrows: false,
   },
 }));
+
+// Declared as a plain counter rather than a `vi.fn`, so `vi.clearAllMocks()`
+// between tests cannot quietly erase the evidence.
+const probingResolverSpy = async () => {
+  probingResolver.calls += 1;
+  return { currentSeason: 2026, defaultSeason: 2026 };
+};
 
 vi.mock("@/lib/cache", () => ({
   getCached: vi.fn(),
@@ -66,10 +74,16 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     ...actual,
     // Fixed, so the season range does not depend on TASO being reachable. The
     // writers below are deliberately *not* stubbed.
-    resolveTasoSeasonContext: vi.fn(async () => ({
+    //
+    // The *ceiling* resolver is the read-only one. `resolveTasoSeasonContext`
+    // probes by synchronizing the current season — it writes — so it is stubbed
+    // separately and asserted never to be called: reaching for it would mean a
+    // preview mutated rows before anyone approved anything.
+    resolveTasoSeasonCeiling: vi.fn(async () => ({
       currentSeason: 2026,
-      defaultSeason: 2026,
+      newestStored: 2026,
     })),
+    resolveTasoSeasonContext: probingResolverSpy,
     // The real writer, unless a test asks it to fail — which is how the
     // transaction's rollback is proven without a second write path.
     synchronizeGroupTeams: vi.fn(
@@ -166,6 +180,7 @@ beforeEach(async () => {
   state.matchesThrows = false;
   state.groupsThrows = false;
   state.groupWriteThrows = false;
+  probingResolver.calls = 0;
   await clearFixtures();
   // Deliberately left at the default role. `run_by` is a foreign key and
   // nothing here reads a role — `requireAdmin()` guards the action layer, not
@@ -211,6 +226,16 @@ describe("a preview", () => {
     // would move it even if the values matched.
     expect(await storedMatches()).toEqual(before);
     expect(await storedGroupTeams()).toEqual(groupsBefore);
+  });
+
+  it("never reaches the season resolver that writes", async () => {
+    await seed([buildMatch()], [buildGroupTeam()]);
+    state.providerMatches = [buildMatch({ homeGoals: 5 })];
+    state.providerGroupTeams = [buildGroupTeam({ startingPoints: -6 })];
+
+    await preview();
+
+    expect(probingResolver.calls).toBe(0);
   });
 
   it("writes no run row, because nothing happened to the data", async () => {

@@ -309,17 +309,23 @@ into ten requests against a rate-limited plan.
 
 Through a server action gated by `requireAdmin()` like every other:
 
-- TASO: `resolveTasoSeasonContext(code)` for the ceiling, then
+- TASO: **`resolveTasoSeasonCeiling(code)`**, then
   `listSelectableTasoSeasons(currentSeason, earliestSeasonFor(code))`
 - football-data: `getSeasonContext(code).selectableSeasons`, which already
   carries the `2025/26` labels
 
 Both are Redis-cached for fifteen minutes, so a repeated choice costs nothing.
-`resolveTasoSeasonContext` probes by syncing the current season — the same work
-any `/kotimaa` page does on a cold cache, and named here because it means
-choosing a competition can write current-season rows before anything is
-submitted. That is the ordinary sync doing its ordinary job, not this feature
-writing.
+
+**Not `resolveTasoSeasonContext`**, which is what the reader-facing pages use.
+That one decides its *default* season by synchronizing the current season to
+find out whether it has matches — so it **writes**. Calling it here would mean
+a preview mutated current-season rows before an admin had approved anything,
+which is the one thing this engine promises not to do.
+
+So the read-only half is split out of it as `resolveTasoSeasonCeiling` and both
+callers share it. Extracted rather than reimplemented: the floor clamp it
+applies is subtle enough that two copies would drift, and a drifted ceiling
+offers a season the competition never had.
 
 ### What the preview calls
 
@@ -354,7 +360,7 @@ Cleared for the chosen competition + season:
 without it the page would keep serving the old standings after the database is
 already correct.
 
-Not cleared: `taso:season-context:*`, `taso:categories:*` and
+Not cleared: `taso:season-context:*`, `taso:season-ceiling:*`, `taso:categories:*` and
 `football-data:competition:*`, which cache which seasons and names exist rather
 than the data being corrected.
 
@@ -757,6 +763,9 @@ Changed:
   make it a second source of truth, and the resulting failure is silent: the
   refetch simply answers out of the cache the run exists to bypass.
 - `src/db/index.ts` — an `Executor` type: the database, or a transaction on it.
+- `src/lib/taso-standings-service.ts` — `resolveTasoSeasonCeiling` split out of
+  `resolveTasoSeasonContext`, which now calls it. The read-only half, so the
+  preview can resolve a season range without triggering the probe's write.
 - `src/lib/standings-service.ts`, `src/lib/taso-standings-service.ts` — both
   `synchronizeMatches` and `synchronizeGroupTeams` take an optional executor,
   defaulting to `db` so every existing caller is unchanged. Without it a caller

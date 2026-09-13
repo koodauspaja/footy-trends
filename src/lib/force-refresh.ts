@@ -41,7 +41,7 @@ import {
 } from "@/lib/taso";
 import {
   dedupeByIdentity,
-  resolveTasoSeasonContext,
+  resolveTasoSeasonCeiling,
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
 } from "@/lib/taso-standings-service";
@@ -84,7 +84,12 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
 
   try {
     if (choice.source === "taso") {
-      const { currentSeason } = await resolveTasoSeasonContext(choice.code);
+      // `resolveTasoSeasonCeiling`, never `resolveTasoSeasonContext`. The
+      // latter probes by synchronizing the current season, which *writes* — so
+      // merely previewing would have mutated current-season rows before an
+      // admin had approved anything, breaking this engine's one promise. Found
+      // in review, not by me.
+      const { currentSeason } = await resolveTasoSeasonCeiling(choice.code);
       return {
         ok: true,
         seasons: listSelectableTasoSeasons(currentSeason, earliestSeasonFor(choice.code)),
@@ -451,7 +456,16 @@ export async function applyRefresh(
   adminId: string
 ): Promise<ApplyResult> {
   const resolved = await resolve(choice, seasonId);
-  if (!isResolved(resolved)) return { ok: false, reason: resolved.reason };
+  if (!isResolved(resolved)) {
+    // A provider that cannot say which seasons exist is an attempted run that
+    // failed, so it belongs in the log. `"input"` still does not: a request
+    // naming a competition or season this app does not have is malformed
+    // rather than an event that happened to the data.
+    if (resolved.reason === "provider") {
+      await recordFailure(choice, seasonId, "provider", adminId);
+    }
+    return { ok: false, reason: resolved.reason };
+  }
 
   const diff = await computeDiff(resolved, false);
   if (!diff.ok) {

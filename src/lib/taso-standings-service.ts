@@ -415,29 +415,57 @@ export type TasoSeasonContext = {
  * renders, deduplicated within a request by `cache()` and bounded across
  * requests by the 15-minute Redis TTL.
  */
+/**
+ * The top of a competition's season range, and the newest season we have
+ * stored for it.
+ *
+ * **Reads only.** Split out of `resolveTasoSeasonContext` below, which needs
+ * the same numbers but then *probes* by synchronizing the current season —
+ * which writes. The forced refresh in `force-refresh.ts` needs a season range
+ * to validate against and must not write anything before an admin has approved
+ * a diff, so it calls this and never the probe. See
+ * specs/029-forced-season-refresh.md.
+ *
+ * Extracted rather than reimplemented: the floor clamp below is subtle enough
+ * that two copies of it would drift, and a drifted ceiling means a season
+ * selector that offers a season the competition never had.
+ */
+export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCeiling(
+  competitionCode: string
+): Promise<{ currentSeason: number; newestStored: number | null }> {
+  return getCached(
+    `taso:season-ceiling:${competitionCode}`,
+    CURRENT_SEASON_CACHE_TTL_SECONDS,
+    async () => {
+      // Season discovery itself is competition-agnostic — a `competition_id`
+      // is a season of all Finnish football (spec 011) — but the stored
+      // fallback is not, so both the key and it are scoped to the competition
+      // being asked about.
+      const [discovered, newestStored] = await Promise.all([
+        discoverCurrentSeason(),
+        newestStoredSeason(categoryIdsFor(competitionCode)),
+      ]);
+      // Floored at the competition's own first season, not the provider-wide
+      // one. Without that, a discovery failure with nothing stored would put
+      // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
+      // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+      // so the selector would come back empty and the page would query a season
+      // the competition never had.
+      const currentSeason = Math.max(
+        discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
+        earliestSeasonFor(competitionCode)
+      );
+      return { currentSeason, newestStored };
+    }
+  );
+});
+
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
 ): Promise<TasoSeasonContext> {
   const key = `taso:season-context:${competitionCode}`;
   return getCached(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
-    // Season discovery itself is competition-agnostic — a `competition_id`
-    // is a season of all Finnish football (spec 011) — but the *probe*
-    // below is not, so both the key and the stored fallback are scoped to
-    // the competition being asked about.
-    const [discovered, newestStored] = await Promise.all([
-      discoverCurrentSeason(),
-      newestStoredSeason(categoryIdsFor(competitionCode)),
-    ]);
-    // Floored at the competition's own first season, not the provider-wide
-    // one. Without that, a discovery failure with nothing stored would put
-    // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
-    // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
-    // so the selector would come back empty and the page would query a season
-    // the competition never had.
-    const currentSeason = Math.max(
-      discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
-      earliestSeasonFor(competitionCode)
-    );
+    const { currentSeason, newestStored } = await resolveTasoSeasonCeiling(competitionCode);
 
     try {
       const { matches } = await getSyncedSeasonMatches(

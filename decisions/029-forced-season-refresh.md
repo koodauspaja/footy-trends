@@ -211,6 +211,36 @@ before hashing, so the diff describes what will actually be stored.
 Each fix was mutation-checked by reverting it: all three fail at both unit and
 integration level now, and none of them did before.
 
+## Two more, on the second round
+
+**The preview could write, through a door I had documented rather than closed.**
+`listSeasonsFor` called `resolveTasoSeasonContext`, which decides its default
+season by *synchronizing* the current one. So merely previewing a TASO season
+could mutate current-season rows — against the engine's one promise, and against
+an acceptance criterion in this feature's own spec.
+
+I had even written the behaviour into the spec as a note, framed as "the
+ordinary sync doing its ordinary job, not this feature writing". That framing
+was wrong: a write that happens because someone pressed a button in this tool is
+this tool writing. Describing a defect accurately is not the same as it being
+acceptable, and a note is not a decision.
+
+Fixed by splitting the read-only half out as `resolveTasoSeasonCeiling` and
+having both callers share it. Extracted rather than reimplemented, because the
+floor clamp is subtle enough that two copies would drift.
+
+The integration test that claims a preview changes nothing had been passing
+while mocking the very call that writes. It now asserts the probing resolver is
+never reached, with a counter rather than a `vi.fn` so `clearAllMocks` cannot
+erase the evidence.
+
+**An attempted apply could vanish from the log.** When `resolve` failed because
+the provider could not say which seasons exist, `applyRefresh` returned without
+recording anything — while the spec requires every attempted run to be recorded.
+Now recorded; `"input"` still is not, because a request naming a competition
+this app does not have is malformed rather than an event that happened to the
+data.
+
 ## Sorting for a hash is not sorting for a reader
 
 Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for
