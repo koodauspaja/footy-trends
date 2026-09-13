@@ -49,6 +49,45 @@ describe("planMigrationGeneration", () => {
     expect(planMigrationGeneration([`--name=${name}`]).ok).toBe(false);
   });
 
+  it("accepts the space-separated form the CLI also takes", () => {
+    // Refusing this with "Missing --name" would be a confusing thing to tell
+    // someone who plainly gave one.
+    expect(planMigrationGeneration(["--name", "add_thing"])).toEqual({
+      ok: true,
+      forwarded: ["--name", "add_thing"],
+    });
+  });
+
+  it("does not treat a following flag as the name", () => {
+    // `--name --config=x` would otherwise generate a migration called
+    // `--config=x`, which is a worse outcome than refusing.
+    const plan = planMigrationGeneration(["--name", "--config=other.ts"]);
+
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.message).toContain("--name was given no value");
+  });
+
+  it("refuses --name with nothing after it at all", () => {
+    const plan = planMigrationGeneration(["--config=other.ts", "--name"]);
+
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.message).toContain("--name was given no value");
+  });
+
+  it("validates the space-separated form like any other", () => {
+    expect(planMigrationGeneration(["--name", "young_meteorite"]).ok).toBe(false);
+  });
+
+  it("counts duplicates across both forms", () => {
+    const plan = planMigrationGeneration(["--name", "add_one", "--name=add_two"]);
+
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.message).toContain("--name given 2 times");
+  });
+
   it("refuses two names rather than guessing which one wins", () => {
     // A filter takes the first and a command-line parser generally takes the
     // last, so guessing would validate one name and generate the other.

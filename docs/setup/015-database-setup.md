@@ -175,8 +175,9 @@ npm run db:generate -- --name=add_match_status_column
 ```
 
 The name must be `<verb>_<what>`, where the verb is one of `add`, `create`,
-`alter`, `drop`, `rename` or `backfill`. Everything else on the command line is
-passed straight through to `drizzle-kit`.
+`alter`, `drop`, `rename` or `backfill`. Either form works —
+`--name=add_thing` or `--name add_thing` — and everything else on the command
+line is passed straight through to `drizzle-kit`.
 
 The wrapper exists because this instruction used to be advice, and advice was
 not enough: `drizzle-kit` invents a whimsical name when given none (e.g.

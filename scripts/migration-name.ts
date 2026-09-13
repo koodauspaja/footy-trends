@@ -47,9 +47,37 @@ export type GenerationPlan = { ok: true; forwarded: string[] } | { ok: false; me
  * can be tested without running a generator — the same split
  * `grant-admin-plan.ts` uses.
  */
+/**
+ * Every `--name` the command line carries, in either form the underlying CLI
+ * accepts: `--name=add_thing` and `--name add_thing`.
+ *
+ * Supporting only the first would refuse a perfectly valid invocation with
+ * "Missing --name", which is a confusing thing to tell someone who did give one.
+ *
+ * A following argument that is itself a flag is **not** taken as the value —
+ * `--name --config=x` would otherwise generate a migration called
+ * `--config=x`. That case is a name with no value, and it is reported as one.
+ */
+function nameOccurrences(argv: readonly string[]): { value: string | null }[] {
+  const found: { value: string | null }[] = [];
+
+  for (const [index, argument] of argv.entries()) {
+    if (argument.startsWith("--name=")) {
+      found.push({ value: argument.slice("--name=".length) });
+      continue;
+    }
+    if (argument === "--name") {
+      const next = argv[index + 1];
+      found.push({ value: next === undefined || next.startsWith("-") ? null : next });
+    }
+  }
+
+  return found;
+}
+
 export function planMigrationGeneration(argv: readonly string[]): GenerationPlan {
   const forwarded = [...argv];
-  const names = forwarded.filter((argument) => argument.startsWith("--name="));
+  const names = nameOccurrences(forwarded);
 
   if (names.length === 0) {
     return { ok: false, message: `Missing --name.\n\n${describeMigrationNameRule()}` };
@@ -62,13 +90,14 @@ export function planMigrationGeneration(argv: readonly string[]): GenerationPlan
    * its own duplicate flags.
    */
   if (names.length > 1) {
-    return {
-      ok: false,
-      message: `--name given ${names.length} times: ${names.join(" ")}\n\nGive it once.`,
-    };
+    return { ok: false, message: `--name given ${names.length} times.\n\nGive it once.` };
   }
 
-  const name = (names[0] as string).slice("--name=".length);
+  const name = (names[0] as { value: string | null }).value;
+  if (name === null) {
+    return { ok: false, message: `--name was given no value.\n\n${describeMigrationNameRule()}` };
+  }
+
   if (!MIGRATION_NAME.test(name)) {
     return {
       ok: false,
