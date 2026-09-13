@@ -87,6 +87,19 @@ describe("parseArgs", () => {
     });
   });
 
+  it.each([
+    ["ADMIN", "admin"],
+    ["Admin", "admin"],
+    ["USER", "user"],
+    ["  user  ", "user"],
+  ])("accepts --role=%s as %s", (given, expected) => {
+    // The address is normalised, so the role is too — an operator typing
+    // `--role=ADMIN` means the role, and refusing it teaches them nothing.
+    const result = parseArgs(["--email=matti@example.fi", `--role=${given}`]);
+
+    expect(result).toMatchObject({ request: { role: expected } });
+  });
+
   it("refuses a role that is neither", () => {
     // The mutation this guards is accepting any string: `--role=superuser`
     // would write a value nothing recognises, and `isRole` would read it back
@@ -186,5 +199,16 @@ describe("ambiguousAccount", () => {
     expect(ambiguousAccount("dup@example.fi", ["A@b.fi", "a@b.fi"])).toContain(
       "Nothing was changed."
     );
+  });
+});
+
+describe("the refusal message for a bad role", () => {
+  it("quotes what the operator typed, not the normalised form", () => {
+    // `--role=SuperUser` refused as `superuser` would leave them looking for a
+    // word they did not write.
+    expect(parseArgs(["--email=a@example.fi", "--role=SuperUser"])).toEqual({
+      ok: false,
+      message: "--role must be admin or user, not: SuperUser",
+    });
   });
 });

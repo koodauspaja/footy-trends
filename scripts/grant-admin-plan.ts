@@ -77,8 +77,12 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     return { ok: false, message: `That does not look like an address: ${rawEmail}` };
   }
 
+  // Lower-cased like the address, and for the same reason: an operator typing
+  // `--role=ADMIN` means the role, and refusing it teaches nothing. The message
+  // below still quotes what they actually typed.
   const rawRole = flags.get("role") ?? "admin";
-  if (rawRole !== "admin" && rawRole !== "user") {
+  const role = rawRole.trim().toLowerCase();
+  if (role !== "admin" && role !== "user") {
     return { ok: false, message: `--role must be admin or user, not: ${rawRole}` };
   }
 
@@ -88,7 +92,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     }
   }
 
-  return { ok: true, request: { email, role: rawRole } };
+  return { ok: true, request: { email, role } };
 }
 
 /**
