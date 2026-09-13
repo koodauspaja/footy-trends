@@ -495,6 +495,7 @@ describe("the run log", () => {
     expect(rows[0]).toMatchObject({
       succeeded: true,
       runByName: "Refresh Admin",
+      // The label the preview computed, round-tripped through the column.
       seasonLabel: String(SEASON),
     });
   });

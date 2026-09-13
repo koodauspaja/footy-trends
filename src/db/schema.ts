@@ -529,6 +529,17 @@ export const refreshRuns = pgTable("refresh_runs", {
   source: text("source").notNull(),
   competitionCode: text("competition_code").notNull(),
   seasonId: integer("season_id").notNull(),
+  /**
+   * The season as the picker spells it — `2016` for a Finnish season,
+   * `2025/26` for a foreign one that spans two calendar years.
+   *
+   * Stored rather than derived, because deriving it later would mean a provider
+   * call per row just to learn whether a season spans a year boundary. Null
+   * when the run failed before the season range could be resolved, which is the
+   * one case where we genuinely do not know it; the list falls back to the
+   * season id there.
+   */
+  seasonLabel: text("season_label"),
   /** `"success"` or `"failed"`. */
   status: text("status").notNull(),
   /** The failure reason code, null on success. */

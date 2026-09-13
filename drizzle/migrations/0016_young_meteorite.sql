@@ -3,6 +3,7 @@ CREATE TABLE "refresh_runs" (
 	"source" text NOT NULL,
 	"competition_code" text NOT NULL,
 	"season_id" integer NOT NULL,
+	"season_label" text,
 	"status" text NOT NULL,
 	"reason" text,
 	"matches_inserted" integer DEFAULT 0 NOT NULL,

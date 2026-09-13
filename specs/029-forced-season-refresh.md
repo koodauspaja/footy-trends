@@ -424,6 +424,13 @@ export const refreshRuns = pgTable("refresh_runs", {
   source: text("source").notNull(),
   competitionCode: text("competition_code").notNull(),
   seasonId: integer("season_id").notNull(),
+  /**
+   * The season as the picker spells it — `2016`, or `2025/26` for a foreign
+   * season spanning two calendar years. Stored rather than derived: working it
+   * out at read time would mean a provider call per row. Null only when the run
+   * failed before the range could be resolved.
+   */
+  seasonLabel: text("season_label"),
   /** "success" | "failed". */
   status: text("status").notNull(),
   /** The failure reason code, null on success. */
@@ -748,7 +755,7 @@ New:
 - `src/lib/refresh-diff.ts` — the pure diff and the snapshot hash
 - `src/lib/force-refresh.ts` — cache clearing, both adapters, preview and apply
 - `src/lib/refresh-runs.ts` — reading and writing `refresh_runs`
-- `drizzle/migrations/0016_next_bullseye.sql` — generated, `refresh_runs`
+- `drizzle/migrations/0016_young_meteorite.sql` — generated, `refresh_runs`
 - `tests/unit/lib/refresh-{view,competitions,diff,runs}.test.ts`,
   `tests/unit/lib/force-refresh.test.ts`,
   `tests/integration/refresh.test.ts`

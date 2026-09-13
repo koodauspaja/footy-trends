@@ -105,6 +105,7 @@ describe("recordSuccess", () => {
         source: "taso",
         competitionCode: "VL",
         seasonId: 2016,
+        seasonLabel: "2016",
         status: "success",
         matchesInserted: 1,
         matchesUpdated: 2,
@@ -177,14 +178,23 @@ describe("recordFailure", () => {
   it("records the reason and leaves the counts at their defaults", async () => {
     const { recordFailure } = await import("@/lib/refresh-runs");
 
-    await recordFailure({ source: "taso", code: "VL" }, 2016, "empty", "admin-1");
+    await recordFailure({ source: "taso", code: "VL" }, 2016, "empty", "admin-1", "2016");
 
     expect(state.inserted[0]).toMatchObject({
       status: "failed",
       reason: "empty",
       seasonId: 2016,
+      seasonLabel: "2016",
       runBy: "admin-1",
     });
+  });
+
+  it("stores a null label when the run failed before the range resolved", async () => {
+    const { recordFailure } = await import("@/lib/refresh-runs");
+
+    await recordFailure({ source: "football-data", code: "PL" }, 2025, "provider", "admin-1");
+
+    expect(state.inserted[0]).toMatchObject({ seasonLabel: null });
   });
 
   it("logs and carries on when the row cannot be written", async () => {
@@ -215,6 +225,30 @@ describe("listRuns", () => {
     });
     expect(row?.matches).toEqual({ inserted: 0, updated: 2, deleted: 0 });
     expect(row?.groupRows).toEqual({ inserted: 0, updated: 1, deleted: 0 });
+  });
+
+  it("shows a foreign season the way the picker spells it", async () => {
+    // Stored with the run rather than derived: working it out here would mean a
+    // provider call per row just to learn whether the season spans two calendar
+    // years, and the row would read `2025` where the picker says `2025/26`.
+    state.rows = [
+      run({
+        source: "football-data",
+        competitionCode: "PL",
+        seasonId: 2025,
+        seasonLabel: "2025/26",
+      }),
+    ];
+    const { listRuns } = await import("@/lib/refresh-runs");
+
+    expect((await listRuns())[0]?.seasonLabel).toBe("2025/26");
+  });
+
+  it("falls back to the season id for a run that failed before the range resolved", async () => {
+    state.rows = [run({ seasonLabel: null })];
+    const { listRuns } = await import("@/lib/refresh-runs");
+
+    expect((await listRuns())[0]?.seasonLabel).toBe("2016");
   });
 
   it("keeps a run whose operator has been deleted", async () => {

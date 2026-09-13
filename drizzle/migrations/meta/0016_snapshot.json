@@ -1,5 +1,5 @@
 {
-  "id": "91b39b98-05f2-45a1-9fd6-b37a3cc40220",
+  "id": "ef9f6bd0-d6c9-439d-8571-351337e1e18c",
   "prevId": "08251559-9d1f-4c24-b2c6-39a23db4bf9c",
   "version": "7",
   "dialect": "postgresql",
@@ -619,6 +619,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "season_label": {
+          "name": "season_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",

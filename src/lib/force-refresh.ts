@@ -469,7 +469,7 @@ export async function applyRefresh(
 
   const diff = await computeDiff(resolved, false);
   if (!diff.ok) {
-    await recordFailure(choice, seasonId, diff.reason, adminId);
+    await recordFailure(choice, seasonId, diff.reason, adminId, resolved.seasonLabel);
     return { ok: false, reason: diff.reason };
   }
 
@@ -482,7 +482,7 @@ export async function applyRefresh(
     await writeSnapshot(snapshot, seasonId, removedIds);
   } catch (error) {
     logger.error({ err: error, ...choice, seasonId, adminId }, "Forced refresh failed to write");
-    await recordFailure(choice, seasonId, "write", adminId);
+    await recordFailure(choice, seasonId, "write", adminId, resolved.seasonLabel);
     return { ok: false, reason: "write" };
   }
 

@@ -40,6 +40,7 @@ export async function recordSuccess(preview: RefreshPreview, adminId: string): P
       source: preview.source,
       competitionCode: preview.competitionCode,
       seasonId: preview.seasonId,
+      seasonLabel: preview.seasonLabel,
       status: "success",
       matchesInserted: preview.matches.inserted,
       matchesUpdated: preview.matches.updated,
@@ -68,13 +69,20 @@ export async function recordFailure(
   choice: CompetitionChoice,
   seasonId: number,
   reason: Exclude<RefreshFailureReason, "input" | "stale">,
-  adminId: string
+  adminId: string,
+  /**
+   * Null when the run failed before the season range could be resolved — the
+   * one case where the display label is genuinely unknown rather than merely
+   * unfetched.
+   */
+  seasonLabel: string | null = null
 ): Promise<void> {
   try {
     await db.insert(refreshRuns).values({
       source: choice.source,
       competitionCode: choice.code,
       seasonId,
+      seasonLabel,
       status: "failed",
       reason,
       groupRowsInserted: null,
@@ -153,12 +161,12 @@ export async function listRuns(): Promise<RefreshRunView[]> {
         id: run.id,
         source: run.source,
         competitionName: competitionNameFor({ source: run.source, code: run.competitionCode }),
-        // The stored integer, not the provider's display label: a foreign
-        // season renders as `2025/26` in the picker, and reproducing that here
-        // would mean a provider call per row to learn whether the season spans
-        // two calendar years. The start year is unambiguous, which is what an
-        // audit row needs.
-        seasonLabel: String(run.seasonId),
+        // The label the preview computed, stored with the run. Deriving it
+        // here instead would mean a provider call per row just to learn whether
+        // a foreign season spans two calendar years — so a run would read
+        // `2025` where the picker says `2025/26`. The fallback covers the rows
+        // that failed before the range was resolved.
+        seasonLabel: run.seasonLabel ?? String(run.seasonId),
         succeeded: run.status === "success",
         reason: reasonFrom(run.reason),
         matches: {

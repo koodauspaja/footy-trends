@@ -514,7 +514,7 @@ describe("applyRefresh", () => {
     const result = await applyRefresh(VEIKKAUSLIIGA, 2026, "any-hash", "admin-1");
 
     expect(result).toEqual({ ok: false, reason: "empty" });
-    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "empty", "admin-1");
+    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "empty", "admin-1", "2026");
     noWriterRan();
   });
 
@@ -614,6 +614,8 @@ describe("input the browser can send", () => {
     const result = await applyRefresh(VEIKKAUSLIIGA, 2026, "hash", "admin-1");
 
     expect(result).toEqual({ ok: false, reason: "provider" });
+    // No label: the run failed before the season range could be resolved, so
+    // the picker's spelling of this season is genuinely unknown.
     expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "provider", "admin-1");
   });
 
@@ -717,7 +719,7 @@ describe("a database that will not answer", () => {
     const result = await applyRefresh(VEIKKAUSLIIGA, 2026, "hash", "admin-1");
 
     expect(result).toEqual({ ok: false, reason: "read" });
-    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "read", "admin-1");
+    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "read", "admin-1", "2026");
   });
 });
 
@@ -735,7 +737,7 @@ describe("a write that fails", () => {
     const result = await applyRefresh(VEIKKAUSLIIGA, 2026, preview.preview.snapshotHash, "admin-1");
 
     expect(result).toEqual({ ok: false, reason: "write" });
-    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "write", "admin-1");
+    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "write", "admin-1", "2026");
     expect(recordSuccess).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalled();
   });

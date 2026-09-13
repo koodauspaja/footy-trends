@@ -241,6 +241,27 @@ Now recorded; `"input"` still is not, because a request naming a competition
 this app does not have is malformed rather than an event that happened to the
 data.
 
+## The audit log stores the season label rather than deriving it
+
+Third round, and this one I had decided the wrong way on purpose.
+
+`listRuns` rendered `String(seasonId)`, with a comment explaining that deriving
+the picker's label would cost a provider call per row to learn whether a foreign
+season spans two calendar years. True, and the wrong conclusion: a foreign run
+would read `2025` in the log where every other surface says `2025/26`.
+
+Review's second suggestion is the one I should have reached — **persist the
+label the preview already computed**. No provider call, and the log agrees with
+the picker. Null only when the run failed before the range could be resolved,
+which is the one case where it is genuinely unknown; the list falls back to the
+id there.
+
+The migration was regenerated rather than followed by a second one, since the
+table is unreleased and arriving in two migrations within one pull request would
+be untidy for no gain. Anyone holding this branch with the old migration applied
+has to drop `refresh_runs` and its journal row; a fresh environment is
+unaffected.
+
 ## Sorting for a hash is not sorting for a reader
 
 Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for
