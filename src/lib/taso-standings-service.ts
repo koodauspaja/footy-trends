@@ -370,12 +370,41 @@ export function needsRefresh(
  * about a single era would miss the rest — a discovery failure would then fall
  * back to the configured floor rather than to what is actually stored.
  */
-async function newestStoredSeason(categoryIds: string[]): Promise<number | null> {
-  const [row] = await db
-    .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
-    .from(tasoMatches)
-    .where(inArray(tasoMatches.categoryId, categoryIds));
-  return row?.seasonId ?? null;
+export async function storedTasoSeasons(competitionCode: string): Promise<Set<number>> {
+  // Both tables. A season can hold group standings without matches — a
+  // competition whose fixtures were never synced but whose published table was,
+  // or one whose matches were pruned — and such a season is still one we hold.
+  // Reading only `taso_matches` made this the single source of truth for
+  // "seasons we have" in name only.
+  //
+  // Scoped by category rather than by competition id: a junior competition's
+  // rows are split across two or three category ids by era, and asking about
+  // one era would hide the rest.
+  const categoryIds = categoryIdsFor(competitionCode);
+  const [matchSeasons, groupSeasons] = await Promise.all([
+    db
+      .selectDistinct({ seasonId: tasoMatches.seasonId })
+      .from(tasoMatches)
+      .where(inArray(tasoMatches.categoryId, categoryIds)),
+    db
+      .selectDistinct({ seasonId: tasoGroupTeams.seasonId })
+      .from(tasoGroupTeams)
+      .where(inArray(tasoGroupTeams.categoryId, categoryIds)),
+  ]);
+  return new Set([...matchSeasons, ...groupSeasons].map((row) => row.seasonId));
+}
+
+/**
+ * The newest season we hold for a competition, or `null` for none.
+ *
+ * Derived from `storedTasoSeasons` rather than carrying its own query, so
+ * "what do we hold" is answered one way. It previously read `taso_matches`
+ * alone, which meant a competition held only as group standings looked unstored
+ * — and with discovery unavailable, its ceiling fell back below its own data.
+ */
+async function newestStoredSeason(competitionCode: string): Promise<number | null> {
+  const seasons = await storedTasoSeasons(competitionCode);
+  return seasons.size === 0 ? null : Math.max(...seasons);
 }
 
 /** Discovery is best-effort: a TASO outage must degrade the season range, not break the page. */
@@ -443,7 +472,7 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
       // being asked about.
       const [discovered, newestStored] = await Promise.all([
         discoverCurrentSeason(),
-        newestStoredSeason(categoryIdsFor(competitionCode)),
+        newestStoredSeason(competitionCode),
       ]);
       // Floored at the competition's own first season, not the provider-wide
       // one. Without that, a discovery failure with nothing stored would put

@@ -4,7 +4,6 @@ import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "@/lib/cache";
 import {
   categoryIdForSeason,
-  categoryIdsFor,
   competitionIdForSeason,
   earliestSeasonFor,
 } from "@/lib/domestic-competitions";
@@ -17,7 +16,14 @@ import {
 } from "@/lib/football-data";
 import { logger } from "@/lib/logger";
 import { competitionNameFor, isKnownCompetition } from "@/lib/refresh-competitions";
-import { diffGroupTeams, diffMatches, snapshotHash } from "@/lib/refresh-diff";
+import {
+  type DiffableGroupTeam,
+  type DiffableProviderMatch,
+  type DiffableStoredMatch,
+  diffGroupTeams,
+  diffMatches,
+  snapshotHash,
+} from "@/lib/refresh-diff";
 import { recordFailure, recordSuccess } from "@/lib/refresh-runs";
 import type {
   ApplyResult,
@@ -29,6 +35,7 @@ import type {
 } from "@/lib/refresh-view";
 import {
   standingsCacheKey,
+  storedForeignSeasons,
   synchronizeMatches as synchronizeForeignMatches,
 } from "@/lib/standings-service";
 import {
@@ -43,6 +50,7 @@ import {
 import {
   dedupeByIdentity,
   resolveTasoSeasonCeiling,
+  storedTasoSeasons,
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
 } from "@/lib/taso-standings-service";
@@ -125,33 +133,15 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
 /**
  * Every season this app has rows for, in one competition.
  *
- * Both TASO tables, because a season can hold group standings without matches
- * or the reverse, and either is something an admin might need to correct.
- * Scoped by category rather than by competition id, matching
- * `newestStoredSeason`: a junior competition's rows are split across two or
- * three category ids by era, and asking about one would hide the others.
+ * Dispatches to the service that owns the tables rather than querying them
+ * here. This module orchestrates a refresh; which columns answer "what do we
+ * hold" is the standings services' business, and keeping a second copy of that
+ * rule here is how the ceiling and the season list came to disagree.
  */
 async function storedSeasonsFor(choice: CompetitionChoice): Promise<Set<number>> {
-  if (choice.source !== "taso") {
-    const rows = await db
-      .selectDistinct({ seasonId: matches.seasonId })
-      .from(matches)
-      .where(eq(matches.competitionCode, choice.code));
-    return new Set(rows.map((row) => row.seasonId));
-  }
-
-  const categoryIds = categoryIdsFor(choice.code);
-  const [matchSeasons, groupSeasons] = await Promise.all([
-    db
-      .selectDistinct({ seasonId: tasoMatches.seasonId })
-      .from(tasoMatches)
-      .where(inArray(tasoMatches.categoryId, categoryIds)),
-    db
-      .selectDistinct({ seasonId: tasoGroupTeams.seasonId })
-      .from(tasoGroupTeams)
-      .where(inArray(tasoGroupTeams.categoryId, categoryIds)),
-  ]);
-  return new Set([...matchSeasons, ...groupSeasons].map((row) => row.seasonId));
+  return choice.source === "taso"
+    ? await storedTasoSeasons(choice.code)
+    : await storedForeignSeasons(choice.code);
 }
 
 function seasonLabelFor(seasons: SeasonChoice[], seasonId: number): string | null {
@@ -303,14 +293,117 @@ async function readStoredForeign(executor: Executor, competitionCode: string, se
 }
 
 /**
+ * What we currently hold for this season, through whichever executor is given
+ * — the database while a diff is being computed, the transaction when the write
+ * is about to happen.
+ *
+ * `groupTeams` is null for football-data, which stores no group standings:
+ * "this table does not exist for this provider" is a different statement from
+ * "it is empty", and every rule below reads it that way.
+ */
+async function readStored(
+  executor: Executor,
+  snapshot: Snapshot,
+  seasonId: number
+): Promise<StoredRows> {
+  if (snapshot.source !== "taso") {
+    return { matches: await readStoredForeign(executor, snapshot.competitionCode, seasonId) };
+  }
+  const [matches, groupTeams] = await readStoredTaso(executor, snapshot, seasonId);
+  return { matches, groupTeams };
+}
+
+type StoredRows = {
+  matches: DiffableStoredMatch[];
+  /** Absent for football-data, which has no group standings table. */
+  groupTeams?: DiffableGroupTeam[];
+};
+
+/**
+ * The whole comparison, in one pure function: is the provider silent, what
+ * would change, and what fingerprint does this pairing have.
+ *
+ * **Pure, and used twice.** The preview calls it against rows read from the
+ * database; the write calls it again against rows read inside its own
+ * transaction. That is what makes a stale bounce honest — the diff an admin is
+ * shown afterwards describes the rows that are actually there, not the ones
+ * that were there when they pressed the button.
+ *
+ * It was two functions with a shared shape before, and every seam between them
+ * cost a review round: the silence guard was right in one and wrong in the
+ * other, the dedupe was applied in one place and not the next, and the hash was
+ * spelled out at each call site. One rule, one place.
+ */
+function compare(
+  snapshot: Snapshot,
+  stored: StoredRows,
+  resolved: Resolved
+): { ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number } {
+  const storedGroupTeams = stored.groupTeams ?? [];
+  const providerGroupTeams = snapshot.source === "taso" ? dedupedGroupTeams(snapshot) : [];
+
+  // **Per table, not across both.** An `&&` reads as the same rule and is not:
+  // TASO answering with matches but no group standings would walk past it, and
+  // `synchronizeGroupTeams` deletes before it inserts — so a completed season's
+  // standings would be destroyed by a run that looked successful. Each table is
+  // silent or not on its own evidence.
+  const matchesSilent = snapshot.matches.length === 0 && stored.matches.length > 0;
+  const groupsSilent =
+    stored.groupTeams !== undefined &&
+    providerGroupTeams.length === 0 &&
+    storedGroupTeams.length > 0;
+  if (matchesSilent || groupsSilent) {
+    return {
+      ok: false,
+      reason: "empty",
+      storedRows: stored.matches.length + storedGroupTeams.length,
+    };
+  }
+
+  // The type arguments are spelled out because `snapshot.matches` is a union of
+  // the two providers' row types, and inference would pick one of them and
+  // reject the other. Both satisfy `DiffableProviderMatch`, which is all the
+  // diff needs.
+  const matchDiff = diffMatches<DiffableStoredMatch, DiffableProviderMatch>(
+    stored.matches,
+    snapshot.matches
+  );
+  // The provider's group rows are deduplicated with the writer's own rule
+  // before being diffed *and* before being hashed. A knockout group returns one
+  // row per bracket slot, so a team that advances appears several times and
+  // `synchronizeGroupTeams` keeps only the first — counting the rest would
+  // promise an admin more inserts than the apply performs.
+  const groupDiff =
+    stored.groupTeams === undefined ? null : diffGroupTeams(storedGroupTeams, providerGroupTeams);
+
+  return {
+    ok: true,
+    computed: {
+      snapshot,
+      removedIds: matchDiff.removed.map((match) => match.providerMatchId),
+      preview: {
+        ...previewShell(resolved),
+        matches: matchDiff.counts,
+        // Null rather than zeroes for football-data: "none exist" is a
+        // different statement from "none changed".
+        groupRows: groupDiff?.counts ?? null,
+        deductionChanges: groupDiff?.deductionChanges ?? [],
+        removedMatches: matchDiff.removed,
+        snapshotHash: snapshotHashOf(snapshot, stored.matches, storedGroupTeams),
+      },
+    },
+  };
+}
+
+/**
  * The fingerprint an approval is made of: the provider's answer **and** the
  * rows it was compared against.
  *
- * One function rather than a call site per diff, because the apply recomputes
- * it inside its transaction — and a second copy of the rule would let the two
- * disagree, which is precisely the failure the hash exists to prevent.
+ * Hashing only the provider would leave the stored side free to move, and the
+ * apply would still accept an approval built against rows that are gone —
+ * removing matches by name that the admin was never shown.
  */
-function hashFor(
+function snapshotHashOf(
   snapshot: Snapshot,
   storedMatches: readonly object[],
   storedGroupTeams: readonly object[]
@@ -318,85 +411,6 @@ function hashFor(
   return snapshot.source === "taso"
     ? snapshotHash([snapshot.matches, dedupedGroupTeams(snapshot), storedMatches, storedGroupTeams])
     : snapshotHash([snapshot.matches, storedMatches]);
-}
-
-async function tasoDiff(
-  snapshot: Extract<Snapshot, { source: "taso" }>,
-  seasonId: number,
-  resolved: Resolved
-): Promise<{ ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number }> {
-  const [storedMatches, storedGroupTeams] = await readStoredTaso(db, snapshot, seasonId);
-
-  // **Per table, not across both.** An `&&` here reads as the same rule and is
-  // not: TASO answering with matches but no group standings would have walked
-  // past it, and `synchronizeGroupTeams` deletes before it inserts — so a
-  // completed season's standings would be destroyed by a run that looked
-  // successful. Each table is silent or not on its own evidence.
-  const matchesSilent = snapshot.matches.length === 0 && storedMatches.length > 0;
-  const groupsSilent = snapshot.groupTeams.length === 0 && storedGroupTeams.length > 0;
-  if (matchesSilent || groupsSilent) {
-    return {
-      ok: false,
-      reason: "empty",
-      storedRows: storedMatches.length + storedGroupTeams.length,
-    };
-  }
-
-  const matchDiff = diffMatches(storedMatches, snapshot.matches);
-  // Deduplicated with the writer's own rule before diffing *and* before
-  // hashing. A knockout group returns one row per bracket slot, so a team that
-  // advances appears several times; `synchronizeGroupTeams` keeps the first and
-  // drops the rest. Counting the raw rows would promise an admin more inserts
-  // than the apply performs, and record that promise in the audit log.
-  const groupDiff = diffGroupTeams(storedGroupTeams, dedupedGroupTeams(snapshot));
-
-  return {
-    ok: true,
-    computed: {
-      snapshot,
-      removedIds: matchDiff.removed.map((match) => match.providerMatchId),
-      preview: {
-        ...previewShell(resolved),
-        matches: matchDiff.counts,
-        groupRows: groupDiff.counts,
-        deductionChanges: groupDiff.deductionChanges,
-        removedMatches: matchDiff.removed,
-        snapshotHash: hashFor(snapshot, storedMatches, storedGroupTeams),
-      },
-    },
-  };
-}
-
-async function foreignDiff(
-  snapshot: Extract<Snapshot, { source: "football-data" }>,
-  seasonId: number,
-  resolved: Resolved
-): Promise<{ ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number }> {
-  const storedMatches = await readStoredForeign(db, resolved.choice.code, seasonId);
-
-  if (snapshot.matches.length === 0 && storedMatches.length > 0) {
-    return { ok: false, reason: "empty", storedRows: storedMatches.length };
-  }
-
-  const matchDiff = diffMatches(storedMatches, snapshot.matches);
-
-  return {
-    ok: true,
-    computed: {
-      snapshot,
-      removedIds: matchDiff.removed.map((match) => match.providerMatchId),
-      preview: {
-        ...previewShell(resolved),
-        matches: matchDiff.counts,
-        // Null rather than zeroes: football-data stores no group standings, and
-        // "none exist" is a different statement from "none changed".
-        groupRows: null,
-        deductionChanges: [],
-        removedMatches: matchDiff.removed,
-        snapshotHash: hashFor(snapshot, storedMatches, []),
-      },
-    },
-  };
 }
 
 function previewShell(resolved: Resolved) {
@@ -502,12 +516,9 @@ async function computeDiff(resolved: Resolved, bypassCache: boolean): Promise<Di
   // admin can act on. It is its own reason rather than folded into
   // `"provider"` — the provider answered fine, our database did not — and the
   // distinction is the one an operator needs to know which system to look at.
-  let outcome: Awaited<ReturnType<typeof tasoDiff>>;
+  let outcome: ReturnType<typeof compare>;
   try {
-    outcome =
-      snapshot.source === "taso"
-        ? await tasoDiff(snapshot, seasonId, resolved)
-        : await foreignDiff(snapshot, seasonId, resolved);
+    outcome = compare(snapshot, await readStored(db, snapshot, seasonId), resolved);
   } catch (error) {
     logger.error(
       { err: error, ...choice, seasonId },
@@ -580,10 +591,13 @@ export async function applyRefresh(
     // on its own it is a time-of-check/time-of-use gap: another writer could
     // change the season in between and this apply would overwrite them with an
     // approval that no longer describes anything. `writeSnapshot` re-checks
-    // inside the transaction, and answers `false` rather than writing.
-    if (!(await writeSnapshot(snapshot, seasonId, removedIds, expectedHash))) {
-      return { ok: false, reason: "stale", preview };
-    }
+    // inside the transaction and writes nothing when it no longer holds.
+    //
+    // It hands back the diff computed from the transaction's own rows, which is
+    // the one the admin has to see — `preview` here describes rows that are no
+    // longer stored.
+    const written = await writeSnapshot(snapshot, seasonId, removedIds, expectedHash, resolved);
+    if (!written.ok) return { ok: false, reason: "stale", preview: written.preview };
   } catch (error) {
     logger.error({ err: error, ...choice, seasonId, adminId }, "Forced refresh failed to write");
     await recordFailure(choice, seasonId, "write", adminId, resolved.seasonLabel);
@@ -613,21 +627,31 @@ async function writeSnapshot(
   snapshot: Snapshot,
   seasonId: number,
   removedIds: number[],
-  expectedHash: string
-): Promise<boolean> {
+  expectedHash: string,
+  resolved: Resolved
+): Promise<{ ok: true } | { ok: false; preview: RefreshPreview | undefined }> {
   return await db.transaction(
     async (tx) => {
       // **Re-checked here, not only before the transaction.** The approval was
       // computed from rows read outside it, so between that read and this write
       // another forced apply — or the ordinary sync on a current season — could
-      // have moved them. Reading them again through `tx` and recomputing the same
-      // hash closes that window: an approval that no longer describes what is
+      // have moved them. Running the same comparison against rows read through
+      // `tx` closes that window: an approval that no longer describes what is
       // stored writes nothing.
-      const [currentMatches, currentGroupTeams] =
-        snapshot.source === "taso"
-          ? await readStoredTaso(tx, snapshot, seasonId)
-          : [await readStoredForeign(tx, snapshot.competitionCode, seasonId), []];
-      if (hashFor(snapshot, currentMatches, currentGroupTeams) !== expectedHash) return false;
+      //
+      // It is the same `compare` the preview used, so the diff handed back on a
+      // mismatch is a real one describing the rows that are there *now* —
+      // returning the caller's obsolete preview would show an admin a diff of
+      // rows that no longer exist and invite them to approve it again.
+      //
+      // `undefined` only when the provider has meanwhile gone silent on a
+      // season we hold, which `compare` refuses outright and which no diff can
+      // describe.
+      const current = compare(snapshot, await readStored(tx, snapshot, seasonId), resolved);
+      if (!current.ok) return { ok: false, preview: undefined };
+      if (current.computed.preview.snapshotHash !== expectedHash) {
+        return { ok: false, preview: current.computed.preview };
+      }
 
       if (snapshot.source === "taso") {
         // `tx`, not the module-level `db`. Without it each writer commits on its
@@ -645,14 +669,14 @@ async function writeSnapshot(
         if (removedIds.length > 0) {
           await tx.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, removedIds));
         }
-        return true;
+        return { ok: true };
       }
 
       await synchronizeForeignMatches(snapshot.matches, tx);
       if (removedIds.length > 0) {
         await tx.delete(matches).where(inArray(matches.providerMatchId, removedIds));
       }
-      return true;
+      return { ok: true };
     },
     {
       /**

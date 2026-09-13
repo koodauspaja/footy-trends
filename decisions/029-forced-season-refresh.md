@@ -322,6 +322,37 @@ fixed, and the reason is now carried rather than collapsed at every level.
 That one is worth naming plainly: it was not a subtle interaction. It was me
 adding a distinction and then failing to apply it to the next thing I wrote.
 
+## Round six: two findings, one structural cause
+
+Both of these were seams, so both were fixed as seams rather than patched.
+
+**The preview and the write each built their own view of reality.** A stale
+bounce inside the transaction returned the *caller's* preview — a diff of rows
+that were no longer stored — inviting an admin to approve it a second time.
+
+The two diff functions collapsed into one pure `compare(snapshot, stored,
+resolved)`, used by the preview against rows read from the database and by the
+write against rows read inside its own transaction. A refusal now hands back a
+diff describing what is actually there.
+
+That seam is worth naming, because it produced findings in three separate
+rounds: the silence guard was right in one diff function and wrong in the other,
+the knockout dedupe was applied in one and not the next, and the hash was spelled
+out at each call site. One rule in one place ends that class, rather than the
+individual bugs it kept producing.
+
+**"What seasons do we hold" was answered twice, differently.** The season list
+read both TASO tables; the ceiling's fallback read only `taso_matches`. A
+competition held purely as group standings therefore looked unstored, and with
+discovery unavailable its ceiling fell below its own data — so the one season
+with a deduction to correct was the one that could not be selected.
+
+Fixed by moving the question to the service that owns the tables:
+`storedTasoSeasons` and `storedForeignSeasons`. `newestStoredSeason` is now
+derived from the former, and `force-refresh.ts` dispatches rather than querying.
+A module that orchestrates a refresh should not know which columns answer "what
+do we hold" — that it did is why the two answers were free to drift.
+
 ## Sorting for a hash is not sorting for a reader
 
 Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for

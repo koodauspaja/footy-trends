@@ -312,6 +312,21 @@ function toResult(standings: TeamStanding[]): StandingsResult {
   return standings.length > 0 ? { status: "ok", standings } : { status: "empty", standings: [] };
 }
 
+/**
+ * Every season this app holds matches for, in one foreign competition.
+ *
+ * Lives here rather than in `force-refresh.ts` because this module owns the
+ * `matches` table: a caller asking "what do we hold" should not have to know
+ * which columns answer it. See specs/029-forced-season-refresh.md.
+ */
+export async function storedForeignSeasons(competitionCode: string): Promise<Set<number>> {
+  const rows = await db
+    .selectDistinct({ seasonId: matches.seasonId })
+    .from(matches)
+    .where(eq(matches.competitionCode, competitionCode));
+  return new Set(rows.map((row) => row.seasonId));
+}
+
 export async function synchronizeMatches(
   providerMatches: NormalizedProviderMatch[],
   /** The transaction to join, when a caller has one. Defaults to its own. */

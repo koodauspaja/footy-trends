@@ -556,6 +556,53 @@ describe("applyRefresh", () => {
     noWriterRan();
   });
 
+  it("hands back a diff of the rows that are there now, not the ones that were", async () => {
+    // Returning the caller's own preview here would show an admin a diff of
+    // rows that no longer exist, and invite them to approve it a second time.
+    state.storedMatches = [match(1), match(7)];
+    state.providerMatches = [match(1)];
+    state.normalizedGroupTeams = [groupTeam()];
+    const hash = await previewThenHash();
+
+    // Somebody else removed match 7 between the check and the write, so there
+    // is nothing left to delete.
+    state.storedMatchesAtWrite = [match(1)];
+
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe("stale");
+    // The approved diff removed one match; the honest one removes none.
+    expect(result.preview?.matches.deleted).toBe(0);
+    expect(result.preview?.removedMatches).toEqual([]);
+  });
+
+  it("writes nothing when the provider turns out to be silent on rows that appeared", async () => {
+    // The snapshot is fetched once and reused by the write, so the provider
+    // cannot change underneath it — but the *stored* side can. Group rows
+    // appearing between the preview and the write turn an answer that was
+    // merely empty into one that is silent about rows we now hold, and the
+    // silence rule is absolute: nothing is written.
+    state.storedMatches = [match(1)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+    state.storedGroupTeams = [];
+    state.normalizedGroupTeams = [];
+    const hash = await previewThenHash();
+
+    state.storedGroupTeamsAtWrite = [groupTeam()];
+
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(result).toMatchObject({ ok: false, reason: "stale" });
+    // No diff to show: the run a fresh preview would describe is a refusal.
+    expect(result.ok === false && result.preview).toBeUndefined();
+    expect(synchronizeTasoMatches).not.toHaveBeenCalled();
+    expect(synchronizeGroupTeams).not.toHaveBeenCalled();
+  });
+
   it("writes nothing when the stored rows move after the approval is checked", async () => {
     // The check before the transaction reads rows outside it, so on its own it
     // is a time-of-check/time-of-use gap: another apply — or the ordinary sync

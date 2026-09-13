@@ -314,7 +314,11 @@ Through a server action gated by `requireAdmin()` like every other:
 - football-data: `getSeasonContext(code).selectableSeasons`, which already
   carries the `2025/26` labels
 
-**Then narrowed to the seasons the app actually holds rows for.** The provider's
+**Then narrowed to the seasons the app actually holds rows for**, asked of the
+service that owns those tables (`storedTasoSeasons`, `storedForeignSeasons`)
+rather than queried here. The same rule answers the season *ceiling*'s fallback,
+so the two cannot disagree — they did, and a competition held only as group
+standings was treated as unstored. The provider's
 range is the wrong list on its own: it includes seasons never stored here, and
 offering one would let this tool *import* a season — which the ordinary sync is
 for and this spec puts out of scope. There is also nothing to correct in a
@@ -432,7 +436,9 @@ it makes "what you saw is what you applied" a checked fact.
   commits on its own connection while the caller believes it is inside a
   transaction.
 - **The approval is re-checked inside that transaction**, against rows read
-  through it. The check before the transaction reads rows outside it, so on its
+  through it, by **the same comparison the preview used** — so a refusal hands
+  back a diff describing the rows that are there now, rather than the obsolete
+  one the admin already saw. The check before the transaction reads rows outside it, so on its
   own it leaves a window in which another writer changes the season and this
   apply overwrites them with an approval that no longer describes anything.
   Serializable rather than a re-read alone, because under read-committed a

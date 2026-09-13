@@ -26,7 +26,13 @@ const {
   loggerWarnMock,
   loggerErrorMock,
 } = vi.hoisted(() => ({
-  dbMock: { select: vi.fn(), insert: vi.fn(), delete: vi.fn(), transaction: vi.fn() },
+  dbMock: {
+    select: vi.fn(),
+    selectDistinct: vi.fn(),
+    insert: vi.fn(),
+    delete: vi.fn(),
+    transaction: vi.fn(),
+  },
   getCachedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
@@ -1912,15 +1918,16 @@ describe("synchronizeMatches", () => {
 describe("resolveTasoSeasonContext", () => {
   /** `max(season_id)` for the newest-stored fallback, then the season's own rows. */
   function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
-    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
-      if (fields !== undefined && "seasonId" in fields) {
-        // Scoped to the competition now, so the aggregate has a where clause.
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ seasonId: newestStored }]),
-          }),
-        };
-      }
+    // `storedTasoSeasons` lists the seasons we hold, across both TASO tables,
+    // and `newestStoredSeason` is the newest of them. One query shape rather
+    // than a `max()` aggregate, so "what do we hold" has a single answer — see
+    // specs/029-forced-season-refresh.md.
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(newestStored === null ? [] : [{ seasonId: newestStored }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
       const orderBy = vi.fn().mockResolvedValue(seasonMatches);
       const where = vi.fn().mockReturnValue({ orderBy });
       return { from: vi.fn().mockReturnValue({ where }) };
@@ -2046,14 +2053,14 @@ describe("resolveTasoSeasonContext", () => {
 
   it("still resolves when the matches check itself throws", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
-    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
-      if (fields !== undefined && "seasonId" in fields) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
-          }),
-        };
-      }
+    // The stored-season lookup answers; the probe's own read of the season's
+    // matches is what fails.
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
       throw new Error("database unavailable");
     });
 

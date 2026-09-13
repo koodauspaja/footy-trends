@@ -506,6 +506,29 @@ describe("seasons the app does not hold", () => {
   });
 });
 
+describe("the season ceiling", () => {
+  it("sees a season held only as group standings", async () => {
+    // The ceiling falls back to what we hold when TASO discovery is
+    // unavailable. Reading only `taso_matches` made a competition held purely
+    // as standings look unstored, and its own season then fell outside the
+    // range the tool offers — so the one season with a deduction to correct was
+    // the one that could not be selected.
+    await seed([], [buildGroupTeam()]);
+
+    const { storedTasoSeasons } = await import("@/lib/taso-standings-service");
+
+    expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
+  });
+
+  it("sees a season held only as matches", async () => {
+    await seed([buildMatch()], []);
+
+    const { storedTasoSeasons } = await import("@/lib/taso-standings-service");
+
+    expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
+  });
+});
+
 describe("the run log", () => {
   it("outlives the admin who ran it, without naming them", async () => {
     // `run_by` is `on delete set null`, the one deliberate exception to the
