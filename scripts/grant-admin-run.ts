@@ -23,7 +23,7 @@ export async function setRole(connectionString: string, request: Request): Promi
     const db = drizzle(client);
 
     /**
-     * Read, write and read back inside one transaction, with the row locked.
+     * Read, decide, write and read back inside one transaction.
      *
      * Three separate statements could interleave with another writer — the app
      * itself has `/yllapito`, which changes roles — and the script would then
@@ -31,22 +31,19 @@ export async function setRole(connectionString: string, request: Request): Promi
      * the failure this script exists to remove, so it would be a poor one to
      * leave in.
      *
-     * The lock is on the one row, so it blocks only writes to that account.
-     */
-    /**
-     * **Serializable**, because the duplicate check is a predicate and
-     * `for update` cannot lock a row that does not exist yet.
+     * **Every matching row is locked**, not one. The query below matches on
+     * `lower(email)`, which can find more than one account because the unique
+     * index is on the raw text; locking them all together is what makes the
+     * count it takes trustworthy.
      *
-     * The check below asks "does more than one account match, ignoring case".
-     * Row locks make the rows it *found* stable, but another transaction —
-     * better-auth creating an account as somebody signs in — can insert a new
-     * case variant a moment later. Under `read committed` this script would
-     * then grant admin to one account while a second matching one existed, and
-     * report success.
-     *
-     * Serializable makes Postgres detect that and abort the transaction rather
-     * than let it commit on a premise that stopped being true. The script then
-     * reports a failure, which is the honest outcome: nothing was written, and
+     * **Serializable**, because that count is a *predicate* and `for update`
+     * cannot lock a row that does not exist yet. Row locks make the rows it
+     * found stable, but another transaction — better-auth creating an account
+     * as somebody signs in — can insert a new case variant a moment later.
+     * Under `read committed` this script would then grant admin to one account
+     * while a second matching one existed, and report success. Serializable
+     * makes Postgres detect that and abort rather than commit on a premise that
+     * stopped being true; the script reports a failure, nothing is written, and
      * running it again reads the world as it now is.
      *
      * The structural fix is a case-insensitive unique index on `user.email`, so
@@ -57,7 +54,7 @@ export async function setRole(connectionString: string, request: Request): Promi
     return await db.transaction(
       async (tx) => {
         /**
-         * Every row whose address matches once case is ignored, locked together.
+         * Every row whose address matches, once case is ignored — locked together.
          *
          * `lower()` on both sides, because the column holds whatever Google sent
          * and a normalised input compared against a raw column reports an account
