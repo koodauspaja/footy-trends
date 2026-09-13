@@ -38,6 +38,22 @@
   authorisation, and neither is being confident or being green. When Claude sets
   `Ready` itself it quotes the sentence it is acting on, so the evidence is
   visible rather than in its head.
+- **Every migration is named.** `npm run db:generate -- --name=<verb>_<what>`,
+  with the verb one of `add`, `create`, `alter`, `drop`, `rename`, `backfill` —
+  `--name=add_refresh_runs`, never the two random words `drizzle-kit` invents
+  when it is given none. Seven reached `main` as `0016_young_meteorite` and
+  `0013_fair_captain_stacy` before anyone noticed, and such a name tells a
+  reader nothing at the one moment it matters: reading back through an incident.
+  The wrapper refuses an unnamed migration and
+  `tests/unit/db/migrations.test.ts` fails if one exists anyway, so this is
+  written here to explain the rule rather than to be the only thing enforcing
+  it.
+- **Renaming a migration is safe; editing an applied one is not.** The migrator
+  finds a file by its journal `tag` and hashes the file's *contents*, so
+  renaming the `.sql` and its `tag` together leaves the hash untouched and
+  already-migrated environments skip it. Changing the SQL of a migration that
+  has run anywhere changes the hash and breaks that environment's next deploy —
+  add a new migration instead.
 - All user-facing UI strings are Finnish. All code, comments, specs, and
   decision records are English. No exceptions in either direction.
 - Every GitHub issue must have both its label and its Issue Type field set,
