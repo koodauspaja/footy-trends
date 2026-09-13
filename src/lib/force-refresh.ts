@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "@/lib/cache";
 import {
@@ -83,17 +83,25 @@ import {
 export async function listSeasonsFor(choice: CompetitionChoice): Promise<SeasonsResult> {
   if (!isKnownCompetition(choice)) return { ok: false, reason: "input" };
 
+  // **Read separately from the provider calls below**, so its failure is
+  // reported as `"read"` rather than `"provider"`. One `try` around both would
+  // tell an operator their provider is down when their database is, sending
+  // them to the wrong system — the exact distinction `"read"` was added for.
+  //
+  // Narrowed to seasons we already hold: the provider's range includes seasons
+  // this app has never stored, and offering one would let the tool *import* a
+  // season, which the ordinary sync is for. There is also nothing to correct in
+  // a season we hold nothing for.
+  let stored: Set<number>;
   try {
-    // Narrowed to seasons we already hold. The provider's range is the wrong
-    // list on its own: it includes seasons this app has never stored, and
-    // offering one would let the tool *import* a season — which the ordinary
-    // sync is for, and which this spec puts out of scope. There is also nothing
-    // to correct in a season we hold nothing for, so the entry would be a trap
-    // rather than a feature.
-    const stored = await storedSeasonsFor(choice);
-    const held = (seasons: SeasonChoice[]) =>
-      seasons.filter((season) => stored.has(season.seasonId));
+    stored = await storedSeasonsFor(choice);
+  } catch (error) {
+    logger.error({ err: error, ...choice }, "Reading which seasons are stored failed");
+    return { ok: false, reason: "read" };
+  }
+  const held = (seasons: SeasonChoice[]) => seasons.filter((season) => stored.has(season.seasonId));
 
+  try {
     if (choice.source === "taso") {
       // `resolveTasoSeasonCeiling`, never `resolveTasoSeasonContext`. The
       // latter probes by synchronizing the current season, which *writes* — so
@@ -167,7 +175,12 @@ type Snapshot =
       matches: NormalizedTasoMatch[];
       groupTeams: NormalizedTasoGroupTeam[];
     }
-  | { source: "football-data"; matches: NormalizedProviderMatch[] };
+  | {
+      source: "football-data";
+      /** Carried so the write can re-read the stored rows without the choice. */
+      competitionCode: string;
+      matches: NormalizedProviderMatch[];
+    };
 
 /**
  * The Redis entries that have to go before a refetch.
@@ -228,6 +241,7 @@ async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promi
   }
   return {
     source: "football-data",
+    competitionCode: choice.code,
     matches: await getForeignSeasonMatches(choice.code, seasonId),
   };
 }
@@ -247,19 +261,28 @@ function dedupedGroupTeams(snapshot: Extract<Snapshot, { source: "taso" }>) {
   return dedupeByIdentity(snapshot.groupTeams);
 }
 
-async function tasoDiff(
+/**
+ * The rows we currently hold, read through whichever executor is given — the
+ * database when a diff is being computed, the transaction when the write is
+ * about to happen.
+ */
+async function readStoredTaso(
+  executor: Executor,
   snapshot: Extract<Snapshot, { source: "taso" }>,
-  seasonId: number,
-  resolved: Resolved
-): Promise<{ ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number }> {
-  const scope = and(
-    eq(tasoMatches.categoryId, snapshot.categoryId),
-    eq(tasoMatches.competitionCode, snapshot.competitionId),
-    eq(tasoMatches.seasonId, seasonId)
-  );
-  const [storedMatches, storedGroupTeams] = await Promise.all([
-    db.select().from(tasoMatches).where(scope),
-    db
+  seasonId: number
+) {
+  return await Promise.all([
+    executor
+      .select()
+      .from(tasoMatches)
+      .where(
+        and(
+          eq(tasoMatches.categoryId, snapshot.categoryId),
+          eq(tasoMatches.competitionCode, snapshot.competitionId),
+          eq(tasoMatches.seasonId, seasonId)
+        )
+      ),
+    executor
       .select()
       .from(tasoGroupTeams)
       .where(
@@ -270,6 +293,39 @@ async function tasoDiff(
         )
       ),
   ]);
+}
+
+async function readStoredForeign(executor: Executor, competitionCode: string, seasonId: number) {
+  return await executor
+    .select()
+    .from(matches)
+    .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
+}
+
+/**
+ * The fingerprint an approval is made of: the provider's answer **and** the
+ * rows it was compared against.
+ *
+ * One function rather than a call site per diff, because the apply recomputes
+ * it inside its transaction — and a second copy of the rule would let the two
+ * disagree, which is precisely the failure the hash exists to prevent.
+ */
+function hashFor(
+  snapshot: Snapshot,
+  storedMatches: readonly object[],
+  storedGroupTeams: readonly object[]
+): string {
+  return snapshot.source === "taso"
+    ? snapshotHash([snapshot.matches, dedupedGroupTeams(snapshot), storedMatches, storedGroupTeams])
+    : snapshotHash([snapshot.matches, storedMatches]);
+}
+
+async function tasoDiff(
+  snapshot: Extract<Snapshot, { source: "taso" }>,
+  seasonId: number,
+  resolved: Resolved
+): Promise<{ ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number }> {
+  const [storedMatches, storedGroupTeams] = await readStoredTaso(db, snapshot, seasonId);
 
   // **Per table, not across both.** An `&&` here reads as the same rule and is
   // not: TASO answering with matches but no group standings would have walked
@@ -305,18 +361,7 @@ async function tasoDiff(
         groupRows: groupDiff.counts,
         deductionChanges: groupDiff.deductionChanges,
         removedMatches: matchDiff.removed,
-        // **Both sides.** The provider's answer *and* the rows it was compared
-        // against. Hashing only the provider would let the stored side move —
-        // another admin applying, or the ordinary sync touching a current
-        // season — and the apply would still accept an approval built against
-        // rows that are gone, removing matches by name that an admin never saw
-        // listed. Either side moving now re-previews instead.
-        snapshotHash: snapshotHash([
-          snapshot.matches,
-          dedupedGroupTeams(snapshot),
-          storedMatches,
-          storedGroupTeams,
-        ]),
+        snapshotHash: hashFor(snapshot, storedMatches, storedGroupTeams),
       },
     },
   };
@@ -327,10 +372,7 @@ async function foreignDiff(
   seasonId: number,
   resolved: Resolved
 ): Promise<{ ok: true; computed: Computed } | { ok: false; reason: "empty"; storedRows: number }> {
-  const storedMatches = await db
-    .select()
-    .from(matches)
-    .where(and(eq(matches.competitionCode, resolved.choice.code), eq(matches.seasonId, seasonId)));
+  const storedMatches = await readStoredForeign(db, resolved.choice.code, seasonId);
 
   if (snapshot.matches.length === 0 && storedMatches.length > 0) {
     return { ok: false, reason: "empty", storedRows: storedMatches.length };
@@ -351,8 +393,7 @@ async function foreignDiff(
         groupRows: null,
         deductionChanges: [],
         removedMatches: matchDiff.removed,
-        // Both sides, as above.
-        snapshotHash: snapshotHash([snapshot.matches, storedMatches]),
+        snapshotHash: hashFor(snapshot, storedMatches, []),
       },
     },
   };
@@ -386,16 +427,17 @@ type Resolved = {
 async function resolve(
   choice: CompetitionChoice,
   seasonId: number
-): Promise<Resolved | { reason: "input" | "provider" }> {
+): Promise<Resolved | { reason: "input" | "provider" | "read" }> {
   if (!isKnownCompetition(choice)) return { reason: "input" };
   if (!Number.isInteger(seasonId)) return { reason: "input" };
 
-  // `listSeasonsFor` refuses an unknown competition with `"input"`, which the
-  // line above has already ruled out — so anything left is the provider failing
-  // to say which seasons exist. Mapping the reason through a ternary here would
-  // be a second copy of a check that has already run.
+  // The reason is carried, not flattened. `listSeasonsFor` can fail because the
+  // provider would not say which seasons exist, or because our own database
+  // would not — and collapsing both to `"provider"` here would undo the
+  // distinction one line after making it, sending an operator to the wrong
+  // system. Its `"input"` case is already ruled out above.
   const seasons = await listSeasonsFor(choice);
-  if (!seasons.ok) return { reason: "provider" };
+  if (!seasons.ok) return { reason: seasons.reason === "read" ? "read" : "provider" };
 
   const seasonLabel = seasonLabelFor(seasons.seasons, seasonId);
   if (seasonLabel === null) return { reason: "input" };
@@ -516,8 +558,8 @@ export async function applyRefresh(
     // failed, so it belongs in the log. `"input"` still does not: a request
     // naming a competition or season this app does not have is malformed
     // rather than an event that happened to the data.
-    if (resolved.reason === "provider") {
-      await recordFailure(choice, seasonId, "provider", adminId);
+    if (resolved.reason !== "input") {
+      await recordFailure(choice, seasonId, resolved.reason, adminId);
     }
     return { ok: false, reason: resolved.reason };
   }
@@ -534,7 +576,14 @@ export async function applyRefresh(
   }
 
   try {
-    await writeSnapshot(snapshot, seasonId, removedIds);
+    // The check above is against rows read *before* the transaction opens, so
+    // on its own it is a time-of-check/time-of-use gap: another writer could
+    // change the season in between and this apply would overwrite them with an
+    // approval that no longer describes anything. `writeSnapshot` re-checks
+    // inside the transaction, and answers `false` rather than writing.
+    if (!(await writeSnapshot(snapshot, seasonId, removedIds, expectedHash))) {
+      return { ok: false, reason: "stale", preview };
+    }
   } catch (error) {
     logger.error({ err: error, ...choice, seasonId, adminId }, "Forced refresh failed to write");
     await recordFailure(choice, seasonId, "write", adminId, resolved.seasonLabel);
@@ -563,31 +612,57 @@ export async function applyRefresh(
 async function writeSnapshot(
   snapshot: Snapshot,
   seasonId: number,
-  removedIds: number[]
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    if (snapshot.source === "taso") {
-      // `tx`, not the module-level `db`. Without it each writer commits on its
-      // own connection while this function claims atomicity — so a group
-      // replacement could commit and a later deletion fail, leaving the season
-      // half applied. Caught in review, not by me.
-      await synchronizeTasoMatches(snapshot.matches, tx);
-      await synchronizeGroupTeams(
-        snapshot.categoryId,
-        snapshot.competitionId,
-        seasonId,
-        snapshot.groupTeams,
-        tx
-      );
-      if (removedIds.length > 0) {
-        await tx.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, removedIds));
-      }
-      return;
-    }
+  removedIds: number[],
+  expectedHash: string
+): Promise<boolean> {
+  return await db.transaction(
+    async (tx) => {
+      // **Re-checked here, not only before the transaction.** The approval was
+      // computed from rows read outside it, so between that read and this write
+      // another forced apply — or the ordinary sync on a current season — could
+      // have moved them. Reading them again through `tx` and recomputing the same
+      // hash closes that window: an approval that no longer describes what is
+      // stored writes nothing.
+      const [currentMatches, currentGroupTeams] =
+        snapshot.source === "taso"
+          ? await readStoredTaso(tx, snapshot, seasonId)
+          : [await readStoredForeign(tx, snapshot.competitionCode, seasonId), []];
+      if (hashFor(snapshot, currentMatches, currentGroupTeams) !== expectedHash) return false;
 
-    await synchronizeForeignMatches(snapshot.matches, tx);
-    if (removedIds.length > 0) {
-      await tx.delete(matches).where(inArray(matches.providerMatchId, removedIds));
+      if (snapshot.source === "taso") {
+        // `tx`, not the module-level `db`. Without it each writer commits on its
+        // own connection while this function claims atomicity — so a group
+        // replacement could commit and a later deletion fail, leaving the season
+        // half applied. Caught in review, not by me.
+        await synchronizeTasoMatches(snapshot.matches, tx);
+        await synchronizeGroupTeams(
+          snapshot.categoryId,
+          snapshot.competitionId,
+          seasonId,
+          snapshot.groupTeams,
+          tx
+        );
+        if (removedIds.length > 0) {
+          await tx.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, removedIds));
+        }
+        return true;
+      }
+
+      await synchronizeForeignMatches(snapshot.matches, tx);
+      if (removedIds.length > 0) {
+        await tx.delete(matches).where(inArray(matches.providerMatchId, removedIds));
+      }
+      return true;
+    },
+    {
+      /**
+       * Serializable, like `scripts/grant-admin-run.ts`. Re-reading inside the
+       * transaction is not enough under read-committed — a concurrent commit
+       * between that read and our write would still be missed — and this runs a
+       * handful of times a year, so the cost of the strictest level is nothing
+       * against the cost of overwriting somebody's correction.
+       */
+      isolationLevel: "serializable",
     }
-  });
+  );
 }

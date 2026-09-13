@@ -295,6 +295,33 @@ asserted in prose while the code did something narrower. The lesson is not
 "write fewer claims" — it is that every claim in a spec is a test I have not
 written yet.
 
+## Round five: the last two, both narrower than what came before
+
+**The approval was checked outside the transaction that acted on it.** Closing
+the hash over both sides (round four) stopped an apply accepting an approval
+built against rows that had since changed — but only as far as the read that
+computed it, which happened before the transaction opened. Between that check
+and the write, another apply could still commit.
+
+The hash is now recomputed **inside** the transaction, from rows read through
+it, and the transaction is `serializable` — the same level
+`scripts/grant-admin-run.ts` uses, for the same reason: re-reading alone is not
+enough under read-committed. This runs a handful of times a year, so the
+strictest isolation costs nothing against overwriting somebody's correction.
+
+That also forced the hashing rule into one function used by both the diff and
+the re-check. Two copies of it would have been free to disagree, which is
+exactly the failure the hash exists to prevent.
+
+**A database failure was still being reported as a provider failure.** I added
+the `"read"` reason two rounds earlier for precisely this, then introduced a new
+database read — the one listing which seasons are stored — inside the `try` that
+maps everything to `"provider"`. `resolve` then flattened it a second time. Both
+fixed, and the reason is now carried rather than collapsed at every level.
+
+That one is worth naming plainly: it was not a subtle interaction. It was me
+adding a distinction and then failing to apply it to the next thing I wrote.
+
 ## Sorting for a hash is not sorting for a reader
 
 Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for

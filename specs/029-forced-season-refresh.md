@@ -426,10 +426,19 @@ it makes "what you saw is what you applied" a checked fact.
 - Group teams (TASO): `synchronizeGroupTeams`, unchanged. Its delete-and-insert
   is correct here, because it only ever runs against a non-empty answer an admin
   has approved.
-- Both inside one transaction per source, so a half-applied season is not a
-  state this can produce. **The writers take the transaction as an argument**;
-  reaching for the module-level `db` inside them would mean each commits on its
-  own connection while the caller believes it is inside a transaction.
+- Both inside one **serializable** transaction per source, so a half-applied
+  season is not a state this can produce. The writers take the transaction as an
+  argument; reaching for the module-level `db` inside them would mean each
+  commits on its own connection while the caller believes it is inside a
+  transaction.
+- **The approval is re-checked inside that transaction**, against rows read
+  through it. The check before the transaction reads rows outside it, so on its
+  own it leaves a window in which another writer changes the season and this
+  apply overwrites them with an approval that no longer describes anything.
+  Serializable rather than a re-read alone, because under read-committed a
+  concurrent commit between that read and our write would still be missed —
+  and this runs a handful of times a year, so the strictest level costs nothing
+  against overwriting somebody's correction.
 
 ### Schema
 
@@ -644,8 +653,10 @@ ones every page render already calls.
       outright**: nothing written, nothing deleted, and the refusal says how
       many rows were kept
 - [ ] A provider failure leaves stored rows exactly as they were
-- [ ] The apply writes only what the preview showed, and refuses when the
-      provider's answer moved in between
+- [ ] The apply writes only what the preview showed, and refuses when either
+      the provider's answer **or** the stored rows moved in between — re-checked
+      inside the write's own serializable transaction, so the gap between the
+      check and the write is closed rather than narrowed
 - [ ] Matches the provider no longer returns are removed only by a confirmed
       apply, and are listed by name in the confirmation before that
 - [ ] A TASO run covers `taso_matches` and `taso_group_teams`; a football-data

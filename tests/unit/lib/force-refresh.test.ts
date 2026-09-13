@@ -30,9 +30,15 @@ const { state, logger } = vi.hoisted(() => ({
     lastTx: null as unknown,
     transactionThrows: false,
     seasonListThrows: false,
-    readThrows: false,
+    /** The read that lists which seasons are stored. */
+    seasonReadThrows: false,
+    /** The read of the season's own rows, inside the diff. */
+    storedReadThrows: false,
     /** The seasons the app holds rows for — the tool offers only these. */
     storedSeasons: [2026, 2025, 2024, 2016] as number[],
+    /** Lets a test change what is stored *between* the check and the write. */
+    storedMatchesAtWrite: null as Record<string, unknown>[] | null,
+    storedGroupTeamsAtWrite: null as Record<string, unknown>[] | null,
   },
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
@@ -124,6 +130,16 @@ vi.mock("@/db", () => {
   // Told apart by which table the read is scoped to, the way
   // `admin-users.test.ts` tells its queries apart by shape.
   const tx = {
+    // The write re-reads the stored rows through the transaction and recomputes
+    // the approval hash, so the transaction has to answer reads too.
+    select: () => ({
+      from: (from: unknown) => ({
+        where: async () =>
+          tableName(from) === "taso_group_teams"
+            ? (state.storedGroupTeamsAtWrite ?? state.storedGroupTeams)
+            : (state.storedMatchesAtWrite ?? state.storedMatches),
+      }),
+    }),
     delete: () => ({
       where: async () => {
         state.deleteCalls += 1;
@@ -135,24 +151,27 @@ vi.mock("@/db", () => {
       // The season list asks which seasons the app holds rows for.
       selectDistinct: () => ({
         from: () => ({
-          where: async () => state.storedSeasons.map((seasonId) => ({ seasonId })),
+          where: async () => {
+            if (state.seasonReadThrows) throw new Error("database unavailable");
+            return state.storedSeasons.map((seasonId) => ({ seasonId }));
+          },
         }),
       }),
       select: () => ({
         from: (from: unknown) => ({
           where: async () => {
-            if (state.readThrows) throw new Error("database unavailable");
+            if (state.storedReadThrows) throw new Error("database unavailable");
             return tableName(from) === "taso_group_teams"
               ? state.storedGroupTeams
               : state.storedMatches;
           },
         }),
       }),
-      transaction: async (run: (t: typeof tx) => Promise<void>) => {
+      transaction: async (run: (t: typeof tx) => Promise<boolean>) => {
         state.transactions += 1;
         state.lastTx = tx;
         if (state.transactionThrows) throw new Error("write failed");
-        await run(tx);
+        return await run(tx);
       },
     },
   };
@@ -192,8 +211,11 @@ beforeEach(() => {
   state.lastTx = null;
   state.transactionThrows = false;
   state.seasonListThrows = false;
-  state.readThrows = false;
+  state.seasonReadThrows = false;
+  state.storedReadThrows = false;
   state.storedSeasons = [2026, 2025, 2024, 2016];
+  state.storedMatchesAtWrite = null;
+  state.storedGroupTeamsAtWrite = null;
   vi.clearAllMocks();
 });
 
@@ -534,6 +556,28 @@ describe("applyRefresh", () => {
     noWriterRan();
   });
 
+  it("writes nothing when the stored rows move after the approval is checked", async () => {
+    // The check before the transaction reads rows outside it, so on its own it
+    // is a time-of-check/time-of-use gap: another apply — or the ordinary sync
+    // on a current season — could commit in between, and this apply would
+    // overwrite them with an approval that no longer describes anything.
+    state.storedMatches = [match(1), match(7)];
+    state.providerMatches = [match(1)];
+    state.normalizedGroupTeams = [groupTeam()];
+    const hash = await previewThenHash();
+
+    // Somebody else got there between the check and the write.
+    state.storedMatchesAtWrite = [match(1)];
+
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(result).toMatchObject({ ok: false, reason: "stale" });
+    expect(synchronizeTasoMatches).not.toHaveBeenCalled();
+    expect(synchronizeGroupTeams).not.toHaveBeenCalled();
+    expect(state.deleteCalls).toBe(0);
+  });
+
   it("records a failed run when the provider goes silent on a season we hold", async () => {
     state.storedMatches = [match(1)];
     state.providerMatches = [];
@@ -641,6 +685,16 @@ describe("listSeasonsFor", () => {
       ok: false,
       reason: "input",
     });
+  });
+
+  it("tells a database failure apart from a provider failure", async () => {
+    // `"read"` exists so an operator knows which system to look at. Folding it
+    // into `"provider"` would send them to the wrong one.
+    state.seasonReadThrows = true;
+    const { listSeasonsFor, previewRefresh } = await import("@/lib/force-refresh");
+
+    expect(await listSeasonsFor(VEIKKAUSLIIGA)).toEqual({ ok: false, reason: "read" });
+    expect(await previewRefresh(VEIKKAUSLIIGA, 2026)).toEqual({ ok: false, reason: "read" });
   });
 
   it("reports a provider failure rather than an empty list", async () => {
@@ -765,7 +819,11 @@ describe("a database that will not answer", () => {
     // The caller is a server action answering a client component, so a throw
     // reaches the admin as a generic browser error with nothing to act on. It
     // is its own reason, not `"provider"`: the provider answered fine.
-    state.readThrows = true;
+    //
+    // The season list read succeeds here and the season's own rows fail, which
+    // is the path through `computeDiff` — a different one from the season-list
+    // failure above, and reachable on its own.
+    state.storedReadThrows = true;
 
     const { previewRefresh } = await import("@/lib/force-refresh");
     const result = await previewRefresh(VEIKKAUSLIIGA, 2026);
@@ -776,13 +834,15 @@ describe("a database that will not answer", () => {
   });
 
   it("records the failed run when an apply cannot read", async () => {
-    state.readThrows = true;
+    state.seasonReadThrows = true;
 
     const { applyRefresh } = await import("@/lib/force-refresh");
     const result = await applyRefresh(VEIKKAUSLIIGA, 2026, "hash", "admin-1");
 
     expect(result).toEqual({ ok: false, reason: "read" });
-    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "read", "admin-1", "2026");
+    // No label: the first read to fail is the one listing which seasons are
+    // stored, so the season range never resolved and its spelling is unknown.
+    expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "read", "admin-1");
   });
 });
 
