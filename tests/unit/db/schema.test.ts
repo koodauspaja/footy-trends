@@ -5,6 +5,7 @@ import {
   favoriteCompetition,
   favoriteTeam,
   matches,
+  refreshRuns,
   session,
   tasoMatches,
   user,
@@ -329,5 +330,55 @@ describe("favorite_competition table", () => {
 
     expect(foreignKey?.onDelete).toBe("cascade");
     expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+});
+
+describe("refresh_runs table", () => {
+  /**
+   * The audit trail behind the forced refresh, from
+   * specs/029-forced-season-refresh.md.
+   */
+  it("sets run_by to null rather than deleting the run with its operator", () => {
+    // **The one exception to the cascade rule every other test above asserts.**
+    // `decisions/028-admin-tools-and-roles.md` relies on cascade so that one
+    // `DELETE` removes everything a *reader owns*. An operational log is not
+    // something a reader owns: the record of what was done to the data outlives
+    // the account, while the link to the person does not.
+    //
+    // Asserted rather than trusted, because "make it consistent with the
+    // others" is exactly the change someone would make here in good faith.
+    const [foreignKey] = getTableConfig(refreshRuns).foreignKeys;
+
+    expect(foreignKey?.onDelete).toBe("set null");
+    expect(foreignKey?.reference().columns[0]?.name).toBe("run_by");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+
+  it("leaves run_by nullable, which set null requires", () => {
+    const runBy = getTableConfig(refreshRuns).columns.find((column) => column.name === "run_by");
+
+    expect(runBy?.notNull).toBe(false);
+  });
+
+  it("leaves the group-row counts nullable, since a foreign run has no group table", () => {
+    // Null means "this provider has no group standings", which the page renders
+    // as an em dash — a different statement from three zeroes, which would
+    // claim nothing changed.
+    const columns = getTableConfig(refreshRuns).columns;
+    const groupCounts = columns.filter((column) => column.name.startsWith("group_rows_"));
+
+    expect(groupCounts).toHaveLength(3);
+    for (const column of groupCounts) expect(column.notNull).toBe(false);
+  });
+
+  it("defaults the match counts to zero and requires them", () => {
+    const columns = getTableConfig(refreshRuns).columns;
+    const matchCounts = columns.filter((column) => column.name.startsWith("matches_"));
+
+    expect(matchCounts).toHaveLength(3);
+    for (const column of matchCounts) {
+      expect(column.notNull).toBe(true);
+      expect(column.default).toBe(0);
+    }
   });
 });

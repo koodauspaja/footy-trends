@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { logger } from "./logger";
@@ -14,6 +14,19 @@ import {
 } from "./standings";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
+
+/**
+ * The Redis key a competition-season's *computed* table caches under.
+ *
+ * Exported because a forced refresh has to clear it too, and this is the one
+ * that is easy to miss: the database write genuinely succeeds, so without
+ * clearing this the page keeps serving the old standings for up to fifteen
+ * minutes after the data is already correct. See
+ * specs/029-forced-season-refresh.md.
+ */
+export function standingsCacheKey(competitionCode: string, seasonId: number): string {
+  return `standings:${competitionCode}:${seasonId}`;
+}
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const parsedRefreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS);
 const refreshIntervalSeconds =
@@ -113,7 +126,7 @@ export async function getStandings({
   round,
 }: StandingsRequest): Promise<StandingsResult> {
   try {
-    const cacheKey = `standings:${competitionCode}:${seasonId}`;
+    const cacheKey = standingsCacheKey(competitionCode, seasonId);
     if (round === undefined) {
       const cached = await readCachedStandings(cacheKey);
       if (cached) return toResult(cached);
@@ -299,12 +312,29 @@ function toResult(standings: TeamStanding[]): StandingsResult {
   return standings.length > 0 ? { status: "ok", standings } : { status: "empty", standings: [] };
 }
 
+/**
+ * Every season this app holds matches for, in one foreign competition.
+ *
+ * Lives here rather than in `force-refresh.ts` because this module owns the
+ * `matches` table: a caller asking "what do we hold" should not have to know
+ * which columns answer it. See specs/029-forced-season-refresh.md.
+ */
+export async function storedForeignSeasons(competitionCode: string): Promise<Set<number>> {
+  const rows = await db
+    .selectDistinct({ seasonId: matches.seasonId })
+    .from(matches)
+    .where(eq(matches.competitionCode, competitionCode));
+  return new Set(rows.map((row) => row.seasonId));
+}
+
 export async function synchronizeMatches(
-  providerMatches: NormalizedProviderMatch[]
+  providerMatches: NormalizedProviderMatch[],
+  /** The transaction to join, when a caller has one. Defaults to its own. */
+  executor: Executor = db
 ): Promise<void> {
   if (providerMatches.length === 0) return;
 
-  await db
+  await executor
     .insert(matches)
     .values(providerMatches.map((match) => ({ ...match, updatedAt: new Date() })))
     .onConflictDoUpdate({

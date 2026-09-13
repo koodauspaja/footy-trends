@@ -104,8 +104,8 @@ describe("cache helpers", () => {
     delMock.mockResolvedValue(1);
 
     const { invalidateCache } = await import("@/lib/cache");
-    await invalidateCache("baz");
 
+    await expect(invalidateCache("baz")).resolves.toBe(true);
     expect(delMock).toHaveBeenCalledWith("baz");
     expect(delMock).toHaveBeenCalledTimes(1);
     expect(loggerErrorMock).not.toHaveBeenCalled();
@@ -146,13 +146,15 @@ describe("cache helpers", () => {
     );
   });
 
-  it("does not throw and logs when cache invalidation fails", async () => {
+  it("reports failure and logs rather than throwing when cache invalidation fails", async () => {
     const delError = new Error("redis unavailable");
     delMock.mockRejectedValue(delError);
 
     const { invalidateCache } = await import("@/lib/cache");
 
-    await expect(invalidateCache("baz")).resolves.toBeUndefined();
+    // False, not undefined: `force-refresh.ts` refuses to run on this, rather
+    // than fetching a season out of the cache it was trying to bypass.
+    await expect(invalidateCache("baz")).resolves.toBe(false);
     expect(loggerErrorMock).toHaveBeenCalledWith(
       { err: delError, key: "baz" },
       "Cache invalidate failed"

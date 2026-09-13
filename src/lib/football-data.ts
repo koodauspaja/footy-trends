@@ -8,6 +8,18 @@ const API_BASE_URL = "https://api.football-data.org/v4";
 export const COMPETITION_CACHE_TTL_SECONDS = 60 * 60;
 export const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 
+/**
+ * The Redis key a season's matches cache under.
+ *
+ * Exported for the same reason as its TASO counterpart: `force-refresh.ts`
+ * deletes exactly this key to reach the provider, and a key spelled out in two
+ * places would let a change here silently stop that — see
+ * specs/029-forced-season-refresh.md.
+ */
+export function footballDataMatchesCacheKey(competitionCode: string, seasonId: number): string {
+  return `football-data:matches:${competitionCode}:${seasonId}`;
+}
+
 type ProviderTeam = { id?: number; name?: string };
 
 type ProviderScoreLine = { home?: number | null; away?: number | null };
@@ -192,7 +204,7 @@ export async function getSeasonMatches(
   seasonId: number
 ): Promise<NormalizedProviderMatch[]> {
   const response = await getCached<MatchesResponse>(
-    `football-data:matches:${competitionCode}:${seasonId}`,
+    footballDataMatchesCacheKey(competitionCode, seasonId),
     MATCHES_CACHE_TTL_SECONDS,
     () => request<MatchesResponse>(`/competitions/${competitionCode}/matches?season=${seasonId}`)
   );
