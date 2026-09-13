@@ -105,6 +105,24 @@ describe("parseArgs", () => {
     });
   });
 
+  it.each([
+    [
+      "--email",
+      ["--email=right@example.fi", "--email=typo@example.fi"],
+      "--email was given more than once.",
+    ],
+    [
+      "--role",
+      ["--email=a@example.fi", "--role=admin", "--role=user"],
+      "--role was given more than once.",
+    ],
+  ])("refuses a repeated %s rather than letting the last one win", (_case, argv, message) => {
+    // This writes to production. A wrapper script or an edited shell-history
+    // line is how the same flag ends up twice, and silently acting on the
+    // second is the class of mistake the script exists to remove.
+    expect(parseArgs(argv as string[])).toEqual({ ok: false, message });
+  });
+
   it("refuses a flag it does not know", () => {
     expect(parseArgs(["--email=matti@example.fi", "--force=yes"])).toEqual({
       ok: false,

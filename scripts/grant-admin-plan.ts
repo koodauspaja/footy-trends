@@ -18,8 +18,11 @@ export type ParseResult = { ok: true; request: Request } | { ok: false; message:
  *
  * Lower-cased and trimmed, because `user.email` is written by better-auth from
  * what Google returns and an operator retyping it will not match its case.
- * Comparing on the normalised form is what makes `Matti@Example.fi` find the
- * row stored as `matti@example.fi`.
+ *
+ * **This normalises only one side.** The column holds whatever Google sent, so
+ * the comparison in `grant-admin-run.ts` lower-cases the column too — matching
+ * a normalised input against a raw column would report an account stored as
+ * `Matti@Example.fi` as nonexistent, which review caught.
  */
 export function normaliseEmail(raw: string): string {
   return raw.trim().toLowerCase();
@@ -54,7 +57,14 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   for (const arg of argv) {
     const match = /^--([a-z-]+)=(.*)$/.exec(arg);
     if (match === null) return { ok: false, message: `Unrecognised argument: ${arg}` };
-    flags.set(match[1] as string, match[2] as string);
+    const key = match[1] as string;
+    // A repeated flag is refused rather than letting the last one win. This
+    // writes to production, and `--email=right@… --email=typo@…` silently
+    // acting on the second is exactly the class of mistake the script exists
+    // to remove — a wrapper script or an edited shell-history line is how it
+    // happens.
+    if (flags.has(key)) return { ok: false, message: `--${key} was given more than once.` };
+    flags.set(key, match[2] as string);
   }
 
   const rawEmail = flags.get("email");

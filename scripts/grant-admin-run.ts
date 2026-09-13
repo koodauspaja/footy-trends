@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { user } from "../src/db/schema";
@@ -22,42 +22,59 @@ export async function setRole(connectionString: string, request: Request): Promi
   try {
     const db = drizzle(client);
 
-    // Read first, so the outcome can be described from what was actually there
-    // rather than from what the update was asked to do. `where email = …`
-    // matching nothing is the failure the hand-written SQL had, and it looked
-    // exactly like success.
-    const [before] = await db
-      .select({ role: user.role })
-      .from(user)
-      .where(eq(user.email, request.email))
-      .limit(1);
+    /**
+     * Read, write and read back inside one transaction, with the row locked.
+     *
+     * Three separate statements could interleave with another writer — the app
+     * itself has `/yllapito`, which changes roles — and the script would then
+     * report a transition that did not happen, or miss one that did. That is
+     * the failure this script exists to remove, so it would be a poor one to
+     * leave in.
+     *
+     * The lock is on the one row, so it blocks only writes to that account.
+     */
+    return await db.transaction(async (tx) => {
+      // `lower()` on both sides. The column holds whatever Google sent, so a
+      // normalised input compared against a raw column reports an account
+      // stored as `Matti@Example.fi` as nonexistent.
+      const match = sql`lower(${user.email}) = ${request.email}`;
 
-    if (before === undefined) {
-      return { ok: false, message: noSuchAccount(request.email) };
-    }
+      const [before] = await tx
+        .select({ role: user.role })
+        .from(user)
+        .where(match)
+        .limit(1)
+        .for("update");
 
-    if (before.role !== request.role) {
-      await db
-        .update(user)
-        .set({ role: request.role, updatedAt: new Date() })
-        .where(eq(user.email, request.email));
-    }
+      if (before === undefined) {
+        return { ok: false, message: noSuchAccount(request.email) };
+      }
 
-    // Read back rather than assume. The update reports no error when it matches
-    // nothing, so the only honest way to say what the role is now is to ask.
-    const [after] = await db
-      .select({ role: user.role })
-      .from(user)
-      .where(eq(user.email, request.email))
-      .limit(1);
+      if (before.role !== request.role) {
+        await tx.update(user).set({ role: request.role, updatedAt: new Date() }).where(match);
+      }
 
-    if (after === undefined) {
-      // The row disappeared between the two reads — someone deleted the account
-      // while this ran. Rare, and reporting a grant would be a lie.
-      return { ok: false, message: noSuchAccount(request.email) };
-    }
+      // Read back rather than assume. An update reports no error when it
+      // matches nothing, so the only honest way to say what the role is now is
+      // to ask.
+      const [after] = await tx.select({ role: user.role }).from(user).where(match).limit(1);
 
-    return { ok: true, message: describeOutcome(request.email, before.role, after.role) };
+      if (after === undefined) {
+        return { ok: false, message: noSuchAccount(request.email) };
+      }
+
+      // The readback has to equal what was asked for. Finding *a* row is not
+      // the same as the change having happened, and reporting a transition we
+      // did not establish is the exact thing this script replaced.
+      if (after.role !== request.role) {
+        return {
+          ok: false,
+          message: `${request.email} is ${after.role}, not ${request.role}. Nothing was changed — try again.`,
+        };
+      }
+
+      return { ok: true, message: describeOutcome(request.email, before.role, after.role) };
+    });
   } finally {
     // Closed explicitly: a script that leaves the connection open hangs on
     // exit, and `process.exit` in its place can truncate output that has not
