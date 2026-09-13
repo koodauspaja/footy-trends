@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MIGRATION_TAG,
@@ -126,4 +128,39 @@ describe("MIGRATION_TAG", () => {
     expect("add_refresh_runs").not.toMatch(MIGRATION_TAG);
     expect("0016_young_meteorite").not.toMatch(MIGRATION_TAG);
   });
+});
+
+/**
+ * The documentation and the rule have now drifted apart twice in one change:
+ * `docs/setup/015-database-setup.md` told a reader to wire up the unguarded
+ * command, and `README.md` gave an example name the guard rejects. Both were
+ * found in review rather than by running anything.
+ *
+ * So the examples are executable now. Every `--name` a document offers is fed
+ * through the same planner the script uses, and a document that teaches a
+ * command which would be refused fails here.
+ */
+describe("the documented examples", () => {
+  const DOCUMENTS = ["README.md", "docs/setup/015-database-setup.md", "CLAUDE.md"];
+
+  /** `<verb>_<what>` and friends describe the rule; they are not examples of it. */
+  const isPlaceholder = (name: string) => name.includes("<") || name.includes(">");
+
+  function examplesIn(file: string): string[] {
+    const text = readFileSync(path.join(process.cwd(), file), "utf8");
+    return [...text.matchAll(/--name[= ]([^\s`"']+)/g)]
+      .map((match) => match[1] ?? "")
+      .filter((name) => name !== "" && !isPlaceholder(name));
+  }
+
+  it("offers at least one real example, so this test cannot pass vacuously", () => {
+    expect(DOCUMENTS.flatMap(examplesIn).length).toBeGreaterThan(0);
+  });
+
+  it.each(DOCUMENTS.flatMap((file) => examplesIn(file).map((name) => [file, name] as const)))(
+    "%s teaches --name=%s, which the wrapper accepts",
+    (_file, name) => {
+      expect(planMigrationGeneration([`--name=${name}`]).ok).toBe(true);
+    }
+  );
 });

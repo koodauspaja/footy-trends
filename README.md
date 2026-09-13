@@ -129,12 +129,26 @@ required runtime setup without changing the CI workflow.
 ### Database Workflows
 
 ```bash
-npm run db:generate -- --name=descriptive_migration_name
+npm run db:generate -- --name=add_match_status_column
 npm run db:migrate
 ```
 
-Always pass `--name` — without it, `drizzle-kit` invents a whimsical
-filename that says nothing about what changed.
+`db:generate` **refuses to run without `--name`**, and the name must be
+`<verb>_<what>` — the verb one of `add`, `create`, `alter`, `drop`, `rename` or
+`backfill`. Either `--name=add_thing` or `--name add_thing` works.
+
+The rule is enforced rather than advised, because advice was not enough: this
+file and `docs/setup/015-database-setup.md` both said to pass `--name`, and
+seven migrations still reached `main` called things like `0016_young_meteorite`
+— the name `drizzle-kit` invents when given none, which says nothing to whoever
+reads it back during an incident. `scripts/generate-migration.ts` will not
+create one, and `tests/unit/db/migrations.test.ts` fails if one appears by any
+other route.
+
+**Never edit a migration that has already been applied anywhere.** The migrator
+hashes a migration's *contents*, so changing the SQL breaks that environment's
+next deploy — add a new migration instead. Renaming is safe, as long as the
+`.sql` and its journal tag move together and the SQL is untouched.
 
 Alternative for local-only schema sync:
 
