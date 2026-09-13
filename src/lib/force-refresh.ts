@@ -4,6 +4,7 @@ import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "@/lib/cache";
 import {
   categoryIdForSeason,
+  categoryIdsFor,
   competitionIdForSeason,
   earliestSeasonFor,
 } from "@/lib/domestic-competitions";
@@ -83,6 +84,16 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
   if (!isKnownCompetition(choice)) return { ok: false, reason: "input" };
 
   try {
+    // Narrowed to seasons we already hold. The provider's range is the wrong
+    // list on its own: it includes seasons this app has never stored, and
+    // offering one would let the tool *import* a season — which the ordinary
+    // sync is for, and which this spec puts out of scope. There is also nothing
+    // to correct in a season we hold nothing for, so the entry would be a trap
+    // rather than a feature.
+    const stored = await storedSeasonsFor(choice);
+    const held = (seasons: SeasonChoice[]) =>
+      seasons.filter((season) => stored.has(season.seasonId));
+
     if (choice.source === "taso") {
       // `resolveTasoSeasonCeiling`, never `resolveTasoSeasonContext`. The
       // latter probes by synchronizing the current season, which *writes* — so
@@ -92,15 +103,47 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
       const { currentSeason } = await resolveTasoSeasonCeiling(choice.code);
       return {
         ok: true,
-        seasons: listSelectableTasoSeasons(currentSeason, earliestSeasonFor(choice.code)),
+        seasons: held(listSelectableTasoSeasons(currentSeason, earliestSeasonFor(choice.code))),
       };
     }
     const { selectableSeasons } = await getSeasonContext(choice.code);
-    return { ok: true, seasons: selectableSeasons };
+    return { ok: true, seasons: held(selectableSeasons) };
   } catch (error) {
     logger.warn({ err: error, ...choice }, "Listing seasons for a forced refresh failed");
     return { ok: false, reason: "provider" };
   }
+}
+
+/**
+ * Every season this app has rows for, in one competition.
+ *
+ * Both TASO tables, because a season can hold group standings without matches
+ * or the reverse, and either is something an admin might need to correct.
+ * Scoped by category rather than by competition id, matching
+ * `newestStoredSeason`: a junior competition's rows are split across two or
+ * three category ids by era, and asking about one would hide the others.
+ */
+async function storedSeasonsFor(choice: CompetitionChoice): Promise<Set<number>> {
+  if (choice.source !== "taso") {
+    const rows = await db
+      .selectDistinct({ seasonId: matches.seasonId })
+      .from(matches)
+      .where(eq(matches.competitionCode, choice.code));
+    return new Set(rows.map((row) => row.seasonId));
+  }
+
+  const categoryIds = categoryIdsFor(choice.code);
+  const [matchSeasons, groupSeasons] = await Promise.all([
+    db
+      .selectDistinct({ seasonId: tasoMatches.seasonId })
+      .from(tasoMatches)
+      .where(inArray(tasoMatches.categoryId, categoryIds)),
+    db
+      .selectDistinct({ seasonId: tasoGroupTeams.seasonId })
+      .from(tasoGroupTeams)
+      .where(inArray(tasoGroupTeams.categoryId, categoryIds)),
+  ]);
+  return new Set([...matchSeasons, ...groupSeasons].map((row) => row.seasonId));
 }
 
 function seasonLabelFor(seasons: SeasonChoice[], seasonId: number): string | null {
@@ -262,7 +305,18 @@ async function tasoDiff(
         groupRows: groupDiff.counts,
         deductionChanges: groupDiff.deductionChanges,
         removedMatches: matchDiff.removed,
-        snapshotHash: snapshotHash([snapshot.matches, dedupedGroupTeams(snapshot)]),
+        // **Both sides.** The provider's answer *and* the rows it was compared
+        // against. Hashing only the provider would let the stored side move —
+        // another admin applying, or the ordinary sync touching a current
+        // season — and the apply would still accept an approval built against
+        // rows that are gone, removing matches by name that an admin never saw
+        // listed. Either side moving now re-previews instead.
+        snapshotHash: snapshotHash([
+          snapshot.matches,
+          dedupedGroupTeams(snapshot),
+          storedMatches,
+          storedGroupTeams,
+        ]),
       },
     },
   };
@@ -297,7 +351,8 @@ async function foreignDiff(
         groupRows: null,
         deductionChanges: [],
         removedMatches: matchDiff.removed,
-        snapshotHash: snapshotHash([snapshot.matches]),
+        // Both sides, as above.
+        snapshotHash: snapshotHash([snapshot.matches, storedMatches]),
       },
     },
   };

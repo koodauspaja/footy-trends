@@ -262,6 +262,39 @@ be untidy for no gain. Anyone holding this branch with the old migration applied
 has to drop `refresh_runs` and its journal row; a fresh environment is
 unaffected.
 
+## Round four: the contract said three things the code did not
+
+**The tool could import a season.** The season list came from the provider's
+range, which includes seasons this app has never stored — so an admin could
+preview and apply one, and the tool would *create* it. The spec's own scope says
+new seasons arrive through the ordinary sync. Narrowed to the seasons we hold
+rows for, counting both TASO tables, since a season can hold standings without
+matches and a deduction there is exactly the case this exists for.
+
+A competition with nothing stored now offers an empty list, which is the honest
+answer: there is nothing to correct.
+
+**The approval hash covered one side of the comparison.** It was taken over the
+provider's rows only, so the *stored* side could move between preview and apply —
+another admin applying, or the ordinary sync touching a current season — and the
+apply would still accept an approval built against rows that were gone. The
+admin approves removals **by name**, so this was not academic: it could have
+removed matches nobody had seen listed. The hash now covers both sides, and
+either moving re-previews.
+
+**The audit contract was wider than the behaviour.** A stale bounce is not
+recorded, deliberately — it is the apply working as designed, and the admin is
+about to see a fresh diff and decide again. But the acceptance criterion said
+"every applied run — success or failure". Review offered both resolutions;
+narrowing the stated contract is the right one, so the criterion now names the
+two refusals that are excluded and why. The behaviour did not change; the
+promise did, to match it.
+
+That is three rounds in a row where the defect was the same shape: a property
+asserted in prose while the code did something narrower. The lesson is not
+"write fewer claims" — it is that every claim in a spec is a test I have not
+written yet.
+
 ## Sorting for a hash is not sorting for a reader
 
 Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for

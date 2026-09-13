@@ -314,6 +314,17 @@ Through a server action gated by `requireAdmin()` like every other:
 - football-data: `getSeasonContext(code).selectableSeasons`, which already
   carries the `2025/26` labels
 
+**Then narrowed to the seasons the app actually holds rows for.** The provider's
+range is the wrong list on its own: it includes seasons never stored here, and
+offering one would let this tool *import* a season — which the ordinary sync is
+for and this spec puts out of scope. There is also nothing to correct in a
+season we hold nothing for, so the entry would be a trap rather than a feature.
+A competition with no stored rows offers an empty list.
+
+Both TASO tables count, since a season can hold group standings without matches
+or the reverse, and a deduction in the former is exactly what this tool exists
+to fix.
+
 Both are Redis-cached for fifteen minutes, so a repeated choice costs nothing.
 
 **Not `resolveTasoSeasonContext`**, which is what the reader-facing pages use.
@@ -393,11 +404,18 @@ a team that advances appears several times, and `synchronizeGroupTeams` keeps
 the first and drops the rest. Diffing the raw rows would promise an admin more
 inserts than the apply performs — and write that promise into the audit log.
 
-A stable hash of the normalized provider rows travels with the preview. The
-apply recomputes it; if it no longer matches, the provider's answer moved
-between the two steps and the apply refuses, re-previewing instead. Cheaper and
-more honest than storing a megabyte of snapshot against a token, and it makes
-"what you saw is what you applied" a checked fact.
+A stable hash travels with the preview, taken over **both sides**: the
+normalized provider rows *and* the stored rows they were compared against. The
+apply recomputes it, and refuses if it no longer matches.
+
+Both sides, because hashing only the provider would leave the stored side free
+to move — another admin applying, or the ordinary sync touching a current
+season — and the apply would still accept an approval built against rows that
+are gone, removing matches by name that the admin was never shown. Either side
+moving now re-previews instead.
+
+Cheaper and more honest than storing a megabyte of snapshot against a token, and
+it makes "what you saw is what you applied" a checked fact.
 
 ### What the apply writes
 
@@ -639,9 +657,13 @@ ones every page render already calls.
       still never refetched by any page
 - [ ] The confirmation shows added, changed and removed counts for both tables,
       and every team whose `starting_points` would move, old → new
-- [ ] Every applied run — success or failure — is recorded in `refresh_runs`
-      with its insert/update/delete counts, and the twenty most recent are
-      listed on the page
+- [ ] Every run that reached the provider is recorded in `refresh_runs` with
+      its insert/update/delete counts, and the twenty most recent are listed on
+      the page. **Two refusals are deliberately not recorded**: a malformed
+      request (`"input"`), which is not an event that happened to the data, and
+      a stale bounce (`"stale"`), which is the apply working as designed and
+      immediately re-presenting a fresh diff. Recording either would fill an
+      operator's log with entries they cannot act on.
 - [ ] Deleting an admin account leaves their run rows in place, with the person
       no longer identifiable from them
 - [ ] A non-admin — signed out or signed in — gets the not-found page at

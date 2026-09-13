@@ -462,6 +462,50 @@ describe("knockout duplicates", () => {
   });
 });
 
+describe("seasons the app does not hold", () => {
+  it("are not offered, so the tool cannot import a season", async () => {
+    // Nothing seeded for this season. New seasons arrive through the ordinary
+    // sync; this tool corrects seasons we already have.
+    const { listSeasonsFor } = await import("@/lib/force-refresh");
+
+    const result = await listSeasonsFor(CHOICE);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.seasons.map((season) => season.seasonId)).not.toContain(SEASON);
+  });
+
+  it("cannot be previewed even when the provider offers them", async () => {
+    state.providerMatches = [buildMatch()];
+
+    expect(await preview()).toEqual({ ok: false, reason: "input" });
+  });
+
+  it("are offered once rows exist for them", async () => {
+    await seed([buildMatch()], []);
+    const { listSeasonsFor } = await import("@/lib/force-refresh");
+
+    const result = await listSeasonsFor(CHOICE);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.seasons.map((season) => season.seasonId)).toContain(SEASON);
+  });
+
+  it("counts a season held only as group standings", async () => {
+    // A season can hold standings without matches; correcting a deduction there
+    // is exactly what this tool is for.
+    await seed([], [buildGroupTeam()]);
+    const { listSeasonsFor } = await import("@/lib/force-refresh");
+
+    const result = await listSeasonsFor(CHOICE);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.seasons.map((season) => season.seasonId)).toContain(SEASON);
+  });
+});
+
 describe("the run log", () => {
   it("outlives the admin who ran it, without naming them", async () => {
     // `run_by` is `on delete set null`, the one deliberate exception to the

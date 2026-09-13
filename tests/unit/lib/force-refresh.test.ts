@@ -31,6 +31,8 @@ const { state, logger } = vi.hoisted(() => ({
     transactionThrows: false,
     seasonListThrows: false,
     readThrows: false,
+    /** The seasons the app holds rows for — the tool offers only these. */
+    storedSeasons: [2026, 2025, 2024, 2016] as number[],
   },
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
@@ -130,6 +132,12 @@ vi.mock("@/db", () => {
   };
   return {
     db: {
+      // The season list asks which seasons the app holds rows for.
+      selectDistinct: () => ({
+        from: () => ({
+          where: async () => state.storedSeasons.map((seasonId) => ({ seasonId })),
+        }),
+      }),
       select: () => ({
         from: (from: unknown) => ({
           where: async () => {
@@ -185,6 +193,7 @@ beforeEach(() => {
   state.transactionThrows = false;
   state.seasonListThrows = false;
   state.readThrows = false;
+  state.storedSeasons = [2026, 2025, 2024, 2016];
   vi.clearAllMocks();
 });
 
@@ -505,6 +514,26 @@ describe("applyRefresh", () => {
     expect(recordSuccess).not.toHaveBeenCalled();
   });
 
+  it("refuses when the stored rows moved, even though the provider's answer did not", async () => {
+    // The approval is over *both* sides. Hashing only the provider would let
+    // another admin's apply — or the ordinary sync on a current season — change
+    // what we hold, and this apply would still accept an approval built against
+    // rows that are gone, removing matches by name that nobody saw listed.
+    state.storedMatches = [match(1), match(7)];
+    state.providerMatches = [match(1)];
+    state.normalizedGroupTeams = [groupTeam()];
+    const hash = await previewThenHash();
+
+    // Same provider answer; somebody else already removed match 7.
+    state.storedMatches = [match(1)];
+
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(result).toMatchObject({ ok: false, reason: "stale" });
+    noWriterRan();
+  });
+
   it("records a failed run when the provider goes silent on a season we hold", async () => {
     state.storedMatches = [match(1)];
     state.providerMatches = [];
@@ -545,16 +574,50 @@ describe("listSeasonsFor", () => {
     expect(resolveTasoSeasonContext).not.toHaveBeenCalled();
   });
 
-  it("offers the seasons the reader-facing picker offers", async () => {
+  it("offers only the seasons the app already holds rows for", async () => {
+    // The provider's range is the wrong list on its own: it includes seasons
+    // never stored here, and offering one would let the tool *import* a season.
+    // New seasons arrive through the ordinary sync, and there is nothing to
+    // correct in a season we hold nothing for.
+    state.storedSeasons = [2026, 2016];
     const { listSeasonsFor } = await import("@/lib/force-refresh");
 
     const result = await listSeasonsFor(VEIKKAUSLIIGA);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.seasons[0]).toEqual({ seasonId: 2026, label: "2026" });
-    // Down to the competition's own floor, not the provider-wide one.
-    expect(result.seasons.at(-1)).toEqual({ seasonId: 2015, label: "2015" });
+    expect(result.seasons).toEqual([
+      { seasonId: 2026, label: "2026" },
+      { seasonId: 2016, label: "2016" },
+    ]);
+  });
+
+  it("offers nothing for a competition the app holds no rows for", async () => {
+    state.storedSeasons = [];
+    const { listSeasonsFor } = await import("@/lib/force-refresh");
+
+    expect(await listSeasonsFor(VEIKKAUSLIIGA)).toEqual({ ok: true, seasons: [] });
+  });
+
+  it("never offers a season outside the competition's own range", async () => {
+    // Stored rows older than a competition's floor exist — data from before the
+    // floor was configured — and must not widen what the tool offers.
+    state.storedSeasons = [2026, 2015];
+    const { listSeasonsFor } = await import("@/lib/force-refresh");
+
+    const result = await listSeasonsFor({ source: "taso", code: "M1L" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Ykkösliiga did not exist in 2015.
+    expect(result.seasons.map((season) => season.seasonId)).toEqual([2026]);
+  });
+
+  it("refuses to preview a season the app holds nothing for", async () => {
+    state.storedSeasons = [2016];
+    const { previewRefresh } = await import("@/lib/force-refresh");
+
+    expect(await previewRefresh(VEIKKAUSLIIGA, 2026)).toEqual({ ok: false, reason: "input" });
   });
 
   it("carries the foreign picker's own season labels", async () => {
