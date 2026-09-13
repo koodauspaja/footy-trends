@@ -108,3 +108,23 @@ export function describeOutcome(email: string, before: string, after: string): s
 export function noSuchAccount(email: string): string {
   return `No account with the address ${email}. They must sign in once before a role can be set.`;
 }
+
+/**
+ * The message for an address that more than one account holds.
+ *
+ * Possible because `user.email` is `unique` on the raw text, which is
+ * case-sensitive, while this script matches on `lower(email)` so that an
+ * operator's typing finds a row stored as Google sent it. Both
+ * `Matti@Example.fi` and `matti@example.fi` can therefore exist — verified
+ * against Postgres, not assumed.
+ *
+ * Refusing is the only safe answer. Acting on the first would be a coin toss,
+ * and acting on all of them would change accounts the operator never named.
+ */
+export function ambiguousAccount(email: string, found: readonly string[]): string {
+  return [
+    `More than one account matches ${email}, differing only in case:`,
+    ...found.map((one) => `  ${one}`),
+    "Nothing was changed. Resolve the duplicate before setting a role.",
+  ].join("\n");
+}

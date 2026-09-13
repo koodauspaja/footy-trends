@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ambiguousAccount,
   describeOutcome,
   looksLikeEmail,
   normaliseEmail,
@@ -157,6 +158,33 @@ describe("noSuchAccount", () => {
   it("says why there might be no row, not just that there is none", () => {
     expect(noSuchAccount("matti@example.fi")).toBe(
       "No account with the address matti@example.fi. They must sign in once before a role can be set."
+    );
+  });
+});
+
+describe("ambiguousAccount", () => {
+  it("names every account it found, and says nothing was changed", () => {
+    // `user.email` is unique on the raw text, which is case-sensitive, while
+    // this script matches on `lower(email)` so an operator's typing finds a row
+    // stored as Google sent it. Both spellings can therefore exist — verified
+    // against Postgres, where the two inserted successfully and one predicate
+    // matched them both.
+    expect(ambiguousAccount("dup@example.fi", ["Dup@Example.fi", "dup@example.fi"])).toBe(
+      [
+        "More than one account matches dup@example.fi, differing only in case:",
+        "  Dup@Example.fi",
+        "  dup@example.fi",
+        "Nothing was changed. Resolve the duplicate before setting a role.",
+      ].join("\n")
+    );
+  });
+
+  it("says nothing was changed, because that is the part that matters", () => {
+    // Acting on the first would be a coin toss and acting on all would change
+    // accounts the operator never named, so the message has to make clear that
+    // neither happened.
+    expect(ambiguousAccount("dup@example.fi", ["A@b.fi", "a@b.fi"])).toContain(
+      "Nothing was changed."
     );
   });
 });
