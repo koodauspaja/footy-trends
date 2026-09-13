@@ -39,7 +39,10 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["lcov", "text"],
+      // `json` alongside the others because `scripts/coverage-gaps.ts` reads
+      // `coverage-final.json` to find source files no test imports — the files
+      // vitest cannot report as 0% because it never sees them at all.
+      reporter: ["lcov", "text", "json"],
       // Everything under tests/ is test code or test data, neither of which
       // is a subject of coverage. Without this a JSON fixture is reported as a
       // permanently 0%-covered file, which both adds noise and drags the

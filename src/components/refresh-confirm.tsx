@@ -82,13 +82,18 @@ export function RefreshConfirm({ preview, pending, onConfirm, onCancel }: Props)
   const hidden = preview.removedMatches.length - shown.length;
 
   return (
-    // `aria-modal` with a heading it is labelled by, as `admin-user-table.tsx`
-    // does for its own confirmation.
-    <div
+    // A real `<dialog>` rather than `role="dialog"`: the element carries the
+    // semantics natively and behaves consistently across assistive technology,
+    // which the role alone does not guarantee.
+    //
+    // `open` rather than `showModal()`, because this is rendered inline under
+    // the form rather than over the page — the admin can still see the choices
+    // that produced it — and a top-layer modal would need focus management this
+    // does not otherwise require.
+    <dialog
       aria-labelledby="refresh-confirm-heading"
-      aria-modal="true"
-      className="mt-6 rounded border p-4"
-      role="dialog"
+      className="mt-6 block w-full rounded border p-4"
+      open
     >
       <h2 className="font-semibold text-lg" id="refresh-confirm-heading">
         {HEADING}
@@ -164,6 +169,6 @@ export function RefreshConfirm({ preview, pending, onConfirm, onCancel }: Props)
           </button>
         </div>
       )}
-    </div>
+    </dialog>
   );
 }

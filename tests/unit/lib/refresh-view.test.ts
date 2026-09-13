@@ -105,6 +105,12 @@ describe("previewHasChanges", () => {
     );
   });
 
+  it("is true when only a deduction would move", () => {
+    expect(
+      previewHasChanges(preview({ deductionChanges: [{ teamName: "HJK", from: 0, to: -6 }] }))
+    ).toBe(true);
+  });
+
   it("is true when only group rows would move", () => {
     expect(previewHasChanges(preview({ groupRows: { inserted: 0, updated: 1, deleted: 0 } }))).toBe(
       true

@@ -205,11 +205,19 @@ describe("a slow season list", () => {
     const { unmount } = renderForm();
     unmount();
 
-    // No state update, and nothing thrown: the effect's cleanup has already
-    // said this answer is no longer wanted.
+    // The effect's cleanup has already said this answer is no longer wanted, so
+    // the rejection must not reach React. Asserted rather than merely awaited:
+    // a test whose only outcome is "nothing threw" passes just as well when the
+    // code it covers has been deleted.
+    const onError = vi.fn();
+    window.addEventListener("error", onError);
     await act(async () => {
       rejectFirst(new Error("too late"));
     });
+    window.removeEventListener("error", onError);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
   });
 });
 

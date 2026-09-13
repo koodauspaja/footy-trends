@@ -181,6 +181,24 @@ describe("RefreshConfirm", () => {
     expect(screen.getByRole("button", { name: "Peruuta" })).toBeDisabled();
   });
 
+  it("offers Päivitä for a deduction change alone", () => {
+    // The one thing this feature exists to apply must not be the thing the
+    // button forgets.
+    render(
+      <RefreshConfirm
+        onCancel={noop}
+        onConfirm={noop}
+        pending={false}
+        preview={preview({
+          deductionChanges: [{ teamName: "PK-35 Vantaa", from: 0, to: -6 }],
+        })}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Päivitä" })).toBeInTheDocument();
+    expect(screen.queryByText("Tiedot ovat jo ajan tasalla. Mitään ei muuttuisi.")).toBeNull();
+  });
+
   it("is a dialog labelled by its own heading", () => {
     render(<RefreshConfirm onCancel={noop} onConfirm={noop} pending={false} preview={preview()} />);
 
