@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
       { source: "/asetukset", destination: "/settings" },
       // The favourites page, added in specs/026-favourites.md.
       { source: "/suosikit", destination: "/favorites" },
+      // The admin area, added in specs/028-admin-tools-and-roles.md.
+      { source: "/yllapito", destination: "/admin" },
       // The privacy policy, added in #302.
       { source: "/tietosuoja", destination: "/privacy" },
       // The terms of service, added in #303.
@@ -67,6 +69,11 @@ const nextConfig: NextConfig = {
       // The favourites page, added in specs/026-favourites.md. Paired with the
       // rewrite above, exactly as `/settings` is.
       { source: "/favorites", destination: "/suosikit", permanent: true },
+      // The admin area, added in specs/028-admin-tools-and-roles.md. Paired
+      // with its rewrite for the same reason: the English folder path is not a
+      // URL, and leaving it answering 200 would make `/admin` the one route in
+      // the app reachable under both spellings.
+      { source: "/admin", destination: "/yllapito", permanent: true },
       { source: "/privacy", destination: "/tietosuoja", permanent: true },
       { source: "/terms", destination: "/kayttoehdot", permanent: true },
       // The foreign pages moved under /ulkomaat.

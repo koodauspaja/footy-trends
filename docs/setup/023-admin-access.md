@@ -112,11 +112,16 @@ quickly.
 Sign in as that account. The account menu shows **Ylläpito**, and `/yllapito`
 loads.
 
-A signed-in reader gets **404** there, not 403 — the page does not announce
-itself to people who may not use it. So a 404 from the account you just granted
-means the grant did not work, rather than that the page is missing. That
-distinction only becomes checkable when the page lands; until then a 404 there
-means only that the route does not exist yet.
+A signed-in reader gets the **not-found page** there rather than a 403 — the
+page does not announce itself to people who may not use it. So seeing it from
+the account you just granted means the grant did not work, rather than that the
+page is missing.
+
+(Everyone refused gets that same page, with a 200 status rather than a 404 —
+Next cannot change a status once the response has begun streaming, so
+`/yllapito` is identifiable as a real route by status alone. The body gives
+nothing away, and `requireAdmin()` is what actually refuses. See
+`specs/028-admin-tools-and-roles.md`.)
 
 ---
 
@@ -168,7 +173,7 @@ environment where somebody needs the access.
 Once `/yllapito` ships:
 
 - [ ] That account sees **Ylläpito** in the account menu and `/yllapito` loads
-- [ ] A signed-in reader gets **404** at `/yllapito`, not 403
+- [ ] A signed-in reader gets the **not-found page** at `/yllapito`, not the admin page and not a 403
 
 ## Next
 → Nothing scheduled. This is a one-time operation per environment; after the
