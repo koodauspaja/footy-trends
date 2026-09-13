@@ -504,3 +504,54 @@ export const favoriteCompetition = pgTable(
     ),
   ]
 );
+
+/**
+ * One record per applied forced refresh, from specs/029-forced-season-refresh.md.
+ *
+ * An operational log, not reader data. A forced refresh is run a handful of
+ * times a year, by an admin, against a season whose data turned out to be
+ * wrong — so the questions it has to answer are asked months apart ("when did
+ * we last refresh this, and did that work?") by someone who cannot be expected
+ * to remember.
+ *
+ * The counts come from the same diff the confirmation dialog showed, so what
+ * an admin approved and what is recorded here are the same numbers by
+ * construction rather than by two pieces of code agreeing.
+ */
+export const refreshRuns = pgTable("refresh_runs", {
+  id: serial("id").primaryKey(),
+  /**
+   * `"taso"` or `"football-data"`. `text` rather than a Postgres enum, for the
+   * reason already recorded for `user.role`: adding a value to an enum is a
+   * migration that takes a lock, and this repository validates small closed
+   * sets in TypeScript — see `refresh-view.ts`.
+   */
+  source: text("source").notNull(),
+  competitionCode: text("competition_code").notNull(),
+  seasonId: integer("season_id").notNull(),
+  /** `"success"` or `"failed"`. */
+  status: text("status").notNull(),
+  /** The failure reason code, null on success. */
+  reason: text("reason"),
+  matchesInserted: integer("matches_inserted").notNull().default(0),
+  matchesUpdated: integer("matches_updated").notNull().default(0),
+  matchesDeleted: integer("matches_deleted").notNull().default(0),
+  /** Null for football-data, which stores no group standings of its own. */
+  groupRowsInserted: integer("group_rows_inserted"),
+  groupRowsUpdated: integer("group_rows_updated"),
+  groupRowsDeleted: integer("group_rows_deleted"),
+  deductionsChanged: integer("deductions_changed").notNull().default(0),
+  /**
+   * **`set null`, not `cascade`** — the only user reference in this schema that
+   * is not. Deliberate in both directions: the operational record survives an
+   * admin account being deleted, while the link to the person does not, which
+   * is this project's rule for ids. The row then renders as
+   * `Poistettu käyttäjä`.
+   *
+   * `decisions/028-admin-tools-and-roles.md` relies on cascade to make one
+   * `DELETE` remove everything a *reader owns*. A log of operations performed
+   * on the app is not something a reader owns, so this is not a hole in that.
+   */
+  runBy: text("run_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

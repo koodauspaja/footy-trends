@@ -10,6 +10,27 @@ const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
+ * The Redis keys the two season endpoints cache under.
+ *
+ * Exported rather than inlined because the forced refresh in
+ * `force-refresh.ts` has to *delete* exactly these keys in order to reach TASO
+ * — see specs/029-forced-season-refresh.md. Spelling them out in two places
+ * would mean a changed key here silently stops the refresh clearing anything,
+ * and the failure is invisible: the refetch just answers out of the cache it
+ * was meant to bypass.
+ *
+ * The season is inside `competitionId` (`spljp26`, `M1LCUP26`), so these are
+ * per-season keys despite not naming a season.
+ */
+export function tasoMatchesCacheKey(competitionId: string, categoryId: string): string {
+  return `taso:matches:${competitionId}:${categoryId}`;
+}
+
+export function tasoCategoryCacheKey(competitionId: string, categoryId: string): string {
+  return `taso:category:${competitionId}:${categoryId}`;
+}
+
+/**
  * How long a page render waits for TASO before giving up on it.
  *
  * Unbounded before #363, which is how the v1.4.0 release e2e run failed 41
@@ -352,7 +373,7 @@ export async function getSeasonMatches(
   // team pages ask about every year × category combination and most are empty,
   // which made one such pair account for 18 requests in a single test run.
   const response = await getCached<MatchesResponse>(
-    `taso:matches:${competitionId}:${categoryId}`,
+    tasoMatchesCacheKey(competitionId, categoryId),
     MATCHES_CACHE_TTL_SECONDS,
     () =>
       request<MatchesResponse>(
@@ -668,7 +689,7 @@ export async function getSeasonGroups(
   categoryId: string
 ): Promise<TasoGroup[]> {
   const response = await getCached<CategoryResponse>(
-    `taso:category:${competitionId}:${categoryId}`,
+    tasoCategoryCacheKey(competitionId, categoryId),
     GROUPS_CACHE_TTL_SECONDS,
     () =>
       request<CategoryResponse>(

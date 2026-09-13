@@ -14,6 +14,19 @@ import {
 } from "./standings";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
+
+/**
+ * The Redis key a competition-season's *computed* table caches under.
+ *
+ * Exported because a forced refresh has to clear it too, and this is the one
+ * that is easy to miss: the database write genuinely succeeds, so without
+ * clearing this the page keeps serving the old standings for up to fifteen
+ * minutes after the data is already correct. See
+ * specs/029-forced-season-refresh.md.
+ */
+export function standingsCacheKey(competitionCode: string, seasonId: number): string {
+  return `standings:${competitionCode}:${seasonId}`;
+}
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const parsedRefreshIntervalSeconds = Number(process.env.FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS);
 const refreshIntervalSeconds =
@@ -113,7 +126,7 @@ export async function getStandings({
   round,
 }: StandingsRequest): Promise<StandingsResult> {
   try {
-    const cacheKey = `standings:${competitionCode}:${seasonId}`;
+    const cacheKey = standingsCacheKey(competitionCode, seasonId);
     if (round === undefined) {
       const cached = await readCachedStandings(cacheKey);
       if (cached) return toResult(cached);

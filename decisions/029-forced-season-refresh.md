@@ -1,0 +1,192 @@
+# 029 — Forced season refresh: decisions
+
+Implementation notes for #150, spec `specs/029-forced-season-refresh.md`.
+Written as the work happens; this covers the first of two pull requests — the
+engine, with no user-visible surface. The page, the actions and the components
+follow, and their decisions land here too.
+
+## The rule arrived from Miikka, and it inverted the design
+
+My first draft took "never delete" as an absolute and gave the forced path an
+upsert-only writer, extracting the upsert half out of `synchronizeGroupTeams`.
+
+Miikka's correction was sharper than the rule I had written:
+
+> both in taso and in football-data we don't know if they stop providing some
+> old season now. so what i don't want to happen, is that something is deleted
+> from our db just because the provider stopped sharing that data. if the old
+> season has changed and that is updated by our admin, then it's ok to delete
+> and insert new rows
+
+The rule is about **provider silence**, not about deletion. That is a better
+line, and it costs less: `synchronizeGroupTeams` keeps its delete-and-insert
+untouched, no writer is extracted, and the stale-group-row problem its comment
+warns about never arises. The whole protection collapses into one branch — an
+empty answer for a season we hold rows for is refused before it reaches a
+writer — plus a person looking at the diff.
+
+## The confirmation step is the control, not a courtesy
+
+A *partial* answer — non-empty but truncated upstream — is indistinguishable
+from a season that genuinely lost fixtures. Nothing in the response separates
+them, so nothing in the code can.
+
+That is why this is two steps. The preview fetches, compares and writes
+nothing; the admin sees `Poistuvia otteluita: 180` with the matches listed by
+name and declines. Removals are listed rather than counted for exactly this
+reason: a number is not enough to judge a deletion by.
+
+So the two-step flow is load-bearing. If a later change collapses it into one
+button, the feature loses its only defence against a truncated response.
+
+## Redis would have made the whole feature a no-op
+
+`getSeasonMatches` and `getSeasonGroups` are cached for fifteen minutes.
+Skipping `needsRefresh` alone refetches **from Redis**, so the tool would have
+previewed and applied data the provider was never asked for — and marked the
+season synced.
+
+Two consequences, both in the code:
+
+`invalidateCache` gained a `boolean` return, and a failed clear **stops the
+run**. Swallowing it would mean showing an admin a diff built from the very
+data they are trying to correct. It had no production callers at all before
+this — only a test — so nothing else changed behaviour.
+
+And `standings:{code}:{seasonId}` is cleared too. That one is the *computed*
+foreign table, and it is the one that would have been missed: the database
+write genuinely succeeds, so the only symptom is the page serving the old
+standings for another fifteen minutes. All seven cache keys in the codebase
+were enumerated to decide which four go and which three stay.
+
+## The cache keys became builders
+
+Each key now exists once, in the module that owns it, exported and used at its
+original call site. `force-refresh.ts` imports them.
+
+Spelling `taso:matches:${competitionId}:${categoryId}` out a second time inside
+the refresh would have made it a second source of truth, and the failure mode
+is silent: change the key in `taso.ts` and the refresh clears a key nobody
+reads, then refetches out of the cache it meant to bypass, and reports success.
+
+This is the only change to `taso.ts`, `football-data.ts` and
+`standings-service.ts`. `needsRefresh` and the synchronize functions are
+untouched.
+
+## The apply reads through the cache the preview warmed
+
+The preview clears and fetches; the apply does not clear.
+
+Inside the fifteen-minute window the apply therefore sees the same bytes the
+preview did, so the hash matches, no second provider call is made, and "what
+you saw is what you applied" is the ordinary case rather than a race. Past the
+window it refetches and the hash check turns a changed answer into a refusal.
+
+My first version cleared on both, which would have doubled provider load and
+made a stale bounce likely on any season still being played. Caught by writing
+the test for "does not clear the cache again" and finding it failed.
+
+## The hash, rather than storing the snapshot
+
+The alternative was parking the fetched snapshot — up to a megabyte — in Redis
+against a token, and applying exactly those bytes.
+
+The hash is cheaper and says the same thing: it is taken over the normalized
+provider rows, ignores row order (the provider owes us no order), and is
+length-prefixed per group so matches and group standings cannot be swapped for
+each other. A mismatch means the answer moved, and the apply hands back the
+fresh diff instead of writing something nobody approved.
+
+Miikka's call on the mechanism: "i don't know the details. i trust your
+investigation and judgement on this technical decision."
+
+## `run_by` is the one `set null` in the schema
+
+Every other user reference cascades, and `decisions/028-admin-tools-and-roles.md`
+leans on that: one `DELETE` removes everything a reader owns, with no second
+code path to forget.
+
+A refresh log is not something a reader *owns* — it is a record of what was done
+to the application's data. So the row survives the account and the link to the
+person does not, which is this project's existing rule for ids ("id's are ok, if
+after deletion can't be linked to user"). It renders as `Poistettu käyttäjä`.
+
+`tests/unit/db/schema.test.ts` asserts it beside the six cascades, because
+"make it consistent with the others" is exactly the change someone would make
+here in good faith.
+
+## The diff is pure, and it feeds both the dialog and the log
+
+One computation, two consumers. The counts an admin approves and the counts the
+run log records are the same numbers by construction rather than by two pieces
+of code agreeing — which is the failure this project has hit before.
+
+`rowChanged` iterates the **provider row's own keys** rather than a hand-written
+column list. Both normalized provider types mirror their table's columns
+exactly — that is stated in `schema.ts` and is what lets a stored row satisfy
+the provider type structurally — so those keys are the columns the upsert
+writes. A hand-written list would be a second thing to keep true, and the
+column it silently missed would be a change the admin was never shown.
+
+`valuesDiffer` needs its own `Date` case. Without it two `Date` objects for the
+same instant are never `===`, every match reads as changed on every run, and the
+confirmation dialog is worthless. That is a mutation the tests now kill.
+
+## What the tests are actually for
+
+The unit suite can show a writer was not *called*. Only Postgres can show the
+rows are still *there*, which is the claim that matters. Two mutations were run
+to prove the integration tests earn their place:
+
+| Mutation | Result |
+|---|---|
+| the empty-answer refusal removed | 2 failures — stored matches and stored group rows both destroyed |
+| the match delete widened from the listed ids to the season | 1 failure — the season emptied |
+
+The second is the one a mocked `where` cannot catch: it cannot tell a delete
+scoped to one id from a delete scoped to a whole season.
+
+Fourteen further mutations were run across `refresh-diff.ts` and
+`force-refresh.ts` — six on the diff, seven on the engine, one on the read
+guard. One survived: the foreign half of the empty-answer refusal had no test,
+because the two providers have separate diffs and separate early returns, so
+removing one left the other passing. A test was added and the mutation now
+fails.
+
+## A database that will not answer is its own refusal
+
+The self-review pass (`skills/self-review.md`, class 2 — "a failure path
+dropped") caught this before review did: the reads of what we currently hold
+had no handler, so one Postgres blip would have thrown out of the engine.
+
+The caller is a server action answering a client component, so a throw reaches
+an admin as a generic browser error with nothing to act on. `"read"` is its own
+reason rather than folded into `"provider"` — the provider answered fine, our
+database did not, and that distinction tells an operator which system to look
+at.
+
+## One branch was deleted rather than tested
+
+`resolve()` mapped `listSeasonsFor`'s refusal through
+`seasons.reason === "input" ? "input" : "provider"`. The `"input"` side is
+unreachable: `listSeasonsFor` only answers that for an unknown competition, and
+the line above had already rejected those.
+
+Removed rather than covered. A guard duplicating a check that has already run is
+a second source of truth, and this repository has paid for that before (#193).
+
+## Delivered as two pull requests, one spec
+
+Split by risk rather than by provider. This pull request is the engine for both
+providers, with the never-delete proof; the next is the page, the actions and
+the components.
+
+The split first proposed in chat — TASO, then a football-data adapter — would
+have put almost all of the work in the first pull request and a single adapter
+in the second. That is not a split. Miikka's instruction was "split it the best
+way you can", so this one puts the data-safety half in front of a reviewer on
+its own, which is where the risk is.
+
+football-data turned out to be the cheaper half rather than a second feature:
+one table, one fetcher, a `synchronizeMatches` that already never deletes, and
+no group-standings machinery at all.
