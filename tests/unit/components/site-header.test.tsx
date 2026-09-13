@@ -128,4 +128,65 @@ describe("SiteHeader", () => {
 
     expect(screen.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/");
   });
+
+  describe("where the search sits (#373)", () => {
+    const signedIn = () => {
+      session.current = {
+        data: { user: { name: "Matti Meikäläinen", image: null } },
+        isPending: false,
+      };
+    };
+
+    it("puts the search below the top row, not inside it", async () => {
+      signedIn();
+      renderAt("/");
+
+      const field = await screen.findByRole("searchbox", { name: "Hae joukkuetta" });
+      const trail = screen.getByRole("navigation", { name: "Murupolku" });
+      const topRow = trail.parentElement as HTMLElement;
+
+      // The arrangement, asserted structurally: the search is not a descendant
+      // of the row holding the breadcrumb and the account control. Asserting
+      // class names instead would pass with the search anywhere at all.
+      expect(topRow.contains(field)).toBe(false);
+    });
+
+    it("leaves the account control in the top row, after the breadcrumb", async () => {
+      signedIn();
+      renderAt("/");
+
+      const trail = screen.getByRole("navigation", { name: "Murupolku" });
+      const topRow = trail.parentElement as HTMLElement;
+      const account = screen.getByRole("button", { name: "Tili: Matti Meikäläinen" });
+
+      expect(topRow.contains(account)).toBe(true);
+      // `justify-between` puts the last child at the far end, so the account
+      // control being *after* the trail is what places it in the corner.
+      expect(
+        trail.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
+    it("renders the search after the top row in document order", async () => {
+      signedIn();
+      renderAt("/");
+
+      const field = await screen.findByRole("searchbox", { name: "Hae joukkuetta" });
+      const trail = screen.getByRole("navigation", { name: "Murupolku" });
+
+      expect(trail.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("leaves no empty strip for a signed-out reader", () => {
+      // `TeamSearch` returns null for them, and it owns its row's padding — so
+      // there is no wrapper left behind. A header that grew a blank 12px band
+      // for someone who cannot use the search would be a visible regression for
+      // the reader least able to explain it.
+      renderAt("/");
+
+      expect(screen.queryByRole("searchbox", { name: "Hae joukkuetta" })).toBeNull();
+      const header = document.querySelector("header") as HTMLElement;
+      expect(header.querySelectorAll("div.pb-3")).toHaveLength(0);
+    });
+  });
 });

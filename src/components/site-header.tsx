@@ -42,7 +42,13 @@ export function SiteHeader() {
           breadcrumb (`Maajoukkueet`) and a long Google display name overflows a
           single non-wrapping row, pushing the sign-out control off-screen. The
           repo's instinct is to wrap a long name rather than cut it — see the
-          note in data-table.tsx — so the header grows to two lines instead. */}
+          note in data-table.tsx — so the header grows to two lines instead.
+
+          Two children, so `justify-between` puts the breadcrumb at one end and
+          the account control at the other. The search used to sit between them
+          and now has its own row below: an account control belongs in a corner,
+          and swapping the two within this row would only have moved the
+          wrapping problem onto the search (#373). */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-8">
         {/* The auth control sits outside this nav, so the breadcrumb landmark
             keeps meaning "murupolku" rather than "murupolku and a login". */}
@@ -64,12 +70,14 @@ export function SiteHeader() {
         <div className="flex min-w-0 items-center gap-3">
           <AuthControls />
         </div>
-        {/* Last in the wrapping row, so it takes its own full-width line on a
-            narrow screen and sits beside the controls from `sm` up. It renders
-            nothing at all for a signed-out reader, which is why the header is
-            unchanged for one. */}
-        <TeamSearch />
       </div>
+      {/* Its own row, aligned under the breadcrumb above it, and carrying its
+          own padding — see the note on that component. It renders nothing at
+          all for a signed-out reader, and with no wrapper here there is no
+          empty strip left behind either: the signed-out header is exactly what
+          it was before #373, apart from the sign-in control moving to the
+          corner. */}
+      <TeamSearch />
       {/* Outside the flex row above: `Notice` is a full-width banner, and the
           row is a single line of breadcrumb and controls. */}
       <div className="px-4 sm:px-8">

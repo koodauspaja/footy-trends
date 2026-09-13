@@ -104,7 +104,7 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         aria-label={`Tili: ${name}`}
-        className="flex shrink-0 items-center gap-2 rounded text-sm hover:underline"
+        className="flex items-center gap-2 rounded text-sm hover:underline"
         onClick={() => setOpen((wasOpen) => !wasOpen)}
         ref={triggerRef}
         type="button"
@@ -112,12 +112,12 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
         {image === null ? (
           // No avatar to show, so the name is the control. An image that cannot
           // load must never leave an unlabelled button behind.
-          <span className="text-foreground">{name}</span>
+          <span className="wrap-anywhere text-foreground">{name}</span>
         ) : (
           // Empty alt: the button is already named by `aria-label`, and
           // repeating the reader's name would just be noise.
           // biome-ignore lint/performance/noImgElement: a Google avatar is an arbitrary remote host; next/image would need it allowlisted in next.config.ts to render a 28px image
-          <img alt="" className="h-7 w-7 rounded-full" src={image} />
+          <img alt="" className="h-7 w-7 shrink-0 rounded-full" src={image} />
         )}
       </button>
 
