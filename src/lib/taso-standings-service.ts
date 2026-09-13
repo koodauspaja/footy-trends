@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import {
@@ -655,10 +655,14 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   };
 });
 
-export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[]): Promise<void> {
+export async function synchronizeMatches(
+  providerMatches: NormalizedTasoMatch[],
+  /** The transaction to join, when a caller has one. Defaults to its own. */
+  executor: Executor = db
+): Promise<void> {
   if (providerMatches.length === 0) return;
 
-  await db
+  await executor
     .insert(tasoMatches)
     .values(providerMatches.map((match) => ({ ...match, updatedAt: new Date() })))
     .onConflictDoUpdate({
@@ -696,7 +700,7 @@ export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[])
  * with duplicates is a knockout group, it has no points, and it renders as a
  * match list rather than a table.
  */
-function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupTeam[] {
+export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupTeam[] {
   const seen = new Map<string, NormalizedTasoGroupTeam>();
   for (const row of rows) {
     const identity = `${row.categoryId}/${row.competitionCode}/${row.seasonId}/${row.groupId}/${row.teamProviderId}`;
@@ -723,14 +727,19 @@ export async function synchronizeGroupTeams(
   categoryId: string,
   competitionId: string,
   seasonId: number,
-  rows: NormalizedTasoGroupTeam[]
+  rows: NormalizedTasoGroupTeam[],
+  /**
+   * The transaction to join, when a caller has one. Defaults to opening its
+   * own, which is what every existing caller does.
+   */
+  executor: Executor = db
 ): Promise<void> {
   // No early return on an empty snapshot: TASO answering "this season has no
   // group standings" is an answer, not a non-answer, and keeping the previous
   // rows would leave every dropped team in place. A failed *request* is the
   // case that preserves what is stored, and that is handled by the caller's
   // catch rather than here.
-  await db.transaction(async (tx) => {
+  await executor.transaction(async (tx) => {
     await tx
       .delete(tasoGroupTeams)
       .where(

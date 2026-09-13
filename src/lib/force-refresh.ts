@@ -40,6 +40,7 @@ import {
   tasoMatchesCacheKey,
 } from "@/lib/taso";
 import {
+  dedupeByIdentity,
   resolveTasoSeasonContext,
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
@@ -193,6 +194,11 @@ async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promi
  * tables have different columns. A shared abstraction here would have to
  * describe the union of both, which is a shape neither provider actually has.
  */
+/** The group rows as the writer will actually store them. */
+function dedupedGroupTeams(snapshot: Extract<Snapshot, { source: "taso" }>) {
+  return dedupeByIdentity(snapshot.groupTeams);
+}
+
 async function tasoDiff(
   snapshot: Extract<Snapshot, { source: "taso" }>,
   seasonId: number,
@@ -217,13 +223,28 @@ async function tasoDiff(
       ),
   ]);
 
-  const storedRows = storedMatches.length + storedGroupTeams.length;
-  if (snapshot.matches.length === 0 && snapshot.groupTeams.length === 0 && storedRows > 0) {
-    return { ok: false, reason: "empty", storedRows };
+  // **Per table, not across both.** An `&&` here reads as the same rule and is
+  // not: TASO answering with matches but no group standings would have walked
+  // past it, and `synchronizeGroupTeams` deletes before it inserts — so a
+  // completed season's standings would be destroyed by a run that looked
+  // successful. Each table is silent or not on its own evidence.
+  const matchesSilent = snapshot.matches.length === 0 && storedMatches.length > 0;
+  const groupsSilent = snapshot.groupTeams.length === 0 && storedGroupTeams.length > 0;
+  if (matchesSilent || groupsSilent) {
+    return {
+      ok: false,
+      reason: "empty",
+      storedRows: storedMatches.length + storedGroupTeams.length,
+    };
   }
 
   const matchDiff = diffMatches(storedMatches, snapshot.matches);
-  const groupDiff = diffGroupTeams(storedGroupTeams, snapshot.groupTeams);
+  // Deduplicated with the writer's own rule before diffing *and* before
+  // hashing. A knockout group returns one row per bracket slot, so a team that
+  // advances appears several times; `synchronizeGroupTeams` keeps the first and
+  // drops the rest. Counting the raw rows would promise an admin more inserts
+  // than the apply performs, and record that promise in the audit log.
+  const groupDiff = diffGroupTeams(storedGroupTeams, dedupedGroupTeams(snapshot));
 
   return {
     ok: true,
@@ -236,7 +257,7 @@ async function tasoDiff(
         groupRows: groupDiff.counts,
         deductionChanges: groupDiff.deductionChanges,
         removedMatches: matchDiff.removed,
-        snapshotHash: snapshotHash([snapshot.matches, snapshot.groupTeams]),
+        snapshotHash: snapshotHash([snapshot.matches, dedupedGroupTeams(snapshot)]),
       },
     },
   };
@@ -477,12 +498,17 @@ async function writeSnapshot(
 ): Promise<void> {
   await db.transaction(async (tx) => {
     if (snapshot.source === "taso") {
-      await synchronizeTasoMatches(snapshot.matches);
+      // `tx`, not the module-level `db`. Without it each writer commits on its
+      // own connection while this function claims atomicity — so a group
+      // replacement could commit and a later deletion fail, leaving the season
+      // half applied. Caught in review, not by me.
+      await synchronizeTasoMatches(snapshot.matches, tx);
       await synchronizeGroupTeams(
         snapshot.categoryId,
         snapshot.competitionId,
         seasonId,
-        snapshot.groupTeams
+        snapshot.groupTeams,
+        tx
       );
       if (removedIds.length > 0) {
         await tx.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, removedIds));
@@ -490,7 +516,7 @@ async function writeSnapshot(
       return;
     }
 
-    await synchronizeForeignMatches(snapshot.matches);
+    await synchronizeForeignMatches(snapshot.matches, tx);
     if (removedIds.length > 0) {
       await tx.delete(matches).where(inArray(matches.providerMatchId, removedIds));
     }

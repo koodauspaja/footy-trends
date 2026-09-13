@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { logger } from "./logger";
@@ -313,11 +313,13 @@ function toResult(standings: TeamStanding[]): StandingsResult {
 }
 
 export async function synchronizeMatches(
-  providerMatches: NormalizedProviderMatch[]
+  providerMatches: NormalizedProviderMatch[],
+  /** The transaction to join, when a caller has one. Defaults to its own. */
+  executor: Executor = db
 ): Promise<void> {
   if (providerMatches.length === 0) return;
 
-  await db
+  await executor
     .insert(matches)
     .values(providerMatches.map((match) => ({ ...match, updatedAt: new Date() })))
     .onConflictDoUpdate({

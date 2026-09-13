@@ -34,6 +34,7 @@ const { state } = vi.hoisted(() => ({
     providerGroupTeams: [] as unknown[],
     matchesThrows: false,
     groupsThrows: false,
+    groupWriteThrows: false,
   },
 }));
 
@@ -69,6 +70,14 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
       currentSeason: 2026,
       defaultSeason: 2026,
     })),
+    // The real writer, unless a test asks it to fail — which is how the
+    // transaction's rollback is proven without a second write path.
+    synchronizeGroupTeams: vi.fn(
+      async (...args: Parameters<typeof actual.synchronizeGroupTeams>) => {
+        if (state.groupWriteThrows) throw new Error("group write failed");
+        return await actual.synchronizeGroupTeams(...args);
+      }
+    ),
   };
 });
 
@@ -156,6 +165,7 @@ beforeEach(async () => {
   state.providerGroupTeams = [];
   state.matchesThrows = false;
   state.groupsThrows = false;
+  state.groupWriteThrows = false;
   await clearFixtures();
   // Deliberately left at the default role. `run_by` is a foreign key and
   // nothing here reads a role — `requireAdmin()` guards the action layer, not
@@ -232,6 +242,33 @@ describe("a provider that goes silent", () => {
 
     expect(result).toMatchObject({ ok: false, reason: "empty" });
     expect(await storedGroupTeams()).toHaveLength(2);
+  });
+
+  it("keeps the stored standings when TASO returns matches but no groups", async () => {
+    // The asymmetric case review found. The earlier version of this guard was
+    // an `&&` across both tables, so this answer walked past it and
+    // `synchronizeGroupTeams` — which deletes before inserting — destroyed the
+    // season's standings while the run reported success.
+    await seed([buildMatch()], [buildGroupTeam(), buildGroupTeam({ teamProviderId: 96002 })]);
+    state.providerMatches = [buildMatch({ homeGoals: 9 })];
+    state.providerGroupTeams = [];
+
+    const result = await preview();
+
+    expect(result).toMatchObject({ ok: false, reason: "empty" });
+    expect(await storedGroupTeams()).toHaveLength(2);
+    expect((await storedMatches())[0]?.homeGoals).toBe(2);
+  });
+
+  it("keeps the stored matches when TASO returns groups but no matches", async () => {
+    await seed([buildMatch(), buildMatch({ providerMatchId: 960002 })], [buildGroupTeam()]);
+    state.providerMatches = [];
+    state.providerGroupTeams = [buildGroupTeam({ startingPoints: -6 })];
+
+    const result = await preview();
+
+    expect(result).toMatchObject({ ok: false, reason: "empty" });
+    expect(await storedMatches()).toHaveLength(2);
   });
 
   it("keeps everything when the provider throws, and records the run", async () => {
@@ -353,6 +390,50 @@ describe("an applied refresh", () => {
     expect(result).toMatchObject({ ok: false, reason: "stale" });
     // Untouched: 2 is what was seeded, and neither 4 nor 9 was approved.
     expect((await storedMatches())[0]?.homeGoals).toBe(2);
+  });
+});
+
+describe("one transaction", () => {
+  it("rolls the match write back when the group write fails", async () => {
+    // Proves the writers actually join the transaction `writeSnapshot` opens.
+    // They used to take the module-level `db`, so the match upsert committed on
+    // its own connection and this assertion would have found homeGoals 9.
+    await seed([buildMatch()], [buildGroupTeam()]);
+    state.providerMatches = [buildMatch({ homeGoals: 9 })];
+    state.providerGroupTeams = [buildGroupTeam({ startingPoints: -6 })];
+
+    const previewed = await preview();
+    if (!previewed.ok) return;
+
+    state.groupWriteThrows = true;
+    const result = await apply(previewed.preview.snapshotHash);
+
+    expect(result).toEqual({ ok: false, reason: "write" });
+    // Neither half landed.
+    expect((await storedMatches())[0]?.homeGoals).toBe(2);
+    expect((await storedGroupTeams())[0]?.startingPoints).toBe(0);
+  });
+});
+
+describe("knockout duplicates", () => {
+  it("counts a repeated bracket slot once, matching what is stored", async () => {
+    await seed([buildMatch()], []);
+    state.providerMatches = [buildMatch()];
+    // A team that advances appears once per slot it occupies.
+    state.providerGroupTeams = [
+      buildGroupTeam(),
+      buildGroupTeam(),
+      buildGroupTeam({ teamProviderId: 96002 }),
+    ];
+
+    const previewed = await preview();
+    if (!previewed.ok) return;
+    expect(previewed.preview.groupRows?.inserted).toBe(2);
+
+    await apply(previewed.preview.snapshotHash);
+
+    // The promise and the outcome agree, which is the point.
+    expect(await storedGroupTeams()).toHaveLength(2);
   });
 });
 

@@ -175,6 +175,57 @@ the line above had already rejected those.
 Removed rather than covered. A guard duplicating a check that has already run is
 a second source of truth, and this repository has paid for that before (#193).
 
+## Three things review caught that I had not
+
+All three were in `force-refresh.ts`, and all three were places where the code
+said one thing and I had written the other down as fact.
+
+**The transaction did not cover the writes.** `writeSnapshot` opened
+`db.transaction` and passed `tx` only to the deletion; the synchronize functions
+reached for the module-level `db` and committed on their own connections. The
+spec, this record and the pull request body all claimed atomicity that did not
+exist — a group replacement could land and a later deletion fail, leaving a
+season half applied. The writers now take an `Executor` (the database, or a
+transaction on it), defaulted to `db` so every existing caller is unchanged.
+
+**The silence guard was one rule where it needed two.** It refused only when
+matches *and* group standings were both empty. TASO answering with matches but
+no group standings therefore walked past it — and `synchronizeGroupTeams`
+deletes before it inserts, so a completed season's standings would have been
+destroyed by a run that reported success. That is the feature's own core rule,
+failing in the exact case it exists for.
+
+My integration test for it seeded *only* group rows, so both answers were empty
+and the test passed. A test that happens to satisfy the weaker condition is the
+first defect class in `skills/self-review.md`, and I wrote one while believing I
+was proving the opposite.
+
+**The diff counted rows the writer would not store.** A knockout group returns
+one row per bracket slot, so a team that advances appears several times.
+`synchronizeGroupTeams` keeps the first and drops the rest; the diff counted
+them all. The preview would have promised more inserts than the apply performed
+and written that promise into the audit log — breaking the one property the log
+is for. `dedupeByIdentity` is now exported and applied before diffing *and*
+before hashing, so the diff describes what will actually be stored.
+
+Each fix was mutation-checked by reverting it: all three fail at both unit and
+integration level now, and none of them did before.
+
+## Sorting for a hash is not sorting for a reader
+
+Sonar flagged both `.sort()` calls in `refresh-diff.ts` and asked for
+`localeCompare`. Declined, with an explicit comparator instead.
+
+Both sorts canonicalise input for a hash. `localeCompare` answers by the
+runtime's locale data, so two machines — or one machine after an ICU upgrade —
+could order the same keys differently and hash identical rows to different
+digests. The apply would then refuse a diff nobody had changed, as `"stale"`,
+and re-previewing would not help. Code-unit order is boring and identical
+everywhere, which is the entire requirement.
+
+Where this repository sorts for *display* it uses `localeCompare` with a
+locale, and should.
+
 ## Delivered as two pull requests, one spec
 
 Split by risk rather than by provider. This pull request is the engine for both

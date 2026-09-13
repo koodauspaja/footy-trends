@@ -381,6 +381,12 @@ numbers by construction rather than by agreement.
   unique index already uses. Same three buckets, plus a deduction change
   whenever `startingPoints` moves between the two.
 
+The provider's group rows are **deduplicated with the writer's own rule before
+being diffed or hashed**. A knockout group returns one row per bracket slot, so
+a team that advances appears several times, and `synchronizeGroupTeams` keeps
+the first and drops the rest. Diffing the raw rows would promise an admin more
+inserts than the apply performs — and write that promise into the audit log.
+
 A stable hash of the normalized provider rows travels with the preview. The
 apply recomputes it; if it no longer matches, the provider's answer moved
 between the two steps and the apply refuses, re-previewing instead. Cheaper and
@@ -397,7 +403,9 @@ more honest than storing a megabyte of snapshot against a token, and it makes
   is correct here, because it only ever runs against a non-empty answer an admin
   has approved.
 - Both inside one transaction per source, so a half-applied season is not a
-  state this can produce.
+  state this can produce. **The writers take the transaction as an argument**;
+  reaching for the module-level `db` inside them would mean each commits on its
+  own connection while the caller believes it is inside a transaction.
 
 ### Schema
 
@@ -500,6 +508,13 @@ export type ApplyResult =
 - **The provider returns nothing for a season we hold rows for.** Refused at
   preview, `reason: "empty"`, nothing written, nothing deleted, and the message
   says how many rows were kept. This is the silence half of the rule.
+- **One TASO endpoint answers and the other does not.** Refused on the same
+  terms. The guard is applied **per table**: matches silent with matches
+  stored, *or* group standings silent with group standings stored. Testing both
+  together with an `&&` reads as the same rule and is not — TASO answering with
+  matches but no group standings would walk past it, and `synchronizeGroupTeams`
+  deletes before it inserts, so a completed season's standings would be
+  destroyed by a run that reported success.
 - **The provider returns nothing for a season we hold no rows for.** Not a
   refusal — there is nothing to protect. The preview reports that nothing would
   change.
@@ -740,8 +755,14 @@ Changed:
   — **the Redis key each module owns becomes an exported builder**, used at its
   original call site. Spelling a key out again inside `force-refresh.ts` would
   make it a second source of truth, and the resulting failure is silent: the
-  refetch simply answers out of the cache the run exists to bypass. This is the
-  only change to these files.
+  refetch simply answers out of the cache the run exists to bypass.
+- `src/db/index.ts` — an `Executor` type: the database, or a transaction on it.
+- `src/lib/standings-service.ts`, `src/lib/taso-standings-service.ts` — both
+  `synchronizeMatches` and `synchronizeGroupTeams` take an optional executor,
+  defaulting to `db` so every existing caller is unchanged. Without it a caller
+  that opens a transaction does not actually get one.
+  `dedupeByIdentity` is exported from `taso-standings-service.ts` so the diff
+  can apply the writer's own rule rather than a copy of it.
 - `tests/unit/lib/cache.test.ts` — `invalidateCache` now answers `true`/`false`
 - `tests/unit/db/schema.test.ts` — the `set null` exception asserted beside the
   cascade rule it departs from
@@ -768,10 +789,11 @@ Changed:
 
 ### Not changed, deliberately
 
-`needsRefresh`, `synchronizeMatches` (both of them) and `synchronizeGroupTeams`
-keep their current behaviour exactly. The forced path reuses them as they are;
-the only new writer in the feature is the match deletion, which no existing
-caller performs.
+`needsRefresh` keeps its current behaviour exactly, in both services.
+`synchronizeMatches` and `synchronizeGroupTeams` keep theirs too — the executor
+parameter is additive and defaulted, so no existing call site behaves
+differently. The only new writer in the feature is the match deletion, which no
+existing caller performs.
 
 Checked, not assumed: `README.md` lists no admin surfaces, so it needs no change
 unless that is wrong at implementation time.

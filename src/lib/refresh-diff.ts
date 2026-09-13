@@ -157,6 +157,26 @@ export function diffGroupTeams<S extends DiffableGroupTeam, P extends DiffableGr
 }
 
 /**
+ * Byte-order comparison, and deliberately **not** `localeCompare`.
+ *
+ * Both sorts below exist to canonicalise input for a hash, not to present
+ * anything to a reader. `localeCompare` answers by the runtime's locale data,
+ * so two machines — or one machine after an ICU upgrade — could order the same
+ * keys differently and hash the same rows to different digests. The apply would
+ * then refuse a diff nobody had changed, as `"stale"`, and re-previewing would
+ * not help.
+ *
+ * Code-unit order is boring and identical everywhere, which is the whole
+ * requirement here. Where this repository sorts for *display* it uses
+ * `localeCompare` with a locale, as `favorites/page.tsx` and
+ * `taso-standings-service.ts` do.
+ */
+function byCodeUnit(left: string, right: string): number {
+  if (left < right) return -1;
+  return left > right ? 1 : 0;
+}
+
+/**
  * Orders object keys and renders dates, so two structurally equal rows hash
  * the same however they were built.
  */
@@ -167,7 +187,7 @@ function canonical(value: unknown): unknown {
     const source = value as Record<string, unknown>;
     return Object.fromEntries(
       Object.keys(source)
-        .sort()
+        .sort(byCodeUnit)
         .map((key) => [key, canonical(source[key])])
     );
   }
@@ -189,7 +209,7 @@ function canonical(value: unknown): unknown {
 export function snapshotHash(rowGroups: readonly (readonly object[])[]): string {
   const hash = createHash("sha256");
   for (const rows of rowGroups) {
-    const lines = rows.map((row) => JSON.stringify(canonical(row))).sort();
+    const lines = rows.map((row) => JSON.stringify(canonical(row))).sort(byCodeUnit);
     hash.update(`${lines.length}\n`);
     for (const line of lines) hash.update(`${line}\n`);
   }

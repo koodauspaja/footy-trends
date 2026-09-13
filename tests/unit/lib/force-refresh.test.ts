@@ -27,6 +27,7 @@ const { state, logger } = vi.hoisted(() => ({
     groupsThrows: false,
     deleteCalls: 0,
     transactions: 0,
+    lastTx: null as unknown,
     transactionThrows: false,
     seasonListThrows: false,
     readThrows: false,
@@ -135,6 +136,7 @@ vi.mock("@/db", () => {
       }),
       transaction: async (run: (t: typeof tx) => Promise<void>) => {
         state.transactions += 1;
+        state.lastTx = tx;
         if (state.transactionThrows) throw new Error("write failed");
         await run(tx);
       },
@@ -173,6 +175,7 @@ beforeEach(() => {
   state.groupsThrows = false;
   state.deleteCalls = 0;
   state.transactions = 0;
+  state.lastTx = null;
   state.transactionThrows = false;
   state.seasonListThrows = false;
   state.readThrows = false;
@@ -246,6 +249,50 @@ describe("previewRefresh", () => {
 
     expect(result).toEqual({ ok: false, reason: "empty", storedRows: 2 });
     noWriterRan();
+  });
+
+  it("refuses when TASO returns matches but no group standings", async () => {
+    // The hole review found. An `&&` across both tables walks straight past
+    // this, and `synchronizeGroupTeams` deletes before it inserts — so a
+    // completed season's standings would be destroyed by a run that reported
+    // success.
+    state.storedGroupTeams = [groupTeam()];
+    state.providerMatches = [match(1)];
+    state.normalizedGroupTeams = [];
+
+    const { previewRefresh } = await import("@/lib/force-refresh");
+    const result = await previewRefresh(VEIKKAUSLIIGA, 2026);
+
+    expect(result).toMatchObject({ ok: false, reason: "empty" });
+    noWriterRan();
+  });
+
+  it("refuses when TASO returns group standings but no matches", async () => {
+    state.storedMatches = [match(1)];
+    state.providerMatches = [];
+    state.normalizedGroupTeams = [groupTeam()];
+
+    const { previewRefresh } = await import("@/lib/force-refresh");
+    const result = await previewRefresh(VEIKKAUSLIIGA, 2026);
+
+    expect(result).toMatchObject({ ok: false, reason: "empty" });
+    noWriterRan();
+  });
+
+  it("counts a knockout group's repeated team once, as the writer will store it", async () => {
+    // A knockout group returns one row per bracket slot, so a team that
+    // advances appears several times. `synchronizeGroupTeams` keeps the first
+    // and drops the rest, so counting the raw rows would promise an admin more
+    // inserts than the apply performs — and write that promise to the log.
+    state.providerMatches = [match(1)];
+    state.normalizedGroupTeams = [groupTeam(), groupTeam(), groupTeam({ teamProviderId: 20 })];
+
+    const { previewRefresh } = await import("@/lib/force-refresh");
+    const result = await previewRefresh(VEIKKAUSLIIGA, 2026);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.groupRows?.inserted).toBe(2);
   });
 
   it("does not refuse an empty answer for a season we hold nothing for", async () => {
@@ -373,6 +420,28 @@ describe("applyRefresh", () => {
     expect(synchronizeTasoMatches).toHaveBeenCalledTimes(1);
     expect(synchronizeGroupTeams).toHaveBeenCalledTimes(1);
     expect(recordSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands every writer the transaction, not the module-level database", async () => {
+    // Without this the writers commit on their own connections while
+    // `writeSnapshot` claims atomicity, so a group replacement can land and a
+    // later deletion fail, leaving the season half applied.
+    state.storedMatches = [match(1), match(7)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+    state.normalizedGroupTeams = [groupTeam()];
+
+    const hash = await previewThenHash();
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(synchronizeTasoMatches).toHaveBeenCalledWith(expect.anything(), state.lastTx);
+    expect(synchronizeGroupTeams).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      2026,
+      expect.anything(),
+      state.lastTx
+    );
   });
 
   it("deletes only when the preview listed a removal", async () => {
