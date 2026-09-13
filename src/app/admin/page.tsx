@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminUserTable } from "@/components/admin-user-table";
 import { PageShell } from "@/components/page-shell";
@@ -7,6 +8,8 @@ import { listUsers } from "@/lib/admin-users";
 import { logger } from "@/lib/logger";
 
 const HEADING = "Ylläpito";
+/** The forced season refresh, from specs/029-forced-season-refresh.md. */
+const REFRESH_LINK = "Kauden uudelleenhaku";
 
 /**
  * `/yllapito`, from specs/028-admin-tools-and-roles.md.
@@ -68,6 +71,13 @@ export default async function Admin({
 
   return (
     <PageShell heading={HEADING}>
+      {/* Above the table rather than below it: the user list runs to fifty rows
+          and a link under it would be out of sight. */}
+      <p className="mb-6">
+        <Link className="text-sm underline" href="/yllapito/data">
+          {REFRESH_LINK}
+        </Link>
+      </p>
       <AdminUserTable
         currentAdminId={adminId}
         page={page.page}
