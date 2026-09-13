@@ -60,44 +60,31 @@ describe("planMigrationGeneration", () => {
     });
   });
 
-  it("does not treat a following flag as the name", () => {
-    // `--name --config=x` would otherwise generate a migration called
-    // `--config=x`, which is a worse outcome than refusing.
-    const plan = planMigrationGeneration(["--name", "--config=other.ts"]);
+  /**
+   * Every way of giving `--name` that cannot be acted on.
+   *
+   * A following argument that is itself a flag is not a value —
+   * `--name --config=x` would otherwise generate a migration called
+   * `--config=x`, which is worse than refusing. And two names would mean
+   * validating one while generating the other, since a filter takes the first
+   * and a command-line parser generally takes the last; they are counted across
+   * both forms, because mixing them is the easiest way to do it by accident.
+   */
+  it.each([
+    ["--name followed by a flag", ["--name", "--config=other.ts"], "--name was given no value"],
+    ["--name with nothing after it", ["--config=other.ts", "--name"], "--name was given no value"],
+    ["two names in mixed forms", ["--name", "add_one", "--name=add_two"], "--name given 2 times"],
+    ["two names in the same form", ["--name=add_one", "--name=add_two"], "--name given 2 times"],
+  ])("refuses %s", (_case, argv, message) => {
+    const plan = planMigrationGeneration(argv);
 
     expect(plan.ok).toBe(false);
     if (plan.ok) return;
-    expect(plan.message).toContain("--name was given no value");
-  });
-
-  it("refuses --name with nothing after it at all", () => {
-    const plan = planMigrationGeneration(["--config=other.ts", "--name"]);
-
-    expect(plan.ok).toBe(false);
-    if (plan.ok) return;
-    expect(plan.message).toContain("--name was given no value");
+    expect(plan.message).toContain(message);
   });
 
   it("validates the space-separated form like any other", () => {
     expect(planMigrationGeneration(["--name", "young_meteorite"]).ok).toBe(false);
-  });
-
-  it("counts duplicates across both forms", () => {
-    const plan = planMigrationGeneration(["--name", "add_one", "--name=add_two"]);
-
-    expect(plan.ok).toBe(false);
-    if (plan.ok) return;
-    expect(plan.message).toContain("--name given 2 times");
-  });
-
-  it("refuses two names rather than guessing which one wins", () => {
-    // A filter takes the first and a command-line parser generally takes the
-    // last, so guessing would validate one name and generate the other.
-    const plan = planMigrationGeneration(["--name=add_one", "--name=add_two"]);
-
-    expect(plan.ok).toBe(false);
-    if (plan.ok) return;
-    expect(plan.message).toContain("--name given 2 times");
   });
 
   it("forwards every other argument untouched", () => {
