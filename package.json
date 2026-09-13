@@ -22,6 +22,7 @@
     "release:version": "tsx scripts/release-version.ts",
     "release:pr": "tsx scripts/release-pr.ts",
     "review:findings": "tsx scripts/review-findings.ts",
+    "admin:role": "tsx scripts/grant-admin.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",

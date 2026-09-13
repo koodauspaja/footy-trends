@@ -2,16 +2,11 @@
 
 ## Goal
 
-Make the first admin. Once the `/yllapito` page exists, everything after that is
-done from inside the app by an admin who already exists.
+Make the first admin. Everything after that is done from inside the app at
+`/yllapito`, by an admin who already exists.
 
 Run this **once per environment**, after the migration adding the `role` column
 has deployed. See `specs/028-admin-tools-and-roles.md` for what an admin can do.
-
-> **Where this stands.** The first pull request for #119 ships the `role` column
-> and `requireAdmin()`, and nothing that renders. Until the second lands, this
-> document is the only way to grant or remove admin, and SQL is the only way to
-> confirm it. The steps below say which parts are live today.
 
 ---
 
@@ -26,8 +21,13 @@ is a way to grant admin by accident later: an empty table after a data incident,
 a first sign-in that is not who you expected, a configuration value that gets
 copied into the wrong environment.
 
-One `UPDATE`, run once by a person, cannot misfire twice. It is the rare case
-where a manual step is safer than the thing that would automate it away.
+One command, run once by a person, cannot misfire twice. It is the rare case
+where a manual step is safer than the thing that would automate it away — but
+manual does not have to mean hand-written SQL, which is why #371 replaced the
+`UPDATE` this document used to carry. The script still has to be run
+deliberately, by someone holding the production connection string; what it
+removes is the class of mistake where a mistyped address changes nothing and
+says nothing.
 
 This is also why the role is **not** an environment variable. `AUTH_ALLOWED_EMAILS`
 decides who may sign in to staging, which is a fact about an environment.
@@ -68,46 +68,53 @@ select id, email, name, role, created_at
 
 ## Step 3 — Grant it
 
-```sql
-update "user"
-   set role = 'admin', updated_at = now()
- where email = 'first.admin@example.fi';
+```bash
+DATABASE_URL=<the production connection string> \
+  npm run admin:role -- --email=first.admin@example.fi
 ```
 
 Replace the address with the real one. It is not written down here, and should
 not be: this is a public repository.
 
-**Check what you changed before you commit to it.** `update … where email = …`
-matches one row if the address is right and zero if it is not, and zero looks
-identical to success unless you look:
+It prints what changed, read back from the database after the write:
 
-```sql
-select email, role from "user" where role = 'admin';
+```
+first.admin@example.fi: user → admin
 ```
 
-Expect exactly the account you intended, and no others.
+**It cannot silently do nothing.** An address no account holds fails and exits
+non-zero, rather than reporting success:
+
+```
+No account with the address typo@example.fi. They must sign in once before a
+role can be set.
+```
+
+An account that is already an admin says so and changes nothing, which is a
+different message from a grant:
+
+```
+first.admin@example.fi was already admin — nothing changed.
+```
+
+**`DATABASE_URL` must be on the command.** The value in `.env` is deliberately
+ignored, so a forgotten variable cannot quietly grant admin on your laptop while
+you believe it happened in production — the same guard `npm run backfill` has.
 
 ---
 
 ## Step 4 — Confirm the grant
 
-**Today, the readback in Step 3 is the confirmation.** There is nothing to click
-yet: the first pull request for #119 adds the role and the check that reads it,
-and no screen uses either. `requireAdmin()` exists and answers correctly; the
-`/yllapito` page and the account-menu link arrive with the second.
-
-So confirm in SQL, and expect exactly the account you intended:
-
-```sql
-select email, role from "user" where role = 'admin';
-```
+**Step 3 already confirmed it.** The script reads the role back after writing
+and prints both values, so there is no separate check to remember and no way to
+mistake "matched nothing" for success.
 
 `requireAdmin()` reads the column on every request rather than trusting the
 session, so the grant takes effect on the next request. Nobody has to sign out
 and back in — and, more importantly, revoking an admin takes effect just as
 quickly.
 
-### Once the page exists
+### And in the app
 
 Sign in as that account. The account menu shows **Ylläpito**, and `/yllapito`
 loads.
@@ -127,16 +134,19 @@ nothing away, and `requireAdmin()` is what actually refuses. See
 
 ## Removing an admin
 
-**Today, in SQL** — there is no page yet:
+**From `/yllapito`**, by another admin — the page refuses to remove the last
+one, so it is not possible to lock everyone out from inside the app.
 
-```sql
-update "user" set role = 'user', updated_at = now()
- where email = 'former.admin@example.fi';
+The script does the same job when there is no admin left to do it there:
+
+```bash
+DATABASE_URL=<the production connection string> \
+  npm run admin:role -- --email=former.admin@example.fi --role=user
 ```
 
-SQL has no guard against removing the last admin, so check before you run it, or
-you will be back at Step 3 with nobody able to grant anything from inside the
-app:
+**The script has no last-admin guard**, unlike the page. It is the recovery
+path, so refusing to leave you with no admins would make it useless in the one
+situation it exists for. Check first if that matters:
 
 ```sql
 select email from "user" where role = 'admin';
@@ -144,11 +154,6 @@ select email from "user" where role = 'admin';
 
 `requireAdmin()` reads the column per request, so a revocation takes effect on
 the revoked admin's next request rather than when their session expires.
-
-**Once `/yllapito` exists**, another admin does it there, which is the point of
-the column. The page refuses to remove the last admin, so it will not be
-possible to lock everyone out from inside the app — the guard this SQL does not
-have.
 
 ---
 
@@ -164,13 +169,13 @@ environment where somebody needs the access.
 
 - [ ] `information_schema` shows `user.role` as `text`, default `'user'::text`,
       not nullable
-- [ ] `select email, role from "user" where role = 'admin'` returns exactly the
-      intended account, and no others
+- [ ] `npm run admin:role` printed the change it made — `… : user → admin` —
+      rather than exiting quietly
 - [ ] The address used is not written into this repository — it is public
 - [ ] Repeated once per environment that needs an admin; staging and production
       have separate databases and therefore separate admins
 
-Once `/yllapito` ships:
+And in the app:
 
 - [ ] That account sees **Ylläpito** in the account menu and `/yllapito` loads
 - [ ] A signed-in reader gets the **not-found page** at `/yllapito`, not the admin page and not a 403
