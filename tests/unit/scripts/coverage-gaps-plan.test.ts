@@ -6,6 +6,7 @@ import {
   findCoverageGaps,
   findUncoveredBranches,
   parseSonarExclusions,
+  toPosixPath,
 } from "../../../scripts/coverage-gaps-plan";
 
 /**
@@ -197,5 +198,44 @@ describe("describeUncoveredBranches", () => {
     expect(message).toContain("1 file(s)");
     expect(message).toContain("src/a.ts: line(s) 10");
     expect(message).toContain("lcov is what Sonar reads");
+  });
+});
+
+describe("toPosixPath", () => {
+  it("rewrites Windows separators, which the exclusion list never uses", () => {
+    // `path.join` answers with backslashes there, while
+    // `sonar.coverage.exclusions` and lcov both use forward slashes — so
+    // without this every excluded file would read as a coverage gap.
+    expect(toPosixPath("src\\lib\\a.ts")).toBe("src/lib/a.ts");
+  });
+
+  it("leaves a posix path alone", () => {
+    expect(toPosixPath("src/lib/a.ts")).toBe("src/lib/a.ts");
+  });
+});
+
+describe("separators, end to end", () => {
+  it("matches an exclusion written with forward slashes against a Windows path", () => {
+    expect(
+      findCoverageGaps(["scripts\\runner.ts"], new Set(["scripts/runner.ts"]), new Set()).ok
+    ).toBe(true);
+  });
+
+  it("reports a Windows path in the posix form the message should show", () => {
+    const report = findCoverageGaps(["src\\lib\\a.ts"], new Set(), new Set());
+
+    expect(report.ok).toBe(false);
+    if (report.ok) return;
+    expect(report.message).toContain("src/lib/a.ts");
+  });
+
+  it("strips a Windows root from an lcov path", () => {
+    expect(
+      findUncoveredBranches(
+        "SF:C:\\repo\\src\\a.ts\nBRDA:3,0,0,0\nend_of_record",
+        new Set(),
+        "C:\\repo"
+      )
+    ).toEqual(["src/a.ts: line(s) 3"]);
   });
 });

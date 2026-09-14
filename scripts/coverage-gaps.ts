@@ -5,6 +5,7 @@ import {
   findCoverageGaps,
   findUncoveredBranches,
   parseSonarExclusions,
+  toPosixPath,
 } from "./coverage-gaps-plan";
 
 /**
@@ -35,7 +36,9 @@ function measuredFiles(): Set<string> {
   const parsed = JSON.parse(
     readFileSync(path.join(ROOT, "coverage/coverage-final.json"), "utf8")
   ) as Record<string, unknown>;
-  return new Set(Object.keys(parsed).map((absolute) => path.relative(ROOT, absolute)));
+  // Normalised, because `path.relative` answers with backslashes on Windows
+  // while the exclusion list and lcov use forward slashes.
+  return new Set(Object.keys(parsed).map((absolute) => toPosixPath(path.relative(ROOT, absolute))));
 }
 
 const exclusions = parseSonarExclusions(

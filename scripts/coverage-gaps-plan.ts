@@ -24,6 +24,7 @@ export function findCoverageGaps(
   measured: ReadonlySet<string>
 ): GapReport {
   const missing = sourceFiles
+    .map(toPosixPath)
     .filter((file) => !excluded.has(file))
     .filter((file) => !measured.has(file))
     // Ordered for a person to read down, unlike the hash ordering in
@@ -113,6 +114,18 @@ export function findUncoveredBranches(
 }
 
 /**
+ * Separators as the exclusion list and lcov write them.
+ *
+ * `path.join` and `path.relative` answer with backslashes on Windows, while
+ * `sonar.coverage.exclusions` and lcov both use forward slashes — so without
+ * this the guard would match nothing there and report every excluded file as a
+ * coverage gap. `scripts/executable.ts` documents the neighbouring trap.
+ */
+export function toPosixPath(file: string): string {
+  return file.replace(/\\/g, "/");
+}
+
+/**
  * lcov writes absolute paths; the exclusion list is repository-relative.
  *
  * A plain prefix check rather than a regex built from the root: a checkout under
@@ -121,8 +134,11 @@ export function findUncoveredBranches(
  * a path bug.
  */
 function relativeTo(root: string, file: string): string {
-  const prefix = root === "" ? "" : `${root}/`;
-  return prefix !== "" && file.startsWith(prefix) ? file.slice(prefix.length) : file;
+  const normalised = toPosixPath(file);
+  const prefix = root === "" ? "" : `${toPosixPath(root)}/`;
+  return prefix !== "" && normalised.startsWith(prefix)
+    ? normalised.slice(prefix.length)
+    : normalised;
 }
 
 export function describeUncoveredBranches(entries: readonly string[]): string {
