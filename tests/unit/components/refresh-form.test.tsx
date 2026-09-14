@@ -193,7 +193,12 @@ describe("a slow season list", () => {
     expect(screen.getByRole("option", { name: "1999" })).toBeInTheDocument();
   });
 
-  it("ignores one that rejects after the component is gone", async () => {
+  it("does not report a failure belonging to the competition you left", async () => {
+    // The previous version of this unmounted the component and asserted nothing
+    // was thrown. That proved nothing: React silently drops state updates after
+    // unmount, so the test passed with the guard removed — verified. This one
+    // is observable: without the guard the *new* competition's picker shows a
+    // failure that belongs to the old one.
     let rejectFirst: (reason: unknown) => void = () => undefined;
     seasonsAction.mockImplementationOnce(
       () =>
@@ -201,23 +206,21 @@ describe("a slow season list", () => {
           rejectFirst = reject;
         })
     );
+    seasonsAction.mockResolvedValueOnce({
+      ok: true,
+      seasons: [{ seasonId: 1999, label: "1999" }],
+    });
 
-    const { unmount } = renderForm();
-    unmount();
+    renderForm();
+    fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } });
+    await waitFor(() => expect(screen.getByRole("option", { name: "1999" })).toBeInTheDocument());
 
-    // The effect's cleanup has already said this answer is no longer wanted, so
-    // the rejection must not reach React. Asserted rather than merely awaited:
-    // a test whose only outcome is "nothing threw" passes just as well when the
-    // code it covers has been deleted.
-    const onError = vi.fn();
-    window.addEventListener("error", onError);
     await act(async () => {
       rejectFirst(new Error("too late"));
     });
-    window.removeEventListener("error", onError);
 
-    expect(onError).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kausien haku epäonnistui.")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Kausi")).toBeEnabled();
   });
 });
 
