@@ -5,6 +5,7 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isSourceFile,
   parseSonarExclusions,
   toPosixPath,
 } from "../../../scripts/coverage-gaps-plan";
@@ -236,6 +237,47 @@ describe("separators, end to end", () => {
         new Set(),
         "C:\\repo"
       )
+    ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+});
+
+describe("isSourceFile", () => {
+  it.each([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"])(
+    "counts a %s file, because the coverage provider would instrument one",
+    (suffix) => {
+      // Only `.ts` and `.tsx` exist under src/ and scripts/ today. The rest are
+      // covered because a guard that quietly ignores a file Sonar scores is
+      // worse than no guard.
+      expect(isSourceFile(`thing${suffix}`)).toBe(true);
+    }
+  );
+
+  it.each([".d.ts", ".d.mts", ".d.cts"])("ignores a %s declaration file", (suffix) => {
+    // They compile to nothing, so no coverage report can mention them.
+    expect(isSourceFile(`thing${suffix}`)).toBe(false);
+  });
+
+  it.each([".css", ".ico", ".json", ".md", ""])("ignores a %s file", (suffix) => {
+    expect(isSourceFile(`thing${suffix}`)).toBe(false);
+  });
+
+  it("does not mistake a name merely containing an extension", () => {
+    expect(isSourceFile("ts")).toBe(false);
+    expect(isSourceFile("thing.ts.bak")).toBe(false);
+  });
+});
+
+describe("a checkout at a filesystem root", () => {
+  it.each([
+    ["posix root", "/", "/src/a.ts"],
+    ["windows drive root", "C:\\", "C:\\src\\a.ts"],
+    ["a root written with a trailing slash", "/repo/", "/repo/src/a.ts"],
+  ])("makes an lcov path relative under a %s", (_case, root, file) => {
+    // Appending a separator to a root that already ends in one builds `//` or
+    // `C://`, which no lcov path starts with — so nothing would be made
+    // relative and every excluded file would read as uncovered.
+    expect(
+      findUncoveredBranches(`SF:${file}\nBRDA:3,0,0,0\nend_of_record`, new Set(), root)
     ).toEqual(["src/a.ts: line(s) 3"]);
   });
 });

@@ -135,10 +135,22 @@ export function toPosixPath(file: string): string {
  */
 function relativeTo(root: string, file: string): string {
   const normalised = toPosixPath(file);
-  const prefix = root === "" ? "" : `${toPosixPath(root)}/`;
-  return prefix !== "" && normalised.startsWith(prefix)
-    ? normalised.slice(prefix.length)
-    : normalised;
+  const normalisedRoot = toPosixPath(root);
+  // No root supplied: the paths are already relative.
+  if (normalisedRoot === "") return normalised;
+
+  /**
+   * A trailing separator is stripped before one is added, because a checkout at
+   * `/` or at a Windows drive root normalises to `/` or `C:/` and appending
+   * another would build `//` — a prefix no lcov path starts with, so nothing
+   * would be made relative and every excluded file would read as uncovered.
+   *
+   * Stripping it can leave nothing at all, which is the root directory itself
+   * rather than "no root": that case is a prefix of one separator.
+   */
+  const base = normalisedRoot.replace(/\/+$/, "");
+  const prefix = base === "" ? "/" : `${base}/`;
+  return normalised.startsWith(prefix) ? normalised.slice(prefix.length) : normalised;
 }
 
 export function describeUncoveredBranches(entries: readonly string[]): string {
@@ -150,4 +162,23 @@ export function describeUncoveredBranches(entries: readonly string[]): string {
     "lcov model branches differently — but lcov is what Sonar reads, so these",
     "are the conditions it will report as uncovered.",
   ].join("\n");
+}
+
+/**
+ * Every extension the coverage provider can instrument, so a file it would
+ * measure cannot slip past the guard by being named something else.
+ *
+ * Only `.ts` and `.tsx` exist under `src/` and `scripts/` today. The rest are
+ * here because the guard's value is that it cannot be quietly wrong: a `.mjs`
+ * added later would be indexed by Sonar and scored, and a guard that did not
+ * look at it would report all clear while the gate failed.
+ */
+const SOURCE_SUFFIXES = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+
+/** Declaration files compile to nothing, so no coverage report mentions them. */
+const DECLARATION = /\.d\.(ts|mts|cts)$/;
+
+export function isSourceFile(name: string): boolean {
+  if (DECLARATION.test(name)) return false;
+  return SOURCE_SUFFIXES.some((suffix) => name.endsWith(suffix));
 }

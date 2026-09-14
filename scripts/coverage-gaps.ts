@@ -4,6 +4,7 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isSourceFile,
   parseSonarExclusions,
   toPosixPath,
 } from "./coverage-gaps-plan";
@@ -18,17 +19,11 @@ import {
 
 const ROOT = process.cwd();
 const SOURCE_ROOTS = ["src", "scripts"];
-const SOURCE_SUFFIXES = [".ts", ".tsx"];
-/** Type-only files compile to nothing and so appear in no coverage report. */
-const TYPES_ONLY_SUFFIX = ".d.ts";
-
 function sourceFiles(directory: string): string[] {
   return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
     const relative = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(relative);
-    const isSource = SOURCE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix));
-    if (!isSource || entry.name.endsWith(TYPES_ONLY_SUFFIX)) return [];
-    return [relative];
+    return isSourceFile(entry.name) ? [relative] : [];
   });
 }
 
