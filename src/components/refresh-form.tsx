@@ -116,6 +116,10 @@ export function RefreshForm({ domestic, foreign }: Props) {
     setSeasonsFailed(false);
     setSeason(null);
     setPreview(null);
+    // The notice too, not only the diff: `Veikkausliiga 2022 päivitetty.` left
+    // standing beside a competition the admin has just switched to reads as a
+    // statement about *that* one.
+    setNotice(null);
 
     seasonsForCompetitionAction(competition)
       .then((result) => {
@@ -251,9 +255,11 @@ export function RefreshForm({ domestic, foreign }: Props) {
             disabled={chosenSeason === null}
             id={seasonId}
             onChange={(event) => {
-              // A preview for the previous season must not land on this one.
+              // A preview for the previous season must not land on this one,
+              // and neither must a notice about it.
               abandonInFlight();
               setPreview(null);
+              setNotice(null);
               setSeason(Number(event.target.value));
             }}
             value={season ?? ""}

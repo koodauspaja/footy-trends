@@ -59,6 +59,18 @@ function renderForm() {
   return render(<RefreshForm domestic={DOMESTIC} foreign={FOREIGN} />);
 }
 
+/**
+ * Waits until the confirmation is ready to be acted on.
+ *
+ * Waiting for the dialog alone is not enough: `startTransition` keeps `pending`
+ * true for a moment after the preview lands, and while it is the button reads
+ * `Päivitetään…`. Waiting for the dialog and then reaching for `Päivitä` is a
+ * race, and it duly failed about one run in four.
+ */
+async function confirmButton() {
+  return await waitFor(() => screen.getByRole("button", { name: "Päivitä" }));
+}
+
 /** The season list loads on mount; most assertions need it settled first. */
 async function renderLoaded() {
   renderForm();
@@ -316,14 +328,53 @@ describe("a request that rejects rather than refuses", () => {
     applyAction.mockRejectedValueOnce(new Error("network"));
     await renderLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "Päivitä" }));
+    fireEvent.click(await confirmButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("changing the selection", () => {
+  /**
+   * A notice describes one competition and season. Left standing beside another
+   * it reads as a statement about that one — and after an apply it reads as a
+   * statement that something was written to it.
+   */
+  async function noticeThenChange(change: () => void) {
+    state.apply = { ok: true, applied: preview() };
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+    fireEvent.click(await confirmButton());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("päivitetty"));
+
+    change();
+  }
+
+  it("clears a notice belonging to the old competition", async () => {
+    await noticeThenChange(() =>
+      fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } })
+    );
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("clears a notice belonging to the old season", async () => {
+    state.seasons = {
+      ok: true,
+      seasons: [
+        { seasonId: 2026, label: "2026" },
+        { seasonId: 2016, label: "2016" },
+      ],
+    };
+    await noticeThenChange(() =>
+      fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2016" } })
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
@@ -413,7 +464,9 @@ describe("a slow preview", () => {
     };
     await renderLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    // Settled, not merely open: acting while the transition is still pending
+    // would make what this asserts depend on timing.
+    await confirmButton();
 
     fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2016" } });
 
@@ -425,7 +478,7 @@ describe("applying", () => {
   async function openConfirmation() {
     await renderLoaded();
     fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await confirmButton();
   }
 
   it("sends the hash of the diff that was shown", async () => {
