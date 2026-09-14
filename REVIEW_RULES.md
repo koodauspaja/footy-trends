@@ -13,8 +13,7 @@ Caching and API usage
 - Responses from every external data provider must be cached — football-data.org
   and TASO alike, and any provider added later. Implement caching with a
   sensible TTL (e.g. 5–15 minutes for frequently changing endpoints; longer for
-  stable data). Tests and specs must state the expected cache policy — Block 5
-  checks that half, and `specs/TEMPLATE.md` prompts for it.
+  stable data). Tests and specs must state the expected cache policy (Block 5).
 
 Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables
@@ -29,29 +28,22 @@ Specs and decision records
   named after; the two share a number. Drift between them is a finding — the
   spec saying "show last 5 matches" against a decision record saying "show
   last 3".
-- Every PR must reference both documents in its description. This one is
-  **not** a Sourcery rule and cannot become one: a review rule only sees
-  changed lines, never the PR description. It is carried by the two checkboxes
-  in `.github/PULL_REQUEST_TEMPLATE.md` and by `CLAUDE.md`. See
-  `docs/setup/004-sourcery-setup.md` for why.
+- Every PR must reference both documents in its description. Not a Sourcery
+  rule and cannot be one — a rule never sees the PR description. Carried by
+  `CLAUDE.md` and two checkboxes in `.github/PULL_REQUEST_TEMPLATE.md`.
 
 Accessibility and localization
 - All visible UI must include localized Finnish strings and pass basic a11y
   checks (e.g., images and SVGs must have alt/title text).
-- This section has **no Sourcery block, by design**, and both halves are
-  already covered: Finnish strings by Block 2, and alt/title text by Biome's
-  `a11y/useAltText` and `a11y/noSvgWithoutTitle` — both errors under
-  `preset: recommended`, so both fail `npm run lint`. A Sourcery rule here
-  would replace two deterministic checks with a guess at the same thing.
+- No Sourcery block, by design: Finnish strings are Block 2, alt/title text is
+  Biome (below). Both are already deterministic.
 
 Tooling and overrides
 - The following rules are enforced by the toolchain and need not be duplicated
   in Sourcery blocks: `noExplicitAny`, `noConsoleLog`, `a11y/useAltText`,
   `a11y/noSvgWithoutTitle` (see `docs/setup/012-project-init.md`).
-- Prefer the toolchain wherever it can express the rule. Biome answers the same
-  way every time; a review rule is asked in prose and answers by judgement, so
-  it belongs where no deterministic check can reach — see the false findings
-  described in `docs/setup/004-sourcery-setup.md`.
+- Prefer the toolchain wherever it can express the rule. A review rule answers
+  by judgement; save it for what no deterministic check can reach.
 
 How this maps to Sourcery
 - Create Sourcery dashboard blocks that mirror the sections above. Example
@@ -64,13 +56,8 @@ How this maps to Sourcery
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
 
 - A block's paths must cover every file its rules ask about, not only the files
-  whose changes should be flagged. All four blocks were audited against that in
-  #386 and three of them failed it: Block 1 compared two documents from behind
-  `src/**`, Block 3 asked about spec-defined edge cases with `specs/` out of
-  scope and missed all 53 `.tsx` test files because `tests/**/*.ts` does not
-  match `.tsx`, and the secrets rule said "committed files" while seeing only
-  TypeScript. A rule scoped away from its own subject matter does not fall
-  silent — it guesses.
+  whose changes should be flagged. `004-sourcery-setup.md` tabulates why each
+  path is there; #386 corrected four blocks that failed this.
 
 Authority
 - The Sourcery dashboard rules are the authoritative automated checks. This

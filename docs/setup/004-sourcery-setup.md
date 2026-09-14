@@ -34,29 +34,19 @@ in the dashboard, not in this file.
 
 Go to https://app.sourcery.ai → **Review Settings** → **Review Rules**.
 
-Every rule is an instruction plus a set of **path patterns**. The patterns do
-two jobs, and only the first is obvious: they decide which files a finding is
-*reported against*, and they decide which files are *in front of Sourcery*
-when it judges the rule.
+**A rule's path patterns must include every file the rule asks about**, not
+just the files whose changes should be flagged. Sourcery judges a rule from
+the matching files only; scoped away from its own subject it does not fall
+silent, it guesses. See *A rule cannot see the pull request description*
+under Known limitations.
 
-**So a rule's path patterns must include the files the rule asks questions
-about.** A rule that compares two documents needs both of them to match its
-patterns. Scoping a rule away from the files it is about does not make it
-narrower — it makes it guess, and a guessing rule fires on one pull request
-and not the next with no difference in the work. See *A rule cannot see the
-pull request description* under Known limitations for what that cost on #381.
-
-Add each rule as a separate block (Sourcery recommends fewer than 3 rules per block):
+One block per subject, so paths stay matched to it (Sourcery recommends fewer
+than 3 rules per block).
 
 **Block 1** — path: `specs/**,decisions/**`
 ```
 - A decision record in decisions/ must faithfully interpret the spec it is named after. The two share a number: specs/029-forced-season-refresh.md and decisions/029-forced-season-refresh.md. Flag any drift, e.g. the spec says "show last 5 matches" and the decision record says "show last 3".
 ```
-
-These patterns are the point of the block, not an afterthought. The rule
-compares a spec against a decision record, so both documents have to be in
-scope for it; behind `src/**` it was being asked to compare two files it had
-not been shown.
 
 **Block 2** — path: `src/**/*.ts,src/**/*.tsx`
 ```
@@ -64,88 +54,48 @@ not been shown.
 - Responses from every external data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render.
 ```
 
-The caching rule names both providers on purpose. It said only
-football-data.org until #386, while TASO reaches the same `getCached` helper
-through `src/lib/taso.ts` — whose own comment reads "Mirrors football-data's
-match cache." A rule that names one of two providers reads as deliberate
-scope, so nobody questions it; add the new provider here when a third arrives.
-
 **Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`
 ```
 - Every new feature must have corresponding tests in tests/.
 - Tests should cover the happy path and the edge cases defined in the spec.
 ```
 
-Two things in those paths are easy to drop and both have been missing:
-`tests/**/*.tsx`, without which every component test is invisible to the rule
-— 53 files at the time of writing, and component tests are where this
-repository's reviews find the most defects — and `specs/**`, without which
-"the edge cases defined in the spec" asks Sourcery about a document it has
-not been shown.
-
 **Block 4** — path: `**`
 ```
 - No API keys, secrets, tokens or credentials may appear in any committed file. All secrets must come from environment variables, with their names documented in .env.example.
 ```
-
-This one is deliberately repo-wide rather than scoped to `src/`. A secret that
-reaches the repository is far likelier to arrive in a workflow file, a
-`railway.toml`, a JSON config or an `.env` that escaped `.gitignore` than in a
-`.tsx` component. It lived in Block 2 behind `src/**/*.ts,src/**/*.tsx` until
-#386, which is to say it never once looked at any of those files.
-
-> Sourcery's `noExplicitAny` and `noConsoleLog` rules are already enforced
-> at the tooling level by Biome (set up in `012-project-init.md`), so no
-> need to duplicate them here.
 
 **Block 5** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**`
 ```
 - A spec or test covering provider data must state the expected cache policy: which endpoints are cached and their TTL. Flag a spec that adds a provider call without one, and a test whose cache expectations contradict its spec.
 ```
 
-The canonical policy in `REVIEW_RULES.md` has always had two halves — src
-must cache, and specs and tests must say what the caching is — and only the
-first was ever a rule. The second could not have lived in Block 2, whose
-paths exclude both directories; putting it there and widening those paths
-would have aimed Block 2's Finnish-UI-strings rule at spec markdown. A rule
-whose subject differs from its block's needs its own block, which is the
-same reason the secrets rule became Block 4.
+### Why the paths are what they are
 
-**There is deliberately no accessibility block**, though `REVIEW_RULES.md`
-carries an accessibility and localization policy. Both halves of it are
-already checked: Finnish strings by Block 2, and "images and SVGs must have
-alt/title text" by Biome's `a11y/useAltText` and `a11y/noSvgWithoutTitle`,
-which are errors under `preset: recommended` and fail `npm run lint`.
+Every line here is a mistake #386 corrected, kept so it is not repeated.
 
-Reach for the toolchain first whenever it can express the rule. Biome answers
-the same way every time; a review rule is asked in prose and answers by
-judgement. Adding a block here would trade two deterministic checks for a
-guess at the same thing — which is how this page's false findings happened.
+| Block | Path detail | Without it |
+|---|---|---|
+| 1 | `specs/**` *and* `decisions/**` | the rule compares two documents it has not been shown |
+| 2 | names both providers | TASO uses the same `getCached` helper and went unchecked |
+| 3 | `tests/**/*.tsx` | all 53 component tests are invisible — `*.ts` does not match `.tsx` |
+| 3 | `specs/**` | "edge cases defined in the spec" asks about a file out of scope |
+| 4 | `**`, not `src/**` | a secret arrives in a workflow or `.toml` more often than in a `.tsx` |
+| 5 | its own block | widening Block 2 instead would aim its Finnish-strings rule at spec markdown |
 
-### Two instructions that used to be in Block 1, and why they are not rules
+### What is deliberately not a rule
 
-Until #386, Block 1 opened with these two:
+- **Spec and decision-record references in the PR description.** Sourcery
+  never sees the description, so this cannot be a rule at all — see Known
+  limitations. `CLAUDE.md` states the requirement and
+  `.github/PULL_REQUEST_TEMPLATE.md` carries it as two checkboxes.
+- **Accessibility.** Biome's `a11y/useAltText` and `a11y/noSvgWithoutTitle`
+  are errors under `preset: recommended`, and Block 2 covers the Finnish
+  half. A block would trade two deterministic checks for a guess.
+- **`noExplicitAny`, `noConsoleLog`.** Biome, as above
+  (`012-project-init.md`).
 
-```
-- Every PR must reference a spec file in specs/ via the PR template.
-- Every PR must reference a decision record in decisions/ via the PR template.
-```
-
-Both ask about the pull request description, which Sourcery never sees. No
-wording, path pattern or ordering changes that, so neither can be a review
-rule — this is a limit of the tool, not a rule that was written badly.
-
-The requirement itself is unchanged. `CLAUDE.md` states it, and the two boxes
-at the end of `.github/PULL_REQUEST_TEMPLATE.md` carry it:
-
-```
-- [ ] Spec file exists and is linked above
-- [ ] Decision record exists and is linked above
-```
-
-A person ticks those, which is weaker than a machine check. It is still an
-improvement, because what stood here before was not a machine check either —
-it was a machine guess, and it guessed wrong three times on #381 alone.
+Prefer the toolchain wherever it can express the rule.
 
 ---
 
@@ -189,30 +139,21 @@ opening line before, so it no longer carries a count.
 
 ### A rule cannot see the pull request description
 
-From Sourcery's own documentation: "A rule only looks at the lines the pull
-request changes." A pull request description is not a changed line in any
-file, so no rule can check anything about it and no path pattern brings it
-into view.
+From Sourcery's documentation: "A rule only looks at the lines the pull
+request changes." The description is not a changed line, so no rule can check
+it and no path pattern reaches it. Sourcery *can* read repository files
+outside the diff — on #381 it confirmed a decision record existed that its
+own patterns excluded — so this limit is specifically the description.
 
-This is narrower than "Sourcery only sees the diff", and the difference
-matters when writing a rule: Sourcery *can* read repository files outside the
-diff — on #381 it confirmed that `decisions/029-forced-season-refresh.md`
-existed and described the feature, while that file was outside its rule's
-patterns. What it cannot reach is the description.
+A rule asking for what it cannot see answers anyway rather than falling
+silent. `Every PR must reference a decision record in decisions/ via the PR
+template` fired three times on #381 (04:47, 05:52, 06:03 on 2026-09-14) against
+a PR carrying that reference in its fourth and fifth lines, once replying
+"You're right — this is a false positive" and firing again eleven minutes
+later. It never fired on #375, the same feature with the same description.
 
-A rule that asks about something it cannot see does not fail cleanly or go
-quiet. It answers anyway. The rule `Every PR must reference a decision record
-in decisions/ via the PR template` fired three times on #381 — at 04:47,
-05:52 and 06:03 on 2026-09-14, every time on `src/app/admin/data/page.tsx` —
-against a pull request carrying that reference as the fourth and fifth lines
-of its description. Between the second and the third it answered a human with
-"You're right — this is a false positive", and then fired again eleven
-minutes later. On #375, the same feature with the same description shape, it
-never fired at all.
-
-Read that pattern as a symptom rather than a flaw in one rule: a review rule
-that fires inconsistently across similar pull requests is usually being asked
-for evidence it has no way to obtain.
+A rule that fires inconsistently across similar PRs is usually being asked for
+evidence it cannot obtain.
 
 ### Reviews after the first push are lighter
 
