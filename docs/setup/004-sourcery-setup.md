@@ -74,7 +74,7 @@ request leaves alone.
 
 **Block 6** — path: `**`
 ```
-- Identifiers, comments, headings, documentation and prose must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+- Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
 Each block's paths are chosen to cover every file its rules ask about.

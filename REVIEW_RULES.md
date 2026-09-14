@@ -9,9 +9,11 @@ Scope
 - Code, tests, specs, comments, variable and function names: English. Block 6
   checks it in every file a pull request changes, which is as far as any rule
   reaches. Finnish UI copy — in source, or asserted in a test
-  or quoted in a spec — is data, not a language violation.
+  or quoted in a spec — is data, not a language violation. `CLAUDE.md` carries
+  the same carve-out, so the two do not disagree.
 - Commit messages: English too, but unchecked — see below.
-- Configuration files and tooling settings: English unless they are end-user visible.
+- Configuration files and tooling settings: English unless they are end-user
+  visible (Block 6 covers these too).
 
 Caching and API usage
 - Responses from every external **application data** provider must be cached —

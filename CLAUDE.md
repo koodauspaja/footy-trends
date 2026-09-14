@@ -67,7 +67,9 @@
   has run anywhere changes the hash and breaks that environment's next deploy —
   add a new migration instead.
 - All user-facing UI strings are Finnish. All code, comments, specs, and
-  decision records are English. No exceptions in either direction.
+  decision records are English. No exceptions in either direction. Quoting a
+  Finnish UI string as data is not writing in Finnish and is expected — 67 test
+  files assert one and 24 specs quote one to say what the user sees.
 - Every GitHub issue must have both its label and its Issue Type field set,
   matched to the issue kind: `enhancement` label → `Feature` type, `chore`
   label → `Task` type, `bug` label → `Bug` type. The `gh` CLI has no
