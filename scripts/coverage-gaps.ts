@@ -51,15 +51,13 @@ if (!report.ok) {
 
 /**
  * The second half: files are measured, but lcov may still hold a condition that
- * was never taken. Paths in lcov are absolute, so the exclusion list is matched
- * against the repository-relative form.
+ * was never taken. lcov writes absolute paths, so the root is handed over and
+ * stripped there — by prefix, never by a regex built from a filesystem path.
  */
 const uncovered = findUncoveredBranches(
-  readFileSync(path.join(ROOT, "coverage/lcov.info"), "utf8").replace(
-    new RegExp(`SF:${ROOT}/`, "g"),
-    "SF:"
-  ),
-  exclusions
+  readFileSync(path.join(ROOT, "coverage/lcov.info"), "utf8"),
+  exclusions,
+  ROOT
 );
 
 if (uncovered.length > 0) {

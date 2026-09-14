@@ -148,6 +148,32 @@ describe("findUncoveredBranches", () => {
     expect(report).toEqual(["src/a.ts: line(s) 5", "src/b.ts: line(s) 2"]);
   });
 
+  it("strips an absolute root, so lcov paths match the exclusion list", () => {
+    expect(
+      findUncoveredBranches(
+        lcov("SF:/home/me/repo/src/a.ts\nBRDA:3,0,0,0"),
+        new Set(),
+        "/home/me/repo"
+      )
+    ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+
+  it("handles a root containing regex metacharacters", () => {
+    // A pattern built from the path would treat `.` and `+` as wildcards and
+    // leave the filename absolute, which looks like a coverage gap rather than
+    // like a path bug.
+    const root = "/home/me/my.repo+v2(old)";
+    expect(
+      findUncoveredBranches(lcov(`SF:${root}/src/a.ts\nBRDA:3,0,0,0`), new Set(), root)
+    ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+
+  it("leaves a path that does not begin with the root alone", () => {
+    expect(
+      findUncoveredBranches(lcov("SF:src/a.ts\nBRDA:3,0,0,0"), new Set(), "/elsewhere")
+    ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+
   it("respects the exclusion list, so a runner does not fail the suite", () => {
     expect(
       findUncoveredBranches(

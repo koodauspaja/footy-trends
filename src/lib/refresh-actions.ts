@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
 import { applyRefresh, listSeasonsFor, previewRefresh } from "@/lib/force-refresh";
 import { isKnownCompetition } from "@/lib/refresh-competitions";
@@ -28,6 +29,12 @@ import {
  * `isKnownCompetition` checks it against the registries; a value failing either
  * is refused here rather than carried into the engine.
  */
+
+/**
+ * Both spellings of the page, so the run list refreshes whichever URL is open —
+ * the same pair `admin-actions.ts` revalidates for the user table.
+ */
+const REFRESH_PATHS = ["/yllapito/data", "/admin/data"] as const;
 
 /** Refusals that never reached the engine, so they carry no other detail. */
 const REFUSED_SEASONS: SeasonsResult = { ok: false, reason: "input" };
@@ -79,5 +86,19 @@ export async function applyRefreshAction(
   const choice = choiceFrom(competition);
   if (choice === null) return REFUSED_APPLY;
 
-  return await applyRefresh(choice, seasonId, snapshotHash, adminId);
+  const result = await applyRefresh(choice, seasonId, snapshotHash, adminId);
+
+  /**
+   * Only on success, and only here.
+   *
+   * The run list is server-rendered, so without this the row just written stays
+   * invisible until the admin reloads — an audit log that does not show the
+   * thing that was audited. A refusal wrote no row, so revalidating for one
+   * would re-render the page to prove nothing changed.
+   */
+  if (result.ok) {
+    for (const path of REFRESH_PATHS) revalidatePath(path);
+  }
+
+  return result;
 }

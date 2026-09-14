@@ -10,17 +10,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * one of them — before the arguments are even looked at — and that a value the
  * browser sent is checked before it reaches the engine.
  */
-const { requireAdmin, listSeasonsFor, previewRefresh, applyRefresh, state } = vi.hoisted(() => {
-  const state = { adminId: "admin-1" as string | null };
-  return {
-    state,
-    requireAdmin: vi.fn(async () => state.adminId),
-    listSeasonsFor: vi.fn(async () => ({ ok: true, seasons: [{ seasonId: 2026, label: "2026" }] })),
-    previewRefresh: vi.fn(async () => ({ ok: true, preview: { snapshotHash: "hash" } })),
-    applyRefresh: vi.fn(async () => ({ ok: true, applied: { snapshotHash: "hash" } })),
-  };
-});
+const { requireAdmin, listSeasonsFor, previewRefresh, applyRefresh, revalidatePath, state } =
+  vi.hoisted(() => {
+    const state = { adminId: "admin-1" as string | null };
+    return {
+      state,
+      requireAdmin: vi.fn(async () => state.adminId),
+      listSeasonsFor: vi.fn(async () => ({
+        ok: true,
+        seasons: [{ seasonId: 2026, label: "2026" }],
+      })),
+      previewRefresh: vi.fn(async () => ({ ok: true, preview: { snapshotHash: "hash" } })),
+      applyRefresh: vi.fn(async () => ({ ok: true, applied: { snapshotHash: "hash" } })),
+      revalidatePath: vi.fn(),
+    };
+  });
 
+vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/admin-guard", () => ({ requireAdmin }));
 vi.mock("@/lib/force-refresh", () => ({ listSeasonsFor, previewRefresh, applyRefresh }));
 
@@ -140,6 +146,37 @@ describe("the happy paths", () => {
       "hash-from-the-browser",
       "admin-1"
     );
+  });
+});
+
+describe("showing the run that was just recorded", () => {
+  it("revalidates both spellings of the page after a successful apply", async () => {
+    // The run list is server-rendered, so without this the row just written
+    // stays invisible until a reload — an audit log not showing what it audited.
+    const { applyRefreshAction } = await import("@/lib/refresh-actions");
+
+    await applyRefreshAction(VEIKKAUSLIIGA, 2026, "hash");
+
+    expect(revalidatePath).toHaveBeenCalledWith("/yllapito/data");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/data");
+  });
+
+  it("does not revalidate when the apply was refused", async () => {
+    // A refusal wrote no row, so re-rendering the page would prove nothing.
+    applyRefresh.mockResolvedValueOnce({ ok: false, reason: "stale" } as never);
+    const { applyRefreshAction } = await import("@/lib/refresh-actions");
+
+    await applyRefreshAction(VEIKKAUSLIIGA, 2026, "hash");
+
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("does not revalidate for a preview, which writes nothing", async () => {
+    const { previewRefreshAction } = await import("@/lib/refresh-actions");
+
+    await previewRefreshAction(VEIKKAUSLIIGA, 2026);
+
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 

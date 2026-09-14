@@ -81,13 +81,17 @@ export function parseSonarExclusions(properties: string): Set<string> {
  * The two that were hiding were real: three actions each decode the competition
  * independently, and only one of them had been exercised.
  */
-export function findUncoveredBranches(lcov: string, excluded: ReadonlySet<string>): string[] {
+export function findUncoveredBranches(
+  lcov: string,
+  excluded: ReadonlySet<string>,
+  root = ""
+): string[] {
   const perFile = new Map<string, Set<number>>();
   let file = "";
 
   for (const line of lcov.split("\n")) {
     if (line.startsWith("SF:")) {
-      file = line.slice("SF:".length).trim();
+      file = relativeTo(root, line.slice("SF:".length).trim());
       continue;
     }
     if (!line.startsWith("BRDA:")) continue;
@@ -106,6 +110,19 @@ export function findUncoveredBranches(lcov: string, excluded: ReadonlySet<string
     .filter(([name]) => !excluded.has(name))
     .map(([name, lines]) => `${name}: line(s) ${[...lines].sort((a, b) => a - b).join(", ")}`)
     .sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * lcov writes absolute paths; the exclusion list is repository-relative.
+ *
+ * A plain prefix check rather than a regex built from the root: a checkout under
+ * a directory containing `.`, `+` or `(` would make that pattern match the
+ * wrong thing, and the failure would look like a coverage gap rather than like
+ * a path bug.
+ */
+function relativeTo(root: string, file: string): string {
+  const prefix = root === "" ? "" : `${root}/`;
+  return prefix !== "" && file.startsWith(prefix) ? file.slice(prefix.length) : file;
 }
 
 export function describeUncoveredBranches(entries: readonly string[]): string {
