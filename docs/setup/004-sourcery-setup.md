@@ -34,35 +34,94 @@ in the dashboard, not in this file.
 
 Go to https://app.sourcery.ai → **Review Settings** → **Review Rules**.
 
-Add the following rules. Where noted, set the path pattern to
-`src/**/*.ts,src/**/*.tsx,tests/**/*.ts` so the rule only applies to source
-code and not to specs, decisions, or docs.
+Every rule is an instruction plus a set of **path patterns**. The patterns do
+two jobs, and only the first is obvious: they decide which files a finding is
+*reported against*, and they decide which files are *in front of Sourcery*
+when it judges the rule.
+
+**So a rule's path patterns must include the files the rule asks questions
+about.** A rule that compares two documents needs both of them to match its
+patterns. Scoping a rule away from the files it is about does not make it
+narrower — it makes it guess, and a guessing rule fires on one pull request
+and not the next with no difference in the work. See *A rule cannot see the
+pull request description* under Known limitations for what that cost on #381.
 
 Add each rule as a separate block (Sourcery recommends fewer than 3 rules per block):
 
-**Block 1** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+**Block 1** — path: `specs/**,decisions/**`
 ```
-- Every PR must reference a spec file in specs/ via the PR template.
-- Every PR must reference a decision record in decisions/ via the PR template.
-- The decision record must faithfully interpret the spec — flag any drift, e.g. spec says "show last 5 matches" but decisions doc says "show last 3".
+- A decision record in decisions/ must faithfully interpret the spec it is named after. The two share a number: specs/029-forced-season-refresh.md and decisions/029-forced-season-refresh.md. Flag any drift, e.g. the spec says "show last 5 matches" and the decision record says "show last 3".
 ```
 
--**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
+These patterns are the point of the block, not an afterthought. The rule
+compares a spec against a decision record, so both documents have to be in
+scope for it; behind `src/**` it was being asked to compare two files it had
+not been shown.
+
+**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
 ```
 - All user-facing strings must be in Finnish. Variable names, function names, comments, and code must be in English.
-- API responses from football-data.org must be cached. Never call the API on every page load or render.
-- No API keys or secrets may appear in code or committed files. All secrets must come from environment variables.
+- Responses from every external data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render.
 ```
 
-**Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+The caching rule names both providers on purpose. It said only
+football-data.org until #386, while TASO reaches the same `getCached` helper
+through `src/lib/taso.ts` — whose own comment reads "Mirrors football-data's
+match cache." A rule that names one of two providers reads as deliberate
+scope, so nobody questions it; add the new provider here when a third arrives.
+
+**Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`
 ```
 - Every new feature must have corresponding tests in tests/.
 - Tests should cover the happy path and the edge cases defined in the spec.
 ```
 
+Two things in those paths are easy to drop and both have been missing:
+`tests/**/*.tsx`, without which every component test is invisible to the rule
+— 53 files at the time of writing, and component tests are where this
+repository's reviews find the most defects — and `specs/**`, without which
+"the edge cases defined in the spec" asks Sourcery about a document it has
+not been shown.
+
+**Block 4** — path: `**`
+```
+- No API keys, secrets, tokens or credentials may appear in any committed file. All secrets must come from environment variables, with their names documented in .env.example.
+```
+
+This one is deliberately repo-wide rather than scoped to `src/`. A secret that
+reaches the repository is far likelier to arrive in a workflow file, a
+`railway.toml`, a JSON config or an `.env` that escaped `.gitignore` than in a
+`.tsx` component. It lived in Block 2 behind `src/**/*.ts,src/**/*.tsx` until
+#386, which is to say it never once looked at any of those files.
+
 > Sourcery's `noExplicitAny` and `noConsoleLog` rules are already enforced
 > at the tooling level by Biome (set up in `012-project-init.md`), so no
 > need to duplicate them here.
+
+### Two instructions that used to be in Block 1, and why they are not rules
+
+Until #386, Block 1 opened with these two:
+
+```
+- Every PR must reference a spec file in specs/ via the PR template.
+- Every PR must reference a decision record in decisions/ via the PR template.
+```
+
+Both ask about the pull request description, which Sourcery never sees. No
+wording, path pattern or ordering changes that, so neither can be a review
+rule — this is a limit of the tool, not a rule that was written badly.
+
+The requirement itself is unchanged. `CLAUDE.md` states it, and the two boxes
+at the end of `.github/PULL_REQUEST_TEMPLATE.md` carry it:
+
+```
+- [ ] Spec file exists and is linked above
+- [ ] Decision record exists and is linked above
+```
+
+A person ticks those, which is weaker than a machine check. It is still an
+improvement, because what stood here before was not a machine check either —
+it was a machine guess, and it guessed wrong three times on #381 alone.
 
 ---
 
@@ -100,8 +159,36 @@ Delete the branch and close the PR without merging once confirmed.
 
 ## Known limitations
 
-Three behaviours that are easy to misread, and that the merge gate in
-`skills/open-pr.md` depends on.
+Behaviours that are easy to misread, and that the merge gate in
+`skills/open-pr.md` depends on. This list has been counted wrong in its own
+opening line before, so it no longer carries a count.
+
+### A rule cannot see the pull request description
+
+From Sourcery's own documentation: "A rule only looks at the lines the pull
+request changes." A pull request description is not a changed line in any
+file, so no rule can check anything about it and no path pattern brings it
+into view.
+
+This is narrower than "Sourcery only sees the diff", and the difference
+matters when writing a rule: Sourcery *can* read repository files outside the
+diff — on #381 it confirmed that `decisions/029-forced-season-refresh.md`
+existed and described the feature, while that file was outside its rule's
+patterns. What it cannot reach is the description.
+
+A rule that asks about something it cannot see does not fail cleanly or go
+quiet. It answers anyway. The rule `Every PR must reference a decision record
+in decisions/ via the PR template` fired three times on #381 — at 04:47,
+05:52 and 06:03 on 2026-09-14, every time on `src/app/admin/data/page.tsx` —
+against a pull request carrying that reference as the fourth and fifth lines
+of its description. Between the second and the third it answered a human with
+"You're right — this is a false positive", and then fired again eleven
+minutes later. On #375, the same feature with the same description shape, it
+never fired at all.
+
+Read that pattern as a symptom rather than a flaw in one rule: a review rule
+that fires inconsistently across similar pull requests is usually being asked
+for evidence it has no way to obtain.
 
 ### Reviews after the first push are lighter
 
@@ -179,6 +266,7 @@ gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
 - [ ] Sourcery installed on repo
 - [ ] `.sourcery.yaml` committed
 - [ ] Review rules added in the dashboard
+- [ ] Every rule's path patterns include the files that rule asks about
 - [ ] Dummy PR confirmed Sourcery fires
 
 ## Next
