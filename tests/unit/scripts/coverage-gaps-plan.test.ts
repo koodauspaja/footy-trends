@@ -32,6 +32,19 @@ describe("findCoverageGaps", () => {
     expect(report).toEqual({ ok: true, measured: 2 });
   });
 
+  it("counts what it required, not every entry in the coverage report", () => {
+    // A coverage-excluded file that some test happens to import is in the
+    // report too. Counting it would overstate what was checked, in the one
+    // line a reader takes at face value.
+    const report = findCoverageGaps(
+      ["src/a.ts", "scripts/runner.ts"],
+      ["scripts/**"],
+      new Set(["src/a.ts", "scripts/runner.ts", "src/unrelated.ts"])
+    );
+
+    expect(report).toEqual({ ok: true, measured: 1 });
+  });
+
   it("fails on a file no test imports, and names it", () => {
     const report = findCoverageGaps(["src/a.ts", "src/b.ts"], new Set(), new Set(["src/a.ts"]));
 
@@ -177,6 +190,17 @@ describe("findUncoveredBranches", () => {
         new Set(),
         "/home/me/repo"
       )
+    ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+
+  it.each([
+    ["many trailing separators", "/repo///", "/repo/src/a.ts"],
+    ["a root that is only separators", "///", "/src/a.ts"],
+  ])("strips %s without scanning them repeatedly", (_case, root, file) => {
+    // `/\/+$/` backtracks over a run of separators, retrying from each one —
+    // quadratic on a path made of them, which `breadcrumb.ts` already documents.
+    expect(
+      findUncoveredBranches(`SF:${file}\nBRDA:3,0,0,0\nend_of_record`, new Set(), root)
     ).toEqual(["src/a.ts: line(s) 3"]);
   });
 

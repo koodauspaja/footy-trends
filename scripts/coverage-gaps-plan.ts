@@ -26,15 +26,21 @@ export function findCoverageGaps(
   // Patterns, not literals — Sonar reads both exclusion lists that way, so a
   // `scripts/**` entry must exclude what Sonar excludes rather than nothing.
   const patterns = [...excluded];
-  const missing = sourceFiles
+  const required = sourceFiles
     .map(toPosixPath)
-    .filter((file) => !matchesAnyPattern(file, patterns))
+    .filter((file) => !matchesAnyPattern(file, patterns));
+
+  const missing = required
     .filter((file) => !measured.has(file))
     // Ordered for a person to read down, unlike the hash ordering in
     // `refresh-diff.ts` — so locale collation is the right one here.
     .sort((left, right) => left.localeCompare(right));
 
-  if (missing.length === 0) return { ok: true, measured: measured.size };
+  // The count is of the files this guard *required* to be measured, not of
+  // every entry in the coverage report: a coverage-excluded file that some test
+  // happens to import appears there too, and counting it would overstate what
+  // was checked in the one line a reader takes at face value.
+  if (missing.length === 0) return { ok: true, measured: required.length };
 
   const listed = missing.map((file) => `  ${file}`).join("\n");
 
@@ -157,7 +163,11 @@ function relativeTo(root: string, file: string): string {
    * Stripping it can leave nothing at all, which is the root directory itself
    * rather than "no root": that case is a prefix of one separator.
    */
-  const base = normalisedRoot.replace(/\/+$/, "");
+  // A loop rather than `/\/+$/`, which backtracks over a run of separators,
+  // retrying from each one — quadratic on a path made of them. `breadcrumb.ts`
+  // already documents that trap, and this is the same one.
+  let base = normalisedRoot;
+  while (base.endsWith("/")) base = base.slice(0, -1);
   const prefix = base === "" ? "/" : `${base}/`;
   return normalised.startsWith(prefix) ? normalised.slice(prefix.length) : normalised;
 }
@@ -212,6 +222,21 @@ export function isSourceFile(name: string): boolean {
  * gate should not rest on a package that can vanish when an unrelated tree
  * changes.
  */
+const REGEXP_METACHARACTERS = new Set([
+  ".",
+  "+",
+  "^",
+  "$",
+  "{",
+  "}",
+  "(",
+  ")",
+  "|",
+  "[",
+  "]",
+  "\\",
+]);
+
 export function sonarPatternToRegExp(pattern: string): RegExp {
   let source = "";
   for (let index = 0; index < pattern.length; index += 1) {
@@ -239,7 +264,7 @@ export function sonarPatternToRegExp(pattern: string): RegExp {
       continue;
     }
 
-    source += character.replace(/[.+^${}()|[\]\\]/, "\\$&");
+    source += REGEXP_METACHARACTERS.has(character) ? `\\${character}` : character;
   }
 
   return new RegExp(`^${source}$`);
