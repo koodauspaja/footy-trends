@@ -225,11 +225,37 @@ describe("refusals reach the reader, in Finnish", () => {
     promoteUserAction.mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole("button", { name: "Tee ylläpitäjäksi" }));
 
-    // A stale error beside a successful action reads as a failure that did not
-    // happen.
-    await waitFor(() => {
-      expect(screen.queryByRole("alert")).toBeNull();
-    });
+    /**
+     * A stale error beside a successful action reads as a failure that did not
+     * happen.
+     *
+     * **The budget is raised because the default is too tight here, not to
+     * paper over a stuck alert** (#388). What was measured, under four CPU
+     * hogs on a developer machine:
+     *
+     * | Budget | Failures |
+     * |---|---|
+     * | 1 s (Testing Library's default) | 1 in 10 |
+     * | 5 s | 0 in 15 |
+     *
+     * Two theories were tested and both failed, which is why this is a budget
+     * and not a code change. Every button is `disabled={pending}`, and a click
+     * while a transition is in flight *is* swallowed — but `pending` had
+     * already cleared whenever the alert was visible, across 12 contended runs,
+     * so the second click is never the one that goes missing. Nor is it mock
+     * state leaking from the test above: the text is this test's own
+     * `REFUSALS.failed`, which happens to read identically.
+     *
+     * What is left is cost. `queryByRole` walks the tree computing accessible
+     * roles, and one second of that plus a React transition is not enough on a
+     * contended runner. The alert does clear; it clears late.
+     */
+    await waitFor(
+      () => {
+        expect(screen.queryByRole("alert")).toBeNull();
+      },
+      { timeout: 5000 }
+    );
   });
 });
 
