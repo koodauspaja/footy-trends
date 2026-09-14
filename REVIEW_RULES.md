@@ -6,9 +6,10 @@ documented here so reviewers and CI integrations have a stable reference.
 
 Scope
 - User-facing UI text: Finnish (labels, messages, copy visible to end users).
-- Code, tests, specs, comments, commit messages, variable and function names:
-  English, repository-wide (Block 6). Finnish UI copy — in source, or asserted
-  in a test or quoted in a spec — is data, not a language violation.
+- Code, tests, specs, comments, variable and function names: English,
+  repository-wide (Block 6). Finnish UI copy — in source, or asserted in a test
+  or quoted in a spec — is data, not a language violation.
+- Commit messages: English too, but unchecked — see below.
 - Configuration files and tooling settings: English unless they are end-user visible.
 
 Caching and API usage
@@ -79,6 +80,9 @@ Deliberately not Sourcery rules
 - **Accessibility** — Finnish UI strings are Block 2, alt/title text is Biome's
   `a11y/useAltText` and `a11y/noSvgWithoutTitle`. Both already deterministic.
 - **`noExplicitAny`, `noConsoleLog`** — Biome, as above.
+- **Commit messages in English** — a rule reads files, never the commit log,
+  and there is no `commit-msg` hook or commitlint here. Convention only, and
+  named as such rather than left looking enforced.
 
 Authority
 - The Sourcery dashboard rules are the authoritative automated checks. This
