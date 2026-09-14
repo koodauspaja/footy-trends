@@ -6,8 +6,9 @@ documented here so reviewers and CI integrations have a stable reference.
 
 Scope
 - User-facing UI text: Finnish (labels, messages, copy visible to end users).
-- Code, tests, specs, comments, variable and function names: English,
-  repository-wide (Block 6). Finnish UI copy — in source, or asserted in a test
+- Code, tests, specs, comments, variable and function names: English. Block 6
+  checks it in every file a pull request changes, which is as far as any rule
+  reaches. Finnish UI copy — in source, or asserted in a test
   or quoted in a spec — is data, not a language violation.
 - Commit messages: English too, but unchecked — see below.
 - Configuration files and tooling settings: English unless they are end-user visible.
@@ -66,7 +67,7 @@ How this maps to Sourcery
   Block 3 (paths: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`): testing requirements
   Block 4 (paths: `**`): secrets and credentials
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
-  Block 6 (paths: `**`): English everywhere
+  Block 6 (paths: `**`): English in every changed file
 
 - A block's paths must cover every file its rules ask about, not only the files
   whose changes should be flagged. Each line below is a mistake #386 corrected:

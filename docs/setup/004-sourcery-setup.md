@@ -39,6 +39,12 @@ Sourcery judges a rule from the matching files only; scoped away from its own
 subject it does not fall silent, it guesses. One block per subject, so paths
 stay matched to it (Sourcery recommends fewer than 3 rules per block).
 
+**A rule sees only changed lines.** Paths decide what a rule *can* be shown;
+the diff decides what it *is* shown. So an unchanged file is not evidence even
+when its directory is in the paths: Blocks 1, 3 and 5 compare documents only
+when a pull request changes them together, and no block audits files the pull
+request leaves alone.
+
 **Block 1** — path: `specs/**,decisions/**`
 ```
 - A decision record in decisions/ must faithfully interpret the spec it is named after. The two share a number: specs/029-forced-season-refresh.md and decisions/029-forced-season-refresh.md. Flag any drift, e.g. the spec says "show last 5 matches" and the decision record says "show last 3".
@@ -68,7 +74,7 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 
 **Block 6** — path: `**`
 ```
-- Identifiers, comments, headings, documentation and prose must be English, anywhere in the repository. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+- Identifiers, comments, headings, documentation and prose must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
 Each block's paths are chosen to cover every file its rules ask about.
