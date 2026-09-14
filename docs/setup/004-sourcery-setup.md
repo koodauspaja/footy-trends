@@ -124,9 +124,10 @@ opening line before, so it no longer carries a count.
 ### A rule cannot see the pull request description
 
 From Sourcery's documentation: "A rule only looks at the lines the pull
-request changes." The description is not a changed line, so no rule can check
-it. Sourcery *can* read repository files outside the diff, so this limit is
-specifically the description.
+request changes." The description is not a changed line in any file, so no
+rule can check it — this one is certain, and separate from the changed-line
+limit in Step 3. Whether Sourcery reads unchanged repository files as context
+is unmeasured; Step 3 assumes not, which is the safe direction.
 
 Such a rule answers anyway rather than falling silent: one fired three times
 on #381 against a PR that satisfied it, and never on #375, which was
