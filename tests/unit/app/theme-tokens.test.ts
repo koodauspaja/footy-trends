@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
+// Parsed with TypeScript 6 via the `typescript6` alias — TypeScript 7 ships no
+// in-process parser. See the note in `tests/unit/app/rendering-mode.test.ts` and #43.
+import ts from "typescript6";
 import { describe, expect, it } from "vitest";
 import { HARDCODED_COLOUR_CLASS, paintsWithShade } from "../../shared/hardcoded-colour";
 

@@ -1,7 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
+/**
+ * Parsed with TypeScript 6, kept as the `typescript6` alias, because TypeScript 7
+ * exposes no in-process parser: its package root is `lib/version.cjs`, and the AST
+ * surface under `typescript/unstable/*` has the `is*` predicates, `SyntaxKind` and
+ * `ScriptTarget` but nothing that turns source text into a tree. Its only route to
+ * an AST is a client/server `API` that spawns the native binary and answers with
+ * remote node handles.
+ *
+ * A stopgap, and it has a cost worth knowing: the parser here is a different
+ * version from the compiler that typechecks the code it reads. See #43.
+ */
+import ts from "typescript6";
 import { describe, expect, it } from "vitest";
 
 const APP_DIR = path.join(process.cwd(), "src", "app");
