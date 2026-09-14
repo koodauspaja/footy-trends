@@ -265,6 +265,35 @@ describe("previewing", () => {
   });
 });
 
+describe("while a request is in flight", () => {
+  it("keeps the button disabled until the answer lands", async () => {
+    // `startTransition` tracks only its synchronous callback, so firing the
+    // action and returning would drop `pending` immediately — leaving the
+    // button live and a second click able to start a duplicate refresh.
+    let resolvePreview: (value: unknown) => void = () => undefined;
+    previewAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        })
+    );
+    await renderLoaded();
+    const button = screen.getByRole("button", { name: "Hae muutokset" });
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Haetaan…" })).toBeDisabled());
+
+    await act(async () => {
+      resolvePreview({ ok: true, preview: preview() });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Hae muutokset" })).toBeEnabled()
+    );
+  });
+});
+
 describe("a request that rejects rather than refuses", () => {
   // A server action can reject — a dropped connection, an exception the engine
   // did not convert — and that must not leave the form pending with no notice.

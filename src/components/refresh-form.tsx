@@ -153,16 +153,24 @@ export function RefreshForm({ domestic, foreign }: Props) {
     const id = requestId.current;
     setNotice(null);
 
-    startTransition(() => {
-      void request()
-        .then((value) => {
-          if (id === requestId.current) settle(value);
-        })
-        .catch(() => {
-          if (id !== requestId.current) return;
-          setPreview(null);
-          setNotice(REQUEST_FAILED);
-        });
+    /**
+     * An **async** callback, not `void request()` inside a synchronous one.
+     *
+     * `startTransition` tracks only what its callback does before returning, so
+     * firing the request and returning immediately drops `pending` back to
+     * false while the server action is still running — leaving the button live
+     * and a second click able to start a duplicate refresh. Awaiting inside the
+     * transition keeps `pending` true until the answer lands.
+     */
+    startTransition(async () => {
+      try {
+        const value = await request();
+        if (id === requestId.current) settle(value);
+      } catch {
+        if (id !== requestId.current) return;
+        setPreview(null);
+        setNotice(REQUEST_FAILED);
+      }
     });
   };
 
