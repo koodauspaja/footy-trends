@@ -40,6 +40,11 @@ Specs and decision records
   last 3".
 - Every PR must reference both documents in its description (not a Sourcery
   rule — see below).
+- Block 1 compares the two when a pull request changes them together, which a
+  feature PR does: it adds both. Whether Sourcery reads the unchanged
+  counterpart on a **one-sided edit** is not established — its documentation
+  says a rule looks at changed lines. Treat that case as unchecked until
+  someone measures it.
 
 Accessibility and localization
 - All visible UI must include localized Finnish strings and pass basic a11y
