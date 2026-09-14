@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { RefreshConfirm } from "@/components/refresh-confirm";
 import {
   applyRefreshAction,
@@ -32,6 +32,8 @@ const LOADING_PREVIEW = "Haetaan…";
 const LOADING_SEASONS = "Ladataan…";
 const SEASONS_FAILED = "Kausien haku epäonnistui.";
 const NO_SEASONS = "Tälle sarjalle ei ole tallennettuja kausia.";
+/** A rejected request, as opposed to one that answered with a refusal. */
+const REQUEST_FAILED = "Pyyntö epäonnistui. Yritä uudelleen.";
 
 /** Every refusal either action can report, in Finnish. */
 const REFUSALS: Record<RefreshFailureReason, string> = {
@@ -78,6 +80,29 @@ export function RefreshForm({ domestic, foreign }: Props) {
   const [pending, startTransition] = useTransition();
 
   /**
+   * Which request is the current one.
+   *
+   * Bumped when a request starts **and** when the selection changes, so an
+   * answer for a competition or season nobody is looking at any more is
+   * dropped rather than shown. Without it a slow preview could put one
+   * competition's diff on screen while the buttons beneath it act on another —
+   * and the whole feature rests on the diff an admin sees being the one they
+   * approve.
+   */
+  const requestId = useRef(0);
+
+  /**
+   * Invalidates whatever is in flight. Call on every change of selection.
+   *
+   * `useCallback` with no dependencies so the identity is stable: the effect
+   * below lists it, and a function rebuilt each render would restart that
+   * effect every render — refetching the season list continuously.
+   */
+  const abandonInFlight = useCallback(() => {
+    requestId.current += 1;
+  }, []);
+
+  /**
    * Loaded for the chosen competition only. There are ten foreign competitions
    * and each needs its own provider call, so resolving them all on mount would
    * turn a cold cache into ten requests against a rate-limited plan.
@@ -86,6 +111,7 @@ export function RefreshForm({ domestic, foreign }: Props) {
     if (competition === "") return;
 
     let current = true;
+    abandonInFlight();
     setSeasons(null);
     setSeasonsFailed(false);
     setSeason(null);
@@ -111,40 +137,64 @@ export function RefreshForm({ domestic, foreign }: Props) {
     return () => {
       current = false;
     };
-  }, [competition]);
+  }, [competition, abandonInFlight]);
 
-  const run = (action: () => Promise<void>) => {
+  /**
+   * Runs one action, ignoring its answer if the selection moved on, and
+   * turning a rejection into something an admin can read.
+   *
+   * A server action can reject rather than return a refusal — a dropped
+   * connection, an exception the engine did not convert — and `void action()`
+   * on its own would swallow that, leaving the form pending with no notice and
+   * no way forward.
+   */
+  const run = <T,>(request: () => Promise<T>, settle: (value: T) => void) => {
+    abandonInFlight();
+    const id = requestId.current;
     setNotice(null);
+
     startTransition(() => {
-      void action();
+      void request()
+        .then((value) => {
+          if (id === requestId.current) settle(value);
+        })
+        .catch(() => {
+          if (id !== requestId.current) return;
+          setPreview(null);
+          setNotice(REQUEST_FAILED);
+        });
     });
   };
 
   const onPreview = (chosenSeason: number) => {
-    run(async () => {
-      const result = await previewRefreshAction(competition, chosenSeason);
-      if (result.ok) {
-        setPreview(result.preview);
-        return;
+    run(
+      () => previewRefreshAction(competition, chosenSeason),
+      (result) => {
+        if (result.ok) {
+          setPreview(result.preview);
+          return;
+        }
+        setPreview(null);
+        setNotice(REFUSALS[result.reason]);
       }
-      setPreview(null);
-      setNotice(REFUSALS[result.reason]);
-    });
+    );
   };
 
   const onApply = (chosenSeason: number, approved: RefreshPreview) => {
-    run(async () => {
-      const result = await applyRefreshAction(competition, chosenSeason, approved.snapshotHash);
-      if (result.ok) {
-        setPreview(null);
-        setNotice(appliedNotice(result.applied));
-        return;
+    run(
+      () => applyRefreshAction(competition, chosenSeason, approved.snapshotHash),
+      (result) => {
+        if (result.ok) {
+          setPreview(null);
+          setNotice(appliedNotice(result.applied));
+          return;
+        }
+        // A stale refusal carries the fresh diff, so the admin decides again on
+        // what is actually there rather than being told to start over.
+        setPreview(result.preview ?? null);
+        setNotice(REFUSALS[result.reason]);
       }
-      // A stale refusal carries the fresh diff, so the admin decides again on
-      // what is actually there rather than being told to start over.
-      setPreview(result.preview ?? null);
-      setNotice(REFUSALS[result.reason]);
-    });
+    );
   };
 
   /**
@@ -192,7 +242,12 @@ export function RefreshForm({ domestic, foreign }: Props) {
             className="rounded border px-2 py-1 text-sm"
             disabled={chosenSeason === null}
             id={seasonId}
-            onChange={(event) => setSeason(Number(event.target.value))}
+            onChange={(event) => {
+              // A preview for the previous season must not land on this one.
+              abandonInFlight();
+              setPreview(null);
+              setSeason(Number(event.target.value));
+            }}
             value={season ?? ""}
           >
             {seasons === null ? (

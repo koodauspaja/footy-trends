@@ -265,6 +265,106 @@ describe("previewing", () => {
   });
 });
 
+describe("a request that rejects rather than refuses", () => {
+  // A server action can reject — a dropped connection, an exception the engine
+  // did not convert — and that must not leave the form pending with no notice.
+  it("tells the admin when the preview request fails outright", async () => {
+    previewAction.mockRejectedValueOnce(new Error("network"));
+    await renderLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("tells the admin when the apply request fails outright", async () => {
+    applyAction.mockRejectedValueOnce(new Error("network"));
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Päivitä" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("a slow preview", () => {
+  it("is discarded when the competition changed while it was in flight", async () => {
+    // Otherwise one competition's diff sits on screen while the buttons beneath
+    // it act on another — and this whole feature rests on the diff an admin
+    // sees being the one they approve.
+    let resolvePreview: (value: unknown) => void = () => undefined;
+    previewAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        })
+    );
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+
+    fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } });
+    await waitFor(() => expect(seasonsAction).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolvePreview({ ok: true, preview: preview({ competitionName: "Veikkausliiga" }) });
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("is discarded when the season changed while it was in flight", async () => {
+    state.seasons = {
+      ok: true,
+      seasons: [
+        { seasonId: 2026, label: "2026" },
+        { seasonId: 2016, label: "2016" },
+      ],
+    };
+    let resolvePreview: (value: unknown) => void = () => undefined;
+    previewAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        })
+    );
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+
+    fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2016" } });
+
+    await act(async () => {
+      resolvePreview({ ok: true, preview: preview() });
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes an open dialog when the season changes underneath it", async () => {
+    state.seasons = {
+      ok: true,
+      seasons: [
+        { seasonId: 2026, label: "2026" },
+        { seasonId: 2016, label: "2016" },
+      ],
+    };
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Kausi"), { target: { value: "2016" } });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
 describe("applying", () => {
   async function openConfirmation() {
     await renderLoaded();
