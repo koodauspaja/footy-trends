@@ -2,46 +2,115 @@
 
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
-to. Not general advice — seven classes, each measured from the review history,
-each with a counter that takes minutes.
+to. Not general advice — every class below is measured from the review history,
+and each has a counter that takes minutes. The table says which to weight
+today; it is re-measured, not maintained by hand.
 
 When to use
 - Immediately before requesting a Sourcery review or handing a PR to a human.
 - After any fix commit, on the part that changed. Findings from a round of
   fixes are as common as findings from the original work.
 
-## Why these seven
+## Why these classes
 
 Measured with `npm run review:findings`, which counts every Sourcery inline
-comment on recent merged pull requests and sorts it by class. On 2026-09-08,
+comment on recent merged pull requests and sorts it by class. On 2026-09-14,
 across the last 14 merged PRs:
 
 | Findings | Class | Pull requests |
 |---|---|---|
-| **11** | **a test that proves nothing** | #265 #267 #270 #275 #279 #283 #285 |
-| 9 | a parser accepting what it should not | #282 #283 #285 |
-| 8 | a failure path dropped, or turned into a plausible wrong value | #265 #267 #270 #283 |
-| 6 | a comment or spec contradicting the code beside it | #270 #276 #283 |
-| 2 | English reaching a Finnish UI | #270 |
-| 1 | a guard covering the named line instead of the class | #265 |
-| 11 | unclassified | #265 #270 #282 #283 |
+| **21** | **a comment or spec contradicting the code beside it** | #372 #375 #376 #381 #387 #389 |
+| 10 | a read and a write that do not span one transaction | #372 #375 #381 |
+| 9 | the same value compared under two normalisations | #372 #375 #381 #385 |
+| 3 | a test that proves nothing | #381 #387 |
+| 3 | a failure path dropped, or turned into a plausible wrong value | #372 #375 #381 |
+| 1 | English reaching a Finnish UI | #389 |
+| 1 | a shared cache key that is not per-reader | #381 |
+| 1 | a guard covering the named line instead of the class | #376 |
+| 0 | a parser accepting what it should not | — |
+| 15 | unclassified | #372 #374 #375 #376 #381 #385 #389 |
 
     GH_TOKEN=$(gh auth token) npm run review:findings -- 14
 
 Re-run it. The numbers are a snapshot, and a class that stops appearing has
 earned its removal from this document as much as a new one earns its place.
 
-**`unclassified` is a quarter of the total, and that is the honest number.** A
-finding is filed by the words it uses, so the table is a coarse indicator of
-where to look — not a verdict on any one finding, and no substitute for reading
-them.
+**Read the top row with its cause.** #389 alone supplied 12 of those 21. It was
+a documentation-only pull request reviewed over roughly fifteen rounds, so it
+is not evidence that prose drifts four times more often than anything else.
+Excluding it, the largest class is the transaction one at 10.
+
+**A zero means "look", not "delete".** Twice now a class has read as extinct
+while its findings sat in `unclassified`: "a failure path dropped" showed 0 on
+2026-09-14 with three real instances, because recent reviews say "is not
+caught" where older ones said "unhandled". Parsing shows 0 here for a different
+reason — its one recent instance, a `--role=ADMIN` flag, files under
+normalisation now, which is the better home for it. Check where a vanished
+class's findings went before removing the section.
+
+**`unclassified` is 15 of 64, and that is the honest number.** A finding is
+filed by the words it uses, so the table is a coarse indicator of where to look
+— not a verdict on any one finding, and no substitute for reading them.
 
 ---
 
-## 1. A test that proves nothing
+## 1. A comment or spec contradicting the code
 
-The largest class, and present in seven different pull requests — more than any
-other.
+The largest class, and the one most often written by the same hand that wrote
+the code an hour earlier.
+
+**What it looks like.** A comment quoting the class it forbids, and naming the
+wrong one. A spec typing a field as `number | null` after the implementation
+made it a string. A rule's path patterns claiming a scope its wording does not
+have, and the reverse. A count in prose — "all four blocks" — written before a
+fifth existed.
+
+**The counter.** Any commit that changes behaviour searches for the old
+behaviour's *words*, not only its code — the value, the type, the mechanism —
+across `specs/`, `decisions/`, comments and tests. A stale sentence is a
+contract someone will follow. Prefer a table row to a sentence for anything
+countable: #389 got the same count wrong twice in prose.
+
+## 2. A read and a write that do not span one transaction
+
+New in #390, and the largest class once #389's documentation findings are set
+aside. Ten findings across three pull requests, all of them in code that had
+been read carefully.
+
+**What it looks like.** An approval hash checked against rows read before
+`writeSnapshot`, with no lock or transaction spanning the two, so a concurrent
+sync is overwritten by the stale approved snapshot. A read, an update and a
+readback as three separate statements. A case-insensitive duplicate check that
+another transaction can invalidate between the check and the insert. On the
+client, the same shape without a database: a preview response applied after the
+administrator has changed competition, so the dialog shows one season's diff
+while the form submits another's.
+
+**The counter.** For every read whose value decides a later write, name what
+stops the state changing in between — a transaction, a lock, a version column,
+or a generation counter on the client. If the answer is "nothing usually
+does", that is the finding. The window is easy to see once you look for the
+pair rather than the statement.
+
+## 3. The same value compared under two normalisations
+
+Also new in #390. Nine findings, four pull requests.
+
+**What it looks like.** `normaliseEmail` lower-casing the operator's input
+while `setRole` compares it against a case-sensitive column, so an account
+stored with capitals is reported as nonexistent. `path.join` producing
+backslashes on Windows while lcov and `sonar.coverage.exclusions` use forward
+slashes. An exclusion entry treated as an exact path when Sonar treats it as a
+pattern. A diff counting duplicate provider rows while the writer deduplicates
+them, so the count shown never matches the rows written.
+
+**The counter.** When a value crosses a boundary — process to database, tool to
+tool, provider to store — write down its canonical form once and convert at the
+edge, not at each comparison. Then find every other place that compares the
+same value: this class arrives in pairs, because the second comparison is what
+disagrees with the first.
+
+## 4. A test that proves nothing
 
 **What it looks like.** An escape-hatch e2e that passed with the escape hatch
 removed. Focus tests built on 5 ms sleeps. `renderPage()` called twice where
@@ -84,7 +153,7 @@ this; running it does.
 - When the subject is a pipeline, run the real thing. Mocking the image encoder
   would have asserted only that the code calls the functions the code calls.
 
-## 2. A failure path dropped
+## 5. A failure path dropped
 
 **What it looks like.** A promise whose rejection escapes the transition that
 owns it. A query with no error handling, so one Postgres blip renders an error
@@ -97,7 +166,7 @@ diff: who catches it, and what does the reader see? A failure must never share
 a value with "there is nothing" — if a function can fail, its result type
 carries failure as its own case.
 
-## 3. A parser accepting what it should not
+## 6. A parser accepting what it should not
 
 **What it looks like.** `Number("")` is `0`, `Number("0x10")` is 16,
 `Number.parseInt("2abc")` is 2. A class-name pattern that stopped at the first
@@ -109,18 +178,8 @@ accepted value and the smallest rejected one. And put the rule in one place;
 this class arrived three pull requests running, on two copies of a rule that
 had drifted apart.
 
-## 4. A comment or spec contradicting the code
 
-**What it looks like.** A comment quoting the class it forbids, and naming the
-wrong one. A spec typing a field as `number | null` after the implementation
-made it a string. A comment describing alpha tints after tokens replaced them.
-
-**The counter.** Any commit that changes behaviour searches for the old
-behaviour's *words*, not only its code — the value, the type, the mechanism —
-across `specs/`, `decisions/`, comments and tests. A stale sentence is a
-contract someone will follow.
-
-## 5. A guard covering the named line
+## 7. A guard covering the named line
 
 **What it looks like.** A validation added where the diagnostic reads the
 value, while the path that *stores* it parses the same value independently and
@@ -131,7 +190,7 @@ the same input. If there are two, the fix is one shared function, not two
 guards — see `feedback: remove the path, do not add a guard` in the review
 history.
 
-## 6. English reaching a Finnish UI
+## 8. English reaching a Finnish UI
 
 CLAUDE.md makes this a hard rule, and review has still had to say it twice — a
 rule that is only written down is not a check.
@@ -139,7 +198,7 @@ rule that is only written down is not a check.
 **The counter.** Read every new string a reader can see. Browser and
 platform names, provider errors and library defaults are the usual leaks.
 
-## 7. A shared key that is not per-reader
+## 9. A shared key that is not per-reader
 
 **What it looks like.** `/api/avatar/me?v=<timestamp>` — one path for every
 reader, cached `private, immutable` for a year, with a query parameter that two
