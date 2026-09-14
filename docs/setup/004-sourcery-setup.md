@@ -58,7 +58,7 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 
 **Block 4** — path: `**`
 ```
-- No API keys, secrets, tokens or credentials may appear in any committed file. All secrets must come from environment variables, with their names documented in .env.example.
+- No API key, secret, token or credential may be introduced or modified by this pull request. Clearly marked placeholders are not secrets: .env.example carries variable names with empty or obviously fake values (user:password@localhost), and setup docs show example values. Real values must come from environment variables.
 ```
 
 **Block 5** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**`

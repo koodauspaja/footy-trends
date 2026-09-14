@@ -18,6 +18,9 @@ Caching and API usage
 Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables
   (e.g. `FOOTBALL_DATA_API_KEY`) and `.env.example` to document names.
+- Block 4 asks only about secrets the pull request introduces or modifies — a
+  rule sees changed lines, so it cannot vouch for files nobody touched. There
+  is no repo-wide secret scanner here; that gap is real and unclaimed.
 
 Testing
 - New features require tests in `tests/`. Tests must cover happy paths and the
