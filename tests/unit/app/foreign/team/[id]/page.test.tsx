@@ -167,7 +167,7 @@ async function getMetadata(
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/foreign/team/[id]/page");
+  await import("@/app/foreign/team/[id]/page").catch(() => undefined);
 });
 
 describe("Team page", () => {

@@ -145,7 +145,7 @@ beforeEach(() => {
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/domestic/team/[id]/page");
+  await import("@/app/domestic/team/[id]/page").catch(() => undefined);
 });
 
 describe("Domestic team page", () => {

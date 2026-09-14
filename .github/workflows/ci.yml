@@ -55,6 +55,17 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # Runs the same suite in a random order, which is the only way to catch a
+      # test that passes because its neighbour ran first. It was not worth
+      # running here until #384: the suite failed at random, so a red shuffle
+      # proved nothing and would have trained everyone to re-run it. Order is no
+      # longer a source of failure, so a failure here is a real finding.
+      #
+      # No coverage and no gap check: those belong to the run above, and asking
+      # for them twice would double the slowest part of this job for nothing.
+      - name: Unit tests, shuffled
+        run: npm run test:shuffle
+
   integration:
     name: Integration tests
     runs-on: ubuntu-latest

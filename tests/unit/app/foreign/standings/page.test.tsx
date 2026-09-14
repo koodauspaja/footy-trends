@@ -93,7 +93,7 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/foreign/standings/page");
+  await import("@/app/foreign/standings/page").catch(() => undefined);
 });
 
 describe("Standings page", () => {

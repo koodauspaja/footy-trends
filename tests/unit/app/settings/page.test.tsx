@@ -100,7 +100,7 @@ beforeEach(() => {
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/settings/page");
+  await import("@/app/settings/page").catch(() => undefined);
 });
 
 describe("the settings route", () => {

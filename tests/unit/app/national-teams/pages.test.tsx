@@ -122,9 +122,9 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/national-teams/matches/page");
-  await import("@/app/national-teams/standings/page");
-  await import("@/app/national-teams/team/[id]/page");
+  await import("@/app/national-teams/matches/page").catch(() => undefined);
+  await import("@/app/national-teams/standings/page").catch(() => undefined);
+  await import("@/app/national-teams/team/[id]/page").catch(() => undefined);
 });
 
 describe("National-teams standings page", () => {

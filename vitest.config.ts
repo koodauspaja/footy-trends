@@ -61,22 +61,59 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "node",
+          name: "unit",
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
-          setupFiles: ["./vitest.setup.ts"],
+          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
         },
       },
       {
         extends: true,
         test: {
-          name: "dom",
+          name: "unit-dom",
           environment: "jsdom",
           include: ["tests/unit/**/*.test.tsx"],
+          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          /**
+           * Its own project, and not an afterthought.
+           *
+           * When the unit projects were the only ones, `npm run test:integration`
+           * matched nothing — and `--passWithNoTests` reported that as a pass, so
+           * a CI job ran zero tests and went green. Naming the suite here means a
+           * configuration that cannot see it fails loudly instead.
+           *
+           * It keeps `.env`: unlike a unit test, it genuinely needs Postgres and
+           * Redis, and `scripts/with-test-db.ts` points it at the test database.
+           */
+          name: "integration",
+          environment: "node",
+          include: ["tests/integration/**/*.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
         },
       },
     ],
+    /**
+     * A hook may take as long as a module transform takes; a test may not.
+     *
+     * The two budgets are deliberately different. `testTimeout` stays at its 5 s
+     * default, where it still means something: no test in this suite does five
+     * seconds of legitimate work, so one that takes that long is stuck. The
+     * `beforeAll` hooks added in #384 do exactly one thing — transform a
+     * module graph once so no individual test is charged for it — and that was
+     * measured at up to 8.4 s here, which the 10 s default leaves no margin
+     * over under parallel load. Three files duly failed with
+     * `Hook timed out in 10000ms`.
+     *
+     * 30 s is about three and a half times the measured worst. Its job is to
+     * catch an import that never resolves, not to police a cost the suite
+     * legitimately pays.
+     */
+    hookTimeout: 30_000,
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",

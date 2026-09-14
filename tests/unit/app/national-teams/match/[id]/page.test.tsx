@@ -63,7 +63,7 @@ async function renderPage(id = "537430") {
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/national-teams/match/[id]/page");
+  await import("@/app/national-teams/match/[id]/page").catch(() => undefined);
 });
 
 describe("/maajoukkueet/ottelu/:id", () => {

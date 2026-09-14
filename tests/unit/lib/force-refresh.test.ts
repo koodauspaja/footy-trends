@@ -240,10 +240,15 @@ function noWriterRan(): void {
  * and every later one costs nothing. Left in the test body that one-off is
  * charged to an arbitrary test — under `--sequence.shuffle` a different one
  * each run — and under parallel load it can exhaust the whole budget. See #384.
+ *
+ * The rejection is swallowed because only the *transform* is wanted: a module
+ * that refuses to construct without its environment — `@/lib/auth` does — is
+ * still transformed before it throws, and the tests below import it themselves,
+ * so a genuine failure surfaces there rather than being hidden here.
  */
 beforeAll(async () => {
-  await import("@/lib/force-refresh");
-  await import("@/lib/taso");
+  await import("@/lib/force-refresh").catch(() => undefined);
+  await import("@/lib/taso").catch(() => undefined);
 });
 
 describe("previewRefresh", () => {

@@ -74,7 +74,7 @@ async function renderMatches(searchParams: Record<string, string | string[] | un
  * test that had done nothing slow. See #384.
  */
 beforeAll(async () => {
-  await import("@/app/domestic/matches/page");
+  await import("@/app/domestic/matches/page").catch(() => undefined);
 });
 
 describe("Domestic matches page", () => {
