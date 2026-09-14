@@ -3,11 +3,20 @@
  * the network so it can be unit-tested directly — the same split as
  * `backfill-plan.ts` and `e2e-freshness-plan.ts` and their entry points.
  *
- * The classes are not invented. They come from reading every Sourcery inline
- * finding on the last fourteen merged pull requests on 2026-09-08 — 48 of them
- * across nine PRs — and they are what `skills/self-review.md` is organised
- * around. Re-running the command is how that list stays honest as the codebase
- * changes.
+ * The classes are not invented. Each comes from reading every Sourcery inline
+ * finding on the last fourteen merged pull requests, and they are what
+ * `skills/self-review.md` is organised around. Re-running the command is how
+ * that list stays honest as the codebase changes — and it has changed:
+ *
+ * - 2026-09-08 (#290): seven classes, from 48 findings across nine PRs.
+ * - 2026-09-14 (#390): two added — a read and a write that do not span one
+ *   transaction, and the same value compared under two normalisations — from
+ *   the 35 of 64 findings that were landing in `unclassified`. Widened
+ *   `failure path dropped`, which read as extinct while three of its findings
+ *   sat unclassified under wording its patterns did not have.
+ *
+ * Re-measure before trusting the ordering here; do not update this comment by
+ * hand without running the command that produced it.
  *
  * **This is a coarse indicator, not a judgement.** A finding is filed by the
  * words it uses, and a review often describes one defect while mentioning
