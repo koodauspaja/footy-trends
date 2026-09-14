@@ -13,10 +13,14 @@ Scope
 - Configuration files and tooling settings: English unless they are end-user visible.
 
 Caching and API usage
-- Responses from every external data provider must be cached — football-data.org
-  and TASO alike, and any provider added later. Implement caching with a
-  sensible TTL (e.g. 5–15 minutes for frequently changing endpoints; longer for
-  stable data). Tests and specs must state the expected cache policy (Block 5).
+- Responses from every external **application data** provider must be cached —
+  football-data.org and TASO alike, and any application data provider added
+  later. Implement caching with a sensible TTL (e.g. 5–15 minutes for
+  frequently changing endpoints; longer for stable data). Tests and specs must
+  state the expected cache policy (Block 5).
+- Tooling under `scripts/` is not covered: its GitHub API calls
+  (`release-version.ts`, `review-findings.ts`) run once from a terminal or CI,
+  where a cache would serve a stale answer rather than save a request.
 
 Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables

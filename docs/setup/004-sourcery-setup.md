@@ -47,7 +47,7 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 **Block 2** — path: `src/**/*.ts,src/**/*.tsx`
 ```
 - All user-facing strings must be in Finnish.
-- Responses from every external data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render.
+- Responses from every external application data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render. Tooling under scripts/ is out of scope.
 ```
 
 **Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`
