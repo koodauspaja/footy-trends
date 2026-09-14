@@ -6,7 +6,9 @@ documented here so reviewers and CI integrations have a stable reference.
 
 Scope
 - User-facing UI text: Finnish (labels, messages, copy visible to end users).
-- Code, tests, specs, comments, commit messages, variable and function names: English.
+- Code, tests, specs, comments, commit messages, variable and function names:
+  English (Block 2 inside `src/`, Block 6 outside it). Finnish UI copy asserted
+  in a test or quoted in a spec is data, not a language violation.
 - Configuration files and tooling settings: English unless they are end-user visible.
 
 Caching and API usage
@@ -54,6 +56,7 @@ How this maps to Sourcery
   Block 3 (paths: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`): testing requirements
   Block 4 (paths: `**`): secrets and credentials
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
+  Block 6 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**,decisions/**`): English outside src
 
 - A block's paths must cover every file its rules ask about, not only the files
   whose changes should be flagged. Each line below is a mistake #386 corrected:
@@ -66,6 +69,7 @@ How this maps to Sourcery
   | 3 | `specs/**` | "edge cases defined in the spec" asks about a file out of scope |
   | 4 | `**`, not `src/**` | a secret arrives in a workflow or `.toml` more often than a `.tsx` |
   | 5 | its own block | widening Block 2 would aim its Finnish-strings rule at spec markdown |
+  | 6 | carve-out for quoted copy | 67 tests and 24 specs hold Finnish UI copy on purpose |
 
 Deliberately not Sourcery rules
 - **Spec and decision-record references in the PR description** — impossible,

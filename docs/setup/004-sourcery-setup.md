@@ -66,6 +66,11 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 - A spec or test covering provider data must state the expected cache policy: which endpoints are cached and their TTL. Flag a spec that adds a provider call without one, and a test whose cache expectations contradict its spec.
 ```
 
+**Block 6** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**,decisions/**`
+```
+- Identifiers, comments, headings and prose must be English. Finnish is expected here as data: UI copy asserted in a test or quoted in a spec is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+```
+
 Each block's paths are chosen to cover every file its rules ask about.
 `REVIEW_RULES.md` records why each one is there, and which requirements are
 deliberately not Sourcery rules.
