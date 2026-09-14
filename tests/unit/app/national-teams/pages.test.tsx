@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -110,6 +110,22 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
   const { default: Page } = await import("@/app/national-teams/standings/page");
   render(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
+
+/**
+ * Pays the page's module transform once, in a hook rather than inside whichever
+ * test happens to run first.
+ *
+ * `vi.resetModules()` below clears module *instances* before every test, but not
+ * Vite's transform cache — so the first import of a page's graph costs seconds
+ * while every later one costs tens of milliseconds. Left in the test body that
+ * one-off consumed most of a five second budget and timed out at random, on a
+ * test that had done nothing slow. See #384.
+ */
+beforeAll(async () => {
+  await import("@/app/national-teams/matches/page");
+  await import("@/app/national-teams/standings/page");
+  await import("@/app/national-teams/team/[id]/page");
+});
 
 describe("National-teams standings page", () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamPageSource } from "@/lib/team-context";
 
 /**
@@ -31,6 +31,20 @@ async function load() {
   const module = await import("@/lib/team-context");
   return module.getTeamContext;
 }
+
+/**
+ * Pays this module's transform once, in a hook rather than inside whichever
+ * test happens to run first.
+ *
+ * `vi.resetModules()` clears module *instances* between tests but not Vite's
+ * transform cache, so the first dynamic import of the subject costs real time
+ * and every later one costs nothing. Left in the test body that one-off is
+ * charged to an arbitrary test — under `--sequence.shuffle` a different one
+ * each run — and under parallel load it can exhaust the whole budget. See #384.
+ */
+beforeAll(async () => {
+  await import("@/lib/team-context");
+});
 
 describe("getTeamContext", () => {
   beforeEach(() => {
