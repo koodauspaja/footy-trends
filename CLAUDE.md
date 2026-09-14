@@ -38,17 +38,6 @@
   authorisation, and neither is being confident or being green. When Claude sets
   `Ready` itself it quotes the sentence it is acting on, so the evidence is
   visible rather than in its head.
-- **Every new source file is imported by a test, or excluded with a reason.**
-  `npm run test:unit` fails otherwise — `scripts/coverage-gaps.ts` compares the
-  source tree against the coverage report and names anything missing. This is
-  not the same as low coverage: `vitest --coverage` measures only what a test
-  *imports*, so a file nothing imports is **absent** from the report and the
-  summary still says 100%, while Sonar indexes the tree and scores it 0%. That
-  has cost three pull requests — `admin-user-table.tsx` and `app/admin/page.tsx`
-  in #370, `generate-migration.ts` in #376, `refresh-actions.ts` in #381 — each
-  after the trap had been written down and remembered wrongly. Server actions,
-  route files and thin wrappers are the usual victims, because they feel too
-  small to test.
 - **Every migration is named.** `npm run db:generate -- --name=<verb>_<what>`,
   with the verb one of `add`, `create`, `alter`, `drop`, `rename`, `backfill` —
   `--name=add_refresh_runs`, never the two random words `drizzle-kit` invents
