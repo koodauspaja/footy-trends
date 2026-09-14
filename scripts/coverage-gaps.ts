@@ -4,26 +4,56 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isPrunedDirectory,
   isSourceFile,
-  parseSonarExclusions,
+  matchesAnyPattern,
+  parseSonarProperty,
   toPosixPath,
 } from "./coverage-gaps-plan";
 
 /**
  * Fails the unit suite when a source file is missing from the coverage report
- * entirely — see `coverage-gaps-plan.ts` for why that is not the same as 0%.
+ * entirely, or when lcov records a condition never taken — see
+ * `coverage-gaps-plan.ts` for why neither is the same as 0%.
  *
- * Run from `npm run test:unit`, so the local suite fails for the same reason
- * Sonar would, before a push rather than after one.
+ * **Its scope is Sonar's scope, read from Sonar's own configuration.** The
+ * point of this guard is to fail locally for the same reasons Sonar fails
+ * remotely, so a hardcoded list of directories would only approximate that: the
+ * project scans `sonar.sources=.`, the whole repository, minus
+ * `sonar.exclusions`. A new source file at the root, or in a directory nobody
+ * thought of, is scored by Sonar and must be seen here too.
+ *
+ * Run from `npm run test:unit`, so a developer machine fails before a push
+ * rather than CI failing after one.
  */
 
 const ROOT = process.cwd();
-const SOURCE_ROOTS = ["src", "scripts"];
+const PROPERTIES = readFileSync(path.join(ROOT, "sonar-project.properties"), "utf8");
+
+const sources = parseSonarProperty(PROPERTIES, "sonar.sources");
+const indexExclusions = parseSonarProperty(PROPERTIES, "sonar.exclusions");
+const coverageExclusions = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions");
+
+/**
+ * `.git` is pruned regardless: Sonar never indexes it, and it is not worth a
+ * line in the project's configuration to say so.
+ */
+const ALWAYS_PRUNED = [".git/**"];
+const prunePatterns = [...indexExclusions, ...ALWAYS_PRUNED];
+
 function sourceFiles(directory: string): string[] {
-  return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
-    const relative = path.join(directory, entry.name);
-    if (entry.isDirectory()) return sourceFiles(relative);
-    return isSourceFile(entry.name) ? [relative] : [];
+  const absolute = directory === "." ? ROOT : path.join(ROOT, directory);
+
+  return readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
+    const relative = toPosixPath(directory === "." ? entry.name : path.join(directory, entry.name));
+
+    if (entry.isDirectory()) {
+      return isPrunedDirectory(relative, prunePatterns) ? [] : sourceFiles(relative);
+    }
+    if (!isSourceFile(entry.name)) return [];
+    // Indexed by Sonar at all? `sonar.exclusions` decides, and a file it never
+    // looks at cannot be scored 0% by it.
+    return matchesAnyPattern(relative, indexExclusions) ? [] : [relative];
   });
 }
 
@@ -31,30 +61,19 @@ function measuredFiles(): Set<string> {
   const parsed = JSON.parse(
     readFileSync(path.join(ROOT, "coverage/coverage-final.json"), "utf8")
   ) as Record<string, unknown>;
-  // Normalised, because `path.relative` answers with backslashes on Windows
-  // while the exclusion list and lcov use forward slashes.
   return new Set(Object.keys(parsed).map((absolute) => toPosixPath(path.relative(ROOT, absolute))));
 }
 
-const exclusions = parseSonarExclusions(
-  readFileSync(path.join(ROOT, "sonar-project.properties"), "utf8")
-);
-
-const report = findCoverageGaps(SOURCE_ROOTS.flatMap(sourceFiles), exclusions, measuredFiles());
+const report = findCoverageGaps(sources.flatMap(sourceFiles), coverageExclusions, measuredFiles());
 
 if (!report.ok) {
   process.stderr.write(`\n${report.message}\n`);
   process.exit(1);
 }
 
-/**
- * The second half: files are measured, but lcov may still hold a condition that
- * was never taken. lcov writes absolute paths, so the root is handed over and
- * stripped there — by prefix, never by a regex built from a filesystem path.
- */
 const uncovered = findUncoveredBranches(
   readFileSync(path.join(ROOT, "coverage/lcov.info"), "utf8"),
-  exclusions,
+  coverageExclusions,
   ROOT
 );
 
@@ -64,5 +83,5 @@ if (uncovered.length > 0) {
 }
 
 process.stdout.write(
-  `Coverage measures all ${report.measured} source files, with no lcov condition untaken.\n`
+  `Coverage measures all ${report.measured} source files Sonar scores, with no lcov condition untaken.\n`
 );

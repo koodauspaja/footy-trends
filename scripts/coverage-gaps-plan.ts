@@ -20,12 +20,15 @@ export type GapReport = { ok: true; measured: number } | { ok: false; message: s
  */
 export function findCoverageGaps(
   sourceFiles: readonly string[],
-  excluded: ReadonlySet<string>,
+  excluded: ReadonlySet<string> | readonly string[],
   measured: ReadonlySet<string>
 ): GapReport {
+  // Patterns, not literals — Sonar reads both exclusion lists that way, so a
+  // `scripts/**` entry must exclude what Sonar excludes rather than nothing.
+  const patterns = [...excluded];
   const missing = sourceFiles
     .map(toPosixPath)
-    .filter((file) => !excluded.has(file))
+    .filter((file) => !matchesAnyPattern(file, patterns))
     .filter((file) => !measured.has(file))
     // Ordered for a person to read down, unlike the hash ordering in
     // `refresh-diff.ts` — so locale collation is the right one here.
@@ -50,23 +53,28 @@ export function findCoverageGaps(
   };
 }
 
-const EXCLUSIONS_PREFIX = "sonar.coverage.exclusions=";
+/**
+ * One comma-separated property, read from Sonar's own configuration file.
+ *
+ * General rather than one function per key, because the guard needs three of
+ * them — `sonar.sources`, `sonar.exclusions` and `sonar.coverage.exclusions` —
+ * and its whole purpose is to fail for the reasons Sonar fails. Any list it
+ * kept separately would be free to drift from the one Sonar reads.
+ *
+ * Sliced rather than split on `=`: the line begins with the key, so this is
+ * total. `split("=")[1] ?? ""` needed a fallback that could never run, which
+ * lcov duly reported as an uncovered condition.
+ */
+export function parseSonarProperty(properties: string, key: string): string[] {
+  const prefix = `${key}=`;
+  const line = properties.split("\n").find((candidate) => candidate.startsWith(prefix));
+  if (line === undefined) return [];
 
-/** Reads the exclusion list out of the properties file, so there is one copy. */
-export function parseSonarExclusions(properties: string): Set<string> {
-  const line = properties.split("\n").find((candidate) => candidate.startsWith(EXCLUSIONS_PREFIX));
-  if (line === undefined) return new Set();
-
-  // Sliced rather than split on `=`: the line begins with the prefix, so this
-  // is total. `split("=")[1] ?? ""` needed a fallback that could never run,
-  // which lcov duly reported as an uncovered condition.
-  return new Set(
-    line
-      .slice(EXCLUSIONS_PREFIX.length)
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry !== "")
-  );
+  return line
+    .slice(prefix.length)
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
 }
 
 /**
@@ -84,7 +92,7 @@ export function parseSonarExclusions(properties: string): Set<string> {
  */
 export function findUncoveredBranches(
   lcov: string,
-  excluded: ReadonlySet<string>,
+  excluded: ReadonlySet<string> | readonly string[],
   root = ""
 ): string[] {
   const perFile = new Map<string, Set<number>>();
@@ -107,8 +115,9 @@ export function findUncoveredBranches(
     perFile.set(file, existing);
   }
 
+  const patterns = [...excluded];
   return [...perFile.entries()]
-    .filter(([name]) => !excluded.has(name))
+    .filter(([name]) => !matchesAnyPattern(name, patterns))
     .map(([name, lines]) => `${name}: line(s) ${[...lines].sort((a, b) => a - b).join(", ")}`)
     .sort((left, right) => left.localeCompare(right));
 }
@@ -181,4 +190,72 @@ const DECLARATION = /\.d\.(ts|mts|cts)$/;
 export function isSourceFile(name: string): boolean {
   if (DECLARATION.test(name)) return false;
   return SOURCE_SUFFIXES.some((suffix) => name.endsWith(suffix));
+}
+
+/**
+ * One Sonar path pattern, as a regular expression.
+ *
+ * Sonar's exclusion entries are **patterns, not literals**: `tests/**` and
+ * `**‌/*.ico` are both in this repository's `sonar.exclusions` today, and
+ * `sonar.coverage.exclusions` is read with the same syntax even though every
+ * entry there happens to be a literal path. Comparing them as strings meant the
+ * guard and Sonar disagreed about which files are excluded — the guard failing
+ * the build for files Sonar deliberately ignores.
+ *
+ * The syntax is small: `**` spans directories, `*` spans characters within one
+ * segment, `?` is a single character. Everything else is literal, which is why
+ * the escape below comes first — `drizzle.config.ts` must not match
+ * `drizzleXconfig.ts`.
+ *
+ * Hand-written rather than reaching for `minimatch`: it is present in
+ * `node_modules` only as somebody else's transitive dependency, and a build
+ * gate should not rest on a package that can vanish when an unrelated tree
+ * changes.
+ */
+export function sonarPatternToRegExp(pattern: string): RegExp {
+  let source = "";
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index] as string;
+
+    if (character === "*") {
+      const isDoubled = pattern[index + 1] === "*";
+      if (isDoubled && pattern[index + 2] === "/") {
+        // `**/` — any number of directories, including none.
+        source += "(?:[^/]*/)*";
+        index += 2;
+        continue;
+      }
+      if (isDoubled) {
+        source += ".*";
+        index += 1;
+        continue;
+      }
+      source += "[^/]*";
+      continue;
+    }
+
+    if (character === "?") {
+      source += "[^/]";
+      continue;
+    }
+
+    source += character.replace(/[.+^${}()|[\]\\]/, "\\$&");
+  }
+
+  return new RegExp(`^${source}$`);
+}
+
+export function matchesAnyPattern(file: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => sonarPatternToRegExp(pattern).test(file));
+}
+
+/**
+ * Whether Sonar would prune a whole directory, so the walk can skip it.
+ *
+ * Asked by testing a sentinel path inside it rather than by looking for a
+ * `dir/**` entry: that keeps one rule — the patterns themselves — instead of a
+ * second, simpler rule that would drift from it.
+ */
+export function isPrunedDirectory(directory: string, patterns: readonly string[]): boolean {
+  return matchesAnyPattern(`${directory}/__any__`, patterns);
 }

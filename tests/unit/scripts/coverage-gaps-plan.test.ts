@@ -5,8 +5,11 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isPrunedDirectory,
   isSourceFile,
-  parseSonarExclusions,
+  matchesAnyPattern,
+  parseSonarProperty,
+  sonarPatternToRegExp,
   toPosixPath,
 } from "../../../scripts/coverage-gaps-plan";
 
@@ -74,31 +77,48 @@ describe("findCoverageGaps", () => {
   });
 });
 
-describe("parseSonarExclusions", () => {
-  it("reads the list Sonar actually uses", () => {
-    const parsed = parseSonarExclusions(
-      "sonar.sources=.\nsonar.coverage.exclusions=a.ts,b/c.ts, d.ts \nsonar.other=x\n"
-    );
+describe("parseSonarProperty", () => {
+  const PROPERTIES =
+    "sonar.sources=.\nsonar.exclusions=tests/**,**/*.ico\nsonar.coverage.exclusions=a.ts,b/c.ts, d.ts \nsonar.other=x\n";
 
-    expect([...parsed].sort()).toEqual(["a.ts", "b/c.ts", "d.ts"]);
+  it("reads the list Sonar actually uses", () => {
+    expect(parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions")).toEqual([
+      "a.ts",
+      "b/c.ts",
+      "d.ts",
+    ]);
+  });
+
+  it("reads each of the three keys the guard needs", () => {
+    expect(parseSonarProperty(PROPERTIES, "sonar.sources")).toEqual(["."]);
+    expect(parseSonarProperty(PROPERTIES, "sonar.exclusions")).toEqual(["tests/**", "**/*.ico"]);
+  });
+
+  it("does not confuse one key with another that shares its prefix", () => {
+    // `sonar.exclusions` and `sonar.coverage.exclusions` both end in the same
+    // word; reading the wrong one would silently widen or narrow the guard.
+    expect(parseSonarProperty(PROPERTIES, "sonar.exclusions")).not.toContain("a.ts");
   });
 
   it("answers empty when the property is absent, rather than throwing", () => {
-    expect(parseSonarExclusions("sonar.sources=.\n").size).toBe(0);
+    expect(parseSonarProperty("sonar.sources=.\n", "sonar.coverage.exclusions")).toEqual([]);
   });
 
   it("ignores an empty entry from a trailing comma", () => {
-    expect(parseSonarExclusions("sonar.coverage.exclusions=a.ts,\n").size).toBe(1);
+    expect(
+      parseSonarProperty("sonar.coverage.exclusions=a.ts,\n", "sonar.coverage.exclusions")
+    ).toEqual(["a.ts"]);
   });
 
   it("reads the repository's own properties file without finding it empty", () => {
     // The guard is worthless if this ever silently parses to nothing.
-    const parsed = parseSonarExclusions(
-      readFileSync(path.join(process.cwd(), "sonar-project.properties"), "utf8")
-    );
+    const properties = readFileSync(path.join(process.cwd(), "sonar-project.properties"), "utf8");
 
-    expect(parsed.size).toBeGreaterThan(10);
-    expect(parsed.has("scripts/coverage-gaps.ts")).toBe(true);
+    expect(parseSonarProperty(properties, "sonar.sources")).toEqual(["."]);
+    expect(parseSonarProperty(properties, "sonar.exclusions").length).toBeGreaterThan(10);
+    expect(parseSonarProperty(properties, "sonar.coverage.exclusions")).toContain(
+      "scripts/coverage-gaps.ts"
+    );
   });
 });
 
@@ -279,5 +299,116 @@ describe("a checkout at a filesystem root", () => {
     expect(
       findUncoveredBranches(`SF:${file}\nBRDA:3,0,0,0\nend_of_record`, new Set(), root)
     ).toEqual(["src/a.ts: line(s) 3"]);
+  });
+});
+
+/**
+ * Sonar's exclusion entries are patterns, not literals. Comparing them as
+ * strings made the guard and Sonar disagree about which files are excluded —
+ * the guard failing a build for files Sonar deliberately ignores.
+ */
+describe("sonarPatternToRegExp", () => {
+  const matches = (pattern: string, file: string) => sonarPatternToRegExp(pattern).test(file);
+
+  it("matches a literal path exactly", () => {
+    expect(matches("src/lib/redis.ts", "src/lib/redis.ts")).toBe(true);
+    expect(matches("src/lib/redis.ts", "src/lib/redis.tsx")).toBe(false);
+    expect(matches("src/lib/redis.ts", "other/src/lib/redis.ts")).toBe(false);
+  });
+
+  it("treats a dot in a literal as a dot", () => {
+    // Unescaped it is a wildcard, and `drizzle.config.ts` would swallow
+    // `drizzleXconfig.ts` — an exclusion quietly covering a file nobody meant.
+    expect(matches("drizzle.config.ts", "drizzleXconfig.ts")).toBe(false);
+    expect(matches("drizzle.config.ts", "drizzle.config.ts")).toBe(true);
+  });
+
+  it("spans directories with **", () => {
+    expect(matches("tests/**", "tests/a.ts")).toBe(true);
+    expect(matches("tests/**", "tests/unit/lib/a.ts")).toBe(true);
+    expect(matches("tests/**", "testsuite/a.ts")).toBe(false);
+  });
+
+  it("makes a leading **/ optional, so it matches at the root too", () => {
+    expect(matches("**/*.ico", "favicon.ico")).toBe(true);
+    expect(matches("**/*.ico", "src/app/favicon.ico")).toBe(true);
+    expect(matches("**/*.ico", "src/app/favicon.png")).toBe(false);
+  });
+
+  it("stops a single * at a separator", () => {
+    expect(matches("src/*.ts", "src/a.ts")).toBe(true);
+    expect(matches("src/*.ts", "src/lib/a.ts")).toBe(false);
+  });
+
+  it("matches exactly one character with ?", () => {
+    expect(matches("src/a?.ts", "src/ab.ts")).toBe(true);
+    expect(matches("src/a?.ts", "src/abc.ts")).toBe(false);
+  });
+
+  it("handles every pattern this repository actually uses", () => {
+    const properties = readFileSync(path.join(process.cwd(), "sonar-project.properties"), "utf8");
+    const patterns = [
+      ...parseSonarProperty(properties, "sonar.exclusions"),
+      ...parseSonarProperty(properties, "sonar.coverage.exclusions"),
+    ];
+
+    // Not an assertion about any one pattern — an assertion that none of them
+    // blows up the converter, which a hand-written one could.
+    for (const pattern of patterns) {
+      expect(() => sonarPatternToRegExp(pattern)).not.toThrow();
+    }
+    expect(patterns.length).toBeGreaterThan(20);
+  });
+});
+
+describe("matchesAnyPattern", () => {
+  it("excludes a file covered by a wildcard entry, as Sonar would", () => {
+    // The case that made this necessary: `scripts/**` excluded nothing at all
+    // when entries were compared as strings.
+    expect(matchesAnyPattern("scripts/runner.ts", ["scripts/**"])).toBe(true);
+  });
+
+  it("leaves a file no pattern covers", () => {
+    expect(matchesAnyPattern("src/lib/a.ts", ["scripts/**", "tests/**"])).toBe(false);
+  });
+
+  it("is false for no patterns at all", () => {
+    expect(matchesAnyPattern("src/lib/a.ts", [])).toBe(false);
+  });
+});
+
+describe("isPrunedDirectory", () => {
+  it("prunes a directory Sonar excludes wholesale", () => {
+    expect(isPrunedDirectory("node_modules", ["node_modules/**"])).toBe(true);
+    expect(isPrunedDirectory("tests", ["tests/**"])).toBe(true);
+  });
+
+  it("does not prune a directory that merely has excluded files in it", () => {
+    // `**/*.ico` excludes icons, not the folder holding them.
+    expect(isPrunedDirectory("src/app", ["**/*.ico"])).toBe(false);
+  });
+
+  it("does not prune a source directory", () => {
+    expect(isPrunedDirectory("src", ["node_modules/**", "tests/**"])).toBe(false);
+  });
+});
+
+describe("exclusions as patterns, end to end", () => {
+  it("accepts a file covered by a wildcard coverage exclusion", () => {
+    expect(findCoverageGaps(["scripts/runner.ts"], ["scripts/**"], new Set()).ok).toBe(true);
+  });
+
+  it("still reports a file no pattern covers", () => {
+    const report = findCoverageGaps(["src/lib/a.ts"], ["scripts/**"], new Set());
+
+    expect(report.ok).toBe(false);
+    if (report.ok) return;
+    expect(report.message).toContain("src/lib/a.ts");
+  });
+
+  it("applies the same patterns to lcov conditions", () => {
+    expect(
+      findUncoveredBranches("SF:scripts/runner.ts\nBRDA:3,0,0,0\nend_of_record", ["scripts/**"])
+    ).toEqual([]);
   });
 });
