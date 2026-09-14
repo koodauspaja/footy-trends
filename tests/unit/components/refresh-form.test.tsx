@@ -325,6 +325,30 @@ describe("a request that rejects rather than refuses", () => {
 });
 
 describe("a slow preview", () => {
+  it("says nothing when it rejects after the competition changed", async () => {
+    // The failure belongs to a selection nobody is looking at any more, so
+    // announcing it would put an error on screen about a competition the admin
+    // has already moved away from.
+    let rejectPreview: (reason: unknown) => void = () => undefined;
+    previewAction.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectPreview = reject;
+        })
+    );
+    await renderLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
+
+    fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } });
+    await waitFor(() => expect(seasonsAction).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      rejectPreview(new Error("too late"));
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("is discarded when the competition changed while it was in flight", async () => {
     // Otherwise one competition's diff sits on screen while the buttons beneath
     // it act on another — and this whole feature rests on the diff an admin
