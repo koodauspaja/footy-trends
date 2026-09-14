@@ -20,6 +20,17 @@
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": false
+    },
+    {
+      "description": [
+        "TypeScript stays on 6.x until its JS API settles.",
+        "TypeScript 7 ships no in-process parser: the package root is lib/version.cjs, and the AST surface under typescript/unstable/* carries the is* predicates, SyntaxKind and ScriptTarget but nothing that turns source text into a tree — no createSourceFile, no forEachChild, no transpileModule. The only route to an AST is a client/server API that spawns the native binary and answers with remote node handles.",
+        "Three tests read our own source as an AST and cannot use that: tests/unit/app/rendering-mode.test.ts, tests/unit/app/theme-tokens.test.ts and tests/unit/scripts/backfill-run.test.ts.",
+        "The API is namespaced 'unstable' on purpose, so code written against it now may need rewriting anyway. Nothing ships tsc, so being a major behind on it costs little.",
+        "Lift this when TypeScript publishes a stable JS API with a parser, or when those three tests move to a parser of their own (swc or oxc). See #43."
+      ],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     }
   ]
 }
