@@ -7,8 +7,8 @@ documented here so reviewers and CI integrations have a stable reference.
 Scope
 - User-facing UI text: Finnish (labels, messages, copy visible to end users).
 - Code, tests, specs, comments, commit messages, variable and function names:
-  English (Block 2 inside `src/`, Block 6 outside it). Finnish UI copy asserted
-  in a test or quoted in a spec is data, not a language violation.
+  English, repository-wide (Block 6). Finnish UI copy — in source, or asserted
+  in a test or quoted in a spec — is data, not a language violation.
 - Configuration files and tooling settings: English unless they are end-user visible.
 
 Caching and API usage
@@ -52,11 +52,11 @@ How this maps to Sourcery
   mapping used in `docs/setup/004-sourcery-setup.md`:
 
   Block 1 (paths: `specs/**,decisions/**`): spec-to-decision-record drift
-  Block 2 (paths: `src/**/*.ts,src/**/*.tsx`): UI localization, code language, caching
+  Block 2 (paths: `src/**/*.ts,src/**/*.tsx`): Finnish UI strings, caching
   Block 3 (paths: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`): testing requirements
   Block 4 (paths: `**`): secrets and credentials
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
-  Block 6 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**,decisions/**`): English outside src
+  Block 6 (paths: `**`): English everywhere
 
 - A block's paths must cover every file its rules ask about, not only the files
   whose changes should be flagged. Each line below is a mistake #386 corrected:
@@ -69,13 +69,14 @@ How this maps to Sourcery
   | 3 | `specs/**` | "edge cases defined in the spec" asks about a file out of scope |
   | 4 | `**`, not `src/**` | a secret arrives in a workflow or `.toml` more often than a `.tsx` |
   | 5 | its own block | widening Block 2 would aim its Finnish-strings rule at spec markdown |
+  | 6 | `**`, not a directory list | `docs/`, `skills/`, `scripts/`, `.github/` fall through any list |
   | 6 | carve-out for quoted copy | 67 tests and 24 specs hold Finnish UI copy on purpose |
 
 Deliberately not Sourcery rules
 - **Spec and decision-record references in the PR description** — impossible,
   not merely unwritten: a rule never sees the description. Carried by
   `CLAUDE.md` and the PR template's checkboxes.
-- **Accessibility** — Finnish strings are Block 2, alt/title text is Biome's
+- **Accessibility** — Finnish UI strings are Block 2, alt/title text is Biome's
   `a11y/useAltText` and `a11y/noSvgWithoutTitle`. Both already deterministic.
 - **`noExplicitAny`, `noConsoleLog`** — Biome, as above.
 

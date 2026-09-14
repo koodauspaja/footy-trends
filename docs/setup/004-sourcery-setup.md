@@ -46,7 +46,7 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 
 **Block 2** — path: `src/**/*.ts,src/**/*.tsx`
 ```
-- All user-facing strings must be in Finnish. Variable names, function names, comments, and code must be in English.
+- All user-facing strings must be in Finnish.
 - Responses from every external data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render.
 ```
 
@@ -66,9 +66,9 @@ stay matched to it (Sourcery recommends fewer than 3 rules per block).
 - A spec or test covering provider data must state the expected cache policy: which endpoints are cached and their TTL. Flag a spec that adds a provider call without one, and a test whose cache expectations contradict its spec.
 ```
 
-**Block 6** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**,decisions/**`
+**Block 6** — path: `**`
 ```
-- Identifiers, comments, headings and prose must be English. Finnish is expected here as data: UI copy asserted in a test or quoted in a spec is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+- Identifiers, comments, headings, documentation and prose must be English, anywhere in the repository. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
 Each block's paths are chosen to cover every file its rules ask about.
