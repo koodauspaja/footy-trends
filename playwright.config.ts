@@ -87,7 +87,7 @@ export default defineConfig({
    * render. It is derived from that number rather than chosen for comfort: if
    * `RENDER_TIMEOUT_MS` ever rises, this has to rise with it.
    */
-  expect: { timeout: 15_000 },
+  expect: { timeout: Math.max(10_000, 8_000) + 5_000 },
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
