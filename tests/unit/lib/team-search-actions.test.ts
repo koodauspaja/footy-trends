@@ -1,4 +1,5 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The `"use server"` boundary for team search, from specs/027-team-search.md.
@@ -33,24 +34,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/**
- * Pays this module's transform once, in a hook rather than inside whichever
- * test happens to run first.
- *
- * `vi.resetModules()` clears module *instances* between tests but not Vite's
- * transform cache, so the first dynamic import of the subject costs real time
- * and every later one costs nothing. Left in the test body that one-off is
- * charged to an arbitrary test — under `--sequence.shuffle` a different one
- * each run — and under parallel load it can exhaust the whole budget. See #384.
- *
- * The rejection is swallowed because only the *transform* is wanted: a module
- * that refuses to construct without its environment — `@/lib/auth` does — is
- * still transformed before it throws, and the tests below import it themselves,
- * so a genuine failure surfaces there rather than being hidden here.
- */
-beforeAll(async () => {
-  await import("@/lib/team-search-actions").catch(() => undefined);
-});
+warmModules(() => import("@/lib/team-search-actions"));
 
 describe("searchTeamsAction", () => {
   it("refuses a signed-out caller without querying", async () => {

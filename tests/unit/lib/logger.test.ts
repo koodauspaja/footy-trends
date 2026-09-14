@@ -1,5 +1,6 @@
 import pino from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 vi.mock("pino", () => {
   const pinoMock = vi.fn();
@@ -33,6 +34,8 @@ beforeEach(() => {
 afterEach(() => {
   process.env = { ...originalEnv };
 });
+
+warmModules(() => import("@/lib/logger"));
 
 describe("logger", () => {
   it("uses debug level by default in non-production without Axiom transport", async () => {

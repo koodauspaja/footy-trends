@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchSource } from "@/lib/match-source";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The queries themselves are exercised against a real Postgres in
@@ -94,6 +95,8 @@ async function load() {
   const module = await import("@/lib/match-service");
   return module.getMatchPageData;
 }
+
+warmModules(() => import("@/lib/match-service"));
 
 describe("getMatchPageData", () => {
   beforeEach(() => {

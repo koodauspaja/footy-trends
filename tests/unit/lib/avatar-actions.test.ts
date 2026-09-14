@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const { getSession, processAvatar, saveAvatar, deleteAvatar, revalidatePath, logger } = vi.hoisted(
   () => ({
@@ -39,6 +40,8 @@ beforeEach(() => {
   saveAvatar.mockResolvedValue("avatar-token");
   deleteAvatar.mockResolvedValue(undefined);
 });
+
+warmModules(() => import("@/lib/avatar-actions"));
 
 describe("saveAvatarAction", () => {
   it("stores the processed bytes and returns the new version", async () => {

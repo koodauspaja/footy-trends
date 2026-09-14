@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * `requireAdmin`, from specs/028-admin-tools-and-roles.md.
@@ -41,6 +42,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+warmModules(() => import("@/lib/admin-guard"));
 
 describe("requireAdmin", () => {
   it("answers the user id for a signed-in admin", async () => {

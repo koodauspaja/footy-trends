@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const RedisMock = vi.fn();
 vi.mock("ioredis", () => ({ default: RedisMock }));
 
 type GlobalWithRedis = typeof globalThis & { redis: unknown };
+
+warmModules(() => import("@/lib/redis"));
 
 describe("redis singleton", () => {
   beforeEach(() => {

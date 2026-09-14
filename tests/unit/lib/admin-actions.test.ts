@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The `"use server"` boundary for administration, from
@@ -33,6 +34,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+warmModules(() => import("@/lib/admin-actions"));
 
 describe("every admin action refuses a caller that is not an admin", () => {
   it.each([

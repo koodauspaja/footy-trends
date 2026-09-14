@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 /**
  * The favourite star inside this tree calls `useSession`. The real client opens
@@ -82,19 +83,7 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
 
-/**
- * Pays the page's module transform once, in a hook rather than inside whichever
- * test happens to run first.
- *
- * `vi.resetModules()` below clears module *instances* before every test, but not
- * Vite's transform cache — so the first import of a page's graph costs seconds
- * while every later one costs tens of milliseconds. Left in the test body that
- * one-off consumed most of a five second budget and timed out at random, on a
- * test that had done nothing slow. See #384.
- */
-beforeAll(async () => {
-  await import("@/app/foreign/standings/page").catch(() => undefined);
-});
+warmModules(() => import("@/app/foreign/standings/page"));
 
 describe("Standings page", () => {
   beforeEach(() => {

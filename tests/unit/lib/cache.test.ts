@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const getMock = vi.fn();
 const setexMock = vi.fn();
@@ -18,6 +19,8 @@ vi.mock("@/lib/logger", () => ({
     error: loggerErrorMock,
   },
 }));
+
+warmModules(() => import("@/lib/cache"));
 
 describe("cache helpers", () => {
   beforeEach(() => {

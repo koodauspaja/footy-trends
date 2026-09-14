@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
+import { warmModules } from "../../support/warm-module";
 
 const getSeasonCategoryNameMapMock =
   vi.fn<(competitionId: string, ...rest: number[]) => Promise<Record<string, string>>>();
@@ -49,6 +50,11 @@ async function load() {
   const { MENS_TEAM } = await import("@/lib/national-team");
   return getNationalTeamYears(MENS_TEAM);
 }
+
+warmModules(
+  () => import("@/lib/national-team-service"),
+  () => import("@/lib/national-team")
+);
 
 describe("getNationalTeamYears", () => {
   beforeEach(() => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const { rows, limit, logger } = vi.hoisted(() => {
   const rows = { current: [] as unknown[], throws: false };
@@ -38,6 +39,8 @@ beforeEach(() => {
   limit.mockClear();
   logger.error.mockClear();
 });
+
+warmModules(() => import("@/lib/preferences"));
 
 describe("getPreferencesFor", () => {
   it("returns null when the reader has never saved anything", async () => {

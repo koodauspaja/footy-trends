@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import { warmModules } from "../../../../../support/warm-module";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
@@ -134,19 +135,7 @@ beforeEach(() => {
   resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
 });
 
-/**
- * Pays the page's module transform once, in a hook rather than inside whichever
- * test happens to run first.
- *
- * `vi.resetModules()` below clears module *instances* before every test, but not
- * Vite's transform cache — so the first import of a page's graph costs seconds
- * while every later one costs tens of milliseconds. Left in the test body that
- * one-off consumed most of a five second budget and timed out at random, on a
- * test that had done nothing slow. See #384.
- */
-beforeAll(async () => {
-  await import("@/app/domestic/team/[id]/page").catch(() => undefined);
-});
+warmModules(() => import("@/app/domestic/team/[id]/page"));
 
 describe("Domestic team page", () => {
   it("shows the team's name in the heading, alongside the competition and season", async () => {

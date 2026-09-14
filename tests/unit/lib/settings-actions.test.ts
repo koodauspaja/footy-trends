@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The server actions behind the settings page. Nothing here may touch a real
@@ -58,6 +59,8 @@ beforeEach(() => {
   state.insertThrows = false;
   state.rows = [];
 });
+
+warmModules(() => import("@/lib/settings-actions"));
 
 describe("saveSettings", () => {
   it("stores what the reader chose", async () => {

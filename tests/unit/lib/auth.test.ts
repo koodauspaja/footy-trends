@@ -1,4 +1,5 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * `auth.ts` reads four environment variables at import and builds a database
@@ -69,24 +70,7 @@ async function loadConfig(): Promise<any> {
   return betterAuth.mock.calls[0]?.[0];
 }
 
-/**
- * Pays this module's transform once, in a hook rather than inside whichever
- * test happens to run first.
- *
- * `vi.resetModules()` clears module *instances* between tests but not Vite's
- * transform cache, so the first dynamic import of the subject costs real time
- * and every later one costs nothing. Left in the test body that one-off is
- * charged to an arbitrary test — under `--sequence.shuffle` a different one
- * each run — and under parallel load it can exhaust the whole budget. See #384.
- *
- * The rejection is swallowed because only the *transform* is wanted: a module
- * that refuses to construct without its environment — `@/lib/auth` does — is
- * still transformed before it throws, and the tests below import it themselves,
- * so a genuine failure surfaces there rather than being hidden here.
- */
-beforeAll(async () => {
-  await import("@/lib/auth").catch(() => undefined);
-});
+warmModules(() => import("@/lib/auth"));
 
 describe("resolving the client IP, from #309", () => {
   it("reads the address from x-real-ip, the one header the edge overwrites", async () => {

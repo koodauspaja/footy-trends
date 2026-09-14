@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { SeasonMatchesResult } from "@/lib/taso-standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 const getSeasonMatchListMock = vi.fn<() => Promise<SeasonMatchesResult>>();
 
@@ -63,19 +64,7 @@ async function renderMatches(searchParams: Record<string, string | string[] | un
   render(await DomesticMatchesPage({ searchParams: Promise.resolve(searchParams) }));
 }
 
-/**
- * Pays the page's module transform once, in a hook rather than inside whichever
- * test happens to run first.
- *
- * `vi.resetModules()` below clears module *instances* before every test, but not
- * Vite's transform cache — so the first import of a page's graph costs seconds
- * while every later one costs tens of milliseconds. Left in the test body that
- * one-off consumed most of a five second budget and timed out at random, on a
- * test that had done nothing slow. See #384.
- */
-beforeAll(async () => {
-  await import("@/app/domestic/matches/page").catch(() => undefined);
-});
+warmModules(() => import("@/app/domestic/matches/page"));
 
 describe("Domestic matches page", () => {
   beforeEach(() => {
