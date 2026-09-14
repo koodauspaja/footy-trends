@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { findCoverageGaps, parseSonarExclusions } from "./coverage-gaps-plan";
+import {
+  describeUncoveredBranches,
+  findCoverageGaps,
+  findUncoveredBranches,
+  parseSonarExclusions,
+} from "./coverage-gaps-plan";
 
 /**
  * Fails the unit suite when a source file is missing from the coverage report
@@ -12,15 +17,16 @@ import { findCoverageGaps, parseSonarExclusions } from "./coverage-gaps-plan";
 
 const ROOT = process.cwd();
 const SOURCE_ROOTS = ["src", "scripts"];
-const SOURCE_FILE = /\.(ts|tsx)$/;
+const SOURCE_SUFFIXES = [".ts", ".tsx"];
 /** Type-only files compile to nothing and so appear in no coverage report. */
-const TYPES_ONLY = /\.d\.ts$/;
+const TYPES_ONLY_SUFFIX = ".d.ts";
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(path.join(ROOT, directory), { withFileTypes: true }).flatMap((entry) => {
     const relative = path.join(directory, entry.name);
     if (entry.isDirectory()) return sourceFiles(relative);
-    if (!SOURCE_FILE.test(entry.name) || TYPES_ONLY.test(entry.name)) return [];
+    const isSource = SOURCE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix));
+    if (!isSource || entry.name.endsWith(TYPES_ONLY_SUFFIX)) return [];
     return [relative];
   });
 }
@@ -32,15 +38,35 @@ function measuredFiles(): Set<string> {
   return new Set(Object.keys(parsed).map((absolute) => path.relative(ROOT, absolute)));
 }
 
-const report = findCoverageGaps(
-  SOURCE_ROOTS.flatMap(sourceFiles),
-  parseSonarExclusions(readFileSync(path.join(ROOT, "sonar-project.properties"), "utf8")),
-  measuredFiles()
+const exclusions = parseSonarExclusions(
+  readFileSync(path.join(ROOT, "sonar-project.properties"), "utf8")
 );
+
+const report = findCoverageGaps(SOURCE_ROOTS.flatMap(sourceFiles), exclusions, measuredFiles());
 
 if (!report.ok) {
   process.stderr.write(`\n${report.message}\n`);
   process.exit(1);
 }
 
-process.stdout.write(`Coverage measures all ${report.measured} source files.\n`);
+/**
+ * The second half: files are measured, but lcov may still hold a condition that
+ * was never taken. Paths in lcov are absolute, so the exclusion list is matched
+ * against the repository-relative form.
+ */
+const uncovered = findUncoveredBranches(
+  readFileSync(path.join(ROOT, "coverage/lcov.info"), "utf8").replace(
+    new RegExp(`SF:${ROOT}/`, "g"),
+    "SF:"
+  ),
+  exclusions
+);
+
+if (uncovered.length > 0) {
+  process.stderr.write(`\n${describeUncoveredBranches(uncovered)}\n`);
+  process.exit(1);
+}
+
+process.stdout.write(
+  `Coverage measures all ${report.measured} source files, with no lcov condition untaken.\n`
+);

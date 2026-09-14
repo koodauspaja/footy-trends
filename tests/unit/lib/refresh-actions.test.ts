@@ -69,19 +69,38 @@ describe("the gate", () => {
 });
 
 describe("the competition a browser sent", () => {
-  it.each([
+  /**
+   * Every action, not just the preview. Each one decodes the value
+   * independently, so testing one leaves the other two unproven — lcov reported
+   * exactly that as two uncovered conditions after the first version of this
+   * file tested only `previewRefreshAction`.
+   */
+  const CALLS = ["seasons", "preview", "apply"] as const;
+
+  async function callWith(which: (typeof CALLS)[number], competition: string) {
+    const actions = await import("@/lib/refresh-actions");
+    if (which === "seasons") return await actions.seasonsForCompetitionAction(competition);
+    if (which === "preview") return await actions.previewRefreshAction(competition, 2026);
+    return await actions.applyRefreshAction(competition, 2026, "hash");
+  }
+
+  const BAD_COMPETITIONS: readonly (readonly [string, string])[] = [
     ["not one of ours", "taso:NOPE"],
     ["a source we do not have", "provider:VL"],
     ["no separator at all", "taso"],
     ["empty", ""],
-  ])("is refused when it is %s", async (_case, value) => {
-    const { previewRefreshAction } = await import("@/lib/refresh-actions");
+  ];
 
-    await expect(previewRefreshAction(value, 2026)).resolves.toEqual({
-      ok: false,
-      reason: "input",
-    });
+  it.each(
+    CALLS.flatMap((which) =>
+      BAD_COMPETITIONS.map(([label, value]) => [which, label, value] as const)
+    )
+  )("%s refuses a competition that is %s", async (which, _label, value) => {
+    await expect(callWith(which, value)).resolves.toEqual({ ok: false, reason: "input" });
+
+    expect(listSeasonsFor).not.toHaveBeenCalled();
     expect(previewRefresh).not.toHaveBeenCalled();
+    expect(applyRefresh).not.toHaveBeenCalled();
   });
 
   it("is decoded into a source and a code before the engine sees it", async () => {

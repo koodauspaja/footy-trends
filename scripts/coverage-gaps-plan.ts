@@ -26,33 +26,95 @@ export function findCoverageGaps(
   const missing = sourceFiles
     .filter((file) => !excluded.has(file))
     .filter((file) => !measured.has(file))
-    .sort();
+    // Ordered for a person to read down, unlike the hash ordering in
+    // `refresh-diff.ts` — so locale collation is the right one here.
+    .sort((left, right) => left.localeCompare(right));
 
   if (missing.length === 0) return { ok: true, measured: measured.size };
 
+  const listed = missing.map((file) => `  ${file}`).join("\n");
+
   return {
     ok: false,
-    message:
-      `No test imports these ${missing.length} file(s), so coverage does not measure them:\n` +
-      `${missing.map((file) => `  ${file}`).join("\n")}\n\n` +
-      "vitest will still report 100% — it only measures what a test imports — while\n" +
-      "Sonar indexes the source tree and scores each of these 0%.\n\n" +
-      "Write a test that imports the file, or add it to sonar.coverage.exclusions\n" +
+    message: [
+      `No test imports these ${missing.length} file(s), so coverage does not measure them:`,
+      listed,
+      "",
+      "vitest will still report 100% — it only measures what a test imports — while",
+      "Sonar indexes the source tree and scores each of these 0%.",
+      "",
+      "Write a test that imports the file, or add it to sonar.coverage.exclusions",
       "with the reason, next to the runners already listed there.",
+    ].join("\n"),
   };
 }
 
+const EXCLUSIONS_PREFIX = "sonar.coverage.exclusions=";
+
 /** Reads the exclusion list out of the properties file, so there is one copy. */
 export function parseSonarExclusions(properties: string): Set<string> {
-  const line = properties
-    .split("\n")
-    .find((candidate) => candidate.startsWith("sonar.coverage.exclusions="));
+  const line = properties.split("\n").find((candidate) => candidate.startsWith(EXCLUSIONS_PREFIX));
   if (line === undefined) return new Set();
 
+  // Sliced rather than split on `=`: the line begins with the prefix, so this
+  // is total. `split("=")[1] ?? ""` needed a fallback that could never run,
+  // which lcov duly reported as an uncovered condition.
   return new Set(
-    (line.split("=")[1] ?? "")
+    line
+      .slice(EXCLUSIONS_PREFIX.length)
       .split(",")
       .map((entry) => entry.trim())
       .filter((entry) => entry !== "")
   );
+}
+
+/**
+ * Branches that lcov records as never taken.
+ *
+ * **Not the same as vitest's branch percentage.** vitest's v8 provider and
+ * lcov's `BRDA` records model branches differently, so the text summary can
+ * read `Branches: 100%` while lcov — which is what Sonar consumes — still has
+ * conditions with a hit count of zero. That is precisely how #381 reached Sonar
+ * showing `refresh-actions.ts` at 94.4% with two uncovered conditions while the
+ * local suite reported everything green.
+ *
+ * The two that were hiding were real: three actions each decode the competition
+ * independently, and only one of them had been exercised.
+ */
+export function findUncoveredBranches(lcov: string, excluded: ReadonlySet<string>): string[] {
+  const perFile = new Map<string, Set<number>>();
+  let file = "";
+
+  for (const line of lcov.split("\n")) {
+    if (line.startsWith("SF:")) {
+      file = line.slice("SF:".length).trim();
+      continue;
+    }
+    if (!line.startsWith("BRDA:")) continue;
+
+    // `BRDA:<line>,<block>,<branch>,<taken>` — `-` means the branch was never
+    // reached at all, `0` that it was reached and never taken.
+    const [lineNumber, , , taken] = line.slice("BRDA:".length).split(",");
+    if (taken !== "0" && taken !== "-") continue;
+
+    const existing = perFile.get(file) ?? new Set<number>();
+    existing.add(Number(lineNumber));
+    perFile.set(file, existing);
+  }
+
+  return [...perFile.entries()]
+    .filter(([name]) => !excluded.has(name))
+    .map(([name, lines]) => `${name}: line(s) ${[...lines].sort((a, b) => a - b).join(", ")}`)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+export function describeUncoveredBranches(entries: readonly string[]): string {
+  return [
+    `lcov records a condition never taken in ${entries.length} file(s):`,
+    ...entries.map((entry) => `  ${entry}`),
+    "",
+    "vitest's own summary can still say Branches: 100% — its v8 provider and",
+    "lcov model branches differently — but lcov is what Sonar reads, so these",
+    "are the conditions it will report as uncovered.",
+  ].join("\n");
 }
