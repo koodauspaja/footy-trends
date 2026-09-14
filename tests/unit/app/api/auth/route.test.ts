@@ -27,6 +27,9 @@ warmModules(() => import("@/app/api/auth/[...all]/route"));
 
 describe("auth route handler", () => {
   it("serves better-auth's own handler", async () => {
+    // See `auth-client.test.ts`: vitest 5 clears mock calls before each test, so
+    // the wiring call has to happen inside the test that asserts it.
+    vi.resetModules();
     const route = await import("@/app/api/auth/[...all]/route");
 
     expect(toNextJsHandler).toHaveBeenCalledWith(auth);
