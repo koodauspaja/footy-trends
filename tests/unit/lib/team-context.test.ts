@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamPageSource } from "@/lib/team-context";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The query is exercised against a real Postgres in
@@ -31,6 +32,8 @@ async function load() {
   const module = await import("@/lib/team-context");
   return module.getTeamContext;
 }
+
+warmModules(() => import("@/lib/team-context"));
 
 describe("getTeamContext", () => {
   beforeEach(() => {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The rules behind promoting, demoting and deleting, from
@@ -116,6 +117,11 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+warmModules(
+  () => import("@/lib/admin-users"),
+  () => import("@/lib/admin-user-view")
+);
 
 describe("changeRole", () => {
   it("promotes a reader", async () => {

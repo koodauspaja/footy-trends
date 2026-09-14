@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The size warning from specs/025-custom-avatar.md.
@@ -53,6 +54,8 @@ beforeEach(() => {
   execute.mockResolvedValue([{ bytes: "1024", count: "3" }]);
   rows.current = [];
 });
+
+warmModules(() => import("@/lib/avatar"));
 
 describe("getAvatar", () => {
   it("returns the stored row as it is", async () => {

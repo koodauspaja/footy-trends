@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../support/warm-module";
 
 /**
  * The settings route itself. Without this file it has no test, which vitest
@@ -88,6 +89,8 @@ beforeEach(() => {
   // `mockResolvedValue` in one test would otherwise leak into the next.
   currentPreferencesRow.mockImplementation(async () => state.row);
 });
+
+warmModules(() => import("@/app/settings/page"));
 
 describe("the settings route", () => {
   it("is never prerendered, because everything on it is per-reader", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../../support/warm-module";
 
 /**
  * The better-auth route handler. Mocked down to its wiring, because the module
@@ -21,6 +22,8 @@ const { toNextJsHandler, auth } = vi.hoisted(() => ({
 
 vi.mock("better-auth/next-js", () => ({ toNextJsHandler }));
 vi.mock("@/lib/auth", () => ({ auth }));
+
+warmModules(() => import("@/app/api/auth/[...all]/route"));
 
 describe("auth route handler", () => {
   it("serves better-auth's own handler", async () => {

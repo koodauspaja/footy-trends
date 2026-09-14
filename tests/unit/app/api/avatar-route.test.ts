@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../support/warm-module";
 
 const { getSession, getAvatar, logger } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -20,6 +21,8 @@ beforeEach(() => {
   getSession.mockResolvedValue({ user: { id: "user-1" } });
   getAvatar.mockResolvedValue({ bytes: BYTES, contentType: "image/webp", version: "avatar-token" });
 });
+
+warmModules(() => import("@/app/api/avatar/me/route"));
 
 describe("GET /api/avatar/me", () => {
   it("serves the stored bytes to their owner", async () => {

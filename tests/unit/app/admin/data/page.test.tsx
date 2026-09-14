@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../../support/warm-module";
 
 /**
  * The `/yllapito/data` route itself, from specs/029-forced-season-refresh.md.
@@ -41,6 +42,8 @@ beforeEach(() => {
   state.runsThrow = false;
   vi.clearAllMocks();
 });
+
+warmModules(() => import("@/app/admin/data/page"));
 
 describe("the forced refresh page", () => {
   it("refuses a non-admin with the not-found page, and asks the database nothing", async () => {

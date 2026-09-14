@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const end = vi.fn(() => Promise.resolve());
 
@@ -11,6 +12,8 @@ beforeEach(() => {
   end.mockClear();
   vi.resetModules();
 });
+
+warmModules(() => import("@/db"));
 
 describe("closeDatabase", () => {
   it("closes the connection the command-line tools open", async () => {

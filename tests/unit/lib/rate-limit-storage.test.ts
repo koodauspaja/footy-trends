@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * Counting requests in Redis rather than in one instance's memory, from #318.
@@ -36,6 +37,8 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
+
+warmModules(() => import("@/lib/rate-limit-storage"));
 
 describe("redisRateLimitStorage", () => {
   it("allows a request below the limit", async () => {

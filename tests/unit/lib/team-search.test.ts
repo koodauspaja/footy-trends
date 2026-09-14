@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { matches } from "@/db/schema";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * Finding a team by name, from specs/027-team-search.md.
@@ -83,6 +84,8 @@ beforeEach(() => {
   resolveTeamNames.mockReset();
   resolveTeamNames.mockResolvedValue([]);
 });
+
+warmModules(() => import("@/lib/team-search"));
 
 describe("foldTerm", () => {
   it.each([

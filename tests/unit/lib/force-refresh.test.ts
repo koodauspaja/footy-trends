@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The forced refresh engine, from specs/029-forced-season-refresh.md.
@@ -230,6 +231,11 @@ function noWriterRan(): void {
   expect(state.transactions).toBe(0);
   expect(state.deleteCalls).toBe(0);
 }
+
+warmModules(
+  () => import("@/lib/force-refresh"),
+  () => import("@/lib/taso")
+);
 
 describe("previewRefresh", () => {
   it("writes nothing, whatever the provider answered", async () => {

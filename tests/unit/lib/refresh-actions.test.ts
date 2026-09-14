@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The `"use server"` boundary for the forced refresh, from
@@ -40,6 +41,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.resetModules();
 });
+
+warmModules(() => import("@/lib/refresh-actions"));
 
 describe("the gate", () => {
   it.each([

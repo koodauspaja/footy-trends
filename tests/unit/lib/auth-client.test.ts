@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * Every other test mocks `@/lib/auth-client`, so without this file the real
@@ -15,6 +16,8 @@ const { createAuthClient, client } = vi.hoisted(() => {
 });
 
 vi.mock("better-auth/react", () => ({ createAuthClient }));
+
+warmModules(() => import("@/lib/auth-client"));
 
 describe("auth client", () => {
   it("takes its base URL from the origin it is served from", async () => {

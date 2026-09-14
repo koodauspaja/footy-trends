@@ -4,6 +4,7 @@ import type { SeasonContext } from "@/lib/football-data";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import { warmModules } from "../../../../../support/warm-module";
 
 /**
  * The favourite star inside this tree calls `useSession`. The real client opens
@@ -155,6 +156,8 @@ async function getMetadata(
     searchParams: Promise.resolve(searchParams),
   });
 }
+
+warmModules(() => import("@/app/foreign/team/[id]/page"));
 
 describe("Team page", () => {
   beforeEach(() => {

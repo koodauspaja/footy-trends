@@ -8,6 +8,7 @@ import {
   getTeamMatches,
   synchronizeMatches,
 } from "@/lib/standings-service";
+import { warmModules } from "../../support/warm-module";
 
 const {
   dbMock,
@@ -139,6 +140,8 @@ function mockInsert() {
   dbMock.insert.mockReturnValue({ values });
   return { values, onConflictDoUpdate };
 }
+
+warmModules(() => import("@/lib/standings-service"));
 
 describe("needsRefresh", () => {
   beforeEach(async () => {

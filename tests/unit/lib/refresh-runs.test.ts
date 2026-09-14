@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The forced refresh's audit trail, from specs/029-forced-season-refresh.md.
@@ -79,6 +80,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.resetModules();
 });
+
+warmModules(() => import("@/lib/refresh-runs"));
 
 describe("recordSuccess", () => {
   it("writes the counts the preview reported, unchanged", async () => {

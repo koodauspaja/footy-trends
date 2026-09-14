@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../support/warm-module";
 
 /**
  * The admin route itself, from specs/028-admin-tools-and-roles.md.
@@ -55,6 +56,8 @@ beforeEach(() => {
   notFound.mockClear();
   logger.error.mockClear();
 });
+
+warmModules(() => import("@/app/admin/page"));
 
 describe("the admin page", () => {
   it("renders the list for an admin, and tells the table who is acting", async () => {

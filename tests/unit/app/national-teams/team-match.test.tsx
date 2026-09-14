@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
+import { warmModules } from "../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonCategoryNameMapMock =
@@ -58,6 +59,11 @@ async function renderWomensPage(id = "4296364") {
   const { default: Page } = await import("@/app/national-teams/womens-team/match/[id]/page");
   render(await Page({ params: Promise.resolve({ id }) }));
 }
+
+warmModules(
+  () => import("@/app/national-teams/mens-team/match/[id]/page"),
+  () => import("@/app/national-teams/womens-team/match/[id]/page")
+);
 
 describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
   beforeEach(() => {

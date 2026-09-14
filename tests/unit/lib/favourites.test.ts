@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { favoriteCompetition, favoriteTeam, matches } from "@/db/schema";
+import { warmModules } from "../../support/warm-module";
 
 const { state, logger } = vi.hoisted(() => ({
   state: {
@@ -129,6 +130,11 @@ beforeEach(() => {
   state.locks = 0;
   logger.error.mockClear();
 });
+
+warmModules(
+  () => import("@/lib/favourites"),
+  () => import("@/lib/favourite-keys")
+);
 
 describe("getFavouriteKeys", () => {
   it("returns both lists as keys", async () => {

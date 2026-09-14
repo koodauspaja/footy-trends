@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../support/warm-module";
 
 /**
  * The `/suosikit` route itself, from specs/026-favourites.md. Without this file
@@ -68,6 +69,8 @@ beforeEach(() => {
   state.keys = { teams: [], competitions: [] };
   state.names = [];
 });
+
+warmModules(() => import("@/app/favorites/page"));
 
 describe("the favourites route", () => {
   it("is never prerendered, because everything on it is per-reader", async () => {

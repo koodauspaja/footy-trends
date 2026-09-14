@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { SeasonMatchesResult } from "@/lib/taso-standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 const getSeasonMatchListMock = vi.fn<() => Promise<SeasonMatchesResult>>();
 
@@ -62,6 +63,8 @@ async function renderMatches(searchParams: Record<string, string | string[] | un
   const { default: DomesticMatchesPage } = await import("@/app/domestic/matches/page");
   render(await DomesticMatchesPage({ searchParams: Promise.resolve(searchParams) }));
 }
+
+warmModules(() => import("@/app/domestic/matches/page"));
 
 describe("Domestic matches page", () => {
   beforeEach(() => {

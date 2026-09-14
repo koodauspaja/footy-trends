@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The four server actions behind the star, from specs/026-favourites.md.
@@ -72,6 +73,8 @@ beforeEach(() => {
   state.write = { ok: true, favorite: true };
   state.throws = false;
 });
+
+warmModules(() => import("@/lib/favourite-actions"));
 
 describe("toggleFavouriteTeamAction", () => {
   it("writes for the session's user, never for one the caller named", async () => {

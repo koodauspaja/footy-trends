@@ -4,6 +4,7 @@ import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import { warmModules } from "../../../../../support/warm-module";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 
@@ -133,6 +134,8 @@ beforeEach(() => {
   getSeasonCategoryNameMock.mockResolvedValue(null);
   resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
 });
+
+warmModules(() => import("@/app/domestic/team/[id]/page"));
 
 describe("Domestic team page", () => {
   it("shows the team's name in the heading, alongside the competition and season", async () => {

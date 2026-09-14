@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
+import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 
@@ -41,6 +42,8 @@ async function renderPage(id = "4036979") {
   const { default: Page } = await import("@/app/domestic/match/[id]/page");
   render(await Page({ params: Promise.resolve({ id }) }));
 }
+
+warmModules(() => import("@/app/domestic/match/[id]/page"));
 
 describe("/kotimaa/ottelu/:id", () => {
   beforeEach(() => {
