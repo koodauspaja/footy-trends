@@ -34,35 +34,52 @@ in the dashboard, not in this file.
 
 Go to https://app.sourcery.ai → **Review Settings** → **Review Rules**.
 
-Add the following rules. Where noted, set the path pattern to
-`src/**/*.ts,src/**/*.tsx,tests/**/*.ts` so the rule only applies to source
-code and not to specs, decisions, or docs.
+**A rule's path patterns must include every file the rule asks about.**
+Sourcery judges a rule from the matching files only; scoped away from its own
+subject it does not fall silent, it guesses. One block per subject, so paths
+stay matched to it (Sourcery recommends fewer than 3 rules per block).
 
-Add each rule as a separate block (Sourcery recommends fewer than 3 rules per block):
+**A rule sees only changed lines.** Paths decide what a rule *can* be shown;
+the diff decides what it *is* shown. So an unchanged file is not evidence even
+when its directory is in the paths: Blocks 1, 3 and 5 compare documents only
+when a pull request changes them together, and no block audits files the pull
+request leaves alone.
 
-**Block 1** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+**Block 1** — path: `specs/**,decisions/**`
 ```
-- Every PR must reference a spec file in specs/ via the PR template.
-- Every PR must reference a decision record in decisions/ via the PR template.
-- The decision record must faithfully interpret the spec — flag any drift, e.g. spec says "show last 5 matches" but decisions doc says "show last 3".
-```
-
--**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
-```
-- All user-facing strings must be in Finnish. Variable names, function names, comments, and code must be in English.
-- API responses from football-data.org must be cached. Never call the API on every page load or render.
-- No API keys or secrets may appear in code or committed files. All secrets must come from environment variables.
+- A decision record in decisions/ must faithfully interpret the spec it is named after. The two share a number: specs/029-forced-season-refresh.md and decisions/029-forced-season-refresh.md. Flag any drift, e.g. the spec says "show last 5 matches" and the decision record says "show last 3".
 ```
 
-**Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts`
+**Block 2** — path: `src/**/*.ts,src/**/*.tsx`
+```
+- All user-facing strings must be in Finnish.
+- Responses from every external application data provider must be cached — football-data.org and TASO alike. Never call a provider on every page load or render. Tooling under scripts/ is out of scope.
+```
+
+**Block 3** — path: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`
 ```
 - Every new feature must have corresponding tests in tests/.
 - Tests should cover the happy path and the edge cases defined in the spec.
 ```
 
-> Sourcery's `noExplicitAny` and `noConsoleLog` rules are already enforced
-> at the tooling level by Biome (set up in `012-project-init.md`), so no
-> need to duplicate them here.
+**Block 4** — path: `**`
+```
+- No API key, secret, token or credential may be introduced or modified by this pull request. Clearly marked placeholders are not secrets: .env.example carries variable names with empty or obviously fake values (user:password@localhost), and setup docs show example values. Real values must come from environment variables.
+```
+
+**Block 5** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**`
+```
+- A spec or test covering provider data must state the expected cache policy: which endpoints are cached and their TTL. Flag a spec that adds a provider call without one, and a test whose cache expectations contradict its spec.
+```
+
+**Block 6** — path: `**`
+```
+- Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+```
+
+Each block's paths are chosen to cover every file its rules ask about.
+`REVIEW_RULES.md` records why each one is there, and which requirements are
+deliberately not Sourcery rules.
 
 ---
 
@@ -100,8 +117,22 @@ Delete the branch and close the PR without merging once confirmed.
 
 ## Known limitations
 
-Three behaviours that are easy to misread, and that the merge gate in
-`skills/open-pr.md` depends on.
+Behaviours that are easy to misread, and that the merge gate in
+`skills/open-pr.md` depends on. This list has been counted wrong in its own
+opening line before, so it no longer carries a count.
+
+### A rule cannot see the pull request description
+
+From Sourcery's documentation: "A rule only looks at the lines the pull
+request changes." The description is not a changed line in any file, so no
+rule can check it — this one is certain, and separate from the changed-line
+limit in Step 3. Whether Sourcery reads unchanged repository files as context
+is unmeasured; Step 3 assumes not, which is the safe direction.
+
+Such a rule answers anyway rather than falling silent: one fired three times
+on #381 against a PR that satisfied it, and never on #375, which was
+identical in the respect it claimed to check. A rule that fires inconsistently
+across similar PRs is usually being asked for evidence it cannot obtain.
 
 ### Reviews after the first push are lighter
 
@@ -179,6 +210,7 @@ gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
 - [ ] Sourcery installed on repo
 - [ ] `.sourcery.yaml` committed
 - [ ] Review rules added in the dashboard
+- [ ] Every rule's path patterns include the files that rule asks about
 - [ ] Dummy PR confirmed Sourcery fires
 
 ## Next
