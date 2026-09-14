@@ -28,15 +28,12 @@ Specs and decision records
   named after; the two share a number. Drift between them is a finding — the
   spec saying "show last 5 matches" against a decision record saying "show
   last 3".
-- Every PR must reference both documents in its description. Not a Sourcery
-  rule and cannot be one — a rule never sees the PR description. Carried by
-  `CLAUDE.md` and two checkboxes in `.github/PULL_REQUEST_TEMPLATE.md`.
+- Every PR must reference both documents in its description (not a Sourcery
+  rule — see below).
 
 Accessibility and localization
 - All visible UI must include localized Finnish strings and pass basic a11y
   checks (e.g., images and SVGs must have alt/title text).
-- No Sourcery block, by design: Finnish strings are Block 2, alt/title text is
-  Biome (below). Both are already deterministic.
 
 Tooling and overrides
 - The following rules are enforced by the toolchain and need not be duplicated
@@ -56,8 +53,24 @@ How this maps to Sourcery
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
 
 - A block's paths must cover every file its rules ask about, not only the files
-  whose changes should be flagged. `004-sourcery-setup.md` tabulates why each
-  path is there; #386 corrected four blocks that failed this.
+  whose changes should be flagged. Each line below is a mistake #386 corrected:
+
+  | Block | Path detail | Without it |
+  |---|---|---|
+  | 1 | `specs/**` *and* `decisions/**` | compares two documents it was not shown |
+  | 2 | names both providers | TASO uses the same `getCached` helper, unchecked |
+  | 3 | `tests/**/*.tsx` | all 53 component tests invisible — `*.ts` misses `.tsx` |
+  | 3 | `specs/**` | "edge cases defined in the spec" asks about a file out of scope |
+  | 4 | `**`, not `src/**` | a secret arrives in a workflow or `.toml` more often than a `.tsx` |
+  | 5 | its own block | widening Block 2 would aim its Finnish-strings rule at spec markdown |
+
+Deliberately not Sourcery rules
+- **Spec and decision-record references in the PR description** — impossible,
+  not merely unwritten: a rule never sees the description. Carried by
+  `CLAUDE.md` and the PR template's checkboxes.
+- **Accessibility** — Finnish strings are Block 2, alt/title text is Biome's
+  `a11y/useAltText` and `a11y/noSvgWithoutTitle`. Both already deterministic.
+- **`noExplicitAny`, `noConsoleLog`** — Biome, as above.
 
 Authority
 - The Sourcery dashboard rules are the authoritative automated checks. This
