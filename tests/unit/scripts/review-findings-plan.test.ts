@@ -54,6 +54,35 @@ const REAL: { body: string; expected: string }[] = [
     body: "**issue (review_instructions):** The device list exposes English browser labels in the Finnish UI.",
     expected: "English reaching a Finnish UI",
   },
+  /**
+   * The three below were added in #390, from the 35 findings sitting in
+   * `unclassified` on 2026-09-14. The first two are classes the document did
+   * not have; the third is one it did, worded in a way the patterns missed.
+   */
+  {
+    body:
+      "**issue (bug_risk):** The approval hash is checked against rows read before `writeSnapshot`, " +
+      "but no lock or transaction spans that read and the write. A concurrent ordinary sync or " +
+      "refresh can modify the season after the hash check, and this apply then overwrites those " +
+      "changes with the stale approved snapshot.",
+    expected: "read and write without one transaction",
+  },
+  {
+    body:
+      "**issue (bug_risk):** normaliseEmail lower-cases only the operator's input, but setRole " +
+      "compares that value against the case-sensitive `user.email` column. An existing account " +
+      "stored with uppercase characters is reported as nonexistent even though the operator " +
+      "supplied its address.",
+    expected: "two normalisations of one value",
+  },
+  {
+    body:
+      "**issue (bug_risk):** Database failures while determining which seasons are stored are " +
+      'caught by `listSeasonsFor` and returned as `reason: "provider"`, even though the provider ' +
+      "has not failed. The caller therefore reports an upstream-provider failure for a database " +
+      "outage and gives the operator the wrong system to investigate.",
+    expected: "failure path dropped",
+  },
 ];
 
 describe("classify", () => {
@@ -84,9 +113,25 @@ describe("classify", () => {
   });
 
   it("falls to the earlier class on a tie, so the ordering still decides", () => {
-    // One phrase each: "the test" and "the comment". Tests come first in the
-    // list because they have cost the most.
-    expect(classify("**issue:** The test and the comment disagree.")).toBe("test proves nothing");
+    // One phrase each: "the test" and "the comment". Documentation drift comes
+    // first in the list as of #390, having overtaken tests — so this body,
+    // which filed under tests on 2026-09-08, files under documentation now.
+    // The assertion is the ordering, not the sentence.
+    expect(classify("**issue:** The test and the comment disagree.")).toBe("doc contradicts code");
+  });
+
+  it("keeps a failure turned into a wrong value out of the class it merely resembles", () => {
+    /**
+     * The `listSeasonsFor` finding above reports a *database* failure as
+     * `reason: "provider"`. It mentions neither a transaction nor a
+     * normalisation, so the two classes added in #390 must not claim it —
+     * their patterns were written against bodies from the same pull request.
+     */
+    const body =
+      "**issue (bug_risk):** Database failures while determining which seasons are stored are " +
+      'caught by `listSeasonsFor` and returned as `reason: "provider"`.';
+
+    expect(classify(body)).toBe("failure path dropped");
   });
 
   it("gives every class the label the skill uses, so the table can be compared with it", () => {
