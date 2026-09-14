@@ -143,10 +143,23 @@ export type RefreshPreview = {
   snapshotHash: string;
 };
 
+/**
+ * Whether there is anything to apply.
+ *
+ * Deductions are named explicitly even though a moved `starting_points` also
+ * moves the group row's `updated` count today, so the third clause is
+ * unreachable as the diff currently works. It is here because this predicate
+ * decides whether the admin is offered a `Päivitä` **button**, and the dialog
+ * lists deductions separately: leaving them out would make the button's
+ * condition and the dialog's contents two different ideas of "something
+ * changed", free to drift the moment the diff does. The one thing this feature
+ * exists to apply must not be the thing the button forgets.
+ */
 export function previewHasChanges(preview: RefreshPreview): boolean {
   return (
     !isEmptyCounts(preview.matches) ||
-    (preview.groupRows !== null && !isEmptyCounts(preview.groupRows))
+    (preview.groupRows !== null && !isEmptyCounts(preview.groupRows)) ||
+    preview.deductionChanges.length > 0
   );
 }
 

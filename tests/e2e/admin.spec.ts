@@ -36,3 +36,32 @@ test.describe("the admin area", () => {
     await expect(page.getByRole("link", { name: "Ylläpito" })).toHaveCount(0);
   });
 });
+
+/**
+ * `/yllapito/data` from the outside, from specs/029-forced-season-refresh.md.
+ *
+ * Same limitation and same reasoning as above: the suite cannot forge a
+ * session, so everything behind the gate is covered by unit and integration
+ * tests. Driving the signed-in path here would also call both providers for
+ * real from a test run.
+ */
+test.describe("the forced season refresh", () => {
+  test("gives a signed-out visitor the not-found page, naming nothing", async ({ page }) => {
+    await page.goto("/yllapito/data");
+
+    const body = await page.content();
+    expect(body).not.toContain("Kauden uudelleenhaku");
+    expect(body).not.toContain("Hae muutokset");
+    expect(body).not.toContain("Aiemmat päivitykset");
+    expect(new URL(page.url()).pathname).toBe("/yllapito/data");
+  });
+
+  test("redirects the English spelling to the Finnish one", async ({ page }) => {
+    // Paired with the rewrite, as `/admin` is: leaving the folder path
+    // answering 200 would make this the one route reachable under two
+    // spellings.
+    await page.goto("/admin/data");
+
+    expect(new URL(page.url()).pathname).toBe("/yllapito/data");
+  });
+});

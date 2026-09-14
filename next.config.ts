@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
       { source: "/suosikit", destination: "/favorites" },
       // The admin area, added in specs/028-admin-tools-and-roles.md.
       { source: "/yllapito", destination: "/admin" },
+      // The forced season refresh, added in specs/029-forced-season-refresh.md.
+      // `data` rather than a provider's name: the page covers both Kotimaa and
+      // Ulkomaat, and neither belongs in the path.
+      { source: "/yllapito/data", destination: "/admin/data" },
       // The privacy policy, added in #302.
       { source: "/tietosuoja", destination: "/privacy" },
       // The terms of service, added in #303.
@@ -74,6 +78,8 @@ const nextConfig: NextConfig = {
       // URL, and leaving it answering 200 would make `/admin` the one route in
       // the app reachable under both spellings.
       { source: "/admin", destination: "/yllapito", permanent: true },
+      // Paired with its rewrite, for the same reason as `/admin` above.
+      { source: "/admin/data", destination: "/yllapito/data", permanent: true },
       { source: "/privacy", destination: "/tietosuoja", permanent: true },
       { source: "/terms", destination: "/kayttoehdot", permanent: true },
       // The foreign pages moved under /ulkomaat.

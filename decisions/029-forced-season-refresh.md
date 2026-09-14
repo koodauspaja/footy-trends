@@ -383,3 +383,68 @@ its own, which is where the risk is.
 football-data turned out to be the cheaper half rather than a second feature:
 one table, one fetcher, a `synchronizeMatches` that already never deletes, and
 no group-standings machinery at all.
+
+---
+
+Below: the second pull request — the page, the actions and the components.
+
+## The dialog is the feature, and the form is the smaller half
+
+Most of the work in this pull request is one dialog. That is the right
+proportion: the engine can refuse a *silent* provider, and only a person can
+refuse a *truncated* one. Everything else here exists to put that decision in
+front of someone.
+
+So removals are listed by date and teams rather than counted, capped at twenty
+with `…ja {n} muuta.` A count answers "how many"; an admin about to delete
+history needs "which".
+
+The dialog offers no `Päivitä` at all when nothing would change — it says
+`Tiedot ovat jo ajan tasalla.` and a `Sulje`. Offering a button that would write
+nothing invites a click that means nothing.
+
+## The season list loads per competition, not per page
+
+Ten foreign competitions, each needing its own `getSeasonContext`. Resolving
+them on mount would turn a cold cache into ten requests against a rate-limited
+plan, so the list is fetched for the competition actually chosen.
+
+That makes the effect racy by construction — a slow answer for a competition
+nobody has selected any more would overwrite the current one — so the effect
+cleans up after itself and a stale answer is dropped. Both the resolve and the
+reject path are tested, because the second one is the easy one to forget.
+
+## Three guards that turned out to be unreachable, and were removed
+
+`onPreview` and `onApply` began with `if (season === null) return;`, and the
+component defaulted its competition with `?? ""`. None could fire: the button is
+disabled until a season exists, and the registries are non-empty literals.
+
+Coverage found them and they were deleted rather than tested, the same call made
+on the engine's dead ternary. The season is narrowed once, where the button is
+rendered, so the handlers take a `number` and have nothing to check. What
+remains — a competition list that is genuinely empty — is a real degenerate case
+and has a test.
+
+## Verified by loading it, not by rendering it in jsdom
+
+An acceptance criterion saying an admin can preview and apply is not met by a
+component test. So it was driven against a production build, signed in with a
+real session, and pointed at the **test** database — the development one is not
+something this work may touch, and it had not had the migration applied anyway.
+
+- Signed out, `/yllapito/data` gives the not-found page and contains none of the
+  admin strings; signed in as an admin, all of them.
+- The season picker offered `2026, 2025, 2022, 2020, 2019, 2017, 2015` — exactly
+  the seasons the database holds, two of which exist only as group standings.
+  Nothing else: the tool cannot reach a season it has never stored.
+- A preview of Veikkausliiga 2022 called TASO for real, diffed 167 stored
+  matches, and reported `Tiedot ovat jo ajan tasalla.` — which also shows the
+  diff does not invent changes on identical rows.
+- One stored match was then corrupted (`home_goals` set to 99). The preview
+  reported `Muuttuvia otteluita: 1`, the apply restored it to TASO's `1`, the
+  notice read `Veikkausliiga 2022 päivitetty. Otteluita: 0 uutta, 1
+  muuttunutta, 0 poistettua.`, and the run log gained the row with its counts
+  and operator.
+
+Every fixture was removed afterwards and the run log left empty.

@@ -157,6 +157,53 @@ the revoked admin's next request rather than when their session expires.
 
 ---
 
+## What an admin can do
+
+Two things, both under `/yllapito`.
+
+**Manage users** — the list on `/yllapito` itself: promote, demote, delete. The
+page refuses to remove the last admin.
+
+**Force a season to be refetched** — `/yllapito/data`, from
+`specs/029-forced-season-refresh.md`. This is the escape hatch for data that
+turned out to be wrong after we stored it, most often a points deduction TASO
+applied to a season we had already synced and therefore never refetch.
+
+It is a tool for abnormal situations. Expect to reach for it a handful of times
+a year, if that.
+
+### It asks before it writes
+
+Choosing a competition and a season and pressing **Hae muutokset** fetches from
+the provider and shows what *would* change — new, changed and removed rows for
+each table, every team whose points deduction would move, and the matches that
+would be removed **listed by name**. Nothing has been written at that point.
+
+Read the removals before pressing **Päivitä**. That is the whole reason the step
+exists: a truncated provider response looks exactly like a season that genuinely
+lost fixtures, and no code can tell them apart. A person seeing
+`Poistuvia otteluita: 180` can.
+
+### What it will refuse
+
+- **A provider that answers with nothing** for a season we hold rows for.
+  Nothing is written and nothing is deleted — a provider going silent must never
+  cost us data.
+- **A season the app holds no rows for.** New seasons arrive through the
+  ordinary sync; this tool corrects what is already there, so a competition with
+  nothing stored offers an empty season list.
+- **A diff that moved** between the preview and your confirmation. You are shown
+  the fresh one and decide again.
+
+### Afterwards
+
+Every run that reached the provider is listed under **Aiemmat päivitykset**,
+newest first, with what it wrote and who ran it. A run outlives the account that
+made it: once that admin is deleted the row stays and the operator column reads
+`Poistettu käyttäjä`.
+
+---
+
 ## Environments
 
 Each environment has its own database and therefore its own admins. Granting in
@@ -179,7 +226,10 @@ And in the app:
 
 - [ ] That account sees **Ylläpito** in the account menu and `/yllapito` loads
 - [ ] A signed-in reader gets the **not-found page** at `/yllapito`, not the admin page and not a 403
+- [ ] `/yllapito/data` loads for that account, and gives everyone else the same
+      not-found page
 
 ## Next
 → Nothing scheduled. This is a one-time operation per environment; after the
-  first admin exists, `/yllapito` is where admins are added and removed.
+  first admin exists, `/yllapito` is where admins are added and removed, and
+  `/yllapito/data` is where a stored season is corrected.
