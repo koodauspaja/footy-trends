@@ -98,6 +98,30 @@ reaches the repository is far likelier to arrive in a workflow file, a
 > at the tooling level by Biome (set up in `012-project-init.md`), so no
 > need to duplicate them here.
 
+**Block 5** — path: `tests/**/*.ts,tests/**/*.tsx,specs/**`
+```
+- A spec or test covering provider data must state the expected cache policy: which endpoints are cached and their TTL. Flag a spec that adds a provider call without one, and a test whose cache expectations contradict its spec.
+```
+
+The canonical policy in `REVIEW_RULES.md` has always had two halves — src
+must cache, and specs and tests must say what the caching is — and only the
+first was ever a rule. The second could not have lived in Block 2, whose
+paths exclude both directories; putting it there and widening those paths
+would have aimed Block 2's Finnish-UI-strings rule at spec markdown. A rule
+whose subject differs from its block's needs its own block, which is the
+same reason the secrets rule became Block 4.
+
+**There is deliberately no accessibility block**, though `REVIEW_RULES.md`
+carries an accessibility and localization policy. Both halves of it are
+already checked: Finnish strings by Block 2, and "images and SVGs must have
+alt/title text" by Biome's `a11y/useAltText` and `a11y/noSvgWithoutTitle`,
+which are errors under `preset: recommended` and fail `npm run lint`.
+
+Reach for the toolchain first whenever it can express the rule. Biome answers
+the same way every time; a review rule is asked in prose and answers by
+judgement. Adding a block here would trade two deterministic checks for a
+guess at the same thing — which is how this page's false findings happened.
+
 ### Two instructions that used to be in Block 1, and why they are not rules
 
 Until #386, Block 1 opened with these two:

@@ -13,7 +13,8 @@ Caching and API usage
 - Responses from every external data provider must be cached — football-data.org
   and TASO alike, and any provider added later. Implement caching with a
   sensible TTL (e.g. 5–15 minutes for frequently changing endpoints; longer for
-  stable data). Tests and specs must state the expected cache policy.
+  stable data). Tests and specs must state the expected cache policy — Block 5
+  checks that half, and `specs/TEMPLATE.md` prompts for it.
 
 Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables
@@ -37,10 +38,20 @@ Specs and decision records
 Accessibility and localization
 - All visible UI must include localized Finnish strings and pass basic a11y
   checks (e.g., images and SVGs must have alt/title text).
+- This section has **no Sourcery block, by design**, and both halves are
+  already covered: Finnish strings by Block 2, and alt/title text by Biome's
+  `a11y/useAltText` and `a11y/noSvgWithoutTitle` — both errors under
+  `preset: recommended`, so both fail `npm run lint`. A Sourcery rule here
+  would replace two deterministic checks with a guess at the same thing.
 
 Tooling and overrides
 - The following rules are enforced by the toolchain and need not be duplicated
-  in Sourcery blocks: `noExplicitAny`, `noConsoleLog` (see `docs/setup/012-project-init.md`).
+  in Sourcery blocks: `noExplicitAny`, `noConsoleLog`, `a11y/useAltText`,
+  `a11y/noSvgWithoutTitle` (see `docs/setup/012-project-init.md`).
+- Prefer the toolchain wherever it can express the rule. Biome answers the same
+  way every time; a review rule is asked in prose and answers by judgement, so
+  it belongs where no deterministic check can reach — see the false findings
+  described in `docs/setup/004-sourcery-setup.md`.
 
 How this maps to Sourcery
 - Create Sourcery dashboard blocks that mirror the sections above. Example
@@ -50,6 +61,7 @@ How this maps to Sourcery
   Block 2 (paths: `src/**/*.ts,src/**/*.tsx`): UI localization, code language, caching
   Block 3 (paths: `src/**/*.ts,src/**/*.tsx,tests/**/*.ts,tests/**/*.tsx,specs/**`): testing requirements
   Block 4 (paths: `**`): secrets and credentials
+  Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
 
 - A block's paths must cover every file its rules ask about, not only the files
   whose changes should be flagged. All four blocks were audited against that in
