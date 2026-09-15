@@ -249,6 +249,13 @@ describe("refusals reach the reader, in Finnish", () => {
      * What is left is cost. `queryByRole` walks the tree computing accessible
      * roles, and one second of that plus a React transition is not enough on a
      * contended runner. The alert does clear; it clears late.
+     *
+     * **The test's own timeout is raised with it, and that is not decoration.**
+     * Vitest's per-test limit is 5 s — measured, not assumed: a test sleeping
+     * 7 s fails at 5008 ms. A 5 s `waitFor` budget under a 5 s test limit is
+     * unreachable, because the render, the click and the first assertion spend
+     * part of the same budget first, so the test would die before the budget
+     * it was given. Review caught that on the first version of this fix.
      */
     await waitFor(
       () => {
@@ -256,7 +263,7 @@ describe("refusals reach the reader, in Finnish", () => {
       },
       { timeout: 5000 }
     );
-  });
+  }, 15_000);
 });
 
 describe("paging", () => {
