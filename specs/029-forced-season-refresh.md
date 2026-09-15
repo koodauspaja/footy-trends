@@ -794,7 +794,7 @@ New:
 - `src/lib/refresh-diff.ts` — the pure diff and the snapshot hash
 - `src/lib/force-refresh.ts` — cache clearing, both adapters, preview and apply
 - `src/lib/refresh-runs.ts` — reading and writing `refresh_runs`
-- `drizzle/migrations/0016_young_meteorite.sql` — generated, `refresh_runs`
+- `drizzle/migrations/0016_add_refresh_runs.sql` — generated, `refresh_runs`
 - `tests/unit/lib/refresh-{view,competitions,diff,runs}.test.ts`,
   `tests/unit/lib/force-refresh.test.ts`,
   `tests/integration/refresh.test.ts`
