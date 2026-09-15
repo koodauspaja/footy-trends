@@ -341,6 +341,57 @@ describe("waitFor", () => {
     expect(calls).toBe(3);
   });
 
+  it("does not sleep at all once a slow probe has used the whole budget", async () => {
+    /**
+     * A probe that itself takes time can cross the deadline. Sleeping a further
+     * full interval after that made the reported wait exceed the timeout, so
+     * the message said "within 90s" after rather more than 90s. Caught in
+     * review on #402.
+     *
+     * The wait reported here is 2500 rather than 2000, and that is honest: the
+     * probe overran on its own. What the fix guarantees is that nothing sleeps
+     * *after* the deadline, which is the part this controls.
+     */
+    const slept: number[] = [];
+    let nowMs = 0;
+
+    const result = await waitFor(
+      async () => {
+        nowMs += 2500;
+        return false;
+      },
+      2000,
+      {
+        now: () => nowMs,
+        sleep: async (ms: number) => {
+          slept.push(ms);
+          nowMs += ms;
+        },
+        intervalMs: 500,
+      }
+    );
+
+    expect(slept).toEqual([]);
+    expect(result).toEqual({ ok: false, waitedMs: 2500 });
+  });
+
+  it("caps the last sleep to what is left of the budget", async () => {
+    const slept: number[] = [];
+    let nowMs = 0;
+
+    await waitFor(async () => false, 1200, {
+      now: () => nowMs,
+      sleep: async (ms: number) => {
+        slept.push(ms);
+        nowMs += ms;
+      },
+      intervalMs: 500,
+    });
+
+    // Two full intervals, then only the 200ms that remained — not a third 500.
+    expect(slept).toEqual([500, 500, 200]);
+  });
+
   it("gives up once the deadline passes", async () => {
     const c = clock();
 

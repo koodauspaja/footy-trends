@@ -330,7 +330,17 @@ export async function waitFor(
 
   while (now() - startedAt < timeoutMs) {
     if (await probe()) return { ok: true, waitedMs: now() - startedAt };
-    await sleep(intervalMs);
+
+    /**
+     * **Never sleep past the deadline.** A probe that itself takes time can
+     * cross it, and sleeping a further full interval afterwards made the
+     * reported wait longer than the timeout that was asked for — so the message
+     * said "did not come up within 90s" after rather more than 90s. Caught in
+     * review on #402.
+     */
+    const remainingMs = timeoutMs - (now() - startedAt);
+    if (remainingMs <= 0) break;
+    await sleep(Math.min(intervalMs, remainingMs));
   }
 
   return { ok: false, waitedMs: now() - startedAt };

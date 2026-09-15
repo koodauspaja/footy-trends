@@ -21,6 +21,26 @@ describe("testDatabaseUrl", () => {
     expect(testDatabaseUrl()).toBe("postgresql://postgres:secret@localhost:5432/footy-trends_test");
   });
 
+  it("treats a blank override as unset rather than as a URL", () => {
+    /**
+     * `TEST_DATABASE_URL="   "` used to reach `new URL()` and throw before a
+     * single test ran, while the preflight had already fallen back to
+     * DATABASE_URL and reported the database ready — the two disagreed about
+     * what blank meant. Caught in review on #402.
+     */
+    vi.stubEnv("TEST_DATABASE_URL", "   ");
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
+
+    expect(testDatabaseUrl()).toBe("postgresql://postgres:secret@localhost:5432/footy-trends_test");
+  });
+
+  it("trims a usable override rather than passing the spaces on", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite  ");
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
+
+    expect(testDatabaseUrl()).toBe("postgresql://postgres:x@localhost:5432/suite");
+  });
+
   it("keeps a port, a password and query parameters", () => {
     // A managed Postgres hands out URLs with `sslmode` and similar attached;
     // rebuilding the string by hand rather than through `URL` is how those get
