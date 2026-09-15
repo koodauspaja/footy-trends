@@ -34,6 +34,15 @@ describe("testDatabaseUrl", () => {
     expect(testDatabaseUrl()).toBe("postgresql://postgres:secret@localhost:5432/footy-trends_test");
   });
 
+  it("treats a blank DATABASE_URL as unset too, not only the override", () => {
+    // The same class as the override above. Review on #402 caught the two
+    // halves separately; without this, "   " reached `new URL()` and threw.
+    vi.stubEnv("TEST_DATABASE_URL", undefined);
+    vi.stubEnv("DATABASE_URL", "   ");
+
+    expect(() => testDatabaseUrl()).toThrow(/Neither TEST_DATABASE_URL nor DATABASE_URL is set/);
+  });
+
   it("trims a usable override rather than passing the spaces on", () => {
     vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite  ");
     vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");

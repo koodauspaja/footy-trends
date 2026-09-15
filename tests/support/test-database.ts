@@ -39,8 +39,11 @@ export function testDatabaseUrl(): string {
   const override = (process.env.TEST_DATABASE_URL ?? "").trim();
   if (override !== "") return override;
 
-  const base = process.env.DATABASE_URL;
-  if (base === undefined || base === "") {
+  // Trimmed for the same reason as the override above: a whitespace-only value
+  // otherwise passed this check and reached `new URL()`, which throws. Review on
+  // #402 caught the override and the base separately — one class, two halves.
+  const base = (process.env.DATABASE_URL ?? "").trim();
+  if (base === "") {
     throw new Error(
       "Neither TEST_DATABASE_URL nor DATABASE_URL is set. The test suites need a " +
         "database — start one with `docker compose up -d` and set DATABASE_URL in .env."

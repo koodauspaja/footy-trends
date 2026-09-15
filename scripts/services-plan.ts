@@ -21,12 +21,16 @@ export type Preflight =
   | { kind: "start-daemon" }
   /** No `docker` to run at all, so nothing here can help. */
   | { kind: "no-docker"; message: string }
+  /** The connection string is not one Postgres could use. */
+  | { kind: "not-postgres"; message: string }
   /** The target is somewhere else, so the local containers are not the answer. */
   | { kind: "remote-unreachable"; message: string };
 
 export type PreflightInputs = {
   /** `CI` set to anything non-empty, as every runner sets it. */
   ci: boolean;
+  /** The connection string being guarded, for the scheme check. */
+  url: string;
   /** Whether Postgres will answer a query. */
   postgresReachable: () => Promise<boolean>;
   /** Whether `DATABASE_URL` names this machine — the compose containers' own address. */
@@ -56,6 +60,7 @@ export type PreflightInputs = {
  */
 export async function decidePreflight({
   ci,
+  url,
   postgresReachable,
   targetIsLocal,
   dockerAvailable,
@@ -66,6 +71,17 @@ export async function decidePreflight({
       kind: "skip",
       message: "CI is set — the workflow provides its own services, so nothing is started here.",
     };
+  }
+
+  /**
+   * **Checked before probing, not after.** `http://localhost:5432/app` names a
+   * host and a port, so a Postgres listening there answers `select 1` and the
+   * preflight would report ready — for a URL the application cannot use. The
+   * question "is the database up" is not meaningful until the string is one a
+   * database client could accept. Raised in review on #402.
+   */
+  if (!isPostgresUrl(url)) {
+    return { kind: "not-postgres", message: notPostgresMessage(url) };
   }
 
   if (await postgresReachable()) return { kind: "ready" };
@@ -290,6 +306,22 @@ export const COMPOSE_POSTGRES_PORT = 5432;
  */
 /** What a Postgres connection string may begin with. */
 const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
+
+/** Whether this string is one a Postgres client could accept at all. */
+export function isPostgresUrl(url: string): boolean {
+  const target = parseTarget(url);
+  return target !== null && POSTGRES_SCHEMES.has(target.protocol.toLowerCase());
+}
+
+export function notPostgresMessage(url: string): string {
+  return [
+    `DATABASE_URL is not a Postgres connection string: ${describeTarget(url)}`,
+    "",
+    "It must begin with postgres:// or postgresql://. Nothing is probed or started",
+    "until it does — a host and a port alone are not enough to tell whether the",
+    "database the application needs is up.",
+  ].join("\n");
+}
 
 export function namesComposeDatabase(url: string): boolean {
   const target = parseTarget(url);

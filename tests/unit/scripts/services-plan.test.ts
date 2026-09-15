@@ -9,6 +9,7 @@ import {
   decidePreflight,
   describeTarget,
   effectiveDatabaseUrl,
+  isPostgresUrl,
   namesComposeDatabase,
   noDockerMessage,
   parseTarget,
@@ -46,7 +47,13 @@ function probes(answers: { postgres: boolean; available: boolean; running: boole
 const HEALTHY = { postgres: true, available: true, running: true };
 
 /** A local target, which is the case every Docker branch below assumes. */
-const LOCAL_TARGET = { targetIsLocal: true } as const;
+const LOCAL_TARGET = { targetIsLocal: true, url: LOCAL } as const;
+
+/** A valid Postgres URL that is not this machine's compose database. */
+const REMOTE_TARGET = {
+  targetIsLocal: false,
+  url: "postgresql://user@db.example.com:5432/app",
+} as const;
 
 describe("decidePreflight", () => {
   it("does nothing in CI, which provides its own services", async () => {
@@ -142,11 +149,70 @@ describe("decidePreflight", () => {
   });
 });
 
+describe("decidePreflight, when DATABASE_URL is not a Postgres URL", () => {
+  it("does not probe it, because the answer would not mean anything", async () => {
+    /**
+     * `http://localhost:5432/app` names a host and a port, so a Postgres
+     * listening there answers `select 1` — and the preflight would report ready
+     * for a URL the application cannot use. Raised in review on #402.
+     */
+    const p = probes({ postgres: true, available: true, running: true });
+    const decision = await decidePreflight({
+      ci: false,
+      targetIsLocal: true,
+      url: "http://localhost:5432/app",
+      ...p,
+    });
+
+    expect(decision.kind).toBe("not-postgres");
+    expect(p.asked.postgres).toBe(0);
+  });
+
+  it("names what it must begin with, and not the password", async () => {
+    const decision = await decidePreflight({
+      ci: false,
+      targetIsLocal: false,
+      url: "redis://user:hunter2@localhost:6379/0",
+      ...probes({ postgres: false, available: true, running: true }),
+    });
+
+    expect(decision.kind === "not-postgres" && decision.message).toContain("postgresql://");
+    expect(decision.kind === "not-postgres" && decision.message).not.toContain("hunter2");
+  });
+
+  it("still skips in CI, which is checked first", async () => {
+    const decision = await decidePreflight({
+      ci: true,
+      targetIsLocal: true,
+      url: "not a url at all",
+      ...probes({ postgres: false, available: false, running: false }),
+    });
+
+    expect(decision.kind).toBe("skip");
+  });
+});
+
+describe("isPostgresUrl", () => {
+  it.each(["postgres://h:5432/d", "postgresql://h:5432/d", "POSTGRESQL://h:5432/d"])(
+    "accepts %s",
+    (url) => {
+      expect(isPostgresUrl(url)).toBe(true);
+    }
+  );
+
+  it.each(["http://h:5432/d", "redis://h:6379/0", "not a url", "postgresql:///d"])(
+    "rejects %s",
+    (url) => {
+      expect(isPostgresUrl(url)).toBe(false);
+    }
+  );
+});
+
 describe("decidePreflight, when DATABASE_URL is not this project's database", () => {
   it("refuses to start local containers for an unreachable remote", async () => {
     const decision = await decidePreflight({
       ci: false,
-      targetIsLocal: false,
+      ...REMOTE_TARGET,
       ...probes({ postgres: false, available: true, running: true }),
     });
 
@@ -164,7 +230,7 @@ describe("decidePreflight, when DATABASE_URL is not this project's database", ()
      * fails anyway, a minute later, with two containers nobody asked for.
      */
     const p = probes({ postgres: false, available: true, running: true });
-    await decidePreflight({ ci: false, targetIsLocal: false, ...p });
+    await decidePreflight({ ci: false, ...REMOTE_TARGET, ...p });
 
     expect(p.asked.available).toBe(0);
     expect(p.asked.running).toBe(0);
@@ -173,7 +239,7 @@ describe("decidePreflight, when DATABASE_URL is not this project's database", ()
   it("is still ready when the remote answers", async () => {
     const decision = await decidePreflight({
       ci: false,
-      targetIsLocal: false,
+      ...REMOTE_TARGET,
       ...probes(HEALTHY),
     });
 

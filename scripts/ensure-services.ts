@@ -68,6 +68,7 @@ async function main(): Promise<void> {
     decide: () =>
       decidePreflight({
         ci: (process.env.CI ?? "") !== "",
+        url,
         postgresReachable: reachable,
         targetIsLocal: namesComposeDatabase(url),
         dockerAvailable,

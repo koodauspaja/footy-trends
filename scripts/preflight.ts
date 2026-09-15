@@ -42,7 +42,11 @@ export async function runPreflight(actions: PreflightActions): Promise<number> {
 
   // Nothing here can be started for the caller: no docker to run, or a target
   // that is somewhere else entirely.
-  if (decision.kind === "no-docker" || decision.kind === "remote-unreachable") {
+  if (
+    decision.kind === "no-docker" ||
+    decision.kind === "remote-unreachable" ||
+    decision.kind === "not-postgres"
+  ) {
     actions.err(decision.message);
     return 1;
   }
