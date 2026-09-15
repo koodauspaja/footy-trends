@@ -22,7 +22,12 @@
 import { existsSync } from "node:fs";
 import { dockerAvailable, dockerIsRunning, startContainers, startDockerDaemon } from "./docker";
 import { runPreflight } from "./preflight";
-import { decidePreflight, isLocalDatabaseUrl, waitFor } from "./services-plan";
+import {
+  decidePreflight,
+  effectiveDatabaseUrl,
+  isLocalDatabaseUrl,
+  waitFor,
+} from "./services-plan";
 import { postgresAcceptsQueries } from "./services-run";
 
 /** Docker Desktop takes its time; this is generous rather than optimistic. */
@@ -36,7 +41,16 @@ async function main(): Promise<void> {
     process.loadEnvFile(".env");
   }
 
-  const url = process.env.DATABASE_URL ?? "";
+  /**
+   * The test entry points pass `--test`, because `TEST_DATABASE_URL` overrides
+   * the derivation the suites use and may name a different server; `dev` and
+   * the `db:*` commands know nothing about it.
+   */
+  const url = effectiveDatabaseUrl({
+    forTests: process.argv.includes("--test"),
+    testUrl: process.env.TEST_DATABASE_URL,
+    databaseUrl: process.env.DATABASE_URL,
+  });
 
   /**
    * An unset DATABASE_URL is not this script's problem to solve.
@@ -45,7 +59,7 @@ async function main(): Promise<void> {
    * names both variables and says to start the containers — and a second
    * opinion here would only get in front of a better one.
    */
-  if (url.trim() === "") return;
+  if (url === "") return;
 
   const reachable = () => postgresAcceptsQueries(url);
 

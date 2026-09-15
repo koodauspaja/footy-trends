@@ -82,12 +82,39 @@ describe("runPreflight", () => {
     // The order is the point: a daemon that was down means the containers are
     // down too, so this falls through rather than deciding again.
     expect(a.steps).toEqual([
-      "out:The Docker daemon is not running. Starting it…",
+      "out:The Docker daemon is not running.",
       "startDaemon",
+      "out:Starting it — this can take a while…",
       "out:Starting the project's containers…",
       "startContainers",
       "out:Postgres is ready.",
     ]);
+  });
+
+  it("does not wait at all when the daemon could not be launched", async () => {
+    /**
+     * Linux, and macOS when `open` fails. Before this, `startDaemon` returning
+     * false still entered the wait loop and spent the full 90s polling for a
+     * process nobody had started — then reported that it had not come up in
+     * time, which was not what happened.
+     */
+    let waits = 0;
+    const a = actions(
+      { kind: "start-daemon" },
+      {
+        startDaemon: () => false,
+        wait: async () => {
+          waits += 1;
+          return { ok: false, waitedMs: 90_000 };
+        },
+      }
+    );
+
+    expect(await runPreflight(a)).toBe(1);
+    expect(waits).toBe(0);
+    expect(a.steps).not.toContain("startContainers");
+    expect(a.steps.at(-1)).toContain("could not be started from here");
+    expect(a.steps.at(-1)).not.toContain("within");
   });
 
   it("gives up, without touching the containers, when the daemon never comes up", async () => {

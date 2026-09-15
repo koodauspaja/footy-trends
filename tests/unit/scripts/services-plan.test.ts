@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   canStartDaemonAutomatically,
   DEFAULT_POSTGRES_PORT,
+  daemonNotStartedMessage,
   daemonUnavailableMessage,
   decidePreflight,
   describeTarget,
+  effectiveDatabaseUrl,
   isLocalDatabaseUrl,
   noDockerMessage,
   parseTarget,
@@ -385,5 +387,53 @@ describe("waitFor, with nothing injected", () => {
 
     expect(result.ok).toBe(true);
     expect(calls).toBe(2);
+  });
+});
+
+describe("effectiveDatabaseUrl", () => {
+  const DEV = "postgresql://postgres:x@localhost:5432/footy-trends";
+  const OVERRIDE = "postgresql://postgres:x@db.example.com:5432/suite";
+
+  it("uses DATABASE_URL for dev and the db commands", () => {
+    expect(effectiveDatabaseUrl({ forTests: false, testUrl: OVERRIDE, databaseUrl: DEV })).toBe(
+      DEV
+    );
+  });
+
+  it("prefers TEST_DATABASE_URL for the suites, which may be a different server", () => {
+    // The suites derive their database from DATABASE_URL by suffixing the name —
+    // same server, so probing either is the same question. TEST_DATABASE_URL
+    // replaces that outright, and probing the wrong one would start local
+    // containers for a run that never touches them.
+    expect(effectiveDatabaseUrl({ forTests: true, testUrl: OVERRIDE, databaseUrl: DEV })).toBe(
+      OVERRIDE
+    );
+  });
+
+  it("falls back to DATABASE_URL when no override is set", () => {
+    expect(effectiveDatabaseUrl({ forTests: true, testUrl: undefined, databaseUrl: DEV })).toBe(
+      DEV
+    );
+  });
+
+  it("treats a blank override as unset rather than as a URL", () => {
+    expect(effectiveDatabaseUrl({ forTests: true, testUrl: "   ", databaseUrl: DEV })).toBe(DEV);
+  });
+
+  it("is empty when nothing is set at all", () => {
+    expect(
+      effectiveDatabaseUrl({ forTests: true, testUrl: undefined, databaseUrl: undefined })
+    ).toBe("");
+  });
+});
+
+describe("daemonNotStartedMessage", () => {
+  it("does not claim to have waited, because nothing was launched", () => {
+    const message = daemonNotStartedMessage();
+
+    expect(message).not.toContain("within");
+    expect(message).toContain("could not be started");
+    // Linux is the case that produced this: the caller must be told what to run.
+    expect(message).toContain("service manager");
   });
 });

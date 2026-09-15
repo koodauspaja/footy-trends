@@ -7,6 +7,7 @@
  * or a clock. The entry point is left holding nothing but the wiring.
  */
 import {
+  daemonNotStartedMessage,
   daemonUnavailableMessage,
   type Preflight,
   postgresUnreachableMessage,
@@ -47,8 +48,23 @@ export async function runPreflight(actions: PreflightActions): Promise<number> {
   }
 
   if (decision.kind === "start-daemon") {
-    actions.out("The Docker daemon is not running. Starting it…");
-    actions.startDaemon();
+    actions.out("The Docker daemon is not running.");
+
+    /**
+     * **Nothing was launched, so there is nothing to wait for.**
+     *
+     * `startDaemon` reports false on Linux and anywhere else the daemon needs
+     * root, and on macOS when the launch itself failed. Entering the wait loop
+     * there spent the full 90s polling for a process nobody had started, and
+     * then printed a message about it not coming up in time. Caught in review
+     * on #402.
+     */
+    if (!actions.startDaemon()) {
+      actions.err(daemonNotStartedMessage());
+      return 1;
+    }
+
+    actions.out("Starting it — this can take a while…");
 
     const daemon = await actions.wait(
       async () => actions.dockerIsRunning(),

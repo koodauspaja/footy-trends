@@ -131,6 +131,48 @@ export function remoteUnreachableMessage(): string {
   ].join("\n");
 }
 
+/**
+ * When the daemon is down and this platform cannot be asked to start it.
+ *
+ * Distinct from `daemonUnavailableMessage`, which reports a wait: saying "did
+ * not come up within 90s" when nothing was ever launched would be false, and
+ * would have come after 90s of waiting for it. Caught in review on #402.
+ */
+export function daemonNotStartedMessage(): string {
+  return [
+    "The Docker daemon is not running, and it could not be started from here.",
+    "",
+    "Start it and try again — with `open -a Docker` on macOS, your service manager",
+    "on Linux, or OrbStack or Colima if that is what this machine uses.",
+  ].join("\n");
+}
+
+/**
+ * Which connection string a preflight should check.
+ *
+ * The test suites run against a database derived from `DATABASE_URL` by
+ * suffixing the name — same server, so probing `DATABASE_URL` is the same
+ * question. But `TEST_DATABASE_URL` overrides that derivation outright, and may
+ * name a different server entirely; probing the wrong one would start local
+ * containers for a run that never touches them. Caught in review on #402.
+ *
+ * Only the test entry points pass `forTests`, because `TEST_DATABASE_URL` means
+ * nothing to `npm run dev`.
+ */
+export function effectiveDatabaseUrl({
+  forTests,
+  testUrl,
+  databaseUrl,
+}: {
+  forTests: boolean;
+  testUrl: string | undefined;
+  databaseUrl: string | undefined;
+}): string {
+  const override = (testUrl ?? "").trim();
+  if (forTests && override !== "") return override;
+  return (databaseUrl ?? "").trim();
+}
+
 /** After the one attempt at starting the daemon has not worked. */
 export function daemonUnavailableMessage(waitedMs: number): string {
   return [
