@@ -455,6 +455,8 @@ describe("football-data mapping", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://api.football-data.org/v4/competitions/PL", {
       headers: { "X-Auth-Token": "test-api-key" },
+      // Bounded per attempt since #363; the signal itself is not assertable.
+      signal: expect.any(AbortSignal),
     });
     expect(loggerInfoMock).toHaveBeenCalledWith(
       { method: "GET", path: "/competitions/PL", status: 200, durationMs: expect.any(Number) },
@@ -512,7 +514,7 @@ describe("football-data mapping", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.football-data.org/v4/competitions/PL/matches?season=2025",
-      { headers: { "X-Auth-Token": "test-api-key" } }
+      { headers: { "X-Auth-Token": "test-api-key" }, signal: expect.any(AbortSignal) }
     );
   });
 
@@ -526,7 +528,7 @@ describe("football-data mapping", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.football-data.org/v4/competitions/BL1/matches?season=2025",
-      { headers: { "X-Auth-Token": "test-api-key" } }
+      { headers: { "X-Auth-Token": "test-api-key" }, signal: expect.any(AbortSignal) }
     );
   });
 });

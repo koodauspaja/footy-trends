@@ -27,6 +27,7 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 020 | [020-taso-api-key.md](020-taso-api-key.md) | Scrape the TASO API key and store it in Railway (Veikkausliiga data) |
 | 021 | [021-production-environment.md](021-production-environment.md) | Production Railway environment, separate from staging, deploying from `release` |
 | 022 | [022-production-backfill.md](022-production-backfill.md) | Fill production with the full competition history, once, at the providers' rate limits |
+| 023 | [023-admin-access.md](023-admin-access.md) | Make the first admin, once per environment; everything after that is done in the app |
 
 ## After setup
 

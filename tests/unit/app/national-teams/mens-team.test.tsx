@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NationalTeamResult, NationalTeamYear } from "@/lib/national-team-service";
+import { warmModules } from "../../../support/warm-module";
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
@@ -38,6 +39,8 @@ async function renderPage() {
   const { default: Page } = await import("@/app/national-teams/mens-team/page");
   render(await Page());
 }
+
+warmModules(() => import("@/app/national-teams/mens-team/page"));
 
 describe("Huuhkajat page", () => {
   beforeEach(() => {

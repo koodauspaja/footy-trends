@@ -4,6 +4,7 @@ import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import { warmModules } from "../../../support/warm-module";
 
 /**
  * The favourite star inside this tree calls `useSession`. The real client opens
@@ -110,6 +111,12 @@ async function renderStandings(searchParams: Record<string, string | string[] | 
   const { default: Page } = await import("@/app/national-teams/standings/page");
   render(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
+
+warmModules(
+  () => import("@/app/national-teams/matches/page"),
+  () => import("@/app/national-teams/standings/page"),
+  () => import("@/app/national-teams/team/[id]/page")
+);
 
 describe("National-teams standings page", () => {
   beforeEach(() => {

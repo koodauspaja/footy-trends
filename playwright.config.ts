@@ -72,6 +72,22 @@ export default defineConfig({
   reporter: process.env.CI
     ? [["list"], ["html", { open: "never" }], ["./scripts/e2e-freshness-reporter.ts"]]
     : [["list"], ["./scripts/e2e-freshness-reporter.ts"]],
+  /**
+   * The browser must be more patient than the server it is waiting for.
+   *
+   * Playwright's default assertion timeout is 5 s, while a page render here
+   * waits up to **10 s** for TASO and 8 s for football-data before giving up —
+   * `RENDER_TIMEOUT_MS` in `src/lib/taso.ts` and `src/lib/football-data.ts`. So
+   * whenever a provider was merely slow rather than broken, an assertion
+   * expired while the server was still doing exactly what it is supposed to do,
+   * and the run failed for a reason that had nothing to do with the page. That
+   * is the whole of the e2e flakiness seen in #384.
+   *
+   * 15 s is the larger of the two render timeouts plus room for the rest of a
+   * render. It is derived from that number rather than chosen for comfort: if
+   * `RENDER_TIMEOUT_MS` ever rises, this has to rise with it.
+   */
+  expect: { timeout: Math.max(10_000, 8_000) + 5_000 },
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",

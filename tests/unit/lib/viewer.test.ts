@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 const { headerValue, getSession, getPreferencesFor, logger } = vi.hoisted(() => ({
   headerValue: { cookie: null as string | null, throws: false },
@@ -32,6 +33,8 @@ beforeEach(() => {
   getPreferencesFor.mockReset();
   logger.error.mockClear();
 });
+
+warmModules(() => import("@/lib/viewer"));
 
 describe("getViewerPreferences", () => {
   /**

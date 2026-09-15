@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamContextResult, TeamPageSource } from "@/lib/team-context";
+import { warmModules } from "../../support/warm-module";
 
 const getTeamContextMock = vi.fn<(...args: unknown[]) => Promise<TeamContextResult>>();
 
@@ -15,6 +16,8 @@ async function load() {
   const module = await import("@/lib/team-page-context");
   return module;
 }
+
+warmModules(() => import("@/lib/team-page-context"));
 
 describe("seasonCandidate", () => {
   it("accepts a value shaped like a season", async () => {

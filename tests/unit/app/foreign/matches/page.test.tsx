@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, RoundMatchesResult } from "@/lib/standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
@@ -96,6 +97,8 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   const { generateMetadata } = await import("@/app/foreign/matches/page");
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
+
+warmModules(() => import("@/app/foreign/matches/page"));
 
 describe("Matches page", () => {
   beforeEach(() => {

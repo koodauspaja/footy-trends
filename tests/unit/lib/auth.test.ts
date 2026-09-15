@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * `auth.ts` reads four environment variables at import and builds a database
@@ -68,6 +69,8 @@ async function loadConfig(): Promise<any> {
   await import("@/lib/auth");
   return betterAuth.mock.calls[0]?.[0];
 }
+
+warmModules(() => import("@/lib/auth"));
 
 describe("resolving the client IP, from #309", () => {
   it("reads the address from x-real-ip, the one header the edge overwrites", async () => {

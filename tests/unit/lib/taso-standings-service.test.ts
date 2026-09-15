@@ -26,7 +26,13 @@ const {
   loggerWarnMock,
   loggerErrorMock,
 } = vi.hoisted(() => ({
-  dbMock: { select: vi.fn(), insert: vi.fn(), delete: vi.fn(), transaction: vi.fn() },
+  dbMock: {
+    select: vi.fn(),
+    selectDistinct: vi.fn(),
+    insert: vi.fn(),
+    delete: vi.fn(),
+    transaction: vi.fn(),
+  },
   getCachedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
@@ -833,6 +839,56 @@ describe("getSeasonStandings", () => {
       expect.objectContaining({ err: expect.any(Error) }),
       "TASO refresh failed; using stored matches"
     );
+  });
+
+  /**
+   * The two cases above, but for the specific failure #363 introduced.
+   *
+   * A timeout arrives as an `AbortError` thrown from `fetch`, which takes the
+   * same path as any other provider failure — so these pass by construction
+   * rather than by new handling. They are here because "by construction" is an
+   * argument, and the acceptance criterion asked for the behaviour to be
+   * verified: a bound that produced an error page instead of stored data would
+   * be worse than no bound at all.
+   */
+  it("falls back to stored matches when the refresh times out", async () => {
+    mockStoredMatches([match({ updatedAt: new Date(0) })]);
+    getSeasonMatchesMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status).toBe("ok");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(DOMException) }),
+      "TASO refresh failed; using stored matches"
+    );
+  });
+
+  it("reports an error when the refresh times out and nothing is stored", async () => {
+    // The cold-database case: there is nothing to serve, and saying so is the
+    // honest answer. A timeout must not be reported as "no matches".
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError")
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      ACTIVE_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result).toEqual({ status: "error", groups: [] });
   });
 
   it("returns an error when a refresh fails and nothing is stored", async () => {
@@ -1862,15 +1918,16 @@ describe("synchronizeMatches", () => {
 describe("resolveTasoSeasonContext", () => {
   /** `max(season_id)` for the newest-stored fallback, then the season's own rows. */
   function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
-    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
-      if (fields !== undefined && "seasonId" in fields) {
-        // Scoped to the competition now, so the aggregate has a where clause.
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ seasonId: newestStored }]),
-          }),
-        };
-      }
+    // `storedTasoSeasons` lists the seasons we hold, across both TASO tables,
+    // and `newestStoredSeason` is the newest of them. One query shape rather
+    // than a `max()` aggregate, so "what do we hold" has a single answer — see
+    // specs/029-forced-season-refresh.md.
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(newestStored === null ? [] : [{ seasonId: newestStored }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
       const orderBy = vi.fn().mockResolvedValue(seasonMatches);
       const where = vi.fn().mockReturnValue({ orderBy });
       return { from: vi.fn().mockReturnValue({ where }) };
@@ -1996,14 +2053,14 @@ describe("resolveTasoSeasonContext", () => {
 
   it("still resolves when the matches check itself throws", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
-    dbMock.select.mockImplementation((fields?: Record<string, unknown>) => {
-      if (fields !== undefined && "seasonId" in fields) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
-          }),
-        };
-      }
+    // The stored-season lookup answers; the probe's own read of the season's
+    // matches is what fails.
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
       throw new Error("database unavailable");
     });
 

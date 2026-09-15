@@ -9,6 +9,66 @@ const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
+/**
+ * The Redis keys the two season endpoints cache under.
+ *
+ * Exported rather than inlined because the forced refresh in
+ * `force-refresh.ts` has to *delete* exactly these keys in order to reach TASO
+ * — see specs/029-forced-season-refresh.md. Spelling them out in two places
+ * would mean a changed key here silently stops the refresh clearing anything,
+ * and the failure is invisible: the refetch just answers out of the cache it
+ * was meant to bypass.
+ *
+ * The season is inside `competitionId` (`spljp26`, `M1LCUP26`), so these are
+ * per-season keys despite not naming a season.
+ */
+export function tasoMatchesCacheKey(competitionId: string, categoryId: string): string {
+  return `taso:matches:${competitionId}:${categoryId}`;
+}
+
+export function tasoCategoryCacheKey(competitionId: string, categoryId: string): string {
+  return `taso:category:${competitionId}:${categoryId}`;
+}
+
+/**
+ * How long a page render waits for TASO before giving up on it.
+ *
+ * Unbounded before #363, which is how the v1.4.0 release e2e run failed 41
+ * specs: TASO accepted the connection and then stalled, and with nothing
+ * bounding the render the only limit that applied was Playwright's own 30 s.
+ * The same commit passed twenty minutes later. Measured at the time: 47-67 ms
+ * across six fresh connections, and once 19.9 s for a response whose own
+ * `result_time` said 0.061 s — the server answered instantly and the transfer
+ * took twenty seconds.
+ *
+ * Ten seconds, chosen for margin rather than derived from a measurement.
+ *
+ * Five was tried first and failed four national-team specs against a cold
+ * cache, twice over, so the failure was real. The explanation first written
+ * here was not: it blamed the page's fan-out, claiming requests spend their
+ * lives queued behind each other. Measuring that fan-out refuted it — 18-20
+ * requests, 12-14 of them concurrent, 0.52 MB in total, JSON parsing too cheap
+ * to register, and a per-request worst case of 80-512 ms — roughly a tenth of
+ * the five-second bound it was supposed to be exhausting, not the near-miss
+ * the queueing story needed. Re-run later, five seconds passed all nineteen.
+ *
+ * So what those runs caught was TASO being slow for an afternoon, not a
+ * property of this code — the same afternoon that failed 41 specs on the
+ * v1.4.0 release and answered one request in 19.9 s while reporting its own
+ * `result_time` as 0.061 s.
+ *
+ * Ten stands because the bound is insurance against exactly those afternoons,
+ * and the cost of it being loose is only how long a stalled render waits before
+ * falling back. It is not a latency budget and should not be read as one.
+ * Separate from football-data's bound so that tuning one does not move the
+ * other.
+ *
+ * This bounds one attempt. `/api/health` passes its own, shorter signal, which
+ * bounds the whole call on top of it — a probe and a page are different
+ * questions, and the two limits stack rather than replace each other.
+ */
+const RENDER_TIMEOUT_MS = 10000;
+
 // Fixed values, not secrets: TASO 403s without headers matching the real
 // tulospalvelu.palloliitto.fi frontend — server-side origin validation, not
 // browser-enforced CORS, so every server-to-server request needs them too.
@@ -45,7 +105,13 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
       Origin: ORIGIN,
       "User-Agent": USER_AGENT,
     }),
-    signal
+    signal,
+    // Bounded here rather than at each call site: every TASO request goes
+    // through this function, so one value covers the ones page renders make
+    // without threading a signal through four exported functions that would
+    // each have to remember to pass it. `/api/health`'s own signal still
+    // bounds the whole call on top of this.
+    RENDER_TIMEOUT_MS
   );
 }
 
@@ -307,7 +373,7 @@ export async function getSeasonMatches(
   // team pages ask about every year × category combination and most are empty,
   // which made one such pair account for 18 requests in a single test run.
   const response = await getCached<MatchesResponse>(
-    `taso:matches:${competitionId}:${categoryId}`,
+    tasoMatchesCacheKey(competitionId, categoryId),
     MATCHES_CACHE_TTL_SECONDS,
     () =>
       request<MatchesResponse>(
@@ -623,7 +689,7 @@ export async function getSeasonGroups(
   categoryId: string
 ): Promise<TasoGroup[]> {
   const response = await getCached<CategoryResponse>(
-    `taso:category:${competitionId}:${categoryId}`,
+    tasoCategoryCacheKey(competitionId, categoryId),
     GROUPS_CACHE_TTL_SECONDS,
     () =>
       request<CategoryResponse>(

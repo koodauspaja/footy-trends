@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "npm run test:unit",
-    "test:unit": "vitest run tests/unit --coverage --passWithNoTests",
-    "test:integration": "tsx scripts/with-test-db.ts node node_modules/vitest/vitest.mjs run tests/integration --passWithNoTests",
+    "test:unit": "vitest run tests/unit --coverage && tsx scripts/coverage-gaps.ts",
+    "test:integration": "tsx scripts/with-test-db.ts node node_modules/vitest/vitest.mjs run tests/integration",
     "test:shuffle": "vitest run tests/unit --sequence.shuffle",
     "test:e2e": "playwright test",
     "test:e2e:browser": "playwright install --with-deps chromium",
@@ -22,7 +22,8 @@
     "release:version": "tsx scripts/release-version.ts",
     "release:pr": "tsx scripts/release-pr.ts",
     "review:findings": "tsx scripts/review-findings.ts",
-    "db:generate": "drizzle-kit generate",
+    "admin:role": "tsx scripts/grant-admin.ts",
+    "db:generate": "tsx scripts/generate-migration.ts",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
@@ -30,35 +31,35 @@
   },
   "dependencies": {
     "@axiomhq/pino": "2.0.0",
-    "@sentry/nextjs": "10.73.0",
-    "better-auth": "1.7.3",
+    "@sentry/nextjs": "10.74.0",
+    "better-auth": "1.7.4",
     "drizzle-orm": "0.45.2",
     "ioredis": "6.0.0",
-    "next": "16.3.4",
+    "next": "16.3.5",
     "pino": "10.3.1",
     "postgres": "3.4.9",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "sharp": "0.35.4",
     "tsx": "4.23.13"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
+    "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
-    "@types/node": "25.9.5",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7",
+    "@types/node": "25.9.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "5.0.0",
     "drizzle-kit": "0.31.10",
     "husky": "9.1.7",
     "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "5.0.0"
   },
   "engines": {
     "node": ">=24"
@@ -75,7 +76,7 @@
   "packageManager": "npm@12.0.2",
   "overrides": {
     "browserslist": "^4.28.7",
-    "fast-uri": "^3.1.6",
+    "fast-uri": "^4.0.0",
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.0"
     }

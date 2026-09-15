@@ -6,6 +6,18 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 type Props = Readonly<{
   name: string;
   image: string | null;
+  /**
+   * Whether to offer `Ylläpito`, from specs/028-admin-tools-and-roles.md.
+   *
+   * A convenience, not a control. `requireAdmin()` refuses at the page and at
+   * every action, so nothing is reachable by finding the URL.
+   *
+   * Anyone refused — a stranger, or a demoted admin whose session still says
+   * otherwise — gets the generic not-found page with a **200** status, because
+   * Next cannot change a status a stream has already committed. See
+   * `specs/028-admin-tools-and-roles.md`.
+   */
+  isAdmin: boolean;
   onSignOut: () => void;
 }>;
 
@@ -18,7 +30,7 @@ type Props = Readonly<{
  *
  * Click, not hover: a hover menu is unreachable on the phones #266 was about.
  */
-export function AccountMenu({ name, image, onSignOut }: Props) {
+export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,7 +104,7 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         aria-label={`Tili: ${name}`}
-        className="flex shrink-0 items-center gap-2 rounded text-sm hover:underline"
+        className="flex items-center gap-2 rounded text-sm hover:underline"
         onClick={() => setOpen((wasOpen) => !wasOpen)}
         ref={triggerRef}
         type="button"
@@ -100,12 +112,12 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
         {image === null ? (
           // No avatar to show, so the name is the control. An image that cannot
           // load must never leave an unlabelled button behind.
-          <span className="text-foreground">{name}</span>
+          <span className="wrap-anywhere text-foreground">{name}</span>
         ) : (
           // Empty alt: the button is already named by `aria-label`, and
           // repeating the reader's name would just be noise.
           // biome-ignore lint/performance/noImgElement: a Google avatar is an arbitrary remote host; next/image would need it allowlisted in next.config.ts to render a 28px image
-          <img alt="" className="h-7 w-7 rounded-full" src={image} />
+          <img alt="" className="h-7 w-7 shrink-0 rounded-full" src={image} />
         )}
       </button>
 
@@ -146,6 +158,17 @@ export function AccountMenu({ name, image, onSignOut }: Props) {
           >
             Asetukset
           </Link>
+          {/* Last of the links, because it is the least used and belongs to a
+              different job than the reader's own two. */}
+          {isAdmin && (
+            <Link
+              className="block px-4 py-2 text-sm hover:bg-surface"
+              href="/yllapito"
+              onClick={() => close(false)}
+            >
+              Ylläpito
+            </Link>
+          )}
           <button
             className="block w-full px-4 py-2 text-left text-sm hover:bg-surface"
             onClick={() => {

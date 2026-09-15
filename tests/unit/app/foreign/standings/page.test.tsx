@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 /**
  * The favourite star inside this tree calls `useSession`. The real client opens
@@ -81,6 +82,8 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   const { generateMetadata } = await import("@/app/foreign/standings/page");
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
+
+warmModules(() => import("@/app/foreign/standings/page"));
 
 describe("Standings page", () => {
   beforeEach(() => {

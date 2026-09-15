@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../support/warm-module";
 
 /**
  * The `"use server"` boundary for team search, from specs/027-team-search.md.
@@ -32,6 +33,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+warmModules(() => import("@/lib/team-search-actions"));
 
 describe("searchTeamsAction", () => {
   it("refuses a signed-out caller without querying", async () => {

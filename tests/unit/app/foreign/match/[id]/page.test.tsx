@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
+import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
@@ -51,6 +52,8 @@ async function renderPage(id = "497001") {
   const { default: Page } = await import("@/app/foreign/match/[id]/page");
   render(await Page({ params: Promise.resolve({ id }) }));
 }
+
+warmModules(() => import("@/app/foreign/match/[id]/page"));
 
 describe("/ulkomaat/ottelu/:id", () => {
   beforeEach(() => {

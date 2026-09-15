@@ -3,11 +3,20 @@
  * the network so it can be unit-tested directly — the same split as
  * `backfill-plan.ts` and `e2e-freshness-plan.ts` and their entry points.
  *
- * The classes are not invented. They come from reading every Sourcery inline
- * finding on the last fourteen merged pull requests on 2026-09-08 — 48 of them
- * across nine PRs — and they are what `skills/self-review.md` is organised
- * around. Re-running the command is how that list stays honest as the codebase
- * changes.
+ * The classes are not invented. Each comes from reading every Sourcery inline
+ * finding on the last fourteen merged pull requests, and they are what
+ * `skills/self-review.md` is organised around. Re-running the command is how
+ * that list stays honest as the codebase changes — and it has changed:
+ *
+ * - 2026-09-08 (#290): seven classes, from 48 findings across nine PRs.
+ * - 2026-09-14 (#390): two added — a read and a write that do not span one
+ *   transaction, and the same value compared under two normalisations — from
+ *   the 35 of 64 findings that were landing in `unclassified`. Widened
+ *   `failure path dropped`, which read as extinct while three of its findings
+ *   sat unclassified under wording its patterns did not have.
+ *
+ * Re-measure before trusting the ordering here; do not update this comment by
+ * hand without running the command that produced it.
  *
  * **This is a coarse indicator, not a judgement.** A finding is filed by the
  * words it uses, and a review often describes one defect while mentioning
@@ -43,8 +52,50 @@ export type ApiComment = { user: { login: string } | null; path: string; body: s
  * Every pattern is a phrase that names the defect rather than a bare keyword:
  * "the test", not "test". A parser finding that mentions a test in passing
  * belongs under parsing, and the scoring below is what settles that.
+ *
+ * Ordered by measured cost, largest first, because a tie falls to the earlier
+ * entry. Re-ordered on 2026-09-14 (#390): the 2026-09-08 ordering put tests
+ * first, and tests are now fourth.
  */
 const CLASSES = [
+  {
+    name: "doc contradicts code",
+    label: "a comment or spec contradicting the code beside it",
+    patterns: [
+      /\bthe comment\b|comment (?:now )?says|comments? describe/i,
+      /\bthe (?:specification|spec)\b/i,
+      /documentation|documented/i,
+      /describes? (?:the|it|them) as/i,
+      /\bcontract\b/i,
+      /misstate|contradict/i,
+    ],
+  },
+  {
+    name: "read and write without one transaction",
+    label: "a read and a write that do not span one transaction",
+    patterns: [
+      /\btransactions?\b/i,
+      /\block\b|locking/i,
+      /concurrent(?:ly)?\b/i,
+      /separate operations/i,
+      /\brace\b|race condition/i,
+      /still current|in-flight/i,
+      /stale (?:response|result|preview|read|row)/i,
+      /between the read and|after the .{0,30}check/i,
+    ],
+  },
+  {
+    name: "two normalisations of one value",
+    label: "the same value compared under two normalisations",
+    patterns: [
+      /case-(?:in)?sensitiv/i,
+      /lower-cases?|upper-cases?/i,
+      /normalis|normaliz/i,
+      /backslash|forward slash|separated paths/i,
+      /as an exact (?:path|match)|exact path, but/i,
+      /deduplicates|duplicate rows/i,
+    ],
+  },
   {
     name: "test proves nothing",
     label: "a test that proves nothing",
@@ -72,6 +123,18 @@ const CLASSES = [
       /converted to an empty/i,
       /silently (?:pass|succeed|continue|fail)/i,
       /stack trace/i,
+      // Added in #390. The class read as extinct at zero findings while three
+      // sat in `unclassified`, because recent reviews say "is not caught"
+      // where older ones said "unhandled".
+      /is not caught|are not caught/i,
+      /no (?:Finnish )?error (?:notice|message|state)/i,
+      /returned as (?:an? )?(?:empty|absent|missing)/i,
+      // The label's second half — "turned into a plausible wrong value" — had
+      // no pattern at all. Its clearest instance on #381 says a database
+      // failure is "returned as `reason: \"provider\"`, even though the
+      // provider has not failed", and sat unclassified.
+      /caught .{0,60}and returned as/i,
+      /treats .{0,40}as success/i,
     ],
   },
   {
@@ -84,18 +147,6 @@ const CLASSES = [
       /Number\(|parseInt|parseFloat/i,
       /coerc/i,
       /\bpattern (?:only|therefore|requires)/i,
-    ],
-  },
-  {
-    name: "doc contradicts code",
-    label: "a comment or spec contradicting the code beside it",
-    patterns: [
-      /\bthe comment\b|comment (?:now )?says|comments? describe/i,
-      /\bthe (?:specification|spec)\b/i,
-      /documentation|documented/i,
-      /describes? (?:the|it|them) as/i,
-      /\bcontract\b/i,
-      /misstate|contradict/i,
     ],
   },
   {

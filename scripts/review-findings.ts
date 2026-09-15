@@ -4,11 +4,15 @@
  *   GH_TOKEN=$(gh auth token) npm run review:findings        # last 10 merges
  *   GH_TOKEN=$(gh auth token) npm run review:findings -- 25  # last 25
  *
- * Why this exists as a command rather than a paragraph in a document: the table
- * in `skills/self-review.md` was measured once, on 2026-09-08, and a
+ * Why this exists as a command rather than a paragraph in a document: a
  * measurement nobody can repeat becomes folklore the moment the codebase moves.
- * Running this is how that list is kept honest — and how a class earns its
- * removal when it stops appearing.
+ * The table in `skills/self-review.md` carries the date it was last run, and
+ * running this is how that list is kept honest.
+ *
+ * A class dropping to zero is a prompt to look, not a licence to delete it.
+ * On #390 two classes read as extinct and neither was: one had three findings
+ * in `unclassified` under wording its patterns did not cover, the other had
+ * its single instance reclassified into a better home.
  *
  * **Reads the API over HTTPS rather than shelling out to `gh`.** Spawning a
  * binary found on `PATH` is a vulnerability Sonar flags and is right to: the

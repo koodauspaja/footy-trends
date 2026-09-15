@@ -4,10 +4,11 @@ When you have finished implementing a feature and tests are passing, open a pull
 request using the following steps.
 
 **First, run `skills/self-review.md`.** It is the pass over your own diff for the
-seven defect classes this repository's reviews keep finding — measured, not
-guessed, and re-measurable with `npm run review:findings`. A round of review
-costs ten minutes of waiting and a context switch; the pass costs less, and the
-largest class (a test that proves nothing) has appeared in seven pull requests.
+defect classes this repository's reviews keep finding — measured, not guessed,
+and re-measurable with `npm run review:findings`. A round of review costs ten
+minutes of waiting and a context switch; the pass costs less. Read the current
+table rather than remembering which class is largest: it has changed once
+already, and #390 found two classes that had never been written down at all.
 
 1. Create a feature branch named `feature/NNN-short-description` where NNN is the
    **spec** number — the `NNN` in `specs/NNN-feature-name.md`, not the issue
@@ -229,7 +230,9 @@ largest class (a test that proves nothing) has appeared in seven pull requests.
    After substantive fix commits, comment `@sourcery-ai review` on the PR to
    force a complete review of the final state, and wait for it before
    handing off.
-9. Do not merge the PR yourself. Leave it for human review. **Either Miikka
+9. **Never merge on your own initiative** — however green it is. Merge only
+   when a human tells you to; that instruction is the allowed final step, not
+   an exception to the rule. Otherwise leave it for human review. **Either Miikka
    or Kalle** may be that reviewer — the two are interchangeable, so work
    never waits on one named person being available.
 10. If the PR merges without the issue auto-closing (for example the closing

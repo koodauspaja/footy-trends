@@ -154,7 +154,7 @@ void runMigrations();
 Add to the `scripts` section:
 
 ```json
-"db:generate": "drizzle-kit generate",
+"db:generate": "tsx scripts/generate-migration.ts",
 "db:migrate": "tsx src/db/migrate.ts",
 "db:studio": "drizzle-kit studio",
 "db:push": "drizzle-kit push"
@@ -162,18 +162,28 @@ Add to the `scripts` section:
 
 | Script | When to use |
 |--------|-------------|
-| `db:generate` | After changing `schema.ts` — creates a new migration file |
+| `db:generate` | After changing `schema.ts` — creates a new migration file. Requires `--name`. |
 | `db:migrate` | Applies pending migrations to the database |
 | `db:studio` | Opens Drizzle Studio, a local DB browser |
 | `db:push` | Pushes schema directly without a migration file — local dev only, never production |
 
-Always pass `--name` to `db:generate` with a short, descriptive name —
-without it, `drizzle-kit` invents a whimsical one (e.g.
-`0002_light_clint_barton.sql`) that says nothing about what changed:
+`db:generate` goes through `scripts/generate-migration.ts` rather than calling
+`drizzle-kit` directly, and it **refuses to run without `--name`**:
 
 ```bash
 npm run db:generate -- --name=add_match_status_column
 ```
+
+The name must be `<verb>_<what>`, where the verb is one of `add`, `create`,
+`alter`, `drop`, `rename` or `backfill`. Either form works —
+`--name=add_thing` or `--name add_thing` — and everything else on the command
+line is passed straight through to `drizzle-kit`.
+
+The wrapper exists because this instruction used to be advice, and advice was
+not enough: `drizzle-kit` invents a whimsical name when given none (e.g.
+`0016_young_meteorite.sql`), and seven such migrations reached `main` while this
+very document said to pass `--name`. `tests/unit/db/migrations.test.ts` is the
+second line, failing if such a name appears by any other route.
 
 ---
 

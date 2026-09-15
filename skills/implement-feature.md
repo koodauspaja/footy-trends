@@ -40,7 +40,8 @@ be precise, especially on numbers and edge cases (e.g. "form shows the last
 5 matches; teams with fewer than 5 played show all available results").
 
 ## 6. Open the PR
-Follow `skills/open-pr.md`. Do not merge — leave for human review.
+Follow `skills/open-pr.md`. **Never merge on your own initiative** — merge only
+when a human tells you to; otherwise leave it for human review.
 
 ## Notes
 - If the spec is missing something the checklist in `skills/write-spec.md`

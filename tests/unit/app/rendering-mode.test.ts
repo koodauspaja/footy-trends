@@ -378,6 +378,15 @@ describe("pages are not prerendered unless declared static", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps the admin page dynamic, because a build artefact would leak emails", () => {
+    // specs/028-admin-tools-and-roles.md names this explicitly. The sweep above
+    // would already catch it, but the consequence is specific enough to assert
+    // by name: a prerendered `/yllapito` is a static file listing every user.
+    const source = parse(path.join(APP_DIR, "admin", "page.tsx"));
+
+    expect(optsOutOfPrerender(source)).toBe(true);
+  });
+
   it("reads the signature, not the prose around it", () => {
     const file = path.join(APP_DIR, "national-teams", "mens-team", "page.tsx");
     const source = parse(file);

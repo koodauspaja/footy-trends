@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
+import { warmModules } from "../../../../support/warm-module";
 
 /**
  * The favourite star inside this tree calls `useSession`. The real client opens
@@ -112,6 +113,8 @@ beforeEach(() => {
   getSeasonCategoryNameMock.mockResolvedValue(null);
   getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
 });
+
+warmModules(() => import("@/app/domestic/standings/page"));
 
 describe("Domestic standings page", () => {
   it("shows the Finnish heading and calculated standings for the default (latest) season", async () => {

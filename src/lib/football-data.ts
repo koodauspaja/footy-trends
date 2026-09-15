@@ -8,6 +8,18 @@ const API_BASE_URL = "https://api.football-data.org/v4";
 export const COMPETITION_CACHE_TTL_SECONDS = 60 * 60;
 export const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 
+/**
+ * The Redis key a season's matches cache under.
+ *
+ * Exported for the same reason as its TASO counterpart: `force-refresh.ts`
+ * deletes exactly this key to reach the provider, and a key spelled out in two
+ * places would let a change here silently stop that — see
+ * specs/029-forced-season-refresh.md.
+ */
+export function footballDataMatchesCacheKey(competitionCode: string, seasonId: number): string {
+  return `football-data:matches:${competitionCode}:${seasonId}`;
+}
+
 type ProviderTeam = { id?: number; name?: string };
 
 type ProviderScoreLine = { home?: number | null; away?: number | null };
@@ -46,10 +58,37 @@ function apiKey(): string {
   return key;
 }
 
-function request<T>(path: string): Promise<T> {
-  return fetchProviderJson<T>("Football data", API_BASE_URL, path, () => ({
-    "X-Auth-Token": apiKey(),
-  }));
+/**
+ * How long a page render waits for football-data before giving up on it.
+ *
+ * Unbounded before #363, for the same reason TASO was — `fetchProviderJson`
+ * took an optional signal and the render path never passed one. Nothing has
+ * been observed stalling here; the bound exists because "we have not seen it
+ * yet" is not a limit, and a render with no deadline has none.
+ *
+ * Separate from TASO's bound on purpose: TASO is self-hosted and is the one
+ * observed stalling, so the two should be tunable without moving each other.
+ * Eight seconds rather than TASO's ten because nothing here fans out the way
+ * the national-team page does — the pages that read football-data issue few
+ * enough requests that no cold render has been seen near this.
+ *
+ * This bounds one attempt, not the call, so it does not cut short the wait
+ * `fetchProviderJson` does after a 429 — that stays governed by the response's
+ * own `Retry-After`.
+ */
+const RENDER_TIMEOUT_MS = 8000;
+
+function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return fetchProviderJson<T>(
+    "Football data",
+    API_BASE_URL,
+    path,
+    () => ({ "X-Auth-Token": apiKey() }),
+    signal,
+    // Every football-data request goes through here, so one value bounds them
+    // all; a caller with its own deadline still bounds the whole call.
+    RENDER_TIMEOUT_MS
+  );
 }
 
 export type SeasonContext = {
@@ -165,7 +204,7 @@ export async function getSeasonMatches(
   seasonId: number
 ): Promise<NormalizedProviderMatch[]> {
   const response = await getCached<MatchesResponse>(
-    `football-data:matches:${competitionCode}:${seasonId}`,
+    footballDataMatchesCacheKey(competitionCode, seasonId),
     MATCHES_CACHE_TTL_SECONDS,
     () => request<MatchesResponse>(`/competitions/${competitionCode}/matches?season=${seasonId}`)
   );

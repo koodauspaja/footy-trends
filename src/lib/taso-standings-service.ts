@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
-import { db } from "@/db";
+import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import {
@@ -370,12 +370,41 @@ export function needsRefresh(
  * about a single era would miss the rest — a discovery failure would then fall
  * back to the configured floor rather than to what is actually stored.
  */
-async function newestStoredSeason(categoryIds: string[]): Promise<number | null> {
-  const [row] = await db
-    .select({ seasonId: sql<number | null>`max(${tasoMatches.seasonId})` })
-    .from(tasoMatches)
-    .where(inArray(tasoMatches.categoryId, categoryIds));
-  return row?.seasonId ?? null;
+export async function storedTasoSeasons(competitionCode: string): Promise<Set<number>> {
+  // Both tables. A season can hold group standings without matches — a
+  // competition whose fixtures were never synced but whose published table was,
+  // or one whose matches were pruned — and such a season is still one we hold.
+  // Reading only `taso_matches` made this the single source of truth for
+  // "seasons we have" in name only.
+  //
+  // Scoped by category rather than by competition id: a junior competition's
+  // rows are split across two or three category ids by era, and asking about
+  // one era would hide the rest.
+  const categoryIds = categoryIdsFor(competitionCode);
+  const [matchSeasons, groupSeasons] = await Promise.all([
+    db
+      .selectDistinct({ seasonId: tasoMatches.seasonId })
+      .from(tasoMatches)
+      .where(inArray(tasoMatches.categoryId, categoryIds)),
+    db
+      .selectDistinct({ seasonId: tasoGroupTeams.seasonId })
+      .from(tasoGroupTeams)
+      .where(inArray(tasoGroupTeams.categoryId, categoryIds)),
+  ]);
+  return new Set([...matchSeasons, ...groupSeasons].map((row) => row.seasonId));
+}
+
+/**
+ * The newest season we hold for a competition, or `null` for none.
+ *
+ * Derived from `storedTasoSeasons` rather than carrying its own query, so
+ * "what do we hold" is answered one way. It previously read `taso_matches`
+ * alone, which meant a competition held only as group standings looked unstored
+ * — and with discovery unavailable, its ceiling fell back below its own data.
+ */
+async function newestStoredSeason(competitionCode: string): Promise<number | null> {
+  const seasons = await storedTasoSeasons(competitionCode);
+  return seasons.size === 0 ? null : Math.max(...seasons);
 }
 
 /** Discovery is best-effort: a TASO outage must degrade the season range, not break the page. */
@@ -415,29 +444,57 @@ export type TasoSeasonContext = {
  * renders, deduplicated within a request by `cache()` and bounded across
  * requests by the 15-minute Redis TTL.
  */
+/**
+ * The top of a competition's season range, and the newest season we have
+ * stored for it.
+ *
+ * **Reads only.** Split out of `resolveTasoSeasonContext` below, which needs
+ * the same numbers but then *probes* by synchronizing the current season —
+ * which writes. The forced refresh in `force-refresh.ts` needs a season range
+ * to validate against and must not write anything before an admin has approved
+ * a diff, so it calls this and never the probe. See
+ * specs/029-forced-season-refresh.md.
+ *
+ * Extracted rather than reimplemented: the floor clamp below is subtle enough
+ * that two copies of it would drift, and a drifted ceiling means a season
+ * selector that offers a season the competition never had.
+ */
+export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCeiling(
+  competitionCode: string
+): Promise<{ currentSeason: number; newestStored: number | null }> {
+  return getCached(
+    `taso:season-ceiling:${competitionCode}`,
+    CURRENT_SEASON_CACHE_TTL_SECONDS,
+    async () => {
+      // Season discovery itself is competition-agnostic — a `competition_id`
+      // is a season of all Finnish football (spec 011) — but the stored
+      // fallback is not, so both the key and it are scoped to the competition
+      // being asked about.
+      const [discovered, newestStored] = await Promise.all([
+        discoverCurrentSeason(),
+        newestStoredSeason(competitionCode),
+      ]);
+      // Floored at the competition's own first season, not the provider-wide
+      // one. Without that, a discovery failure with nothing stored would put
+      // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
+      // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+      // so the selector would come back empty and the page would query a season
+      // the competition never had.
+      const currentSeason = Math.max(
+        discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
+        earliestSeasonFor(competitionCode)
+      );
+      return { currentSeason, newestStored };
+    }
+  );
+});
+
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
 ): Promise<TasoSeasonContext> {
   const key = `taso:season-context:${competitionCode}`;
   return getCached(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
-    // Season discovery itself is competition-agnostic — a `competition_id`
-    // is a season of all Finnish football (spec 011) — but the *probe*
-    // below is not, so both the key and the stored fallback are scoped to
-    // the competition being asked about.
-    const [discovered, newestStored] = await Promise.all([
-      discoverCurrentSeason(),
-      newestStoredSeason(categoryIdsFor(competitionCode)),
-    ]);
-    // Floored at the competition's own first season, not the provider-wide
-    // one. Without that, a discovery failure with nothing stored would put
-    // Ykkösliiga's ceiling at 2015 — below its 2024 floor — and
-    // `listSelectableTasoSeasons` counts down from the ceiling to the floor,
-    // so the selector would come back empty and the page would query a season
-    // the competition never had.
-    const currentSeason = Math.max(
-      discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
-      earliestSeasonFor(competitionCode)
-    );
+    const { currentSeason, newestStored } = await resolveTasoSeasonCeiling(competitionCode);
 
     try {
       const { matches } = await getSyncedSeasonMatches(
@@ -655,10 +712,14 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   };
 });
 
-export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[]): Promise<void> {
+export async function synchronizeMatches(
+  providerMatches: NormalizedTasoMatch[],
+  /** The transaction to join, when a caller has one. Defaults to its own. */
+  executor: Executor = db
+): Promise<void> {
   if (providerMatches.length === 0) return;
 
-  await db
+  await executor
     .insert(tasoMatches)
     .values(providerMatches.map((match) => ({ ...match, updatedAt: new Date() })))
     .onConflictDoUpdate({
@@ -696,7 +757,7 @@ export async function synchronizeMatches(providerMatches: NormalizedTasoMatch[])
  * with duplicates is a knockout group, it has no points, and it renders as a
  * match list rather than a table.
  */
-function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupTeam[] {
+export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTasoGroupTeam[] {
   const seen = new Map<string, NormalizedTasoGroupTeam>();
   for (const row of rows) {
     const identity = `${row.categoryId}/${row.competitionCode}/${row.seasonId}/${row.groupId}/${row.teamProviderId}`;
@@ -723,14 +784,19 @@ export async function synchronizeGroupTeams(
   categoryId: string,
   competitionId: string,
   seasonId: number,
-  rows: NormalizedTasoGroupTeam[]
+  rows: NormalizedTasoGroupTeam[],
+  /**
+   * The transaction to join, when a caller has one. Defaults to opening its
+   * own, which is what every existing caller does.
+   */
+  executor: Executor = db
 ): Promise<void> {
   // No early return on an empty snapshot: TASO answering "this season has no
   // group standings" is an answer, not a non-answer, and keeping the previous
   // rows would leave every dropped team in place. A failed *request* is the
   // case that preserves what is stored, and that is handled by the caller's
   // catch rather than here.
-  await db.transaction(async (tx) => {
+  await executor.transaction(async (tx) => {
     await tx
       .delete(tasoGroupTeams)
       .where(

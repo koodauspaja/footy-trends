@@ -85,7 +85,17 @@ export function TeamSearch() {
   if (!mounted || !session) return null;
 
   return (
-    <div className="w-full sm:w-auto">
+    /**
+     * The row's own padding lives here, not in `site-header.tsx`.
+     *
+     * This component returns `null` above for a signed-out reader, so a wrapper
+     * in the header would still render its padding and leave an empty strip
+     * where the search would be — the header would visibly change for someone
+     * who cannot use the search. Owning the padding makes that impossible
+     * rather than merely unlikely (#373). It is used in one place, so there is
+     * no other layout for this to be wrong in.
+     */
+    <div className="w-full px-4 pb-3 sm:px-8">
       <form
         className="flex items-center gap-2"
         onSubmit={(event) => {

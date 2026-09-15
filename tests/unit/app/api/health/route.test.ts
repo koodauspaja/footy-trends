@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../../support/warm-module";
 
 const executeMock = vi.fn();
 const pingMock = vi.fn();
@@ -45,6 +46,8 @@ function probeRequest() {
 function providerRequest() {
   return new Request("http://localhost/api/health?providers=1");
 }
+
+warmModules(() => import("@/app/api/health/route"));
 
 describe("GET /api/health", () => {
   beforeEach(() => {

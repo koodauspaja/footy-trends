@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../support/warm-module";
 
 vi.mock("@sentry/nextjs", () => ({ captureRequestError: vi.fn() }));
 vi.mock("../../sentry.server.config", () => ({}));
@@ -23,6 +24,8 @@ function serverResponse(): ServerResponse {
  * worker. Every test restores it, so a later test in the same worker still
  * sees Node's default and would still fail on a genuine listener leak.
  */
+warmModules(() => import("@/instrumentation"));
+
 describe("instrumentation", () => {
   let original: PropertyDescriptor | undefined;
   let nodeDefault: number;

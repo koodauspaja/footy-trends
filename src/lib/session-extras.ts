@@ -1,3 +1,4 @@
+import { isAdmin } from "@/lib/admin-role";
 import { isRegionSegment, type RegionSegment } from "@/lib/regions";
 
 /**
@@ -28,7 +29,7 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
  */
 function fieldOf(
   session: unknown,
-  name: "defaultRegion" | "avatarVersion" | "favoriteTeams" | "favoriteCompetitions"
+  name: "defaultRegion" | "avatarVersion" | "favoriteTeams" | "favoriteCompetitions" | "role"
 ): unknown {
   if (typeof session !== "object" || session === null) return undefined;
   return (session as Record<string, unknown>)[name];
@@ -76,4 +77,24 @@ export function favouriteKeysOf(session: unknown, kind: "team" | "competition"):
   const field = fieldOf(session, kind === "team" ? "favoriteTeams" : "favoriteCompetitions");
   if (!Array.isArray(field)) return [];
   return field.filter((entry): entry is string => typeof entry === "string");
+}
+
+/**
+ * Whether to offer the reader the `Ylläpito` link, from
+ * specs/028-admin-tools-and-roles.md.
+ *
+ * **This is not an authorisation and must never become one.** It reads a value
+ * the session was issued with, so it is stale from the moment a role changes
+ * until that session is refreshed. `requireAdmin()` reads the column from the
+ * database on every request and is what actually refuses — a demoted admin
+ * following a link they can still see gets a 404, which is the correct
+ * outcome and the reason hiding the link is a convenience rather than a
+ * control.
+ *
+ * `isAdmin` takes `unknown` and answers false for anything that is not exactly
+ * the admin role, which is what makes an unusable payload render no link rather
+ * than throwing.
+ */
+export function isAdminSession(session: unknown): boolean {
+  return isAdmin(fieldOf(session, "role"));
 }
