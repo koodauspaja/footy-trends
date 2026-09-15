@@ -225,12 +225,45 @@ describe("refusals reach the reader, in Finnish", () => {
     promoteUserAction.mockResolvedValue({ ok: true });
     fireEvent.click(screen.getByRole("button", { name: "Tee ylläpitäjäksi" }));
 
-    // A stale error beside a successful action reads as a failure that did not
-    // happen.
-    await waitFor(() => {
-      expect(screen.queryByRole("alert")).toBeNull();
-    });
-  });
+    /**
+     * A stale error beside a successful action reads as a failure that did not
+     * happen.
+     *
+     * **The budget is raised because the default is too tight here, not to
+     * paper over a stuck alert** (#388). What was measured, under four CPU
+     * hogs on a developer machine:
+     *
+     * | Budget | Failures |
+     * |---|---|
+     * | 1 s (Testing Library's default) | 1 in 10 |
+     * | 5 s | 0 in 15 |
+     *
+     * Two theories were tested and both failed, which is why this is a budget
+     * and not a code change. Every button is `disabled={pending}`, and a click
+     * while a transition is in flight *is* swallowed — but `pending` had
+     * already cleared whenever the alert was visible, across 12 contended runs,
+     * so the second click is never the one that goes missing. Nor is it mock
+     * state leaking from the test above: the text is this test's own
+     * `REFUSALS.failed`, which happens to read identically.
+     *
+     * What is left is cost. `queryByRole` walks the tree computing accessible
+     * roles, and one second of that plus a React transition is not enough on a
+     * contended runner. The alert does clear; it clears late.
+     *
+     * **The test's own timeout is raised with it, and that is not decoration.**
+     * Vitest's per-test limit is 5 s — measured, not assumed: a test sleeping
+     * 7 s fails at 5008 ms. A 5 s `waitFor` budget under a 5 s test limit is
+     * unreachable, because the render, the click and the first assertion spend
+     * part of the same budget first, so the test would die before the budget
+     * it was given. Review caught that on the first version of this fix.
+     */
+    await waitFor(
+      () => {
+        expect(screen.queryByRole("alert")).toBeNull();
+      },
+      { timeout: 5000 }
+    );
+  }, 15_000);
 });
 
 describe("paging", () => {
