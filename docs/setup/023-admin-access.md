@@ -38,7 +38,7 @@ admin has to be able to change it from inside the app — so it lives in a colum
 
 ## Step 1 — Confirm the column exists
 
-The migration is `drizzle/migrations/0015_thin_sentry.sql`, applied by the
+The migration is `drizzle/migrations/0015_add_user_role.sql`, applied by the
 deploy's `preDeployCommand`. Check it landed before looking for a row to update:
 
 ```sql
