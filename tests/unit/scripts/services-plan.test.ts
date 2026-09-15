@@ -231,6 +231,7 @@ describe("parseTarget", () => {
     expect(parseTarget("postgresql://user@db.example.com:6000/app")).toEqual({
       host: "db.example.com",
       port: 6000,
+      protocol: "postgresql:",
     });
   });
 
@@ -238,6 +239,7 @@ describe("parseTarget", () => {
     expect(parseTarget("postgresql://user@localhost/app")).toEqual({
       host: "localhost",
       port: DEFAULT_POSTGRES_PORT,
+      protocol: "postgresql:",
     });
   });
 
@@ -273,6 +275,23 @@ describe("namesComposeDatabase", () => {
 
   it.each(["localhost", "127.0.0.1", "0.0.0.0", "LOCALHOST"])("accepts %s", (host) => {
     expect(namesComposeDatabase(`postgresql://user@${host}:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
+      true
+    );
+  });
+
+  it.each(["http", "https", "redis", "file"])(
+    "rejects a %s: URL even on the right host and port",
+    (scheme) => {
+      // Host and port alone say nothing about what is being addressed, and on
+      // the db:reset path accepting one costs a destroyed volume.
+      expect(namesComposeDatabase(`${scheme}://localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
+        false
+      );
+    }
+  );
+
+  it("accepts the postgres: spelling as well as postgresql:", () => {
+    expect(namesComposeDatabase(`postgres://user@localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
       true
     );
   });

@@ -208,7 +208,7 @@ export function describeTarget(url: string): string {
   return parsed === null ? "<unparseable DATABASE_URL>" : `${parsed.host}:${parsed.port}`;
 }
 
-export type Target = { host: string; port: number };
+export type Target = { host: string; port: number; protocol: string };
 
 /**
  * The host and port to knock on, or `null` when the URL cannot be read.
@@ -232,7 +232,7 @@ export function parseTarget(url: string): Target | null {
      * reported the condition as never taken, which is how it was found.
      */
     const port = parsed.port === "" ? DEFAULT_POSTGRES_PORT : Number(parsed.port);
-    return { host, port };
+    return { host, port, protocol: parsed.protocol };
   } catch {
     return null;
   }
@@ -288,11 +288,24 @@ export const COMPOSE_POSTGRES_PORT = 5432;
  *
  * Both questions are really this one question, so there is one function for it.
  */
+/** What a Postgres connection string may begin with. */
+const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
+
 export function namesComposeDatabase(url: string): boolean {
   const target = parseTarget(url);
   if (target === null) return false;
 
-  return LOCAL_HOSTS.has(target.host.toLowerCase()) && target.port === COMPOSE_POSTGRES_PORT;
+  /**
+   * The scheme is checked too, because host and port alone say nothing about
+   * what is being addressed: `http://localhost:5432/app` matched both and would
+   * have been accepted as the compose database. Raised in review on #402 — and
+   * on the `db:reset` path the cost of accepting it is a destroyed volume.
+   */
+  return (
+    POSTGRES_SCHEMES.has(target.protocol.toLowerCase()) &&
+    LOCAL_HOSTS.has(target.host.toLowerCase()) &&
+    target.port === COMPOSE_POSTGRES_PORT
+  );
 }
 
 /**
