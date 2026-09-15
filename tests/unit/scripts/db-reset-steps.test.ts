@@ -47,12 +47,12 @@ describe("runReset", () => {
    * it is that every refusal happens *before* anything is destroyed.
    */
   describe("refuses before destroying anything", () => {
-    it("when the target is not this machine", async () => {
+    it("when the target is not this project's database", async () => {
       const a = actions({ url: REMOTE });
 
       expect(await runReset(a)).toBe(1);
       expect(a.steps).not.toContain("destroy");
-      expect(a.steps.at(-1)).toContain("not this machine");
+      expect(a.steps.at(-1)).toContain("not this project's database");
       expect(a.steps.at(-1)).not.toContain("hunter2");
     });
 

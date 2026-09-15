@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  COMPOSE_POSTGRES_PORT,
   canStartDaemonAutomatically,
   DEFAULT_POSTGRES_PORT,
   daemonNotStartedMessage,
@@ -7,7 +9,7 @@ import {
   decidePreflight,
   describeTarget,
   effectiveDatabaseUrl,
-  isLocalDatabaseUrl,
+  namesComposeDatabase,
   noDockerMessage,
   parseTarget,
   postgresUnreachableMessage,
@@ -140,7 +142,7 @@ describe("decidePreflight", () => {
   });
 });
 
-describe("decidePreflight, when DATABASE_URL is not this machine", () => {
+describe("decidePreflight, when DATABASE_URL is not this project's database", () => {
   it("refuses to start local containers for an unreachable remote", async () => {
     const decision = await decidePreflight({
       ci: false,
@@ -150,7 +152,7 @@ describe("decidePreflight, when DATABASE_URL is not this machine", () => {
 
     expect(decision.kind).toBe("remote-unreachable");
     expect(decision.kind === "remote-unreachable" && decision.message).toContain(
-      "not started for a remote target"
+      "only started for localhost:5432"
     );
   });
 
@@ -254,13 +256,40 @@ describe("parseTarget", () => {
   });
 });
 
-describe("isLocalDatabaseUrl", () => {
+describe("namesComposeDatabase", () => {
+  it("matches the port docker-compose.yml actually publishes", () => {
+    /**
+     * The constant is a second copy of a value that lives in the compose file,
+     * so it gets a mechanism rather than a comment asking people to remember.
+     * Changing the published port without changing the constant would let
+     * `db:reset` refuse the real database, or worse, accept the wrong one.
+     */
+    const compose = readFileSync("docker-compose.yml", "utf8");
+    const published = /-\s*"(\d+):(\d+)"/.exec(compose);
+
+    expect(published).not.toBeNull();
+    expect(Number(published?.[1])).toBe(COMPOSE_POSTGRES_PORT);
+  });
+
   it.each(["localhost", "127.0.0.1", "0.0.0.0", "LOCALHOST"])("accepts %s", (host) => {
-    expect(isLocalDatabaseUrl(`postgresql://user@${host}:5432/app`)).toBe(true);
+    expect(namesComposeDatabase(`postgresql://user@${host}:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
+      true
+    );
+  });
+
+  it("rejects another Postgres on this machine, on a different port", () => {
+    /**
+     * Caught in review on #402. A hostname check alone let a second local
+     * Postgres through, and then both callers did the wrong thing: the
+     * preflight would start containers binding 5432 that cannot serve 6543,
+     * and db:reset would destroy this project's volume while the URL pointed
+     * somewhere else — reporting a fresh database it had never touched.
+     */
+    expect(namesComposeDatabase("postgresql://user@localhost:6543/app")).toBe(false);
   });
 
   it("accepts the IPv6 loopback, which a URL carries in brackets", () => {
-    expect(isLocalDatabaseUrl("postgresql://user@[::1]:5432/app")).toBe(true);
+    expect(namesComposeDatabase(`postgresql://user@[::1]:${COMPOSE_POSTGRES_PORT}/app`)).toBe(true);
   });
 
   it.each([
@@ -268,11 +297,11 @@ describe("isLocalDatabaseUrl", () => {
     "postgresql://user@192.168.1.10:5432/app",
     "postgresql://user@localhost.example.com:5432/app",
   ])("rejects %s", (url) => {
-    expect(isLocalDatabaseUrl(url)).toBe(false);
+    expect(namesComposeDatabase(url)).toBe(false);
   });
 
   it("rejects a URL it cannot parse", () => {
-    expect(isLocalDatabaseUrl("not a url")).toBe(false);
+    expect(namesComposeDatabase("not a url")).toBe(false);
   });
 });
 
@@ -284,7 +313,7 @@ describe("resetRefusal", () => {
   it("refuses a remote one, and says so without the password", () => {
     const refusal = resetRefusal("postgresql://user:hunter2@altaria.proxy.rlwy.net:45459/railway");
 
-    expect(refusal).toContain("not this machine");
+    expect(refusal).toContain("not this project's database");
     expect(refusal).toContain("altaria.proxy.rlwy.net:45459");
     expect(refusal).not.toContain("hunter2");
   });
@@ -300,7 +329,13 @@ describe("resetRefusal", () => {
   });
 
   it("refuses a URL it cannot parse, rather than falling through to the reset", () => {
-    expect(resetRefusal("not a url")).toContain("not this machine");
+    expect(resetRefusal("not a url")).toContain("not this project's database");
+  });
+
+  it("refuses another local Postgres, which would reset the wrong volume", () => {
+    expect(resetRefusal("postgresql://user@localhost:6543/app")).toContain(
+      "not this project's database"
+    );
   });
 });
 

@@ -25,7 +25,7 @@ import { runPreflight } from "./preflight";
 import {
   decidePreflight,
   effectiveDatabaseUrl,
-  isLocalDatabaseUrl,
+  namesComposeDatabase,
   waitFor,
 } from "./services-plan";
 import { postgresAcceptsQueries } from "./services-run";
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       decidePreflight({
         ci: (process.env.CI ?? "") !== "",
         postgresReachable: reachable,
-        targetIsLocal: isLocalDatabaseUrl(url),
+        targetIsLocal: namesComposeDatabase(url),
         dockerAvailable,
         dockerRunning: dockerIsRunning,
       }),
