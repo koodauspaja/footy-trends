@@ -9,7 +9,7 @@
  */
 import { spawn } from "node:child_process";
 import postgres from "postgres";
-import { parseTarget } from "./services-plan";
+import { probeUrls } from "./services-plan";
 
 /** How long a single probe waits before calling the server unreachable. */
 const PROBE_TIMEOUT_SECONDS = 2;
@@ -28,12 +28,15 @@ const PROBE_TIMEOUT_SECONDS = 2;
  * database has not been created yet — two states with very different fixes.
  */
 export async function postgresAcceptsQueries(url: string): Promise<boolean> {
-  if (parseTarget(url) === null) return false;
+  for (const candidate of probeUrls(url)) {
+    if (await answers(candidate)) return true;
+  }
+  return false;
+}
 
-  const adminUrl = new URL(url);
-  adminUrl.pathname = "/postgres";
-
-  const sql = postgres(adminUrl.toString(), {
+/** One connection attempt, to exactly the database this URL names. */
+async function answers(url: string): Promise<boolean> {
+  const sql = postgres(url, {
     max: 1,
     connect_timeout: PROBE_TIMEOUT_SECONDS,
     idle_timeout: 1,
@@ -46,8 +49,9 @@ export async function postgresAcceptsQueries(url: string): Promise<boolean> {
     await sql`select 1`;
     return true;
   } catch {
-    // Refused, timed out, wrong password — all of them mean this preflight
-    // cannot proceed, and the caller's message covers the ones worth naming.
+    // Refused, timed out, wrong password, no such database — all of them mean
+    // this candidate cannot answer, and the caller's message covers the ones
+    // worth naming.
     return false;
   } finally {
     await sql.end({ timeout: 1 });

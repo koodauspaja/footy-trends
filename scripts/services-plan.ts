@@ -307,6 +307,35 @@ export const COMPOSE_POSTGRES_PORT = 5432;
 /** What a Postgres connection string may begin with. */
 const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
 
+/**
+ * The connection strings a reachability probe should try, in order.
+ *
+ * **Two, because either one alone is wrong somewhere.**
+ *
+ * - The configured database only: a managed Postgres whose user cannot reach
+ *   the administrative `postgres` database reads as unreachable although the
+ *   application's own database is fine, and the preflight then blocks a command
+ *   that would have worked. Raised in review on #402.
+ * - `postgres` only: the suite's database may not exist yet — `ensureTestDatabase`
+ *   is what creates it — so a `TEST_DATABASE_URL` naming it would read as
+ *   unreachable until something else had already run.
+ *
+ * Either answering means the server is up, which is the only question being
+ * asked. The configured database is tried first because it is the one that has
+ * to work.
+ */
+export function probeUrls(url: string): string[] {
+  if (parseTarget(url) === null) return [];
+
+  const admin = new URL(url);
+  admin.pathname = "/postgres";
+  const adminUrl = admin.toString();
+
+  // Identical when DATABASE_URL already names `postgres`; probing twice would
+  // double the wait on a server that is simply down.
+  return adminUrl === url ? [url] : [url, adminUrl];
+}
+
 /** Whether this string is one a Postgres client could accept at all. */
 export function isPostgresUrl(url: string): boolean {
   const target = parseTarget(url);

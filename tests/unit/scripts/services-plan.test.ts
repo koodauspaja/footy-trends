@@ -14,6 +14,7 @@ import {
   noDockerMessage,
   parseTarget,
   postgresUnreachableMessage,
+  probeUrls,
   resetRefusal,
   waitFor,
 } from "../../../scripts/services-plan";
@@ -606,5 +607,35 @@ describe("daemonNotStartedMessage", () => {
     expect(message).toContain("could not be started");
     // Linux is the case that produced this: the caller must be told what to run.
     expect(message).toContain("service manager");
+  });
+});
+
+describe("probeUrls", () => {
+  it("tries the configured database first, then the administrative one", () => {
+    // The configured one first because it is the one that has to work: a managed
+    // Postgres may refuse `postgres` entirely while the app's database is fine.
+    expect(probeUrls("postgresql://u:p@localhost:5432/footy-trends")).toEqual([
+      "postgresql://u:p@localhost:5432/footy-trends",
+      "postgresql://u:p@localhost:5432/postgres",
+    ]);
+  });
+
+  it("still tries the administrative one, for a database that does not exist yet", () => {
+    // `ensureTestDatabase` is what creates the suite's database, so probing only
+    // the configured name would read as unreachable until something else ran.
+    const [, admin] = probeUrls("postgresql://u:p@localhost:5432/footy-trends_test");
+
+    expect(admin).toBe("postgresql://u:p@localhost:5432/postgres");
+  });
+
+  it("does not probe the same URL twice", () => {
+    // Doubling the attempts would double the wait on a server that is down.
+    expect(probeUrls("postgresql://u:p@localhost:5432/postgres")).toEqual([
+      "postgresql://u:p@localhost:5432/postgres",
+    ]);
+  });
+
+  it("has nothing to try for a URL it cannot parse", () => {
+    expect(probeUrls("not a url")).toEqual([]);
   });
 });
