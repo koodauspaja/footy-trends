@@ -3,8 +3,8 @@
  * filesystem, the environment and `docker`, then let `e2e-freshness-plan.ts`
  * decide. Exits non-zero only on a `block`.
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { dockerIsRunning } from "./docker";
 import { fingerprint } from "./e2e-freshness-git";
 import {
   changedBetweenFingerprints,
@@ -16,7 +16,6 @@ import {
   missingPrerequisites,
   parseMarker,
 } from "./e2e-freshness-plan";
-import { executablePath } from "./executable";
 
 /**
  * What the last passing run cannot vouch for, as `path (kind)` strings.
@@ -42,24 +41,6 @@ function changesSince(marker: Marker): string[] {
   return changedBetweenFingerprints(marker.files, now).map(({ path: file, kind }) =>
     describeChange(file, kind)
   );
-}
-
-/**
- * Bounded, because a `docker` CLI installed without a reachable daemon can hang
- * far longer than anyone expects a pre-push hook to take. A timeout reads as
- * "not available", which warns rather than blocks.
- */
-function dockerIsRunning(): boolean {
-  // Absolute, not resolved through `PATH` — see `executable.ts`. No docker
-  // found reads exactly as docker not running, which is what this reports.
-  const binary = executablePath("docker");
-  if (binary === null) return false;
-
-  const probe = spawnSync(binary, ["info", "--format", "{{.ServerVersion}}"], {
-    stdio: "ignore",
-    timeout: 5000,
-  });
-  return probe.status === 0;
 }
 
 /** Same stdout/stderr helpers as the backfill scripts, which `noConsole` forbids. */
