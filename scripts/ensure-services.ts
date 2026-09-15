@@ -12,36 +12,24 @@
  * TASO_API_KEY. Postgres was the third prerequisite and got nothing: with the
  * containers down the run died inside the driver with a bare `AggregateError`
  * at `tests/support/test-database.ts:94`, which names neither the cause nor the
- * fix. This finishes that pattern, and starts the containers rather than only
- * complaining about them.
+ * fix.
+ *
+ * This file is wiring only. The decision lives in `services-plan.ts` and the
+ * sequence in `preflight.ts`, both unit tested; what is left here is reading the
+ * environment and handing the pieces over. It stays uncovered because
+ * `void main()` at import means a test that imported it would run it.
  */
 import { existsSync } from "node:fs";
 import { dockerAvailable, dockerIsRunning, startContainers, startDockerDaemon } from "./docker";
-import {
-  daemonUnavailableMessage,
-  decidePreflight,
-  postgresUnreachableMessage,
-} from "./services-plan";
-import { postgresAcceptsQueries, waitFor } from "./services-run";
+import { runPreflight } from "./preflight";
+import { decidePreflight, isLocalDatabaseUrl, waitFor } from "./services-plan";
+import { postgresAcceptsQueries } from "./services-run";
 
 /** Docker Desktop takes its time; this is generous rather than optimistic. */
 const DAEMON_TIMEOUT_MS = 90_000;
 
 /** A first run initialises the cluster before it accepts clients. */
 const POSTGRES_TIMEOUT_MS = 60_000;
-
-/** `process.stdout.write` rather than `console`, as every other script here does. */
-function out(line = ""): void {
-  process.stdout.write(`${line}\n`);
-}
-function err(line = ""): void {
-  process.stderr.write(`${line}\n`);
-}
-
-function fail(message: string): void {
-  err(`\n${message}\n`);
-  process.exitCode = 1;
-}
 
 async function main(): Promise<void> {
   if (existsSync(".env")) {
@@ -59,49 +47,28 @@ async function main(): Promise<void> {
    */
   if (url.trim() === "") return;
 
-  const decision = await decidePreflight({
-    ci: (process.env.CI ?? "") !== "",
-    postgresReachable: () => postgresAcceptsQueries(url),
-    dockerAvailable,
-    dockerRunning: dockerIsRunning,
+  const reachable = () => postgresAcceptsQueries(url);
+
+  process.exitCode = await runPreflight({
+    url,
+    decide: () =>
+      decidePreflight({
+        ci: (process.env.CI ?? "") !== "",
+        postgresReachable: reachable,
+        targetIsLocal: isLocalDatabaseUrl(url),
+        dockerAvailable,
+        dockerRunning: dockerIsRunning,
+      }),
+    startDaemon: () => startDockerDaemon(),
+    dockerIsRunning: () => dockerIsRunning(),
+    startContainers: () => startContainers(),
+    postgresReachable: reachable,
+    wait: waitFor,
+    daemonTimeoutMs: DAEMON_TIMEOUT_MS,
+    postgresTimeoutMs: POSTGRES_TIMEOUT_MS,
+    out: (line) => process.stdout.write(`${line}\n`),
+    err: (line) => process.stderr.write(`\n${line}\n`),
   });
-
-  if (decision.kind === "ready") return;
-
-  if (decision.kind === "skip") {
-    out(decision.message);
-    return;
-  }
-
-  if (decision.kind === "no-docker") {
-    fail(decision.message);
-    return;
-  }
-
-  if (decision.kind === "start-daemon") {
-    out("The Docker daemon is not running. Starting it…");
-    startDockerDaemon();
-
-    const daemon = await waitFor(async () => dockerIsRunning(), DAEMON_TIMEOUT_MS);
-    if (!daemon.ok) {
-      fail(daemonUnavailableMessage(daemon.waitedMs));
-      return;
-    }
-  }
-
-  out("Starting the project's containers…");
-  if (!startContainers()) {
-    fail("`docker compose up -d` failed. Its output is above.");
-    return;
-  }
-
-  const postgres = await waitFor(() => postgresAcceptsQueries(url), POSTGRES_TIMEOUT_MS);
-  if (!postgres.ok) {
-    fail(postgresUnreachableMessage(postgres.waitedMs, url));
-    return;
-  }
-
-  out("Postgres is ready.");
 }
 
 void main();

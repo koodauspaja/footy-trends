@@ -20,13 +20,17 @@ export type Preflight =
   /** The daemon itself is down. Worth one attempt before giving up. */
   | { kind: "start-daemon" }
   /** No `docker` to run at all, so nothing here can help. */
-  | { kind: "no-docker"; message: string };
+  | { kind: "no-docker"; message: string }
+  /** The target is somewhere else, so the local containers are not the answer. */
+  | { kind: "remote-unreachable"; message: string };
 
 export type PreflightInputs = {
   /** `CI` set to anything non-empty, as every runner sets it. */
   ci: boolean;
   /** Whether Postgres will answer a query. */
   postgresReachable: () => Promise<boolean>;
+  /** Whether `DATABASE_URL` names this machine — the compose containers' own address. */
+  targetIsLocal: boolean;
   /** Whether a `docker` binary was found. */
   dockerAvailable: () => boolean;
   /** Whether `docker info` answers, so the daemon is up. */
@@ -53,6 +57,7 @@ export type PreflightInputs = {
 export async function decidePreflight({
   ci,
   postgresReachable,
+  targetIsLocal,
   dockerAvailable,
   dockerRunning,
 }: PreflightInputs): Promise<Preflight> {
@@ -64,6 +69,22 @@ export async function decidePreflight({
   }
 
   if (await postgresReachable()) return { kind: "ready" };
+
+  /**
+   * **A remote target is never answered by starting local containers.**
+   *
+   * `docker compose up -d` would bind this machine's 5432 with a database that
+   * is not the one being connected to, and the probe would go on failing
+   * against the remote until the timeout — so the command still fails, sixty
+   * seconds later, having also started two containers nobody asked for.
+   *
+   * Caught in review on #402. The first version checked only whether Postgres
+   * answered, which is the right question for a local URL and the wrong one for
+   * any other.
+   */
+  if (!targetIsLocal) {
+    return { kind: "remote-unreachable", message: remoteUnreachableMessage() };
+  }
 
   if (!dockerAvailable()) {
     return {
@@ -92,6 +113,21 @@ export function noDockerMessage(): string {
     "all do. See INSTALL.md.",
     "",
     "If docker is installed somewhere unusual, set DOCKER_EXECUTABLE to its absolute path.",
+  ].join("\n");
+}
+
+/**
+ * When `DATABASE_URL` points somewhere else and that somewhere is not answering.
+ *
+ * Deliberately does not name the local containers as a fix: they are not one.
+ */
+export function remoteUnreachableMessage(): string {
+  return [
+    "DATABASE_URL points at a database that is not on this machine, and it is not answering.",
+    "",
+    "The local containers are not started for a remote target — they would bind this",
+    "machine's port with a different database. Check the remote, or point DATABASE_URL",
+    "back at localhost to use the compose setup.",
   ].join("\n");
 }
 
@@ -215,4 +251,45 @@ export function resetRefusal(url: string | undefined): string | null {
   }
 
   return null;
+}
+
+/** Between probes while waiting for something to come up. */
+export const POLL_INTERVAL_MS = 500;
+
+export type WaitResult = { ok: boolean; waitedMs: number };
+
+/**
+ * Polls `probe` until it answers true or the deadline passes, reporting how
+ * long it waited so the caller can say so.
+ *
+ * **Here, with the clock injected, rather than beside the sockets.** It was in
+ * `services-run.ts` at first and therefore behind a coverage exclusion — but a
+ * deadline loop is control flow, not IO, and an untested timeout is exactly
+ * where an off-by-one lives. Review on #402 made the point; this is the same
+ * move as `canStartDaemonAutomatically`.
+ *
+ * The probe is called **before** the first sleep, so a service that is already
+ * up costs no delay at all.
+ */
+export async function waitFor(
+  probe: () => Promise<boolean>,
+  timeoutMs: number,
+  {
+    now = () => Date.now(),
+    sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    intervalMs = POLL_INTERVAL_MS,
+  }: {
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+    intervalMs?: number;
+  } = {}
+): Promise<WaitResult> {
+  const startedAt = now();
+
+  while (now() - startedAt < timeoutMs) {
+    if (await probe()) return { ok: true, waitedMs: now() - startedAt };
+    await sleep(intervalMs);
+  }
+
+  return { ok: false, waitedMs: now() - startedAt };
 }

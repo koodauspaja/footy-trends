@@ -14,9 +14,6 @@ import { parseTarget } from "./services-plan";
 /** How long a single probe waits before calling the server unreachable. */
 const PROBE_TIMEOUT_SECONDS = 2;
 
-/** Between probes while waiting for something to come up. */
-const POLL_INTERVAL_MS = 500;
-
 /**
  * Whether a Postgres on that URL will answer a query — not merely whether
  * something holds the port open.
@@ -55,24 +52,6 @@ export async function postgresAcceptsQueries(url: string): Promise<boolean> {
   } finally {
     await sql.end({ timeout: 1 });
   }
-}
-
-/**
- * Polls `probe` until it answers true or the deadline passes, returning how
- * long it waited so the caller can say so.
- */
-export async function waitFor(
-  probe: () => Promise<boolean>,
-  timeoutMs: number
-): Promise<{ ok: boolean; waitedMs: number }> {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await probe()) return { ok: true, waitedMs: Date.now() - startedAt };
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
-
-  return { ok: false, waitedMs: Date.now() - startedAt };
 }
 
 /** Runs a command to completion, inheriting stdio, and resolves its exit code. */

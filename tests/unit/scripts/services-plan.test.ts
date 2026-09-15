@@ -10,6 +10,7 @@ import {
   parseTarget,
   postgresUnreachableMessage,
   resetRefusal,
+  waitFor,
 } from "../../../scripts/services-plan";
 
 const LOCAL = "postgresql://postgres:secret@localhost:5432/footy-trends";
@@ -40,10 +41,14 @@ function probes(answers: { postgres: boolean; available: boolean; running: boole
 /** Everything present and working, so each test can vary one thing. */
 const HEALTHY = { postgres: true, available: true, running: true };
 
+/** A local target, which is the case every Docker branch below assumes. */
+const LOCAL_TARGET = { targetIsLocal: true } as const;
+
 describe("decidePreflight", () => {
   it("does nothing in CI, which provides its own services", async () => {
     const decision = await decidePreflight({
       ci: true,
+      ...LOCAL_TARGET,
       ...probes({ ...HEALTHY, postgres: false }),
     });
 
@@ -57,13 +62,15 @@ describe("decidePreflight", () => {
     // Not merely "does not start anything" — a runner should not pay for a
     // connection attempt or a `docker info` either.
     const p = probes({ postgres: false, available: false, running: false });
-    await decidePreflight({ ci: true, ...p });
+    await decidePreflight({ ci: true, ...LOCAL_TARGET, ...p });
 
     expect(p.asked).toEqual({ postgres: 0, available: 0, running: 0 });
   });
 
   it("is ready when Postgres answers", async () => {
-    expect((await decidePreflight({ ci: false, ...probes(HEALTHY) })).kind).toBe("ready");
+    expect((await decidePreflight({ ci: false, ...LOCAL_TARGET, ...probes(HEALTHY) })).kind).toBe(
+      "ready"
+    );
   });
 
   it("never asks Docker anything when Postgres answers", async () => {
@@ -73,7 +80,7 @@ describe("decidePreflight", () => {
      * signature could not express that it must not happen.
      */
     const p = probes(HEALTHY);
-    await decidePreflight({ ci: false, ...p });
+    await decidePreflight({ ci: false, ...LOCAL_TARGET, ...p });
 
     expect(p.asked.postgres).toBe(1);
     expect(p.asked.available).toBe(0);
@@ -85,6 +92,7 @@ describe("decidePreflight", () => {
     // is accepted rather than second-guessed.
     const decision = await decidePreflight({
       ci: false,
+      ...LOCAL_TARGET,
       ...probes({ postgres: true, available: false, running: false }),
     });
 
@@ -94,6 +102,7 @@ describe("decidePreflight", () => {
   it("starts the containers when the daemon is up but Postgres is not", async () => {
     const decision = await decidePreflight({
       ci: false,
+      ...LOCAL_TARGET,
       ...probes({ ...HEALTHY, postgres: false }),
     });
 
@@ -103,6 +112,7 @@ describe("decidePreflight", () => {
   it("starts the daemon when it is down", async () => {
     const decision = await decidePreflight({
       ci: false,
+      ...LOCAL_TARGET,
       ...probes({ postgres: false, available: true, running: false }),
     });
 
@@ -112,6 +122,7 @@ describe("decidePreflight", () => {
   it("gives up when there is no docker to run", async () => {
     const decision = await decidePreflight({
       ci: false,
+      ...LOCAL_TARGET,
       ...probes({ postgres: false, available: false, running: false }),
     });
 
@@ -121,9 +132,48 @@ describe("decidePreflight", () => {
 
   it("does not bother asking whether the daemon runs when there is no docker", async () => {
     const p = probes({ postgres: false, available: false, running: false });
-    await decidePreflight({ ci: false, ...p });
+    await decidePreflight({ ci: false, ...LOCAL_TARGET, ...p });
 
     expect(p.asked.running).toBe(0);
+  });
+});
+
+describe("decidePreflight, when DATABASE_URL is not this machine", () => {
+  it("refuses to start local containers for an unreachable remote", async () => {
+    const decision = await decidePreflight({
+      ci: false,
+      targetIsLocal: false,
+      ...probes({ postgres: false, available: true, running: true }),
+    });
+
+    expect(decision.kind).toBe("remote-unreachable");
+    expect(decision.kind === "remote-unreachable" && decision.message).toContain(
+      "not started for a remote target"
+    );
+  });
+
+  it("does not even ask whether Docker is there", async () => {
+    /**
+     * Caught in review on #402. Starting the compose containers would bind this
+     * machine's 5432 with a database nobody is connecting to, and the probe
+     * would go on failing against the remote until the timeout — so the command
+     * fails anyway, a minute later, with two containers nobody asked for.
+     */
+    const p = probes({ postgres: false, available: true, running: true });
+    await decidePreflight({ ci: false, targetIsLocal: false, ...p });
+
+    expect(p.asked.available).toBe(0);
+    expect(p.asked.running).toBe(0);
+  });
+
+  it("is still ready when the remote answers", async () => {
+    const decision = await decidePreflight({
+      ci: false,
+      targetIsLocal: false,
+      ...probes(HEALTHY),
+    });
+
+    expect(decision.kind).toBe("ready");
   });
 });
 
@@ -249,5 +299,91 @@ describe("resetRefusal", () => {
 
   it("refuses a URL it cannot parse, rather than falling through to the reset", () => {
     expect(resetRefusal("not a url")).toContain("not this machine");
+  });
+});
+
+describe("waitFor", () => {
+  /** A clock the test moves, so no test waits for anything. */
+  function clock() {
+    let nowMs = 0;
+    return {
+      now: () => nowMs,
+      sleep: async (ms: number) => {
+        nowMs += ms;
+      },
+    };
+  }
+
+  it("does not sleep at all when the probe answers immediately", async () => {
+    const c = clock();
+
+    const result = await waitFor(async () => true, 10_000, c);
+
+    expect(result).toEqual({ ok: true, waitedMs: 0 });
+  });
+
+  it("reports how long it waited before the probe answered", async () => {
+    const c = clock();
+    let calls = 0;
+
+    const result = await waitFor(
+      async () => {
+        calls += 1;
+        return calls === 3;
+      },
+      10_000,
+      { ...c, intervalMs: 500 }
+    );
+
+    expect(result).toEqual({ ok: true, waitedMs: 1000 });
+    expect(calls).toBe(3);
+  });
+
+  it("gives up once the deadline passes", async () => {
+    const c = clock();
+
+    const result = await waitFor(async () => false, 2000, { ...c, intervalMs: 500 });
+
+    expect(result.ok).toBe(false);
+    expect(result.waitedMs).toBe(2000);
+  });
+
+  it("does not probe at all when the timeout is zero", async () => {
+    // An off-by-one here would call a probe the caller asked it not to — which
+    // for the daemon path means spawning `docker info` after giving up.
+    const c = clock();
+    let calls = 0;
+
+    const result = await waitFor(
+      async () => {
+        calls += 1;
+        return true;
+      },
+      0,
+      c
+    );
+
+    expect(calls).toBe(0);
+    expect(result).toEqual({ ok: false, waitedMs: 0 });
+  });
+});
+
+describe("waitFor, with nothing injected", () => {
+  it("uses a real clock and a real sleep", async () => {
+    // Covers the defaults the tests above replace. One 1ms sleep, so the probe
+    // is genuinely called twice without the test waiting for anything.
+    let calls = 0;
+
+    const result = await waitFor(
+      async () => {
+        calls += 1;
+        return calls === 2;
+      },
+      5000,
+      { intervalMs: 1 }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(calls).toBe(2);
   });
 });
