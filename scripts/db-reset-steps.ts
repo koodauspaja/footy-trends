@@ -57,6 +57,24 @@ export async function runReset(actions: ResetActions): Promise<number> {
     return 1;
   }
 
+  /**
+   * **Said the moment the volume is gone, not at the end.**
+   *
+   * Everything after this can fail — the containers may not come back, Postgres
+   * may not answer, the migrations may not apply — and the data is already gone
+   * in every one of those cases. A notice that only printed on success would be
+   * missing from exactly the runs where it mattered most. Raised in review on
+   * #405.
+   *
+   * It describes the **server**, not a named database: `TEST_DATABASE_URL` can
+   * point the suites somewhere else entirely, so claiming that a particular test
+   * database was destroyed would be a guess. What is certainly true is that
+   * everything in this volume has gone.
+   */
+  actions.out(
+    `Everything on that server has gone, not only ${COMPOSE_DATABASE_NAME} — the next test run recreates whatever it needs.`
+  );
+
   actions.out("Starting them again…");
   if (!actions.startContainers()) {
     actions.err("`docker compose up -d` failed. Its output is above.");
@@ -81,16 +99,5 @@ export async function runReset(actions: ResetActions): Promise<number> {
 
   actions.out("");
   actions.out("The local database is fresh and migrated.");
-  /**
-   * Said out loud because it is not obvious and it is destructive.
-   *
-   * The suites' database lives on the same server and therefore in the same
-   * volume, so `compose down --volumes` takes it too. Nothing has to be done
-   * about that — `ensureTestDatabase` creates and migrates it on the next run —
-   * but someone who had seeded it deserves to know where it went.
-   */
-  actions.out(
-    `${COMPOSE_DATABASE_NAME}_test went with the volume; the next test run recreates it.`
-  );
   return 0;
 }
