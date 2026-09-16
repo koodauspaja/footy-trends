@@ -4,13 +4,16 @@ import {
   COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
   canStartDaemonAutomatically,
+  confirmationPrompt,
   DEFAULT_POSTGRES_PORT,
   daemonNotStartedMessage,
   daemonUnavailableMessage,
   databaseNameOf,
+  decideConfirmation,
   decidePreflight,
   describeTarget,
   effectiveDatabaseUrl,
+  isAffirmative,
   isComposeDatabase,
   isPostgresUrl,
   noDockerMessage,
@@ -19,6 +22,7 @@ import {
   probeUrls,
   resetRefusal,
   runsOnComposeServer,
+  testResetRefusal,
   waitFor,
 } from "../../../scripts/services-plan";
 
@@ -723,5 +727,85 @@ describe("databaseNameOf", () => {
 
   it("is null for something that is not a URL", () => {
     expect(databaseNameOf("not a url")).toBeNull();
+  });
+});
+
+describe("testResetRefusal", () => {
+  const onCompose = (name: string) => `postgresql://postgres:x@localhost:5432/${name}`;
+
+  it("allows the suites' database", () => {
+    expect(testResetRefusal(onCompose("footy-trends_test"))).toBeNull();
+  });
+
+  it("allows any other database on that server, which the tooling owns", () => {
+    // Deliberately laxer than the dev guard: nothing here is the human's.
+    expect(testResetRefusal(onCompose("footy-trends_e2e"))).toBeNull();
+  });
+
+  it("refuses the development database, which is the one thing it protects", () => {
+    /**
+     * A mis-derived test URL, or TEST_DATABASE_URL set to the dev database by
+     * mistake, would otherwise let the *safe* command destroy the developer's
+     * data without asking — the exact failure #406 exists to prevent.
+     */
+    const refusal = testResetRefusal(onCompose("footy-trends"));
+
+    expect(refusal).toContain("that is the development database");
+    expect(refusal).toContain("db:reset:dev");
+  });
+
+  it("refuses a database on another server", () => {
+    expect(testResetRefusal("postgresql://u:p@db.example.com:5432/suite_test")).toContain(
+      "not this project's Postgres"
+    );
+  });
+
+  it("refuses when nothing says where the test database is", () => {
+    expect(testResetRefusal(undefined)).toContain("No test database URL");
+    expect(testResetRefusal("  ")).toContain("No test database URL");
+  });
+});
+
+describe("decideConfirmation", () => {
+  it("proceeds when --yes was passed", () => {
+    expect(decideConfirmation({ yes: true, interactive: true })).toBe("proceed");
+    expect(decideConfirmation({ yes: true, interactive: false })).toBe("proceed");
+  });
+
+  it("asks when there is a terminal", () => {
+    expect(decideConfirmation({ yes: false, interactive: true })).toBe("ask");
+  });
+
+  it("refuses when there is nobody to ask", () => {
+    /**
+     * Treating an unanswerable prompt as consent would make every scripted or
+     * agent-driven run a silent destruction of the developer's database, which
+     * is the case the confirmation exists for.
+     */
+    expect(decideConfirmation({ yes: false, interactive: false })).toBe("refuse");
+  });
+});
+
+describe("confirmationPrompt", () => {
+  it("names what will be destroyed, and what counts as consent", () => {
+    const prompt = confirmationPrompt();
+
+    // The prompt has to say more than "are you sure": the surprise it exists to
+    // prevent is that everything else on that server goes too.
+    expect(prompt).toContain(COMPOSE_DATABASE_NAME);
+    expect(prompt).toContain("everything else on that server");
+    expect(prompt).toContain('Type "yes"');
+  });
+});
+
+describe("isAffirmative", () => {
+  it.each(["yes", "YES", "  yes  ", "Yes"])("accepts %o", (answer) => {
+    expect(isAffirmative(answer)).toBe(true);
+  });
+
+  it.each(["y", "Y", "", "no", "yes please", "1"])("rejects %o", (answer) => {
+    // `y` is what people press to get past a dialog they have stopped reading,
+    // and this one destroys data.
+    expect(isAffirmative(answer)).toBe(false);
   });
 });
