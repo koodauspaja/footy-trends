@@ -1,21 +1,24 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
   canStartDaemonAutomatically,
   DEFAULT_POSTGRES_PORT,
   daemonNotStartedMessage,
   daemonUnavailableMessage,
+  databaseNameOf,
   decidePreflight,
   describeTarget,
   effectiveDatabaseUrl,
+  isComposeDatabase,
   isPostgresUrl,
-  namesComposeDatabase,
   noDockerMessage,
   parseTarget,
   postgresUnreachableMessage,
   probeUrls,
   resetRefusal,
+  runsOnComposeServer,
   waitFor,
 } from "../../../scripts/services-plan";
 
@@ -325,7 +328,7 @@ describe("parseTarget", () => {
   });
 });
 
-describe("namesComposeDatabase", () => {
+describe("runsOnComposeServer", () => {
   it("matches the port docker-compose.yml actually publishes", () => {
     /**
      * The constant is a second copy of a value that lives in the compose file,
@@ -341,7 +344,7 @@ describe("namesComposeDatabase", () => {
   });
 
   it.each(["localhost", "127.0.0.1", "0.0.0.0", "LOCALHOST"])("accepts %s", (host) => {
-    expect(namesComposeDatabase(`postgresql://user@${host}:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
+    expect(runsOnComposeServer(`postgresql://user@${host}:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
       true
     );
   });
@@ -351,14 +354,12 @@ describe("namesComposeDatabase", () => {
     (scheme) => {
       // Host and port alone say nothing about what is being addressed, and on
       // the db:reset path accepting one costs a destroyed volume.
-      expect(namesComposeDatabase(`${scheme}://localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
-        false
-      );
+      expect(runsOnComposeServer(`${scheme}://localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(false);
     }
   );
 
   it("accepts the postgres: spelling as well as postgresql:", () => {
-    expect(namesComposeDatabase(`postgres://user@localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
+    expect(runsOnComposeServer(`postgres://user@localhost:${COMPOSE_POSTGRES_PORT}/app`)).toBe(
       true
     );
   });
@@ -371,11 +372,11 @@ describe("namesComposeDatabase", () => {
      * and db:reset would destroy this project's volume while the URL pointed
      * somewhere else — reporting a fresh database it had never touched.
      */
-    expect(namesComposeDatabase("postgresql://user@localhost:6543/app")).toBe(false);
+    expect(runsOnComposeServer("postgresql://user@localhost:6543/app")).toBe(false);
   });
 
   it("accepts the IPv6 loopback, which a URL carries in brackets", () => {
-    expect(namesComposeDatabase(`postgresql://user@[::1]:${COMPOSE_POSTGRES_PORT}/app`)).toBe(true);
+    expect(runsOnComposeServer(`postgresql://user@[::1]:${COMPOSE_POSTGRES_PORT}/app`)).toBe(true);
   });
 
   it.each([
@@ -383,11 +384,11 @@ describe("namesComposeDatabase", () => {
     "postgresql://user@192.168.1.10:5432/app",
     "postgresql://user@localhost.example.com:5432/app",
   ])("rejects %s", (url) => {
-    expect(namesComposeDatabase(url)).toBe(false);
+    expect(runsOnComposeServer(url)).toBe(false);
   });
 
   it("rejects a URL it cannot parse", () => {
-    expect(namesComposeDatabase("not a url")).toBe(false);
+    expect(runsOnComposeServer("not a url")).toBe(false);
   });
 });
 
@@ -416,6 +417,31 @@ describe("resetRefusal", () => {
 
   it("refuses a URL it cannot parse, rather than falling through to the reset", () => {
     expect(resetRefusal("not a url")).toContain("not this project's database");
+  });
+
+  it.each(["postgres", "footy-trends_test", "someone-elses-db"])(
+    "refuses /%s on the compose server, before anything is destroyed",
+    (name) => {
+      /**
+       * #404. The guard checked scheme, host and port but not the database
+       * name, so db:reset destroyed the volume and then migrated whichever
+       * database DATABASE_URL named — reporting success afterwards.
+       */
+      const refusal = resetRefusal(`postgresql://postgres:x@localhost:5432/${name}`);
+
+      expect(refusal).toContain("not this project's database");
+      expect(refusal).toContain("footy-trends");
+    }
+  );
+
+  it("still allows the compose database itself", () => {
+    expect(resetRefusal("postgresql://postgres:x@localhost:5432/footy-trends")).toBeNull();
+  });
+
+  it("names the database it refused, so the message says what was wrong", () => {
+    expect(resetRefusal("postgresql://postgres:x@localhost:5432/postgres")).toContain(
+      "localhost:5432/postgres"
+    );
   });
 
   it("refuses another local Postgres, which would reset the wrong volume", () => {
@@ -637,5 +663,65 @@ describe("probeUrls", () => {
 
   it("has nothing to try for a URL it cannot parse", () => {
     expect(probeUrls("not a url")).toEqual([]);
+  });
+});
+
+describe("isComposeDatabase", () => {
+  const on = (name: string) => `postgresql://postgres:x@localhost:${COMPOSE_POSTGRES_PORT}/${name}`;
+
+  it("matches the database name docker-compose.yml actually creates", () => {
+    // The same mechanism the port gets: the constant is a second copy, so a test
+    // reads the compose file rather than a comment asking people to remember.
+    const compose = readFileSync("docker-compose.yml", "utf8");
+    const declared = /POSTGRES_DB:\s*(\S+)/.exec(compose);
+
+    expect(declared).not.toBeNull();
+    expect(declared?.[1]).toBe(COMPOSE_DATABASE_NAME);
+  });
+
+  it("accepts the compose database", () => {
+    expect(isComposeDatabase(on(COMPOSE_DATABASE_NAME))).toBe(true);
+  });
+
+  /**
+   * The bug in #404. Each of these reached the guard, destroyed the compose
+   * volume, then migrated the database the URL named — reporting the reset a
+   * success with the destructive step already done.
+   */
+  it.each(["postgres", "footy-trends_test", "someone-elses-db", ""])(
+    "refuses /%s on the same server",
+    (name) => {
+      expect(isComposeDatabase(on(name))).toBe(false);
+    }
+  );
+
+  it("decodes the name before comparing it", () => {
+    // `footy%2Dtrends` addresses `footy-trends`; comparing the raw path would
+    // call the same database a different one and refuse a legitimate reset.
+    expect(isComposeDatabase(on("footy%2Dtrends"))).toBe(true);
+  });
+
+  it("still refuses a remote host that happens to use the same name", () => {
+    expect(isComposeDatabase(`postgresql://u:p@db.example.com:5432/${COMPOSE_DATABASE_NAME}`)).toBe(
+      false
+    );
+  });
+
+  it("is false for a URL it cannot parse", () => {
+    expect(isComposeDatabase("not a url")).toBe(false);
+  });
+});
+
+describe("databaseNameOf", () => {
+  it("reads the name without its leading slash", () => {
+    expect(databaseNameOf("postgresql://h:5432/app")).toBe("app");
+  });
+
+  it("is empty when the URL names no database", () => {
+    expect(databaseNameOf("postgresql://h:5432")).toBe("");
+  });
+
+  it("is null for something that is not a URL", () => {
+    expect(databaseNameOf("not a url")).toBeNull();
   });
 });

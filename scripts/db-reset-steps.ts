@@ -7,7 +7,12 @@
  * the thing most worth a test is not the happy path: it is that each refusal
  * happens **before** anything is destroyed.
  */
-import { postgresUnreachableMessage, resetRefusal, type WaitResult } from "./services-plan";
+import {
+  COMPOSE_DATABASE_NAME,
+  postgresUnreachableMessage,
+  resetRefusal,
+  type WaitResult,
+} from "./services-plan";
 
 export type ResetActions = {
   url: string | undefined;
@@ -51,6 +56,24 @@ export async function runReset(actions: ResetActions): Promise<number> {
     actions.err("`docker compose down --volumes` failed. Its output is above.");
     return 1;
   }
+
+  /**
+   * **Said the moment the volume is gone, not at the end.**
+   *
+   * Everything after this can fail — the containers may not come back, Postgres
+   * may not answer, the migrations may not apply — and the data is already gone
+   * in every one of those cases. A notice that only printed on success would be
+   * missing from exactly the runs where it mattered most. Raised in review on
+   * #405.
+   *
+   * It describes the **server**, not a named database: `TEST_DATABASE_URL` can
+   * point the suites somewhere else entirely, so claiming that a particular test
+   * database was destroyed would be a guess. What is certainly true is that
+   * everything in this volume has gone.
+   */
+  actions.out(
+    `Everything on that server has gone, not only ${COMPOSE_DATABASE_NAME} — the next test run recreates whatever it needs.`
+  );
 
   actions.out("Starting them again…");
   if (!actions.startContainers()) {

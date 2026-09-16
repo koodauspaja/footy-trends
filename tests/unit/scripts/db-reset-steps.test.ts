@@ -34,6 +34,33 @@ function actions(overrides: Partial<ResetActions> = {}): ResetActions & { steps:
 }
 
 describe("runReset", () => {
+  it("says what was destroyed as soon as it is destroyed", async () => {
+    /**
+     * Everything after the volume goes can fail, and the data is gone in every
+     * one of those cases — so a notice printed only on success would be missing
+     * from exactly the runs that needed it. Raised in review on #405.
+     */
+    const a = actions({ startContainers: () => false });
+
+    expect(await runReset(a)).toBe(1);
+
+    const notice = a.steps.findIndex((s) => s.includes("has gone"));
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeGreaterThan(a.steps.indexOf("destroy"));
+  });
+
+  it("describes the server rather than naming a test database it cannot know", async () => {
+    // TEST_DATABASE_URL can point the suites at another server entirely, so
+    // claiming a particular test database was destroyed would be a guess.
+    const a = actions();
+
+    await runReset(a);
+
+    const notice = a.steps.find((s) => s.includes("has gone")) ?? "";
+    expect(notice).toContain("not only footy-trends");
+    expect(notice).not.toContain("footy-trends_test");
+  });
+
   it("destroys, restarts and migrates, in that order", async () => {
     const a = actions();
 
