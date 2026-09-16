@@ -378,6 +378,15 @@ export function runsOnComposeServer(url: string): boolean {
 export const COMPOSE_DATABASE_NAME = "footy-trends";
 
 /**
+ * The database the suites use, as `tests/support/test-database.ts` derives it:
+ * the development database's name with `_test` appended.
+ *
+ * Stated here so the reset guard can insist on exactly it, rather than on
+ * "anything that is not something else".
+ */
+export const COMPOSE_TEST_DATABASE_NAME = `${COMPOSE_DATABASE_NAME}_test`;
+
+/**
  * Whether this URL names **the database compose creates**, not merely one on its
  * server.
  *
@@ -499,4 +508,120 @@ export async function waitFor(
   }
 
   return { ok: false, waitedMs: now() - startedAt };
+}
+
+/**
+ * Why the **test** database may not be dropped, or `null` when it may.
+ *
+ * A different question from `resetRefusal`, and deliberately a laxer one. The
+ * suites' database belongs to the tooling: `ensureTestDatabase` creates and
+ * migrates it, every run rebuilds what it needs, and nobody has state in it
+ * worth keeping. So this refuses only two things, and both would destroy
+ * somebody's work rather than the tooling's:
+ *
+ * - **Anything not on the compose server.** `TEST_DATABASE_URL` can point at a
+ *   shared or remote Postgres, and dropping a database there is not this
+ *   command's business.
+ * - **The development database itself.** Deriving the test URL wrongly, or
+ *   setting `TEST_DATABASE_URL` to the dev database by mistake, would otherwise
+ *   let the safe command destroy the one thing it exists to protect.
+ */
+export function testResetRefusal(url: string | undefined): string | null {
+  if (url === undefined || url.trim() === "") {
+    return "No test database URL to reset. Set DATABASE_URL in .env, or TEST_DATABASE_URL to override it.";
+  }
+
+  if (!runsOnComposeServer(url)) {
+    return [
+      `Refusing to drop ${describeTarget(url)} — that is not this project's Postgres.`,
+      "",
+      `Only the suites' database on the compose server (localhost:${COMPOSE_POSTGRES_PORT}) is dropped`,
+      "from here. TEST_DATABASE_URL points somewhere else.",
+    ].join("\n");
+  }
+
+  /**
+   * A string by here, not `string | null`: `runsOnComposeServer` has already
+   * parsed this URL successfully, and `databaseNameOf` parses the same one. A
+   * fallback for the null read as prudence and was dead code — lcov reported the
+   * condition as never taken, which is how it was found.
+   */
+  const name = databaseNameOf(url) as string;
+  if (name === COMPOSE_TEST_DATABASE_NAME) return null;
+
+  /**
+   * **One exact name, not "anything that is not the dev database".**
+   *
+   * An earlier version allowed every database on the compose server on the
+   * grounds that none of them is the human's, and refused the development and
+   * system databases by name. That was laxer than #406 described — the command
+   * resets the suites' database — and it meant a mistyped TEST_DATABASE_URL
+   * dropped whatever it happened to name. Raised in review on #407.
+   *
+   * The development database keeps its own message, because pointing this at it
+   * is the likely mistake and "use the other command" is the useful answer.
+   */
+  if (name === COMPOSE_DATABASE_NAME) {
+    return [
+      `Refusing to drop ${COMPOSE_DATABASE_NAME} — that is the development database, not the suites'.`,
+      "",
+      "This command exists to reset what the tooling owns. To throw away your own",
+      "local data, run `npm run db:reset:dev`, which asks first.",
+    ].join("\n");
+  }
+
+  return [
+    `Refusing to drop ${name} — this command resets ${COMPOSE_TEST_DATABASE_NAME}, nothing else.`,
+    "",
+    "Check TEST_DATABASE_URL. Anything else on that server, Postgres's own",
+    "databases included, is left alone.",
+  ].join("\n");
+}
+
+/** What to do about confirming a destructive reset. */
+export type Confirmation = "proceed" | "ask" | "refuse";
+
+/**
+ * Whether the destructive reset may go ahead, must ask, or cannot.
+ *
+ * **Refusing when there is nobody to ask is the point.** Without a terminal the
+ * prompt cannot be answered, and treating that as consent would make every
+ * scripted or agent-driven run a silent destruction of the developer's database
+ * — exactly the case the confirmation exists for. `--yes` is how a script says
+ * it meant it.
+ */
+export function decideConfirmation({
+  yes,
+  interactive,
+}: {
+  yes: boolean;
+  interactive: boolean;
+}): Confirmation {
+  if (yes) return "proceed";
+  return interactive ? "ask" : "refuse";
+}
+
+/** The prompt, kept beside the rule that decides whether to show it. */
+export function confirmationPrompt(): string {
+  return `This destroys the local ${COMPOSE_DATABASE_NAME} database and everything else on that server. Type "yes" to continue: `;
+}
+
+export function nonInteractiveRefusal(): string {
+  return [
+    "Refusing to destroy the development database without confirmation.",
+    "",
+    "There is no terminal to ask, so this is either a script or an agent. Pass --yes",
+    "to say you meant it, or run `npm run db:reset` instead, which resets only the",
+    "suites' database and asks nobody.",
+  ].join("\n");
+}
+
+/**
+ * Whether an answer to the prompt is consent.
+ *
+ * Only a full `yes`. `y` is what people press to get past a dialog they have
+ * stopped reading, and this one destroys data.
+ */
+export function isAffirmative(answer: string): boolean {
+  return answer.trim().toLowerCase() === "yes";
 }

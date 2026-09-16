@@ -3,14 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
+  COMPOSE_TEST_DATABASE_NAME,
   canStartDaemonAutomatically,
+  confirmationPrompt,
   DEFAULT_POSTGRES_PORT,
   daemonNotStartedMessage,
   daemonUnavailableMessage,
   databaseNameOf,
+  decideConfirmation,
   decidePreflight,
   describeTarget,
   effectiveDatabaseUrl,
+  isAffirmative,
   isComposeDatabase,
   isPostgresUrl,
   noDockerMessage,
@@ -19,6 +23,7 @@ import {
   probeUrls,
   resetRefusal,
   runsOnComposeServer,
+  testResetRefusal,
   waitFor,
 } from "../../../scripts/services-plan";
 
@@ -723,5 +728,94 @@ describe("databaseNameOf", () => {
 
   it("is null for something that is not a URL", () => {
     expect(databaseNameOf("not a url")).toBeNull();
+  });
+});
+
+describe("testResetRefusal", () => {
+  const onCompose = (name: string) => `postgresql://postgres:x@localhost:5432/${name}`;
+
+  it("allows exactly the suites' database", () => {
+    expect(testResetRefusal(onCompose(COMPOSE_TEST_DATABASE_NAME))).toBeNull();
+  });
+
+  it("refuses any other database on that server", () => {
+    /**
+     * An earlier version allowed everything on the server that was not the dev
+     * or a system database, which was laxer than #406 described and meant a
+     * mistyped TEST_DATABASE_URL dropped whatever it named. Raised in review on
+     * #407.
+     */
+    const refusal = testResetRefusal(onCompose("footy-trends_scratch"));
+
+    expect(refusal).toContain(`this command resets ${COMPOSE_TEST_DATABASE_NAME}`);
+  });
+
+  it.each(["postgres", "template0", "template1"])("refuses Postgres's own %s database", (name) => {
+    // Behaviour kept from the previous round; the exact-name rule now covers
+    // it rather than a separate list. `postgres` matters most: it is the
+    // database the drop connects *through* to issue its statement.
+    expect(testResetRefusal(onCompose(name))).toContain("nothing else");
+  });
+
+  it("refuses the development database, with the answer rather than a rule", () => {
+    const refusal = testResetRefusal(onCompose(COMPOSE_DATABASE_NAME));
+
+    expect(refusal).toContain("that is the development database");
+    expect(refusal).toContain("db:reset:dev");
+  });
+
+  it("refuses a database on another server", () => {
+    expect(testResetRefusal("postgresql://u:p@db.example.com:5432/footy-trends_test")).toContain(
+      "not this project's Postgres"
+    );
+  });
+
+  it("refuses when nothing says where the test database is", () => {
+    expect(testResetRefusal(undefined)).toContain("No test database URL");
+    expect(testResetRefusal("  ")).toContain("No test database URL");
+  });
+});
+
+describe("decideConfirmation", () => {
+  it("proceeds when --yes was passed", () => {
+    expect(decideConfirmation({ yes: true, interactive: true })).toBe("proceed");
+    expect(decideConfirmation({ yes: true, interactive: false })).toBe("proceed");
+  });
+
+  it("asks when there is a terminal", () => {
+    expect(decideConfirmation({ yes: false, interactive: true })).toBe("ask");
+  });
+
+  it("refuses when there is nobody to ask", () => {
+    /**
+     * Treating an unanswerable prompt as consent would make every scripted or
+     * agent-driven run a silent destruction of the developer's database, which
+     * is the case the confirmation exists for.
+     */
+    expect(decideConfirmation({ yes: false, interactive: false })).toBe("refuse");
+  });
+});
+
+describe("confirmationPrompt", () => {
+  it("names what will be destroyed, and what counts as consent", () => {
+    const prompt = confirmationPrompt();
+
+    // The prompt has to say more than "are you sure": the surprise it exists to
+    // prevent is that everything else on that server goes too.
+    expect(prompt).toContain(COMPOSE_DATABASE_NAME);
+    expect(prompt).toContain("everything else on that server");
+    expect(prompt).toContain('Type "yes"');
+  });
+});
+
+describe("isAffirmative", () => {
+  it.each(["yes", "YES", "  yes  ", "Yes"])("accepts %o", (answer) => {
+    expect(isAffirmative(answer)).toBe(true);
+  });
+
+  it.each(["y", "Y", "", "no", "yes please", "1"])("rejects %o", (answer) => {
+    // `y` is what people press to get past a dialog they have stopped reading,
+    // and this one destroys data.
+    expect(isAffirmative(answer)).toBe(false);
   });
 });

@@ -9,13 +9,20 @@
  */
 import {
   COMPOSE_DATABASE_NAME,
+  nonInteractiveRefusal,
   postgresUnreachableMessage,
   resetRefusal,
+  testResetRefusal,
   type WaitResult,
 } from "./services-plan";
 
+/** What the person said, or what the absence of a person means. */
+export type ConfirmationOutcome = "proceed" | "declined" | "refused";
+
 export type ResetActions = {
   url: string | undefined;
+  /** Omitted only by tests that are not exercising the confirmation. */
+  confirm?: () => Promise<ConfirmationOutcome>;
   dockerAvailable: () => boolean;
   dockerIsRunning: () => boolean;
   destroyContainers: () => boolean;
@@ -41,6 +48,23 @@ export async function runReset(actions: ResetActions): Promise<number> {
   const refusal = resetRefusal(actions.url);
   if (refusal !== null) {
     actions.err(refusal);
+    return 1;
+  }
+
+  /**
+   * **Consent before Docker, for the same reason the guard comes first.**
+   *
+   * Asking after the containers had been looked for would still be safe, but it
+   * would mean the answer is sometimes never reached — and "it did not ask me"
+   * is indistinguishable from "it did not run" only until the volume is gone.
+   */
+  const confirmation = actions.confirm === undefined ? "proceed" : await actions.confirm();
+  if (confirmation === "refused") {
+    actions.err(nonInteractiveRefusal());
+    return 1;
+  }
+  if (confirmation === "declined") {
+    actions.out("Nothing was changed.");
     return 1;
   }
 
@@ -99,5 +123,40 @@ export async function runReset(actions: ResetActions): Promise<number> {
 
   actions.out("");
   actions.out("The local database is fresh and migrated.");
+  return 0;
+}
+
+export type TestResetActions = {
+  /** The suites' database, derived or overridden. */
+  url: string | undefined;
+  /** Drops it, resolving false when the drop itself failed. */
+  dropDatabase: (url: string) => Promise<boolean>;
+  out: (line: string) => void;
+  err: (line: string) => void;
+};
+
+/**
+ * Drops the suites' database and stops.
+ *
+ * **No containers, no volume, no migrations.** `ensureTestDatabase` creates and
+ * migrates it at the start of the next run, so rebuilding it here would be work
+ * that the thing about to use it does anyway — and it is the difference between
+ * a command that takes a second and one that takes half a minute.
+ */
+export async function runTestReset(actions: TestResetActions): Promise<number> {
+  const refusal = testResetRefusal(actions.url);
+  if (refusal !== null) {
+    actions.err(refusal);
+    return 1;
+  }
+
+  const url = actions.url as string;
+
+  if (!(await actions.dropDatabase(url))) {
+    actions.err("Could not drop the test database. Its error is above.");
+    return 1;
+  }
+
+  actions.out("The test database is gone. The next test run recreates and migrates it.");
   return 0;
 }

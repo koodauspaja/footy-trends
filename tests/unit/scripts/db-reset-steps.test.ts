@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type ResetActions, runReset } from "../../../scripts/db-reset-steps";
+import {
+  type ResetActions,
+  runReset,
+  runTestReset,
+  type TestResetActions,
+} from "../../../scripts/db-reset-steps";
 
 const LOCAL = "postgresql://postgres:secret@localhost:5432/footy-trends";
 const REMOTE = "postgresql://user:hunter2@altaria.proxy.rlwy.net:45459/railway";
@@ -135,5 +140,105 @@ describe("runReset", () => {
     expect(await runReset(a)).toBe(1);
     expect(a.steps.at(-1)).toContain("Migrations failed");
     expect(a.steps).not.toContain("out:The local database is fresh and migrated.");
+  });
+});
+
+describe("runTestReset", () => {
+  function testActions(overrides: Partial<TestResetActions> = {}) {
+    const steps: string[] = [];
+    const base: TestResetActions & { steps: string[] } = {
+      steps,
+      url: "postgresql://postgres:x@localhost:5432/footy-trends_test",
+      dropDatabase: async () => {
+        steps.push("drop");
+        return true;
+      },
+      out: (line) => steps.push(`out:${line}`),
+      err: (line) => steps.push(`err:${line}`),
+    };
+    return { ...base, ...overrides, steps };
+  }
+
+  it("drops the database and stops there", async () => {
+    const a = testActions();
+
+    expect(await runTestReset(a)).toBe(0);
+    /**
+     * No containers, no volume, no migrations — `ensureTestDatabase` rebuilds it
+     * at the start of the next run, so doing it here would repeat work the thing
+     * about to use it does anyway. That is the whole difference between a
+     * one-second command and a thirty-second one.
+     */
+    expect(a.steps).toEqual([
+      "drop",
+      "out:The test database is gone. The next test run recreates and migrates it.",
+    ]);
+  });
+
+  it("refuses the development database without dropping anything", async () => {
+    const a = testActions({ url: "postgresql://postgres:x@localhost:5432/footy-trends" });
+
+    expect(await runTestReset(a)).toBe(1);
+    expect(a.steps).not.toContain("drop");
+    expect(a.steps.at(-1)).toContain("that is the development database");
+  });
+
+  it("refuses a database on another server", async () => {
+    const a = testActions({ url: "postgresql://u:p@db.example.com:5432/suite_test" });
+
+    expect(await runTestReset(a)).toBe(1);
+    expect(a.steps).not.toContain("drop");
+  });
+
+  it("reports a failed drop rather than claiming the database is gone", async () => {
+    const a = testActions({ dropDatabase: async () => false });
+
+    expect(await runTestReset(a)).toBe(1);
+    expect(a.steps.at(-1)).toContain("Could not drop");
+  });
+});
+
+describe("runReset, confirmation", () => {
+  it("asks before anything is destroyed, and stops on a decline", async () => {
+    const a = actions({ confirm: async () => "declined" });
+
+    expect(await runReset(a)).toBe(1);
+    expect(a.steps).not.toContain("destroy");
+    expect(a.steps.at(-1)).toContain("Nothing was changed");
+  });
+
+  it("refuses outright when there was nobody to ask", async () => {
+    const a = actions({ confirm: async () => "refused" });
+
+    expect(await runReset(a)).toBe(1);
+    expect(a.steps).not.toContain("destroy");
+    expect(a.steps.at(-1)).toContain("--yes");
+  });
+
+  it("proceeds when confirmed", async () => {
+    const a = actions({ confirm: async () => "proceed" });
+
+    expect(await runReset(a)).toBe(0);
+    expect(a.steps).toContain("destroy");
+  });
+
+  it("asks before Docker is even looked for", async () => {
+    // "It did not ask me" and "it did not run" are indistinguishable only until
+    // the volume is gone.
+    const order: string[] = [];
+    const a = actions({
+      confirm: async () => {
+        order.push("confirm");
+        return "declined";
+      },
+      dockerAvailable: () => {
+        order.push("docker");
+        return true;
+      },
+    });
+
+    await runReset(a);
+
+    expect(order).toEqual(["confirm"]);
   });
 });

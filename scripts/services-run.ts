@@ -9,7 +9,7 @@
  */
 import { spawn } from "node:child_process";
 import postgres from "postgres";
-import { probeUrls } from "./services-plan";
+import { databaseNameOf, probeUrls } from "./services-plan";
 
 /** How long a single probe waits before calling the server unreachable. */
 const PROBE_TIMEOUT_SECONDS = 2;
@@ -67,4 +67,42 @@ export function run(command: string, args: readonly string[]): Promise<number> {
     child.on("exit", (code) => resolve(code ?? 1));
     child.on("error", () => resolve(1));
   });
+}
+
+/**
+ * Drops the database a URL names, connecting to the server's own `postgres`
+ * database to do it — `drop database` cannot run from inside the database being
+ * dropped.
+ *
+ * `with (force)` because the suites' database routinely has connections left
+ * open by a run that was interrupted, and without it the drop fails with
+ * "database is being accessed by other users" — which is true, and not a reason
+ * to keep a database nobody wants.
+ */
+export async function dropDatabase(url: string): Promise<boolean> {
+  const name = databaseNameOf(url);
+  if (name === null || name === "") return false;
+
+  const admin = new URL(url);
+  admin.pathname = "/postgres";
+
+  const sql = postgres(admin.toString(), {
+    max: 1,
+    connect_timeout: PROBE_TIMEOUT_SECONDS,
+    idle_timeout: 1,
+    onnotice: () => {},
+  });
+
+  try {
+    // The identifier cannot be parameterised, hence the explicit quoting. The
+    // name comes from our own connection string, never from user input — the
+    // same reasoning `tests/support/test-database.ts` documents for `create`.
+    await sql.unsafe(`drop database if exists "${name.replaceAll('"', '""')}" with (force)`);
+    return true;
+  } catch (error) {
+    process.stderr.write(`${String(error)}\n`);
+    return false;
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
 }
