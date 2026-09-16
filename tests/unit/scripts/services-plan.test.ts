@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
+  COMPOSE_TEST_DATABASE_NAME,
   canStartDaemonAutomatically,
   confirmationPrompt,
   DEFAULT_POSTGRES_PORT,
@@ -733,42 +734,38 @@ describe("databaseNameOf", () => {
 describe("testResetRefusal", () => {
   const onCompose = (name: string) => `postgresql://postgres:x@localhost:5432/${name}`;
 
-  it("allows the suites' database", () => {
-    expect(testResetRefusal(onCompose("footy-trends_test"))).toBeNull();
+  it("allows exactly the suites' database", () => {
+    expect(testResetRefusal(onCompose(COMPOSE_TEST_DATABASE_NAME))).toBeNull();
   });
 
-  it("allows any other database on that server, which the tooling owns", () => {
-    // Deliberately laxer than the dev guard: nothing here is the human's.
-    expect(testResetRefusal(onCompose("footy-trends_e2e"))).toBeNull();
+  it("refuses any other database on that server", () => {
+    /**
+     * An earlier version allowed everything on the server that was not the dev
+     * or a system database, which was laxer than #406 described and meant a
+     * mistyped TEST_DATABASE_URL dropped whatever it named. Raised in review on
+     * #407.
+     */
+    const refusal = testResetRefusal(onCompose("footy-trends_scratch"));
+
+    expect(refusal).toContain(`this command resets ${COMPOSE_TEST_DATABASE_NAME}`);
   });
 
   it.each(["postgres", "template0", "template1"])("refuses Postgres's own %s database", (name) => {
-    /**
-     * `postgres` is the database `dropDatabase` connects *through* to issue
-     * the statement, so allowing it would ask the server to drop the database
-     * the statement is running in — failing only after the command had said it
-     * was going ahead. Raised in review on #407.
-     */
-    const refusal = testResetRefusal(onCompose(name));
-
-    expect(refusal).toContain("one of Postgres's own databases");
-    expect(refusal).toContain("footy-trends_test");
+    // Behaviour kept from the previous round; the exact-name rule now covers
+    // it rather than a separate list. `postgres` matters most: it is the
+    // database the drop connects *through* to issue its statement.
+    expect(testResetRefusal(onCompose(name))).toContain("nothing else");
   });
 
-  it("refuses the development database, which is the one thing it protects", () => {
-    /**
-     * A mis-derived test URL, or TEST_DATABASE_URL set to the dev database by
-     * mistake, would otherwise let the *safe* command destroy the developer's
-     * data without asking — the exact failure #406 exists to prevent.
-     */
-    const refusal = testResetRefusal(onCompose("footy-trends"));
+  it("refuses the development database, with the answer rather than a rule", () => {
+    const refusal = testResetRefusal(onCompose(COMPOSE_DATABASE_NAME));
 
     expect(refusal).toContain("that is the development database");
     expect(refusal).toContain("db:reset:dev");
   });
 
   it("refuses a database on another server", () => {
-    expect(testResetRefusal("postgresql://u:p@db.example.com:5432/suite_test")).toContain(
+    expect(testResetRefusal("postgresql://u:p@db.example.com:5432/footy-trends_test")).toContain(
       "not this project's Postgres"
     );
   });

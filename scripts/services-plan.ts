@@ -304,14 +304,6 @@ export const COMPOSE_POSTGRES_PORT = 5432;
  *
  * Both questions are really this one question, so there is one function for it.
  */
-/**
- * The databases every Postgres server has and nothing here may drop.
- *
- * `postgres` is also the one the drop connects through, which is why allowing it
- * would fail rather than merely be wrong.
- */
-const SYSTEM_DATABASES = new Set(["postgres", "template0", "template1"]);
-
 /** What a Postgres connection string may begin with. */
 const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
 
@@ -384,6 +376,15 @@ export function runsOnComposeServer(url: string): boolean {
  * `COMPOSE_POSTGRES_PORT` gets, and for the same reason: it is a second copy.
  */
 export const COMPOSE_DATABASE_NAME = "footy-trends";
+
+/**
+ * The database the suites use, as `tests/support/test-database.ts` derives it:
+ * the development database's name with `_test` appended.
+ *
+ * Stated here so the reset guard can insist on exactly it, rather than on
+ * "anything that is not something else".
+ */
+export const COMPOSE_TEST_DATABASE_NAME = `${COMPOSE_DATABASE_NAME}_test`;
 
 /**
  * Whether this URL names **the database compose creates**, not merely one on its
@@ -534,31 +535,32 @@ export function testResetRefusal(url: string | undefined): string | null {
     return [
       `Refusing to drop ${describeTarget(url)} — that is not this project's Postgres.`,
       "",
-      `Only databases on the compose server (localhost:${COMPOSE_POSTGRES_PORT}) are dropped from here.`,
-      "TEST_DATABASE_URL points somewhere else.",
+      `Only the suites' database on the compose server (localhost:${COMPOSE_POSTGRES_PORT}) is dropped`,
+      "from here. TEST_DATABASE_URL points somewhere else.",
     ].join("\n");
   }
-
-  const name = databaseNameOf(url);
 
   /**
-   * **Postgres's own databases are not the suites' to drop.**
-   *
-   * `postgres` is the one `dropDatabase` connects *through* to issue the drop,
-   * so pointing this at it asks the server to drop the database the statement is
-   * running in — which fails, but only after the command has claimed it was
-   * going to work. `template0` and `template1` are what every new database is
-   * built from. Raised in review on #407.
+   * A string by here, not `string | null`: `runsOnComposeServer` has already
+   * parsed this URL successfully, and `databaseNameOf` parses the same one. A
+   * fallback for the null read as prudence and was dead code — lcov reported the
+   * condition as never taken, which is how it was found.
    */
-  if (name !== null && SYSTEM_DATABASES.has(name)) {
-    return [
-      `Refusing to drop ${name} — that is one of Postgres's own databases, not the suites'.`,
-      "",
-      "Check TEST_DATABASE_URL: it should name a database this project created,",
-      `such as ${COMPOSE_DATABASE_NAME}_test.`,
-    ].join("\n");
-  }
+  const name = databaseNameOf(url) as string;
+  if (name === COMPOSE_TEST_DATABASE_NAME) return null;
 
+  /**
+   * **One exact name, not "anything that is not the dev database".**
+   *
+   * An earlier version allowed every database on the compose server on the
+   * grounds that none of them is the human's, and refused the development and
+   * system databases by name. That was laxer than #406 described — the command
+   * resets the suites' database — and it meant a mistyped TEST_DATABASE_URL
+   * dropped whatever it happened to name. Raised in review on #407.
+   *
+   * The development database keeps its own message, because pointing this at it
+   * is the likely mistake and "use the other command" is the useful answer.
+   */
   if (name === COMPOSE_DATABASE_NAME) {
     return [
       `Refusing to drop ${COMPOSE_DATABASE_NAME} — that is the development database, not the suites'.`,
@@ -568,7 +570,12 @@ export function testResetRefusal(url: string | undefined): string | null {
     ].join("\n");
   }
 
-  return null;
+  return [
+    `Refusing to drop ${name} — this command resets ${COMPOSE_TEST_DATABASE_NAME}, nothing else.`,
+    "",
+    "Check TEST_DATABASE_URL. Anything else on that server, Postgres's own",
+    "databases included, is left alone.",
+  ].join("\n");
 }
 
 /** What to do about confirming a destructive reset. */
