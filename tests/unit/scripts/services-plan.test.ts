@@ -742,6 +742,19 @@ describe("testResetRefusal", () => {
     expect(testResetRefusal(onCompose("footy-trends_e2e"))).toBeNull();
   });
 
+  it.each(["postgres", "template0", "template1"])("refuses Postgres's own %s database", (name) => {
+    /**
+     * `postgres` is the database `dropDatabase` connects *through* to issue
+     * the statement, so allowing it would ask the server to drop the database
+     * the statement is running in — failing only after the command had said it
+     * was going ahead. Raised in review on #407.
+     */
+    const refusal = testResetRefusal(onCompose(name));
+
+    expect(refusal).toContain("one of Postgres's own databases");
+    expect(refusal).toContain("footy-trends_test");
+  });
+
   it("refuses the development database, which is the one thing it protects", () => {
     /**
      * A mis-derived test URL, or TEST_DATABASE_URL set to the dev database by

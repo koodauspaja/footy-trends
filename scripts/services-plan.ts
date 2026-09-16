@@ -304,6 +304,14 @@ export const COMPOSE_POSTGRES_PORT = 5432;
  *
  * Both questions are really this one question, so there is one function for it.
  */
+/**
+ * The databases every Postgres server has and nothing here may drop.
+ *
+ * `postgres` is also the one the drop connects through, which is why allowing it
+ * would fail rather than merely be wrong.
+ */
+const SYSTEM_DATABASES = new Set(["postgres", "template0", "template1"]);
+
 /** What a Postgres connection string may begin with. */
 const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
 
@@ -531,7 +539,27 @@ export function testResetRefusal(url: string | undefined): string | null {
     ].join("\n");
   }
 
-  if (databaseNameOf(url) === COMPOSE_DATABASE_NAME) {
+  const name = databaseNameOf(url);
+
+  /**
+   * **Postgres's own databases are not the suites' to drop.**
+   *
+   * `postgres` is the one `dropDatabase` connects *through* to issue the drop,
+   * so pointing this at it asks the server to drop the database the statement is
+   * running in — which fails, but only after the command has claimed it was
+   * going to work. `template0` and `template1` are what every new database is
+   * built from. Raised in review on #407.
+   */
+  if (name !== null && SYSTEM_DATABASES.has(name)) {
+    return [
+      `Refusing to drop ${name} — that is one of Postgres's own databases, not the suites'.`,
+      "",
+      "Check TEST_DATABASE_URL: it should name a database this project created,",
+      `such as ${COMPOSE_DATABASE_NAME}_test.`,
+    ].join("\n");
+  }
+
+  if (name === COMPOSE_DATABASE_NAME) {
     return [
       `Refusing to drop ${COMPOSE_DATABASE_NAME} — that is the development database, not the suites'.`,
       "",
