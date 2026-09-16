@@ -34,6 +34,17 @@ function actions(overrides: Partial<ResetActions> = {}): ResetActions & { steps:
 }
 
 describe("runReset", () => {
+  it("says the test database went too, because the volume held both", async () => {
+    // Not obvious and not reversible by the person who ran it: the suites'
+    // database shares the server and therefore the volume. Nothing has to be
+    // done about it, but silence would be the wrong answer.
+    const a = actions();
+
+    await runReset(a);
+
+    expect(a.steps.at(-1)).toContain("footy-trends_test went with the volume");
+  });
+
   it("destroys, restarts and migrates, in that order", async () => {
     const a = actions();
 

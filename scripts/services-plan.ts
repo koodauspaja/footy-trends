@@ -352,21 +352,70 @@ export function notPostgresMessage(url: string): string {
   ].join("\n");
 }
 
-export function namesComposeDatabase(url: string): boolean {
+export function runsOnComposeServer(url: string): boolean {
   const target = parseTarget(url);
   if (target === null) return false;
 
   /**
    * The scheme is checked too, because host and port alone say nothing about
    * what is being addressed: `http://localhost:5432/app` matched both and would
-   * have been accepted as the compose database. Raised in review on #402 — and
-   * on the `db:reset` path the cost of accepting it is a destroyed volume.
+   * have been accepted as the compose database. Raised in review on #402.
    */
   return (
     POSTGRES_SCHEMES.has(target.protocol.toLowerCase()) &&
     LOCAL_HOSTS.has(target.host.toLowerCase()) &&
     target.port === COMPOSE_POSTGRES_PORT
   );
+}
+
+/**
+ * The database `docker-compose.yml` creates, from its `POSTGRES_DB`.
+ *
+ * Kept honest by `tests/unit/scripts/services-plan.test.ts`, which reads the
+ * compose file and fails if the two disagree — the same mechanism
+ * `COMPOSE_POSTGRES_PORT` gets, and for the same reason: it is a second copy.
+ */
+export const COMPOSE_DATABASE_NAME = "footy-trends";
+
+/**
+ * Whether this URL names **the database compose creates**, not merely one on its
+ * server.
+ *
+ * **The distinction is the whole of #404.** `runsOnComposeServer` answers "would
+ * starting the compose containers help?", which is what the preflight needs and
+ * which is true of every database on that server — `footy-trends_test` included.
+ * This answers "is it safe to destroy this and correct to migrate it?", which is
+ * true of exactly one.
+ *
+ * Without it `db:reset` accepted `…:5432/postgres`, `…:5432/footy-trends_test`
+ * and anything else on the server, destroyed the compose volume, then migrated
+ * whichever database the URL named and reported the reset a success — with the
+ * destructive step already done.
+ *
+ * Reported in review on #402 and dismissed there, because the reply answered a
+ * question about which *server* this is. Which *database* it is was always one
+ * field away.
+ */
+export function isComposeDatabase(url: string): boolean {
+  if (!runsOnComposeServer(url)) return false;
+
+  return databaseNameOf(url) === COMPOSE_DATABASE_NAME;
+}
+
+/**
+ * The database a connection string names, decoded.
+ *
+ * Decoded because this is an identifier rather than a URL component:
+ * `…/footy%2Dtrends` addresses a database called `footy-trends`, and comparing
+ * the raw path would call that a different one. The same reasoning as
+ * `databaseNameFor` in `tests/support/test-database.ts`.
+ */
+export function databaseNameOf(url: string): string | null {
+  try {
+    return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -383,13 +432,18 @@ export function resetRefusal(url: string | undefined): string | null {
     return "DATABASE_URL is not set, so there is nothing to reset. Set it in .env.";
   }
 
-  if (!namesComposeDatabase(url)) {
+  if (!isComposeDatabase(url)) {
+    const named = databaseNameOf(url);
+
     return [
-      `Refusing to reset ${describeTarget(url)} — that is not this project's database.`,
+      `Refusing to reset ${describeTarget(url)}/${named ?? "?"} — that is not this project's database.`,
       "",
-      `db:reset destroys the compose volume, so it only runs when DATABASE_URL names`,
-      `the database compose publishes (localhost:${COMPOSE_POSTGRES_PORT}). A remote host, or another`,
-      "Postgres on a different port, is never reset from here.",
+      "db:reset destroys the compose volume and then migrates, so it only runs against",
+      `the database compose creates: postgres://…@localhost:${COMPOSE_POSTGRES_PORT}/${COMPOSE_DATABASE_NAME}`,
+      "",
+      "A remote host, another port, another database on the same server — including",
+      `${COMPOSE_DATABASE_NAME}_test — are all refused, because the migrations would land in the`,
+      "wrong one after the volume had already gone.",
     ].join("\n");
   }
 

@@ -7,7 +7,12 @@
  * the thing most worth a test is not the happy path: it is that each refusal
  * happens **before** anything is destroyed.
  */
-import { postgresUnreachableMessage, resetRefusal, type WaitResult } from "./services-plan";
+import {
+  COMPOSE_DATABASE_NAME,
+  postgresUnreachableMessage,
+  resetRefusal,
+  type WaitResult,
+} from "./services-plan";
 
 export type ResetActions = {
   url: string | undefined;
@@ -76,5 +81,16 @@ export async function runReset(actions: ResetActions): Promise<number> {
 
   actions.out("");
   actions.out("The local database is fresh and migrated.");
+  /**
+   * Said out loud because it is not obvious and it is destructive.
+   *
+   * The suites' database lives on the same server and therefore in the same
+   * volume, so `compose down --volumes` takes it too. Nothing has to be done
+   * about that — `ensureTestDatabase` creates and migrates it on the next run —
+   * but someone who had seeded it deserves to know where it went.
+   */
+  actions.out(
+    `${COMPOSE_DATABASE_NAME}_test went with the volume; the next test run recreates it.`
+  );
   return 0;
 }
