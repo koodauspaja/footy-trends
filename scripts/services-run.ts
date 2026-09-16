@@ -97,7 +97,7 @@ export async function dropDatabase(url: string): Promise<boolean> {
     // The identifier cannot be parameterised, hence the explicit quoting. The
     // name comes from our own connection string, never from user input — the
     // same reasoning `tests/support/test-database.ts` documents for `create`.
-    await sql.unsafe(`drop database if exists "${name.replace(/"/g, '""')}" with (force)`);
+    await sql.unsafe(`drop database if exists "${name.replaceAll('"', '""')}" with (force)`);
     return true;
   } catch (error) {
     process.stderr.write(`${String(error)}\n`);

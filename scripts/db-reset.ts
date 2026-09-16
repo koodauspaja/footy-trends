@@ -62,9 +62,9 @@ async function main(): Promise<void> {
     process.loadEnvFile(".env");
   }
 
-  const args = process.argv.slice(2);
+  const args = new Set(process.argv.slice(2));
 
-  if (!args.includes("--dev")) {
+  if (!args.has("--dev")) {
     process.exitCode = await runTestReset({
       url: suiteDatabaseUrl(),
       dropDatabase,
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const yes = args.includes("--yes");
+  const yes = args.has("--yes");
 
   process.exitCode = await runReset({
     url: process.env.DATABASE_URL,

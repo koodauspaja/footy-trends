@@ -110,7 +110,7 @@ export async function ensureTestDatabase(): Promise<string> {
     // our own connection string, never from user input.
     if (existing === undefined) {
       try {
-        await admin.unsafe(`create database "${name.replace(/"/g, '""')}"`);
+        await admin.unsafe(`create database "${name.replaceAll('"', '""')}"`);
       } catch (error) {
         /**
          * Something else created it between the check above and this statement.
