@@ -16,7 +16,7 @@ import {
   COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
   COMPOSE_POSTGRES_USER,
-  runsOnComposeServer,
+  isComposeDatabase,
 } from "./services-plan";
 
 /**
@@ -63,14 +63,23 @@ export type ComposeCredential =
   | { kind: "password"; value: string };
 
 export function composeCredential(url: string): ComposeCredential {
-  if (!runsOnComposeServer(url)) return { kind: "elsewhere" };
+  /**
+   * **The database name is part of the question, not just the server.**
+   * `runsOnComposeServer` answers "would starting the compose containers help?",
+   * which is true of every database on `localhost:5432` — another project's
+   * included. Using it here adopted a *different* database's password into
+   * `FOOTY_POSTGRES_PASSWORD`, which is what this project's container is then
+   * created with. `isComposeDatabase` is the narrower question #404 added for
+   * exactly this distinction. Raised in review on #409.
+   */
+  if (!isComposeDatabase(url)) return { kind: "elsewhere" };
 
   try {
     const parsed = new URL(url);
     if (decodeURIComponent(parsed.username) !== COMPOSE_POSTGRES_USER) return { kind: "elsewhere" };
     return { kind: "password", value: decodeURIComponent(parsed.password) };
   } catch {
-    // `runsOnComposeServer` has already parsed the URL, so only a malformed
+    // `isComposeDatabase` has already parsed the URL, so only a malformed
     // percent escape in the credential lands here — `%E0%A4%A`, say.
     return { kind: "unreadable" };
   }

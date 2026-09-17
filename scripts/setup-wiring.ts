@@ -95,9 +95,18 @@ export function packageManagerFrom(packageJson: string): string {
  * Compared with forward slashes so a Windows `\` path answers the same question.
  */
 export function isEntryPoint(argv: readonly string[], script: string): boolean {
-  // `?? false` rather than a bare optional chain: with no argv[1] at all — an
-  // embedded or `-e` invocation — the answer is "no", not "unknown".
-  return argv[1]?.replaceAll("\\", "/").endsWith(script) ?? false;
+  // No argv[1] at all — an embedded or `-e` invocation — answers "no", not
+  // "unknown".
+  const invoked = argv[1]?.replaceAll("\\", "/");
+  if (invoked === undefined) return false;
+
+  /**
+   * The match has to fall on a path boundary. A bare `endsWith` accepted
+   * `/tmp/not-scripts/setup-main.ts`, because that string does end with
+   * `scripts/setup-main.ts` — so an unrelated file could have started setup.
+   * Raised in review on #409.
+   */
+  return invoked === script || invoked.endsWith(`/${script}`);
 }
 
 /**

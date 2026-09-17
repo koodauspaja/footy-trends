@@ -81,6 +81,10 @@ describe("composePasswordOf", () => {
     ["another port", "postgresql://postgres:secret@localhost:6543/footy-trends"],
     ["another host", "postgresql://postgres:secret@db.example.com:5432/footy-trends"],
     ["another user", "postgresql://user:password@localhost:5432/footy-trends"],
+    // The same server, and even the same user, but somebody else's database —
+    // another project's containers publish 5432 too. Its password is not this
+    // project's to adopt. Raised in review on #409.
+    ["another database on the same server", "postgresql://postgres:secret@localhost:5432/otherdb"],
   ])("says nothing about %s", (_, url) => {
     expect(composePasswordOf(url)).toBeNull();
   });
@@ -273,6 +277,23 @@ describe("planEnv", () => {
     expect(plan.stop).toContain("credential cannot be read");
     expect(plan.text).toBe(existing);
     expect(plan.written).toEqual([]);
+  });
+
+  it("does not adopt a password from another database on the same server", () => {
+    /**
+     * `FOOTY_POSTGRES_PASSWORD` is what *this* project's container is created
+     * with, so taking it from a URL that names another database mixes two
+     * systems' credentials. What the developer pointed `DATABASE_URL` at is left
+     * alone, as any other URL that is not ours would be.
+     */
+    const existing =
+      "DATABASE_URL=postgresql://postgres:othersecret@localhost:5432/otherdb\nFOOTY_POSTGRES_PASSWORD=\n";
+    const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
+    const values = parseEnv(plan.text);
+
+    expect(values.FOOTY_POSTGRES_PASSWORD).toBe("generated1");
+    expect(values.DATABASE_URL).toBe("postgresql://postgres:othersecret@localhost:5432/otherdb");
+    expect(plan.stop).toBeNull();
   });
 
   it("generates rather than adopting an empty password from DATABASE_URL", () => {

@@ -157,6 +157,21 @@ describe("isEntryPoint", () => {
     expect(isEntryPoint(["node"], "scripts/setup-main.ts")).toBe(false);
   });
 
+  it("requires the match to fall on a path boundary", () => {
+    /**
+     * A bare `endsWith` accepted this: the string really does end with
+     * `scripts/setup-main.ts`, but the directory is `not-scripts`. An unrelated
+     * file would have started setup. Raised in review on #409.
+     */
+    expect(isEntryPoint(["node", "/tmp/not-scripts/setup-main.ts"], "scripts/setup-main.ts")).toBe(
+      false
+    );
+  });
+
+  it("accepts the path given exactly, with no directory before it", () => {
+    expect(isEntryPoint(["node", "scripts/setup-main.ts"], "scripts/setup-main.ts")).toBe(true);
+  });
+
   it("does not match a file that merely ends the same way", () => {
     // The directory is part of the comparison, so a `not-setup-main.ts`, or a
     // `setup-main.ts` somewhere else, is not this script.
