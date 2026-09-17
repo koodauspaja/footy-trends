@@ -21,6 +21,13 @@ import { afterEach, describe, expect, it } from "vitest";
  * point: the script claims POSIX sh, and this is what checks the claim.
  */
 
+/**
+ * Every case here spawns a real `/bin/sh`, and a few of them spawn `npm ci`
+ * decisions behind it. vitest's 5s default is thin for that on a machine that is
+ * already busy, and a spawn that is merely slow must not read as a failure.
+ */
+const SPAWN_TIMEOUT = { timeout: 30_000 };
+
 const SCRIPT = path.resolve("scripts/setup");
 const created: string[] = [];
 
@@ -106,7 +113,7 @@ function run(c: Clone, extra: Record<string, string> = {}) {
 }
 
 describe("scripts/setup prerequisites", () => {
-  it("reports Node and the container runtime together, and installs nothing", () => {
+  it("reports Node and the container runtime together, and installs nothing", SPAWN_TIMEOUT, () => {
     const result = run(clone({}));
 
     expect(result.status).toBe(1);
@@ -115,34 +122,34 @@ describe("scripts/setup prerequisites", () => {
     expect(result.calls).toBe("");
   });
 
-  it("names the version it found when Node is too old", () => {
+  it("names the version it found when Node is too old", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v18.20.0", docker: "working" }));
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("Node.js 24 or newer (found v18.20.0)");
   });
 
-  it("accepts a Node newer than the one asked for", () => {
+  it("accepts a Node newer than the one asked for", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v26.1.0", docker: "working" }));
 
     expect(result.status).toBe(0);
     expect(result.output).not.toContain("Missing prerequisites");
   });
 
-  it("reads the major version from a .nvmrc that names a full version", () => {
+  it("reads the major version from a .nvmrc that names a full version", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v24.16.0", docker: "working", nvmrc: "v24.16.0" }));
 
     expect(result.status).toBe(0);
   });
 
-  it("stops when .nvmrc says nothing it can read", () => {
+  it("stops when .nvmrc says nothing it can read", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v24.16.0", docker: "working", nvmrc: "lts/*" }));
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("Cannot read a Node major version");
   });
 
-  it("tells docker missing apart from `docker compose` missing", () => {
+  it("tells docker missing apart from `docker compose` missing", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v24.16.0", docker: "no-compose" }));
 
     expect(result.status).toBe(1);
@@ -150,7 +157,7 @@ describe("scripts/setup prerequisites", () => {
     expect(result.output).not.toContain("Node.js");
   });
 
-  it("names the runtimes it will not install, rather than mandating one", () => {
+  it("names the runtimes it will not install, rather than mandating one", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v24.16.0" }));
 
     expect(result.output).toContain("OrbStack");
@@ -174,7 +181,7 @@ describe("scripts/setup and DOCKER_EXECUTABLE", () => {
     return elsewhere;
   }
 
-  it("accepts a docker that is not on PATH at all", () => {
+  it("accepts a docker that is not on PATH at all", SPAWN_TIMEOUT, () => {
     const c = clone({ node: "v24.16.0" });
     const result = run(c, { DOCKER_EXECUTABLE: dockerAt(c, "docker-elsewhere") });
 
@@ -182,7 +189,7 @@ describe("scripts/setup and DOCKER_EXECUTABLE", () => {
     expect(result.calls).toContain("npm run setup");
   });
 
-  it("refuses a relative override, the way executable.ts does", () => {
+  it("refuses a relative override, the way executable.ts does", SPAWN_TIMEOUT, () => {
     // A relative path would put the choice back in `PATH`'s hands, which is the
     // whole point of having an override.
     const c = clone({ node: "v24.16.0", docker: "working" });
@@ -193,7 +200,7 @@ describe("scripts/setup and DOCKER_EXECUTABLE", () => {
     expect(result.calls).toBe("");
   });
 
-  it("says so when the override points at nothing runnable", () => {
+  it("says so when the override points at nothing runnable", SPAWN_TIMEOUT, () => {
     const c = clone({ node: "v24.16.0", docker: "working" });
     const result = run(c, { DOCKER_EXECUTABLE: path.join(c.dir, "not-here") });
 
@@ -201,7 +208,7 @@ describe("scripts/setup and DOCKER_EXECUTABLE", () => {
     expect(result.output).toContain("not an executable file");
   });
 
-  it("still checks compose on the override, not only that the file exists", () => {
+  it("still checks compose on the override, not only that the file exists", SPAWN_TIMEOUT, () => {
     const c = clone({ node: "v24.16.0" });
     const noCompose = path.join(c.dir, "docker-no-compose");
     writeFileSync(noCompose, '#!/bin/sh\ncase "$1" in compose) exit 1 ;; esac\nexit 0\n', {
@@ -216,7 +223,7 @@ describe("scripts/setup and DOCKER_EXECUTABLE", () => {
 });
 
 describe("scripts/setup and a Node version manager", () => {
-  it("points at an installed nvm rather than offering to install one", () => {
+  it("points at an installed nvm rather than offering to install one", SPAWN_TIMEOUT, () => {
     const c = clone({ docker: "working" });
     mkdirSync(path.join(c.dir, ".nvm"));
     writeFileSync(path.join(c.dir, ".nvm/nvm.sh"), "# nvm\n");
@@ -228,7 +235,7 @@ describe("scripts/setup and a Node version manager", () => {
     expect(result.output).not.toContain("curl");
   });
 
-  it("points at an installed fnm the same way", () => {
+  it("points at an installed fnm the same way", SPAWN_TIMEOUT, () => {
     const c = clone({ docker: "working" });
     fake(c.bin, "fnm", "exit 0");
 
@@ -237,7 +244,7 @@ describe("scripts/setup and a Node version manager", () => {
     expect(result.output).toContain("fnm is installed");
   });
 
-  it("prints both installers, and asks nothing, with no terminal to ask at", () => {
+  it("prints both installers, and asks nothing, with no terminal to ask at", SPAWN_TIMEOUT, () => {
     const result = run(clone({ docker: "working" }));
 
     expect(result.output).toContain(
@@ -249,14 +256,14 @@ describe("scripts/setup and a Node version manager", () => {
 });
 
 describe("scripts/setup hand-off", () => {
-  it("installs the dependencies, then runs the rest", () => {
+  it("installs the dependencies, then runs the rest", SPAWN_TIMEOUT, () => {
     const result = run(clone({ node: "v24.16.0", docker: "working" }));
 
     expect(result.status).toBe(0);
     expect(result.calls).toBe("npm ci\nnpm run setup\n");
   });
 
-  it("does not reinstall when the tree is newer than the lockfile", () => {
+  it("does not reinstall when the tree is newer than the lockfile", SPAWN_TIMEOUT, () => {
     /**
      * A second run must be safe, and `npm ci` deletes node_modules — under a dev
      * server that may well be running.
@@ -271,7 +278,7 @@ describe("scripts/setup hand-off", () => {
     expect(run(c).calls).toBe("npm run setup\n");
   });
 
-  it("reinstalls when the lockfile has moved on", () => {
+  it("reinstalls when the lockfile has moved on", SPAWN_TIMEOUT, () => {
     const c = clone({ node: "v24.16.0", docker: "working" });
     const installed = path.join(c.dir, "node_modules/.package-lock.json");
     mkdirSync(path.dirname(installed));
@@ -282,7 +289,7 @@ describe("scripts/setup hand-off", () => {
     expect(run(c).calls).toBe("npm ci\nnpm run setup\n");
   });
 
-  it("works when run from inside the scripts directory", () => {
+  it("works when run from inside the scripts directory", SPAWN_TIMEOUT, () => {
     // `sh setup` there makes `$0` a bare name, with no directory to strip.
     const c = clone({ node: "v24.16.0", docker: "working" });
     const result = spawnSync("/bin/sh", ["setup"], {

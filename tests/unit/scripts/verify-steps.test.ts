@@ -99,7 +99,9 @@ describe("runVerify", () => {
 });
 
 describe("verifyActions", () => {
-  it("runs an npm script through npm's own path, not through PATH", async () => {
+  it("runs an npm script through npm's own path, not through PATH", {
+    timeout: 30_000,
+  }, async () => {
     /**
      * Spawned for real, with a stand-in for npm that records its arguments and
      * exits 0 — the way `docker.test.ts` exercises its spawn with a harmless
@@ -156,7 +158,7 @@ describe("startVerify", () => {
     }
   });
 
-  it("runs every stage against the npm it was given", async () => {
+  it("runs every stage against the npm it was given", { timeout: 60_000 }, async () => {
     /**
      * A stand-in npm that exits 0 for anything, so the whole sequence runs
      * without running a suite — six spawns of `node`, not six test runs.

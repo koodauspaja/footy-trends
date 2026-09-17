@@ -212,7 +212,9 @@ describe("nodeSetupActions", () => {
     await expect(actions.ask("Key: ")).resolves.toBe("answer");
   });
 
-  it("runs an npm script through npm's own path, not through PATH", async () => {
+  it("runs an npm script through npm's own path, not through PATH", {
+    timeout: 30_000,
+  }, async () => {
     /**
      * Spawned for real, with a stand-in for npm that records its arguments and
      * exits 0 — the way `docker.test.ts` exercises its spawn with a harmless

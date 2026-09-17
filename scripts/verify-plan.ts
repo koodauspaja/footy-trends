@@ -50,7 +50,16 @@ export const NOT_A_STAGE: Readonly<Record<string, string>> = {
     "cuts the tag once every gate is green; it is the release itself, not a check of it",
 };
 
-const RUNS_SCRIPT = /npm run [\w:-]+/g;
+const RUN_PREFIX = "npm run ";
+
+/**
+ * **Any non-space token, not a set of characters we thought of.** An npm script
+ * may be named `lint.fix` or `deploy@staging`, and a pattern of `[\w:-]+` read
+ * such a step as running no script at all — so CI could gain a stage and this
+ * audit would stay quiet, which is the one thing it exists not to do. Raised in
+ * review on #410.
+ */
+const RUNS_SCRIPT = /npm run \S+/g;
 
 /**
  * Every `npm run <script>` a workflow file runs.
@@ -60,7 +69,18 @@ const RUNS_SCRIPT = /npm run [\w:-]+/g;
  * can take — which `scripts/coverage-gaps.ts` reports, rightly.
  */
 export function workflowScripts(workflow: string): string[] {
-  return [...workflow.matchAll(RUNS_SCRIPT)].map((match) => match[0].slice("npm run ".length));
+  return [...workflow.matchAll(RUNS_SCRIPT)].map((match) => match[0].slice(RUN_PREFIX.length));
+}
+
+/**
+ * Whether a file in `.github/workflows` is a workflow.
+ *
+ * Both spellings, because GitHub accepts both: a `.yaml` workflow would
+ * otherwise be invisible to the audit, and invisible is exactly what a new
+ * uncovered stage must not be. Raised in review on #410.
+ */
+export function isWorkflowFile(name: string): boolean {
+  return name.endsWith(".yml") || name.endsWith(".yaml");
 }
 
 /**
@@ -79,9 +99,14 @@ export function stagesMissingFrom(
 ): string[] {
   const covered = new Set(stages.map((stage) => stage.script));
 
-  return [...new Set(workflowRun)]
-    .filter((script) => !covered.has(script) && !(script in exempt))
-    .sort();
+  return (
+    [...new Set(workflowRun)]
+      .filter((script) => !covered.has(script) && !(script in exempt))
+      // Sorted so the message reads the same twice, with an explicit comparator:
+      // a bare `sort()` orders by UTF-16 code unit, which is a different answer
+      // from the alphabetical one it looks like (Sonar S2871).
+      .sort((left, right) => left.localeCompare(right))
+  );
 }
 
 /** How long a stage took, in the units a reader thinks in. */

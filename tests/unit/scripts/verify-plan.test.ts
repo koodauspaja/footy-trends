@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   failureMessage,
   humanDuration,
+  isWorkflowFile,
   NOT_A_STAGE,
   passedLine,
   type Stage,
@@ -18,7 +19,7 @@ const WORKFLOWS = "./.github/workflows";
 
 function everyWorkflowScript(): string[] {
   return readdirSync(WORKFLOWS)
-    .filter((file) => file.endsWith(".yml"))
+    .filter(isWorkflowFile)
     .flatMap((file) => workflowScripts(readFileSync(path.join(WORKFLOWS, file), "utf8")));
 }
 
@@ -46,6 +47,15 @@ describe("VERIFY_STAGES", () => {
 
   it("reports a script no stage covers", () => {
     expect(stagesMissingFrom(["lint", "test:unit", "something:new"])).toEqual(["something:new"]);
+  });
+
+  it("lists what is missing in a stable order, and each name once", () => {
+    // The message is read by a person comparing two runs, so the order cannot
+    // depend on which workflow happened to be parsed first.
+    expect(stagesMissingFrom(["zeta:task", "alpha:task", "zeta:task", "lint"])).toEqual([
+      "alpha:task",
+      "zeta:task",
+    ]);
   });
 
   it("puts the slowest stage last, so a failure arrives as early as it can", () => {
@@ -77,6 +87,34 @@ describe("workflowScripts", () => {
 
   it("finds nothing in a workflow that runs no npm script", () => {
     expect(workflowScripts("run: npm ci --ignore-scripts")).toEqual([]);
+  });
+
+  it("reads a script name made of characters a narrower pattern would drop", () => {
+    // `[\w:-]+` read these as no script at all, so a workflow could gain a
+    // stage while the audit stayed quiet. Raised in review on #410.
+    expect(workflowScripts("run: npm run lint.fix")).toEqual(["lint.fix"]);
+    expect(workflowScripts("run: npm run deploy@staging")).toEqual(["deploy@staging"]);
+  });
+
+  it("stops at the first space, so flags are not read as part of the name", () => {
+    expect(workflowScripts("run: npm run test:unit -- --coverage")).toEqual(["test:unit"]);
+  });
+
+  it("finds both scripts when a step chains two", () => {
+    expect(workflowScripts("run: npm run lint && npm run typecheck")).toEqual([
+      "lint",
+      "typecheck",
+    ]);
+  });
+});
+
+describe("isWorkflowFile", () => {
+  it.each(["ci.yml", "release.yaml"])("counts %s, because GitHub accepts both", (name) => {
+    expect(isWorkflowFile(name)).toBe(true);
+  });
+
+  it.each(["README.md", "ci.yml.bak", "notes.txt"])("does not count %s", (name) => {
+    expect(isWorkflowFile(name)).toBe(false);
   });
 });
 
