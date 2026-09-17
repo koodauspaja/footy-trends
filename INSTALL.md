@@ -147,7 +147,8 @@ destroys the development one, and asks first.
 |---|---|
 | `required variable FOOTY_POSTGRES_PASSWORD is missing a value` | `.env` has no password. Run `./scripts/setup` |
 | Connection refused, or a password failure, on migrate | `FOOTY_POSTGRES_PASSWORD` and the password inside `DATABASE_URL` disagree. Make them match, or `npm run db:reset:dev` to recreate the database from scratch |
-| `No docker command found` | No container runtime, or one installed somewhere unusual — `DOCKER_EXECUTABLE=/absolute/path` says where |
+| `No docker command found` | No container runtime, or one installed somewhere unusual — `DOCKER_EXECUTABLE=/absolute/path` says where. It must be absolute: a relative one would put the choice back in `PATH`'s hands |
+| An exported `DATABASE_URL` or `FOOTY_POSTGRES_PASSWORD` | Setup stops, because a shell export beats `.env` for everything it runs next. `unset` it, or make it match the file |
 | The Docker daemon is not running | Started for you on macOS. Elsewhere, start it and re-run |
 | `node: command not found` after installing nvm or fnm | Version managers are set up by your shell's startup files. Open a new terminal |
 | Port 3000, 5432 or 6379 already in use | Something else is on it — often an older `docker compose` project. `docker compose ps` |

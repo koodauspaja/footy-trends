@@ -6,6 +6,8 @@ import {
   API_KEYS,
   composeDatabaseUrl,
   composePasswordOf,
+  DATABASE_VARIABLES,
+  exportedOverrideMessage,
   LEGACY_DATABASE_URL,
   LOCAL_AUTH_URL,
   missingApiKeys,
@@ -344,6 +346,49 @@ describe("messages", () => {
       "GOOGLE_CLIENT_SECRET not set"
     );
     expect(missingGoogleMessage("GOOGLE_CLIENT_ID=x\nGOOGLE_CLIENT_SECRET=y\n")).toBeNull();
+  });
+});
+
+describe("exportedOverrideMessage", () => {
+  const ENV =
+    "DATABASE_URL=postgresql://postgres:pw@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=pw\n";
+
+  it("says nothing when nothing is exported", () => {
+    expect(exportedOverrideMessage({}, ENV)).toBeNull();
+  });
+
+  it("says nothing when the export agrees with the file", () => {
+    const exported = {
+      DATABASE_URL: "postgresql://postgres:pw@localhost:5432/footy-trends",
+      FOOTY_POSTGRES_PASSWORD: "pw",
+    };
+
+    expect(exportedOverrideMessage(exported, ENV)).toBeNull();
+  });
+
+  it("names the one that disagrees, and how to be rid of it", () => {
+    const message = exportedOverrideMessage({ DATABASE_URL: "postgresql://elsewhere/db" }, ENV);
+
+    expect(message).toContain("DATABASE_URL is exported in this shell");
+    expect(message).toContain("unset DATABASE_URL");
+  });
+
+  it("names both when both disagree, reading as a plural", () => {
+    const message = exportedOverrideMessage(
+      { DATABASE_URL: "postgresql://elsewhere/db", FOOTY_POSTGRES_PASSWORD: "other" },
+      ENV
+    );
+
+    expect(message).toContain("DATABASE_URL and FOOTY_POSTGRES_PASSWORD are exported");
+    expect(message).toContain("unset DATABASE_URL FOOTY_POSTGRES_PASSWORD");
+  });
+
+  it("treats a blank export as no export", () => {
+    expect(exportedOverrideMessage({ DATABASE_URL: "   " }, ENV)).toBeNull();
+  });
+
+  it("covers exactly the two variables that decide which database is used", () => {
+    expect(DATABASE_VARIABLES).toEqual(["DATABASE_URL", "FOOTY_POSTGRES_PASSWORD"]);
   });
 });
 

@@ -11,6 +11,7 @@
  * that logic would be the one that drifts.
  */
 import {
+  exportedOverrideMessage,
   missingApiKeys,
   missingGoogleMessage,
   missingKeysMessage,
@@ -34,6 +35,11 @@ export type SetupActions = {
   ask: (question: string) => Promise<string | null>;
   /** `npm_config_user_agent`, which says which npm is running this. */
   userAgent: string;
+  /**
+   * The environment this was started with, for the variables an export would
+   * let win over the `.env` being written.
+   */
+  exported: NodeJS.Dict<string>;
   /** `packageManager` from package.json. */
   packageManager: string;
   /** Runs an npm script with its output shown, resolving its exit code. */
@@ -46,6 +52,7 @@ export type SetupActions = {
 export async function runSetup(actions: SetupActions): Promise<number> {
   const prepared = writeEnvFile(actions);
   if (prepared === null) return 1;
+  if (exportWins(actions, prepared)) return 1;
 
   const text = actions.interactive ? await askForKeys(actions, prepared) : prepared;
 
@@ -92,6 +99,21 @@ function writeEnvFile(actions: SetupActions): string | null {
   actions.out(existing === null ? "Created .env from .env.example:" : "Filled in .env:");
   for (const line of plan.written) actions.out(`  ${line}`);
   return plan.text;
+}
+
+/**
+ * Whether an exported variable would make the file that was just written a lie.
+ *
+ * Checked after writing and before anything is run or asked: the `.env` is
+ * correct and worth keeping, and the next run finds it complete once the export
+ * is gone.
+ */
+function exportWins(actions: SetupActions, text: string): boolean {
+  const conflict = exportedOverrideMessage(actions.exported, text);
+  if (conflict === null) return false;
+
+  actions.err(conflict);
+  return true;
 }
 
 /**

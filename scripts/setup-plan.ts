@@ -275,6 +275,48 @@ export function mismatchMessage(): string {
 }
 
 /**
+ * The variables that decide which database the commands after this one talk to.
+ *
+ * Only these two: the rest of `.env` can be overridden in a shell without
+ * anything silently pointing elsewhere.
+ */
+export const DATABASE_VARIABLES = ["DATABASE_URL", "FOOTY_POSTGRES_PASSWORD"] as const;
+
+/**
+ * Why an exported variable makes the `.env` just written a lie, or `null`.
+ *
+ * **An export beats the file, everywhere setup hands off to.**
+ * `process.loadEnvFile` does not overwrite a variable that is already set, and
+ * Compose gives a shell export precedence over `.env` — which is what
+ * `.env.example` already says about the `FOOTY_` prefix. So `npm run db:migrate`
+ * would migrate the exported database while `.env` described another, and the
+ * dev server would then read the file's. Raised in review on #409.
+ *
+ * An export that **agrees** with the file is not a conflict, so it says nothing.
+ */
+export function exportedOverrideMessage(
+  exported: NodeJS.Dict<string>,
+  envText: string
+): string | null {
+  const values = parseEnv(envText);
+  const conflicting = DATABASE_VARIABLES.filter((name) => {
+    const shell = (exported[name] ?? "").trim();
+    return shell !== "" && shell !== settingOf(values, name);
+  });
+
+  if (conflicting.length === 0) return null;
+
+  return [
+    `${conflicting.join(" and ")} ${conflicting.length === 1 ? "is" : "are"} exported in this shell,`,
+    "and what is exported wins over .env for everything setup runs next.",
+    "",
+    "Migrations would go to the exported database while .env described another, so",
+    `.env has been written and nothing else was run. Either \`unset ${conflicting.join(" ")}\``,
+    "and run setup again, or make the exported values match the file.",
+  ].join("\n");
+}
+
+/**
  * When the password in use cannot go into `.env` as an unquoted value.
  *
  * Setup stops rather than writing a different password: the one in

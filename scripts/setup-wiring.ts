@@ -1,15 +1,21 @@
 /**
- * The pieces `setup.ts` wires up that are worth testing on their own: the
- * secret, the prompt, and the two things read out of the environment.
+ * Everything `npm run setup` needs from the outside world: the secret, the
+ * prompt, the files, and the decision about whether this process was started as
+ * the setup script at all.
  *
- * **Why they are not in `setup.ts`.** That file calls `main()` at import, so a
- * test importing it would run setup and write the tester's `.env` — which is why
- * it is behind a coverage exclusion. Everything it holds that could be wrong
- * lives here instead, so the excluded part is the composition and nothing else.
- * Review on #409 asked why the entry point was excluded at all, and this is the
- * honest answer to it: most of it did not have to be.
+ * **Why none of it is in `setup-main.ts`.** A runner that calls `main()` at
+ * import cannot be imported by a test — the test would run it — so this
+ * repository has a row of such files behind `sonar.coverage.exclusions`. #400
+ * asked not to add another. So the work lives here, where it is injected and
+ * tested, and `setup-main.ts` is two lines that this module's `runWhenMain`
+ * decides whether to act on. Importing it from a test does nothing at all.
  */
 import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
+import { run } from "./services-run";
+import type { SetupActions } from "./setup-steps";
+import { runSetup } from "./setup-steps";
 
 /**
  * 32 bytes as hex: as strong as `openssl rand -base64 32`, which `.env.example`
@@ -75,4 +81,107 @@ export function notRunByNpmMessage(): string {
 export function packageManagerFrom(packageJson: string): string {
   const parsed = JSON.parse(packageJson) as { packageManager?: string };
   return parsed.packageManager ?? "";
+}
+
+/**
+ * Whether this process was **launched as** `script`, rather than the module
+ * merely being imported.
+ *
+ * `process.argv[1]` is the file Node was pointed at — measured: `tsx
+ * scripts/setup-main.ts` and `npm run setup` both give its absolute path, and
+ * under vitest it is the test runner's own worker. That is what lets the entry
+ * point be imported by a test without running.
+ *
+ * Compared with forward slashes so a Windows `\` path answers the same question.
+ */
+export function isEntryPoint(argv: readonly string[], script: string): boolean {
+  // `?? false` rather than a bare optional chain: with no argv[1] at all — an
+  // embedded or `-e` invocation — the answer is "no", not "unknown".
+  return argv[1]?.replaceAll("\\", "/").endsWith(script) ?? false;
+}
+
+/**
+ * Starts `start` when this process is `script`, and does nothing when it is not.
+ *
+ * The exit code is set here rather than returned, because nothing above a
+ * top-level call could do anything with it.
+ */
+export function runWhenMain(
+  argv: readonly string[],
+  script: string,
+  start: () => Promise<number>
+): void {
+  if (!isEntryPoint(argv, script)) return;
+
+  void start().then((code) => {
+    process.exitCode = code;
+  });
+}
+
+/** The files setup reads and writes, relative to the repository root. */
+export const REPOSITORY_FILES = {
+  env: ".env",
+  example: ".env.example",
+  packageJson: "package.json",
+} as const;
+
+export type NodeActions = {
+  files: { env: string; example: string; packageJson: string };
+  /** npm's own path, for running its scripts without going through `PATH`. */
+  npmCli: string;
+  env: NodeJS.Dict<string>;
+  /** Whether anyone is there to answer a prompt. */
+  isTty: boolean;
+  createPrompt: () => Prompt;
+};
+
+/** The real filesystem, terminal and process, as the sequence's injected actions. */
+export function nodeSetupActions({
+  files,
+  npmCli,
+  env,
+  isTty,
+  createPrompt,
+}: NodeActions): SetupActions {
+  return {
+    readEnv: () => (existsSync(files.env) ? readFileSync(files.env, "utf8") : null),
+    readExample: () => readFileSync(files.example, "utf8"),
+    // Owner-only when created: it holds the database password and the auth
+    // secret. An existing file keeps whatever mode it had.
+    writeEnv: (text) => writeFileSync(files.env, text, { mode: 0o600 }),
+    secret,
+    interactive: isTty,
+    ask: makeAsk(createPrompt),
+    userAgent: env.npm_config_user_agent ?? "",
+    exported: env,
+    packageManager: packageManagerFrom(readFileSync(files.packageJson, "utf8")),
+    runScript: (name) => run(process.execPath, [npmCli, "run", name]),
+    out: (line) => process.stdout.write(`${line}\n`),
+    err: (line) => process.stderr.write(`${line}\n`),
+  };
+}
+
+/** A readline interface, which `makeAsk` closes as soon as it has its answer. */
+export function createNodePrompt(): Prompt {
+  return createInterface({ input: process.stdin, output: process.stdout });
+}
+
+/** The whole of `npm run setup`, from the real world in. Returns the exit code. */
+export async function startSetup(): Promise<number> {
+  const npmCli = npmCliFrom(process.env);
+
+  if (npmCli === null) {
+    process.stderr.write(`${notRunByNpmMessage()}\n`);
+    return 1;
+  }
+
+  return runSetup(
+    nodeSetupActions({
+      files: REPOSITORY_FILES,
+      npmCli,
+      env: process.env,
+      isTty: process.stdin.isTTY === true,
+      createPrompt: createNodePrompt,
+    })
+  );
 }

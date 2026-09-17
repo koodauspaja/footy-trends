@@ -41,6 +41,7 @@ function actions(overrides: Partial<SetupActions> = {}) {
       return answers.shift() ?? "";
     },
     userAgent: "npm/12.0.2 node/v24.16.0 darwin arm64 workspaces/false",
+    exported: {},
     packageManager: "npm@12.0.2",
     runScript: async (name) => {
       steps.push(`run:${name}`);
@@ -88,6 +89,37 @@ describe("runSetup", () => {
     expect(a.steps).not.toContain("writeEnv");
     expect(a.steps.some((step) => step.startsWith("run:"))).toBe(false);
     expect(said(a)).toContain("disagree");
+  });
+
+  it("stops when an exported variable would beat the .env it just wrote", async () => {
+    /**
+     * An export wins over `.env` for every command setup hands off to, so
+     * migrations would go to one database while the file described another.
+     * Raised in review on #409.
+     */
+    const a = actions({
+      readEnv: () => null,
+      exported: { DATABASE_URL: "postgresql://postgres:other@localhost:5432/somewhere-else" },
+    });
+
+    expect(await runSetup(a)).toBe(1);
+    // The file is still written — it is correct, and the next run finds it
+    // complete once the export is gone.
+    expect(a.steps).toContain("writeEnv");
+    expect(a.steps.some((step) => step.startsWith("run:"))).toBe(false);
+    expect(said(a)).toContain("unset DATABASE_URL");
+  });
+
+  it("says nothing about an export that agrees with the file", async () => {
+    const a = actions({
+      exported: {
+        DATABASE_URL: "postgresql://postgres:pw@localhost:5432/footy-trends",
+        FOOTY_POSTGRES_PASSWORD: "pw",
+      },
+    });
+
+    expect(await runSetup(a)).toBe(0);
+    expect(a.steps).toContain("run:db:migrate");
   });
 
   it("warns about a different npm and carries on", async () => {

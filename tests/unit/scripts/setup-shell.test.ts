@@ -92,14 +92,14 @@ function clone({
  * running the suite can decide the result. `NODE_ENV` is here because Next's
  * types make it a required member of `ProcessEnv`; the script never reads it.
  */
-function environment(c: Clone): NodeJS.ProcessEnv {
-  return { PATH: c.bin, HOME: c.dir, NODE_ENV: "test" };
+function environment(c: Clone, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  return { PATH: c.bin, HOME: c.dir, NODE_ENV: "test", ...extra };
 }
 
-function run(c: Clone) {
+function run(c: Clone, extra: Record<string, string> = {}) {
   const result = spawnSync("/bin/sh", [path.join(c.dir, "scripts/setup")], {
     encoding: "utf8",
-    env: environment(c),
+    env: environment(c, extra),
   });
 
   return { status: result.status, output: `${result.stdout}${result.stderr}`, calls: c.log() };
@@ -156,6 +156,62 @@ describe("scripts/setup prerequisites", () => {
     expect(result.output).toContain("OrbStack");
     expect(result.output).toContain("Colima");
     expect(result.output).toContain("Podman");
+  });
+});
+
+describe("scripts/setup and DOCKER_EXECUTABLE", () => {
+  /**
+   * INSTALL.md offers this for a docker installed somewhere unusual, and the
+   * shell check runs before the TypeScript half that reads it — so without
+   * support here the documented escape hatch never got a chance. Raised in
+   * review on #409.
+   */
+  function dockerAt(c: Clone, name: string): string {
+    const elsewhere = path.join(c.dir, name);
+    writeFileSync(elsewhere, '#!/bin/sh\ncase "$1" in compose) exit 0 ;; esac\nexit 0\n', {
+      mode: 0o755,
+    });
+    return elsewhere;
+  }
+
+  it("accepts a docker that is not on PATH at all", () => {
+    const c = clone({ node: "v24.16.0" });
+    const result = run(c, { DOCKER_EXECUTABLE: dockerAt(c, "docker-elsewhere") });
+
+    expect(result.status).toBe(0);
+    expect(result.calls).toContain("npm run setup");
+  });
+
+  it("refuses a relative override, the way executable.ts does", () => {
+    // A relative path would put the choice back in `PATH`'s hands, which is the
+    // whole point of having an override.
+    const c = clone({ node: "v24.16.0", docker: "working" });
+    const result = run(c, { DOCKER_EXECUTABLE: "docker" });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("must be an absolute path");
+    expect(result.calls).toBe("");
+  });
+
+  it("says so when the override points at nothing runnable", () => {
+    const c = clone({ node: "v24.16.0", docker: "working" });
+    const result = run(c, { DOCKER_EXECUTABLE: path.join(c.dir, "not-here") });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("not an executable file");
+  });
+
+  it("still checks compose on the override, not only that the file exists", () => {
+    const c = clone({ node: "v24.16.0" });
+    const noCompose = path.join(c.dir, "docker-no-compose");
+    writeFileSync(noCompose, '#!/bin/sh\ncase "$1" in compose) exit 1 ;; esac\nexit 0\n', {
+      mode: 0o755,
+    });
+
+    const result = run(c, { DOCKER_EXECUTABLE: noCompose });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("`docker compose version` failed");
   });
 });
 

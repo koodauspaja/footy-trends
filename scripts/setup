@@ -73,14 +73,43 @@ else
   - Node.js $wanted or newer (not found)"
 fi
 
-if ! command -v docker > /dev/null 2>&1; then
+# `DOCKER_EXECUTABLE` is honoured here and not only by the TypeScript half:
+# INSTALL.md offers it for a docker installed somewhere unusual, and this check
+# runs first, so without it the documented escape hatch never got a chance.
+# Absolute only, exactly as `executable.ts` insists — a relative override would
+# put the choice back in `PATH`'s hands, which is the whole point of having one.
+docker_bin=""
+override=${DOCKER_EXECUTABLE:-}
+
+if [ -n "$override" ]; then
+  case $override in
+    /*)
+      if [ -x "$override" ]; then
+        docker_bin=$override
+      else
+        needs_runtime=true
+        missing="$missing
+  - A container runtime: DOCKER_EXECUTABLE is \`$override\`, which is not an executable file"
+      fi
+      ;;
+    *)
+      needs_runtime=true
+      missing="$missing
+  - A container runtime: DOCKER_EXECUTABLE must be an absolute path (it is \`$override\`)"
+      ;;
+  esac
+elif command -v docker > /dev/null 2>&1; then
+  docker_bin=docker
+else
   needs_runtime=true
   missing="$missing
   - A container runtime providing \`docker compose\` (no \`docker\` command found)"
-elif ! docker compose version > /dev/null 2>&1; then
+fi
+
+if [ -n "$docker_bin" ] && ! "$docker_bin" compose version > /dev/null 2>&1; then
   needs_runtime=true
   missing="$missing
-  - \`docker compose\` (\`docker\` is here, but \`docker compose version\` failed)"
+  - \`docker compose\` (\`$docker_bin\` is here, but \`docker compose version\` failed)"
 fi
 
 if [ -n "$missing" ]; then

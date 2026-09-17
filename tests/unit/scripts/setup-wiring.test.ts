@@ -1,13 +1,35 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+// A type, so this import is erased rather than reaching the mocked module.
+import type { SetupActions } from "../../../scripts/setup-steps";
 import {
+  createNodePrompt,
+  isEntryPoint,
   makeAsk,
+  type NodeActions,
+  nodeSetupActions,
   notRunByNpmMessage,
   npmCliFrom,
   type Prompt,
   packageManagerFrom,
+  REPOSITORY_FILES,
+  runWhenMain,
   secret,
+  startSetup,
 } from "../../../scripts/setup-wiring";
+
+/**
+ * The sequence itself is `setup-steps.ts`'s to test. Mocked here so that
+ * `startSetup` — the one function that reaches for the real repository — can be
+ * exercised without running setup on the machine running the suite.
+ */
+const { runSetup } = vi.hoisted(() => ({
+  runSetup: vi.fn<(actions: SetupActions) => Promise<number>>(async () => 0),
+}));
+
+vi.mock("../../../scripts/setup-steps", () => ({ runSetup }));
 
 /** A prompt that answers as told, and records what it was asked and its closing. */
 function prompt(answer: () => Promise<string>): Prompt & { asked: string[]; closes: string[] } {
@@ -104,6 +126,227 @@ describe("npmCliFrom", () => {
 
   it("says how to start it properly", () => {
     expect(notRunByNpmMessage()).toContain("npm run setup");
+  });
+});
+
+describe("isEntryPoint", () => {
+  it("recognises the path tsx and npm actually pass", () => {
+    // Measured: `tsx scripts/setup-main.ts` and `npm run setup` both give the
+    // absolute path of the file.
+    const argv = ["/usr/bin/node", "/Users/someone/footy-trends/scripts/setup-main.ts"];
+
+    expect(isEntryPoint(argv, "scripts/setup-main.ts")).toBe(true);
+  });
+
+  it("recognises it with Windows separators", () => {
+    const argv = ["node.exe", String.raw`C:\dev\footy-trends\scripts\setup-main.ts`];
+
+    expect(isEntryPoint(argv, "scripts/setup-main.ts")).toBe(true);
+  });
+
+  it("says no under the test runner, which is what makes the import safe", () => {
+    // The real value in this very process.
+    expect(isEntryPoint(process.argv, "scripts/setup-main.ts")).toBe(false);
+    expect(process.argv[1]).toContain("vitest");
+  });
+
+  it("says no for another script, and for no script at all", () => {
+    expect(isEntryPoint(["node", "/repo/scripts/db-reset.ts"], "scripts/setup-main.ts")).toBe(
+      false
+    );
+    expect(isEntryPoint(["node"], "scripts/setup-main.ts")).toBe(false);
+  });
+
+  it("does not match a file that merely ends the same way", () => {
+    // The directory is part of the comparison, so a `not-setup-main.ts`, or a
+    // `setup-main.ts` somewhere else, is not this script.
+    expect(isEntryPoint(["node", "/repo/scripts/not-setup-main.ts"], "scripts/setup-main.ts")).toBe(
+      false
+    );
+    expect(isEntryPoint(["node", "/repo/other/setup-main.ts"], "scripts/setup-main.ts")).toBe(
+      false
+    );
+  });
+});
+
+describe("runWhenMain", () => {
+  const exitCode = process.exitCode;
+
+  afterEach(() => {
+    process.exitCode = exitCode;
+  });
+
+  it("starts nothing when this process is not that script", async () => {
+    const start = vi.fn(async () => 3);
+
+    runWhenMain(["node", "/repo/scripts/something-else.ts"], "scripts/setup-main.ts", start);
+    await Promise.resolve();
+
+    expect(start).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(exitCode);
+  });
+
+  it("starts it, and takes its exit code, when it is", async () => {
+    const start = vi.fn(async () => 2);
+
+    runWhenMain(["node", "/repo/scripts/setup-main.ts"], "scripts/setup-main.ts", start);
+    // The call is not awaited by `runWhenMain` — nothing above it could — so
+    // let the microtask that sets the code run.
+    await vi.waitFor(() => expect(process.exitCode).toBe(2));
+
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("nodeSetupActions", () => {
+  /** A throwaway directory, so every file this touches is its own. */
+  function options(overrides: Partial<NodeActions> = {}): NodeActions {
+    const dir = mkdtempSync(path.join(tmpdir(), "footy-wiring-"));
+    writeFileSync(path.join(dir, ".env.example"), "FOOTBALL_DATA_API_KEY=\n");
+    writeFileSync(path.join(dir, "package.json"), '{"packageManager":"npm@12.0.2"}');
+
+    return {
+      files: {
+        env: path.join(dir, ".env"),
+        example: path.join(dir, ".env.example"),
+        packageJson: path.join(dir, "package.json"),
+      },
+      npmCli: "/does/not/run.js",
+      env: { npm_config_user_agent: "npm/12.0.2 node/v24.16.0" },
+      isTty: false,
+      createPrompt: () => prompt(async () => "answer"),
+      ...overrides,
+    };
+  }
+
+  it("reports no .env when there is none, and its contents when there is", () => {
+    const o = options();
+    const actions = nodeSetupActions(o);
+
+    expect(actions.readEnv()).toBeNull();
+
+    writeFileSync(o.files.env, "A=1\n");
+    expect(actions.readEnv()).toBe("A=1\n");
+  });
+
+  it("reads the example, and the pinned package manager", () => {
+    const actions = nodeSetupActions(options());
+
+    expect(actions.readExample()).toBe("FOOTBALL_DATA_API_KEY=\n");
+    expect(actions.packageManager).toBe("npm@12.0.2");
+  });
+
+  it("writes .env readable only by its owner, since it holds both secrets", () => {
+    const o = options();
+
+    nodeSetupActions(o).writeEnv("SECRET=x\n");
+
+    expect(readFileSync(o.files.env, "utf8")).toBe("SECRET=x\n");
+    // 0o600. The mode applies when the file is created, which is the case that
+    // matters: nothing else on the machine should be able to read it.
+    expect(statSync(o.files.env).mode & 0o777).toBe(0o600);
+  });
+
+  it("carries the terminal and the user agent through, and an absent agent as blank", () => {
+    expect(nodeSetupActions(options({ isTty: true })).interactive).toBe(true);
+    expect(nodeSetupActions(options()).userAgent).toBe("npm/12.0.2 node/v24.16.0");
+    expect(nodeSetupActions(options({ env: {} })).userAgent).toBe("");
+  });
+
+  it("asks through the prompt it was given", async () => {
+    const actions = nodeSetupActions(options());
+
+    await expect(actions.ask("Key: ")).resolves.toBe("answer");
+  });
+
+  it("runs an npm script through npm's own path, not through PATH", async () => {
+    /**
+     * Spawned for real, with a stand-in for npm that records its arguments and
+     * exits 0 — the way `docker.test.ts` exercises its spawn with a harmless
+     * command. What is being pinned is that npm is run as an argument to this
+     * Node, rather than resolved from `PATH`.
+     */
+    const dir = mkdtempSync(path.join(tmpdir(), "footy-npm-"));
+    const fakeNpm = path.join(dir, "fake-npm.js");
+    const log = path.join(dir, "argv.json");
+    writeFileSync(
+      fakeNpm,
+      `require("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)));`
+    );
+
+    const code = await nodeSetupActions(options({ npmCli: fakeNpm })).runScript("db:migrate");
+
+    expect(code).toBe(0);
+    expect(JSON.parse(readFileSync(log, "utf8"))).toEqual(["run", "db:migrate"]);
+  });
+
+  it("writes its lines to stdout and stderr, each ending a line", () => {
+    const out = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const err = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    try {
+      const actions = nodeSetupActions(options());
+      actions.out("said");
+      actions.err("warned");
+
+      // Asserted before restoring: `mockRestore` clears the call history too,
+      // so assertions after it see a spy that was never called.
+      expect(out).toHaveBeenCalledWith("said\n");
+      expect(err).toHaveBeenCalledWith("warned\n");
+    } finally {
+      out.mockRestore();
+      err.mockRestore();
+    }
+  });
+
+  it("hands over a secret generator rather than a fixed value", () => {
+    const actions = nodeSetupActions(options());
+
+    expect(actions.secret()).not.toBe(actions.secret());
+  });
+});
+
+describe("createNodePrompt", () => {
+  it("makes a readline interface that closes cleanly", () => {
+    const created = createNodePrompt();
+
+    // Closed immediately: an open interface on stdin would keep this worker
+    // alive, and nothing here is going to type an answer.
+    expect(() => created.close()).not.toThrow();
+  });
+});
+
+describe("startSetup", () => {
+  it("runs the sequence against the repository's own files", async () => {
+    const npmExecPath = process.env.npm_execpath;
+    process.env.npm_execpath = "/somewhere/npm-cli.js";
+    runSetup.mockResolvedValueOnce(4);
+
+    try {
+      await expect(startSetup()).resolves.toBe(4);
+    } finally {
+      if (npmExecPath === undefined) delete process.env.npm_execpath;
+      else process.env.npm_execpath = npmExecPath;
+    }
+
+    const actions = vi.mocked(runSetup).mock.calls.at(-1)?.[0];
+
+    expect(actions?.packageManager).toBe(packageManagerFrom(readFileSync("package.json", "utf8")));
+    expect(REPOSITORY_FILES.env).toBe(".env");
+  });
+
+  it("refuses, with the way to start it, when npm did not", async () => {
+    const err = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const npmExecPath = process.env.npm_execpath;
+    delete process.env.npm_execpath;
+
+    try {
+      await expect(startSetup()).resolves.toBe(1);
+      expect(err).toHaveBeenCalledWith(expect.stringContaining("npm run setup"));
+    } finally {
+      err.mockRestore();
+      if (npmExecPath !== undefined) process.env.npm_execpath = npmExecPath;
+    }
   });
 });
 
