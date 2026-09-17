@@ -13,6 +13,7 @@
  * ambiguous to anything resolving without one: a test importing
  * `scripts/setup` got the shell script and failed on its `#` comments.
  */
-import { runWhenMain, startSetup } from "./setup-wiring";
+import { runWhenMain } from "./entry-point";
+import { startSetup } from "./setup-wiring";
 
 runWhenMain(process.argv, "scripts/setup-main.ts", startSetup);

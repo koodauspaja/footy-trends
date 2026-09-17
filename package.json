@@ -36,7 +36,10 @@
     "test:unit": "vitest run tests/unit --coverage && tsx scripts/coverage-gaps.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "verify:sentry": "tsx scripts/verify-sentry.ts"
+    "verify:sentry": "tsx scripts/verify-sentry.ts",
+    "verify": "tsx scripts/verify.ts",
+    "test:e2e:ui": "playwright test --ui",
+    "pretest:e2e:ui": "tsx scripts/ensure-services.ts --test"
   },
   "dependencies": {
     "@axiomhq/pino": "2.0.0",
