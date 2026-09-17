@@ -76,7 +76,10 @@ cp .env.example .env
 
 Then set, in `.env`:
 
-- `FOOTY_POSTGRES_PASSWORD` — any value
+- `FOOTY_POSTGRES_PASSWORD` — letters, digits, `-` and `_`. A password
+  containing `#`, a space, `%`, `/`, `@` or `:` has to be percent-encoded where
+  it appears in the URL below, and `#` also ends the value early in `.env`
+  itself. `npm run setup` sidesteps both by generating a hex value
 - `DATABASE_URL` — `postgresql://postgres:<that same value>@localhost:5432/footy-trends`
 - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
 - `BETTER_AUTH_URL` — `http://localhost:3000`

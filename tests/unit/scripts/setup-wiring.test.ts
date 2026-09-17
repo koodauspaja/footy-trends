@@ -260,6 +260,17 @@ describe("nodeSetupActions", () => {
     expect(statSync(o.files.env).mode & 0o777).toBe(0o600);
   });
 
+  it("tightens .env without writing it, for the run that changes nothing", () => {
+    const o = options();
+    writeFileSync(o.files.env, "OLD=1\n", { mode: 0o644 });
+
+    nodeSetupActions(o).secureEnv();
+
+    expect(statSync(o.files.env).mode & 0o777).toBe(0o600);
+    // Untouched: this path exists precisely because there was nothing to write.
+    expect(readFileSync(o.files.env, "utf8")).toBe("OLD=1\n");
+  });
+
   it("tightens an .env that already existed with looser permissions", () => {
     /**
      * `writeFileSync`'s `mode` applies only when the file is created, so a

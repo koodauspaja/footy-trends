@@ -34,6 +34,9 @@ function actions(overrides: Partial<SetupActions> = {}) {
       state.written = text;
       steps.push("writeEnv");
     },
+    secureEnv: () => {
+      steps.push("secureEnv");
+    },
     secret: () => "generated",
     interactive: false,
     ask: async (question) => {
@@ -68,6 +71,9 @@ describe("runSetup", () => {
     ]);
     expect(a.steps).not.toContain("writeEnv");
     expect(said(a)).toContain("nothing regenerated");
+    // Nothing written, but its permissions are still tightened: a `.env` copied
+    // by hand is 0644, and it holds the password and the auth secret.
+    expect(a.steps).toContain("secureEnv");
   });
 
   it("creates .env from the example when there is none", async () => {
@@ -268,10 +274,12 @@ describe("runSetup, with a terminal", () => {
     expect(await runSetup(a)).toBe(0);
     // One question per key at most, and the dev-server one — never a re-ask
     // into a stream that has ended.
+    // One question, and no more: input has ended for the dev-server prompt too,
+    // which this asserted the wrong way round until review on #409.
     expect(a.steps.filter((step) => step.startsWith("ask:"))).toEqual([
       "ask:FOOTBALL_DATA_API_KEY: ",
-      "ask:Start the dev server now? [Y/n] ",
     ]);
+    expect(said(a)).toContain("Start the app with `npm run dev`");
     expect(a.steps).not.toContain("run:dev");
     expect(a.state.written).toBeNull();
   });

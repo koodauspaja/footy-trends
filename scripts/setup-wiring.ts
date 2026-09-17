@@ -169,6 +169,8 @@ export function nodeSetupActions({
       writeFileSync(files.env, text, { mode: 0o600 });
       chmodSync(files.env, 0o600);
     },
+    /** The rerun case: a `.env` that needed nothing still must not be readable by others. */
+    secureEnv: () => chmodSync(files.env, 0o600),
     secret,
     interactive: isTty,
     ask: makeAsk(createPrompt),

@@ -42,6 +42,12 @@ export type SetupActions = {
   exported: NodeJS.Dict<string>;
   /** `packageManager` from package.json. */
   packageManager: string;
+  /**
+   * Tightens `.env` to owner-only, for the run where nothing needed writing.
+   * A file that already had every value keeps its permissions otherwise, and
+   * `cp .env.example .env` makes a world-readable one. Raised in review on #409.
+   */
+  secureEnv: () => void;
   /** Runs an npm script with its output shown, resolving its exit code. */
   runScript: (name: string) => Promise<number>;
   out: (line: string) => void;
@@ -54,7 +60,10 @@ export async function runSetup(actions: SetupActions): Promise<number> {
   if (prepared === null) return 1;
   if (exportWins(actions, prepared)) return 1;
 
-  const text = actions.interactive ? await askForKeys(actions, prepared) : prepared;
+  const keys = actions.interactive
+    ? await askForKeys(actions, prepared)
+    : { text: prepared, inputEnded: false };
+  const text = keys.text;
 
   actions.out("");
   actions.out("Starting the database and applying migrations…");
@@ -67,7 +76,7 @@ export async function runSetup(actions: SetupActions): Promise<number> {
   await installBrowser(actions);
   reportWhatIsMissing(actions, text);
 
-  return startServer(actions);
+  return startServer(actions, keys.inputEnded);
 }
 
 /**
@@ -92,6 +101,9 @@ function writeEnvFile(actions: SetupActions): string | null {
 
   if (plan.written.length === 0) {
     actions.out(".env already has its database and auth values — nothing regenerated.");
+    // Nothing to write, but its permissions are still setup's business: this is
+    // the rerun against a `.env` that was copied by hand, and left 0644.
+    actions.secureEnv();
     return plan.text;
   }
 
@@ -144,8 +156,13 @@ function reportWhatIsMissing(actions: SetupActions, text: string): void {
   actions.out("Setup is done.");
 }
 
-async function startServer(actions: SetupActions): Promise<number> {
-  if (!actions.interactive) {
+async function startServer(actions: SetupActions, inputEnded: boolean): Promise<number> {
+  /**
+   * `inputEnded` is not the same as "not interactive": there is a terminal, but
+   * whoever was at it pressed Ctrl-D. Asking one more question into a stream
+   * that has ended would get the same answer, which is no answer at all.
+   */
+  if (!actions.interactive || inputEnded) {
     actions.out("Start the app with `npm run dev`, then open http://localhost:3000.");
     return 0;
   }
@@ -158,13 +175,16 @@ async function startServer(actions: SetupActions): Promise<number> {
   return actions.runScript("dev");
 }
 
+/** The `.env` after the prompts, and whether input ended part-way through them. */
+type KeyAnswers = { text: string; inputEnded: boolean };
+
 /**
  * Asks for each blank key and writes each answer as it is given, so an
  * interrupted run keeps what was already typed.
  */
-async function askForKeys(actions: SetupActions, initial: string): Promise<string> {
+async function askForKeys(actions: SetupActions, initial: string): Promise<KeyAnswers> {
   const missing = missingApiKeys(initial);
-  if (missing.length === 0) return initial;
+  if (missing.length === 0) return { text: initial, inputEnded: false };
 
   let text = initial;
 
@@ -184,7 +204,7 @@ async function askForKeys(actions: SetupActions, initial: string): Promise<strin
        * End of input: not an answer to this question, and not to the next one
        * either. Asking again would prompt into a stream that has ended.
        */
-      if (typed === null) return text;
+      if (typed === null) return { text, inputEnded: true };
 
       const answer = readKeyInput(typed);
       if (answer.kind === "skip") break;
@@ -200,5 +220,5 @@ async function askForKeys(actions: SetupActions, initial: string): Promise<strin
     }
   }
 
-  return text;
+  return { text, inputEnded: false };
 }
