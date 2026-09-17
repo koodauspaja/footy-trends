@@ -11,7 +11,7 @@
  * decides whether to act on. Importing it from a test does nothing at all.
  */
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { run } from "./services-run";
 import type { SetupActions } from "./setup-steps";
@@ -146,9 +146,20 @@ export function nodeSetupActions({
   return {
     readEnv: () => (existsSync(files.env) ? readFileSync(files.env, "utf8") : null),
     readExample: () => readFileSync(files.example, "utf8"),
-    // Owner-only when created: it holds the database password and the auth
-    // secret. An existing file keeps whatever mode it had.
-    writeEnv: (text) => writeFileSync(files.env, text, { mode: 0o600 }),
+    /**
+     * Owner-only, every time — it holds the database password and the auth
+     * secret.
+     *
+     * **The `mode` option applies only when the file is created**, so a `.env`
+     * that already existed kept whatever permissions it had while gaining
+     * secrets: `cp .env.example .env` makes an 0644 file under a normal umask,
+     * readable by every account on the machine. The explicit `chmod` is what
+     * covers the rerun. Raised in review on #409.
+     */
+    writeEnv: (text) => {
+      writeFileSync(files.env, text, { mode: 0o600 });
+      chmodSync(files.env, 0o600);
+    },
     secret,
     interactive: isTty,
     ask: makeAsk(createPrompt),

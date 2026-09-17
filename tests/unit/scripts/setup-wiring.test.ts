@@ -242,8 +242,21 @@ describe("nodeSetupActions", () => {
     nodeSetupActions(o).writeEnv("SECRET=x\n");
 
     expect(readFileSync(o.files.env, "utf8")).toBe("SECRET=x\n");
-    // 0o600. The mode applies when the file is created, which is the case that
-    // matters: nothing else on the machine should be able to read it.
+    expect(statSync(o.files.env).mode & 0o777).toBe(0o600);
+  });
+
+  it("tightens an .env that already existed with looser permissions", () => {
+    /**
+     * `writeFileSync`'s `mode` applies only when the file is created, so a
+     * `cp .env.example .env` — 0644 under a normal umask — kept world-readable
+     * permissions while setup added the password and the auth secret to it.
+     * Raised in review on #409.
+     */
+    const o = options();
+    writeFileSync(o.files.env, "OLD=1\n", { mode: 0o644 });
+
+    nodeSetupActions(o).writeEnv("SECRET=x\n");
+
     expect(statSync(o.files.env).mode & 0o777).toBe(0o600);
   });
 
