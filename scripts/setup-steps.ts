@@ -49,8 +49,8 @@ export async function runSetup(actions: SetupActions): Promise<number> {
 
   /**
    * **Everything that can be known is reported before anything is asked or
-   * written.** A newcomer who answers two prompts and then learns the `.env` they
-   * already had cannot be used has been asked for nothing.
+   * written.** Nobody should answer two key prompts and only then be told that
+   * the `.env` they already had cannot be used.
    */
   const npmWarning = npmVersionWarning(actions.userAgent, actions.packageManager);
   if (npmWarning !== null) err(npmWarning);

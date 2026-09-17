@@ -5,8 +5,9 @@ dist/
 *.log
 .DS_Store
 # Editor state is personal; the two files that describe *this project* are not.
-# `settings.json` was tracked all along — an ignore rule does not reach a file
-# already in the index — which read as an exception rather than the intent (#400).
+# `settings.json` existed only on individual machines, ignored and so never
+# reviewed — which is how it kept a `YOUR_PROJECT_KEY` placeholder, and SonarLint
+# connected mode, for everyone who had it, resolved nothing (#400).
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
