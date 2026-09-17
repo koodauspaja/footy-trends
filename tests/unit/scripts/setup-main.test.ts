@@ -12,7 +12,8 @@ const { runWhenMain, startSetup } = vi.hoisted(() => ({
   startSetup: vi.fn(async () => 0),
 }));
 
-vi.mock("../../../scripts/setup-wiring", () => ({ runWhenMain, startSetup }));
+vi.mock("../../../scripts/entry-point", () => ({ runWhenMain }));
+vi.mock("../../../scripts/setup-wiring", () => ({ startSetup }));
 
 afterEach(() => {
   vi.clearAllMocks();

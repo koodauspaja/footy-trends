@@ -225,10 +225,12 @@ fresh.
    outcome.
 5. For every behaviour changed: search the repository for sentences describing
    the old one.
-6. `npm run lint`, `npm run typecheck`, `npm run test:unit` (100% on all four
-   metrics), `npm run test:integration`, `npm run test:e2e`.
-7. `npm run test:shuffle` when the diff adds or reorders tests — it catches the
-   ones that pass only because of what ran before them.
+6. **`npm run verify`** — lint, typecheck, `test:unit` (100% on all four
+   metrics), `test:shuffle`, integration and end-to-end, in that order, stopping
+   at the first failure and naming it (#401). The stages are checked against the
+   workflows by a unit test, so a green run here is a green CI; running them
+   one at a time is the same gate, and the one that gets skipped when they are
+   separate commands is always the slow one.
 
 Related: `skills/open-pr.md` for the review gate itself, `REVIEW_RULES.md` for
 what Sourcery enforces on the diff.
