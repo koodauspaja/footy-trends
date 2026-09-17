@@ -318,7 +318,12 @@ export function npmVersionWarning(userAgent: string, packageManager: string): st
   ].join("\n");
 }
 
-/** Only a clear yes, or just Enter, starts the server — the prompt says `[Y/n]`. */
-export function wantsDevServer(answer: string): boolean {
-  return ["", "y", "yes"].includes(answer.trim().toLowerCase());
+/**
+ * Only a clear yes, or just Enter, starts the server — the prompt says `[Y/n]`.
+ *
+ * `null` is end of input rather than agreement: nobody pressing Ctrl-D is asking
+ * for a dev server to be started in front of them.
+ */
+export function wantsDevServer(answer: string | null): boolean {
+  return answer !== null && ["", "y", "yes"].includes(answer.trim().toLowerCase());
 }

@@ -23,11 +23,21 @@ function secret(): string {
   return randomBytes(32).toString("hex");
 }
 
-/** A fresh interface per question, so none is holding stdin while a child runs. */
-async function ask(question: string): Promise<string> {
+/**
+ * A fresh interface per question, so none is holding stdin while a child runs.
+ *
+ * `null` when there is no answer to be had. Node's `question` **rejects** on
+ * end-of-input — `AbortError: Aborted with Ctrl+D` — and an uncaught one ends
+ * setup with a stack trace where the prompt had just said "press Enter to skip".
+ * Found by running it, not by reading it: every prompt here is optional, so the
+ * honest reading of "no more input" is that nothing more was chosen.
+ */
+async function ask(question: string): Promise<string | null> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     return await rl.question(question);
+  } catch {
+    return null;
   } finally {
     rl.close();
   }

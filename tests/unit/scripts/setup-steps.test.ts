@@ -212,6 +212,38 @@ describe("runSetup, with a terminal", () => {
     expect(await runSetup(a)).toBe(130);
   });
 
+  it("stops asking, and starts nothing, when input ends at a prompt", async () => {
+    /**
+     * Ctrl-D, or a piped run. Node's readline rejects the pending question, and
+     * an uncaught rejection ended setup with a stack trace where the prompt had
+     * just said "press Enter to skip" — found by running it.
+     */
+    const a = actions({
+      interactive: true,
+      // Both keys blank, so "the second was never asked" is visible: input has
+      // ended, and it has ended for every question after this one too.
+      readEnv: () =>
+        COMPLETE.replace("FOOTBALL_DATA_API_KEY=fd", "FOOTBALL_DATA_API_KEY=").replace(
+          "TASO_API_KEY=taso",
+          "TASO_API_KEY="
+        ),
+      ask: async (question) => {
+        a.steps.push(`ask:${question}`);
+        return null;
+      },
+    });
+
+    expect(await runSetup(a)).toBe(0);
+    // One question per key at most, and the dev-server one — never a re-ask
+    // into a stream that has ended.
+    expect(a.steps.filter((step) => step.startsWith("ask:"))).toEqual([
+      "ask:FOOTBALL_DATA_API_KEY: ",
+      "ask:Start the dev server now? [Y/n] ",
+    ]);
+    expect(a.steps).not.toContain("run:dev");
+    expect(a.state.written).toBeNull();
+  });
+
   it("says how to start it later when the answer is no", async () => {
     const a = interactive(["no"]);
 

@@ -381,4 +381,8 @@ describe("wantsDevServer", () => {
   it.each(["n", "no", "later"])("does not on %j", (answer) => {
     expect(wantsDevServer(answer)).toBe(false);
   });
+
+  it("does not on end of input, which is not agreement", () => {
+    expect(wantsDevServer(null)).toBe(false);
+  });
 });

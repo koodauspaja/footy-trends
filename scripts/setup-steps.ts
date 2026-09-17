@@ -31,7 +31,8 @@ export type SetupActions = {
   secret: () => string;
   /** Whether anyone is there to answer. Without a terminal nothing is asked. */
   interactive: boolean;
-  ask: (question: string) => Promise<string>;
+  /** The answer, or `null` when input has ended and none can be given. */
+  ask: (question: string) => Promise<string | null>;
   /** `npm_config_user_agent`, which says which npm is running this. */
   userAgent: string;
   /** `packageManager` from package.json. */
@@ -140,7 +141,15 @@ async function askForKeys(
     actions.out(`Without it: ${key.without}.`);
 
     for (;;) {
-      const answer = readKeyInput(await actions.ask(`${key.name}: `));
+      const typed = await actions.ask(`${key.name}: `);
+
+      /**
+       * End of input: not an answer to this question, and not to the next one
+       * either. Asking again would prompt into a stream that has ended.
+       */
+      if (typed === null) return text;
+
+      const answer = readKeyInput(typed);
       if (answer.kind === "skip") break;
       if (answer.kind === "invalid") {
         actions.err(
