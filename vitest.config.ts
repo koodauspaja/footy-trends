@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { parseSonarProperty } from "./scripts/coverage-gaps-plan";
 
 // Vitest does not populate process.env from .env files, so the integration
 // tests could not reach Postgres or Redis without exporting the variables by
@@ -112,7 +113,30 @@ export default defineConfig({
       // Stylesheets are not executable code and have nothing to cover. Vite
       // processes `import "./globals.css"` in the root layout, so once that
       // layout gained a test the file appeared in the report as a 0/0 entry.
-      exclude: ["node_modules", ".next", "vitest.config.ts", "tests/**", "**/*.css"],
+      /**
+       * Plus whatever Sonar already says it does not score, read from Sonar's
+       * own file rather than copied. The two lists had never met, because a
+       * file listed there was also a file no test imported — so vitest never
+       * saw it either. #400 broke that coincidence: `setup-wiring.ts` imports
+       * `services-run.ts`, so a test of the wiring pulls an excluded runner
+       * into the report and the totals fall below the 100% this repository
+       * holds itself to, for a file Sonar deliberately ignores.
+       *
+       * One source of truth, the same one `scripts/coverage-gaps.ts` reads —
+       * and that guard still fails on any source file that is missing from the
+       * report without being excluded there.
+       */
+      exclude: [
+        "node_modules",
+        ".next",
+        "vitest.config.ts",
+        "tests/**",
+        "**/*.css",
+        ...parseSonarProperty(
+          readFileSync("sonar-project.properties", "utf8"),
+          "sonar.coverage.exclusions"
+        ),
+      ],
     },
   },
   resolve: {

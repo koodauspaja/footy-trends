@@ -107,7 +107,7 @@ export default async function globalSetup() {
     throw new Error(
       "FOOTBALL_DATA_API_KEY is not set. tests/e2e runs against the real " +
         "football-data.org API — set it in .env before running npm run test:e2e " +
-        "(see README.md's Quick Start)."
+        "(see INSTALL.md)."
     );
   }
 

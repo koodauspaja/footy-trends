@@ -1,0 +1,175 @@
+#!/bin/sh
+# One command from a fresh clone to a running app (#400). INSTALL.md describes
+# what it does, and how to do each step by hand.
+#
+# Shell rather than TypeScript because this is the part that runs before Node
+# is known to exist. It checks for the two things nothing here can install —
+# Node and a runtime that provides `docker compose` — reports every one that is
+# missing at once, installs the dependencies, and hands off to `npm run setup`
+# (scripts/setup.ts), where everything else lives because it can be tested
+# there.
+#
+# POSIX sh and shell builtins only, apart from the tools it checks for, so it
+# runs on a machine with nothing installed — and under
+# tests/unit/scripts/setup-shell.test.ts with a PATH holding nothing but fakes.
+#
+# It does not check that the Docker daemon is running. `npm run setup` migrates
+# through #399's preflight, which starts the daemon where it can and says what
+# to run where it cannot; `docker info` here could also hang on a CLI with no
+# reachable daemon, and POSIX sh has no timeout to put around it.
+set -eu
+
+case $0 in
+  */*) cd "${0%/*}/.." ;;
+  *) cd .. ;;
+esac
+
+# Pinned so the command printed is the one that was read, not whatever the
+# installer's default branch holds on the day.
+NVM_VERSION=v0.40.7
+NVM_INSTALL="curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh | bash"
+FNM_INSTALL="curl -fsSL https://fnm.vercel.app/install | bash"
+
+say() {
+  printf '%s\n' "$*" >&2
+}
+
+# `read` fails on a last line with no newline, which is how .nvmrc is written,
+# while still setting the variable.
+wanted=""
+read -r wanted < .nvmrc || true
+wanted=${wanted#v}
+wanted=${wanted%%.*}
+case $wanted in
+  '' | *[!0-9]*)
+    say "Cannot read a Node major version from .nvmrc."
+    exit 1
+    ;;
+esac
+
+missing=""
+needs_node=false
+needs_runtime=false
+
+if command -v node > /dev/null 2>&1; then
+  found=$(node -v 2> /dev/null || true)
+  major=${found#v}
+  major=${major%%.*}
+  case $major in
+    '' | *[!0-9]*) major=0 ;;
+  esac
+  if [ "$major" -lt "$wanted" ]; then
+    needs_node=true
+    missing="$missing
+  - Node.js $wanted or newer (found ${found:-a node that reports no version})"
+  elif ! command -v npm > /dev/null 2>&1; then
+    needs_node=true
+    missing="$missing
+  - npm, which ships with Node.js (node is here, npm is not)"
+  fi
+else
+  needs_node=true
+  missing="$missing
+  - Node.js $wanted or newer (not found)"
+fi
+
+# `DOCKER_EXECUTABLE` is honoured here and not only by the TypeScript half:
+# INSTALL.md offers it for a docker installed somewhere unusual, and this check
+# runs first, so without it the documented escape hatch never got a chance.
+# Absolute only, exactly as `executable.ts` insists — a relative override would
+# put the choice back in `PATH`'s hands, which is the whole point of having one.
+docker_bin=""
+override=${DOCKER_EXECUTABLE:-}
+
+if [ -n "$override" ]; then
+  case $override in
+    /*)
+      if [ -x "$override" ]; then
+        docker_bin=$override
+      else
+        needs_runtime=true
+        missing="$missing
+  - A container runtime: DOCKER_EXECUTABLE is \`$override\`, which is not an executable file"
+      fi
+      ;;
+    *)
+      needs_runtime=true
+      missing="$missing
+  - A container runtime: DOCKER_EXECUTABLE must be an absolute path (it is \`$override\`)"
+      ;;
+  esac
+elif command -v docker > /dev/null 2>&1; then
+  docker_bin=docker
+else
+  needs_runtime=true
+  missing="$missing
+  - A container runtime providing \`docker compose\` (no \`docker\` command found)"
+fi
+
+if [ -n "$docker_bin" ] && ! "$docker_bin" compose version > /dev/null 2>&1; then
+  needs_runtime=true
+  missing="$missing
+  - \`docker compose\` (\`$docker_bin\` is here, but \`docker compose version\` failed)"
+fi
+
+if [ -n "$missing" ]; then
+  say "Missing prerequisites:$missing"
+
+  if $needs_node; then
+    say ""
+    nvm_dir=${NVM_DIR:-${HOME:-}/.nvm}
+    if [ -s "$nvm_dir/nvm.sh" ]; then
+      say "nvm is installed. Run \`nvm install\` here — it reads .nvmrc — then run scripts/setup again."
+    elif command -v fnm > /dev/null 2>&1; then
+      say "fnm is installed. Run \`fnm install\` here — it reads .nvmrc — then run scripts/setup again."
+    else
+      say "No Node version manager found. Either of these installs one:"
+      say "  nvm: $NVM_INSTALL"
+      say "  fnm: $FNM_INSTALL"
+
+      # Asked only when someone is there to answer, and only after everything
+      # missing has been listed.
+      if [ -t 0 ]; then
+        printf 'Install one now? [nvm/fnm/N] ' >&2
+        answer=""
+        read -r answer || true
+        installer=""
+        case $answer in
+          nvm) installer=$NVM_INSTALL ;;
+          fnm) installer=$FNM_INSTALL ;;
+        esac
+        if [ -n "$installer" ]; then
+          if sh -c "$installer"; then
+            # A version manager is a shell function or a PATH entry set up by
+            # the shell's startup files. Nothing this script does can make the
+            # shell that started it see one, so saying "done" here would end in
+            # `node: command not found`.
+            say ""
+            say "$answer is installed, but this terminal cannot see it yet."
+            say "Open a new terminal, run \`$answer install\` there, then run scripts/setup again."
+          else
+            say "The $answer installer failed. Its output is above."
+          fi
+        fi
+      fi
+    fi
+  fi
+
+  if $needs_runtime; then
+    say ""
+    say "Any runtime that provides \`docker compose\` works: Docker Desktop, OrbStack,"
+    say "Colima, or Podman with its docker-compatible CLI. None is installed from"
+    say "here, because each is system-wide and wants your consent. See INSTALL.md."
+  fi
+
+  exit 1
+fi
+
+# `npm ci` when the installed tree is missing or older than the lockfile, and
+# nothing otherwise. Running it every time would delete node_modules under a
+# dev server that is already up, and a second run has to be safe.
+if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+  npm ci
+fi
+
+exec npm run setup

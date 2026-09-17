@@ -1,0 +1,6 @@
+{
+  "sonarlint.connectedMode.project": {
+    "connectionId": "koodauspaja_footy-trends-sonar",
+    "projectKey": "koodauspaja_footy-trends"
+  }
+}

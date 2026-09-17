@@ -39,9 +39,10 @@ never refetched, so those pages make no provider request at all.
 
 ## Prerequisites
 
-- `docker compose up -d` (Postgres + Redis running locally)
+- Postgres and Redis running locally — `npm run test:e2e` starts them itself
+  if they are down (#399)
 - A configured `.env` with a working `FOOTBALL_DATA_API_KEY` **and**
-  `TASO_API_KEY` (see `README.md`'s Quick Start and
+  `TASO_API_KEY` (see `INSTALL.md` and
   `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
   being missing, rather than letting every spec time out against a generic
   error page

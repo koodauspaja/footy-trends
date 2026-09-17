@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMPOSE_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
+  COMPOSE_POSTGRES_USER,
   COMPOSE_TEST_DATABASE_NAME,
   canStartDaemonAutomatically,
   confirmationPrompt,
@@ -682,6 +683,14 @@ describe("isComposeDatabase", () => {
 
     expect(declared).not.toBeNull();
     expect(declared?.[1]).toBe(COMPOSE_DATABASE_NAME);
+  });
+
+  it("matches the user docker-compose.yml actually creates", () => {
+    const compose = readFileSync("docker-compose.yml", "utf8");
+    const declared = /POSTGRES_USER:\s*(\S+)/.exec(compose);
+
+    expect(declared).not.toBeNull();
+    expect(declared?.[1]).toBe(COMPOSE_POSTGRES_USER);
   });
 
   it("accepts the compose database", () => {
