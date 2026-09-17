@@ -383,8 +383,21 @@ describe("exportedOverrideMessage", () => {
     expect(message).toContain("unset DATABASE_URL FOOTY_POSTGRES_PASSWORD");
   });
 
-  it("treats a blank export as no export", () => {
-    expect(exportedOverrideMessage({ DATABASE_URL: "   " }, ENV)).toBeNull();
+  it("counts an exported empty value, which the child still inherits", () => {
+    /**
+     * Measured on Node 24: with `DATABASE_URL=` exported, `loadEnvFile` leaves
+     * it `""`, because a variable that is already set is not overwritten. The
+     * child would migrate with no connection string while `.env` held a good
+     * one. This test asserted the opposite until review on #409.
+     */
+    const message = exportedOverrideMessage({ DATABASE_URL: "" }, ENV);
+
+    expect(message).toContain("DATABASE_URL is exported in this shell");
+    expect(message).toContain("counts even when it is empty");
+  });
+
+  it("counts whitespace as its own value, since that is what the child gets", () => {
+    expect(exportedOverrideMessage({ FOOTY_POSTGRES_PASSWORD: " pw " }, ENV)).not.toBeNull();
   });
 
   it("covers exactly the two variables that decide which database is used", () => {

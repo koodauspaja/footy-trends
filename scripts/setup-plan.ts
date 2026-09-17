@@ -78,6 +78,16 @@ const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
 const ENV_VALUE = /^[A-Za-z0-9._~%:/@+=-]*$/;
 
 /**
+ * Whether `setEnvValue` can write this value without changing it.
+ *
+ * Asked **before** writing wherever the value came from outside this module: an
+ * adopted password is the one case, and it arrives already decoded.
+ */
+export function canWriteEnvValue(value: string): boolean {
+  return ENV_VALUE.test(value);
+}
+
+/**
  * `text` with `name` set to `value`: every existing assignment replaced, or one
  * appended when there is none. Every other line — comments included — is left
  * exactly as it was.
@@ -89,16 +99,6 @@ const ENV_VALUE = /^[A-Za-z0-9._~%:/@+=-]*$/;
  * one. Nothing reaches here unchecked — keys are screened by `readKeyInput` and
  * the rest are generated — so a throw is a bug in this module, not an input.
  */
-/**
- * Whether `setEnvValue` can write this value without changing it.
- *
- * Asked **before** writing wherever the value came from outside this module: an
- * adopted password is the one case, and it arrives already decoded.
- */
-export function canWriteEnvValue(value: string): boolean {
-  return ENV_VALUE.test(value);
-}
-
 export function setEnvValue(text: string, name: string, value: string): string {
   if (!ENV_NAME.test(name)) throw new Error(`Not an environment variable name: ${name}`);
   if (!canWriteEnvValue(value)) throw new Error(`Cannot write ${name} unquoted`);
@@ -299,20 +299,42 @@ export function exportedOverrideMessage(
   envText: string
 ): string | null {
   const values = parseEnv(envText);
-  const conflicting = DATABASE_VARIABLES.filter((name) => {
-    const shell = (exported[name] ?? "").trim();
-    return shell !== "" && shell !== settingOf(values, name);
-  });
+
+  /**
+   * **Present, not merely non-empty.** Measured on Node 24: with `DATABASE_URL=`
+   * exported, `process.loadEnvFile` leaves it as `""` — a variable that is
+   * already set is not overwritten, and an empty one counts as set. The child
+   * then migrates with no connection string at all, from a `.env` that has a
+   * perfectly good one. Raised in review on #409, where this was written the
+   * wrong way round and had a test agreeing with it.
+   *
+   * The comparison is against the raw exported value, because that is exactly
+   * what the child will use: ` pw ` and `pw` are different passwords.
+   */
+  const conflicting = DATABASE_VARIABLES.filter(
+    (name) => exported[name] !== undefined && exported[name] !== settingOf(values, name)
+  );
 
   if (conflicting.length === 0) return null;
+
+  // No `?? ""`: every name here is one `conflicting` already found defined, so a
+  // fallback would be a condition nothing can take — which is what
+  // `scripts/coverage-gaps.ts` reported when it was there.
+  const anyEmpty = conflicting.some((name) => exported[name] === "");
 
   return [
     `${conflicting.join(" and ")} ${conflicting.length === 1 ? "is" : "are"} exported in this shell,`,
     "and what is exported wins over .env for everything setup runs next.",
+    ...(anyEmpty
+      ? [
+          "An exported variable counts even when it is empty: the child process still",
+          "inherits it, and .env does not replace a variable that is already set.",
+        ]
+      : []),
     "",
-    "Migrations would go to the exported database while .env described another, so",
-    `.env has been written and nothing else was run. Either \`unset ${conflicting.join(" ")}\``,
-    "and run setup again, or make the exported values match the file.",
+    "Migrations would use the exported value while .env carried another, so .env has",
+    `been written and nothing else was run. Either \`unset ${conflicting.join(" ")}\` and`,
+    "run setup again, or make the exported values match the file.",
   ].join("\n");
 }
 
