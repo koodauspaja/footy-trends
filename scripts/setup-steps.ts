@@ -11,7 +11,6 @@
  * that logic would be the one that drifts.
  */
 import {
-  type ApiKey,
   missingApiKeys,
   missingGoogleMessage,
   missingKeysMessage,
@@ -45,75 +44,92 @@ export type SetupActions = {
 
 /** The process exit code. */
 export async function runSetup(actions: SetupActions): Promise<number> {
-  const { out, err } = actions;
+  const prepared = writeEnvFile(actions);
+  if (prepared === null) return 1;
 
-  /**
-   * **Everything that can be known is reported before anything is asked or
-   * written.** Nobody should answer two key prompts and only then be told that
-   * the `.env` they already had cannot be used.
-   */
+  const text = actions.interactive ? await askForKeys(actions, prepared) : prepared;
+
+  actions.out("");
+  actions.out("Starting the database and applying migrations…");
+  const migrated = await actions.runScript("db:migrate");
+  if (migrated !== 0) {
+    actions.err("Migrations failed. The output above says why; fix that and run setup again.");
+    return migrated;
+  }
+
+  await installBrowser(actions);
+  reportWhatIsMissing(actions, text);
+
+  return startServer(actions);
+}
+
+/**
+ * The `.env`, written if it needed anything — or `null` when setup cannot go on,
+ * having said why.
+ *
+ * **Everything that can be known is reported before anything is asked or
+ * written.** Nobody should answer two key prompts and only then be told that the
+ * `.env` they already had cannot be used.
+ */
+function writeEnvFile(actions: SetupActions): string | null {
   const npmWarning = npmVersionWarning(actions.userAgent, actions.packageManager);
-  if (npmWarning !== null) err(npmWarning);
+  if (npmWarning !== null) actions.err(npmWarning);
 
   const existing = actions.readEnv();
   const plan = planEnv({ existing, example: actions.readExample(), secret: actions.secret });
 
-  if (plan.mismatch !== null) {
-    err(plan.mismatch);
-    return 1;
+  if (plan.stop !== null) {
+    actions.err(plan.stop);
+    return null;
   }
 
-  let text = plan.text;
-
-  if (plan.written.length > 0) {
-    actions.writeEnv(text);
-    out(existing === null ? "Created .env from .env.example:" : "Filled in .env:");
-    for (const line of plan.written) out(`  ${line}`);
-  } else {
-    out(".env already has its database and auth values — nothing regenerated.");
+  if (plan.written.length === 0) {
+    actions.out(".env already has its database and auth values — nothing regenerated.");
+    return plan.text;
   }
 
-  let missing = missingApiKeys(text);
+  actions.writeEnv(plan.text);
+  actions.out(existing === null ? "Created .env from .env.example:" : "Filled in .env:");
+  for (const line of plan.written) actions.out(`  ${line}`);
+  return plan.text;
+}
 
-  if (missing.length > 0 && actions.interactive) {
-    text = await askForKeys(actions, text, missing);
-    missing = missingApiKeys(text);
-  }
+/**
+ * A warning, not a stop. The browser is needed by `npm run test:e2e` alone, and
+ * a failed download — offline, a proxy — should not keep someone from the dev
+ * server they came for.
+ */
+async function installBrowser(actions: SetupActions): Promise<void> {
+  actions.out("");
+  actions.out("Installing the Playwright browser for the end-to-end suite…");
 
-  out("");
-  out("Starting the database and applying migrations…");
-  const migrated = await actions.runScript("db:migrate");
-  if (migrated !== 0) {
-    err("Migrations failed. The output above says why; fix that and run setup again.");
-    return migrated;
-  }
-
-  /**
-   * A warning, not a stop. The browser is needed by `npm run test:e2e` alone,
-   * and a failed download — offline, a proxy — should not keep someone from the
-   * dev server they came for.
-   */
-  out("");
-  out("Installing the Playwright browser for the end-to-end suite…");
   if ((await actions.runScript("test:e2e:browser")) !== 0) {
-    err("The Playwright browser did not install. Only `npm run test:e2e` needs it —");
-    err("run `npm run test:e2e:browser` again later.");
+    actions.err("The Playwright browser did not install. Only `npm run test:e2e` needs it —");
+    actions.err("run `npm run test:e2e:browser` again later.");
   }
+}
 
-  out("");
-  if (missing.length > 0) err(missingKeysMessage(missing));
+/** What is still unset, and what that costs — said at the end, where it is read. */
+function reportWhatIsMissing(actions: SetupActions, text: string): void {
+  actions.out("");
+
+  const missing = missingApiKeys(text);
+  if (missing.length > 0) actions.err(missingKeysMessage(missing));
+
   const google = missingGoogleMessage(text);
-  if (google !== null) err(google);
+  if (google !== null) actions.err(google);
 
-  out("Setup is done.");
+  actions.out("Setup is done.");
+}
 
+async function startServer(actions: SetupActions): Promise<number> {
   if (!actions.interactive) {
-    out("Start the app with `npm run dev`, then open http://localhost:3000.");
+    actions.out("Start the app with `npm run dev`, then open http://localhost:3000.");
     return 0;
   }
 
   if (!wantsDevServer(await actions.ask("Start the dev server now? [Y/n] "))) {
-    out("Start it later with `npm run dev`.");
+    actions.out("Start it later with `npm run dev`.");
     return 0;
   }
 
@@ -124,11 +140,10 @@ export async function runSetup(actions: SetupActions): Promise<number> {
  * Asks for each blank key and writes each answer as it is given, so an
  * interrupted run keeps what was already typed.
  */
-async function askForKeys(
-  actions: SetupActions,
-  initial: string,
-  missing: readonly ApiKey[]
-): Promise<string> {
+async function askForKeys(actions: SetupActions, initial: string): Promise<string> {
+  const missing = missingApiKeys(initial);
+  if (missing.length === 0) return initial;
+
   let text = initial;
 
   actions.out("");

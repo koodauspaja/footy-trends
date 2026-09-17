@@ -89,9 +89,19 @@ const ENV_VALUE = /^[A-Za-z0-9._~%:/@+=-]*$/;
  * one. Nothing reaches here unchecked — keys are screened by `readKeyInput` and
  * the rest are generated — so a throw is a bug in this module, not an input.
  */
+/**
+ * Whether `setEnvValue` can write this value without changing it.
+ *
+ * Asked **before** writing wherever the value came from outside this module: an
+ * adopted password is the one case, and it arrives already decoded.
+ */
+export function canWriteEnvValue(value: string): boolean {
+  return ENV_VALUE.test(value);
+}
+
 export function setEnvValue(text: string, name: string, value: string): string {
   if (!ENV_NAME.test(name)) throw new Error(`Not an environment variable name: ${name}`);
-  if (!ENV_VALUE.test(value)) throw new Error(`Cannot write ${name} unquoted`);
+  if (!canWriteEnvValue(value)) throw new Error(`Cannot write ${name} unquoted`);
 
   const assignment = new RegExp(String.raw`^[ \t]*${name}[ \t]*=[^\r\n]*`, "gm");
   if (assignment.test(text)) {
@@ -122,8 +132,12 @@ export type EnvPlan = {
    * **never the value**. This is printed, and it is mostly credentials.
    */
   written: string[];
-  /** Set when the two halves of the credential disagree, which nothing here can settle. */
-  mismatch: string | null;
+  /**
+   * Why setup cannot go on, or `null`. Two states reach it, and neither can be
+   * settled from here: the two halves of the credential disagree, or the
+   * password already in use cannot be written into `.env` as it stands.
+   */
+  stop: string | null;
 };
 
 /**
@@ -143,57 +157,105 @@ export function planEnv({
   example: string;
   secret: () => string;
 }): EnvPlan {
-  let text = existing ?? example;
-  const values = parseEnv(text);
-  const written: string[] = [];
+  const original = existing ?? example;
+  const values = parseEnv(original);
 
   const url = settingOf(values, "DATABASE_URL");
   const urlUnset = url === "" || url === LEGACY_DATABASE_URL;
 
-  let password = settingOf(values, "FOOTY_POSTGRES_PASSWORD");
+  const choice = choosePassword({
+    configured: settingOf(values, "FOOTY_POSTGRES_PASSWORD"),
+    inUrl: urlUnset ? null : composePasswordOf(url),
+    secret,
+  });
 
-  if (password === "") {
-    /**
-     * **A password already in `DATABASE_URL` is adopted, not replaced.** A `.env`
-     * from before #292 holds the compose credential only there — and the volume
-     * was initialised with it, so a fresh one would be a different password for
-     * the same database.
-     */
-    const adopted = urlUnset ? null : composePasswordOf(url);
+  if (choice.kind === "stop") return { text: original, written: [], stop: choice.message };
 
-    if (adopted !== null && adopted !== "") {
-      password = adopted;
-      written.push("FOOTY_POSTGRES_PASSWORD (taken from DATABASE_URL)");
-    } else {
-      password = secret();
-      written.push("FOOTY_POSTGRES_PASSWORD (generated)");
-    }
-    text = setEnvValue(text, "FOOTY_POSTGRES_PASSWORD", password);
+  let text = original;
+  const written: string[] = [];
+
+  if (choice.note !== null) {
+    text = setEnvValue(text, "FOOTY_POSTGRES_PASSWORD", choice.password);
+    written.push(choice.note);
   }
-
-  let mismatch: string | null = null;
 
   if (urlUnset) {
-    text = setEnvValue(text, "DATABASE_URL", composeDatabaseUrl(password));
+    text = setEnvValue(text, "DATABASE_URL", composeDatabaseUrl(choice.password));
     written.push("DATABASE_URL (the compose database, with that password)");
-  } else {
-    const inUrl = composePasswordOf(url);
-    // A URL for some other server is a choice, and its password is not ours to
-    // compare — Homebrew Postgres, a devcontainer, a remote database.
-    if (inUrl !== null && inUrl !== password) mismatch = mismatchMessage();
   }
 
-  if (settingOf(values, "BETTER_AUTH_SECRET") === "") {
-    text = setEnvValue(text, "BETTER_AUTH_SECRET", secret());
-    written.push("BETTER_AUTH_SECRET (generated)");
+  for (const filler of [
+    { name: "BETTER_AUTH_SECRET", value: secret, note: "BETTER_AUTH_SECRET (generated)" },
+    {
+      name: "BETTER_AUTH_URL",
+      value: () => LOCAL_AUTH_URL,
+      note: `BETTER_AUTH_URL (${LOCAL_AUTH_URL})`,
+    },
+  ]) {
+    if (settingOf(values, filler.name) !== "") continue;
+    text = setEnvValue(text, filler.name, filler.value());
+    written.push(filler.note);
   }
 
-  if (settingOf(values, "BETTER_AUTH_URL") === "") {
-    text = setEnvValue(text, "BETTER_AUTH_URL", LOCAL_AUTH_URL);
-    written.push(`BETTER_AUTH_URL (${LOCAL_AUTH_URL})`);
+  return { text, written, stop: disagreement(choice.password, urlUnset ? null : url) };
+}
+
+/**
+ * Which password this `.env` should carry, or why setup cannot say.
+ *
+ * `note` is what the report will call it, and `null` means it was already there
+ * and nothing is being written.
+ */
+type PasswordChoice =
+  | { kind: "ready"; password: string; note: string | null }
+  | { kind: "stop"; message: string };
+
+function choosePassword({
+  configured,
+  inUrl,
+  secret,
+}: {
+  configured: string;
+  inUrl: string | null;
+  secret: () => string;
+}): PasswordChoice {
+  if (configured !== "") return { kind: "ready", password: configured, note: null };
+
+  /**
+   * **A password already in `DATABASE_URL` is adopted, not replaced.** A `.env`
+   * from before #292 holds the compose credential only there — and the volume
+   * was initialised with it, so a fresh one would be a different password for
+   * the same database.
+   */
+  if (inUrl !== null && inUrl !== "") {
+    /**
+     * **This is the one value here that comes from outside**, and it arrives
+     * decoded: `…:ab%23cd@…` is the password `ab#cd`, which `.env` cannot carry
+     * unquoted. Writing it anyway threw, so setup died on an existing `.env` it
+     * was meant to repair. Raised in review on #409.
+     */
+    if (!canWriteEnvValue(inUrl)) return { kind: "stop", message: unwritablePasswordMessage() };
+
+    return {
+      kind: "ready",
+      password: inUrl,
+      note: "FOOTY_POSTGRES_PASSWORD (taken from DATABASE_URL)",
+    };
   }
 
-  return { text, written, mismatch };
+  return { kind: "ready", password: secret(), note: "FOOTY_POSTGRES_PASSWORD (generated)" };
+}
+
+/**
+ * Whether a `DATABASE_URL` that was left as it was still agrees with the
+ * password. A URL for some other server is a choice, and its password is not
+ * ours to compare — Homebrew Postgres, a devcontainer, a remote database.
+ */
+function disagreement(password: string, url: string | null): string | null {
+  if (url === null) return null;
+
+  const inUrl = composePasswordOf(url);
+  return inUrl !== null && inUrl !== password ? mismatchMessage() : null;
 }
 
 /**
@@ -209,6 +271,26 @@ export function mismatchMessage(): string {
     "Postgres volume was created with. Make them match in .env — or, if the local",
     "database holds nothing worth keeping, `npm run db:reset:dev` recreates it —",
     "then run setup again.",
+  ].join("\n");
+}
+
+/**
+ * When the password in use cannot go into `.env` as an unquoted value.
+ *
+ * Setup stops rather than writing a different password: the one in
+ * `DATABASE_URL` is what the Postgres volume was initialised with, and a
+ * substitute would fail to connect while looking deliberate.
+ */
+export function unwritablePasswordMessage(): string {
+  return [
+    "The password in DATABASE_URL cannot be written into .env as it stands —",
+    "it contains a character that would be read back as something else, such as",
+    "a `#`, a quote or a space.",
+    "",
+    "Set FOOTY_POSTGRES_PASSWORD yourself, quoted, to the same password that is",
+    "already in DATABASE_URL — for example FOOTY_POSTGRES_PASSWORD='p#ss word' —",
+    "then run setup again. It is left to you because that password is the one the",
+    "Postgres volume was created with, and no other value will connect to it.",
   ].join("\n");
 }
 

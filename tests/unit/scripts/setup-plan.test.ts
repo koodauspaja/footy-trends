@@ -147,7 +147,7 @@ describe("planEnv", () => {
     expect(composePasswordOf(values.DATABASE_URL ?? "")).toBe("generated1");
     expect(isComposeDatabase(values.DATABASE_URL ?? "")).toBe(true);
     expect(values.BETTER_AUTH_SECRET).toBe("generated2");
-    expect(plan.mismatch).toBeNull();
+    expect(plan.stop).toBeNull();
   });
 
   it("keeps the example's comments", () => {
@@ -211,6 +211,34 @@ describe("planEnv", () => {
     expect(plan.written[0]).toBe("FOOTY_POSTGRES_PASSWORD (taken from DATABASE_URL)");
   });
 
+  it("refuses to adopt a password it cannot write, and changes nothing", () => {
+    /**
+     * `…:ab%23cd@…` decodes to `ab#cd`, and `#` starts a comment in an unquoted
+     * `.env` value. Writing it threw, so setup died on an existing `.env` it was
+     * meant to repair — raised in review on #409. The password is the one the
+     * volume was created with, so a substitute would fail to connect.
+     */
+    const existing =
+      "DATABASE_URL=postgresql://postgres:ab%23cd@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
+    const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
+
+    expect(plan.stop).toContain("cannot be written into .env");
+    expect(plan.stop).toContain("FOOTY_POSTGRES_PASSWORD='p#ss word'");
+    expect(plan.text).toBe(existing);
+    expect(plan.written).toEqual([]);
+  });
+
+  it("adopts a password whose URL encoding is only cosmetic", () => {
+    // `%2D` is a hyphen: decoded it is perfectly writable, so this is adopted
+    // rather than refused.
+    const existing =
+      "DATABASE_URL=postgresql://postgres:ab%2Dcd@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
+    const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
+
+    expect(plan.stop).toBeNull();
+    expect(parseEnv(plan.text).FOOTY_POSTGRES_PASSWORD).toBe("ab-cd");
+  });
+
   it("generates rather than adopting an empty password from DATABASE_URL", () => {
     const existing = "DATABASE_URL=postgresql://postgres@localhost:5432/footy-trends\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
@@ -218,7 +246,7 @@ describe("planEnv", () => {
     expect(parseEnv(plan.text).FOOTY_POSTGRES_PASSWORD).toBe("generated1");
     // And the URL, which was set by hand, is not rewritten — so the two now
     // disagree, and saying so is the only honest outcome.
-    expect(plan.mismatch).not.toBeNull();
+    expect(plan.stop).not.toBeNull();
   });
 
   it("reports two halves that disagree, and decides nothing", () => {
@@ -226,7 +254,7 @@ describe("planEnv", () => {
       "DATABASE_URL=postgresql://postgres:one@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=two\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
 
-    expect(plan.mismatch).toContain("disagree");
+    expect(plan.stop).toContain("disagree");
     expect(parseEnv(plan.text).FOOTY_POSTGRES_PASSWORD).toBe("two");
   });
 
@@ -239,7 +267,7 @@ describe("planEnv", () => {
     });
 
     expect(parseEnv(plan.text).DATABASE_URL).toBe(remote);
-    expect(plan.mismatch).toBeNull();
+    expect(plan.stop).toBeNull();
   });
 
   it("fills a blank auth URL with the dev server's address", () => {
