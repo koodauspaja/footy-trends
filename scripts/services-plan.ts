@@ -378,6 +378,15 @@ export function runsOnComposeServer(url: string): boolean {
 export const COMPOSE_DATABASE_NAME = "footy-trends";
 
 /**
+ * The user `docker-compose.yml` creates, from its `POSTGRES_USER`.
+ *
+ * Kept honest the same way as the two constants above. `npm run setup` builds
+ * `DATABASE_URL` from all three, so a disagreement would write a connection
+ * string for a user the container never had.
+ */
+export const COMPOSE_POSTGRES_USER = "postgres";
+
+/**
  * The database the suites use, as `tests/support/test-database.ts` derives it:
  * the development database's name with `_test` appended.
  *

@@ -4,7 +4,12 @@ dist/
 .env.local
 *.log
 .DS_Store
-.vscode/
+# Editor state is personal; the two files that describe *this project* are not.
+# `settings.json` was tracked all along — an ignore rule does not reach a file
+# already in the index — which read as an exception rather than the intent (#400).
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 tsconfig.tsbuildinfo
 # Sentry Config File
 .env.sentry-build-plugin
