@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { isComposeDatabase } from "../../../scripts/services-plan";
 import {
   API_KEYS,
+  composeCredential,
   composeDatabaseUrl,
   composePasswordOf,
   DATABASE_VARIABLES,
@@ -84,7 +85,25 @@ describe("composePasswordOf", () => {
     expect(composePasswordOf(url)).toBeNull();
   });
 
-  it("treats a malformed escape as no password rather than throwing", () => {
+  it("tells a credential it cannot decode apart from another server", () => {
+    /**
+     * These shared `null` until review on #409, and they need opposite handling:
+     * another server is somebody's choice, while a broken credential for *this*
+     * database is a file setup must not build on.
+     */
+    expect(composeCredential("postgresql://postgres:%E0%A4%A@localhost:5432/footy-trends")).toEqual(
+      { kind: "unreadable" }
+    );
+    expect(composeCredential("postgresql://app:pw@db.example.com:5432/app")).toEqual({
+      kind: "elsewhere",
+    });
+    expect(composeCredential("postgresql://postgres:pw@localhost:5432/footy-trends")).toEqual({
+      kind: "password",
+      value: "pw",
+    });
+  });
+
+  it("reports no password for either of the two non-password answers", () => {
     expect(
       composePasswordOf("postgresql://postgres:%E0%A4%A@localhost:5432/footy-trends")
     ).toBeNull();
@@ -239,6 +258,21 @@ describe("planEnv", () => {
 
     expect(plan.stop).toBeNull();
     expect(parseEnv(plan.text).FOOTY_POSTGRES_PASSWORD).toBe("ab-cd");
+  });
+
+  it("stops on a URL for this database whose credential cannot be decoded", () => {
+    /**
+     * Before #409's review this read as "some other server", so setup wrote a
+     * fresh password beside the broken URL and handed migration a connection
+     * string that could not work.
+     */
+    const existing =
+      "DATABASE_URL=postgresql://postgres:%E0%A4%A@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
+    const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
+
+    expect(plan.stop).toContain("credential cannot be read");
+    expect(plan.text).toBe(existing);
+    expect(plan.written).toEqual([]);
   });
 
   it("generates rather than adopting an empty password from DATABASE_URL", () => {

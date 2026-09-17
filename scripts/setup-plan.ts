@@ -47,21 +47,39 @@ export function composeDatabaseUrl(password: string): string {
 }
 
 /**
- * The password in a URL that names the compose server as its user, or `null`
- * when the URL is about something else and so says nothing about this one.
+ * What an existing `DATABASE_URL` says about this project's database.
+ *
+ * **Three answers, not two.** `elsewhere` and `unreadable` used to share `null`,
+ * and they need opposite handling: a URL for another server is somebody's
+ * deliberate choice and none of setup's business, while one that names *this*
+ * database with a credential that cannot be decoded is a broken file. Treating
+ * the second as the first wrote a fresh password beside the broken URL and
+ * handed a migration a connection string that could not work. Raised in review
+ * on #409.
  */
-export function composePasswordOf(url: string): string | null {
-  if (!runsOnComposeServer(url)) return null;
+export type ComposeCredential =
+  | { kind: "elsewhere" }
+  | { kind: "unreadable" }
+  | { kind: "password"; value: string };
+
+export function composeCredential(url: string): ComposeCredential {
+  if (!runsOnComposeServer(url)) return { kind: "elsewhere" };
 
   try {
     const parsed = new URL(url);
-    if (decodeURIComponent(parsed.username) !== COMPOSE_POSTGRES_USER) return null;
-    return decodeURIComponent(parsed.password);
+    if (decodeURIComponent(parsed.username) !== COMPOSE_POSTGRES_USER) return { kind: "elsewhere" };
+    return { kind: "password", value: decodeURIComponent(parsed.password) };
   } catch {
-    // `runsOnComposeServer` has already parsed it, so only a malformed escape in
-    // the credential lands here — which is not a password anyone could be using.
-    return null;
+    // `runsOnComposeServer` has already parsed the URL, so only a malformed
+    // percent escape in the credential lands here — `%E0%A4%A`, say.
+    return { kind: "unreadable" };
   }
+}
+
+/** The password this URL carries for the compose database, if it can say. */
+export function composePasswordOf(url: string): string | null {
+  const credential = composeCredential(url);
+  return credential.kind === "password" ? credential.value : null;
 }
 
 /** A variable name as `.env` files spell them. */
@@ -163,9 +181,18 @@ export function planEnv({
   const url = settingOf(values, "DATABASE_URL");
   const urlUnset = url === "" || url === LEGACY_DATABASE_URL;
 
+  /** Read once, and used by both the password choice and the disagreement check. */
+  const credential: ComposeCredential = urlUnset ? { kind: "elsewhere" } : composeCredential(url);
+
+  // A broken URL for this very database. Writing a password beside it and
+  // migrating anyway is the one thing that must not happen.
+  if (credential.kind === "unreadable") {
+    return { text: original, written: [], stop: unreadableUrlMessage() };
+  }
+
   const choice = choosePassword({
     configured: settingOf(values, "FOOTY_POSTGRES_PASSWORD"),
-    inUrl: urlUnset ? null : composePasswordOf(url),
+    inUrl: credential.kind === "password" ? credential.value : null,
     secret,
   });
 
@@ -197,7 +224,7 @@ export function planEnv({
     written.push(filler.note);
   }
 
-  return { text, written, stop: disagreement(choice.password, urlUnset ? null : url) };
+  return { text, written, stop: disagreement(choice.password, credential) };
 }
 
 /**
@@ -251,11 +278,30 @@ function choosePassword({
  * password. A URL for some other server is a choice, and its password is not
  * ours to compare — Homebrew Postgres, a devcontainer, a remote database.
  */
-function disagreement(password: string, url: string | null): string | null {
-  if (url === null) return null;
+function disagreement(password: string, credential: ComposeCredential): string | null {
+  if (credential.kind !== "password") return null;
 
-  const inUrl = composePasswordOf(url);
-  return inUrl !== null && inUrl !== password ? mismatchMessage() : null;
+  return credential.value !== password ? mismatchMessage() : null;
+}
+
+/**
+ * When `DATABASE_URL` names this project's database but its credential cannot be
+ * decoded — a malformed percent escape such as `%E0%A4%A`.
+ *
+ * Setup stops rather than writing a password beside it: nothing here can repair
+ * the URL, and migrating would fail on a connection string the developer has not
+ * been told about.
+ */
+export function unreadableUrlMessage(): string {
+  return [
+    "DATABASE_URL names this project's database, but its credential cannot be read:",
+    "it contains a percent escape that is not valid, such as `%E0%A4%A`.",
+    "",
+    "Nothing was changed. If you know the password, fix the escaping in .env — `%`",
+    "itself is written `%25`. If the local database holds nothing worth keeping,",
+    "`npm run db:reset:dev` destroys it, and clearing DATABASE_URL lets setup write",
+    "a fresh one with a new password.",
+  ].join("\n");
 }
 
 /**
