@@ -75,15 +75,15 @@ lead to x (amount of rounds) fetches from the api"*. It does not, and it does no
 lead to one extra fetch either.
 
 `getStandings({ round })` exists and computes the table after one round, but it
-**bypasses the cache when a round is given** (`standings-service.ts` ~line 130)
+**bypasses the cache when a round is given** (`getStandings` in `standings-service.ts`)
 and re-reads the season each time. Calling it once per matchday would be 38
 database reads per page view. It is **not** used for this.
 
 Instead the chart is computed from matches **the team page already has in hand**:
 
 1. The team page already calls `getTeamMatches` on every render, for both
-   providers (`competition-team-page.tsx`; `taso-standings-service.ts`
-   ~line 1474). That call runs the existing season sync,
+   providers (`competition-team-page.tsx` for football-data,
+   `app/domestic/team/[id]/page.tsx` for TASO). That call runs the existing season sync,
    `getSyncedSeasonMatches`, which loads **the whole season's matches** — every
    team's — and only then filters to this one.
 2. The chart asks for the same season through the same read. For
