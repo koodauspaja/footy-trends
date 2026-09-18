@@ -97,14 +97,31 @@ Instead the chart is computed from matches **the team page already has in hand**
 
 | | Today | With the chart |
 |---|---|---|
-| Provider requests | 0, or **1 for the whole season** when the active season's stored matches are older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | **unchanged** |
-| Database reads of the season | 1 (inside `getTeamMatches`) | **unchanged** |
+| Provider requests (football-data) | 0, or **1 for the whole season** when the active season's stored matches are older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | **unchanged** |
+| Provider requests (TASO) | 0, or 1 for the whole season's matches, as above | + **at most 1 for the season's group rows**, and only for the active season — see below |
+| Database reads of the season | 1 (inside `getTeamMatches`) | unchanged for football-data; **+1 small read** for TASO |
 | Extra work | — | `N` in-memory tables |
 
-The provider request in the first row is the existing sync, and it is already
-per season, never per round: `getSeasonMatches` returns every match of the
-season in one response. A completed season with stored rows is never refetched
-(`needsRefresh`). The chart adds nothing to either row.
+**Why TASO needs one more read — found during implementation, 2026-09-18.** A
+TASO group's table depends on the season's stored **group team rows**: they carry
+points adjustments (Ykkönen 2025's −3 for FC Jazz) and decide whether a split
+group's numbers are verified. The standings page reads them through
+`getSyncedGroupTeams`; the TASO team page never did. Reusing that exact function
+is what keeps a TASO position equal to the standings page's. Miikka chose this
+over reading stored rows only, or skipping them, on 2026-09-18: *"yes, 1"*.
+
+**How many TASO requests that can mean — bounded twice.**
+
+- Only the **active** season refreshes. A completed season with stored rows never
+  makes a TASO request again (`needsRefresh`: `seasonId < activeSeasonId`).
+- The TASO response is cached in Redis for 15 minutes under a key per
+  competition (`getSeasonGroups` → `getCached`, `GROUPS_CACHE_TTL_SECONDS`), and
+  the standings page shares that key. A refresh inside the window reads Redis,
+  not TASO — including simultaneous ones.
+
+So the ceiling is **one TASO request per active competition per 15 minutes,
+however many readers** — and none extra when the standings page has already
+fetched it in that window. Never one per round.
 
 **Measured, not estimated.** 38 tables over 380 matches — the largest league
 here, 20 teams — with the real `calculateStandings`: **1.26 ms per series**, mean
@@ -239,8 +256,10 @@ Needing a decision:
 
 ## Performance & Limits
 
-- **Zero additional provider requests and zero additional database reads** per
-  page view — see the request budget under *API & Data*. Calling
+- **football-data: zero additional provider requests and database reads.**
+  **TASO: one small additional read, and at most one TASO request per active
+  competition per 15 minutes**, shared by every reader — see the request budget
+  under *API & Data*. Nothing is fetched per round: calling
   `getStandings({ round })` per matchday is ruled out.
 - In-memory cost: `N` table computations, measured at 1.26 ms for the largest
   case (38 rounds, 20 teams, 380 matches).
@@ -281,8 +300,10 @@ answer, and will be rewritten if the answer differs.
       7th for the lower group's leader when the upper group has six teams
 - [ ] In a season without a verified carry-over, the line ends at the last
       regular-season round, with the note beneath it
-- [ ] Rendering the chart causes no provider request and no database read beyond
-      the ones the team page already makes — asserted by a test that counts them
+- [ ] No request or read is made per round. For football-data the chart adds no
+      provider request and no database read; for TASO it adds only the group-row
+      read the standings page already uses, whose TASO request is limited to the
+      active season and the 15-minute cache — asserted by tests that count them
 - [ ] The chart renders with no client-side JavaScript
 - [ ] Colours are correct in both light and dark themes
 
@@ -303,9 +324,10 @@ answer, and will be rewritten if the answer differs.
   direction; the text alternative's rows; Finnish strings.
 - Team page: signed-in shows the chart; signed-out shows the prompt and no
   values in the output.
-- The request budget: rendering a team page with the chart makes the same
-  number of provider calls and database reads as without it — counted, not
-  assumed, with the provider and the database stubbed.
+- The request budget, counted with the provider and the database stubbed: the
+  number of reads and requests does not grow with the number of rounds; for
+  football-data it is the same as without the chart; for TASO the group rows
+  are read once per render.
 - `getStandings` is never called with a `round` from the chart's path.
 - `tests/e2e/`: one signed-in team page renders the chart; one signed-out page
   shows the prompt.
@@ -318,7 +340,8 @@ answer, and will be rewritten if the answer differs.
   implementation, including the chart-foundation choice.
 - `src/lib/` — the series computation; `getTeamMatches` in both
   `standings-service.ts` and `taso-standings-service.ts`, extended to return the
-  season's finished matches it already loads; `src/components/` — the chart and
+  season's finished matches it already loads; the TASO group-table calculation
+  exported for reuse rather than duplicated; `src/components/` — the chart and
   its text alternative; `src/components/competition-team-page.tsx` — where it
   appears.
 - No `.env.example`, `docs/setup/` or schema change.
@@ -336,6 +359,7 @@ Answered by Miikka on 2026-09-18.
 | Q5 | Caching | None, since it provides no value here. Revisit on measured CPU or response time, not user count — see *Caching* |
 | Q6 | Finnish strings | As listed, with `Kaudelta` corrected to `Kaudella` |
 | Q7 | Chart foundation | Hand-rolled SVG, because it is testable and renders on the server |
+| D | TASO needs the season's group rows to match the standings page | Reuse the standings page's own `getSyncedGroupTeams` (option 1): one small read, and at most one TASO request per active competition per 15 minutes, shared by every reader. Found during implementation |
 | Q8 | One PR or two | One feature, starting as one PR. Split into stacked PRs if the diff nears Sourcery's per-PR limit; the issue and PR are edited when that is known |
 | A | The signed-out message | `Kirjaudu sisään nähdäksesi analyysit ja trendit.` |
 | B | The combined position after a split | Group position plus the size of every group above; groups ranked by where their teams finished the regular season; sizes from the data |
