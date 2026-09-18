@@ -19,19 +19,48 @@ import { executablePath } from "./executable";
 /** Enough headroom under any platform's argument limit, with room to grow. */
 const HASH_BATCH = 500;
 
-function git(args: string[]): string | null {
+/** Just enough of `spawnSync`'s result for the decisions here. */
+export type GitOutput = { status: number | null; stdout: string };
+
+/**
+ * The IO this module does, injected the way `docker.ts` injects its spawn and
+ * `executable.ts` injects its existence check (#403).
+ *
+ * Which arguments git is given is the point: `-z` on `ls-files`, and paths as
+ * arguments rather than `--stdin-paths`, are the difference between a
+ * fingerprint that covers a filename containing a newline and one that silently
+ * drops it. A test can assert that; reading the file could not.
+ */
+export type GitDeps = {
+  /** Where `git` lives, or `null` when it cannot be found. */
+  find: () => string | null;
+  run: (binary: string, args: readonly string[]) => GitOutput;
+  /** What the path is, without following it. */
+  lstat: (path: string) => { isSymbolicLink: () => boolean };
+  readlink: (path: string) => string;
+};
+
+export const defaultGitDeps: GitDeps = {
+  find: () => executablePath("git"),
+  run: (binary, args) =>
+    spawnSync(binary, [...args], {
+      encoding: "utf8",
+      timeout: 15_000,
+      maxBuffer: 32 * 1024 * 1024,
+    }),
+  lstat: (path) => lstatSync(path),
+  readlink: (path) => readlinkSync(path),
+};
+
+function git(deps: GitDeps, args: string[]): string | null {
   // An absolute path rather than a name resolved through `PATH` — see
   // `executable.ts`. Not finding git is the same answer as git failing: this
   // function's `null` already means "git could not tell us", and the caller
   // warns rather than blocking the push.
-  const binary = executablePath("git");
+  const binary = deps.find();
   if (binary === null) return null;
 
-  const run = spawnSync(binary, args, {
-    encoding: "utf8",
-    timeout: 15_000,
-    maxBuffer: 32 * 1024 * 1024,
-  });
+  const run = deps.run(binary, args);
   return run.status === 0 ? run.stdout : null;
 }
 
@@ -43,9 +72,9 @@ function git(args: string[]): string | null {
  * deleting it would then be invisible. `lstat` describes the link itself,
  * which is the thing git tracks.
  */
-function describePath(path: string): "file" | "symlink" | "absent" {
+function describePath(deps: GitDeps, path: string): "file" | "symlink" | "absent" {
   try {
-    return lstatSync(path).isSymbolicLink() ? "symlink" : "file";
+    return deps.lstat(path).isSymbolicLink() ? "symlink" : "file";
   } catch {
     return "absent";
   }
@@ -61,9 +90,9 @@ function describePath(path: string): "file" | "symlink" | "absent" {
  * every push *and* stop a passing run recording anything. Retargeting the link
  * still shows as a change, which is the behaviour that matters.
  */
-function symlinkEntry(path: string): string | null {
+function symlinkEntry(deps: GitDeps, path: string): string | null {
   try {
-    return `link:${readlinkSync(path)}\t${path}`;
+    return `link:${deps.readlink(path)}\t${path}`;
   } catch {
     return null;
   }
@@ -80,8 +109,8 @@ function symlinkEntry(path: string): string | null {
  * A tracked file deleted from the working tree is simply absent, which is what
  * makes a deletion visible: its entry disappears from the fingerprint.
  */
-function watchedPaths(): string[] | null {
-  const out = git([
+function watchedPaths(deps: GitDeps): string[] | null {
+  const out = git(deps, [
     "ls-files",
     "-z",
     "-c",
@@ -101,11 +130,11 @@ function watchedPaths(): string[] | null {
  * newline-delimited and so cannot express a filename containing one. Batched
  * only to stay clear of the platform argument limit.
  */
-function hashAll(files: string[]): string[] | null {
+function hashAll(deps: GitDeps, files: string[]): string[] | null {
   const hashes: string[] = [];
   for (let start = 0; start < files.length; start += HASH_BATCH) {
     const batch = files.slice(start, start + HASH_BATCH);
-    const out = git(["hash-object", "--", ...batch]);
+    const out = git(deps, ["hash-object", "--", ...batch]);
     if (out === null) return null;
     const produced = out.split("\n").filter(Boolean);
     // A short read means some path could not be hashed. Fail closed rather
@@ -128,19 +157,19 @@ function hashAll(files: string[]): string[] | null {
  *
  * Cheap: 94 files in ~37ms here.
  */
-export function fingerprint(): string[] | null {
-  const paths = watchedPaths();
+export function fingerprint(deps: GitDeps = defaultGitDeps): string[] | null {
+  const paths = watchedPaths(deps);
   if (paths === null) return null;
 
   const files: string[] = [];
   const entries: string[] = [];
   for (const path of paths) {
-    const kind = describePath(path);
+    const kind = describePath(deps, path);
     // Absent means deleted from the working tree: it contributes no entry, and
     // its disappearance from the fingerprint is what makes the deletion visible.
     if (kind === "absent") continue;
     if (kind === "symlink") {
-      const entry = symlinkEntry(path);
+      const entry = symlinkEntry(deps, path);
       if (entry === null) return null;
       entries.push(entry);
       continue;
@@ -148,7 +177,7 @@ export function fingerprint(): string[] | null {
     files.push(path);
   }
 
-  const hashes = hashAll(files);
+  const hashes = hashAll(deps, files);
   if (hashes === null) return null;
   entries.push(...files.map((file, index) => `${hashes[index]}\t${file}`));
 
