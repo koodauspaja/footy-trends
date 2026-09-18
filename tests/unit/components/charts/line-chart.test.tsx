@@ -56,6 +56,13 @@ describe("ticksFor", () => {
   it("keeps the first tick even when it is close to the end", () => {
     expect(ticksFor(1, 2, 7)).toEqual([1, 2]);
   });
+
+  it("keeps both ends when asked for fewer than two ticks", () => {
+    // An axis without its end label is unreadable, so a count of 1 or 0 is
+    // treated as 2 rather than returning one end alone.
+    expect(ticksFor(1, 38, 1)).toEqual([1, 38]);
+    expect(ticksFor(1, 38, 0)).toEqual([1, 38]);
+  });
 });
 
 function chart(

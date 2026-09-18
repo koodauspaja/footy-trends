@@ -38,6 +38,9 @@ export function scale(
  * Round-number ticks from `min` to `max`, both ends included, about `count` of
  * them.
  *
+ * **Both ends are always ticks**, so an axis always labels where it starts and
+ * ends: a `count` below 2 is treated as 2 rather than dropping one of them.
+ *
  * The step is a whole number, because both axes here count things — rounds and
  * places. The last regular tick is dropped when it would crowd `max`, so the
  * axis never prints 37 and 38 side by side.
