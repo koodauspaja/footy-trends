@@ -86,8 +86,10 @@ Instead the chart is computed from matches **the team page already has in hand**
    ~line 1474). That call runs the existing season sync,
    `getSyncedSeasonMatches`, which loads **the whole season's matches** — every
    team's — and only then filters to this one.
-2. `getTeamMatches` is extended to return the season's finished matches it
-   already loaded, alongside this team's. No new read.
+2. The chart asks for the same season through the same read. For
+   football-data that read is wrapped in React's `cache()` — as the TASO
+   service's already was — so within one request it happens once and serves
+   both the match list and the chart. No new read.
 3. For each matchday `N` from the first to the last one played, the table is
    computed from matches with `matchday ≤ N`, using **the same ranking function
    the standings table uses** (`calculateStandings`, and the TASO path's
@@ -338,10 +340,13 @@ answer, and will be rewritten if the answer differs.
 - `specs/030-league-position-by-matchday.md` — this file.
 - `decisions/030-league-position-by-matchday.md` — written during
   implementation, including the chart-foundation choice.
-- `src/lib/` — the series computation; `getTeamMatches` in both
-  `standings-service.ts` and `taso-standings-service.ts`, extended to return the
-  season's finished matches it already loads; the TASO group-table calculation
-  exported for reuse rather than duplicated; `src/components/` — the chart and
+- `src/lib/` — the series computation (`position-series.ts`); a
+  `getTeamPositionSeries` in each of `standings-service.ts` and
+  `taso-standings-service.ts`, reading the season through the reads the team
+  page already makes — football-data's now `cache()`d, TASO's already were —
+  and reusing each provider's own table calculation rather than duplicating it;
+  the sign-in gate (`analytics-access.ts`, and `e2e-analytics.ts` for the e2e
+  suite's override); `src/components/` — the chart and
   its text alternative; `src/components/competition-team-page.tsx` — where it
   appears.
 - No `.env.example`, `docs/setup/` or schema change.

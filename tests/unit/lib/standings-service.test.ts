@@ -6,6 +6,7 @@ import {
   getRoundMatches,
   getStandings,
   getTeamMatches,
+  getTeamPositionSeries,
   synchronizeMatches,
 } from "@/lib/standings-service";
 import { warmModules } from "../../support/warm-module";
@@ -1054,5 +1055,137 @@ describe("getCupSeason", () => {
 
     expect(result.status).toBe("error");
     expect(loggerErrorMock).toHaveBeenCalled();
+  });
+});
+
+describe("getTeamPositionSeries", () => {
+  /** A finished match of a completed season, which is never refetched. */
+  function playedIn(
+    matchday: number,
+    home: number,
+    away: number,
+    homeGoals: number,
+    awayGoals: number
+  ) {
+    return storedMatch({
+      providerMatchId: matchday * 100 + home * 10 + away,
+      seasonId: PAST_SEASON,
+      matchday,
+      homeTeamProviderId: home,
+      homeTeamName: `Team ${home}`,
+      awayTeamProviderId: away,
+      awayTeamName: `Team ${away}`,
+      homeGoals,
+      awayGoals,
+      updatedAt: new Date(),
+    });
+  }
+
+  /** Four teams, a round each for team 1 to climb. */
+  const season = [
+    playedIn(1, 2, 1, 2, 0),
+    playedIn(1, 3, 4, 1, 0),
+    playedIn(2, 1, 4, 3, 0),
+    playedIn(2, 2, 3, 0, 0),
+    playedIn(3, 1, 3, 2, 0),
+    playedIn(3, 4, 2, 1, 0),
+  ];
+
+  it("plots the team's position after every round of the season", async () => {
+    mockStoredMatches(season);
+
+    const series = await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(series).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 4 },
+        { round: 2, position: 3 },
+        { round: 3, position: 1 },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("equals the position `getStandings({ round })` gives for every round", async () => {
+    /**
+     * The property the whole feature rests on: the chart and the standings
+     * page's round selector must never disagree. Checked against the real
+     * `getStandings`, not against a restatement of its arguments.
+     */
+    mockStoredMatches(season);
+    const series = await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    if (series.status !== "ok") throw new Error("expected a series");
+
+    for (const point of series.points) {
+      const standings = await getStandings({
+        competitionCode: COMPETITION_CODE,
+        seasonId: PAST_SEASON,
+        activeSeasonId: ACTIVE_SEASON,
+        round: point.round,
+      });
+      const row =
+        standings.status === "ok"
+          ? standings.standings.find((team) => team.teamProviderId === 1)
+          : undefined;
+
+      expect(row?.position, `round ${point.round}`).toBe(point.position);
+    }
+  });
+
+  it("reads the season once, however many rounds it has, and asks no provider", async () => {
+    /**
+     * #331's constraint: ranking per round must not become a fetch per round.
+     * Ten rounds here, and still one read — the in-memory tables are the only
+     * thing that grows with the season.
+     */
+    const tenRounds = Array.from({ length: 10 }, (_, index) => [
+      playedIn(index + 1, 1, 2, index % 3, 1),
+      playedIn(index + 1, 3, 4, 1, index % 2),
+    ]).flat();
+    mockStoredMatches(tenRounds);
+
+    const series = await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(series.status === "ok" && series.points).toHaveLength(10);
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(redisMock.get).not.toHaveBeenCalled();
+  });
+
+  it("reports no rounds for a season with nothing stored yet", async () => {
+    mockStoredMatches([]);
+    // Nothing stored means a refresh is attempted, and the provider has nothing
+    // either — an empty season, not a failed one.
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "no-rounds",
+    });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    expect(await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
+      "Unable to compute the league position series"
+    );
   });
 });

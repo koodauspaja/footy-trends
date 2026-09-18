@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
+import type { PositionSeries } from "@/lib/position-series";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -7,6 +9,22 @@ import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const getTeamPositionSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
+);
+
+/**
+ * The league-position section stands in here with a marker: its own states and
+ * its sign-in gate are `league-position-section.test.tsx`'s. What this file
+ * owns is the page's side — whether the section is asked for at all, and with
+ * which series.
+ */
+const leaguePositionSectionMock = vi.fn(
+  async (_props: { loadSeries: () => Promise<PositionSeries> }) => "Sijoituskaavion paikka"
+);
+vi.mock("@/components/league-position-section", () => ({
+  LeaguePositionSection: leaguePositionSectionMock,
+}));
 
 /**
  * Season discovery is mocked so these page tests stay pure unit tests: the
@@ -30,6 +48,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+    getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -489,5 +508,42 @@ describe("Domestic team page competition naming", () => {
     await renderTeam("1", { kilpailu: "NL", kausi: "2016" });
 
     expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
+  });
+});
+
+describe("Domestic team page league position (specs/030)", () => {
+  it("shows the section for a league team with matches this season", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+
+    expect(screen.getByText("Sijoituskaavion paikka")).toBeInTheDocument();
+  });
+
+  it("asks for this team's series in the season's own TASO category and competition", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadSeries = leaguePositionSectionMock.mock.calls[0]?.[0].loadSeries;
+
+    await loadSeries?.();
+
+    expect(getTeamPositionSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("offers no section for a cup, which has no league position", async () => {
+    await renderTeam("1", { kilpailu: "MSC", kausi: "2025" });
+
+    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
+  });
+
+  it("offers no section when the team has no matches this season", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "empty" });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+
+    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
   });
 });

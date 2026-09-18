@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContextNotices } from "@/components/context-notices";
+import { LeaguePositionSection } from "@/components/league-position-section";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
@@ -9,10 +10,15 @@ import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
+  isDomesticCup,
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
+import {
+  getTeamMatches,
+  getTeamPositionSeries,
+  type TeamMatchesResult,
+} from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
@@ -180,6 +186,24 @@ export default async function DomesticTeamPage({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  /**
+   * League competitions only (specs/030, Q2): Suomen Cup and the other cups have
+   * no league position. And only for a team with matches this season.
+   */
+  const positionSection =
+    result.status === "ok" && !isDomesticCup(competitionCode)
+      ? await LeaguePositionSection({
+          loadSeries: () =>
+            getTeamPositionSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+        })
+      : null;
+
   return (
     <PageShell heading={headingFor(resolved)}>
       <RenamedNotice renamedTo={renamedTo} />
@@ -212,6 +236,7 @@ export default async function DomesticTeamPage({
           ) : null
         }
       />
+      {positionSection}
     </PageShell>
   );
 }

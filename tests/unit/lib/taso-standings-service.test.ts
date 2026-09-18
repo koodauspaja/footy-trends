@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams } from "@/db/schema";
+import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
   getSeasonCategoryName,
@@ -7,6 +8,7 @@ import {
   getSeasonMatchList,
   getSeasonStandings,
   getTeamMatches,
+  getTeamPositionSeries,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -2227,5 +2229,422 @@ describe("resolveTasoSeasonContext", () => {
         expect.stringContaining("no carry-over entry")
       );
     });
+  });
+});
+
+describe("getTeamPositionSeries", () => {
+  /**
+   * A league configured to split: groups 2 and 3 both continue group 1, unseeded
+   * (`CARRY_OVER_CONFIG`). The fixtures use TASO's real category and season ids
+   * because the carry-over rules are read from that configuration.
+   */
+  const LEAGUE = "M1";
+  const SPLIT_SEASON = "spljp25";
+
+  function game(
+    competitionId: string,
+    groupId: number,
+    matchday: number,
+    home: number,
+    away: number,
+    score: [number, number] | null
+  ) {
+    return match({
+      providerMatchId: groupId * 1000 + matchday * 100 + home * 10 + away,
+      categoryId: LEAGUE,
+      competitionCode: competitionId,
+      groupId,
+      groupName: `Lohko ${groupId}`,
+      matchday,
+      homeTeamProviderId: home,
+      homeTeamName: `Team ${home}`,
+      awayTeamProviderId: away,
+      awayTeamName: `Team ${away}`,
+      status: score === null ? "SCHEDULED" : "FINISHED",
+      homeGoals: score?.[0] ?? null,
+      awayGoals: score?.[1] ?? null,
+    });
+  }
+
+  /**
+   * Group rows whose published points are **derived from `calculateStandings`**
+   * over the group's own matches plus its parent's — what TASO publishes for a
+   * carry-over group — rather than typed by hand. A row agreeing with our
+   * calculation is what makes a group verified, and a hand calculation is the
+   * easiest thing here to get wrong.
+   */
+  function rowsFor(
+    matches: ReturnType<typeof game>[],
+    competitionId: string,
+    groupId: number,
+    parentId: number | null
+  ) {
+    const own = matches.filter((row) => row.groupId === groupId);
+    const contributing = matches.filter(
+      (row) => row.groupId === groupId || (parentId !== null && row.groupId === parentId)
+    );
+    const teamIds = new Set(own.flatMap((row) => [row.homeTeamProviderId, row.awayTeamProviderId]));
+    const finished = contributing.filter(
+      (row) => row.status === "FINISHED"
+    ) as unknown as NormalizedMatch[];
+
+    return calculateStandings(finished, contributing)
+      .filter((team) => teamIds.has(team.teamProviderId))
+      .map((team) =>
+        groupTeam({
+          categoryId: LEAGUE,
+          competitionCode: competitionId,
+          groupId,
+          teamProviderId: team.teamProviderId,
+          teamName: team.teamName,
+          points: team.points,
+        })
+      );
+  }
+
+  /**
+   * Four teams play a regular season of three rounds, finishing 1, 2, 3, 4.
+   * Then the league splits: {1, 2} above, {3, 4} below. TASO restarts the split
+   * groups' rounds at 1, as it did in 2019, and `withContinuedRoundNumbering`
+   * shifts them on to 4.
+   */
+  function splitSeason(
+    competitionId: string,
+    { upper = 2, lower = 3 }: { upper?: number; lower?: number } = {}
+  ) {
+    return [
+      game(competitionId, 1, 1, 1, 2, [2, 0]),
+      game(competitionId, 1, 1, 3, 4, [1, 0]),
+      game(competitionId, 1, 2, 1, 3, [1, 0]),
+      game(competitionId, 1, 2, 2, 4, [1, 0]),
+      game(competitionId, 1, 3, 1, 4, [1, 0]),
+      game(competitionId, 1, 3, 2, 3, [1, 0]),
+      game(competitionId, upper, 1, 1, 2, [0, 1]),
+      game(competitionId, lower, 1, 4, 3, [2, 0]),
+    ];
+  }
+
+  function verifiedRows(matches: ReturnType<typeof game>[], competitionId: string) {
+    const groupIds = [...new Set(matches.map((row) => row.groupId))];
+    return groupIds.flatMap((groupId) =>
+      rowsFor(matches, competitionId, groupId, groupId === 1 ? null : 1)
+    );
+  }
+
+  async function seriesFor(
+    teamId: number,
+    matches: ReturnType<typeof game>[],
+    rows: unknown[],
+    competitionId = SPLIT_SEASON
+  ) {
+    mockStoredMatches(matches, rows);
+    return getTeamPositionSeries(LEAGUE, competitionId, teamId, PAST_SEASON, ACTIVE_SEASON);
+  }
+
+  it("plots the regular season and continues it in the combined table after the split", async () => {
+    const matches = splitSeason(SPLIT_SEASON);
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3 },
+        { round: 2, position: 4 },
+        { round: 3, position: 4 },
+        // First in the lower group, below both teams of the upper one.
+        { round: 4, position: 3 },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("puts the lower group's leader directly below the whole upper group", async () => {
+    /**
+     * The rule Miikka described — the lower group's leader is 7th when the upper
+     * group has six — at the size of this fixture: team 4 leads the lower group,
+     * the upper group has two, so it is 3rd.
+     */
+    const matches = splitSeason(SPLIT_SEASON);
+    const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
+    const standings = await getSeasonStandings(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON, 4);
+    const lowerGroup = standings.groups.find((group) => group.groupId === 3);
+    const inGroup =
+      lowerGroup?.kind === "own-calculated"
+        ? lowerGroup.standings.find((team) => team.teamProviderId === 4)?.position
+        : undefined;
+
+    expect(inGroup).toBe(1);
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 1 + 2 });
+  });
+
+  it("equals the standings page's group table for every round, plus the groups above", async () => {
+    /**
+     * The property the feature rests on, checked against the real
+     * `getSeasonStandings` — the function behind the standings page's round
+     * selector — for every team, not against a restatement of it.
+     */
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON);
+
+    for (const teamId of [1, 2, 3, 4]) {
+      const series = await seriesFor(teamId, matches, rows);
+      if (series.status !== "ok") throw new Error(`expected a series for team ${teamId}`);
+
+      for (const point of series.points) {
+        mockStoredMatches(matches, rows);
+        const standings = await getSeasonStandings(
+          LEAGUE,
+          SPLIT_SEASON,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          point.round
+        );
+        const afterSplit = point.round > 3;
+        const offset = afterSplit && (teamId === 3 || teamId === 4) ? 2 : 0;
+        const table = standings.groups.find(
+          (group) =>
+            group.kind === "own-calculated" &&
+            group.standings.some((team) => team.teamProviderId === teamId) &&
+            (afterSplit ? group.groupId !== 1 : group.groupId === 1)
+        );
+        const row =
+          table?.kind === "own-calculated"
+            ? table.standings.find((team) => team.teamProviderId === teamId)
+            : undefined;
+
+        expect(point.position, `team ${teamId}, round ${point.round}`).toBe(
+          (row?.position ?? Number.NaN) + offset
+        );
+      }
+    }
+  });
+
+  it("ranks the split groups by the regular season, not by their group ids", async () => {
+    // The lower teams in the lower-numbered group this time. Ranking by id would
+    // put them on top.
+    const matches = splitSeason(SPLIT_SEASON, { upper: 3, lower: 2 });
+    const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
+
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 3 });
+  });
+
+  it("stops at the split, and says so, when the continuation does not reconcile", async () => {
+    // The lower group's published points disagree with ours, so the standings
+    // page shows TASO's numbers with no round selector — nothing per round to
+    // equal.
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? { ...row, points: (row.points ?? 0) + 5 } : row
+    );
+
+    expect(await seriesFor(4, matches, rows)).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3 },
+        { round: 2, position: 4 },
+        { round: 3, position: 4 },
+      ],
+      teamCount: 4,
+      endsAtSplit: true,
+    });
+  });
+
+  it("stops at the split when the season has no carry-over configured yet", async () => {
+    // M1 has no 2020 entry: the live-season window before one is added and
+    // verified looks like this, and so do old seasons nobody configured.
+    const unconfigured = "spljp20";
+    const matches = splitSeason(unconfigured);
+    const series = await seriesFor(4, matches, verifiedRows(matches, unconfigured), unconfigured);
+
+    expect(series.status === "ok" && series.endsAtSplit).toBe(true);
+    expect(series.status === "ok" && series.points.map((point) => point.round)).toEqual([1, 2, 3]);
+  });
+
+  it("stops at the split when the regular season was two parallel groups", async () => {
+    // BTSM 2015: groups 1 and 2 each split into their own continuation, 3 and 4,
+    // so "combined" has no single meaning.
+    const twoParents = "spljp15";
+    const matches = [
+      ...splitSeason(twoParents).filter((row) => row.groupId !== 2),
+      match({
+        providerMatchId: 2101,
+        categoryId: "BTSM",
+        competitionCode: twoParents,
+        groupId: 2,
+        matchday: 1,
+        homeTeamProviderId: 5,
+        homeTeamName: "Team 5",
+        awayTeamProviderId: 6,
+        awayTeamName: "Team 6",
+      }),
+    ].map((row) => ({ ...row, categoryId: "BTSM" }));
+    /**
+     * BTSM 2015 uses the *seeded* convention: a continuation's `starting_points`
+     * are its teams' points from the parent group. Without them the continuation
+     * would not reconcile and the line would stop for that reason instead — which
+     * is how this test first passed with the parallel-groups rule deleted.
+     * Seeded, every group here is verified, so that rule is the only thing left
+     * that can stop it.
+     */
+    const parentPoints = new Map(
+      calculateStandings(
+        matches.filter((row) => row.groupId === 1) as unknown as NormalizedMatch[]
+      ).map((team) => [team.teamProviderId, team.points])
+    );
+    const rows = verifiedRows(matches, twoParents).map((row) => ({
+      ...row,
+      categoryId: "BTSM",
+      startingPoints: row.groupId === 3 ? (parentPoints.get(row.teamProviderId) ?? 0) : 0,
+    }));
+    mockStoredMatches(matches, rows);
+
+    const series = await getTeamPositionSeries("BTSM", twoParents, 4, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(series.status === "ok" && series.endsAtSplit).toBe(true);
+
+    // And the continuation itself is verified, so nothing else explains the stop.
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      "BTSM",
+      twoParents,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    expect(standings.groups.find((group) => group.groupId === 3)?.kind).toBe("own-calculated");
+  });
+
+  it("plots only the regular season when the split has happened but not been played", async () => {
+    const matches = splitSeason(SPLIT_SEASON).map((row) =>
+      row.groupId === 1 ? row : { ...row, status: "SCHEDULED", homeGoals: null, awayGoals: null }
+    );
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3 },
+        { round: 2, position: 4 },
+        { round: 3, position: 4 },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("stops at the split, with the note, when the continuation was played without rounds", async () => {
+    // TASO can report a match with no round. The standings page cannot show such
+    // a group per round, so the chart does not pretend to — and says so.
+    const matches = splitSeason(SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? { ...row, matchday: null } : row
+    );
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3 },
+        { round: 2, position: 4 },
+        { round: 3, position: 4 },
+      ],
+      teamCount: 4,
+      endsAtSplit: true,
+    });
+
+    // Team 3 played that match away; a team is counted on either side.
+    const awaySide = await seriesFor(3, matches, verifiedRows(matches, SPLIT_SEASON));
+    expect(awaySide.status === "ok" && awaySide.endsAtSplit).toBe(true);
+  });
+
+  it("plots a league that never splits as one table", async () => {
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const series = await seriesFor(1, matches, verifiedRows(matches, SPLIT_SEASON));
+
+    expect(series).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 1 },
+        { round: 2, position: 1 },
+        { round: 3, position: 1 },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("offers no chart when the regular season itself has no per-round table", async () => {
+    // Published points that disagree with ours: the standings page shows TASO's
+    // own numbers, with no round selector, for the whole season.
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) => ({
+      ...row,
+      points: (row.points ?? 0) + 1,
+    }));
+
+    expect(await seriesFor(1, matches, rows)).toEqual({ status: "unavailable" });
+  });
+
+  it("offers no chart for a team whose only group is a list of matches", async () => {
+    // TASO sends no points for a knockout group, so it renders as matches.
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) => ({ ...row, points: null }));
+
+    expect(await seriesFor(1, matches, rows)).toEqual({ status: "unavailable" });
+  });
+
+  it("reports no rounds for a team that has not played yet", async () => {
+    const matches = splitSeason(SPLIT_SEASON)
+      .filter((row) => row.groupId === 1)
+      .map((row) => ({ ...row, status: "SCHEDULED", homeGoals: null, awayGoals: null }));
+
+    expect(await seriesFor(1, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "no-rounds",
+    });
+  });
+
+  it("reports no rounds for a season with nothing in it", async () => {
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await seriesFor(1, [], [])).toEqual({ status: "no-rounds" });
+  });
+
+  it("reports an error when the season cannot be read", async () => {
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("TASO down"));
+
+    expect(await seriesFor(1, [], [])).toEqual({ status: "error" });
+  });
+
+  it("reports an error, and logs it, when something throws", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamPositionSeries(LEAGUE, SPLIT_SEASON, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: LEAGUE, teamProviderId: 1 }),
+      "Unable to compute the TASO league position series"
+    );
+  });
+
+  it("reads the matches and the group rows once each, however many rounds, and asks TASO nothing", async () => {
+    /**
+     * #331's constraint, and the budget the spec states for TASO: the group rows
+     * are the one read the team page did not make before, and nothing is read or
+     * fetched per round. A completed season with stored rows is never refetched.
+     */
+    const tenRounds = Array.from({ length: 10 }, (_, index) => [
+      game(SPLIT_SEASON, 1, index + 1, 1, 2, [index % 3, 1]),
+      game(SPLIT_SEASON, 1, index + 1, 3, 4, [1, index % 2]),
+    ]).flat();
+    const series = await seriesFor(1, tenRounds, verifiedRows(tenRounds, SPLIT_SEASON));
+
+    expect(series.status === "ok" && series.points).toHaveLength(10);
+    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(getSeasonGroupsMock).not.toHaveBeenCalled();
+    expect(getCachedMock).not.toHaveBeenCalled();
   });
 });

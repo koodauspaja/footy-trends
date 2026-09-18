@@ -11,6 +11,14 @@ import {
 } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
+  lastRoundPlayedBy,
+  type PositionPoint,
+  type PositionSeries,
+  positionsAfterEachRound,
+  roundsToPlot,
+  teamsInGroupsAbove,
+} from "./position-series";
+import {
   calculateStandings,
   type NormalizedMatch,
   selectTeamMatches,
@@ -1252,7 +1260,13 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
   seasonId: number,
   activeSeasonId: number
 ): Promise<
-  | { status: "ok"; matches: MatchRow[]; groups: GroupStandingsResult[] }
+  | {
+      status: "ok";
+      matches: MatchRow[];
+      groups: GroupStandingsResult[];
+      /** Returned so a caller never reads them a second time — see specs/030. */
+      teamRows: StoredGroupTeam[];
+    }
   | { status: "empty" | "error" }
 > {
   const [{ matches: seasonMatches, refreshFailed }, teamRows] = await Promise.all([
@@ -1275,8 +1289,188 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
     .sort((left, right) => left - right)
     .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId));
 
-  return { status: "ok", matches: seasonMatches, groups };
+  return { status: "ok", matches: seasonMatches, groups, teamRows };
 });
+
+/**
+ * This team's league position after each round of a season, for the team
+ * page's chart (specs/030).
+ *
+ * **Reads nothing the standings page does not.** The season's matches and its
+ * group rows come through the same `cache()`d syncs `classifySeasonGroups` uses —
+ * the matches already read for the team page's own match list — and every table
+ * is `ownCalculatedStandings`, the function behind the standings page's round
+ * selector. So a plotted position always equals the standings page's for that
+ * round, and nothing is fetched per round.
+ *
+ * The group rows are the one read the TASO team page did not make before, and
+ * they are read once: `classifySeasonGroups` returns the rows it used. They
+ * carry points adjustments and decide whether a split group is verified, so a
+ * position cannot equal the page's without them. Their TASO request is limited
+ * to the active season and to the 15-minute cache the standings page shares —
+ * see specs/030's request budget.
+ */
+export async function getTeamPositionSeries(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<PositionSeries> {
+  try {
+    const classified = await classifySeasonGroups(
+      categoryId,
+      competitionId,
+      seasonId,
+      activeSeasonId
+    );
+    if (classified.status !== "ok") {
+      return classified.status === "error" ? { status: "error" } : { status: "no-rounds" };
+    }
+
+    return positionSeriesFrom(
+      classified.matches,
+      classified.groups,
+      classified.teamRows,
+      categoryId,
+      competitionId,
+      teamProviderId
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO league position series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * The series from a classified season — separated so the rules read in one
+ * place, apart from the reads.
+ *
+ * **The line plots a round only where the standings page has a table for that
+ * round** (specs/030, C):
+ *
+ * - The team's regular-season group must be own-calculated. A pass-through
+ *   group is shown with TASO's own numbers and no round selector, so there is no
+ *   per-round position to plot at all: `unavailable`.
+ * - After the split, the continuation is combined with the regular season only
+ *   when it is a verified carry-over of it — own-calculated, configured as that
+ *   group's child — and the regular season was a single group. Otherwise the
+ *   line ends at the regular season and `endsAtSplit` says so.
+ * - A combined position is the team's position in its own group plus every team
+ *   in the groups ranked above it (`teamsInGroupsAbove`).
+ */
+function positionSeriesFrom(
+  seasonMatches: MatchRow[],
+  groups: ReadonlyArray<Pick<GroupStandingsResult, "kind" | "groupId">>,
+  teamRows: StoredGroupTeam[],
+  categoryId: string,
+  competitionId: string,
+  teamId: number
+): PositionSeries {
+  const tableGroups = groups.filter((group) => group.kind !== "match-list");
+
+  // The team's table groups in the order they were played: the regular season
+  // first, then its continuation.
+  const teamGroups = tableGroups
+    .filter((group) => teamIdsInGroup(seasonMatches, group.groupId).has(teamId))
+    .sort((left, right) => firstRoundOf(seasonMatches, left) - firstRoundOf(seasonMatches, right));
+
+  const regular = teamGroups[0];
+  if (regular === undefined || regular.kind !== "own-calculated") return { status: "unavailable" };
+
+  const tableAfter = (groupId: number) => (round: number | undefined) =>
+    ownCalculatedStandings(
+      seasonMatches,
+      groupTeamsFor(teamRows, groupId),
+      categoryId,
+      competitionId,
+      groupId,
+      round
+    );
+  // Grouped before `toFinishedMatches`, whose result type no longer carries the
+  // group — so "finished" keeps the one definition the standings page uses.
+  const finishedIn = (groupId: number) =>
+    toFinishedMatches(seasonMatches.filter((match) => match.groupId === groupId));
+
+  const regularFinished = finishedIn(regular.groupId);
+  const lastRegular = lastRoundPlayedBy(regularFinished, teamId);
+  if (lastRegular === null) return { status: "no-rounds" };
+
+  const regularPoints = positionsAfterEachRound(
+    roundsToPlot(regularFinished, lastRegular),
+    teamId,
+    tableAfter(regular.groupId)
+  );
+  const teamCount = teamIdsInGroup(seasonMatches, regular.groupId).size;
+
+  const continuation = teamGroups[1];
+  if (continuation === undefined) return seriesOf(regularPoints, teamCount, false);
+
+  const regularSeasonGroups = tableGroups.filter(
+    (group) => parentGroupId(categoryId, competitionId, group.groupId) === null
+  );
+  const combinable =
+    continuation.kind === "own-calculated" &&
+    parentGroupId(categoryId, competitionId, continuation.groupId) === regular.groupId &&
+    // Two parallel regular-season groups (BTSM 2015) give "combined" no single
+    // meaning, even when each continuation is verified.
+    regularSeasonGroups.length === 1;
+  if (!combinable) return seriesOf(regularPoints, teamCount, true);
+
+  const continuationGroups = tableGroups
+    .filter((group) => parentGroupId(categoryId, competitionId, group.groupId) === regular.groupId)
+    .map((group) => teamIdsInGroup(seasonMatches, group.groupId));
+  const regularSeasonOrder = tableAfter(regular.groupId)(undefined).map(
+    (row) => row.teamProviderId
+  );
+  const offset = teamsInGroupsAbove(
+    teamIdsInGroup(seasonMatches, continuation.groupId),
+    continuationGroups,
+    regularSeasonOrder
+  );
+
+  const continuationFinished = finishedIn(continuation.groupId);
+  const lastContinuation = lastRoundPlayedBy(continuationFinished, teamId);
+
+  if (lastContinuation === null) {
+    /**
+     * Two different states share this, and only one is missing anything. Split
+     * but not yet played in: the line is the regular season so far, and there is
+     * nothing to report. Played, but only in matches TASO gave no round: the
+     * standings page cannot show those per round either, so by the same rule as
+     * an unverified group the line stops, with the note.
+     */
+    const playedWithoutRound = continuationFinished.some(
+      (match) => match.homeTeamProviderId === teamId || match.awayTeamProviderId === teamId
+    );
+    return seriesOf(regularPoints, teamCount, playedWithoutRound);
+  }
+
+  const continuationPoints = positionsAfterEachRound(
+    roundsToPlot(continuationFinished, lastContinuation),
+    teamId,
+    tableAfter(continuation.groupId),
+    offset
+  );
+
+  return seriesOf([...regularPoints, ...continuationPoints], teamCount, false);
+}
+
+/** Where a group's rounds begin, so the regular season sorts before its continuation. */
+function firstRoundOf(seasonMatches: MatchRow[], group: { groupId: number }): number {
+  return roundRange(seasonMatches, group.groupId)?.min ?? Number.POSITIVE_INFINITY;
+}
+
+function seriesOf(
+  points: PositionPoint[],
+  teamCount: number,
+  endsAtSplit: boolean
+): PositionSeries {
+  return { status: "ok", points, teamCount, endsAtSplit };
+}
 
 export async function getSeasonStandings(
   categoryId: string,
@@ -1296,15 +1490,15 @@ export async function getSeasonStandings(
     if (round === undefined) return { status: "ok", groups: classified.groups };
 
     // Only an own-calculated group responds to a round; the classification
-    // itself does not change with one, so it is reused rather than redone.
-    const teamRows = await getSyncedGroupTeams(categoryId, competitionId, seasonId, activeSeasonId);
+    // itself does not change with one, so it is reused rather than redone —
+    // and so are the group rows it read, rather than asking for them again.
     const groups = classified.groups.map((group) =>
       group.kind === "own-calculated"
         ? {
             ...group,
             standings: ownCalculatedStandings(
               classified.matches,
-              groupTeamsFor(teamRows, group.groupId),
+              groupTeamsFor(classified.teamRows, group.groupId),
               categoryId,
               competitionId,
               group.groupId,

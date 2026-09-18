@@ -2,11 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContextNotices } from "@/components/context-notices";
 import { FavouriteToggle } from "@/components/favourite-toggle";
+import { LeaguePositionSection } from "@/components/league-position-section";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { earliestSeasonFor, getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
+import {
+  earliestSeasonFor,
+  getCompetitionFormat,
+  getCompetitionName,
+  parseCompetitionParam,
+} from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
 import {
   type BasePageContext,
@@ -14,7 +20,11 @@ import {
   resolveBasePageContext,
 } from "@/lib/page-context";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
-import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
+import {
+  getTeamMatches,
+  getTeamPositionSeries,
+  type TeamMatchesResult,
+} from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
@@ -237,6 +247,24 @@ export async function CompetitionTeamPage({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  /**
+   * League competitions only (specs/030, Q2): a cup and a national-team
+   * tournament have no league position. And only for a team with matches this
+   * season — otherwise the page already says why there is nothing to show.
+   */
+  const positionSection =
+    result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
+      ? await LeaguePositionSection({
+          loadSeries: () =>
+            getTeamPositionSeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+        })
+      : null;
+
   return (
     <PageShell heading={heading} headingAction={favourite}>
       <p className="mb-6">
@@ -269,6 +297,7 @@ export async function CompetitionTeamPage({
           ) : null
         }
       />
+      {positionSection}
     </PageShell>
   );
 }
