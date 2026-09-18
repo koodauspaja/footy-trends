@@ -29,7 +29,7 @@ export function PositionChart({
   teamCount: number;
   headingId: string;
 }>) {
-  const textId = `${headingId}-teksti`;
+  const textId = `${headingId}-text`;
   const firstRound = points[0]?.round ?? 1;
   const lastRound = points.at(-1)?.round ?? firstRound;
 

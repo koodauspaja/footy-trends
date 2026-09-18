@@ -1379,7 +1379,7 @@ function positionSeriesFrom(
     .sort((left, right) => firstRoundOf(seasonMatches, left) - firstRoundOf(seasonMatches, right));
 
   const regular = teamGroups[0];
-  if (regular === undefined || regular.kind !== "own-calculated") return { status: "unavailable" };
+  if (regular?.kind !== "own-calculated") return { status: "unavailable" };
 
   const tableAfter = (groupId: number) => (round: number | undefined) =>
     ownCalculatedStandings(

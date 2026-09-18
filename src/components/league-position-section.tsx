@@ -11,7 +11,7 @@ export const NO_ROUNDS_MESSAGE = "Kaudella ei ole vielä pelattuja kierroksia.";
 export const POSITION_ERROR_MESSAGE = "Sijoitusta ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const SPLIT_NOTE = "Jatkosarjan sijoituksia ei voida laskea tälle kaudelle.";
 
-const HEADING_ID = "sijoitus-kierroksittain";
+const HEADING_ID = "league-position-by-round";
 
 /**
  * The team page's league-position chart, in every state it can be in

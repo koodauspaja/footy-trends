@@ -15,7 +15,7 @@ const points = [
 function renderChart(teamCount = 4, shown = points) {
   return render(
     <PositionChart
-      headingId="sijoitus"
+      headingId="position"
       points={shown}
       teamCount={teamCount}
       title="Sijoitus kierroksittain"
@@ -79,7 +79,7 @@ describe("PositionChart", () => {
   });
 
   it("names itself by its heading", () => {
-    expect(renderChart().querySelector("svg")?.getAttribute("aria-labelledby")).toBe("sijoitus");
+    expect(renderChart().querySelector("svg")?.getAttribute("aria-labelledby")).toBe("position");
   });
 
   it("draws a single played round without dividing by zero", () => {
