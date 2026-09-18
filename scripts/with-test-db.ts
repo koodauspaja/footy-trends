@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { ensureTestDatabase } from "../tests/support/test-database";
+import { executableFor, exitCodeFor, parseInvocation } from "./with-test-db-plan";
 
 /**
  * Runs a command against the **test** database, creating and migrating it first.
@@ -14,6 +15,12 @@ import { ensureTestDatabase } from "../tests/support/test-database";
  * A wrapper rather than a line in `vitest.config.ts`, because the database has
  * to exist and be migrated *before* the first test imports `@/db` — and a
  * config file cannot await that.
+ *
+ * The decisions here live in `with-test-db-plan.ts` and are tested there; what
+ * is left is the environment, the database and the spawn. It stays behind a
+ * coverage exclusion because `main()` runs at import and **creates and migrates
+ * a database** — a test that imported this file would do that to whatever
+ * `DATABASE_URL` the importer had (#403).
  */
 if (existsSync(".env")) {
   process.loadEnvFile(".env");
@@ -25,38 +32,26 @@ function fail(line: string): never {
   process.exit(1);
 }
 
-const [command, ...args] = process.argv.slice(2);
-if (command === undefined) {
-  fail("Usage: tsx scripts/with-test-db.ts <command> [args...]");
+const invocation = parseInvocation(process.argv.slice(2));
+if (!invocation.ok) {
+  fail(invocation.message);
 }
 
-async function main(): Promise<void> {
+async function main(command: string, args: string[]): Promise<void> {
   const url = await ensureTestDatabase();
 
-  /**
-   * `node` means *this* Node, and a package binary is run through it rather
-   * than through `node_modules/.bin`.
-   *
-   * npm exposes those binaries as `.cmd` shims on Windows, which `spawn`
-   * cannot execute without a shell — the same trap `scripts/executable.ts`
-   * documents. Handing the runtime an `.mjs` entry sidesteps shims and PATH
-   * lookup together, and guarantees the child runs on the Node that started it.
-   */
-  const executable = command === "node" ? process.execPath : (command as string);
-
-  const child = spawn(executable, args, {
+  const child = spawn(executableFor(command, process.execPath), args, {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: url },
   });
 
   child.on("exit", (code) => {
-    // A signalled child has no exit code. Reporting 1 keeps the failure visible
-    // rather than letting it read as success.
-    process.exit(code ?? 1);
+    process.exit(exitCodeFor(code));
   });
   child.on("error", (error) => {
     fail(`Could not run ${command}: ${error.message}`);
   });
 }
 
-void main();
+// Narrowed above: `fail` returns `never`, so this is the parsed invocation.
+void main(invocation.command, invocation.args);

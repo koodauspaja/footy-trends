@@ -5,10 +5,41 @@ import { fingerprint } from "./e2e-freshness-git";
 import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
 
 /** Spec files on disk, so a run narrowed to one file is not mistaken for all of them. */
-function availableSpecFiles(testDir: string): string[] {
-  return readdirSync(testDir)
+function availableSpecFiles(testDir: string, readdir: ReporterDeps["readdir"]): string[] {
+  return readdir(testDir)
     .filter((name) => name.endsWith(".spec.ts"))
     .map((name) => path.resolve(testDir, name));
+}
+
+/**
+ * The filesystem and git this reporter touches, injected so that a test can
+ * drive it without a Playwright run or a marker on disk (#403).
+ *
+ * Playwright constructs a reporter with its configured options, and this one is
+ * configured with none — so the defaults are what production uses, and the
+ * parameter exists for the test.
+ */
+export type ReporterDeps = {
+  readdir: (directory: string) => string[];
+  fingerprint: () => string[] | null;
+  writeMarker: (contents: string) => void;
+  now: () => Date;
+};
+
+/**
+ * The real filesystem and git.
+ *
+ * `markerPath` is a parameter so a test can exercise this wiring against a
+ * throwaway file: writing the real marker would either vouch for a run that
+ * never happened or destroy the record of one that did.
+ */
+export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
+  return {
+    readdir: (directory) => readdirSync(directory),
+    fingerprint: () => fingerprint(),
+    writeMarker: (contents) => writeFileSync(markerPath, contents),
+    now: () => new Date(),
+  };
 }
 
 /**
@@ -25,6 +56,11 @@ function availableSpecFiles(testDir: string): string[] {
  */
 export default class E2eFreshnessReporter implements Reporter {
   private covered = false;
+  private readonly deps: ReporterDeps;
+
+  constructor(deps: Partial<ReporterDeps> = {}) {
+    this.deps = { ...reporterDeps(), ...deps };
+  }
 
   onBegin(config: FullConfig, suite: Suite): void {
     const project = config.projects[0];
@@ -34,7 +70,8 @@ export default class E2eFreshnessReporter implements Reporter {
       hasGrepInvert: config.grepInvert !== null && config.grepInvert !== undefined,
       isSharded: config.shard !== null && config.shard !== undefined,
       ranFiles: [...new Set(suite.allTests().map((test) => path.resolve(test.location.file)))],
-      availableFiles: project === undefined ? [] : availableSpecFiles(project.testDir),
+      availableFiles:
+        project === undefined ? [] : availableSpecFiles(project.testDir, this.deps.readdir),
     });
   }
 
@@ -49,12 +86,11 @@ export default class E2eFreshnessReporter implements Reporter {
     // A fingerprint git cannot produce is no fingerprint: writing one that
     // cannot be checked is worse than writing none, because the hook would
     // have to trust it.
-    const files = fingerprint();
+    const files = this.deps.fingerprint();
     if (files === null) return;
 
-    writeFileSync(
-      MARKER_PATH,
-      `${JSON.stringify({ finishedAt: new Date().toISOString(), files })}\n`
+    this.deps.writeMarker(
+      `${JSON.stringify({ finishedAt: this.deps.now().toISOString(), files })}\n`
     );
   }
 }
