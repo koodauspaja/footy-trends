@@ -16,7 +16,11 @@ export type PositionSeries =
   | {
       status: "ok";
       points: PositionPoint[];
-      /** The y-axis extent: every team in the league, also after a split. */
+      /**
+       * The y-axis extent: every team the plotted positions rank — the whole
+       * league, also after a split. In a league played in parallel pools, the
+       * team's pool, which is the table its positions come from.
+       */
       teamCount: number;
       /**
        * The line stops at the end of the regular season because the

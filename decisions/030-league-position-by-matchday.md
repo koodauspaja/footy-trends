@@ -26,7 +26,8 @@ them.
 | Which number is plotted | The table row's own `position`, not its index | So the chart shows exactly what the standings page displays, whatever rule produced it. |
 | A team missing from a table | Throw, and let the service report an error | Unreachable: `calculateStandings` adds every match's participants to the roster, so a team that played is in every table. A branch returning `null` in each caller would be a condition no test could take. A missing team must still never become a plausible position, so the throw is caught and shown as the error message. |
 | Ranking the split groups | By where their teams finished the regular season | Agreed rule B. Neither the group id nor the name records which group is upper; a fixture puts the lower teams in the lower-numbered group to prove the id is not used. Group sizes come from the data. |
-| When the line stops at the split | Wherever the standings page has no per-round table | Agreed rule C, applied to the cases the code meets: a continuation that is not verified (pass-through), one with no carry-over configured, a season whose regular season was two parallel groups (BTSM 2015), and — found while covering a branch — a continuation played only in matches TASO gave no round. The last one had first stopped silently; it now shows the note like the others. |
+| When the line stops at the split | Wherever the standings page has no per-round table | Agreed rule C, applied to the cases the code meets: a continuation that is not verified (pass-through), one with no carry-over configured, and — found while covering a branch — a continuation played only in matches TASO gave no round. The last one had first stopped silently; it now shows the note like the others. |
+| Leagues played in parallel pools | One league per pool, until the end of its continuation | Agreed rule E, found in review. The first version stopped the line for any season with more than one regular-season group, written with BTSM 2015 in mind. Checking Sourcery's axis finding showed the same rule caught **Kakkonen** 2019, 2022 and 2024–2026, whose pools each continue into verified groups of their own, so the note claimed the standings page could not show positions that it does show. Kakkonen's 2024 and 2025 regulations rank a pool's top two over all 23 rounds together, the combined table the chart plots. The rule is removed; the offset counts only the team's own pool's continuations, and the axis spans the pool. The promotion playoff after it is a bracket — *"no line there"*. |
 | A league season with no per-round table at all | No section (`unavailable`) | Not in the spec's list, derived from rule C: a regular season shown with TASO's own numbers has no round selector, so there is nothing the chart could equal. Showing "no rounds played" would be false. **Raised for confirmation in the pull request.** |
 | The gate's position | Before the series is computed | A signed-out request never calls `loadSeries`, so its page carries no position at all — not hidden, absent. Tested in the unit suite and in the HTML the e2e server returns. |
 | The e2e override | A server flag, a `_test` database, and a request header — all three | The e2e suite cannot sign in on the server (`tests/e2e/session.ts` reaches only the browser). Miikka agreed to an override. Its safeguard is that both server-side conditions are ones production cannot meet, and a test that sends no header is signed out, which is how the prompt is tested end to end on the same server. |
@@ -41,6 +42,13 @@ them.
   page's own `?kierros=10` row.
 - **The request budget**: a ten-round season still makes one database read for
   football-data and two for TASO, and asks no provider anything.
+- **Parallel pools**, with a Kakkonen-shaped fixture: two pools, each with an
+  upper and a lower continuation. The axis is the pool's four, not the
+  competition's eight, and a lower-group leader sits below its own pool's upper
+  group only. One mutation there survives, and is equivalent: counting every
+  pool's continuations as candidates changes nothing, because
+  `teamsInGroupsAbove` ranks a group with none of the pool's teams last. The
+  filter stays because it says what is meant.
 - **TASO fixtures derive their published points from `calculateStandings`**
   rather than typing them. A hand calculation got a four-team table wrong while
   this was being written; the fixture that encodes a guess about the other system

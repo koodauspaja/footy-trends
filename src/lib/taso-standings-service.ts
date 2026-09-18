@@ -1357,10 +1357,15 @@ export async function getTeamPositionSeries(
  *   per-round position to plot at all: `unavailable`.
  * - After the split, the continuation is combined with the regular season only
  *   when it is a verified carry-over of it — own-calculated, configured as that
- *   group's child — and the regular season was a single group. Otherwise the
- *   line ends at the regular season and `endsAtSplit` says so.
+ *   group's child. Otherwise the line ends at the regular season and
+ *   `endsAtSplit` says so.
  * - A combined position is the team's position in its own group plus every team
  *   in the groups ranked above it (`teamsInGroupsAbove`).
+ * - **A league played in parallel pools is one league per pool** until the end
+ *   of its continuation — Kakkonen's Lohko A, B and C each split into their own
+ *   upper and lower groups. So "the groups above" are that pool's children only,
+ *   and the axis spans the pool. What follows the continuation is a bracket,
+ *   with no line.
  */
 function positionSeriesFrom(
   seasonMatches: MatchRow[],
@@ -1409,15 +1414,9 @@ function positionSeriesFrom(
   const continuation = teamGroups[1];
   if (continuation === undefined) return seriesOf(regularPoints, teamCount, false);
 
-  const regularSeasonGroups = tableGroups.filter(
-    (group) => parentGroupId(categoryId, competitionId, group.groupId) === null
-  );
   const combinable =
     continuation.kind === "own-calculated" &&
-    parentGroupId(categoryId, competitionId, continuation.groupId) === regular.groupId &&
-    // Two parallel regular-season groups (BTSM 2015) give "combined" no single
-    // meaning, even when each continuation is verified.
-    regularSeasonGroups.length === 1;
+    parentGroupId(categoryId, competitionId, continuation.groupId) === regular.groupId;
   if (!combinable) return seriesOf(regularPoints, teamCount, true);
 
   const continuationGroups = tableGroups

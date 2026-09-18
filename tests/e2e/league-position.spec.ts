@@ -84,6 +84,49 @@ test.describe("League position chart, signed in", () => {
     await expect(chart(page)).toBeVisible();
     await expect(page.getByText(/^Sijoitus 1\. kierroksen jälkeen: \d+\.$/)).toHaveCount(1);
   });
+
+  test("continues a Kakkonen pool through its split, below that pool's upper group", async ({
+    page,
+  }) => {
+    /**
+     * Kakkonen 2026's real data: three pools, each split into its own upper and
+     * lower continuation. A lower-group team's line carries on past the split,
+     * at its place in its continuation plus its own pool's upper group — and
+     * that must be the standings page's number for the same round.
+     */
+    const standings = "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2026";
+    const tableUnder = (name: string) =>
+      page.getByRole("heading", { name, level: 2 }).locator("xpath=following::table[1]");
+
+    await page.goto(standings);
+    // Six per pool, as the 2026 regulations have it. Asserted with the
+    // auto-waiting matcher, because `count()` does not wait for a page that is
+    // still streaming.
+    const upperSize = 6;
+    await expect(tableUnder("Ylempi jatkosarja A").locator("tbody tr")).toHaveCount(upperSize);
+    const leader = tableUnder("Alempi jatkosarja A").locator("tbody tr").first();
+    const club = await leader.getByRole("link").first().textContent();
+    await leader.getByRole("link").first().click();
+    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+
+    const sentences = page.getByText(/^Sijoitus \d+\. kierroksen jälkeen: \d+\.$/);
+    await expect(chart(page)).toBeVisible();
+    const last = (await sentences.last().textContent()) ?? "";
+    const [, round, plotted] = /^Sijoitus (\d+)\. kierroksen jälkeen: (\d+)\.$/.exec(last) ?? [];
+    // The line did not stop at the split, so the note is absent.
+    await expect(
+      page.getByText("Jatkosarjan sijoituksia ei voida laskea tälle kaudelle.")
+    ).toHaveCount(0);
+
+    await page.goto(`${standings}&kierros=${round}`);
+    const row = tableUnder("Alempi jatkosarja A")
+      .locator("tbody tr")
+      .filter({ hasText: club ?? "" });
+    const shown = Number(await row.locator("td").first().textContent());
+
+    expect(Number(round)).toBeGreaterThan(18);
+    expect(Number(plotted)).toBe(shown + upperSize);
+  });
 });
 
 test.describe("League position chart, signed out", () => {

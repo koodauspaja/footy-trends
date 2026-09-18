@@ -1,8 +1,7 @@
 # 030 — League position by matchday
 
-> **Status: every question answered; awaiting go.** Miikka answered Q1–Q8 and
-> A–C on 2026-09-18, recorded under *Decisions*. Nothing is implemented until a
-> human says **go**.
+> **Status: agreed and implemented (#412).** Miikka answered Q1–Q8 and A–D on
+> 2026-09-18, and E during review, all recorded under *Decisions*.
 
 ## Summary
 
@@ -58,6 +57,8 @@ adds no selector of its own.
 **Axis direction.** Position 1 is at the top, as in the table the reader already
 knows. The y-axis runs from 1 to the number of teams in the league — the whole
 league, also after a split — so a chart's scale is comparable between seasons.
+In a league played in parallel pools it spans the team's pool, the table its
+positions come from (E).
 
 **Text alternative.** Every point on the chart is also available as text — a
 table or list of matchday and position — for screen readers and for readers who
@@ -160,20 +161,25 @@ Stated so it depends on nothing hardcoded (B):
 - Round numbers continue across the split (`withContinuedRoundNumbering`), so the
   x-axis is one continuous season.
 
+**A league played in parallel pools is one league per pool (E).** Kakkonen
+starts each season in three pools (Lohko A, B, C), and in its split seasons each
+pool continues into upper and lower groups of its own; the regulations rank a
+pool's top two over all its rounds, regular and continuation together. So until
+the end of its continuation, a pool is treated exactly as Veikkausliiga is: the
+combined position within the pool, the groups above being that pool's own, and
+the y-axis spanning the pool — the table the positions come from. What follows
+is the promotion playoff, a bracket, which has no line.
+
 **Where the line stops at the split instead (C).** The chart plots a round only
-where the standings page itself has a table for that round. Two cases have none
-after the split, and there the line ends at the last regular-season round, with
-the note in the UX table beneath it:
+where the standings page itself has a table for that round. After the split the
+case with none is below, and there the line ends at the last regular-season
+round, with the note in the UX table beneath it:
 
 - **A split group whose calculation is not verified.** The standings page shows
   TASO's own numbers for it **with no round selector** (`buildGroup`, step 3,
   in `taso-standings-service.ts`). TASO publishes the current table only, not a
   history, so no round-by-round position exists to plot — computing one would be
   inventing it.
-- **A season whose regular season was more than one group.** BTSM 2015 split two
-  parallel groups, each into its own continuation, so "combined" has no single
-  meaning there.
-
 Mostly these are old seasons. The one current case is a live season in the
 window after it splits and before its carry-over entry is added and verified
 (#272 is how that is done): the standings page has no round selector for the new
@@ -300,6 +306,9 @@ answer, and will be rewritten if the answer differs.
 - [ ] In a verified Veikkausliiga split season, a lower-group team's first
       post-split point is its group position plus the upper group's size — e.g.
       7th for the lower group's leader when the upper group has six teams
+- [ ] In a Kakkonen split season, the line continues through the team's pool's
+      split: its position within the pool, below only that pool's upper group,
+      on an axis spanning the pool
 - [ ] In a season without a verified carry-over, the line ends at the last
       regular-season round, with the note beneath it
 - [ ] No request or read is made per round. For football-data the chart adds no
@@ -368,6 +377,7 @@ Answered by Miikka on 2026-09-18.
 | Q8 | One PR or two | One feature, starting as one PR. Split into stacked PRs if the diff nears Sourcery's per-PR limit; the issue and PR are edited when that is known |
 | A | The signed-out message | `Kirjaudu sisään nähdäksesi analyysit ja trendit.` |
 | B | The combined position after a split | Group position plus the size of every group above; groups ranked by where their teams finished the regular season; sizes from the data |
+| E | Leagues played in parallel pools (Kakkonen) | Each pool is its own league until the end of its continuation, and the axis spans the pool; the promotion playoff after it is a bracket, with no line — *"the nousukarsinnat is a bracket, no line there"*. Replaces the earlier rule that stopped the line for any season with more than one regular-season group, found in review (#412) to stop Kakkonen's line although its continuations are verified |
 | C | Seasons where "combined" cannot be computed | The line stops at the end of the regular season with a note — *"not trying to magically calculate things"*. It stops wherever the standings page has no per-round table, which is mostly old seasons plus the live season's short window before its carry-over entry is verified |
 
 ## Open Questions

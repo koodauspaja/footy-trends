@@ -2310,17 +2310,27 @@ describe("getTeamPositionSeries", () => {
    */
   function splitSeason(
     competitionId: string,
-    { upper = 2, lower = 3 }: { upper?: number; lower?: number } = {}
+    {
+      regular = 1,
+      upper = 2,
+      lower = 3,
+      teams: [a, b, c, d] = [1, 2, 3, 4],
+    }: {
+      regular?: number;
+      upper?: number;
+      lower?: number;
+      teams?: [number, number, number, number];
+    } = {}
   ) {
     return [
-      game(competitionId, 1, 1, 1, 2, [2, 0]),
-      game(competitionId, 1, 1, 3, 4, [1, 0]),
-      game(competitionId, 1, 2, 1, 3, [1, 0]),
-      game(competitionId, 1, 2, 2, 4, [1, 0]),
-      game(competitionId, 1, 3, 1, 4, [1, 0]),
-      game(competitionId, 1, 3, 2, 3, [1, 0]),
-      game(competitionId, upper, 1, 1, 2, [0, 1]),
-      game(competitionId, lower, 1, 4, 3, [2, 0]),
+      game(competitionId, regular, 1, a, b, [2, 0]),
+      game(competitionId, regular, 1, c, d, [1, 0]),
+      game(competitionId, regular, 2, a, c, [1, 0]),
+      game(competitionId, regular, 2, b, d, [1, 0]),
+      game(competitionId, regular, 3, a, d, [1, 0]),
+      game(competitionId, regular, 3, b, c, [1, 0]),
+      game(competitionId, upper, 1, a, b, [0, 1]),
+      game(competitionId, lower, 1, d, c, [2, 0]),
     ];
   }
 
@@ -2460,58 +2470,84 @@ describe("getTeamPositionSeries", () => {
     expect(series.status === "ok" && series.points.map((point) => point.round)).toEqual([1, 2, 3]);
   });
 
-  it("stops at the split when the regular season was two parallel groups", async () => {
-    // BTSM 2015: groups 1 and 2 each split into their own continuation, 3 and 4,
-    // so "combined" has no single meaning.
-    const twoParents = "spljp15";
-    const matches = [
-      ...splitSeason(twoParents).filter((row) => row.groupId !== 2),
-      match({
-        providerMatchId: 2101,
-        categoryId: "BTSM",
-        competitionCode: twoParents,
-        groupId: 2,
-        matchday: 1,
-        homeTeamProviderId: 5,
-        homeTeamName: "Team 5",
-        awayTeamProviderId: 6,
-        awayTeamName: "Team 6",
-      }),
-    ].map((row) => ({ ...row, categoryId: "BTSM" }));
+  describe("a league played in parallel pools, each split in two (Kakkonen)", () => {
     /**
-     * BTSM 2015 uses the *seeded* convention: a continuation's `starting_points`
-     * are its teams' points from the parent group. Without them the continuation
-     * would not reconcile and the line would stop for that reason instead — which
-     * is how this test first passed with the parallel-groups rule deleted.
-     * Seeded, every group here is verified, so that rule is the only thing left
-     * that can stop it.
+     * Kakkonen 2026, at this fixture's size: pools 1 and 2 play their own
+     * regular seasons, then each splits into its own upper and lower
+     * continuation — 4 and 7 from pool 1, 5 and 8 from pool 2, unseeded
+     * (`CARRY_OVER_CONFIG`). A pool is its own league until the end of
+     * jatkosarja; the promotion playoff after it is a bracket, with no line.
      */
-    const parentPoints = new Map(
-      calculateStandings(
-        matches.filter((row) => row.groupId === 1) as unknown as NormalizedMatch[]
-      ).map((team) => [team.teamProviderId, team.points])
+    const KAKKONEN = "M2";
+    const POOLS_SEASON = "spljp26";
+    const PARENTS = new Map([
+      [4, 1],
+      [7, 1],
+      [5, 2],
+      [8, 2],
+    ]);
+
+    const matches = [
+      ...splitSeason(POOLS_SEASON, { regular: 1, upper: 4, lower: 7 }),
+      ...splitSeason(POOLS_SEASON, { regular: 2, upper: 5, lower: 8, teams: [11, 12, 13, 14] }),
+    ].map((row) => ({ ...row, categoryId: KAKKONEN }));
+    const rows = [1, 2, 4, 5, 7, 8].flatMap((groupId) =>
+      rowsFor(matches, POOLS_SEASON, groupId, PARENTS.get(groupId) ?? null).map((row) => ({
+        ...row,
+        categoryId: KAKKONEN,
+      }))
     );
-    const rows = verifiedRows(matches, twoParents).map((row) => ({
-      ...row,
-      categoryId: "BTSM",
-      startingPoints: row.groupId === 3 ? (parentPoints.get(row.teamProviderId) ?? 0) : 0,
-    }));
-    mockStoredMatches(matches, rows);
 
-    const series = await getTeamPositionSeries("BTSM", twoParents, 4, PAST_SEASON, ACTIVE_SEASON);
+    async function kakkonenSeries(teamId: number) {
+      mockStoredMatches(matches, rows);
+      return getTeamPositionSeries(KAKKONEN, POOLS_SEASON, teamId, PAST_SEASON, ACTIVE_SEASON);
+    }
 
-    expect(series.status === "ok" && series.endsAtSplit).toBe(true);
+    it("continues through its pool's split, below only its own pool's upper group", async () => {
+      // Team 4 leads pool 1's lower group. Two teams sit above it in pool 1's
+      // upper group; pool 2's upper group is another league until the playoff.
+      expect(await kakkonenSeries(4)).toEqual({
+        status: "ok",
+        points: [
+          { round: 1, position: 3 },
+          { round: 2, position: 4 },
+          { round: 3, position: 4 },
+          { round: 4, position: 3 },
+        ],
+        // The pool's four, not the competition's eight.
+        teamCount: 4,
+        endsAtSplit: false,
+      });
+    });
 
-    // And the continuation itself is verified, so nothing else explains the stop.
-    mockStoredMatches(matches, rows);
-    const standings = await getSeasonStandings(
-      "BTSM",
-      twoParents,
-      PAST_SEASON,
-      ACTIVE_SEASON,
-      undefined
-    );
-    expect(standings.groups.find((group) => group.groupId === 3)?.kind).toBe("own-calculated");
+    it("places a team in the second pool by that pool alone", async () => {
+      const series = await kakkonenSeries(14);
+
+      expect(series.status === "ok" && series.teamCount).toBe(4);
+      expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 3 });
+    });
+
+    it("equals the standings page's continuation table, plus its pool's upper group", async () => {
+      // The continuations are verified, so the standings page has a round
+      // selector for them — which is why the line must not stop here.
+      mockStoredMatches(matches, rows);
+      const standings = await getSeasonStandings(
+        KAKKONEN,
+        POOLS_SEASON,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        4
+      );
+      const lowerGroup = standings.groups.find((group) => group.groupId === 8);
+      const inGroup =
+        lowerGroup?.kind === "own-calculated"
+          ? lowerGroup.standings.find((team) => team.teamProviderId === 14)?.position
+          : undefined;
+      const series = await kakkonenSeries(14);
+
+      expect(inGroup).toBe(1);
+      expect(series.status === "ok" && series.points.at(-1)?.position).toBe((inGroup ?? 0) + 2);
+    });
   });
 
   it("plots only the regular season when the split has happened but not been played", async () => {
