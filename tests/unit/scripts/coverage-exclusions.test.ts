@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseSonarProperty } from "../../../scripts/coverage-gaps-plan";
 
@@ -67,6 +67,63 @@ describe("the coverage exclusion list", () => {
     const grouped = GROUPS.reduce((sum, group) => sum + counts[group], 0);
 
     expect(grouped).toBe(counts.total);
+  });
+
+  /**
+   * The list itself, so that changing it is a deliberate act with a diff here
+   * too. Counts alone let one entry be swapped for another in the same group
+   * without anything noticing — raised in review on #411 — and an exclusion
+   * that appears unremarked is how a file stops being measured at all.
+   */
+  const EXPECTED = [
+    // Open a connection, or migrate, at import.
+    "src/db/index.ts",
+    "src/db/migrate.ts",
+    "src/lib/redis.ts",
+    // Runners whose decisions live in a tested `*-plan.ts` half.
+    "scripts/backfill.ts",
+    "scripts/backfill-run.ts",
+    "scripts/e2e-freshness.ts",
+    "scripts/coverage-gaps.ts",
+    "scripts/generate-migration.ts",
+    "scripts/release-version.ts",
+    "scripts/release-pr.ts",
+    "scripts/grant-admin.ts",
+    "scripts/grant-admin-run.ts",
+    "scripts/verify-sentry.ts",
+    "scripts/review-findings.ts",
+    "scripts/with-test-db.ts",
+    "scripts/services-run.ts",
+    "scripts/ensure-services.ts",
+    "scripts/db-reset.ts",
+    // The tooling's own configuration.
+    "drizzle.config.ts",
+    "next.config.ts",
+    "playwright.config.ts",
+    "postcss.config.mjs",
+    "sentry.edge.config.ts",
+    "sentry.server.config.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+  ];
+
+  it("excludes exactly these files, and no others", () => {
+    const entries = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions");
+
+    expect([...entries].sort()).toEqual([...EXPECTED].sort());
+  });
+
+  it("excludes nothing that no longer exists", () => {
+    /**
+     * #258 removed two exclusions for files that had been deleted long before.
+     * A coverage exclusion for a file that does not exist is how a real gap
+     * hides later: the entry looks considered, and covers nothing.
+     */
+    const missing = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions").filter(
+      (entry) => !existsSync(entry)
+    );
+
+    expect(missing).toEqual([]);
   });
 
   it("states a count for each group, so a silent removal cannot pass", () => {
