@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_TRACES_SAMPLE_RATE } from "@/lib/sentry-config";
 
 const { init, captureRouterTransitionStart } = vi.hoisted(() => ({
   init: vi.fn(),
@@ -54,15 +55,27 @@ describe("instrumentation-client", () => {
   });
 
   it("does not read the server-only spellings, which are undefined in a browser", async () => {
-    // A server-only variable is not inlined into the bundle, so reading one here
-    // would mean the client silently kept the development defaults in
-    // production — the failure #021 documents.
+    /**
+     * A server-only variable is not inlined into the bundle, so reading one here
+     * would mean the client silently kept the development defaults in
+     * production — the failure docs/setup/021 documents.
+     *
+     * Asserted positively as well as negatively: a test that only says "not
+     * 0.05" passes when `init` is never called at all, which review on #411
+     * caught it doing.
+     */
     vi.stubEnv("SENTRY_TRACES_SAMPLE_RATE", "0.05");
     vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "");
 
     await load();
 
-    expect(init).not.toHaveBeenCalledWith(expect.objectContaining({ tracesSampleRate: 0.05 }));
+    expect(init).toHaveBeenCalledTimes(1);
+    // A blank `NEXT_PUBLIC_` value falls back to the development default, which
+    // is what `.env.example` says blank means. The server's 0.05 is not read.
+    expect(init).toHaveBeenCalledWith(
+      expect.objectContaining({ tracesSampleRate: DEFAULT_TRACES_SAMPLE_RATE })
+    );
+    expect(DEFAULT_TRACES_SAMPLE_RATE).not.toBe(0.05);
   });
 
   it("passes no `integrations` at all, rather than an empty list", async () => {
