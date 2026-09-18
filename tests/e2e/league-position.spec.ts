@@ -138,6 +138,27 @@ test.describe("League position chart, signed out", () => {
     await expect(chart(page)).toHaveCount(0);
   });
 
+  test("signs the reader in back to the same competition and season", async ({ page }) => {
+    // Asserted on the request we send, as auth.spec.ts does: the round trip
+    // through Google cannot be automated, but where we ask it to return can.
+    // The prompt used to send the bare path, and a bare team URL resolves a
+    // competition and season of its own.
+    let body: { callbackURL?: string } | undefined;
+    await page.route("**/api/auth/sign-in/social", async (route) => {
+      body ??= route.request().postDataJSON();
+      await route.abort();
+    });
+
+    await page.goto(`${TEAM}?${SEASON}`);
+    await page
+      .getByRole("region", { name: HEADING })
+      .getByRole("button", { name: "Kirjaudu sisään" })
+      .click();
+    await expect.poll(() => body).not.toBeUndefined();
+
+    expect(body?.callbackURL).toBe(`${TEAM}?${SEASON}`);
+  });
+
   test("sends no position to a signed-out reader, not even hidden", async ({ page }) => {
     // The HTML itself, not what is visible: a chart hidden in the browser would
     // still have published its values.

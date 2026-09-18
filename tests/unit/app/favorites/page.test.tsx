@@ -53,6 +53,7 @@ vi.mock("@/lib/auth-client", () => ({
 // the signed-out branch throws "app router not mounted" rather than rendering.
 vi.mock("next/navigation", () => ({
   usePathname: () => "/suosikit",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: vi.fn() }),
 }));
 

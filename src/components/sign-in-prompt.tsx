@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
+import { returnPath, withError } from "@/lib/return-path";
 
 /**
  * What a signed-out reader gets at `/asetukset`: an explanation and a way in,
@@ -14,6 +15,7 @@ export function SignInPrompt({
   message = "Kirjaudu sisään nähdäksesi asetuksesi.",
 }: Readonly<{ message?: string }> = {}) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   return (
@@ -25,8 +27,9 @@ export function SignInPrompt({
           signIn
             .social({
               provider: "google",
-              // Straight back here, which is where they were trying to go.
-              callbackURL: pathname,
+              // Straight back here, which is where they were trying to go —
+              // query included, so a team page keeps its competition and season.
+              callbackURL: returnPath(pathname, searchParams),
               errorCallbackURL: "/?error=auth",
             })
             /**
@@ -37,7 +40,7 @@ export function SignInPrompt({
              * sign-in call, so the reader was left with a button that appeared
              * to do nothing.
              */
-            .catch(() => router.replace(`${pathname}?error=auth`));
+            .catch(() => router.replace(withError(pathname, searchParams, "auth")));
         }}
         type="button"
       >
