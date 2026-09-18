@@ -4,6 +4,7 @@ import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { logger } from "./logger";
+import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import {
@@ -90,8 +91,14 @@ type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
  * with `refreshFailed: true` so callers can distinguish "stale but present"
  * from "genuinely nothing to show" when deciding between an empty and an
  * error result.
+ *
+ * Wrapped in React's `cache()` since specs/030, the way the TASO service's
+ * counterpart already is: the team page reads the season once for its match
+ * list, and the position chart asks for the same season in the same request.
+ * One read serves both, so the chart adds no database read and no provider
+ * request of its own.
  */
-async function getSyncedSeasonMatches(
+const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   competitionCode: string,
   seasonId: number,
   activeSeasonId: number
@@ -117,7 +124,7 @@ async function getSyncedSeasonMatches(
     );
     return { matches: storedMatches, refreshFailed: true };
   }
-}
+});
 
 export async function getStandings({
   competitionCode,
@@ -154,6 +161,44 @@ export async function getStandings({
   } catch (error) {
     logger.error({ err: error, competitionCode, seasonId }, "Unable to load standings");
     return { status: "error", standings: [] };
+  }
+}
+
+/**
+ * This team's league position after each round of a season, for the team
+ * page's chart (specs/030).
+ *
+ * Reads the season through the same cached sync as `getTeamMatches`, so on the
+ * team page it costs no read and no provider request of its own — and never one
+ * per round: `getStandings({ round })` is deliberately not used, because it
+ * re-reads the season on every call. Each table is `calculateStandings` with
+ * the arguments `getStandings({ round })` gives it, so a plotted position always
+ * equals the standings page's for that round.
+ */
+export async function getTeamPositionSeries(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<PositionSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+
+    if (seasonMatches.length === 0) {
+      return refreshFailed ? { status: "error" } : { status: "no-rounds" };
+    }
+
+    return singleTableSeries(toFinishedMatches(seasonMatches), seasonMatches, teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the league position series"
+    );
+    return { status: "error" };
   }
 }
 

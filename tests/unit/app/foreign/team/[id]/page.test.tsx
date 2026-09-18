@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
+import type { PositionSeries } from "@/lib/position-series";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
@@ -20,6 +21,22 @@ vi.mock("@/lib/auth-client", () => ({
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const getTeamPositionSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
+);
+
+/**
+ * The league-position section stands in here with a marker: its own states and
+ * its sign-in gate are `league-position-section.test.tsx`'s. What this file
+ * owns is the page's side — whether the section is asked for at all, and with
+ * which series.
+ */
+const leaguePositionSectionMock = vi.fn(
+  async (_props: { loadSeries: () => Promise<PositionSeries> }) => "Sijoituskaavion paikka"
+);
+vi.mock("@/components/league-position-section", () => ({
+  LeaguePositionSection: leaguePositionSectionMock,
+}));
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/football-data", () => ({
@@ -28,6 +45,7 @@ vi.mock("@/lib/football-data", () => ({
 
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
+  getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -622,5 +640,47 @@ describe("Team page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
       title: "Arsenal FC – Valioliiga 2025/26",
     });
+  });
+});
+
+describe("Team page league position (specs/030)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getTeamMatchesMock.mockResolvedValue(okResult);
+  });
+
+  it("shows the section for a league team with matches this season", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
+
+    expect(screen.getByText("Sijoituskaavion paikka")).toBeInTheDocument();
+  });
+
+  it("asks for this team's series in this competition and season", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadSeries = leaguePositionSectionMock.mock.calls[0]?.[0].loadSeries;
+
+    await loadSeries?.();
+
+    expect(getTeamPositionSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("offers no section for a cup, which has no league position", async () => {
+    await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
+
+    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Sijoituskaavion paikka")).toBeNull();
+  });
+
+  it("offers no section when the team has no matches this season", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "empty" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
+
+    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
   });
 });

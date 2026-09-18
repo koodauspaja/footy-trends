@@ -68,6 +68,7 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/asetukset",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock("@/lib/logger", () => ({ logger }));
