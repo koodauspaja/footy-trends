@@ -1,15 +1,20 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
-import { PositionChart, positionSentence } from "@/components/charts/position-chart";
+import {
+  OPEN_POINT_LEGEND,
+  PositionChart,
+  positionSentence,
+} from "@/components/charts/position-chart";
+import type { PositionPoint } from "@/lib/position-series";
 
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
 
-const points = [
-  { round: 1, position: 3 },
-  { round: 2, position: 4 },
-  { round: 3, position: 1 },
+const points: PositionPoint[] = [
+  { round: 1, position: 3, played: true },
+  { round: 2, position: 4, played: true },
+  { round: 3, position: 1, played: true },
 ];
 
 function renderChart(teamCount = 4, shown = points) {
@@ -29,8 +34,14 @@ function yOf(container: HTMLElement, index: number): number {
 
 describe("positionSentence", () => {
   it("says the round and the position, as the spec words it", () => {
-    expect(positionSentence({ round: 12, position: 3 })).toBe(
+    expect(positionSentence({ round: 12, position: 3, played: true })).toBe(
       "Sijoitus 12. kierroksen jälkeen: 3."
+    );
+  });
+
+  it("says when the team did not play that round, as the open circle does", () => {
+    expect(positionSentence({ round: 25, position: 2, played: false })).toBe(
+      "Sijoitus 25. kierroksen jälkeen: 2 (ei omaa ottelua)."
     );
   });
 });
@@ -83,10 +94,39 @@ describe("PositionChart", () => {
   });
 
   it("draws a single played round without dividing by zero", () => {
-    const container = renderChart(4, [{ round: 1, position: 2 }]);
+    const container = renderChart(4, [{ round: 1, position: 2, played: true }]);
     const cx = Number(container.querySelector("[data-part=points] circle")?.getAttribute("cx"));
 
     expect(Number.isFinite(cx)).toBe(true);
+  });
+
+  it("draws a round the team sat out as an open circle", () => {
+    const container = renderChart(4, [
+      { round: 1, position: 3, played: true },
+      { round: 2, position: 2, played: false },
+      { round: 3, position: 2, played: true },
+    ]);
+    const open = [...container.querySelectorAll("[data-part=points] circle")].map((circle) =>
+      circle.hasAttribute("data-open")
+    );
+
+    expect(open).toEqual([false, true, false]);
+  });
+
+  it("explains the open circle beneath the chart when there is one", () => {
+    renderChart(4, [
+      { round: 1, position: 3, played: true },
+      { round: 2, position: 2, played: false },
+    ]);
+
+    expect(screen.getByText(OPEN_POINT_LEGEND)).toBeVisible();
+    expect(OPEN_POINT_LEGEND).toBe("Avoin pallo: joukkue ei pelannut kierroksella.");
+  });
+
+  it("shows no legend when every round was played", () => {
+    renderChart();
+
+    expect(screen.queryByText(OPEN_POINT_LEGEND)).toBeNull();
   });
 
   it("draws nothing, but still renders, for an empty series", () => {

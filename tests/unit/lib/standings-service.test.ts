@@ -1099,9 +1099,9 @@ describe("getTeamPositionSeries", () => {
     expect(series).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 4 },
-        { round: 2, position: 3 },
-        { round: 3, position: 1 },
+        { round: 1, position: 4, played: true },
+        { round: 2, position: 3, played: true },
+        { round: 3, position: 1, played: true },
       ],
       teamCount: 4,
       endsAtSplit: false,

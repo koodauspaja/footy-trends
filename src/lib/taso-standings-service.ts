@@ -15,7 +15,6 @@ import {
   type PositionPoint,
   type PositionSeries,
   positionsAfterEachRound,
-  roundsToPlot,
   teamsInGroupsAbove,
 } from "./position-series";
 import {
@@ -1405,7 +1404,8 @@ function positionSeriesFrom(
   if (lastRegular === null) return { status: "no-rounds" };
 
   const regularPoints = positionsAfterEachRound(
-    roundsToPlot(regularFinished, lastRegular),
+    regularFinished,
+    lastRegular,
     teamId,
     tableAfter(regular.groupId)
   );
@@ -1449,7 +1449,8 @@ function positionSeriesFrom(
   }
 
   const continuationPoints = positionsAfterEachRound(
-    roundsToPlot(continuationFinished, lastContinuation),
+    continuationFinished,
+    lastContinuation,
     teamId,
     tableAfter(continuation.groupId),
     offset
