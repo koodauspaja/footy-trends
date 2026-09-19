@@ -41,14 +41,16 @@ features (#327, #328, #329) build on.
 **Where:** the team page (`CompetitionTeamPage`, shared by `/ulkomaat/joukkue/{id}`
 and `/kotimaa/joukkue/{id}`), below the existing content, for the competition and
 season the page already has selected. It follows the page's season selector; it
-adds no selector of its own.
+adds no selector of its own. Since specs/031 the chart sits under the team page's
+`Analyysit` heading, first among its charts, with `Sijoitus kierroksittain` as its
+subheading.
 
 | String | Where | Status |
 |---|---|---|
 | `Sijoitus kierroksittain` | section heading | settled (Q6) |
 | `Kierros` | x-axis label; reuses the site's existing word | settled |
 | `Sijoitus` | y-axis label. Deliberately not the standings table's column header `Sija` — Miikka, 2026-09-18: *"sija could be replaced by sijoitus"* | settled |
-| `Kirjaudu sisään nähdäksesi analyysit ja trendit.` | in place of the chart for a signed-out reader. Deliberately about analytics as a whole, not this chart — signed-out readers see none of them (Q1), so #327–#329 reuse the same string. Follows the settings and favourites pages' `Kirjaudu sisään nähdäksesi …` | settled (A) |
+| `Kirjaudu sisään nähdäksesi analyysit ja trendit.` | for a signed-out reader. Since specs/031 (Q5) it is shown **once**, under `Analyysit`, in place of every chart rather than of this one. Deliberately about analytics as a whole, not this chart — signed-out readers see none of them (Q1), so #327–#329 reuse the same string. Follows the settings and favourites pages' `Kirjaudu sisään nähdäksesi …` | settled (A) |
 | `Kaudella ei ole vielä pelattuja kierroksia.` | when the season has no finished matchday for this team. Miikka's correction of `Kaudelta` (Q6) | settled |
 | `Sijoitusta ei voitu laskea. Yritä myöhemmin uudelleen.` | when the data cannot be read; mirrors the standings page's `Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.` | settled (Q6) |
 | `Sijoitus {n}. kierroksen jälkeen: {position}.` | one row of the text alternative, per matchday | settled (Q6) |

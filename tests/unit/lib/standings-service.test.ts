@@ -5,6 +5,7 @@ import {
   getMaxMatchday,
   getRoundMatches,
   getStandings,
+  getTeamFormSeries,
   getTeamMatches,
   getTeamPositionSeries,
   synchronizeMatches,
@@ -1186,6 +1187,131 @@ describe("getTeamPositionSeries", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
       "Unable to compute the league position series"
+    );
+  });
+});
+
+describe("getTeamFormSeries", () => {
+  /** Team 1's match on `day` of a completed season, which is never refetched. */
+  function playedOn(day: number, opponent: number, own: number, other: number, home = true) {
+    return storedMatch({
+      providerMatchId: day,
+      seasonId: PAST_SEASON,
+      kickoffAt: new Date(`2024-09-${String(day).padStart(2, "0")}T15:00:00Z`),
+      matchday: day,
+      homeTeamProviderId: home ? 1 : opponent,
+      homeTeamName: home ? "Team 1" : `Team ${opponent}`,
+      awayTeamProviderId: home ? opponent : 1,
+      awayTeamName: home ? `Team ${opponent}` : "Team 1",
+      homeGoals: home ? own : other,
+      awayGoals: home ? other : own,
+      updatedAt: new Date(),
+    });
+  }
+
+  /** W D L W W L, home and away: 3 1 0 3 3 0. */
+  const season = [
+    playedOn(1, 2, 2, 0),
+    playedOn(2, 3, 1, 1, false),
+    playedOn(3, 4, 0, 1),
+    playedOn(4, 2, 2, 1, false),
+    playedOn(5, 3, 1, 0),
+    playedOn(6, 4, 0, 2, false),
+  ];
+
+  it("gives the team's form after each match from the fifth", async () => {
+    mockStoredMatches(season);
+
+    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "ok",
+      points: [
+        { match: 5, form: (3 + 1 + 0 + 3 + 3) / 5 },
+        { match: 6, form: (1 + 0 + 3 + 3 + 0) / 5 },
+      ],
+    });
+  });
+
+  it("ends at the Vire column the standings page shows, in points", async () => {
+    // The property the feature rests on, against the real `getStandings`.
+    mockStoredMatches(season);
+    const series = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    mockStoredMatches(season);
+    const standings = await getStandings({
+      competitionCode: COMPETITION_CODE,
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+    const row =
+      standings.status === "ok"
+        ? standings.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+    const points = { V: 3, T: 1, H: 0 } as const;
+    const vire = (row?.form ?? []).reduce((total, entry) => total + points[entry.result], 0);
+
+    expect(row?.form).toHaveLength(5);
+    expect(series.status === "ok" && series.points.at(-1)?.form).toBe(vire / 5);
+  });
+
+  it("counts only finished matches", async () => {
+    const withUpcoming = [
+      ...season,
+      { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
+    ];
+    mockStoredMatches(withUpcoming);
+
+    const series = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(series.status === "ok" && series.points.map((point) => point.match)).toEqual([5, 6]);
+  });
+
+  it("has no series before the team's fifth match", async () => {
+    mockStoredMatches(season.slice(0, 4));
+
+    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "too-few",
+    });
+  });
+
+  it("reads the season once and asks no provider", async () => {
+    mockStoredMatches(season);
+
+    await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(redisMock.get).not.toHaveBeenCalled();
+  });
+
+  it("has no series for a season with nothing stored yet", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "too-few",
+    });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
+      "Unable to compute the form series"
     );
   });
 });

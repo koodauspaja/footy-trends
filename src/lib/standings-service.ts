@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
+import { type FormSeries, formSeries } from "./form-series";
 import { logger } from "./logger";
 import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
@@ -197,6 +198,39 @@ export async function getTeamPositionSeries(
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
       "Unable to compute the league position series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's form after each match of a season, for the team page's chart
+ * (specs/031).
+ *
+ * The same cached season read as `getTeamMatches` and the position chart, so on
+ * the team page it costs no read and no provider request of its own. Every
+ * finished match of this league season counts, as it does in the standings
+ * table's `Vire` column.
+ */
+export async function getTeamFormSeries(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<FormSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return formSeries(toFinishedMatches(seasonMatches), teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the form series"
     );
     return { status: "error" };
   }

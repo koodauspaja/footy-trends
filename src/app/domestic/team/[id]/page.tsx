@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
-import { LeaguePositionSection } from "@/components/league-position-section";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
+  getTeamFormSeries,
   getTeamMatches,
   getTeamPositionSeries,
   type TeamMatchesResult,
@@ -187,14 +188,23 @@ export default async function DomesticTeamPage({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   /**
-   * League competitions only (specs/030, Q2): Suomen Cup and the other cups have
-   * no league position. And only for a team with matches this season.
+   * League competitions only (specs/030 and specs/031, Q2): Suomen Cup and the
+   * other cups have no league position and no league form. And only for a team
+   * with matches this season.
    */
-  const positionSection =
+  const analyticsSection =
     result.status === "ok" && !isDomesticCup(competitionCode)
-      ? await LeaguePositionSection({
-          loadSeries: () =>
+      ? await AnalyticsSection({
+          loadPosition: () =>
             getTeamPositionSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadForm: () =>
+            getTeamFormSeries(
               context.categoryId,
               context.competitionId,
               teamProviderId,
@@ -236,7 +246,7 @@ export default async function DomesticTeamPage({
           ) : null
         }
       />
-      {positionSection}
+      {analyticsSection}
     </PageShell>
   );
 }

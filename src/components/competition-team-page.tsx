@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
 import { FavouriteToggle } from "@/components/favourite-toggle";
-import { LeaguePositionSection } from "@/components/league-position-section";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/page-context";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
+  getTeamFormSeries,
   getTeamMatches,
   getTeamPositionSeries,
   type TeamMatchesResult,
@@ -248,20 +249,23 @@ export async function CompetitionTeamPage({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   /**
-   * League competitions only (specs/030, Q2): a cup and a national-team
-   * tournament have no league position. And only for a team with matches this
-   * season — otherwise the page already says why there is nothing to show.
+   * League competitions only (specs/030 and specs/031, Q2): a cup and a
+   * national-team tournament have no league position and no league form. And
+   * only for a team with matches this season — otherwise the page already says
+   * why there is nothing to show.
    */
-  const positionSection =
+  const analyticsSection =
     result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
-      ? await LeaguePositionSection({
-          loadSeries: () =>
+      ? await AnalyticsSection({
+          loadPosition: () =>
             getTeamPositionSeries(
               competitionCode,
               teamProviderId,
               seasonId,
               context.activeSeasonId
             ),
+          loadForm: () =>
+            getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
         })
       : null;
 
@@ -297,7 +301,7 @@ export async function CompetitionTeamPage({
           ) : null
         }
       />
-      {positionSection}
+      {analyticsSection}
     </PageShell>
   );
 }

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
+import type { FormSeries } from "@/lib/form-series";
 import type { PositionSeries } from "@/lib/position-series";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -24,18 +25,24 @@ const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const getTeamPositionSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
 );
+const getTeamFormSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
+);
 
 /**
- * The league-position section stands in here with a marker: its own states and
- * its sign-in gate are `league-position-section.test.tsx`'s. What this file
- * owns is the page's side — whether the section is asked for at all, and with
- * which series.
+ * The Analyysit section stands in here with a marker: its panels and its
+ * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
+ * page's side — whether the section is asked for at all, and with which
+ * series.
  */
-const leaguePositionSectionMock = vi.fn(
-  async (_props: { loadSeries: () => Promise<PositionSeries> }) => "Sijoituskaavion paikka"
+const analyticsSectionMock = vi.fn(
+  async (_props: {
+    loadPosition: () => Promise<PositionSeries>;
+    loadForm: () => Promise<FormSeries>;
+  }) => "analytics section placeholder"
 );
-vi.mock("@/components/league-position-section", () => ({
-  LeaguePositionSection: leaguePositionSectionMock,
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: analyticsSectionMock,
 }));
 const loggerErrorMock = vi.fn();
 
@@ -45,6 +52,7 @@ vi.mock("@/lib/football-data", () => ({
 
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
+  getTeamFormSeries: getTeamFormSeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
@@ -657,23 +665,32 @@ describe("Team page league position (specs/030)", () => {
   it("shows the section for a league team with matches this season", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
 
-    expect(screen.getByText("Sijoituskaavion paikka")).toBeInTheDocument();
+    expect(screen.getByText("analytics section placeholder")).toBeInTheDocument();
   });
 
   it("asks for this team's series in this competition and season", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadSeries = leaguePositionSectionMock.mock.calls[0]?.[0].loadSeries;
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 
-    await loadSeries?.();
+    await loadPosition?.();
 
     expect(getTeamPositionSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's form in this competition and season (specs/031)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
+
+    await loadForm?.();
+
+    expect(getTeamFormSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("offers no section for a cup, which has no league position", async () => {
     await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
 
-    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
-    expect(screen.queryByText("Sijoituskaavion paikka")).toBeNull();
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("analytics section placeholder")).toBeNull();
   });
 
   it("offers no section when the team has no matches this season", async () => {
@@ -681,6 +698,6 @@ describe("Team page league position (specs/030)", () => {
 
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
 
-    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
   });
 });

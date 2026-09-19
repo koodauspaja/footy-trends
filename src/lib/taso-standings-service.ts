@@ -9,6 +9,7 @@ import {
   earliestSeasonFor,
   isDomesticCup,
 } from "./domestic-competitions";
+import { type FormSeries, formSeries } from "./form-series";
 import { logger } from "./logger";
 import {
   lastRoundPlayedBy,
@@ -1339,6 +1340,60 @@ export async function getTeamPositionSeries(
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
       "Unable to compute the TASO league position series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's form after each match of a season, for the team page's chart
+ * (specs/031).
+ *
+ * **League format only (Q2):** every group that renders as a table counts,
+ * own-calculated or pass-through — form is results, which TASO publishes, so an
+ * unverified table does not stop it the way it stops a position. A group that
+ * renders as a match list (a playoff, a cup round) does not count. Across a
+ * split the matches simply continue in kickoff order, as the carry-over table's
+ * `Vire` does.
+ *
+ * Reads through the same `cache()`d `classifySeasonGroups` as the position
+ * chart, so on the team page it adds no read and no TASO request.
+ */
+export async function getTeamFormSeries(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<FormSeries> {
+  try {
+    const classified = await classifySeasonGroups(
+      categoryId,
+      competitionId,
+      seasonId,
+      activeSeasonId
+    );
+    if (classified.status !== "ok") {
+      return classified.status === "error" ? { status: "error" } : { status: "too-few" };
+    }
+
+    const tableGroupIds = new Set(
+      classified.groups.filter((group) => group.kind !== "match-list").map((group) => group.groupId)
+    );
+    // Grouped before `toFinishedMatches`, whose result type no longer carries
+    // the group.
+    const leagueMatches = classified.matches.filter(
+      (match) =>
+        tableGroupIds.has(match.groupId) &&
+        (match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId)
+    );
+    if (leagueMatches.length === 0) return { status: "unavailable" };
+
+    return formSeries(toFinishedMatches(leagueMatches), teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO form series"
     );
     return { status: "error" };
   }
