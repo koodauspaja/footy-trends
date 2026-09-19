@@ -52,6 +52,8 @@ adds no selector of its own.
 | `Kaudella ei ole vielä pelattuja kierroksia.` | when the season has no finished matchday for this team. Miikka's correction of `Kaudelta` (Q6) | settled |
 | `Sijoitusta ei voitu laskea. Yritä myöhemmin uudelleen.` | when the data cannot be read; mirrors the standings page's `Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.` | settled (Q6) |
 | `Sijoitus {n}. kierroksen jälkeen: {position}.` | one row of the text alternative, per matchday | settled (Q6) |
+| `Sijoitus {n}. kierroksen jälkeen: {position} (ei omaa ottelua).` | the text alternative's row for a round the team sat out, drawn as an open circle | settled (#413) |
+| `Avoin pallo: joukkue ei pelannut kierroksella.` | beneath the chart, only when it has an open circle | settled (#413) |
 | `Jatkosarjan sijoituksia ei voida laskea tälle kaudelle.` | below the chart, when the line stops at the end of the regular season — see *Split seasons* | settled (C) |
 
 **Axis direction.** Position 1 is at the top, as in the table the reader already
@@ -249,7 +251,13 @@ Settled — these follow from existing behaviour:
   match for this team. Unplayed matchdays are absent, not zero.
 - **A matchday this team did not play** (a bye in an odd-sized league, or a
   match of theirs still unplayed): the team's position still changes when others
-  play, so the point is plotted — it is where the table stood.
+  play, so the point is plotted — it is where the table stood — **as an open
+  circle**, with the legend beneath the chart and `(ei omaa ottelua)` in its text
+  row (#413). A filled dot is a round in which the team played a match counted
+  in that round. This matters most where TASO numbers rounds out of calendar
+  order: Veikkausliiga 2026's Mestaruussarja played its first matches as rounds
+  27, 31, 25, 29 and 24, so KuPS's line reached round 31 after two matches of
+  its own, and only the circles show which points are its.
 - **Tied positions:** the ranking function decides, exactly as on the standings
   page; the chart never breaks a tie differently.
 - **Matches with `matchday === null`** count towards no round (spec 003).

@@ -92,11 +92,19 @@ describe("positionsAfterEachRound", () => {
       { teamProviderId: 2, position: 2 },
     ],
   };
+  const twoRounds = [played(1, 1, 2, 0, 1), played(2, 1, 2, 1, 0)];
+  const tableAfter = (round: number) => tables[round] ?? [];
 
   it("takes the team's own position from each round's table", () => {
-    expect(positionsAfterEachRound([1, 2], 1, (round) => tables[round] ?? [])).toEqual([
-      { round: 1, position: 2 },
-      { round: 2, position: 1 },
+    expect(positionsAfterEachRound(twoRounds, 2, 1, tableAfter)).toEqual([
+      { round: 1, position: 2, played: true },
+      { round: 2, position: 1, played: true },
+    ]);
+  });
+
+  it("stops at the last round it is given, even when later ones were played", () => {
+    expect(positionsAfterEachRound(twoRounds, 1, 1, tableAfter)).toEqual([
+      { round: 1, position: 2, played: true },
     ]);
   });
 
@@ -108,19 +116,47 @@ describe("positionsAfterEachRound", () => {
       { teamProviderId: 1, position: 1 },
     ];
 
-    expect(positionsAfterEachRound([1], 1, () => shared)).toEqual([{ round: 1, position: 1 }]);
+    expect(positionsAfterEachRound([played(1, 1, 2, 0, 0)], 1, 1, () => shared)).toEqual([
+      { round: 1, position: 1, played: true },
+    ]);
   });
 
   it("adds the offset of the groups ranked above, after a split", () => {
-    expect(positionsAfterEachRound([1], 1, (round) => tables[round] ?? [], 6)).toEqual([
-      { round: 1, position: 8 },
+    expect(positionsAfterEachRound([played(1, 1, 2, 0, 1)], 1, 1, tableAfter, 6)).toEqual([
+      { round: 1, position: 8, played: true },
     ]);
+  });
+
+  it("marks a round the team sat out, whose position moved only because others played", () => {
+    // Team 1 has no match in round 2 — a bye, or a round TASO numbered out of
+    // calendar order. The point is still plotted, as not played (#413).
+    const withBye = [played(1, 1, 2, 0, 1), played(2, 2, 3, 1, 0), played(3, 1, 3, 0, 0)];
+    const everyone = [
+      { teamProviderId: 1, position: 2 },
+      { teamProviderId: 2, position: 1 },
+    ];
+
+    expect(
+      positionsAfterEachRound(withBye, 3, 1, () => everyone).map((point) => point.played)
+    ).toEqual([true, false, true]);
+  });
+
+  it("does not count a match with no round as playing in any round", () => {
+    const noRound = [played(null, 1, 3, 1, 0), played(1, 2, 3, 0, 0), played(2, 1, 2, 0, 0)];
+    const everyone = [
+      { teamProviderId: 1, position: 1 },
+      { teamProviderId: 2, position: 2 },
+    ];
+
+    expect(
+      positionsAfterEachRound(noRound, 2, 1, () => everyone).map((point) => point.played)
+    ).toEqual([false, true]);
   });
 
   it("refuses a table without the team rather than inventing a position", () => {
     // Unreachable from either provider, since both tables include every team
     // with a match; the throw is what the services turn into an error message.
-    expect(() => positionsAfterEachRound([1], 99, (round) => tables[round] ?? [])).toThrow(
+    expect(() => positionsAfterEachRound([played(1, 99, 2, 0, 0)], 1, 99, tableAfter)).toThrow(
       "Team 99 is missing from the table after round 1"
     );
   });
@@ -148,9 +184,9 @@ describe("singleTableSeries", () => {
     expect(series).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 4 },
-        { round: 2, position: 3 },
-        { round: 3, position: 1 },
+        { round: 1, position: 4, played: true },
+        { round: 2, position: 3, played: true },
+        { round: 3, position: 1, played: true },
       ],
       teamCount: 4,
       endsAtSplit: false,
@@ -185,6 +221,21 @@ describe("singleTableSeries", () => {
     const series = singleTableSeries(inProgress, season, 1);
 
     expect(series.status === "ok" && series.points.map((point) => point.round)).toEqual([1, 2]);
+  });
+
+  it("marks the round a team has not played yet, while others have", () => {
+    // Team 1's round-2 match is still to come, but round 3 has been played by
+    // everyone: round 2 is on the line, not played.
+    const postponed = season.filter(
+      (match) => !(match.matchday === 2 && match.homeTeamProviderId === 1)
+    );
+    const series = singleTableSeries(postponed, season, 1);
+
+    expect(series.status === "ok" && series.points.map((point) => point.played)).toEqual([
+      true,
+      false,
+      true,
+    ]);
   });
 
   it("reports no rounds for a team that has not played", () => {

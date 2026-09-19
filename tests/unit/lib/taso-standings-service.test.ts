@@ -2357,11 +2357,11 @@ describe("getTeamPositionSeries", () => {
     expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 3 },
-        { round: 2, position: 4 },
-        { round: 3, position: 4 },
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
         // First in the lower group, below both teams of the upper one.
-        { round: 4, position: 3 },
+        { round: 4, position: 3, played: true },
       ],
       teamCount: 4,
       endsAtSplit: false,
@@ -2384,7 +2384,11 @@ describe("getTeamPositionSeries", () => {
         : undefined;
 
     expect(inGroup).toBe(1);
-    expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 1 + 2 });
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 1 + 2,
+      played: true,
+    });
   });
 
   it("equals the standings page's group table for every round, plus the groups above", async () => {
@@ -2435,7 +2439,11 @@ describe("getTeamPositionSeries", () => {
     const matches = splitSeason(SPLIT_SEASON, { upper: 3, lower: 2 });
     const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
 
-    expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 3 });
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 3,
+      played: true,
+    });
   });
 
   it("stops at the split, and says so, when the continuation does not reconcile", async () => {
@@ -2450,9 +2458,9 @@ describe("getTeamPositionSeries", () => {
     expect(await seriesFor(4, matches, rows)).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 3 },
-        { round: 2, position: 4 },
-        { round: 3, position: 4 },
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
       ],
       teamCount: 4,
       endsAtSplit: true,
@@ -2509,10 +2517,10 @@ describe("getTeamPositionSeries", () => {
       expect(await kakkonenSeries(4)).toEqual({
         status: "ok",
         points: [
-          { round: 1, position: 3 },
-          { round: 2, position: 4 },
-          { round: 3, position: 4 },
-          { round: 4, position: 3 },
+          { round: 1, position: 3, played: true },
+          { round: 2, position: 4, played: true },
+          { round: 3, position: 4, played: true },
+          { round: 4, position: 3, played: true },
         ],
         // The pool's four, not the competition's eight.
         teamCount: 4,
@@ -2524,7 +2532,11 @@ describe("getTeamPositionSeries", () => {
       const series = await kakkonenSeries(14);
 
       expect(series.status === "ok" && series.teamCount).toBe(4);
-      expect(series.status === "ok" && series.points.at(-1)).toEqual({ round: 4, position: 3 });
+      expect(series.status === "ok" && series.points.at(-1)).toEqual({
+        round: 4,
+        position: 3,
+        played: true,
+      });
     });
 
     it("equals the standings page's continuation table, plus its pool's upper group", async () => {
@@ -2558,9 +2570,9 @@ describe("getTeamPositionSeries", () => {
     expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 3 },
-        { round: 2, position: 4 },
-        { round: 3, position: 4 },
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
       ],
       teamCount: 4,
       endsAtSplit: false,
@@ -2577,9 +2589,9 @@ describe("getTeamPositionSeries", () => {
     expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 3 },
-        { round: 2, position: 4 },
-        { round: 3, position: 4 },
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
       ],
       teamCount: 4,
       endsAtSplit: true,
@@ -2597,9 +2609,9 @@ describe("getTeamPositionSeries", () => {
     expect(series).toEqual({
       status: "ok",
       points: [
-        { round: 1, position: 1 },
-        { round: 2, position: 1 },
-        { round: 3, position: 1 },
+        { round: 1, position: 1, played: true },
+        { round: 2, position: 1, played: true },
+        { round: 3, position: 1, played: true },
       ],
       teamCount: 4,
       endsAtSplit: false,

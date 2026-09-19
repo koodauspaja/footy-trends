@@ -4,9 +4,16 @@ import { LineChart, ticksFor } from "./line-chart";
 /** About this many labelled ticks per axis — enough to read a value, few enough to fit. */
 const TICK_COUNT = 7;
 
-/** One row of the text alternative, per round (specs/030, Q6). */
+/** Beneath the chart when any point is open, so an open circle is not a riddle (#413). */
+export const OPEN_POINT_LEGEND = "Avoin pallo: joukkue ei pelannut kierroksella.";
+
+/**
+ * One row of the text alternative, per round (specs/030, Q6). A round the team
+ * sat out says so, as the open circle does on the chart (#413).
+ */
 export function positionSentence(point: PositionPoint): string {
-  return `Sijoitus ${point.round}. kierroksen jälkeen: ${point.position}.`;
+  const base = `Sijoitus ${point.round}. kierroksen jälkeen: ${point.position}`;
+  return point.played ? `${base}.` : `${base} (ei omaa ottelua).`;
 }
 
 /**
@@ -39,7 +46,11 @@ export function PositionChart({
         describedBy={textId}
         invertY
         labelledBy={headingId}
-        points={points.map((point) => ({ x: point.round, y: point.position }))}
+        points={points.map((point) => ({
+          x: point.round,
+          y: point.position,
+          open: !point.played,
+        }))}
         title={title}
         xDomain={[firstRound, lastRound]}
         xLabel="Kierros"
@@ -48,6 +59,9 @@ export function PositionChart({
         yLabel="Sijoitus"
         yTicks={ticksFor(1, teamCount, TICK_COUNT)}
       />
+      {points.some((point) => !point.played) ? (
+        <p className="mt-2 text-muted text-sm">{OPEN_POINT_LEGEND}</p>
+      ) : null}
       <ol className="sr-only" id={textId}>
         {points.map((point) => (
           <li key={point.round}>{positionSentence(point)}</li>

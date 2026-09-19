@@ -25,8 +25,8 @@ import {
 const series: PositionSeries = {
   status: "ok",
   points: [
-    { round: 1, position: 7 },
-    { round: 2, position: 5 },
+    { round: 1, position: 7, played: true },
+    { round: 2, position: 5, played: true },
   ],
   teamCount: 12,
   endsAtSplit: false,

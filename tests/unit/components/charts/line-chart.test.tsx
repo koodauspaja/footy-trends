@@ -1,6 +1,13 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CHART, LineChart, MARGIN, scale, ticksFor } from "@/components/charts/line-chart";
+import {
+  CHART,
+  type ChartPoint,
+  LineChart,
+  MARGIN,
+  scale,
+  ticksFor,
+} from "@/components/charts/line-chart";
 
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
@@ -67,16 +74,16 @@ describe("ticksFor", () => {
 
 function chart(
   invertY: boolean,
-  points = [
+  points: readonly ChartPoint[] = [
     { x: 1, y: 1 },
     { x: 3, y: 4 },
   ]
 ) {
   return render(
     <LineChart
-      describedBy="kuvaus"
+      describedBy="chart-text"
       invertY={invertY}
-      labelledBy="otsikko"
+      labelledBy="chart-heading"
       points={points}
       title="Sijoitus kierroksittain"
       xDomain={[1, 3]}
@@ -128,8 +135,8 @@ describe("LineChart", () => {
     const svg = chart(true).querySelector("svg");
 
     expect(svg?.getAttribute("role")).toBe("img");
-    expect(svg?.getAttribute("aria-labelledby")).toBe("otsikko");
-    expect(svg?.getAttribute("aria-describedby")).toBe("kuvaus");
+    expect(svg?.getAttribute("aria-labelledby")).toBe("chart-heading");
+    expect(svg?.getAttribute("aria-describedby")).toBe("chart-text");
     expect(svg?.querySelector("title")?.textContent).toBe("Sijoitus kierroksittain");
   });
 
@@ -146,6 +153,22 @@ describe("LineChart", () => {
 
   it("draws a grid line for every y tick", () => {
     expect(chart(true).querySelectorAll("[data-part=grid] line")).toHaveLength(2);
+  });
+
+  it("draws an open point as a ring, and every other point as a filled dot", () => {
+    const container = chart(true, [
+      { x: 1, y: 1 },
+      { x: 3, y: 4, open: true },
+    ]);
+    const [filled, open] = container.querySelectorAll("[data-part=points] circle");
+
+    expect(filled?.getAttribute("class")).toBe("fill-foreground");
+    expect(filled?.hasAttribute("data-open")).toBe(false);
+    // Background-filled, so the line does not show through the ring.
+    expect(open?.getAttribute("class")).toBe("fill-background stroke-foreground");
+    expect(open?.hasAttribute("data-open")).toBe(true);
+    // Still at its value: an open point is marked, not moved.
+    expect(Number(open?.getAttribute("cy"))).toBe(BOTTOM);
   });
 
   it("uses the theme's colour tokens, so dark mode is not a second drawing", () => {

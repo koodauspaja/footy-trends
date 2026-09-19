@@ -10,7 +10,17 @@
  */
 import { calculateStandings, type NormalizedMatch, type RosterMatch } from "./standings";
 
-export type PositionPoint = { round: number; position: number };
+export type PositionPoint = {
+  round: number;
+  position: number;
+  /**
+   * Whether this team played a match counted in this round. `false` is a round
+   * it sat out — a bye, a match of its own still to come, or a round TASO
+   * numbered out of calendar order — where its position moved only because
+   * others played. The chart draws it as an open circle (#413).
+   */
+  played: boolean;
+};
 
 export type PositionSeries =
   | {
@@ -55,15 +65,8 @@ export type RankedRow = { teamProviderId: number; position: number };
  * A match with no round counts towards none, as spec 003 has it.
  */
 export function lastRoundPlayedBy(finished: readonly PlayedMatch[], teamId: number): number | null {
-  let last: number | null = null;
-
-  for (const match of finished) {
-    if (match.matchday === null) continue;
-    if (match.homeTeamProviderId !== teamId && match.awayTeamProviderId !== teamId) continue;
-    if (last === null || match.matchday > last) last = match.matchday;
-  }
-
-  return last;
+  const rounds = roundsPlayedBy(finished, teamId);
+  return rounds.size === 0 ? null : Math.max(...rounds);
 }
 
 /**
@@ -84,8 +87,10 @@ export function roundsToPlot(finished: readonly PlayedMatch[], last: number): nu
 }
 
 /**
- * This team's position in the table after each round, plus `offset` — the
- * number of teams in groups ranked above it after a split, 0 otherwise.
+ * This team's position in the table after each round it has reached — every
+ * round in `roundsToPlot(finished, last)` — plus `offset`, the number of teams
+ * in groups ranked above it after a split, 0 otherwise. Each point also says
+ * whether the team played in that round.
  *
  * The row's own `position` is used rather than its index, so the chart shows
  * exactly the number the standings page displays, whatever rule produced it.
@@ -99,18 +104,35 @@ export function roundsToPlot(finished: readonly PlayedMatch[], last: number): nu
  * catch the throw and report an error.
  */
 export function positionsAfterEachRound(
-  rounds: readonly number[],
+  finished: readonly PlayedMatch[],
+  last: number,
   teamId: number,
   tableAfter: (round: number) => readonly RankedRow[],
   offset = 0
 ): PositionPoint[] {
-  return rounds.map((round) => {
+  const played = roundsPlayedBy(finished, teamId);
+
+  return roundsToPlot(finished, last).map((round) => {
     const row = tableAfter(round).find((candidate) => candidate.teamProviderId === teamId);
     if (row === undefined) {
       throw new Error(`Team ${teamId} is missing from the table after round ${round}`);
     }
-    return { round, position: row.position + offset };
+    return { round, position: row.position + offset, played: played.has(round) };
   });
+}
+
+/** The rounds in which this team finished a match. A match with no round counts towards none. */
+function roundsPlayedBy(finished: readonly PlayedMatch[], teamId: number): Set<number> {
+  const rounds = new Set<number>();
+
+  for (const match of finished) {
+    if (match.matchday === null) continue;
+    if (match.homeTeamProviderId === teamId || match.awayTeamProviderId === teamId) {
+      rounds.add(match.matchday);
+    }
+  }
+
+  return rounds;
 }
 
 /**
@@ -129,7 +151,7 @@ export function singleTableSeries(
   const last = lastRoundPlayedBy(finished, teamId);
   if (last === null) return { status: "no-rounds" };
 
-  const points = positionsAfterEachRound(roundsToPlot(finished, last), teamId, (round) =>
+  const points = positionsAfterEachRound(finished, last, teamId, (round) =>
     calculateStandings(
       finished.filter((match) => match.matchday !== null && match.matchday <= round),
       [...roster]

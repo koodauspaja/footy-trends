@@ -129,6 +129,42 @@ test.describe("League position chart, signed in", () => {
   });
 });
 
+test.describe("League position chart, rounds a team sat out", () => {
+  test.beforeEach(async ({ page }) => {
+    await signedIn(page);
+  });
+
+  test("fills a point only for a round the team played in (#413)", async ({ page }) => {
+    /**
+     * Veikkausliiga 2026's Mestaruussarja is numbered out of calendar order —
+     * KuPS's first two matches after the split are rounds 31 and 24 — so its
+     * line reaches rounds it has not played. Checked against the standings
+     * page rather than hardcoded rounds, so it holds as the season goes on:
+     * each match played fills exactly one point, because a team plays once per
+     * round, and the legend is there exactly when an open point is.
+     */
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+    const table = page.getByRole("heading", { name: "Mestaruussarja", level: 2 });
+    const row = table.locator("xpath=following::table[1]").locator("tbody tr", { hasText: "KuPS" });
+    const matchesPlayed = Number(await row.locator("td:nth-child(3)").textContent());
+    await row.getByRole("link", { name: "KuPS" }).click();
+    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+    await expect(chart(page)).toBeVisible();
+
+    const rows = page.getByText(/^Sijoitus \d+\. kierroksen jälkeen: \d+/);
+    const sentences = await rows.allTextContents();
+    const open = sentences.filter((sentence) => sentence.endsWith("(ei omaa ottelua).")).length;
+    const openCircles = await chart(page).locator("[data-part=points] circle[data-open]").count();
+
+    expect(matchesPlayed).toBeGreaterThan(0);
+    expect(sentences.length - open).toBe(matchesPlayed);
+    expect(openCircles).toBe(open);
+    await expect(page.getByText("Avoin pallo: joukkue ei pelannut kierroksella.")).toHaveCount(
+      open > 0 ? 1 : 0
+    );
+  });
+});
+
 test.describe("League position chart, signed out", () => {
   test("shows the sign-in prompt in the chart's place", async ({ page }) => {
     await page.goto(`${TEAM}?${SEASON}`);

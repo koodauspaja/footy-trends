@@ -12,7 +12,16 @@
  * rather than through the markup.
  */
 
-export type ChartPoint = { x: number; y: number };
+export type ChartPoint = {
+  x: number;
+  y: number;
+  /**
+   * Drawn as an open circle rather than a filled dot: a value that is on the
+   * line but that the series' subject did not produce itself — for the
+   * position chart, a round the team sat out (#413).
+   */
+  open?: boolean;
+};
 
 /** The drawing area, in SVG user units; `viewBox` scales it to the page. */
 export const CHART = { width: 640, height: 320 } as const;
@@ -148,10 +157,30 @@ export function LineChart({
         strokeLinejoin="round"
         strokeWidth={2}
       />
-      <g className="fill-foreground" data-part="points">
-        {points.map((point) => (
-          <circle cx={toX(point.x)} cy={toY(point.y)} key={point.x} r={3} />
-        ))}
+      <g data-part="points">
+        {points.map((point) =>
+          point.open ? (
+            // Filled with the page's background, so the line does not show
+            // through the ring.
+            <circle
+              className="fill-background stroke-foreground"
+              cx={toX(point.x)}
+              cy={toY(point.y)}
+              data-open=""
+              key={point.x}
+              r={3}
+              strokeWidth={1.5}
+            />
+          ) : (
+            <circle
+              className="fill-foreground"
+              cx={toX(point.x)}
+              cy={toY(point.y)}
+              key={point.x}
+              r={3}
+            />
+          )
+        )}
       </g>
     </svg>
   );
