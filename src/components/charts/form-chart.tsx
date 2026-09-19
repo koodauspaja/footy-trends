@@ -34,7 +34,9 @@ export function FormChart({
       <LineChart
         describedBy={textId}
         labelledBy={headingId}
-        series={[{ points: points.map((point) => ({ x: point.match, y: point.form })) }]}
+        series={[
+          { name: "form", points: points.map((point) => ({ x: point.match, y: point.form })) },
+        ]}
         title={title}
         xDomain={[firstMatch, lastMatch]}
         xLabel="Ottelu"

@@ -81,8 +81,8 @@ export function GoalsChart({
         describedBy={textId}
         labelledBy={headingId}
         series={[
-          { points: line((point) => point.scored) },
-          { points: line((point) => point.conceded), dashed: true },
+          { name: "scored", points: line((point) => point.scored) },
+          { name: "conceded", points: line((point) => point.conceded), dashed: true },
         ]}
         title={title}
         xDomain={[firstMatch, lastMatch]}

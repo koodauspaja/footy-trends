@@ -48,6 +48,7 @@ export function PositionChart({
         labelledBy={headingId}
         series={[
           {
+            name: "position",
             points: points.map((point) => ({
               x: point.round,
               y: point.position,

@@ -82,7 +82,12 @@ export function ticksFor(min: number, max: number, count: number): number[] {
  * colour: every line is the theme's foreground, so it reads in both themes and
  * without colour vision (specs/032, Q5).
  */
-export type LineSeries = { points: readonly ChartPoint[]; dashed?: boolean };
+export type LineSeries = {
+  /** What the line is, unique within its chart: its key, and `data-series`. */
+  name: string;
+  points: readonly ChartPoint[];
+  dashed?: boolean;
+};
 
 /** The dash pattern of a dashed series, shared with its legend sample. */
 const DASH = "6 4";
@@ -171,10 +176,13 @@ export function LineChart({
         </text>
       </g>
 
-      {series.map((line, index) => (
-        // Series have no identity beyond their place in the list.
-        // biome-ignore lint/suspicious/noArrayIndexKey: a chart's series never reorder
-        <g data-dashed={line.dashed ? "" : undefined} data-part="series" key={index}>
+      {series.map((line) => (
+        <g
+          data-dashed={line.dashed ? "" : undefined}
+          data-part="series"
+          data-series={line.name}
+          key={line.name}
+        >
           <polyline
             className="fill-none stroke-foreground"
             data-part="line"

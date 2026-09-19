@@ -87,7 +87,7 @@ function chart(
       describedBy="chart-text"
       invertY={invertY}
       labelledBy="chart-heading"
-      series={[{ points }]}
+      series={[{ name: "line", points }]}
       title="Sijoitus kierroksittain"
       xDomain={[1, 3]}
       xLabel="Kierros"
@@ -102,12 +102,14 @@ function chart(
 function twoSeries() {
   const series: LineSeries[] = [
     {
+      name: "first",
       points: [
         { x: 1, y: 1 },
         { x: 3, y: 4 },
       ],
     },
     {
+      name: "second",
       points: [
         { x: 1, y: 4 },
         { x: 3, y: 1 },
@@ -212,6 +214,7 @@ describe("LineChart", () => {
     const lines = container.querySelectorAll("[data-part=series]");
 
     expect(lines).toHaveLength(2);
+    expect([...lines].map((line) => line.getAttribute("data-series"))).toEqual(["first", "second"]);
     expect(lines[0]?.querySelector("[data-part=line]")?.getAttribute("points")).toBe(
       `${LEFT},${TOP} ${RIGHT},${BOTTOM}`
     );
