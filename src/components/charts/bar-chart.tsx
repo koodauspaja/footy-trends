@@ -115,7 +115,9 @@ export function BarChart({
                   x={0}
                   y={y}
                 />
-                {bar.value === null ? null : (
+                {/* Nothing to draw at zero: an outline around a zero-width bar
+                    would still show as a sliver at the axis. */}
+                {bar.value === null || length === 0 ? null : (
                   <rect
                     className={
                       bar.outlined ? "fill-background stroke-foreground" : "fill-foreground"

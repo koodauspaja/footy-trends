@@ -105,6 +105,26 @@ describe("BarChart", () => {
     expect(fills(container)).toHaveLength(3);
   });
 
+  it("draws nothing at zero, filled or outlined, and still prints the zero", () => {
+    // An away side with no wins: its bar is empty at the axis, not a sliver.
+    const container = renderChart([
+      {
+        label: "Voittoprosentti",
+        max: 100,
+        bars: [
+          { name: "home", value: 0, text: "0 %" },
+          { name: "away", value: 0, text: "0 %", outlined: true },
+        ],
+      },
+    ]);
+
+    expect(fills(container)).toHaveLength(0);
+    expect(container.querySelectorAll("[data-part=track]")).toHaveLength(2);
+    expect(
+      [...container.querySelectorAll("[data-part=value]")].map((value) => value.textContent)
+    ).toEqual(["0 %", "0 %"]);
+  });
+
   it("labels each row and keys each bar by its name", () => {
     const container = renderChart();
     const rowGroups = [...container.querySelectorAll("[data-part=row]")];
