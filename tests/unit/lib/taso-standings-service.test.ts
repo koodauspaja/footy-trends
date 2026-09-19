@@ -9,6 +9,7 @@ import {
   getSeasonStandings,
   getTeamFormSeries,
   getTeamGoalsSeries,
+  getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
   listSeasonRounds,
@@ -2699,7 +2700,7 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
-describe("getTeamFormSeries and getTeamGoalsSeries", () => {
+describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeAwaySeries", () => {
   /**
    * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
    * against the calendar on purpose: form follows kickoff order.
@@ -2828,6 +2829,17 @@ describe("getTeamFormSeries and getTeamGoalsSeries", () => {
       ]);
     });
 
+    it("splits the same league matches home and away, leaving the playoff out", async () => {
+      // Home: 2–0, 0–1, 3–0, 2–1, 0–0. Away: 1–1. The playoff win is not league.
+      mockStoredMatches(matches, rows);
+
+      expect(await getTeamHomeAwaySeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
+        away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
+      });
+    });
+
     it("reads nothing the position chart does not, and asks TASO nothing", async () => {
       await series();
 
@@ -2927,6 +2939,104 @@ describe("getTeamFormSeries and getTeamGoalsSeries", () => {
       scored: row?.goalsFor,
       conceded: row?.goalsAgainst,
     });
+  });
+
+  it("adds home and away up to the row the standings page shows", async () => {
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const series = await getTeamHomeAwaySeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+    if (series.status !== "ok") throw new Error("expected a series");
+    const { home, away } = series;
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(home.matches + away.matches).toBe(row?.played);
+    expect(home.scored + away.scored).toBe(row?.goalsFor);
+    expect(home.conceded + away.conceded).toBe(row?.goalsAgainst);
+    expect(3 * (home.won + away.won) + home.drawn + away.drawn).toBe(row?.points);
+  });
+
+  it("has no home-and-away panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamHomeAwaySeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has empty home and away sides for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const series = await getTeamHomeAwaySeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(series.status === "ok" && series.home.matches + series.away.matches).toBe(0);
+  });
+
+  it("reports a home-and-away error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO home and away series"
+    );
+  });
+
+  it("reports a home-and-away error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
   });
 
   it("has no goals panels when the team played only in match lists", async () => {

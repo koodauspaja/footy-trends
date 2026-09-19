@@ -25,12 +25,13 @@ export type ChartPoint = {
 };
 
 /**
- * `2.2` → `2,2`: one decimal with a Finnish comma. Exact for the charts' values,
- * which are averages over five matches and so move in fifths; `toFixed` also
- * hides floating point (`0.2 × 3` is `0.6000000000000001`).
+ * `2.2` → `2,2`: a Finnish decimal comma, one decimal by default. One is exact
+ * for averages over five matches, which move in fifths; a season's average
+ * takes two (`2,11`, specs/033). `toFixed` also hides floating point
+ * (`0.2 × 3` is `0.6000000000000001`).
  */
-export function formatDecimal(value: number): string {
-  return value.toFixed(1).replace(".", ",");
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toFixed(digits).replace(".", ",");
 }
 
 /** The drawing area, in SVG user units; `viewBox` scales it to the page. */
