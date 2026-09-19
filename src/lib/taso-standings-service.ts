@@ -11,6 +11,7 @@ import {
 } from "./domestic-competitions";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
+import { type HomeAwaySeries, homeAwayStats } from "./home-away";
 import { logger } from "./logger";
 import {
   lastRoundPlayedBy,
@@ -1406,6 +1407,40 @@ export async function getTeamGoalsSeries(
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
       "Unable to compute the TASO goals series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's season split into home and away, for the team page's
+ * `Koti- ja vierastilastot` panel (specs/033). Counts exactly the matches the
+ * form and goals charts count.
+ */
+export async function getTeamHomeAwaySeries(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<HomeAwaySeries> {
+  try {
+    const league = await teamLeagueMatches(
+      categoryId,
+      competitionId,
+      teamProviderId,
+      seasonId,
+      activeSeasonId
+    );
+    if (league.status === "no-matches")
+      return { status: "ok", ...homeAwayStats([], teamProviderId) };
+    if (league.status !== "ok") return league;
+
+    return { status: "ok", ...homeAwayStats(league.finished, teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO home and away series"
     );
     return { status: "error" };
   }

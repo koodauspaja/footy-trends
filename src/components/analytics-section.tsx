@@ -1,11 +1,13 @@
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
+import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
+import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 
 /** Over every chart on the team page, and over the one sign-in prompt (specs/031, A). */
@@ -32,10 +34,12 @@ export async function AnalyticsSection({
   loadPosition,
   loadForm,
   loadGoals,
+  loadHomeAway,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
+  loadHomeAway: () => Promise<HomeAwaySeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -45,12 +49,18 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals] = await Promise.all([loadPosition(), loadForm(), loadGoals()]);
+  const [position, form, goals, homeAway] = await Promise.all([
+    loadPosition(),
+    loadForm(),
+    loadGoals(),
+    loadHomeAway(),
+  ]);
   const charts = {
     position: positionPanel(position),
     form: formPanel(form),
     rollingGoals: rollingGoalsPanel(goals),
     totalGoals: totalGoalsPanel(goals),
+    homeAway: homeAwayPanel(homeAway),
   };
   if (Object.values(charts).every((chart) => chart === null)) return null;
 
@@ -60,6 +70,7 @@ export async function AnalyticsSection({
       {charts.form}
       {charts.rollingGoals}
       {charts.totalGoals}
+      {charts.homeAway}
     </Section>
   );
 }
