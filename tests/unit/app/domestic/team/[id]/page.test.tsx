@@ -193,6 +193,18 @@ describe("Domestic team page", () => {
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
 
+  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+    await renderTeam("1");
+    const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
+    const rows = details?.querySelectorAll("tbody tr").length ?? 0;
+
+    expect(details?.open).toBe(true);
+    expect(rows).toBeGreaterThan(0);
+    expect(details?.querySelector("summary")?.textContent).toBe(
+      `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
+    );
+  });
+
   it("links back to the standings page", async () => {
     await renderTeam("1", { kausi: "2020" });
 

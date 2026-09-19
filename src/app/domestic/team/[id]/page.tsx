@@ -7,6 +7,7 @@ import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
+import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
@@ -14,6 +15,7 @@ import {
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { matchCountLabel } from "@/lib/national-team";
 import {
   getTeamFormSeries,
   getTeamGoalsSeries,
@@ -246,12 +248,19 @@ export default async function DomesticTeamPage({
         outcome={outcome}
         table={
           result.status === "ok" ? (
-            <MatchListTable
-              fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
-              matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
-              matches={result.matches}
-              teamHref={null}
-            />
+            <TeamPageFold
+              className="mt-4"
+              count={matchCountLabel(result.matches.length)}
+              heading={MATCHES_HEADING}
+              headingId="team-matches"
+            >
+              <MatchListTable
+                fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
+                matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
+                matches={result.matches}
+                teamHref={null}
+              />
+            </TeamPageFold>
           ) : null
         }
       />

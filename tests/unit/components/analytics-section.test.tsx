@@ -114,6 +114,17 @@ describe("AnalyticsSection, signed in", () => {
     ).toEqual([ROLLING_HEADING, TOTALS_HEADING]);
   });
 
+  it("sits in a fold that starts open, like the match list (#416)", async () => {
+    const { container } = await renderSection();
+    const details = container.querySelector("details");
+
+    expect(details?.open).toBe(true);
+    expect(details?.querySelector("summary")).toContainElement(
+      screen.getByRole("heading", { level: 2, name: ANALYTICS_HEADING })
+    );
+    expect(details?.querySelector("svg")).not.toBeNull();
+  });
+
   it("shows no section at all when no chart applies", async () => {
     const { view } = await renderSection(
       vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),

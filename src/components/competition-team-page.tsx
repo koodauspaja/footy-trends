@@ -6,6 +6,7 @@ import { FavouriteToggle } from "@/components/favourite-toggle";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
+import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 import {
   earliestSeasonFor,
@@ -14,6 +15,7 @@ import {
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import { matchCountLabel } from "@/lib/national-team";
 import {
   type BasePageContext,
   type CompetitionPageOptions,
@@ -295,12 +297,19 @@ export async function CompetitionTeamPage({
         outcome={outcome}
         table={
           result.status === "ok" ? (
-            <MatchListTable
-              fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
-              matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
-              matches={result.matches}
-              teamHref={null}
-            />
+            <TeamPageFold
+              className="mt-4"
+              count={matchCountLabel(result.matches.length)}
+              heading={MATCHES_HEADING}
+              headingId="team-matches"
+            >
+              <MatchListTable
+                fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
+                matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
+                matches={result.matches}
+                teamHref={null}
+              />
+            </TeamPageFold>
           ) : null
         }
       />

@@ -213,6 +213,18 @@ describe("Team page", () => {
     expect(screen.getByText("Liverpool FC – Arsenal FC")).toBeInTheDocument();
   });
 
+  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+    await renderTeamPage("1", { kausi: "2025" });
+    const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
+    const rows = details?.querySelectorAll("tbody tr").length ?? 0;
+
+    expect(details?.open).toBe(true);
+    expect(rows).toBeGreaterThan(0);
+    expect(details?.querySelector("summary")?.textContent).toBe(
+      `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
+    );
+  });
+
   it("shows the selected competition's name in the heading", async () => {
     await renderTeamPage("1", { kilpailu: "BL1", kausi: "2025" });
 
