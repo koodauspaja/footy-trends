@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
+import type { FormSeries } from "@/lib/form-series";
 import type { PositionSeries } from "@/lib/position-series";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -12,18 +13,24 @@ const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const getTeamPositionSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
 );
+const getTeamFormSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
+);
 
 /**
- * The league-position section stands in here with a marker: its own states and
- * its sign-in gate are `league-position-section.test.tsx`'s. What this file
- * owns is the page's side — whether the section is asked for at all, and with
- * which series.
+ * The Analyysit section stands in here with a marker: its panels and its
+ * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
+ * page's side — whether the section is asked for at all, and with which
+ * series.
  */
-const leaguePositionSectionMock = vi.fn(
-  async (_props: { loadSeries: () => Promise<PositionSeries> }) => "Sijoituskaavion paikka"
+const analyticsSectionMock = vi.fn(
+  async (_props: {
+    loadPosition: () => Promise<PositionSeries>;
+    loadForm: () => Promise<FormSeries>;
+  }) => "analytics section placeholder"
 );
-vi.mock("@/components/league-position-section", () => ({
-  LeaguePositionSection: leaguePositionSectionMock,
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: analyticsSectionMock,
 }));
 
 /**
@@ -48,6 +55,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+    getTeamFormSeries: getTeamFormSeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
@@ -515,16 +523,31 @@ describe("Domestic team page league position (specs/030)", () => {
   it("shows the section for a league team with matches this season", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
 
-    expect(screen.getByText("Sijoituskaavion paikka")).toBeInTheDocument();
+    expect(screen.getByText("analytics section placeholder")).toBeInTheDocument();
   });
 
   it("asks for this team's series in the season's own TASO category and competition", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadSeries = leaguePositionSectionMock.mock.calls[0]?.[0].loadSeries;
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 
-    await loadSeries?.();
+    await loadPosition?.();
 
     expect(getTeamPositionSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's form in the same TASO category and competition (specs/031)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
+
+    await loadForm?.();
+
+    expect(getTeamFormSeriesMock).toHaveBeenCalledWith(
       categoryIdForSeason("VL", 2025),
       competitionIdForSeason("VL", 2025),
       1,
@@ -536,7 +559,7 @@ describe("Domestic team page league position (specs/030)", () => {
   it("offers no section for a cup, which has no league position", async () => {
     await renderTeam("1", { kilpailu: "MSC", kausi: "2025" });
 
-    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
   });
 
   it("offers no section when the team has no matches this season", async () => {
@@ -544,6 +567,6 @@ describe("Domestic team page league position (specs/030)", () => {
 
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
 
-    expect(leaguePositionSectionMock).not.toHaveBeenCalled();
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
   });
 });

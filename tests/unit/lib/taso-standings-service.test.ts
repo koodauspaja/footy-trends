@@ -7,6 +7,7 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getTeamFormSeries,
   getTeamMatches,
   getTeamPositionSeries,
   listSeasonRounds,
@@ -2694,5 +2695,232 @@ describe("getTeamPositionSeries", () => {
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
     expect(getSeasonGroupsMock).not.toHaveBeenCalled();
     expect(getCachedMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getTeamFormSeries", () => {
+  /**
+   * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
+   * against the calendar on purpose: form follows kickoff order.
+   */
+  function onDay(
+    categoryId: string,
+    competitionId: string,
+    groupId: number,
+    day: number,
+    opponent: number,
+    own: number,
+    other: number,
+    home = true
+  ) {
+    const [homeId, awayId] = home ? [1, opponent] : [opponent, 1];
+    return match({
+      providerMatchId: groupId * 1000 + day,
+      categoryId,
+      competitionCode: competitionId,
+      groupId,
+      groupName: `Lohko ${groupId}`,
+      kickoffAt: new Date(`2024-09-${String(day).padStart(2, "0")}T15:00:00Z`),
+      matchday: 40 - day,
+      homeTeamProviderId: homeId,
+      homeTeamName: `Team ${homeId}`,
+      awayTeamProviderId: awayId,
+      awayTeamName: `Team ${awayId}`,
+      homeGoals: home ? own : other,
+      awayGoals: home ? other : own,
+    });
+  }
+
+  function rowsFor(
+    categoryId: string,
+    competitionId: string,
+    groupId: number,
+    teamIds: number[],
+    points: number | null
+  ) {
+    return teamIds.map((teamProviderId) =>
+      groupTeam({
+        categoryId,
+        competitionCode: competitionId,
+        groupId,
+        teamProviderId,
+        teamName: `Team ${teamProviderId}`,
+        points,
+      })
+    );
+  }
+
+  describe("a split season with a playoff", () => {
+    /**
+     * Ykkönen 2025: group 2 continues group 1 (`CARRY_OVER_CONFIG`). Group 9 is
+     * a knockout — TASO sends no points for it — so it renders as a match list.
+     * The table rows' points are made up, so both tables render pass-through:
+     * form is results, and an unverified table does not stop it (Q2).
+     */
+    const LEAGUE = "M1";
+    const SEASON = "spljp25";
+    const matches = [
+      onDay(LEAGUE, SEASON, 1, 1, 2, 2, 0),
+      // Away, so the team is found on either side of a fixture.
+      onDay(LEAGUE, SEASON, 1, 2, 3, 1, 1, false),
+      onDay(LEAGUE, SEASON, 1, 3, 4, 0, 1),
+      onDay(LEAGUE, SEASON, 1, 4, 2, 3, 0),
+      onDay(LEAGUE, SEASON, 2, 5, 3, 2, 1),
+      onDay(LEAGUE, SEASON, 2, 6, 2, 0, 0),
+      onDay(LEAGUE, SEASON, 9, 7, 5, 4, 0),
+    ].map((row) => ({ ...row, categoryId: LEAGUE }));
+    const rows = [
+      ...rowsFor(LEAGUE, SEASON, 1, [1, 2, 3, 4], 99),
+      ...rowsFor(LEAGUE, SEASON, 2, [1, 2, 3], 99),
+      ...rowsFor(LEAGUE, SEASON, 9, [1, 5], null),
+    ];
+
+    async function series() {
+      mockStoredMatches(matches, rows);
+      return getTeamFormSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+    }
+
+    it("continues across the split in kickoff order, and leaves the playoff out", async () => {
+      // W D L W, then W D after the split; the playoff win on the 7th is not
+      // league form.
+      expect(await series()).toEqual({
+        status: "ok",
+        points: [
+          { match: 5, form: (3 + 1 + 0 + 3 + 3) / 5 },
+          { match: 6, form: (1 + 0 + 3 + 3 + 1) / 5 },
+        ],
+      });
+    });
+
+    it("draws form where the tables are pass-through, and where the position cannot be", async () => {
+      mockStoredMatches(matches, rows);
+      const standings = await getSeasonStandings(
+        LEAGUE,
+        SEASON,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        undefined
+      );
+      const kinds = standings.status === "ok" ? standings.groups.map((group) => group.kind) : [];
+      mockStoredMatches(matches, rows);
+      const position = await getTeamPositionSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(kinds).toEqual(["pass-through", "pass-through", "match-list"]);
+      expect(position).toEqual({ status: "unavailable" });
+      expect((await series()).status).toBe("ok");
+    });
+
+    it("reads nothing the position chart does not, and asks TASO nothing", async () => {
+      await series();
+
+      // The season's matches and its group rows: the same two reads the
+      // position chart makes, `cache()`d between them on the team page.
+      expect(dbMock.select).toHaveBeenCalledTimes(2);
+      expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+      expect(getSeasonGroupsMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("ends at the Vire column the standings page shows, in points", async () => {
+    // One verified table: its rows' points are what our calculation gives, so
+    // it renders own-calculated with a Vire column to compare with.
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 5, 2, 2, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 6, 3, 0, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const series = await getTeamFormSeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+    const points = { V: 3, T: 1, H: 0 } as const;
+    const vire = (row?.form ?? []).reduce((total, entry) => total + points[entry.result], 0);
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(row?.form).toHaveLength(5);
+    expect(series.status === "ok" && series.points.at(-1)?.form).toBe(vire / 5);
+  });
+
+  it("has no section when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamFormSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no series before the fifth league match", async () => {
+    const matches = [1, 2, 3, 4].map((day) => onDay(CATEGORY_ID, COMPETITION_ID, 1, day, 2, 1, 0));
+    mockStoredMatches(matches, rowsFor(CATEGORY_ID, COMPETITION_ID, 1, [1, 2], 99));
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "too-few" });
+  });
+
+  it("has no series for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "too-few" });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO form series"
+    );
   });
 });

@@ -166,11 +166,14 @@ test.describe("League position chart, rounds a team sat out", () => {
 });
 
 test.describe("League position chart, signed out", () => {
-  test("shows the sign-in prompt in the chart's place", async ({ page }) => {
+  test("shows the sign-in prompt under Analyysit, in place of the charts", async ({ page }) => {
+    // One prompt for every chart on the page (specs/031, Q5), so no chart's
+    // own heading is shown to a signed-out reader.
     await page.goto(`${TEAM}?${SEASON}`);
 
-    await expect(page.getByRole("heading", { name: HEADING })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
     await expect(page.getByText(SIGNED_OUT)).toBeVisible();
+    await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
     await expect(chart(page)).toHaveCount(0);
   });
 
@@ -187,7 +190,7 @@ test.describe("League position chart, signed out", () => {
 
     await page.goto(`${TEAM}?${SEASON}`);
     await page
-      .getByRole("region", { name: HEADING })
+      .getByRole("region", { name: "Analyysit" })
       .getByRole("button", { name: "Kirjaudu sisään" })
       .click();
     await expect.poll(() => body).not.toBeUndefined();
