@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
+import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ import {
 } from "@/components/analytics-section";
 import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
+import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
 
 const position: PositionSeries = {
@@ -36,14 +38,20 @@ const goals: GoalsSeries = {
   rolling: [{ match: 5, scored: 1.4, conceded: 0.8 }],
   totals: [{ match: 5, scored: 9, conceded: 7 }],
 };
+const homeAway: HomeAwaySeries = {
+  status: "ok",
+  home: { matches: 3, won: 2, drawn: 1, lost: 0, scored: 5, conceded: 2 },
+  away: { matches: 2, won: 0, drawn: 1, lost: 1, scored: 1, conceded: 3 },
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
   loadForm = vi.fn(async (): Promise<FormSeries> => form),
-  loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals)
+  loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals),
+  loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway)
 ) {
-  const view = await AnalyticsSection({ loadPosition, loadForm, loadGoals });
-  return { ...render(<div>{view}</div>), loadPosition, loadForm, loadGoals, view };
+  const view = await AnalyticsSection({ loadPosition, loadForm, loadGoals, loadHomeAway });
+  return { ...render(<div>{view}</div>), loadPosition, loadForm, loadGoals, loadHomeAway, view };
 }
 
 beforeEach(() => {
@@ -72,11 +80,12 @@ describe("AnalyticsSection, signed out", () => {
      * send its values. Not calling the loaders is what guarantees they are not
      * in the page.
      */
-    const { loadPosition, loadForm, loadGoals, container } = await renderSection();
+    const { loadPosition, loadForm, loadGoals, loadHomeAway, container } = await renderSection();
 
     expect(loadPosition).not.toHaveBeenCalled();
     expect(loadForm).not.toHaveBeenCalled();
     expect(loadGoals).not.toHaveBeenCalled();
+    expect(loadHomeAway).not.toHaveBeenCalled();
     expect(container.querySelector("svg")).toBeNull();
   });
 });
@@ -89,7 +98,13 @@ describe("AnalyticsSection, signed in", () => {
     const subheadings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
     expect(section).toContainElement(screen.getByRole("region", { name: FORM_HEADING }));
-    expect(subheadings).toEqual([POSITION_HEADING, FORM_HEADING, ROLLING_HEADING, TOTALS_HEADING]);
+    expect(subheadings).toEqual([
+      POSITION_HEADING,
+      FORM_HEADING,
+      ROLLING_HEADING,
+      TOTALS_HEADING,
+      HOME_AWAY_HEADING,
+    ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
 
@@ -103,7 +118,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.getByRole("heading", { name: FORM_HEADING })).toBeInTheDocument();
   });
 
-  it("shows the goals charts alone when they are the only ones that apply", async () => {
+  it("shows only the charts that apply, in their order", async () => {
     await renderSection(
       vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" }))
@@ -111,7 +126,7 @@ describe("AnalyticsSection, signed in", () => {
 
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
-    ).toEqual([ROLLING_HEADING, TOTALS_HEADING]);
+    ).toEqual([ROLLING_HEADING, TOTALS_HEADING, HOME_AWAY_HEADING]);
   });
 
   it("sits in a fold that starts open, like the match list (#416)", async () => {
@@ -129,7 +144,8 @@ describe("AnalyticsSection, signed in", () => {
     const { view } = await renderSection(
       vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

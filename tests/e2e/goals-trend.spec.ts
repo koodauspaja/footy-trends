@@ -93,7 +93,13 @@ test.describe("Goals charts, signed in", () => {
 
     await expect(
       page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 3 })
-    ).toHaveText(["Sijoitus kierroksittain", "Vire otteluittain", ROLLING, TOTALS]);
+    ).toHaveText([
+      "Sijoitus kierroksittain",
+      "Vire otteluittain",
+      ROLLING,
+      TOTALS,
+      "Koti- ja vierastilastot",
+    ]);
   });
 });
 

@@ -19,6 +19,7 @@ import { matchCountLabel } from "@/lib/national-team";
 import {
   getTeamFormSeries,
   getTeamGoalsSeries,
+  getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
   type TeamMatchesResult,
@@ -216,6 +217,14 @@ export default async function DomesticTeamPage({
             ),
           loadGoals: () =>
             getTeamGoalsSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadHomeAway: () =>
+            getTeamHomeAwaySeries(
               context.categoryId,
               context.competitionId,
               teamProviderId,

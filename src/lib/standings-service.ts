@@ -5,6 +5,7 @@ import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
+import { type HomeAwaySeries, homeAwayStats } from "./home-away";
 import { logger } from "./logger";
 import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
@@ -261,6 +262,35 @@ export async function getTeamGoalsSeries(
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
       "Unable to compute the goals series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's season split into home and away, for the team page's
+ * `Koti- ja vierastilastot` panel (specs/033). The same cached season read, and
+ * exactly the matches the form and goals charts count.
+ */
+export async function getTeamHomeAwaySeries(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<HomeAwaySeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return { status: "ok", ...homeAwayStats(toFinishedMatches(seasonMatches), teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the home and away series"
     );
     return { status: "error" };
   }

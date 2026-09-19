@@ -1,7 +1,6 @@
 # 033 — Home vs away
 
-> **Status: every question answered on 2026-09-19; awaiting go.** Nothing is
-> implemented until a human says **go**.
+> **Status: agreed on 2026-09-19 and implemented (#329).**
 
 ## Summary
 
@@ -39,8 +38,10 @@ a line.
 **Where:** `Analyysit`, the fifth panel, after `Maalit yhteensä`.
 
 **Shape** (Q2): one panel with four rows, one per measure. Each row has
-two horizontal bars, home above away, with the value printed at the end of each
-bar, so the chart can be read exactly without the axis.
+two horizontal bars, home above away, each on a faint track the length of its
+scale, with its value printed in one column just past the tracks, so the chart
+can be read exactly without an axis. (The column rather than each bar's own end
+was decided while building it; see the decision record.)
 
 | String | Where | Status |
 |---|---|---|
@@ -108,7 +109,8 @@ exported functions tested directly, theme tokens only.
 
 - Rows of measures, each with its own scale, since the measures do not share
   units.
-- Two bars per row: filled and outlined, with the value at the bar's end.
+- Two bars per row: filled and outlined, each on a track the length of its
+  row's scale, the values in one column past the tracks.
 - A legend, the same shape as `LineLegend`.
 
 ## Edge Cases
