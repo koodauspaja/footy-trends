@@ -45,14 +45,7 @@ export type ResultMatch = {
  * before it.
  */
 export function formSeries(finished: readonly ResultMatch[], teamId: number): FormSeries {
-  const points = finished
-    .filter((match) => match.homeTeamProviderId === teamId || match.awayTeamProviderId === teamId)
-    .toSorted(
-      (left, right) =>
-        left.kickoffAt.getTime() - right.kickoffAt.getTime() ||
-        left.providerMatchId - right.providerMatchId
-    )
-    .map((match) => pointsFrom(match, teamId));
+  const points = teamMatchesInOrder(finished, teamId).map((match) => pointsFrom(match, teamId));
 
   if (points.length < FORM_WINDOW) return { status: "too-few" };
 
@@ -65,12 +58,34 @@ export function formSeries(finished: readonly ResultMatch[], teamId: number): Fo
   };
 }
 
+/**
+ * This team's matches, in the order every chart on the team page counts them:
+ * kickoff, then provider match id. Shared with the goals charts (specs/032), so
+ * "the team's fifth match" is the same match on every chart.
+ */
+export function teamMatchesInOrder<T extends ResultMatch>(
+  finished: readonly T[],
+  teamId: number
+): T[] {
+  return finished
+    .filter((match) => match.homeTeamProviderId === teamId || match.awayTeamProviderId === teamId)
+    .toSorted(
+      (left, right) =>
+        left.kickoffAt.getTime() - right.kickoffAt.getTime() ||
+        left.providerMatchId - right.providerMatchId
+    );
+}
+
+/** `[own goals, the other side's goals]`, from this team's side of the fixture. */
+export function goalsFor(match: ResultMatch, teamId: number): [number, number] {
+  return match.homeTeamProviderId === teamId
+    ? [match.homeGoals, match.awayGoals]
+    : [match.awayGoals, match.homeGoals];
+}
+
 /** This team's points from one match: 3 for a win, 1 for a draw, 0 for a loss. */
 function pointsFrom(match: ResultMatch, teamId: number): number {
-  const [own, other] =
-    match.homeTeamProviderId === teamId
-      ? [match.homeGoals, match.awayGoals]
-      : [match.awayGoals, match.homeGoals];
+  const [own, other] = goalsFor(match, teamId);
   if (own > other) return 3;
   return own === other ? 1 : 0;
 }

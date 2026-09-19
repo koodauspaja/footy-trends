@@ -16,6 +16,7 @@ import {
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
   getTeamFormSeries,
+  getTeamGoalsSeries,
   getTeamMatches,
   getTeamPositionSeries,
   type TeamMatchesResult,
@@ -205,6 +206,14 @@ export default async function DomesticTeamPage({
             ),
           loadForm: () =>
             getTeamFormSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadGoals: () =>
+            getTeamGoalsSeries(
               context.categoryId,
               context.competitionId,
               teamProviderId,

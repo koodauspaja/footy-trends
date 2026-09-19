@@ -6,6 +6,7 @@ import {
   getRoundMatches,
   getStandings,
   getTeamFormSeries,
+  getTeamGoalsSeries,
   getTeamMatches,
   getTeamPositionSeries,
   synchronizeMatches,
@@ -1191,34 +1192,34 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
+/** Team 1's match on `day` of a completed season, which is never refetched. */
+function playedOn(day: number, opponent: number, own: number, other: number, home = true) {
+  return storedMatch({
+    providerMatchId: day,
+    seasonId: PAST_SEASON,
+    kickoffAt: new Date(`2024-09-${String(day).padStart(2, "0")}T15:00:00Z`),
+    matchday: day,
+    homeTeamProviderId: home ? 1 : opponent,
+    homeTeamName: home ? "Team 1" : `Team ${opponent}`,
+    awayTeamProviderId: home ? opponent : 1,
+    awayTeamName: home ? `Team ${opponent}` : "Team 1",
+    homeGoals: home ? own : other,
+    awayGoals: home ? other : own,
+    updatedAt: new Date(),
+  });
+}
+
+/** W D L W W L, home and away: 3 1 0 3 3 0. */
+const season = [
+  playedOn(1, 2, 2, 0),
+  playedOn(2, 3, 1, 1, false),
+  playedOn(3, 4, 0, 1),
+  playedOn(4, 2, 2, 1, false),
+  playedOn(5, 3, 1, 0),
+  playedOn(6, 4, 0, 2, false),
+];
+
 describe("getTeamFormSeries", () => {
-  /** Team 1's match on `day` of a completed season, which is never refetched. */
-  function playedOn(day: number, opponent: number, own: number, other: number, home = true) {
-    return storedMatch({
-      providerMatchId: day,
-      seasonId: PAST_SEASON,
-      kickoffAt: new Date(`2024-09-${String(day).padStart(2, "0")}T15:00:00Z`),
-      matchday: day,
-      homeTeamProviderId: home ? 1 : opponent,
-      homeTeamName: home ? "Team 1" : `Team ${opponent}`,
-      awayTeamProviderId: home ? opponent : 1,
-      awayTeamName: home ? `Team ${opponent}` : "Team 1",
-      homeGoals: home ? own : other,
-      awayGoals: home ? other : own,
-      updatedAt: new Date(),
-    });
-  }
-
-  /** W D L W W L, home and away: 3 1 0 3 3 0. */
-  const season = [
-    playedOn(1, 2, 2, 0),
-    playedOn(2, 3, 1, 1, false),
-    playedOn(3, 4, 0, 1),
-    playedOn(4, 2, 2, 1, false),
-    playedOn(5, 3, 1, 0),
-    playedOn(6, 4, 0, 2, false),
-  ];
-
   it("gives the team's form after each match from the fifth", async () => {
     mockStoredMatches(season);
 
@@ -1312,6 +1313,114 @@ describe("getTeamFormSeries", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
       "Unable to compute the form series"
+    );
+  });
+});
+
+describe("getTeamGoalsSeries", () => {
+  it("gives running totals and five-match averages from the team's own side", async () => {
+    mockStoredMatches(season);
+
+    const series = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    // Own goals first: 2–0, 1–1, 0–1, 2–1, 1–0, 0–2.
+    expect(series).toEqual({
+      status: "ok",
+      totals: [
+        { match: 1, scored: 2, conceded: 0 },
+        { match: 2, scored: 3, conceded: 1 },
+        { match: 3, scored: 3, conceded: 2 },
+        { match: 4, scored: 5, conceded: 3 },
+        { match: 5, scored: 6, conceded: 3 },
+        { match: 6, scored: 6, conceded: 5 },
+      ],
+      rolling: [
+        { match: 5, scored: 6 / 5, conceded: 3 / 5 },
+        { match: 6, scored: 4 / 5, conceded: 5 / 5 },
+      ],
+    });
+  });
+
+  it("ends its totals at the TM and PM the standings page shows", async () => {
+    // The property the running-total chart rests on, against the real
+    // `getStandings`.
+    mockStoredMatches(season);
+    const series = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    mockStoredMatches(season);
+    const standings = await getStandings({
+      competitionCode: COMPETITION_CODE,
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+    const row =
+      standings.status === "ok"
+        ? standings.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+
+    expect(series.status === "ok" && series.totals.at(-1)).toMatchObject({
+      scored: row?.goalsFor,
+      conceded: row?.goalsAgainst,
+    });
+  });
+
+  it("counts exactly the matches the form chart counts", async () => {
+    const withUpcoming = [
+      ...season,
+      { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
+    ];
+    mockStoredMatches(withUpcoming);
+    const goals = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    mockStoredMatches(withUpcoming);
+    const form = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(goals.status === "ok" && goals.totals).toHaveLength(6);
+    expect(goals.status === "ok" && goals.rolling.map((point) => point.match)).toEqual(
+      form.status === "ok" && form.points.map((point) => point.match)
+    );
+  });
+
+  it("reads the season once and asks no provider", async () => {
+    mockStoredMatches(season);
+
+    await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(redisMock.get).not.toHaveBeenCalled();
+  });
+
+  it("has neither series for a season with nothing stored yet", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "ok",
+      rolling: [],
+      totals: [],
+    });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
+      "Unable to compute the goals series"
     );
   });
 });

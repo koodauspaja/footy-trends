@@ -1,8 +1,10 @@
 import { formPanel } from "@/components/form-section";
+import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { positionPanel } from "@/components/league-position-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
 import type { PositionSeries } from "@/lib/position-series";
 
 /** Over every chart on the team page, and over the one sign-in prompt (specs/031, A). */
@@ -28,9 +30,11 @@ const HEADING_ID = "analytics";
 export async function AnalyticsSection({
   loadPosition,
   loadForm,
+  loadGoals,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
+  loadGoals: () => Promise<GoalsSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -40,15 +44,21 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form] = await Promise.all([loadPosition(), loadForm()]);
-  const positionChart = positionPanel(position);
-  const formChart = formPanel(form);
-  if (positionChart === null && formChart === null) return null;
+  const [position, form, goals] = await Promise.all([loadPosition(), loadForm(), loadGoals()]);
+  const charts = {
+    position: positionPanel(position),
+    form: formPanel(form),
+    rollingGoals: rollingGoalsPanel(goals),
+    totalGoals: totalGoalsPanel(goals),
+  };
+  if (Object.values(charts).every((chart) => chart === null)) return null;
 
   return (
     <Section>
-      {positionChart}
-      {formChart}
+      {charts.position}
+      {charts.form}
+      {charts.rollingGoals}
+      {charts.totalGoals}
     </Section>
   );
 }

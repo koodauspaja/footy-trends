@@ -84,9 +84,12 @@ test.describe("Form chart, signed in", () => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const section = page.getByRole("region", { name: "Analyysit" });
 
+    // The goals charts follow it (specs/032).
     await expect(section.getByRole("heading", { level: 3 })).toHaveText([
       "Sijoitus kierroksittain",
       HEADING,
+      "Maalit otteluittain",
+      "Maalit yhteensä",
     ]);
   });
 

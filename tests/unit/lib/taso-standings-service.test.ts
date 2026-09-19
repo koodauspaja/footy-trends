@@ -8,6 +8,7 @@ import {
   getSeasonMatchList,
   getSeasonStandings,
   getTeamFormSeries,
+  getTeamGoalsSeries,
   getTeamMatches,
   getTeamPositionSeries,
   listSeasonRounds,
@@ -2698,7 +2699,7 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
-describe("getTeamFormSeries", () => {
+describe("getTeamFormSeries and getTeamGoalsSeries", () => {
   /**
    * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
    * against the calendar on purpose: form follows kickoff order.
@@ -2810,6 +2811,23 @@ describe("getTeamFormSeries", () => {
       expect((await series()).status).toBe("ok");
     });
 
+    it("counts the same league matches for goals: across the split, not the playoff", async () => {
+      // Own goals, in kickoff order: 2–0, 1–1 (away), 0–1, 3–0, then 2–1, 0–0
+      // after the split. The playoff's 4–0 is not league goals.
+      mockStoredMatches(matches, rows);
+      const goals = await getTeamGoalsSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(goals.status === "ok" && goals.totals.at(-1)).toEqual({
+        match: 6,
+        scored: 8,
+        conceded: 3,
+      });
+      expect(goals.status === "ok" && goals.rolling).toEqual([
+        { match: 5, scored: 8 / 5, conceded: 3 / 5 },
+        { match: 6, scored: 6 / 5, conceded: 3 / 5 },
+      ]);
+    });
+
     it("reads nothing the position chart does not, and asks TASO nothing", async () => {
       await series();
 
@@ -2866,6 +2884,96 @@ describe("getTeamFormSeries", () => {
     expect(group?.kind).toBe("own-calculated");
     expect(row?.form).toHaveLength(5);
     expect(series.status === "ok" && series.points.at(-1)?.form).toBe(vire / 5);
+  });
+
+  it("ends its goal totals at the TM and PM the standings page shows", async () => {
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const goals = await getTeamGoalsSeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(goals.status === "ok" && goals.totals.at(-1)).toMatchObject({
+      scored: row?.goalsFor,
+      conceded: row?.goalsAgainst,
+    });
+  });
+
+  it("has no goals panels when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamGoalsSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has neither goals series for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "ok", rolling: [], totals: [] });
+  });
+
+  it("reports a goals error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO goals series"
+    );
+  });
+
+  it("reports a goals error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
   });
 
   it("has no section when the team played only in match lists", async () => {

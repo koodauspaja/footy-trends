@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
 import type { PositionSeries } from "@/lib/position-series";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ import {
   SIGNED_OUT_MESSAGE,
 } from "@/components/analytics-section";
 import { FORM_HEADING } from "@/components/form-section";
+import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
 
 const position: PositionSeries = {
@@ -29,13 +31,19 @@ const position: PositionSeries = {
   endsAtSplit: false,
 };
 const form: FormSeries = { status: "ok", points: [{ match: 5, form: 2.2 }] };
+const goals: GoalsSeries = {
+  status: "ok",
+  rolling: [{ match: 5, scored: 1.4, conceded: 0.8 }],
+  totals: [{ match: 5, scored: 9, conceded: 7 }],
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
-  loadForm = vi.fn(async (): Promise<FormSeries> => form)
+  loadForm = vi.fn(async (): Promise<FormSeries> => form),
+  loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals)
 ) {
-  const view = await AnalyticsSection({ loadPosition, loadForm });
-  return { ...render(<div>{view}</div>), loadPosition, loadForm, view };
+  const view = await AnalyticsSection({ loadPosition, loadForm, loadGoals });
+  return { ...render(<div>{view}</div>), loadPosition, loadForm, loadGoals, view };
 }
 
 beforeEach(() => {
@@ -64,10 +72,11 @@ describe("AnalyticsSection, signed out", () => {
      * send its values. Not calling the loaders is what guarantees they are not
      * in the page.
      */
-    const { loadPosition, loadForm, container } = await renderSection();
+    const { loadPosition, loadForm, loadGoals, container } = await renderSection();
 
     expect(loadPosition).not.toHaveBeenCalled();
     expect(loadForm).not.toHaveBeenCalled();
+    expect(loadGoals).not.toHaveBeenCalled();
     expect(container.querySelector("svg")).toBeNull();
   });
 });
@@ -80,7 +89,7 @@ describe("AnalyticsSection, signed in", () => {
     const subheadings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
     expect(section).toContainElement(screen.getByRole("region", { name: FORM_HEADING }));
-    expect(subheadings).toEqual([POSITION_HEADING, FORM_HEADING]);
+    expect(subheadings).toEqual([POSITION_HEADING, FORM_HEADING, ROLLING_HEADING, TOTALS_HEADING]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
 
@@ -94,10 +103,22 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.getByRole("heading", { name: FORM_HEADING })).toBeInTheDocument();
   });
 
+  it("shows the goals charts alone when they are the only ones that apply", async () => {
+    await renderSection(
+      vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" }))
+    );
+
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
+    ).toEqual([ROLLING_HEADING, TOTALS_HEADING]);
+  });
+
   it("shows no section at all when no chart applies", async () => {
     const { view } = await renderSection(
       vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { FormChart, formatForm, formSentence } from "@/components/charts/form-chart";
+import { FormChart, formSentence } from "@/components/charts/form-chart";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
 import type { FormPoint } from "@/lib/form-series";
 
@@ -20,19 +20,6 @@ function renderChart(shown: readonly FormPoint[] = points) {
 function yOf(container: HTMLElement, index: number): number {
   return Number(container.querySelectorAll("[data-part=points] circle")[index]?.getAttribute("cy"));
 }
-
-describe("formatForm", () => {
-  it("writes one decimal with a comma, as Finnish does", () => {
-    expect(formatForm(2.2)).toBe("2,2");
-    expect(formatForm(3)).toBe("3,0");
-    expect(formatForm(0)).toBe("0,0");
-  });
-
-  it("prints a fifth exactly, whatever floating point makes of it", () => {
-    // 0.2 × 3 is 0.6000000000000001 in floating point.
-    expect(formatForm(0.2 * 3)).toBe("0,6");
-  });
-});
 
 describe("formSentence", () => {
   it("says the match and the form, as the spec words it", () => {

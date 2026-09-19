@@ -10,6 +10,7 @@ import {
   isDomesticCup,
 } from "./domestic-competitions";
 import { type FormSeries, formSeries } from "./form-series";
+import { type GoalsSeries, goalsSeries } from "./goals-series";
 import { logger } from "./logger";
 import {
   lastRoundPlayedBy,
@@ -1347,17 +1348,7 @@ export async function getTeamPositionSeries(
 
 /**
  * This team's form after each match of a season, for the team page's chart
- * (specs/031).
- *
- * **League format only (Q2):** every group that renders as a table counts,
- * own-calculated or pass-through — form is results, which TASO publishes, so an
- * unverified table does not stop it the way it stops a position. A group that
- * renders as a match list (a playoff, a cup round) does not count. Across a
- * split the matches simply continue in kickoff order, as the carry-over table's
- * `Vire` does.
- *
- * Reads through the same `cache()`d `classifySeasonGroups` as the position
- * chart, so on the team page it adds no read and no TASO request.
+ * (specs/031). Counts the matches `teamLeagueMatches` selects.
  */
 export async function getTeamFormSeries(
   categoryId: string,
@@ -1367,29 +1358,17 @@ export async function getTeamFormSeries(
   activeSeasonId: number
 ): Promise<FormSeries> {
   try {
-    const classified = await classifySeasonGroups(
+    const league = await teamLeagueMatches(
       categoryId,
       competitionId,
+      teamProviderId,
       seasonId,
       activeSeasonId
     );
-    if (classified.status !== "ok") {
-      return classified.status === "error" ? { status: "error" } : { status: "too-few" };
-    }
+    if (league.status === "no-matches") return { status: "too-few" };
+    if (league.status !== "ok") return league;
 
-    const tableGroupIds = new Set(
-      classified.groups.filter((group) => group.kind !== "match-list").map((group) => group.groupId)
-    );
-    // Grouped before `toFinishedMatches`, whose result type no longer carries
-    // the group.
-    const leagueMatches = classified.matches.filter(
-      (match) =>
-        tableGroupIds.has(match.groupId) &&
-        (match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId)
-    );
-    if (leagueMatches.length === 0) return { status: "unavailable" };
-
-    return formSeries(toFinishedMatches(leagueMatches), teamProviderId);
+    return formSeries(league.finished, teamProviderId);
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
@@ -1397,6 +1376,93 @@ export async function getTeamFormSeries(
     );
     return { status: "error" };
   }
+}
+
+/**
+ * This team's goals scored and conceded across a season, for the team page's
+ * two goals charts (specs/032). Counts exactly the matches the form chart
+ * counts.
+ */
+export async function getTeamGoalsSeries(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<GoalsSeries> {
+  try {
+    const league = await teamLeagueMatches(
+      categoryId,
+      competitionId,
+      teamProviderId,
+      seasonId,
+      activeSeasonId
+    );
+    if (league.status === "no-matches") return { status: "ok", rolling: [], totals: [] };
+    if (league.status !== "ok") return league;
+
+    return goalsSeries(league.finished, teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO goals series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's finished league matches in a season — what every result-based
+ * chart on the team page counts (specs/031 Q2, specs/032).
+ *
+ * **League format only:** every group that renders as a table counts,
+ * own-calculated or pass-through — results are what TASO publishes, so an
+ * unverified table does not stop them the way it stops a position. A group that
+ * renders as a match list (a playoff, a cup round) does not count. Across a
+ * split the matches simply continue, as the carry-over table's own `Vire`, `TM`
+ * and `PM` do.
+ *
+ * Reads through the same `cache()`d `classifySeasonGroups` as the position
+ * chart, so on the team page it adds no read and no TASO request.
+ *
+ * `no-matches` is a season with nothing stored yet; `unavailable` is a team
+ * that played only in match lists.
+ */
+async function teamLeagueMatches(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<
+  | { status: "ok"; finished: NormalizedMatch[] }
+  | { status: "no-matches" }
+  | { status: "unavailable" }
+  | { status: "error" }
+> {
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") {
+    return classified.status === "error" ? { status: "error" } : { status: "no-matches" };
+  }
+
+  const tableGroupIds = new Set(
+    classified.groups.filter((group) => group.kind !== "match-list").map((group) => group.groupId)
+  );
+  // Grouped before `toFinishedMatches`, whose result type no longer carries the
+  // group.
+  const leagueMatches = classified.matches.filter(
+    (match) =>
+      tableGroupIds.has(match.groupId) &&
+      (match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId)
+  );
+  if (leagueMatches.length === 0) return { status: "unavailable" };
+
+  return { status: "ok", finished: toFinishedMatches(leagueMatches) };
 }
 
 /**
