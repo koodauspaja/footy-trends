@@ -102,52 +102,76 @@ export function BarChart({
           <text className="fill-muted text-xs" dominantBaseline="hanging" x={0} y={top}>
             {row.label}
           </text>
-          {row.bars.map((bar, barIndex) => {
-            const y = top + LABEL_HEIGHT + barIndex * (BAR_HEIGHT + BAR_GAP);
-            const length = bar.value === null ? 0 : barLength(bar.value, row.max);
-            return (
-              <g data-bar={bar.name} data-part="bar" key={bar.name}>
-                <rect
-                  className="fill-border-subtle"
-                  data-part="track"
-                  height={BAR_HEIGHT}
-                  width={TRACK}
-                  x={0}
-                  y={y}
-                />
-                {/* Nothing to draw at zero: an outline around a zero-width bar
-                    would still show as a sliver at the axis. */}
-                {bar.value === null || length === 0 ? null : (
-                  <rect
-                    className={
-                      bar.outlined ? "fill-background stroke-foreground" : "fill-foreground"
-                    }
-                    data-outlined={bar.outlined ? "" : undefined}
-                    data-part="fill"
-                    // An outline is drawn half inside the rectangle, so it is
-                    // inset by half its width to stay within the track.
-                    height={bar.outlined ? BAR_HEIGHT - 1.5 : BAR_HEIGHT}
-                    strokeWidth={bar.outlined ? 1.5 : undefined}
-                    width={bar.outlined ? Math.max(length - 1.5, 0) : length}
-                    x={bar.outlined ? 0.75 : 0}
-                    y={bar.outlined ? y + 0.75 : y}
-                  />
-                )}
-                <text
-                  className="fill-foreground text-xs"
-                  data-part="value"
-                  dominantBaseline="middle"
-                  x={TRACK + 8}
-                  y={y + BAR_HEIGHT / 2}
-                >
-                  {bar.text}
-                </text>
-              </g>
-            );
-          })}
+          {row.bars.map((bar, barIndex) => (
+            <BarShape
+              bar={bar}
+              key={bar.name}
+              max={row.max}
+              y={top + LABEL_HEIGHT + barIndex * (BAR_HEIGHT + BAR_GAP)}
+            />
+          ))}
         </g>
       ))}
     </svg>
+  );
+}
+
+/** The width of an outlined bar's stroke. */
+const STROKE = 1.5;
+
+/** One bar: its track, its fill, and its value printed past the track. */
+function BarShape({ bar, max, y }: Readonly<{ bar: Bar; max: number; y: number }>) {
+  const length = bar.value === null ? 0 : barLength(bar.value, max);
+
+  return (
+    <g data-bar={bar.name} data-part="bar">
+      <rect
+        className="fill-border-subtle"
+        data-part="track"
+        height={BAR_HEIGHT}
+        width={TRACK}
+        x={0}
+        y={y}
+      />
+      {/* Nothing to draw at zero: an outline around a zero-width bar would
+          still show as a sliver at the axis. */}
+      {length === 0 ? null : <BarFill length={length} outlined={bar.outlined === true} y={y} />}
+      <text
+        className="fill-foreground text-xs"
+        data-part="value"
+        dominantBaseline="middle"
+        x={TRACK + 8}
+        y={y + BAR_HEIGHT / 2}
+      >
+        {bar.text}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * A bar's fill, filled or outlined. An outline is drawn half inside the
+ * rectangle, so an outlined bar is inset by half its stroke on every side to
+ * stay within its track.
+ */
+function BarFill({
+  length,
+  outlined,
+  y,
+}: Readonly<{ length: number; outlined: boolean; y: number }>) {
+  const inset = outlined ? STROKE / 2 : 0;
+
+  return (
+    <rect
+      className={outlined ? "fill-background stroke-foreground" : "fill-foreground"}
+      data-outlined={outlined ? "" : undefined}
+      data-part="fill"
+      height={BAR_HEIGHT - 2 * inset}
+      strokeWidth={outlined ? STROKE : undefined}
+      width={Math.max(length - 2 * inset, 0)}
+      x={inset}
+      y={y + inset}
+    />
   );
 }
 
