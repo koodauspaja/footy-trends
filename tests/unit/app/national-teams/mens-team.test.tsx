@@ -105,6 +105,16 @@ describe("Huuhkajat page", () => {
     for (const section of sections) expect(section).toHaveAttribute("open");
   });
 
+  it("marks each year's summary as something to press (#419)", async () => {
+    await renderPage();
+
+    for (const section of document.querySelectorAll("details")) {
+      // `group` is what lets the marker turn when the year opens.
+      expect(section.classList.contains("group")).toBe(true);
+      expect(section.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
+    }
+  });
+
   it("summarises a year by its match count", async () => {
     getNationalTeamYearsMock.mockResolvedValue({
       status: "ok",
