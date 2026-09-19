@@ -2,6 +2,7 @@ import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { positionPanel } from "@/components/league-position-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
+import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
@@ -63,13 +64,11 @@ export async function AnalyticsSection({
   );
 }
 
+/** Foldable, like the match list above it (#416). */
 function Section({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <section aria-labelledby={HEADING_ID} className="mt-8">
-      <h2 className="mb-2 font-medium" id={HEADING_ID}>
-        {ANALYTICS_HEADING}
-      </h2>
+    <TeamPageFold heading={ANALYTICS_HEADING} headingId={HEADING_ID}>
       {children}
-    </section>
+    </TeamPageFold>
   );
 }
