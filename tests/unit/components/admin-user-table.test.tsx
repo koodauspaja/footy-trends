@@ -229,7 +229,7 @@ describe("refusals reach the reader, in Finnish", () => {
      * A stale error beside a successful action reads as a failure that did not
      * happen.
      *
-     * **Wait for the button, not for the alert** (#408). Every button is
+     * **Wait for the button, not for the alert** (#408). Every action button is
      * `disabled={pending}`, and a click on a disabled button is swallowed. The
      * refusal is set *after an `await`* inside `startTransition`, which React
      * commits as an ordinary update — so it can reach the screen before the
