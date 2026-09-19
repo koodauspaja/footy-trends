@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
 import type { PositionSeries } from "@/lib/position-series";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -16,6 +17,9 @@ const getTeamPositionSeriesMock = vi.fn(
 const getTeamFormSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
 );
+const getTeamGoalsSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -27,6 +31,7 @@ const analyticsSectionMock = vi.fn(
   async (_props: {
     loadPosition: () => Promise<PositionSeries>;
     loadForm: () => Promise<FormSeries>;
+    loadGoals: () => Promise<GoalsSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -56,6 +61,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
     getTeamFormSeries: getTeamFormSeriesMock,
+    getTeamGoalsSeries: getTeamGoalsSeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
@@ -548,6 +554,21 @@ describe("Domestic team page league position (specs/030)", () => {
     await loadForm?.();
 
     expect(getTeamFormSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's goals in the same TASO category and competition (specs/032)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+
+    await loadGoals?.();
+
+    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith(
       categoryIdForSeason("VL", 2025),
       competitionIdForSeason("VL", 2025),
       1,

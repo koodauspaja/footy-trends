@@ -1,7 +1,6 @@
 # 032 — Goals scored vs conceded
 
-> **Status: every question answered on 2026-09-19; awaiting go.** Nothing is
-> implemented until a human says **go**.
+> **Status: agreed on 2026-09-19 and implemented (#328).**
 
 ## Summary
 

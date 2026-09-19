@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   CHART,
   type ChartPoint,
+  formatDecimal,
   LineChart,
+  LineLegend,
+  type LineSeries,
   MARGIN,
   scale,
   ticksFor,
@@ -84,13 +87,46 @@ function chart(
       describedBy="chart-text"
       invertY={invertY}
       labelledBy="chart-heading"
-      points={points}
+      series={[{ points }]}
       title="Sijoitus kierroksittain"
       xDomain={[1, 3]}
       xLabel="Kierros"
       xTicks={[1, 2, 3]}
       yDomain={[1, 4]}
       yLabel="Sijoitus"
+      yTicks={[1, 4]}
+    />
+  ).container;
+}
+
+function twoSeries() {
+  const series: LineSeries[] = [
+    {
+      points: [
+        { x: 1, y: 1 },
+        { x: 3, y: 4 },
+      ],
+    },
+    {
+      points: [
+        { x: 1, y: 4 },
+        { x: 3, y: 1 },
+      ],
+      dashed: true,
+    },
+  ];
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      invertY
+      labelledBy="chart-heading"
+      series={series}
+      title="Maalit otteluittain"
+      xDomain={[1, 3]}
+      xLabel="Ottelu"
+      xTicks={[1, 3]}
+      yDomain={[1, 4]}
+      yLabel="Maaleja"
       yTicks={[1, 4]}
     />
   ).container;
@@ -171,9 +207,66 @@ describe("LineChart", () => {
     expect(Number(open?.getAttribute("cy"))).toBe(BOTTOM);
   });
 
+  it("draws every series given, each its own line and points, in order", () => {
+    const container = twoSeries();
+    const lines = container.querySelectorAll("[data-part=series]");
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]?.querySelector("[data-part=line]")?.getAttribute("points")).toBe(
+      `${LEFT},${TOP} ${RIGHT},${BOTTOM}`
+    );
+    expect(lines[1]?.querySelector("[data-part=line]")?.getAttribute("points")).toBe(
+      `${LEFT},${BOTTOM} ${RIGHT},${TOP}`
+    );
+    expect(lines[1]?.querySelectorAll("[data-part=points] circle")).toHaveLength(2);
+  });
+
+  it("tells a dashed series apart by its dash, not its colour", () => {
+    const [solid, dashed] = twoSeries().querySelectorAll("[data-part=series]");
+    const solidLine = solid?.querySelector("[data-part=line]");
+    const dashedLine = dashed?.querySelector("[data-part=line]");
+
+    expect(solid?.hasAttribute("data-dashed")).toBe(false);
+    expect(solidLine?.hasAttribute("stroke-dasharray")).toBe(false);
+    expect(dashed?.hasAttribute("data-dashed")).toBe(true);
+    expect(dashedLine?.getAttribute("stroke-dasharray")).toBe("6 4");
+    // One colour for both: the dash is the only difference.
+    expect(dashedLine?.getAttribute("class")).toBe(solidLine?.getAttribute("class"));
+  });
+
   it("uses the theme's colour tokens, so dark mode is not a second drawing", () => {
     const line = chart(true).querySelector("[data-part=line]");
 
     expect(line?.getAttribute("class")).toContain("stroke-foreground");
+  });
+});
+
+describe("LineLegend", () => {
+  it("names each line beside a sample of its style", () => {
+    const { container } = render(
+      <LineLegend
+        items={[{ label: "Tehdyt maalit" }, { label: "Päästetyt maalit", dashed: true }]}
+      />
+    );
+    const items = [...container.querySelectorAll("li")];
+
+    expect(items.map((item) => item.textContent)).toEqual(["Tehdyt maalit", "Päästetyt maalit"]);
+    expect(items[0]?.querySelector("line")?.hasAttribute("stroke-dasharray")).toBe(false);
+    expect(items[1]?.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("6 4");
+    // The sample is decoration: the label is what a screen reader reads.
+    expect(items[1]?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+describe("formatDecimal", () => {
+  it("writes one decimal with a comma, as Finnish does", () => {
+    expect(formatDecimal(2.2)).toBe("2,2");
+    expect(formatDecimal(3)).toBe("3,0");
+    expect(formatDecimal(0)).toBe("0,0");
+  });
+
+  it("prints a fifth exactly, whatever floating point makes of it", () => {
+    // 0.2 × 3 is 0.6000000000000001 in floating point.
+    expect(formatDecimal(0.2 * 3)).toBe("0,6");
   });
 });

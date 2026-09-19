@@ -46,11 +46,15 @@ export function PositionChart({
         describedBy={textId}
         invertY
         labelledBy={headingId}
-        points={points.map((point) => ({
-          x: point.round,
-          y: point.position,
-          open: !point.played,
-        }))}
+        series={[
+          {
+            points: points.map((point) => ({
+              x: point.round,
+              y: point.position,
+              open: !point.played,
+            })),
+          },
+        ]}
         title={title}
         xDomain={[firstRound, lastRound]}
         xLabel="Kierros"

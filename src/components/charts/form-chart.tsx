@@ -1,5 +1,5 @@
 import type { FormPoint } from "@/lib/form-series";
-import { LineChart, ticksFor } from "./line-chart";
+import { formatDecimal, LineChart, ticksFor } from "./line-chart";
 
 /** About this many labelled matches on the x-axis — enough to read a value, few enough to fit. */
 const TICK_COUNT = 7;
@@ -7,14 +7,9 @@ const TICK_COUNT = 7;
 /** Points per match runs from none to a win every time. */
 const MAX_FORM = 3;
 
-/** `2.2` → `2,2`: one decimal is exact, since form over five matches moves in fifths. */
-export function formatForm(form: number): string {
-  return form.toFixed(1).replace(".", ",");
-}
-
 /** One row of the text alternative, per match (specs/031, Q3). */
 export function formSentence(point: FormPoint): string {
-  return `Vire ${point.match}. ottelun jälkeen: ${formatForm(point.form)} pistettä ottelua kohden.`;
+  return `Vire ${point.match}. ottelun jälkeen: ${formatDecimal(point.form)} pistettä ottelua kohden.`;
 }
 
 /**
@@ -39,7 +34,7 @@ export function FormChart({
       <LineChart
         describedBy={textId}
         labelledBy={headingId}
-        points={points.map((point) => ({ x: point.match, y: point.form }))}
+        series={[{ points: points.map((point) => ({ x: point.match, y: point.form })) }]}
         title={title}
         xDomain={[firstMatch, lastMatch]}
         xLabel="Ottelu"

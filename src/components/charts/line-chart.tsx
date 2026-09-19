@@ -1,12 +1,13 @@
 /**
- * The app's first chart: one line, two axes, drawn as SVG on the server
- * (specs/030, *Chart foundation*).
+ * The app's line chart: one or more lines on two axes, drawn as SVG on the
+ * server (specs/030, *Chart foundation*). A second line arrived with specs/032,
+ * told apart by its dash rather than a colour, with `LineLegend` to name it.
  *
  * **Hand-rolled rather than a library**, chosen in chat on 2026-09-18: SVG
  * renders on the server with no client JavaScript, and a test can assert what
  * is drawn — the points, the scales, the direction — which a canvas would not
- * allow under this repository's coverage and mutation rules. #327–#329 build on
- * it; nothing here anticipates them beyond a line and its axes.
+ * allow under this repository's coverage and mutation rules. Nothing here
+ * anticipates a chart that does not exist yet.
  *
  * The geometry is in the exported functions below, so it is tested directly
  * rather than through the markup.
@@ -22,6 +23,15 @@ export type ChartPoint = {
    */
   open?: boolean;
 };
+
+/**
+ * `2.2` → `2,2`: one decimal with a Finnish comma. Exact for the charts' values,
+ * which are averages over five matches and so move in fifths; `toFixed` also
+ * hides floating point (`0.2 × 3` is `0.6000000000000001`).
+ */
+export function formatDecimal(value: number): string {
+  return value.toFixed(1).replace(".", ",");
+}
 
 /** The drawing area, in SVG user units; `viewBox` scales it to the page. */
 export const CHART = { width: 640, height: 320 } as const;
@@ -67,10 +77,21 @@ export function ticksFor(min: number, max: number, count: number): number[] {
   return [...ticks, max];
 }
 
+/**
+ * One line on a chart. A second series is told apart by its dash, not by a
+ * colour: every line is the theme's foreground, so it reads in both themes and
+ * without colour vision (specs/032, Q5).
+ */
+export type LineSeries = { points: readonly ChartPoint[]; dashed?: boolean };
+
+/** The dash pattern of a dashed series, shared with its legend sample. */
+const DASH = "6 4";
+
 type LineChartProps = {
   /** The chart's own name, in a `<title>`: it travels with the SVG wherever it is shown. */
   title: string;
-  points: readonly ChartPoint[];
+  /** Drawn in order, so a later series lies over an earlier one where they meet. */
+  series: readonly LineSeries[];
   xDomain: readonly [number, number];
   yDomain: readonly [number, number];
   /** Draws the smallest `y` at the top, as a table puts first place. */
@@ -87,7 +108,7 @@ type LineChartProps = {
 
 export function LineChart({
   title,
-  points,
+  series,
   xDomain,
   yDomain,
   invertY = false,
@@ -150,38 +171,74 @@ export function LineChart({
         </text>
       </g>
 
-      <polyline
-        className="fill-none stroke-foreground"
-        data-part="line"
-        points={points.map((point) => `${toX(point.x)},${toY(point.y)}`).join(" ")}
-        strokeLinejoin="round"
-        strokeWidth={2}
-      />
-      <g data-part="points">
-        {points.map((point) =>
-          point.open ? (
-            // Filled with the page's background, so the line does not show
-            // through the ring.
-            <circle
-              className="fill-background stroke-foreground"
-              cx={toX(point.x)}
-              cy={toY(point.y)}
-              data-open=""
-              key={point.x}
-              r={3}
-              strokeWidth={1.5}
-            />
-          ) : (
-            <circle
-              className="fill-foreground"
-              cx={toX(point.x)}
-              cy={toY(point.y)}
-              key={point.x}
-              r={3}
-            />
-          )
-        )}
-      </g>
+      {series.map((line, index) => (
+        // Series have no identity beyond their place in the list.
+        // biome-ignore lint/suspicious/noArrayIndexKey: a chart's series never reorder
+        <g data-dashed={line.dashed ? "" : undefined} data-part="series" key={index}>
+          <polyline
+            className="fill-none stroke-foreground"
+            data-part="line"
+            points={line.points.map((point) => `${toX(point.x)},${toY(point.y)}`).join(" ")}
+            strokeDasharray={line.dashed ? DASH : undefined}
+            strokeLinejoin="round"
+            strokeWidth={2}
+          />
+          <g data-part="points">
+            {line.points.map((point) =>
+              point.open ? (
+                // Filled with the page's background, so the line does not show
+                // through the ring.
+                <circle
+                  className="fill-background stroke-foreground"
+                  cx={toX(point.x)}
+                  cy={toY(point.y)}
+                  data-open=""
+                  key={point.x}
+                  r={3}
+                  strokeWidth={1.5}
+                />
+              ) : (
+                <circle
+                  className="fill-foreground"
+                  cx={toX(point.x)}
+                  cy={toY(point.y)}
+                  key={point.x}
+                  r={3}
+                />
+              )
+            )}
+          </g>
+        </g>
+      ))}
     </svg>
+  );
+}
+
+/**
+ * Which line is which, beneath a chart with more than one: a short sample of
+ * each line's style beside its label, so a dash is never a riddle.
+ */
+export function LineLegend({
+  items,
+}: Readonly<{ items: ReadonlyArray<{ label: string; dashed?: boolean }> }>) {
+  return (
+    <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-muted text-sm">
+      {items.map((item) => (
+        <li className="flex items-center gap-2" key={item.label}>
+          <svg aria-hidden="true" className="h-2 w-6" viewBox="0 0 24 8">
+            <line
+              className="stroke-foreground"
+              strokeDasharray={item.dashed ? DASH : undefined}
+              strokeWidth={2}
+              x1={0}
+              x2={24}
+              y1={4}
+              y2={4}
+            />
+          </svg>
+          {item.label}
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -22,6 +22,7 @@ import {
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
   getTeamFormSeries,
+  getTeamGoalsSeries,
   getTeamMatches,
   getTeamPositionSeries,
   type TeamMatchesResult,
@@ -266,6 +267,8 @@ export async function CompetitionTeamPage({
             ),
           loadForm: () =>
             getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          loadGoals: () =>
+            getTeamGoalsSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
         })
       : null;
 

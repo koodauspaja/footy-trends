@@ -4,6 +4,7 @@ import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
+import { type GoalsSeries, goalsSeries } from "./goals-series";
 import { logger } from "./logger";
 import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
@@ -231,6 +232,35 @@ export async function getTeamFormSeries(
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
       "Unable to compute the form series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's goals scored and conceded across a season, for the team page's
+ * two goals charts (specs/032). The same cached season read, and exactly the
+ * matches the form chart counts.
+ */
+export async function getTeamGoalsSeries(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<GoalsSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return goalsSeries(toFinishedMatches(seasonMatches), teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the goals series"
     );
     return { status: "error" };
   }

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
 import type { PositionSeries } from "@/lib/position-series";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -28,6 +29,9 @@ const getTeamPositionSeriesMock = vi.fn(
 const getTeamFormSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
 );
+const getTeamGoalsSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -39,6 +43,7 @@ const analyticsSectionMock = vi.fn(
   async (_props: {
     loadPosition: () => Promise<PositionSeries>;
     loadForm: () => Promise<FormSeries>;
+    loadGoals: () => Promise<GoalsSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -53,6 +58,7 @@ vi.mock("@/lib/football-data", () => ({
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
   getTeamFormSeries: getTeamFormSeriesMock,
+  getTeamGoalsSeries: getTeamGoalsSeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
@@ -684,6 +690,15 @@ describe("Team page league position (specs/030)", () => {
     await loadForm?.();
 
     expect(getTeamFormSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's goals in this competition and season (specs/032)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+
+    await loadGoals?.();
+
+    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("offers no section for a cup, which has no league position", async () => {
