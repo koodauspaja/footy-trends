@@ -1,7 +1,6 @@
 # 031 — Rolling form trend
 
-> **Status: every question answered (Q1–Q5, A) on 2026-09-19; awaiting go.**
-> Nothing is implemented until a human says **go**.
+> **Status: agreed on 2026-09-19 and implemented (#415).**
 
 ## Summary
 

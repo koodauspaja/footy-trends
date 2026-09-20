@@ -1,7 +1,6 @@
 # 035 — Streaks
 
-> **Status: every question answered on 2026-09-20; awaiting go.** Nothing is
-> implemented until a human says **go**.
+> **Status: agreed on 2026-09-20 and implemented (#428).**
 
 ## Summary
 
