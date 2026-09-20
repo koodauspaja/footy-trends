@@ -40,7 +40,7 @@ arithmetic, is the work.
 
 | String | Where | Status |
 |---|---|---|
-| `Käännetyt ottelut` | panel subheading | settled (Q5) |
+| `Käännetyt ottelut` | panel subheading | **renamed to `Kääntyneet ottelut` by specs/037**, when the panel took on the mirror measure |
 | `Tappioasemassa puoliajalla` | how many matches it trailed at the break | settled (Q5) |
 | `Käännetty voitoksi` | of those, won | settled (Q5) |
 | `Tasoitettu` | of those, drawn | settled (Q5) |
@@ -48,7 +48,7 @@ arithmetic, is the work.
 | `Ei vielä otteluita tappioasemasta.` | when the team never trailed at half-time | settled (Q5) |
 | `Puoliaikatulos puuttuu {n} ottelusta.` | beneath the figures, when some of the season's matches have no half-time score (Q4) | settled (Q5) |
 | `Puoliaikatuloksia ei ole tälle kaudelle.` | instead of the figures, when none of the season's matches has one | settled (Q5) |
-| `Käännettyjä otteluita ei voitu laskea. Yritä myöhemmin uudelleen.` | when the data cannot be read | settled (Q5) |
+| `Käännettyjä otteluita ei voitu laskea. Yritä myöhemmin uudelleen.` | when the data cannot be read | **renamed to `Kääntyneitä otteluita ei voitu laskea.` by specs/037** |
 
 ## API & Data
 
@@ -126,7 +126,8 @@ Written against the answers under *Decisions*.
 
 - [ ] A signed-in reader on a league team's page sees `Käännetyt ottelut` in
       `Analyysit`: how many matches the team trailed at half-time, and of those
-      how many it won and drew
+      how many it won and drew — **the heading is `Kääntyneet ottelut` since
+      specs/037**, which gave the panel the mirror measure too
 - [ ] Every figure counts only matches with a known half-time score, from the
       team's own side of the fixture
 - [ ] Won + drew is never more than trailed, and every counted match is one the

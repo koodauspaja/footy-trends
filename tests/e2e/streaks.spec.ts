@@ -102,7 +102,8 @@ test.describe("Streaks, signed in", () => {
       "Pisin tappioputki",
       "Pisin voitoton putki",
     ]);
-    // `Käännetyt ottelut` (specs/036) comes after it, and owns that assertion.
+    // `Kääntyneet ottelut` (specs/036, specs/037) comes after it, and owns
+    // that assertion.
     const subheadings = page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 3 });

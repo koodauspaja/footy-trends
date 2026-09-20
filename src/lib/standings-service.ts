@@ -358,9 +358,10 @@ export async function getTeamStreaks(
 }
 
 /**
- * This team's comebacks from a half-time deficit, for the team page's
- * `Käännetyt ottelut` panel (specs/036). The same cached season read, and
- * exactly the matches the other result panels count.
+ * What became of this team's matches after half-time — deficits rescued and
+ * leads given away — for the team page's `Kääntyneet ottelut` panel
+ * (specs/036, specs/037). The same cached season read, and exactly the matches
+ * the other result panels count.
  */
 export async function getTeamComebacks(
   competitionCode: string,

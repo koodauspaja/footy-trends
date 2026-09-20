@@ -1734,24 +1734,30 @@ function withHalfTime<T extends { homeTeamProviderId: number }>(
 
 /**
  * The same six matches, with half-time scores from team 1's own side: trailed
- * and won, trailed and drew, trailed and lost, led, level — and one match the
- * provider gave no half-time score for.
+ * and won, trailed and drew, trailed and lost, led and won, level — and one
+ * match the provider gave no half-time score for. A seventh is added for the
+ * case the six cannot supply: a lead given away (specs/037).
  */
-const halfTimeSeason = season.map((match, index) =>
-  withHalfTime(match, ([[0, 1], [0, 1], [0, 1], [1, 0], [0, 0], null] as const)[index] ?? null)
-);
+const halfTimeSeason = [
+  ...season.map((match, index) =>
+    withHalfTime(match, ([[0, 1], [0, 1], [0, 1], [1, 0], [0, 0], null] as const)[index] ?? null)
+  ),
+  withHalfTime(playedOn(7, 2, 1, 2), [1, 0]),
+];
+
+/** No match trailed or led: `trailed` and `led` are the directions' totals. */
+const NO_DIRECTION = { matches: 0, won: 0, drew: 0, lost: 0 };
 
 describe("getTeamComebacks", () => {
-  it("counts what became of the matches the team trailed at half-time", async () => {
+  it("counts what became of the matches the team trailed and led at half-time", async () => {
     mockStoredMatches(halfTimeSeason);
 
     expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
       status: "ok",
-      trailed: 3,
-      won: 1,
-      drew: 1,
+      trailed: { matches: 3, won: 1, drew: 1, lost: 1 },
+      led: { matches: 2, won: 1, drew: 0, lost: 1 },
       missing: 1,
-      known: 5,
+      known: 6,
     });
   });
 
@@ -1771,8 +1777,12 @@ describe("getTeamComebacks", () => {
     if (comebacks.status !== "ok") throw new Error("expected comebacks");
 
     expect(comebacks.known + comebacks.missing).toBe(played);
-    expect(comebacks.trailed).toBeLessThanOrEqual(comebacks.known);
-    expect(comebacks.won + comebacks.drew).toBeLessThanOrEqual(comebacks.trailed);
+    // Strictly fewer, because one match was level at the break.
+    expect(comebacks.trailed.matches + comebacks.led.matches).toBeLessThan(comebacks.known);
+    expect(comebacks.trailed.won + comebacks.trailed.drew).toBeLessThanOrEqual(
+      comebacks.trailed.matches
+    );
+    expect(comebacks.led.drew + comebacks.led.lost).toBeLessThanOrEqual(comebacks.led.matches);
   });
 
   it("counts only finished matches", async () => {
@@ -1788,11 +1798,10 @@ describe("getTeamComebacks", () => {
 
     expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
       status: "ok",
-      trailed: 3,
-      won: 1,
-      drew: 1,
+      trailed: { matches: 3, won: 1, drew: 1, lost: 1 },
+      led: { matches: 2, won: 1, drew: 0, lost: 1 },
       missing: 1,
-      known: 5,
+      known: 6,
     });
   });
 
@@ -1811,9 +1820,8 @@ describe("getTeamComebacks", () => {
 
     expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
       status: "ok",
-      trailed: 0,
-      won: 0,
-      drew: 0,
+      trailed: NO_DIRECTION,
+      led: NO_DIRECTION,
       missing: 6,
       known: 0,
     });
@@ -1826,9 +1834,8 @@ describe("getTeamComebacks", () => {
 
     expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
       status: "ok",
-      trailed: 0,
-      won: 0,
-      drew: 0,
+      trailed: NO_DIRECTION,
+      led: NO_DIRECTION,
       missing: 0,
       known: 0,
     });

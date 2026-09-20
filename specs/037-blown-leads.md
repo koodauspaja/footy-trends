@@ -1,7 +1,6 @@
 # 037 — Blown leads: led at half-time, did not win
 
-> **Status: every question answered on 2026-09-21; awaiting go.** Nothing is
-> implemented until a human says **go**.
+> **Status: agreed on 2026-09-21 and implemented in PR #435.**
 
 ## Summary
 

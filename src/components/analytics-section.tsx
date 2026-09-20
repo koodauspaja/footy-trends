@@ -25,7 +25,8 @@ const HEADING_ID = "analytics";
 
 /**
  * The team page's analytics: every panel under one heading (specs/031). Most
- * are charts; `Putket` (specs/035) and `Käännetyt ottelut` (specs/036) are
+ * are charts; `Putket` (specs/035) and `Kääntyneet ottelut` (specs/036,
+ * specs/037) are
  * lists of figures, which is why the parts are called panels here.
  *
  * **The gate comes first, and once.** A signed-out request gets the heading and
