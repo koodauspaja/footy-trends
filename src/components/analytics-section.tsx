@@ -4,6 +4,7 @@ import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
+import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
@@ -11,6 +12,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { StreaksSeries } from "@/lib/streaks";
 
 /** Over every chart on the team page, and over the one sign-in prompt (specs/031, A). */
 export const ANALYTICS_HEADING = "Analyysit";
@@ -38,12 +40,14 @@ export async function AnalyticsSection({
   loadGoals,
   loadHomeAway,
   loadCleanSheets,
+  loadStreaks,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
   loadHomeAway: () => Promise<HomeAwaySeries>;
   loadCleanSheets: () => Promise<CleanSheetSeries>;
+  loadStreaks: () => Promise<StreaksSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -53,12 +57,13 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway, cleanSheets] = await Promise.all([
+  const [position, form, goals, homeAway, cleanSheets, streaks] = await Promise.all([
     loadPosition(),
     loadForm(),
     loadGoals(),
     loadHomeAway(),
     loadCleanSheets(),
+    loadStreaks(),
   ]);
   const charts = {
     position: positionPanel(position),
@@ -67,6 +72,7 @@ export async function AnalyticsSection({
     totalGoals: totalGoalsPanel(goals),
     homeAway: homeAwayPanel(homeAway),
     cleanSheets: cleanSheetsPanel(cleanSheets),
+    streaks: streaksPanel(streaks),
   };
   if (Object.values(charts).every((chart) => chart === null)) return null;
 
@@ -78,6 +84,7 @@ export async function AnalyticsSection({
       {charts.totalGoals}
       {charts.homeAway}
       {charts.cleanSheets}
+      {charts.streaks}
     </Section>
   );
 }

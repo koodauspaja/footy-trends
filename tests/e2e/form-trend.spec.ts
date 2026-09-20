@@ -92,6 +92,7 @@ test.describe("Form chart, signed in", () => {
       "Maalit yhteensä",
       "Koti- ja vierastilastot",
       "Nollapelit",
+      "Putket",
     ]);
   });
 

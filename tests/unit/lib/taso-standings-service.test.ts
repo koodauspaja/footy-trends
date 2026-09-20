@@ -13,6 +13,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamStreaks,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -2854,6 +2855,22 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       });
     });
 
+    it("counts streaks over the same league matches, not the playoff", async () => {
+      // W D L W W D in the league; the playoff win on the 7th is not counted.
+      mockStoredMatches(matches, rows);
+
+      expect(await getTeamStreaks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        current: { outcome: "draw", length: 1 },
+        longest: {
+          wins: { length: 2, from: 4, to: 5 },
+          unbeaten: { length: 3, from: 4, to: 6 },
+          defeats: { length: 1, from: 3, to: 3 },
+          winless: { length: 2, from: 2, to: 3 },
+        },
+      });
+    });
+
     it("reads nothing the position chart does not, and asks TASO nothing", async () => {
       await series();
 
@@ -3051,6 +3068,49 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     expect(
       await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
     ).toEqual({ status: "error" });
+  });
+
+  it("has no streaks panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamStreaks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no streaks for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const streaks = await getTeamStreaks(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(streaks.status === "ok" && streaks.current).toBeNull();
+  });
+
+  it("reports a streaks error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamStreaks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO streaks"
+    );
   });
 
   it("has no clean-sheet panel when the team played only in match lists", async () => {

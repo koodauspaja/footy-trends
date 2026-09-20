@@ -27,6 +27,7 @@ import {
   selectTeamMatches,
   type TeamStanding,
 } from "./standings";
+import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   competitionIdFromSeason,
   EARLIEST_TASO_SEASON,
@@ -1475,6 +1476,38 @@ export async function getTeamCleanSheetSeries(
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
       "Unable to compute the TASO clean-sheet series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's streaks in a season, for the team page's `Putket` panel
+ * (specs/035). Counts exactly the matches the other result panels count.
+ */
+export async function getTeamStreaks(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<StreaksSeries> {
+  try {
+    const league = await teamLeagueMatches(
+      categoryId,
+      competitionId,
+      teamProviderId,
+      seasonId,
+      activeSeasonId
+    );
+    if (league.status === "no-matches") return { status: "ok", ...streaksOf([], teamProviderId) };
+    if (league.status !== "ok") return league;
+
+    return { status: "ok", ...streaksOf(league.finished, teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO streaks"
     );
     return { status: "error" };
   }

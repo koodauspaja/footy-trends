@@ -6,6 +6,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { StreaksSeries } from "@/lib/streaks";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -28,6 +29,9 @@ const getTeamHomeAwaySeriesMock = vi.fn(
 const getTeamCleanSheetSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<CleanSheetSeries> => ({ status: "unavailable" })
 );
+const getTeamStreaksMock = vi.fn(
+  async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -42,6 +46,7 @@ const analyticsSectionMock = vi.fn(
     loadGoals: () => Promise<GoalsSeries>;
     loadHomeAway: () => Promise<HomeAwaySeries>;
     loadCleanSheets: () => Promise<CleanSheetSeries>;
+    loadStreaks: () => Promise<StreaksSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -73,6 +78,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     getTeamFormSeries: getTeamFormSeriesMock,
     getTeamGoalsSeries: getTeamGoalsSeriesMock,
     getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
+    getTeamStreaks: getTeamStreaksMock,
     getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
@@ -623,6 +629,21 @@ describe("Domestic team page league position (specs/030)", () => {
     await loadCleanSheets?.();
 
     expect(getTeamCleanSheetSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's streaks in the same TASO category and competition (specs/035)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadStreaks = analyticsSectionMock.mock.calls[0]?.[0].loadStreaks;
+
+    await loadStreaks?.();
+
+    expect(getTeamStreaksMock).toHaveBeenCalledWith(
       categoryIdForSeason("VL", 2025),
       competitionIdForSeason("VL", 2025),
       1,
