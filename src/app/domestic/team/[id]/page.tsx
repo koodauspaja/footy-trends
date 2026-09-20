@@ -1,18 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
+import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
+  isDomesticCup,
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso-standings-service";
+import { matchCountLabel } from "@/lib/national-team";
+import {
+  getTeamFormSeries,
+  getTeamGoalsSeries,
+  getTeamHomeAwaySeries,
+  getTeamMatches,
+  getTeamPositionSeries,
+  type TeamMatchesResult,
+} from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
@@ -180,6 +191,49 @@ export default async function DomesticTeamPage({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  /**
+   * League competitions only (specs/030 and specs/031, Q2): Suomen Cup and the
+   * other cups have no league position and no league form. And only for a team
+   * with matches this season.
+   */
+  const analyticsSection =
+    result.status === "ok" && !isDomesticCup(competitionCode)
+      ? await AnalyticsSection({
+          loadPosition: () =>
+            getTeamPositionSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadForm: () =>
+            getTeamFormSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadGoals: () =>
+            getTeamGoalsSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadHomeAway: () =>
+            getTeamHomeAwaySeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+        })
+      : null;
+
   return (
     <PageShell heading={headingFor(resolved)}>
       <RenamedNotice renamedTo={renamedTo} />
@@ -203,15 +257,23 @@ export default async function DomesticTeamPage({
         outcome={outcome}
         table={
           result.status === "ok" ? (
-            <MatchListTable
-              fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
-              matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
-              matches={result.matches}
-              teamHref={null}
-            />
+            <TeamPageFold
+              className="mt-4"
+              count={matchCountLabel(result.matches.length)}
+              heading={MATCHES_HEADING}
+              headingId="team-matches"
+            >
+              <MatchListTable
+                fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
+                matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
+                matches={result.matches}
+                teamHref={null}
+              />
+            </TeamPageFold>
           ) : null
         }
       />
+      {analyticsSection}
     </PageShell>
   );
 }

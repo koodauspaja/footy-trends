@@ -206,8 +206,20 @@ Bug. CLAUDE.md makes that pairing a hard rule.
 | `ci` | Workflows, review gates, release tooling and dependencies |
 | `infra` | Deployment, production environment, logging and datastores |
 
-`analytics` has three sub-labels for the shape of the work rather than its
-subject — `charts`, `predictions`, `calibration`.
+`analytics` is split on two axes:
+
+| axis | labels | answers |
+|---|---|---|
+| shape | `charts`, `predictions`, `calibration` | what kind of thing it is |
+| subject | `team-trends`, `matchup-trends`, `league-trends` | whose data it is about |
+
+Every analytics feature carries a shape label; **only `charts` features also
+carry a subject label**, since `predictions` and `calibration` are league-wide by
+nature. Subject follows the data path — one team's season, a pair's shared
+history, a competition aggregated — so it predicts effort as well as topic.
+
+Where no shape label fits, leave it off and say why on the issue rather than
+forcing one — #356 is the standing example.
 
 An issue may carry several. Most bugs and chores belong to the same domain as
 the spec they came from, which is the quickest way to pick one: a TASO

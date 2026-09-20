@@ -9,14 +9,15 @@ Postgres, Redis cache, CI, Sentry, and Railway config as code.
 ## Quick Start
 
 ```bash
-cp .env.example .env
-npm install
-docker compose up -d
-npm run db:migrate
-npm run dev
+./scripts/setup
 ```
 
-App runs at: http://localhost:3000
+One command from a fresh clone to a running app at http://localhost:3000. It
+checks the prerequisites, installs the dependencies, writes `.env` with a
+generated database password, migrates, and offers to start the dev server.
+
+**[INSTALL.md](INSTALL.md)** has the prerequisites, the two API keys, the same
+steps by hand, and troubleshooting.
 
 If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first and confirm the checklist in chat. **Only once a human says go**, update the issue and ask whether it is good — and work starts only once a human moves the card to `Ready` or tells you to start.
 
@@ -33,31 +34,6 @@ If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first
 - Error monitoring via Sentry
 - Structured backend logging with Pino (Axiom transport when configured)
 - CI workflows for typecheck, lint, tests, and SonarCloud scan
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 24+
-- npm 12.0.1
-- Docker (for local Postgres)
-- Local `.env` file based on `.env.example`
-
-### Environment Variables
-
-Defined in `.env.example`.
-
-Key variables:
-
-- `DATABASE_URL` - Postgres connection string
-- `REDIS_URL` - Redis connection string
-- `FOOTBALL_DATA_API_KEY` - football-data.org API key
-- `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` - local match freshness threshold (default `3600`)
-- `NEXT_PUBLIC_SENTRY_DSN` - Sentry client DSN
-- `AXIOM_TOKEN` and `AXIOM_DATASET` - Axiom log ingest
-- `LOG_LEVEL` - Pino log level (`info`, `debug`, etc.)
 
 ---
 
@@ -97,18 +73,6 @@ responses use separate Redis TTLs, keyed per competition: one hour for
 competition metadata and 15 minutes for finished matches. The provider API
 key is never sent to the browser.
 
----
-
-## Development
-
-### Run Checks
-
-```bash
-npm run typecheck
-npm run lint
-npm test
-```
-
 ### Test Layout
 
 Tests are organized by test type, with unit tests mirroring the relevant
@@ -126,36 +90,6 @@ latter against Postgres/Redis service containers it provisions itself. The
 end-to-end suite has a separate command so it can be enabled with its
 required runtime setup without changing the CI workflow.
 
-### Database Workflows
-
-```bash
-npm run db:generate -- --name=add_match_status_column
-npm run db:migrate
-```
-
-`db:generate` **refuses to run without `--name`**, and the name must be
-`<verb>_<what>` — the verb one of `add`, `create`, `alter`, `drop`, `rename` or
-`backfill`. Either `--name=add_thing` or `--name add_thing` works.
-
-The rule is enforced rather than advised, because advice was not enough: this
-file and `docs/setup/015-database-setup.md` both said to pass `--name`, and
-seven migrations still reached `main` called things like `0016_young_meteorite`
-— the name `drizzle-kit` invents when given none, which says nothing to whoever
-reads it back during an incident. `scripts/generate-migration.ts` will not
-create one, and `tests/unit/db/migrations.test.ts` fails if one appears by any
-other route.
-
-**Never edit a migration that has already been applied anywhere.** The migrator
-hashes a migration's *contents*, so changing the SQL breaks that environment's
-next deploy — add a new migration instead. Renaming is safe, as long as the
-`.sql` and its journal tag move together and the SQL is untouched.
-
-Alternative for local-only schema sync:
-
-```bash
-npm run db:push
-```
-
 ### Railway Deploy Config
 
 `railway.toml` controls:
@@ -166,9 +100,14 @@ npm run db:push
 - restart policy
 - deploy watch patterns
 
-### Human Contributor Workflow
+---
 
-For day-to-day development, follow this sequence:
+## How we work
+
+`CLAUDE.md` is the authoritative description: a spec, a human **go**, an issue,
+a human authorising the start, then implementation, a pull request, and a human
+merge. The three points where a human decides are agreeing the work,
+authorising the start, and merging.
 
 ```mermaid
 flowchart TD
@@ -194,57 +133,8 @@ flowchart TD
   Human_ready -->|"Not yet"| Wait --> Human_ready
 ```
 
-1. Write or update a feature spec in `specs/NNN-feature-name.md` before coding.
-2. Use `skills/write-spec.md` to check that the spec covers the required sections.
-3. Confirm the spec checklist in chat. Answer the open questions, then say
-   **go** — the AI must not treat interest, questions or silence as a go.
-4. The AI updates the GitHub issue, then **asks whether the issue is good**.
-   Decide whether to read it, then authorise the start. **Either of these alone
-   is enough:** move the card to `Ready` yourself, or say so in any wording —
-   "looks good, update issue and start work" and "issue in ready now" both do
-   it. Nothing is branched or written before that, and if the AI moves the card
-   to `Ready` itself it must quote the sentence it is acting on.
-5. If the card is not already `Ready`, the AI must move it to `Ready`,
-   quoting the authorisation; then it must move it to `In Progress` before
-   creating the branch. It then proceeds autonomously: implement, write the
-   decision record, run the checks, and prepare the PR.
-6. Review the AI-written decision record in `decisions/NNN-feature-name.md`
-   while the work is in progress.
-7. Add or update tests, then run `npm run typecheck`, `npm run lint`, and
-   `npm test`.
-8. Let the AI open a PR using `skills/open-pr.md`, reference the spec and
-   decisions file, link the issue, and prepare it for review.
-9. Respond to review feedback, make any required changes, and only merge after
-   the branch is approved.
-
-### What the AI should do
-
-When working with this repository, the AI assistant should:
-
-- follow the spec-first workflow and stop if the spec is incomplete
-- use the repository rules in `CLAUDE.md`, `skills/write-spec.md`,
-  `skills/open-issue.md`, `skills/implement-feature.md`, and
-  `skills/open-pr.md`
-- help draft or refine specs, decision records, tests, and PR descriptions
-- implement the feature autonomously within the bounds of the approved spec
-- carry out routine workflow steps without repeated handholding **once work has
-  been authorised** — branching, testing, and PR preparation
-- never move a card to `Ready` and never merge a pull request **on its own
-  initiative** — either is fine when a human instructs it, in any wording; those
-  are the two points where a human decides
-- verify changes with the relevant checks before suggesting completion
-- keep user-facing UI strings in Finnish and other repo text in English
-
-### What humans should do
-
-Humans remain responsible for:
-
-- deciding the product direction and acceptance criteria
-- validating that the spec is complete enough for implementation
-- reviewing the AI-written plan and decision record
-- approving the final implementation and merge decision in GitHub
-- reviewing PRs and responding to feedback
-- handling repository access, branch protection, and release choices
+A chore follows `skills/chore-workflow.md` and a bug `skills/bug-workflow.md`;
+neither has a spec or a decision record.
 
 ---
 
@@ -263,12 +153,13 @@ GitHub Actions workflows in `.github/workflows`:
 - `ci.yml`: typecheck, lint, unit test, integration test
 - `sonarcloud.yml`: test with coverage + SonarCloud scan
 
-Both workflows target Node 24, and the project expects npm 12.0.1.
+Both workflows target Node 24, and the project expects npm 12.0.2.
 
 ---
 
 ## Documentation
 
+- Installing and running locally: `INSTALL.md`
 - Setup sequence: `docs/setup/README.md`
 - Key setup topics include database, Redis, Sentry, Axiom, CI, and Railway
 

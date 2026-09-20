@@ -26,11 +26,24 @@ const MIGRATION_LOCK_KEY = 3_040_304;
 
 /** `postgres://…/footy-trends` → `postgres://…/footy-trends_test`. */
 export function testDatabaseUrl(): string {
-  const override = process.env.TEST_DATABASE_URL;
-  if (override !== undefined && override !== "") return override;
+  /**
+   * **Blank counts as unset**, trimmed — the same rule `grant-admin.ts` applies
+   * to its own connection string, and the same one the preflight's
+   * `effectiveDatabaseUrl` applies to this variable.
+   *
+   * Without the trim the two disagreed: the preflight fell back to
+   * `DATABASE_URL` and reported the database ready, while this passed "   " to
+   * `new URL()`, which throws before a single test runs. Caught in review on
+   * #402.
+   */
+  const override = (process.env.TEST_DATABASE_URL ?? "").trim();
+  if (override !== "") return override;
 
-  const base = process.env.DATABASE_URL;
-  if (base === undefined || base === "") {
+  // Trimmed for the same reason as the override above: a whitespace-only value
+  // otherwise passed this check and reached `new URL()`, which throws. Review on
+  // #402 caught the override and the base separately — one class, two halves.
+  const base = (process.env.DATABASE_URL ?? "").trim();
+  if (base === "") {
     throw new Error(
       "Neither TEST_DATABASE_URL nor DATABASE_URL is set. The test suites need a " +
         "database — start one with `docker compose up -d` and set DATABASE_URL in .env."
@@ -97,7 +110,7 @@ export async function ensureTestDatabase(): Promise<string> {
     // our own connection string, never from user input.
     if (existing === undefined) {
       try {
-        await admin.unsafe(`create database "${name.replace(/"/g, '""')}"`);
+        await admin.unsafe(`create database "${name.replaceAll('"', '""')}"`);
       } catch (error) {
         /**
          * Something else created it between the check above and this statement.

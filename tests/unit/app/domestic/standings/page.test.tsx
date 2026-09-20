@@ -505,6 +505,19 @@ describe("Domestic standings page, cup competitions", () => {
     expect(headings).toContain("Loppuottelu");
   });
 
+  it("marks each cup round's summary as something to press (#419)", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+    const rounds = document.querySelectorAll("details");
+
+    expect(rounds.length).toBeGreaterThan(0);
+    for (const round of rounds) {
+      expect(round.classList.contains("group")).toBe(true);
+      expect(round.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
+    }
+  });
+
   it("normalises Finaali to Loppuottelu in both the tree and the list", async () => {
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
 

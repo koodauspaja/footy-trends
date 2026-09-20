@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams } from "@/db/schema";
+import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
   getSeasonCategoryName,
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getTeamFormSeries,
+  getTeamGoalsSeries,
+  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPositionSeries,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -2227,5 +2232,913 @@ describe("resolveTasoSeasonContext", () => {
         expect.stringContaining("no carry-over entry")
       );
     });
+  });
+});
+
+describe("getTeamPositionSeries", () => {
+  /**
+   * A league configured to split: groups 2 and 3 both continue group 1, unseeded
+   * (`CARRY_OVER_CONFIG`). The fixtures use TASO's real category and season ids
+   * because the carry-over rules are read from that configuration.
+   */
+  const LEAGUE = "M1";
+  const SPLIT_SEASON = "spljp25";
+
+  function game(
+    competitionId: string,
+    groupId: number,
+    matchday: number,
+    home: number,
+    away: number,
+    score: [number, number] | null
+  ) {
+    return match({
+      providerMatchId: groupId * 1000 + matchday * 100 + home * 10 + away,
+      categoryId: LEAGUE,
+      competitionCode: competitionId,
+      groupId,
+      groupName: `Lohko ${groupId}`,
+      matchday,
+      homeTeamProviderId: home,
+      homeTeamName: `Team ${home}`,
+      awayTeamProviderId: away,
+      awayTeamName: `Team ${away}`,
+      status: score === null ? "SCHEDULED" : "FINISHED",
+      homeGoals: score?.[0] ?? null,
+      awayGoals: score?.[1] ?? null,
+    });
+  }
+
+  /**
+   * Group rows whose published points are **derived from `calculateStandings`**
+   * over the group's own matches plus its parent's — what TASO publishes for a
+   * carry-over group — rather than typed by hand. A row agreeing with our
+   * calculation is what makes a group verified, and a hand calculation is the
+   * easiest thing here to get wrong.
+   */
+  function rowsFor(
+    matches: ReturnType<typeof game>[],
+    competitionId: string,
+    groupId: number,
+    parentId: number | null
+  ) {
+    const own = matches.filter((row) => row.groupId === groupId);
+    const contributing = matches.filter(
+      (row) => row.groupId === groupId || (parentId !== null && row.groupId === parentId)
+    );
+    const teamIds = new Set(own.flatMap((row) => [row.homeTeamProviderId, row.awayTeamProviderId]));
+    const finished = contributing.filter(
+      (row) => row.status === "FINISHED"
+    ) as unknown as NormalizedMatch[];
+
+    return calculateStandings(finished, contributing)
+      .filter((team) => teamIds.has(team.teamProviderId))
+      .map((team) =>
+        groupTeam({
+          categoryId: LEAGUE,
+          competitionCode: competitionId,
+          groupId,
+          teamProviderId: team.teamProviderId,
+          teamName: team.teamName,
+          points: team.points,
+        })
+      );
+  }
+
+  /**
+   * Four teams play a regular season of three rounds, finishing 1, 2, 3, 4.
+   * Then the league splits: {1, 2} above, {3, 4} below. TASO restarts the split
+   * groups' rounds at 1, as it did in 2019, and `withContinuedRoundNumbering`
+   * shifts them on to 4.
+   */
+  function splitSeason(
+    competitionId: string,
+    {
+      regular = 1,
+      upper = 2,
+      lower = 3,
+      teams: [a, b, c, d] = [1, 2, 3, 4],
+    }: {
+      regular?: number;
+      upper?: number;
+      lower?: number;
+      teams?: [number, number, number, number];
+    } = {}
+  ) {
+    return [
+      game(competitionId, regular, 1, a, b, [2, 0]),
+      game(competitionId, regular, 1, c, d, [1, 0]),
+      game(competitionId, regular, 2, a, c, [1, 0]),
+      game(competitionId, regular, 2, b, d, [1, 0]),
+      game(competitionId, regular, 3, a, d, [1, 0]),
+      game(competitionId, regular, 3, b, c, [1, 0]),
+      game(competitionId, upper, 1, a, b, [0, 1]),
+      game(competitionId, lower, 1, d, c, [2, 0]),
+    ];
+  }
+
+  function verifiedRows(matches: ReturnType<typeof game>[], competitionId: string) {
+    const groupIds = [...new Set(matches.map((row) => row.groupId))];
+    return groupIds.flatMap((groupId) =>
+      rowsFor(matches, competitionId, groupId, groupId === 1 ? null : 1)
+    );
+  }
+
+  async function seriesFor(
+    teamId: number,
+    matches: ReturnType<typeof game>[],
+    rows: unknown[],
+    competitionId = SPLIT_SEASON
+  ) {
+    mockStoredMatches(matches, rows);
+    return getTeamPositionSeries(LEAGUE, competitionId, teamId, PAST_SEASON, ACTIVE_SEASON);
+  }
+
+  it("plots the regular season and continues it in the combined table after the split", async () => {
+    const matches = splitSeason(SPLIT_SEASON);
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
+        // First in the lower group, below both teams of the upper one.
+        { round: 4, position: 3, played: true },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("puts the lower group's leader directly below the whole upper group", async () => {
+    /**
+     * The rule Miikka described — the lower group's leader is 7th when the upper
+     * group has six — at the size of this fixture: team 4 leads the lower group,
+     * the upper group has two, so it is 3rd.
+     */
+    const matches = splitSeason(SPLIT_SEASON);
+    const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
+    const standings = await getSeasonStandings(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON, 4);
+    const lowerGroup = standings.groups.find((group) => group.groupId === 3);
+    const inGroup =
+      lowerGroup?.kind === "own-calculated"
+        ? lowerGroup.standings.find((team) => team.teamProviderId === 4)?.position
+        : undefined;
+
+    expect(inGroup).toBe(1);
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 1 + 2,
+      played: true,
+    });
+  });
+
+  it("equals the standings page's group table for every round, plus the groups above", async () => {
+    /**
+     * The property the feature rests on, checked against the real
+     * `getSeasonStandings` — the function behind the standings page's round
+     * selector — for every team, not against a restatement of it.
+     */
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON);
+
+    for (const teamId of [1, 2, 3, 4]) {
+      const series = await seriesFor(teamId, matches, rows);
+      if (series.status !== "ok") throw new Error(`expected a series for team ${teamId}`);
+
+      for (const point of series.points) {
+        mockStoredMatches(matches, rows);
+        const standings = await getSeasonStandings(
+          LEAGUE,
+          SPLIT_SEASON,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          point.round
+        );
+        const afterSplit = point.round > 3;
+        const offset = afterSplit && (teamId === 3 || teamId === 4) ? 2 : 0;
+        const table = standings.groups.find(
+          (group) =>
+            group.kind === "own-calculated" &&
+            group.standings.some((team) => team.teamProviderId === teamId) &&
+            (afterSplit ? group.groupId !== 1 : group.groupId === 1)
+        );
+        const row =
+          table?.kind === "own-calculated"
+            ? table.standings.find((team) => team.teamProviderId === teamId)
+            : undefined;
+
+        expect(point.position, `team ${teamId}, round ${point.round}`).toBe(
+          (row?.position ?? Number.NaN) + offset
+        );
+      }
+    }
+  });
+
+  it("ranks the split groups by the regular season, not by their group ids", async () => {
+    // The lower teams in the lower-numbered group this time. Ranking by id would
+    // put them on top.
+    const matches = splitSeason(SPLIT_SEASON, { upper: 3, lower: 2 });
+    const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
+
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 3,
+      played: true,
+    });
+  });
+
+  it("stops at the split, and says so, when the continuation does not reconcile", async () => {
+    // The lower group's published points disagree with ours, so the standings
+    // page shows TASO's numbers with no round selector — nothing per round to
+    // equal.
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? { ...row, points: (row.points ?? 0) + 5 } : row
+    );
+
+    expect(await seriesFor(4, matches, rows)).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
+      ],
+      teamCount: 4,
+      endsAtSplit: true,
+    });
+  });
+
+  it("stops at the split when the season has no carry-over configured yet", async () => {
+    // M1 has no 2020 entry: the live-season window before one is added and
+    // verified looks like this, and so do old seasons nobody configured.
+    const unconfigured = "spljp20";
+    const matches = splitSeason(unconfigured);
+    const series = await seriesFor(4, matches, verifiedRows(matches, unconfigured), unconfigured);
+
+    expect(series.status === "ok" && series.endsAtSplit).toBe(true);
+    expect(series.status === "ok" && series.points.map((point) => point.round)).toEqual([1, 2, 3]);
+  });
+
+  describe("a league played in parallel pools, each split in two (Kakkonen)", () => {
+    /**
+     * Kakkonen 2026, at this fixture's size: pools 1 and 2 play their own
+     * regular seasons, then each splits into its own upper and lower
+     * continuation — 4 and 7 from pool 1, 5 and 8 from pool 2, unseeded
+     * (`CARRY_OVER_CONFIG`). A pool is its own league until the end of
+     * jatkosarja; the promotion playoff after it is a bracket, with no line.
+     */
+    const KAKKONEN = "M2";
+    const POOLS_SEASON = "spljp26";
+    const PARENTS = new Map([
+      [4, 1],
+      [7, 1],
+      [5, 2],
+      [8, 2],
+    ]);
+
+    const matches = [
+      ...splitSeason(POOLS_SEASON, { regular: 1, upper: 4, lower: 7 }),
+      ...splitSeason(POOLS_SEASON, { regular: 2, upper: 5, lower: 8, teams: [11, 12, 13, 14] }),
+    ].map((row) => ({ ...row, categoryId: KAKKONEN }));
+    const rows = [1, 2, 4, 5, 7, 8].flatMap((groupId) =>
+      rowsFor(matches, POOLS_SEASON, groupId, PARENTS.get(groupId) ?? null).map((row) => ({
+        ...row,
+        categoryId: KAKKONEN,
+      }))
+    );
+
+    async function kakkonenSeries(teamId: number) {
+      mockStoredMatches(matches, rows);
+      return getTeamPositionSeries(KAKKONEN, POOLS_SEASON, teamId, PAST_SEASON, ACTIVE_SEASON);
+    }
+
+    it("continues through its pool's split, below only its own pool's upper group", async () => {
+      // Team 4 leads pool 1's lower group. Two teams sit above it in pool 1's
+      // upper group; pool 2's upper group is another league until the playoff.
+      expect(await kakkonenSeries(4)).toEqual({
+        status: "ok",
+        points: [
+          { round: 1, position: 3, played: true },
+          { round: 2, position: 4, played: true },
+          { round: 3, position: 4, played: true },
+          { round: 4, position: 3, played: true },
+        ],
+        // The pool's four, not the competition's eight.
+        teamCount: 4,
+        endsAtSplit: false,
+      });
+    });
+
+    it("places a team in the second pool by that pool alone", async () => {
+      const series = await kakkonenSeries(14);
+
+      expect(series.status === "ok" && series.teamCount).toBe(4);
+      expect(series.status === "ok" && series.points.at(-1)).toEqual({
+        round: 4,
+        position: 3,
+        played: true,
+      });
+    });
+
+    it("equals the standings page's continuation table, plus its pool's upper group", async () => {
+      // The continuations are verified, so the standings page has a round
+      // selector for them — which is why the line must not stop here.
+      mockStoredMatches(matches, rows);
+      const standings = await getSeasonStandings(
+        KAKKONEN,
+        POOLS_SEASON,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        4
+      );
+      const lowerGroup = standings.groups.find((group) => group.groupId === 8);
+      const inGroup =
+        lowerGroup?.kind === "own-calculated"
+          ? lowerGroup.standings.find((team) => team.teamProviderId === 14)?.position
+          : undefined;
+      const series = await kakkonenSeries(14);
+
+      expect(inGroup).toBe(1);
+      expect(series.status === "ok" && series.points.at(-1)?.position).toBe((inGroup ?? 0) + 2);
+    });
+  });
+
+  it("plots only the regular season when the split has happened but not been played", async () => {
+    const matches = splitSeason(SPLIT_SEASON).map((row) =>
+      row.groupId === 1 ? row : { ...row, status: "SCHEDULED", homeGoals: null, awayGoals: null }
+    );
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("stops at the split, with the note, when the continuation was played without rounds", async () => {
+    // TASO can report a match with no round. The standings page cannot show such
+    // a group per round, so the chart does not pretend to — and says so.
+    const matches = splitSeason(SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? { ...row, matchday: null } : row
+    );
+
+    expect(await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 3, played: true },
+        { round: 2, position: 4, played: true },
+        { round: 3, position: 4, played: true },
+      ],
+      teamCount: 4,
+      endsAtSplit: true,
+    });
+
+    // Team 3 played that match away; a team is counted on either side.
+    const awaySide = await seriesFor(3, matches, verifiedRows(matches, SPLIT_SEASON));
+    expect(awaySide.status === "ok" && awaySide.endsAtSplit).toBe(true);
+  });
+
+  it("plots a league that never splits as one table", async () => {
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const series = await seriesFor(1, matches, verifiedRows(matches, SPLIT_SEASON));
+
+    expect(series).toEqual({
+      status: "ok",
+      points: [
+        { round: 1, position: 1, played: true },
+        { round: 2, position: 1, played: true },
+        { round: 3, position: 1, played: true },
+      ],
+      teamCount: 4,
+      endsAtSplit: false,
+    });
+  });
+
+  it("offers no chart when the regular season itself has no per-round table", async () => {
+    // Published points that disagree with ours: the standings page shows TASO's
+    // own numbers, with no round selector, for the whole season.
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) => ({
+      ...row,
+      points: (row.points ?? 0) + 1,
+    }));
+
+    expect(await seriesFor(1, matches, rows)).toEqual({ status: "unavailable" });
+  });
+
+  it("offers no chart for a team whose only group is a list of matches", async () => {
+    // TASO sends no points for a knockout group, so it renders as matches.
+    const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) => ({ ...row, points: null }));
+
+    expect(await seriesFor(1, matches, rows)).toEqual({ status: "unavailable" });
+  });
+
+  it("reports no rounds for a team that has not played yet", async () => {
+    const matches = splitSeason(SPLIT_SEASON)
+      .filter((row) => row.groupId === 1)
+      .map((row) => ({ ...row, status: "SCHEDULED", homeGoals: null, awayGoals: null }));
+
+    expect(await seriesFor(1, matches, verifiedRows(matches, SPLIT_SEASON))).toEqual({
+      status: "no-rounds",
+    });
+  });
+
+  it("reports no rounds for a season with nothing in it", async () => {
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await seriesFor(1, [], [])).toEqual({ status: "no-rounds" });
+  });
+
+  it("reports an error when the season cannot be read", async () => {
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("TASO down"));
+
+    expect(await seriesFor(1, [], [])).toEqual({ status: "error" });
+  });
+
+  it("reports an error, and logs it, when something throws", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamPositionSeries(LEAGUE, SPLIT_SEASON, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: LEAGUE, teamProviderId: 1 }),
+      "Unable to compute the TASO league position series"
+    );
+  });
+
+  it("reads the matches and the group rows once each, however many rounds, and asks TASO nothing", async () => {
+    /**
+     * #331's constraint, and the budget the spec states for TASO: the group rows
+     * are the one read the team page did not make before, and nothing is read or
+     * fetched per round. A completed season with stored rows is never refetched.
+     */
+    const tenRounds = Array.from({ length: 10 }, (_, index) => [
+      game(SPLIT_SEASON, 1, index + 1, 1, 2, [index % 3, 1]),
+      game(SPLIT_SEASON, 1, index + 1, 3, 4, [1, index % 2]),
+    ]).flat();
+    const series = await seriesFor(1, tenRounds, verifiedRows(tenRounds, SPLIT_SEASON));
+
+    expect(series.status === "ok" && series.points).toHaveLength(10);
+    expect(dbMock.select).toHaveBeenCalledTimes(2);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(getSeasonGroupsMock).not.toHaveBeenCalled();
+    expect(getCachedMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeAwaySeries", () => {
+  /**
+   * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
+   * against the calendar on purpose: form follows kickoff order.
+   */
+  function onDay(
+    categoryId: string,
+    competitionId: string,
+    groupId: number,
+    day: number,
+    opponent: number,
+    own: number,
+    other: number,
+    home = true
+  ) {
+    const [homeId, awayId] = home ? [1, opponent] : [opponent, 1];
+    return match({
+      providerMatchId: groupId * 1000 + day,
+      categoryId,
+      competitionCode: competitionId,
+      groupId,
+      groupName: `Lohko ${groupId}`,
+      kickoffAt: new Date(`2024-09-${String(day).padStart(2, "0")}T15:00:00Z`),
+      matchday: 40 - day,
+      homeTeamProviderId: homeId,
+      homeTeamName: `Team ${homeId}`,
+      awayTeamProviderId: awayId,
+      awayTeamName: `Team ${awayId}`,
+      homeGoals: home ? own : other,
+      awayGoals: home ? other : own,
+    });
+  }
+
+  function rowsFor(
+    categoryId: string,
+    competitionId: string,
+    groupId: number,
+    teamIds: number[],
+    points: number | null
+  ) {
+    return teamIds.map((teamProviderId) =>
+      groupTeam({
+        categoryId,
+        competitionCode: competitionId,
+        groupId,
+        teamProviderId,
+        teamName: `Team ${teamProviderId}`,
+        points,
+      })
+    );
+  }
+
+  describe("a split season with a playoff", () => {
+    /**
+     * Ykkönen 2025: group 2 continues group 1 (`CARRY_OVER_CONFIG`). Group 9 is
+     * a knockout — TASO sends no points for it — so it renders as a match list.
+     * The table rows' points are made up, so both tables render pass-through:
+     * form is results, and an unverified table does not stop it (Q2).
+     */
+    const LEAGUE = "M1";
+    const SEASON = "spljp25";
+    const matches = [
+      onDay(LEAGUE, SEASON, 1, 1, 2, 2, 0),
+      // Away, so the team is found on either side of a fixture.
+      onDay(LEAGUE, SEASON, 1, 2, 3, 1, 1, false),
+      onDay(LEAGUE, SEASON, 1, 3, 4, 0, 1),
+      onDay(LEAGUE, SEASON, 1, 4, 2, 3, 0),
+      onDay(LEAGUE, SEASON, 2, 5, 3, 2, 1),
+      onDay(LEAGUE, SEASON, 2, 6, 2, 0, 0),
+      onDay(LEAGUE, SEASON, 9, 7, 5, 4, 0),
+    ].map((row) => ({ ...row, categoryId: LEAGUE }));
+    const rows = [
+      ...rowsFor(LEAGUE, SEASON, 1, [1, 2, 3, 4], 99),
+      ...rowsFor(LEAGUE, SEASON, 2, [1, 2, 3], 99),
+      ...rowsFor(LEAGUE, SEASON, 9, [1, 5], null),
+    ];
+
+    async function series() {
+      mockStoredMatches(matches, rows);
+      return getTeamFormSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+    }
+
+    it("continues across the split in kickoff order, and leaves the playoff out", async () => {
+      // W D L W, then W D after the split; the playoff win on the 7th is not
+      // league form.
+      expect(await series()).toEqual({
+        status: "ok",
+        points: [
+          { match: 5, form: (3 + 1 + 0 + 3 + 3) / 5 },
+          { match: 6, form: (1 + 0 + 3 + 3 + 1) / 5 },
+        ],
+      });
+    });
+
+    it("draws form where the tables are pass-through, and where the position cannot be", async () => {
+      mockStoredMatches(matches, rows);
+      const standings = await getSeasonStandings(
+        LEAGUE,
+        SEASON,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        undefined
+      );
+      const kinds = standings.status === "ok" ? standings.groups.map((group) => group.kind) : [];
+      mockStoredMatches(matches, rows);
+      const position = await getTeamPositionSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(kinds).toEqual(["pass-through", "pass-through", "match-list"]);
+      expect(position).toEqual({ status: "unavailable" });
+      expect((await series()).status).toBe("ok");
+    });
+
+    it("counts the same league matches for goals: across the split, not the playoff", async () => {
+      // Own goals, in kickoff order: 2–0, 1–1 (away), 0–1, 3–0, then 2–1, 0–0
+      // after the split. The playoff's 4–0 is not league goals.
+      mockStoredMatches(matches, rows);
+      const goals = await getTeamGoalsSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(goals.status === "ok" && goals.totals.at(-1)).toEqual({
+        match: 6,
+        scored: 8,
+        conceded: 3,
+      });
+      expect(goals.status === "ok" && goals.rolling).toEqual([
+        { match: 5, scored: 8 / 5, conceded: 3 / 5 },
+        { match: 6, scored: 6 / 5, conceded: 3 / 5 },
+      ]);
+    });
+
+    it("splits the same league matches home and away, leaving the playoff out", async () => {
+      // Home: 2–0, 0–1, 3–0, 2–1, 0–0. Away: 1–1. The playoff win is not league.
+      mockStoredMatches(matches, rows);
+
+      expect(await getTeamHomeAwaySeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
+        away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
+      });
+    });
+
+    it("reads nothing the position chart does not, and asks TASO nothing", async () => {
+      await series();
+
+      // The season's matches and its group rows: the same two reads the
+      // position chart makes, `cache()`d between them on the team page.
+      expect(dbMock.select).toHaveBeenCalledTimes(2);
+      expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+      expect(getSeasonGroupsMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("ends at the Vire column the standings page shows, in points", async () => {
+    // One verified table: its rows' points are what our calculation gives, so
+    // it renders own-calculated with a Vire column to compare with.
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 5, 2, 2, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 6, 3, 0, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const series = await getTeamFormSeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+    const points = { V: 3, T: 1, H: 0 } as const;
+    const vire = (row?.form ?? []).reduce((total, entry) => total + points[entry.result], 0);
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(row?.form).toHaveLength(5);
+    expect(series.status === "ok" && series.points.at(-1)?.form).toBe(vire / 5);
+  });
+
+  it("ends its goal totals at the TM and PM the standings page shows", async () => {
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const goals = await getTeamGoalsSeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(goals.status === "ok" && goals.totals.at(-1)).toMatchObject({
+      scored: row?.goalsFor,
+      conceded: row?.goalsAgainst,
+    });
+  });
+
+  it("adds home and away up to the row the standings page shows", async () => {
+    const matches = [
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 1, 2, 2, 0),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 2, 3, 1, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 3, 2, 0, 1, false),
+      onDay(CATEGORY_ID, COMPETITION_ID, 1, 4, 3, 3, 0),
+    ];
+    const rows = calculateStandings(matches as unknown as NormalizedMatch[]).map((team) =>
+      groupTeam({
+        teamProviderId: team.teamProviderId,
+        teamName: team.teamName,
+        points: team.points,
+      })
+    );
+    mockStoredMatches(matches, rows);
+    const series = await getTeamHomeAwaySeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+    mockStoredMatches(matches, rows);
+    const standings = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    const group = standings.status === "ok" ? standings.groups[0] : undefined;
+    const row =
+      group?.kind === "own-calculated"
+        ? group.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+    if (series.status !== "ok") throw new Error("expected a series");
+    const { home, away } = series;
+
+    expect(group?.kind).toBe("own-calculated");
+    expect(home.matches + away.matches).toBe(row?.played);
+    expect(home.scored + away.scored).toBe(row?.goalsFor);
+    expect(home.conceded + away.conceded).toBe(row?.goalsAgainst);
+    expect(3 * (home.won + away.won) + home.drawn + away.drawn).toBe(row?.points);
+  });
+
+  it("has no home-and-away panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamHomeAwaySeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has empty home and away sides for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const series = await getTeamHomeAwaySeries(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(series.status === "ok" && series.home.matches + series.away.matches).toBe(0);
+  });
+
+  it("reports a home-and-away error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO home and away series"
+    );
+  });
+
+  it("reports a home-and-away error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+  });
+
+  it("has no goals panels when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamGoalsSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has neither goals series for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "ok", rolling: [], totals: [] });
+  });
+
+  it("reports a goals error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO goals series"
+    );
+  });
+
+  it("reports a goals error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+  });
+
+  it("has no section when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamFormSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no series before the fifth league match", async () => {
+    const matches = [1, 2, 3, 4].map((day) => onDay(CATEGORY_ID, COMPETITION_ID, 1, day, 2, 1, 0));
+    mockStoredMatches(matches, rowsFor(CATEGORY_ID, COMPETITION_ID, 1, [1, 2], 99));
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "too-few" });
+  });
+
+  it("has no series for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "too-few" });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider unavailable"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO form series"
+    );
   });
 });

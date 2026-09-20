@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
 // This file is evaluated before `global-setup.ts`, so the variables it reads
@@ -117,8 +118,14 @@ export default defineConfig({
     /**
      * The test database, not the developer's. Everything else is inherited, so
      * the provider keys and Redis URL still come from `.env`.
+     *
+     * The analytics flag lets a spec send `x-e2e-analytics: signed-in` and see
+     * what a signed-in reader sees, which the suite cannot otherwise reach: the
+     * gate runs on the server, where session interception does not (specs/030).
+     * It only works against a `_test` database, which this line also sets — see
+     * `src/lib/e2e-analytics.ts` for why that pairing is the safeguard.
      */
-    env: { ...process.env, DATABASE_URL: testDatabaseUrl() },
+    env: { ...process.env, DATABASE_URL: testDatabaseUrl(), [E2E_ANALYTICS_FLAG]: "1" },
     timeout: 120_000,
   },
 });

@@ -39,9 +39,10 @@ never refetched, so those pages make no provider request at all.
 
 ## Prerequisites
 
-- `docker compose up -d` (Postgres + Redis running locally)
+- Postgres and Redis running locally — `npm run test:e2e` starts them itself
+  if they are down (#399)
 - A configured `.env` with a working `FOOTBALL_DATA_API_KEY` **and**
-  `TASO_API_KEY` (see `README.md`'s Quick Start and
+  `TASO_API_KEY` (see `INSTALL.md` and
   `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
   being missing, rather than letting every spec time out against a generic
   error page
@@ -110,6 +111,56 @@ same situation.
 Worth doing before cutting a release, and worth reaching for when a spec
 passes locally but fails in CI: `dev` and a production build do not always
 behave the same, which is how #189 was found.
+
+## Debugging a failing spec
+
+A full run is about four minutes, serial and against the real providers, so
+re-running everything to look at one broken spec is the expensive way round.
+
+```bash
+npm run test:e2e:ui                                  # pick a spec, watch it, re-run it
+npm run test:e2e -- tests/e2e/womens-team.spec.ts    # one file
+npm run test:e2e -- -g "lists only Finland's matches" # one title, anywhere
+npm run test:e2e -- --headed                          # watch the browser
+npm run test:e2e -- --debug                           # step through, with the inspector
+```
+
+**UI mode is the one to reach for first.** It lists every spec, runs the ones
+you pick, and shows each step with a DOM snapshot before and after — the same
+information a trace holds, without having to produce one. It uses
+`playwright.config.ts` as it stands, so the database, the port and the serial
+setting are what a normal run uses, and no worker flag is needed.
+
+Everything after `--` goes to Playwright, so `-g`, `--headed` and a file path
+combine as they would there.
+
+### Traces, and where they are not
+
+`trace: "on-first-retry"` with `retries: 0` locally means **a local run
+produces no trace at all** — there is no retry to trigger one. Ask for one
+explicitly when you want to keep it:
+
+```bash
+npm run test:e2e -- --trace on tests/e2e/womens-team.spec.ts
+npx playwright show-trace test-results/<spec-name>/trace.zip
+```
+
+CI is where traces appear by themselves: it retries twice, and the release
+workflow uploads `playwright-report/` as an artifact for seven days. The HTML
+reporter is CI-only for the same reason — locally the list reporter and UI mode
+cover it.
+
+### A narrowed run writes no freshness marker
+
+`scripts/e2e-freshness-reporter.ts` records a run only when it **passed and
+covered every spec file** — no `-g`, no file path, no shard, no `--grep-invert`.
+So a debugging session leaves the pre-push hook exactly as it found it, and the
+hook then blocks a push while looking broken to somebody who has just spent an
+hour on one spec.
+
+Finish with one full `npm run test:e2e`. `--headed` does not disqualify a run —
+covering every spec is what counts, not how it was watched. *Only a full run
+counts*, below, is the same rule from the hook's side.
 
 ## The pre-commit hook
 

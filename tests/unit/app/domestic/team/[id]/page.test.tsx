@@ -1,5 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
+import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
+import type { HomeAwaySeries } from "@/lib/home-away";
+import type { PositionSeries } from "@/lib/position-series";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -7,6 +12,36 @@ import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const getTeamPositionSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
+);
+const getTeamFormSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
+);
+const getTeamGoalsSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
+);
+const getTeamHomeAwaySeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
+);
+
+/**
+ * The Analyysit section stands in here with a marker: its panels and its
+ * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
+ * page's side — whether the section is asked for at all, and with which
+ * series.
+ */
+const analyticsSectionMock = vi.fn(
+  async (_props: {
+    loadPosition: () => Promise<PositionSeries>;
+    loadForm: () => Promise<FormSeries>;
+    loadGoals: () => Promise<GoalsSeries>;
+    loadHomeAway: () => Promise<HomeAwaySeries>;
+  }) => "analytics section placeholder"
+);
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: analyticsSectionMock,
+}));
 
 /**
  * Season discovery is mocked so these page tests stay pure unit tests: the
@@ -30,6 +65,10 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+    getTeamFormSeries: getTeamFormSeriesMock,
+    getTeamGoalsSeries: getTeamGoalsSeriesMock,
+    getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
+    getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -158,6 +197,18 @@ describe("Domestic team page", () => {
     expect(screen.getByText("HJK – KuPS")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
+  });
+
+  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+    await renderTeam("1");
+    const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
+    const rows = details?.querySelectorAll("tbody tr").length ?? 0;
+
+    expect(details?.open).toBe(true);
+    expect(rows).toBeGreaterThan(0);
+    expect(details?.querySelector("summary")?.textContent).toBe(
+      `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
+    );
   });
 
   it("links back to the standings page", async () => {
@@ -489,5 +540,87 @@ describe("Domestic team page competition naming", () => {
     await renderTeam("1", { kilpailu: "NL", kausi: "2016" });
 
     expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
+  });
+});
+
+describe("Domestic team page league position (specs/030)", () => {
+  it("shows the section for a league team with matches this season", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+
+    expect(screen.getByText("analytics section placeholder")).toBeInTheDocument();
+  });
+
+  it("asks for this team's series in the season's own TASO category and competition", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
+
+    await loadPosition?.();
+
+    expect(getTeamPositionSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's form in the same TASO category and competition (specs/031)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
+
+    await loadForm?.();
+
+    expect(getTeamFormSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's goals in the same TASO category and competition (specs/032)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+
+    await loadGoals?.();
+
+    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's home and away in the same TASO category and competition (specs/033)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
+
+    await loadHomeAway?.();
+
+    expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("offers no section for a cup, which has no league position", async () => {
+    await renderTeam("1", { kilpailu: "MSC", kausi: "2025" });
+
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
+  });
+
+  it("offers no section when the team has no matches this season", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "empty" });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
   });
 });

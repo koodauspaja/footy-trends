@@ -1,3 +1,4 @@
+import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
@@ -19,14 +20,16 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  *
  * `<details>` rather than client-side state, the same shape the Finnish cups
  * use for rounds — and open by default for the same reason: nothing is hidden
- * until the reader chooses to hide it. See specs/017-huuhkajat.md.
+ * until the reader chooses to hide it. See specs/017-huuhkajat.md. The summary
+ * shows the `FoldMarker` every fold shares (#419).
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
-    <details className="mb-10 border-border-subtle border-b pb-4" open>
-      <summary className="mb-3 cursor-pointer list-none">
-        <h2 className="inline font-semibold text-xl">{year.year}</h2>
-        <span className="ml-2 text-sm text-muted">{`(${matchCountLabel(year.matches.length)})`}</span>
+    <details className="group mb-10 border-border-subtle border-b pb-4" open>
+      <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
+        <FoldMarker />
+        <h2 className="font-semibold text-xl">{year.year}</h2>
+        <span className="text-sm text-muted">{`(${matchCountLabel(year.matches.length)})`}</span>
       </summary>
       <MatchListTable
         matches={year.matches}

@@ -1,20 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
+import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { earliestSeasonFor, getCompetitionName, parseCompetitionParam } from "@/lib/competitions";
+import {
+  earliestSeasonFor,
+  getCompetitionFormat,
+  getCompetitionName,
+  parseCompetitionParam,
+} from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import { matchCountLabel } from "@/lib/national-team";
 import {
   type BasePageContext,
   type CompetitionPageOptions,
   resolveBasePageContext,
 } from "@/lib/page-context";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
-import { getTeamMatches, type TeamMatchesResult } from "@/lib/standings-service";
+import {
+  getTeamFormSeries,
+  getTeamGoalsSeries,
+  getTeamHomeAwaySeries,
+  getTeamMatches,
+  getTeamPositionSeries,
+  type TeamMatchesResult,
+} from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import {
@@ -237,6 +252,36 @@ export async function CompetitionTeamPage({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  /**
+   * League competitions only (specs/030 and specs/031, Q2): a cup and a
+   * national-team tournament have no league position and no league form. And
+   * only for a team with matches this season — otherwise the page already says
+   * why there is nothing to show.
+   */
+  const analyticsSection =
+    result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
+      ? await AnalyticsSection({
+          loadPosition: () =>
+            getTeamPositionSeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+          loadForm: () =>
+            getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          loadGoals: () =>
+            getTeamGoalsSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          loadHomeAway: () =>
+            getTeamHomeAwaySeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+        })
+      : null;
+
   return (
     <PageShell heading={heading} headingAction={favourite}>
       <p className="mb-6">
@@ -260,15 +305,23 @@ export async function CompetitionTeamPage({
         outcome={outcome}
         table={
           result.status === "ok" ? (
-            <MatchListTable
-              fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
-              matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
-              matches={result.matches}
-              teamHref={null}
-            />
+            <TeamPageFold
+              className="mt-4"
+              count={matchCountLabel(result.matches.length)}
+              heading={MATCHES_HEADING}
+              headingId="team-matches"
+            >
+              <MatchListTable
+                fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
+                matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
+                matches={result.matches}
+                teamHref={null}
+              />
+            </TeamPageFold>
           ) : null
         }
       />
+      {analyticsSection}
     </PageShell>
   );
 }

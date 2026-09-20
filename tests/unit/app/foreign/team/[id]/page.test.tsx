@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
+import type { FormSeries } from "@/lib/form-series";
+import type { GoalsSeries } from "@/lib/goals-series";
+import type { HomeAwaySeries } from "@/lib/home-away";
+import type { PositionSeries } from "@/lib/position-series";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
@@ -20,6 +24,36 @@ vi.mock("@/lib/auth-client", () => ({
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const getTeamPositionSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
+);
+const getTeamFormSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
+);
+const getTeamGoalsSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
+);
+const getTeamHomeAwaySeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
+);
+
+/**
+ * The Analyysit section stands in here with a marker: its panels and its
+ * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
+ * page's side — whether the section is asked for at all, and with which
+ * series.
+ */
+const analyticsSectionMock = vi.fn(
+  async (_props: {
+    loadPosition: () => Promise<PositionSeries>;
+    loadForm: () => Promise<FormSeries>;
+    loadGoals: () => Promise<GoalsSeries>;
+    loadHomeAway: () => Promise<HomeAwaySeries>;
+  }) => "analytics section placeholder"
+);
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: analyticsSectionMock,
+}));
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/football-data", () => ({
@@ -28,6 +62,10 @@ vi.mock("@/lib/football-data", () => ({
 
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
+  getTeamFormSeries: getTeamFormSeriesMock,
+  getTeamGoalsSeries: getTeamGoalsSeriesMock,
+  getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
+  getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -179,6 +217,18 @@ describe("Team page", () => {
     expect(screen.getByText("Arsenal FC – Chelsea FC")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Liverpool FC – Arsenal FC")).toBeInTheDocument();
+  });
+
+  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+    await renderTeamPage("1", { kausi: "2025" });
+    const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
+    const rows = details?.querySelectorAll("tbody tr").length ?? 0;
+
+    expect(details?.open).toBe(true);
+    expect(rows).toBeGreaterThan(0);
+    expect(details?.querySelector("summary")?.textContent).toBe(
+      `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
+    );
   });
 
   it("shows the selected competition's name in the heading", async () => {
@@ -622,5 +672,74 @@ describe("Team page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
       title: "Arsenal FC – Valioliiga 2025/26",
     });
+  });
+});
+
+describe("Team page league position (specs/030)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getTeamMatchesMock.mockResolvedValue(okResult);
+  });
+
+  it("shows the section for a league team with matches this season", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
+
+    expect(screen.getByText("analytics section placeholder")).toBeInTheDocument();
+  });
+
+  it("asks for this team's series in this competition and season", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
+
+    await loadPosition?.();
+
+    expect(getTeamPositionSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's form in this competition and season (specs/031)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
+
+    await loadForm?.();
+
+    expect(getTeamFormSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's goals in this competition and season (specs/032)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+
+    await loadGoals?.();
+
+    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's home and away in this competition and season (specs/033)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
+
+    await loadHomeAway?.();
+
+    expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("offers no section for a cup, which has no league position", async () => {
+    await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
+
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("analytics section placeholder")).toBeNull();
+  });
+
+  it("offers no section when the team has no matches this season", async () => {
+    getTeamMatchesMock.mockResolvedValue({ status: "empty" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2025" });
+
+    expect(analyticsSectionMock).not.toHaveBeenCalled();
   });
 });

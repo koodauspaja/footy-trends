@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BracketTree } from "@/components/cup-bracket";
+import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
@@ -115,7 +116,8 @@ function GroupBody({
  * A cup season stacks up to ten rounds on one page and the opening round can
  * be 248 teams — nearly 30,000px tall on a phone. `<details>` lets a reader
  * fold one away without any client-side state, and every round starts open so
- * nothing is hidden by default.
+ * nothing is hidden by default. The summary shows the `FoldMarker` every fold
+ * shares (#419).
  */
 function CupRoundSection({
   group,
@@ -125,11 +127,12 @@ function CupRoundSection({
   teamHref: (teamProviderId: number) => string;
 }>) {
   return (
-    <details className="mb-10 border-border-subtle border-b pb-4" open>
-      <summary className="mb-3 cursor-pointer list-none">
-        <h2 className="inline font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+    <details className="group mb-10 border-border-subtle border-b pb-4" open>
+      <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
+        <FoldMarker />
+        <h2 className="font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
         {group.kind === "match-list" && (
-          <span className="ml-2 text-sm text-muted">{`(${group.matches.length} ottelua)`}</span>
+          <span className="text-sm text-muted">{`(${group.matches.length} ottelua)`}</span>
         )}
       </summary>
       <GroupBody group={group} isCup teamHref={teamHref} />

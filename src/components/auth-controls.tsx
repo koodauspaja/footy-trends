@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
+import { ERROR_PARAM, returnPath, withError } from "@/lib/return-path";
 import { avatarSourceOf, isAdminSession } from "@/lib/session-extras";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
@@ -44,26 +45,6 @@ const MESSAGES = new Map([
 /** Every Google-side failure says the same thing — see `SignInError` below. */
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
 
-const ERROR_PARAM = "error";
-
-/**
- * Where to send the reader back to, carrying the page's own state but not the
- * outcome of a previous attempt.
- *
- * `error` is dropped deliberately (#266). Carrying the whole query string is
- * what returns the reader to `?kilpailu=`/`?kausi=`/`?vaihe=` where they left
- * off — but on `/?error=auth` it also made `callbackURL` point at the error
- * itself, so a *successful* sign-in landed the reader back on
- * `Kirjautuminen epäonnistui`, telling them the thing that had just worked had
- * failed. An error belongs to one attempt, not to the page.
- */
-function returnPath(pathname: string, params: URLSearchParams): string {
-  const kept = new URLSearchParams(params);
-  kept.delete(ERROR_PARAM);
-  const query = kept.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
 /**
  * The sign-in / sign-out control, from specs/023-google-oauth-login.md.
  *
@@ -89,9 +70,7 @@ function AuthButtons() {
    * attempt does not become a back-button step.
    */
   const report = (code: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set(ERROR_PARAM, code);
-    router.replace(`${pathname}?${params.toString()}`);
+    router.replace(withError(pathname, searchParams, code));
   };
 
   /**
@@ -199,7 +178,7 @@ function SignInError() {
    * `get("error")` answers `"auth"`, the least specific of the two. A named
    * cause would have been silently unreachable.
    */
-  const errors = useSearchParams().getAll("error");
+  const errors = useSearchParams().getAll(ERROR_PARAM);
   if (errors.length === 0) return null;
 
   const named = errors.find((code) => MESSAGES.has(code));
