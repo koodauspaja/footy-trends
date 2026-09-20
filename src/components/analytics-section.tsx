@@ -14,21 +14,23 @@ import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { StreaksSeries } from "@/lib/streaks";
 
-/** Over every chart on the team page, and over the one sign-in prompt (specs/031, A). */
+/** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
 export const ANALYTICS_HEADING = "Analyysit";
-/** About analytics as a whole, not one chart: signed-out readers see none of them (specs/030, A). */
+/** About analytics as a whole, not one panel: signed-out readers see none of them (specs/030, A). */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
 const HEADING_ID = "analytics";
 
 /**
- * The team page's analytics: every chart under one heading (specs/031).
+ * The team page's analytics: every panel under one heading (specs/031). Most
+ * are charts; `Putket` (specs/035) is a list of figures, which is why the parts
+ * are called panels here.
  *
  * **The gate comes first, and once.** A signed-out request gets the heading and
- * one sign-in prompt — not one per chart (Q5) — before any loader is called, so
+ * one sign-in prompt — not one per panel (Q5) — before any loader is called, so
  * its page is never computed from, and carries, any analytics value at all.
  *
- * Signed in, the charts load together and each renders its own panel. `null`
+ * Signed in, the series load together and each renders its own panel. `null`
  * when none applies, so a league season with no table shows no section.
  *
  * A server component awaited by the team pages rather than rendered, the shape
@@ -65,7 +67,7 @@ export async function AnalyticsSection({
     loadCleanSheets(),
     loadStreaks(),
   ]);
-  const charts = {
+  const panels = {
     position: positionPanel(position),
     form: formPanel(form),
     rollingGoals: rollingGoalsPanel(goals),
@@ -74,17 +76,17 @@ export async function AnalyticsSection({
     cleanSheets: cleanSheetsPanel(cleanSheets),
     streaks: streaksPanel(streaks),
   };
-  if (Object.values(charts).every((chart) => chart === null)) return null;
+  if (Object.values(panels).every((panel) => panel === null)) return null;
 
   return (
     <Section>
-      {charts.position}
-      {charts.form}
-      {charts.rollingGoals}
-      {charts.totalGoals}
-      {charts.homeAway}
-      {charts.cleanSheets}
-      {charts.streaks}
+      {panels.position}
+      {panels.form}
+      {panels.rollingGoals}
+      {panels.totalGoals}
+      {panels.homeAway}
+      {panels.cleanSheets}
+      {panels.streaks}
     </Section>
   );
 }
