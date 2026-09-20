@@ -5,6 +5,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { StreaksSeries } from "@/lib/streaks";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
@@ -27,6 +28,7 @@ import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
+import { STREAKS_HEADING } from "@/components/streaks-section";
 
 const position: PositionSeries = {
   status: "ok",
@@ -49,13 +51,24 @@ const cleanSheets: CleanSheetSeries = {
   status: "ok",
   points: [{ match: 1, kept: 1, share: 100 }],
 };
+const streaks: StreaksSeries = {
+  status: "ok",
+  current: { outcome: "win", length: 1 },
+  longest: {
+    wins: { length: 1, from: 1, to: 1 },
+    unbeaten: { length: 1, from: 1, to: 1 },
+    defeats: null,
+    winless: null,
+  },
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
   loadForm = vi.fn(async (): Promise<FormSeries> => form),
   loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals),
   loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway),
-  loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets)
+  loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
+  loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks)
 ) {
   const view = await AnalyticsSection({
     loadPosition,
@@ -63,6 +76,7 @@ async function renderSection(
     loadGoals,
     loadHomeAway,
     loadCleanSheets,
+    loadStreaks,
   });
   return {
     ...render(<div>{view}</div>),
@@ -71,6 +85,7 @@ async function renderSection(
     loadGoals,
     loadHomeAway,
     loadCleanSheets,
+    loadStreaks,
     view,
   };
 }
@@ -101,14 +116,22 @@ describe("AnalyticsSection, signed out", () => {
      * send its values. Not calling the loaders is what guarantees they are not
      * in the page.
      */
-    const { loadPosition, loadForm, loadGoals, loadHomeAway, loadCleanSheets, container } =
-      await renderSection();
+    const {
+      loadPosition,
+      loadForm,
+      loadGoals,
+      loadHomeAway,
+      loadCleanSheets,
+      loadStreaks,
+      container,
+    } = await renderSection();
 
     expect(loadPosition).not.toHaveBeenCalled();
     expect(loadForm).not.toHaveBeenCalled();
     expect(loadGoals).not.toHaveBeenCalled();
     expect(loadHomeAway).not.toHaveBeenCalled();
     expect(loadCleanSheets).not.toHaveBeenCalled();
+    expect(loadStreaks).not.toHaveBeenCalled();
     expect(container.querySelector("svg")).toBeNull();
   });
 });
@@ -128,6 +151,7 @@ describe("AnalyticsSection, signed in", () => {
       TOTALS_HEADING,
       HOME_AWAY_HEADING,
       CLEAN_SHEETS_HEADING,
+      STREAKS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -150,7 +174,13 @@ describe("AnalyticsSection, signed in", () => {
 
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
-    ).toEqual([ROLLING_HEADING, TOTALS_HEADING, HOME_AWAY_HEADING, CLEAN_SHEETS_HEADING]);
+    ).toEqual([
+      ROLLING_HEADING,
+      TOTALS_HEADING,
+      HOME_AWAY_HEADING,
+      CLEAN_SHEETS_HEADING,
+      STREAKS_HEADING,
+    ]);
   });
 
   it("sits in a fold that starts open, like the match list (#416)", async () => {
@@ -170,7 +200,8 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

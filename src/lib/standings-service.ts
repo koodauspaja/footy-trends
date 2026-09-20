@@ -17,6 +17,7 @@ import {
   type TeamStanding,
   toFinishedMatches,
 } from "./standings";
+import { type StreaksSeries, streaksOf } from "./streaks";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 
@@ -321,6 +322,35 @@ export async function getTeamCleanSheetSeries(
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
       "Unable to compute the clean-sheet series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * This team's streaks in a season, for the team page's `Putket` panel
+ * (specs/035). The same cached season read, and exactly the matches the other
+ * result panels count.
+ */
+export async function getTeamStreaks(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<StreaksSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return { status: "ok", ...streaksOf(toFinishedMatches(seasonMatches), teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the streaks"
     );
     return { status: "error" };
   }

@@ -100,6 +100,7 @@ test.describe("Goals charts, signed in", () => {
       TOTALS,
       "Koti- ja vierastilastot",
       "Nollapelit",
+      "Putket",
     ]);
   });
 });

@@ -23,6 +23,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
@@ -234,6 +235,14 @@ export default async function DomesticTeamPage({
             ),
           loadCleanSheets: () =>
             getTeamCleanSheetSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadStreaks: () =>
+            getTeamStreaks(
               context.categoryId,
               context.competitionId,
               teamProviderId,

@@ -1,6 +1,6 @@
 # 030 — League position by matchday
 
-> **Status: agreed and implemented (#412).** Miikka answered Q1–Q8 and A–D on
+> **Status: agreed and implemented in PR #412.** Miikka answered Q1–Q8 and A–D on
 > 2026-09-18, and E during review, all recorded under *Decisions*.
 
 ## Summary

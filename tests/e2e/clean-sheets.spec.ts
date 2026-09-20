@@ -59,12 +59,15 @@ test.describe("Clean sheets, signed in", () => {
     expect(kept).toBeLessThanOrEqual(played);
   });
 
-  test("comes last in Analyysit", async ({ page }) => {
+  test("comes after Koti- ja vierastilastot in Analyysit", async ({ page }) => {
+    // `Putket` (specs/035) follows it; the order is asserted in full in
+    // form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    const headings = page
+      .getByRole("region", { name: "Analyysit" })
+      .getByRole("heading", { level: 3 });
 
-    await expect(
-      page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 3 }).last()
-    ).toHaveText(HEADING);
+    await expect(headings.nth(5)).toHaveText(HEADING);
   });
 });
 
