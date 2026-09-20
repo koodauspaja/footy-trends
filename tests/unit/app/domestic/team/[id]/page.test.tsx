@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
@@ -24,6 +25,9 @@ const getTeamGoalsSeriesMock = vi.fn(
 const getTeamHomeAwaySeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
 );
+const getTeamCleanSheetSeriesMock = vi.fn(
+  async (..._args: unknown[]): Promise<CleanSheetSeries> => ({ status: "unavailable" })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -37,6 +41,7 @@ const analyticsSectionMock = vi.fn(
     loadForm: () => Promise<FormSeries>;
     loadGoals: () => Promise<GoalsSeries>;
     loadHomeAway: () => Promise<HomeAwaySeries>;
+    loadCleanSheets: () => Promise<CleanSheetSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -67,6 +72,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     getTeamMatches: getTeamMatchesMock,
     getTeamFormSeries: getTeamFormSeriesMock,
     getTeamGoalsSeries: getTeamGoalsSeriesMock,
+    getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
     getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
@@ -602,6 +608,21 @@ describe("Domestic team page league position (specs/030)", () => {
     await loadHomeAway?.();
 
     expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's clean sheets in the same TASO category and competition (specs/034)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadCleanSheets = analyticsSectionMock.mock.calls[0]?.[0].loadCleanSheets;
+
+    await loadCleanSheets?.();
+
+    expect(getTeamCleanSheetSeriesMock).toHaveBeenCalledWith(
       categoryIdForSeason("VL", 2025),
       competitionIdForSeason("VL", 2025),
       1,

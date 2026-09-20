@@ -8,6 +8,7 @@ import {
   LineLegend,
   type LineSeries,
   MARGIN,
+  percentText,
   scale,
   ticksFor,
 } from "@/components/charts/line-chart";
@@ -271,5 +272,12 @@ describe("formatDecimal", () => {
   it("prints a fifth exactly, whatever floating point makes of it", () => {
     // 0.2 × 3 is 0.6000000000000001 in floating point.
     expect(formatDecimal(0.2 * 3)).toBe("0,6");
+  });
+});
+
+describe("percentText", () => {
+  it("prints a whole percent with a no-break space before the sign", () => {
+    expect(percentText(57.89)).toBe("58 %");
+    expect(percentText(0)).toBe("0 %");
   });
 });

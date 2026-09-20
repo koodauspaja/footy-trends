@@ -23,6 +23,7 @@ import {
 } from "@/lib/page-context";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
+  getTeamCleanSheetSeries,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -274,6 +275,13 @@ export async function CompetitionTeamPage({
             getTeamGoalsSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
           loadHomeAway: () =>
             getTeamHomeAwaySeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+          loadCleanSheets: () =>
+            getTeamCleanSheetSeries(
               competitionCode,
               teamProviderId,
               seasonId,

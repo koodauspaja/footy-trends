@@ -1,3 +1,4 @@
+import { cleanSheetsPanel } from "@/components/clean-sheets-section";
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
@@ -5,6 +6,7 @@ import { positionPanel } from "@/components/league-position-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
+import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
@@ -35,11 +37,13 @@ export async function AnalyticsSection({
   loadForm,
   loadGoals,
   loadHomeAway,
+  loadCleanSheets,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
   loadHomeAway: () => Promise<HomeAwaySeries>;
+  loadCleanSheets: () => Promise<CleanSheetSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -49,11 +53,12 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway] = await Promise.all([
+  const [position, form, goals, homeAway, cleanSheets] = await Promise.all([
     loadPosition(),
     loadForm(),
     loadGoals(),
     loadHomeAway(),
+    loadCleanSheets(),
   ]);
   const charts = {
     position: positionPanel(position),
@@ -61,6 +66,7 @@ export async function AnalyticsSection({
     rollingGoals: rollingGoalsPanel(goals),
     totalGoals: totalGoalsPanel(goals),
     homeAway: homeAwayPanel(homeAway),
+    cleanSheets: cleanSheetsPanel(cleanSheets),
   };
   if (Object.values(charts).every((chart) => chart === null)) return null;
 
@@ -71,6 +77,7 @@ export async function AnalyticsSection({
       {charts.rollingGoals}
       {charts.totalGoals}
       {charts.homeAway}
+      {charts.cleanSheets}
     </Section>
   );
 }

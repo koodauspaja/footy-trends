@@ -5,6 +5,7 @@ import {
   getMaxMatchday,
   getRoundMatches,
   getStandings,
+  getTeamCleanSheetSeries,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -1512,6 +1513,97 @@ describe("getTeamHomeAwaySeries", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
       "Unable to compute the home and away series"
+    );
+  });
+});
+
+describe("getTeamCleanSheetSeries", () => {
+  it("keeps a running share over the season, from the team's own side", async () => {
+    mockStoredMatches(season);
+
+    // Conceded, in kickoff order: 0, 1, 1, 1, 0, 2 — two clean sheets in six.
+    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "ok",
+      points: [
+        { match: 1, kept: 1, share: 100 },
+        { match: 2, kept: 1, share: 50 },
+        { match: 3, kept: 1, share: (1 / 3) * 100 },
+        { match: 4, kept: 1, share: 25 },
+        { match: 5, kept: 2, share: 40 },
+        { match: 6, kept: 2, share: (2 / 6) * 100 },
+      ],
+    });
+  });
+
+  it("ends at the matches the standings page counts", async () => {
+    mockStoredMatches(season);
+    const series = await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    mockStoredMatches(season);
+    const standings = await getStandings({
+      competitionCode: COMPETITION_CODE,
+      seasonId: PAST_SEASON,
+      activeSeasonId: ACTIVE_SEASON,
+    });
+    const row =
+      standings.status === "ok"
+        ? standings.standings.find((team) => team.teamProviderId === 1)
+        : undefined;
+
+    expect(series.status === "ok" && series.points.at(-1)?.match).toBe(row?.played);
+  });
+
+  it("counts only finished matches", async () => {
+    mockStoredMatches([
+      ...season,
+      { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
+    ]);
+
+    const series = await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(series.status === "ok" && series.points).toHaveLength(6);
+  });
+
+  it("reads the season once and asks no provider", async () => {
+    mockStoredMatches(season);
+
+    await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+    expect(redisMock.get).not.toHaveBeenCalled();
+  });
+
+  it("has no points for a season with nothing stored yet", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "ok",
+      points: [],
+    });
+  });
+
+  it("reports an error when nothing is stored and the refresh failed", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
+
+    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+  });
+
+  it("reports an error, and logs it, when the season cannot be read at all", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
+      "Unable to compute the clean-sheet series"
     );
   });
 });
