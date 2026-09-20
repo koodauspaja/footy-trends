@@ -34,6 +34,14 @@ export function formatDecimal(value: number, digits = 1): string {
   return value.toFixed(digits).replace(".", ",");
 }
 
+/**
+ * `63 %`: a whole percent, a no-break space before the sign as Finnish writes
+ * it, so the number and its sign never wrap apart (specs/033, Q5).
+ */
+export function percentText(value: number): string {
+  return `${Math.round(value)}\u00a0%`;
+}
+
 /** The drawing area, in SVG user units; `viewBox` scales it to the page. */
 export const CHART = { width: 640, height: 320 } as const;
 export const MARGIN = { top: 16, right: 16, bottom: 44, left: 48 } as const;

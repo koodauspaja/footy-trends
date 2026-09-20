@@ -7,6 +7,7 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getTeamCleanSheetSeries,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -2700,7 +2701,7 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
-describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeAwaySeries", () => {
+describe("the result charts: form, goals, home and away, clean sheets", () => {
   /**
    * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
    * against the calendar on purpose: form follows kickoff order.
@@ -2837,6 +2838,19 @@ describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeA
         status: "ok",
         home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
         away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
+      });
+    });
+
+    it("counts clean sheets over the same league matches, not the playoff", async () => {
+      // Conceded in the league, in kickoff order: 0, 1, 1, 0, 1, 0 — three.
+      mockStoredMatches(matches, rows);
+
+      const series = await getTeamCleanSheetSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(series.status === "ok" && series.points.at(-1)).toEqual({
+        match: 6,
+        kept: 3,
+        share: 50,
       });
     });
 
@@ -3037,6 +3051,43 @@ describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeA
     expect(
       await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
     ).toEqual({ status: "error" });
+  });
+
+  it("has no clean-sheet panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamCleanSheetSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no clean-sheet points for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "ok", points: [] });
+  });
+
+  it("reports a clean-sheet error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO clean-sheet series"
+    );
   });
 
   it("has no goals panels when the team played only in match lists", async () => {

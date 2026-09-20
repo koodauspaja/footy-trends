@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
+import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
@@ -291,6 +292,35 @@ export async function getTeamHomeAwaySeries(
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
       "Unable to compute the home and away series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * How often this team kept a clean sheet, after each match of a season, for the
+ * team page's `Nollapelit` chart (specs/034). The same cached season read, and
+ * exactly the matches the other result charts count.
+ */
+export async function getTeamCleanSheetSeries(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<CleanSheetSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return cleanSheetSeries(toFinishedMatches(seasonMatches), teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the clean-sheet series"
     );
     return { status: "error" };
   }

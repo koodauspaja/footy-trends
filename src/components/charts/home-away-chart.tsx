@@ -7,19 +7,11 @@ import {
 } from "@/lib/home-away";
 import { matchCountLabel } from "@/lib/national-team";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
-import { formatDecimal } from "./line-chart";
+import { formatDecimal, percentText } from "./line-chart";
 
 /** `2,11`: a season's per-match average, two decimals (specs/033, Q5). */
 function perMatchText(value: number): string {
   return formatDecimal(value, 2);
-}
-
-/**
- * `63 %`: a whole percent, a no-break space before the sign as Finnish writes it,
- * so the number and its sign never wrap apart (specs/033, Q5).
- */
-export function percentText(value: number): string {
-  return `${Math.round(value)} %`;
 }
 
 /**

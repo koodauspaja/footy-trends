@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
+import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import {
   categoryIdForSeason,
   categoryIdsFor,
@@ -1441,6 +1442,39 @@ export async function getTeamHomeAwaySeries(
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
       "Unable to compute the TASO home and away series"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * How often this team kept a clean sheet, after each match of a season, for the
+ * team page's `Nollapelit` chart (specs/034). Counts exactly the matches the
+ * other result charts count.
+ */
+export async function getTeamCleanSheetSeries(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<CleanSheetSeries> {
+  try {
+    const league = await teamLeagueMatches(
+      categoryId,
+      competitionId,
+      teamProviderId,
+      seasonId,
+      activeSeasonId
+    );
+    if (league.status === "no-matches") return { status: "ok", points: [] };
+    if (league.status !== "ok") return league;
+
+    return cleanSheetSeries(league.finished, teamProviderId);
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO clean-sheet series"
     );
     return { status: "error" };
   }
