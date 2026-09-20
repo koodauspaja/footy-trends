@@ -139,6 +139,11 @@ export type TasoProviderMatch = {
   team_B_name?: string;
   fs_A?: string;
   fs_B?: string;
+  // The half-time score, in the same string-or-empty shape as `fs_*`. Present
+  // for all but one of Ykkönen 2025's 132 played matches, and for all of
+  // Veikkausliiga 2015, 2019 and 2025 — measured, not assumed (specs/036).
+  hts_A?: string;
+  hts_B?: string;
 };
 
 type MatchesResponse = { matches?: TasoProviderMatch[] };
@@ -171,6 +176,9 @@ export type NormalizedTasoMatch = {
   awayTeamName: string;
   homeGoals: number | null;
   awayGoals: number | null;
+  /** The half-time score, or null when TASO reports none (specs/036). */
+  halfTimeHome: number | null;
+  halfTimeAway: number | null;
   /**
    * Who TASO says went through, which the score alone cannot answer for a cup:
    * a knockout tie level after normal time is decided on penalties that TASO
@@ -346,6 +354,10 @@ export function normalizeTasoMatch(
     // scores their own version of the `Number` traps.
     homeGoals: optionalNumber(match.fs_A),
     awayGoals: optionalNumber(match.fs_B),
+    // Same shape, same rule: `""` means TASO has no half-time score for this
+    // match, which is not the same as 0–0 (specs/036).
+    halfTimeHome: optionalNumber(match.hts_A),
+    halfTimeAway: optionalNumber(match.hts_B),
     winner: normalizeWinner(match.winner),
   };
 }

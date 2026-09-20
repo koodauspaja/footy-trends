@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { ComebacksSeries } from "@/lib/comebacks";
 import type { SeasonContext } from "@/lib/football-data";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
@@ -44,6 +45,9 @@ const getTeamCleanSheetSeriesMock = vi.fn(
 const getTeamStreaksMock = vi.fn(
   async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
+const getTeamComebacksMock = vi.fn(
+  async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -59,6 +63,7 @@ const analyticsSectionMock = vi.fn(
     loadHomeAway: () => Promise<HomeAwaySeries>;
     loadCleanSheets: () => Promise<CleanSheetSeries>;
     loadStreaks: () => Promise<StreaksSeries>;
+    loadComebacks: () => Promise<ComebacksSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -76,6 +81,7 @@ vi.mock("@/lib/standings-service", () => ({
   getTeamGoalsSeries: getTeamGoalsSeriesMock,
   getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
   getTeamStreaks: getTeamStreaksMock,
+  getTeamComebacks: getTeamComebacksMock,
   getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
@@ -149,6 +155,8 @@ const okResult: TeamMatchesResult = {
       awayTeamName: "Chelsea FC",
       homeGoals: 2,
       awayGoals: 1,
+      halfTimeHome: null,
+      halfTimeAway: null,
       stage: null,
       groupName: null,
       regularTimeHome: null,
@@ -171,6 +179,8 @@ const okResult: TeamMatchesResult = {
       awayTeamName: "Arsenal FC",
       homeGoals: null,
       awayGoals: null,
+      halfTimeHome: null,
+      halfTimeAway: null,
       stage: null,
       groupName: null,
       regularTimeHome: null,
@@ -284,6 +294,8 @@ describe("Team page", () => {
           awayTeamName: "Arsenal FC",
           homeGoals: null,
           awayGoals: null,
+          halfTimeHome: null,
+          halfTimeAway: null,
           stage: null,
           groupName: null,
           regularTimeHome: null,
@@ -320,6 +332,8 @@ describe("Team page", () => {
           awayTeamName: "Chelsea FC",
           homeGoals: 2,
           awayGoals: 1,
+          halfTimeHome: null,
+          halfTimeAway: null,
           stage: null,
           groupName: null,
           regularTimeHome: null,
@@ -649,6 +663,8 @@ describe("Team page", () => {
           awayTeamName: "Arsenal FC",
           homeGoals: null,
           awayGoals: null,
+          halfTimeHome: null,
+          halfTimeAway: null,
           stage: null,
           groupName: null,
           regularTimeHome: null,
@@ -756,6 +772,15 @@ describe("Team page league position (specs/030)", () => {
     await loadStreaks?.();
 
     expect(getTeamStreaksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for this team's comebacks in this competition and season (specs/036)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
+
+    await loadComebacks?.();
+
+    expect(getTeamComebacksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("offers no section for a cup, which has no league position", async () => {

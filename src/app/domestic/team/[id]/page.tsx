@@ -18,6 +18,7 @@ import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/dome
 import { matchCountLabel } from "@/lib/national-team";
 import {
   getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -243,6 +244,14 @@ export default async function DomesticTeamPage({
             ),
           loadStreaks: () =>
             getTeamStreaks(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadComebacks: () =>
+            getTeamComebacks(
               context.categoryId,
               context.competitionId,
               teamProviderId,

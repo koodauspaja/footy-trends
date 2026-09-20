@@ -61,6 +61,8 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     winner: null,
     ...overrides,
   };
@@ -263,6 +265,8 @@ describe("Domestic standings page", () => {
               awayTeamName: "FC Inter",
               homeGoals: 0,
               awayGoals: 0,
+              halfTimeHome: null,
+              halfTimeAway: null,
             }),
             buildMatch({
               providerMatchId: 11,
@@ -275,6 +279,8 @@ describe("Domestic standings page", () => {
               awayTeamName: "AC Oulu",
               homeGoals: 5,
               awayGoals: 0,
+              halfTimeHome: null,
+              halfTimeAway: null,
             }),
             // TASO can leave round_id off a match, which normalizes to a
             // null matchday — the Kierros cell falls back to "–" rather
@@ -290,6 +296,8 @@ describe("Domestic standings page", () => {
               awayTeamName: "VPS",
               homeGoals: 1,
               awayGoals: 1,
+              halfTimeHome: null,
+              halfTimeAway: null,
             }),
           ],
         },
@@ -455,6 +463,8 @@ describe("Domestic standings page, cup competitions", () => {
       awayTeamName: away[1],
       homeGoals: score[0],
       awayGoals: score[1],
+      halfTimeHome: null,
+      halfTimeAway: null,
       winner,
     });
   }

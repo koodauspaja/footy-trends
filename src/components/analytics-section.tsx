@@ -1,4 +1,5 @@
 import { cleanSheetsPanel } from "@/components/clean-sheets-section";
+import { comebacksPanel } from "@/components/comebacks-section";
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
@@ -8,6 +9,7 @@ import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
@@ -23,8 +25,8 @@ const HEADING_ID = "analytics";
 
 /**
  * The team page's analytics: every panel under one heading (specs/031). Most
- * are charts; `Putket` (specs/035) is a list of figures, which is why the parts
- * are called panels here.
+ * are charts; `Putket` (specs/035) and `Käännetyt ottelut` (specs/036) are
+ * lists of figures, which is why the parts are called panels here.
  *
  * **The gate comes first, and once.** A signed-out request gets the heading and
  * one sign-in prompt — not one per panel (Q5) — before any loader is called, so
@@ -43,6 +45,7 @@ export async function AnalyticsSection({
   loadHomeAway,
   loadCleanSheets,
   loadStreaks,
+  loadComebacks,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
@@ -50,6 +53,7 @@ export async function AnalyticsSection({
   loadHomeAway: () => Promise<HomeAwaySeries>;
   loadCleanSheets: () => Promise<CleanSheetSeries>;
   loadStreaks: () => Promise<StreaksSeries>;
+  loadComebacks: () => Promise<ComebacksSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -59,13 +63,14 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway, cleanSheets, streaks] = await Promise.all([
+  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks] = await Promise.all([
     loadPosition(),
     loadForm(),
     loadGoals(),
     loadHomeAway(),
     loadCleanSheets(),
     loadStreaks(),
+    loadComebacks(),
   ]);
   const panels = {
     position: positionPanel(position),
@@ -75,6 +80,7 @@ export async function AnalyticsSection({
     homeAway: homeAwayPanel(homeAway),
     cleanSheets: cleanSheetsPanel(cleanSheets),
     streaks: streaksPanel(streaks),
+    comebacks: comebacksPanel(comebacks),
   };
   if (Object.values(panels).every((panel) => panel === null)) return null;
 
@@ -87,6 +93,7 @@ export async function AnalyticsSection({
       {panels.homeAway}
       {panels.cleanSheets}
       {panels.streaks}
+      {panels.comebacks}
     </Section>
   );
 }

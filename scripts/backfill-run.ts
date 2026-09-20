@@ -123,7 +123,8 @@ type HalfResult = { failures: number; skipped: number };
  * failure shapes. Reading them as one function meant holding both at once.
  */
 async function backfillFootballData(
-  footballData: <T>(work: () => Promise<T>) => Promise<T>
+  footballData: <T>(work: () => Promise<T>) => Promise<T>,
+  refetch: boolean
 ): Promise<HalfResult> {
   let failures = 0;
   let skipped = 0;
@@ -147,7 +148,7 @@ async function backfillFootballData(
 
     for (const seasonId of seasons) {
       try {
-        if (await alreadyStored(competition.code, seasonId, activeSeason)) {
+        if (!refetch && (await alreadyStored(competition.code, seasonId, activeSeason))) {
           skipped += 1;
           out(`  ${competition.code} ${seasonId}: already stored, skipped`);
           continue;
@@ -183,7 +184,8 @@ async function backfillTasoSeason(
   taso: <T>(work: () => Promise<T>) => Promise<T>,
   code: string,
   seasonId: number,
-  currentTasoSeason: number
+  currentTasoSeason: number,
+  refetch: boolean
 ): Promise<SeasonOutcome> {
   // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`: most
   // competitions sit under the season umbrella (`spljp26`), but one that
@@ -198,8 +200,10 @@ async function backfillTasoSeason(
     // Two questions, not one. Matches and groups are separate writes, so a
     // season whose matches stored and whose groups then failed must still retry
     // the groups — a single season-level skip would strand them.
-    const hasMatches = await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason);
-    const hasGroups = await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason);
+    const hasMatches =
+      !refetch && (await alreadyStoredTaso(categoryId, seasonId, currentTasoSeason));
+    const hasGroups =
+      !refetch && (await alreadyStoredTasoGroups(categoryId, seasonId, currentTasoSeason));
 
     if (hasMatches && hasGroups) {
       out(`  ${code} ${seasonId}: already stored, skipped`);
@@ -229,7 +233,10 @@ async function backfillTasoSeason(
   }
 }
 
-async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Promise<HalfResult> {
+async function backfillTaso(
+  taso: <T>(work: () => Promise<T>) => Promise<T>,
+  refetch: boolean
+): Promise<HalfResult> {
   let failures = 0;
   let skipped = 0;
 
@@ -285,7 +292,13 @@ async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Pr
       // asks TASO about a competition that does not exist there, and TASO
       // answers with an empty list rather than an error — so the run reports
       // success having stored nothing.
-      const outcome = await backfillTasoSeason(taso, competition.code, seasonId, currentTasoSeason);
+      const outcome = await backfillTasoSeason(
+        taso,
+        competition.code,
+        seasonId,
+        currentTasoSeason,
+        refetch
+      );
       if (outcome === "skipped") skipped += 1;
       if (outcome === "failed") failures += 1;
     }
@@ -294,8 +307,16 @@ async function backfillTaso(taso: <T>(work: () => Promise<T>) => Promise<T>): Pr
   return { failures, skipped };
 }
 
-export async function backfill({ reset }: { reset: boolean }): Promise<number> {
+export async function backfill({
+  reset,
+  refetch = false,
+}: {
+  reset: boolean;
+  /** Fetch competition-seasons that are already stored, instead of skipping them. */
+  refetch?: boolean;
+}): Promise<number> {
   out(`Rates        football-data ${FOOTBALL_DATA_PER_MINUTE}/min, TASO ${TASO_PER_MINUTE}/min`);
+  if (refetch) out("Refetch      on — already-stored competition-seasons are fetched again");
 
   let failures = 0;
   let skipped = 0;
@@ -330,11 +351,11 @@ export async function backfill({ reset }: { reset: boolean }): Promise<number> {
     const footballData = pacer(FOOTBALL_DATA_PER_MINUTE);
     const taso = pacer(TASO_PER_MINUTE);
 
-    const foreign = await backfillFootballData(footballData);
+    const foreign = await backfillFootballData(footballData, refetch);
     failures += foreign.failures;
     skipped += foreign.skipped;
 
-    const domestic = await backfillTaso(taso);
+    const domestic = await backfillTaso(taso, refetch);
     failures += domestic.failures;
     skipped += domestic.skipped;
   } finally {

@@ -101,6 +101,9 @@ function expandMatches(
     awayTeamName: season.teams[String(awayId)] ?? "",
     homeGoals,
     awayGoals,
+    // This fixture is about carry-over points, which half-time never touches.
+    halfTimeHome: null,
+    halfTimeAway: null,
   }));
 }
 

@@ -92,7 +92,7 @@ test.describe("Streaks, signed in", () => {
     }
   });
 
-  test("names all five figures, and comes last in Analyysit", async ({ page }) => {
+  test("names all five figures, and sits second to last in Analyysit", async ({ page }) => {
     await page.goto(TEAM);
 
     expect(Object.keys(await figures(page))).toEqual([
@@ -102,9 +102,11 @@ test.describe("Streaks, signed in", () => {
       "Pisin tappioputki",
       "Pisin voitoton putki",
     ]);
-    await expect(
-      page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 3 }).last()
-    ).toHaveText(HEADING);
+    // `Käännetyt ottelut` (specs/036) comes after it, and owns that assertion.
+    const subheadings = page
+      .getByRole("region", { name: "Analyysit" })
+      .getByRole("heading", { level: 3 });
+    await expect(subheadings.nth((await subheadings.count()) - 2)).toHaveText(HEADING);
   });
 
   test("shows a Finnish league's streaks too", async ({ page }) => {

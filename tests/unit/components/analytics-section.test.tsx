@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
@@ -24,6 +25,7 @@ import {
   SIGNED_OUT_MESSAGE,
 } from "@/components/analytics-section";
 import { CLEAN_SHEETS_HEADING } from "@/components/clean-sheets-section";
+import { COMEBACKS_HEADING } from "@/components/comebacks-section";
 import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
@@ -61,6 +63,14 @@ const streaks: StreaksSeries = {
     winless: null,
   },
 };
+const comebacks: ComebacksSeries = {
+  status: "ok",
+  trailed: 2,
+  won: 1,
+  drew: 1,
+  missing: 0,
+  known: 5,
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
@@ -68,7 +78,8 @@ async function renderSection(
   loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals),
   loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway),
   loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
-  loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks)
+  loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
+  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks)
 ) {
   const view = await AnalyticsSection({
     loadPosition,
@@ -77,6 +88,7 @@ async function renderSection(
     loadHomeAway,
     loadCleanSheets,
     loadStreaks,
+    loadComebacks,
   });
   return {
     ...render(<div>{view}</div>),
@@ -86,6 +98,7 @@ async function renderSection(
     loadHomeAway,
     loadCleanSheets,
     loadStreaks,
+    loadComebacks,
     view,
   };
 }
@@ -123,6 +136,7 @@ describe("AnalyticsSection, signed out", () => {
       loadHomeAway,
       loadCleanSheets,
       loadStreaks,
+      loadComebacks,
       container,
     } = await renderSection();
 
@@ -132,6 +146,7 @@ describe("AnalyticsSection, signed out", () => {
     expect(loadHomeAway).not.toHaveBeenCalled();
     expect(loadCleanSheets).not.toHaveBeenCalled();
     expect(loadStreaks).not.toHaveBeenCalled();
+    expect(loadComebacks).not.toHaveBeenCalled();
     expect(container.querySelector("svg")).toBeNull();
   });
 });
@@ -152,6 +167,7 @@ describe("AnalyticsSection, signed in", () => {
       HOME_AWAY_HEADING,
       CLEAN_SHEETS_HEADING,
       STREAKS_HEADING,
+      COMEBACKS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -180,6 +196,7 @@ describe("AnalyticsSection, signed in", () => {
       HOME_AWAY_HEADING,
       CLEAN_SHEETS_HEADING,
       STREAKS_HEADING,
+      COMEBACKS_HEADING,
     ]);
   });
 
@@ -201,7 +218,8 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

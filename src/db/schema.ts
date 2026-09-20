@@ -27,6 +27,14 @@ function matchTeamColumns() {
     // Nullable: a not-yet-played match has no final score.
     homeGoals: integer("home_goals"),
     awayGoals: integer("away_goals"),
+    // Nullable twice over (specs/036): an unplayed match has no half-time
+    // score, and a provider may not report one for a match it has played —
+    // TASO omitted it for 1 of 132 Ykkönen 2025 matches, and football-data
+    // refuses older seasons outright. "No half-time score" and "0–0 at the
+    // break" must stay distinguishable, which is why this is null rather than
+    // 0.
+    halfTimeHome: integer("half_time_home"),
+    halfTimeAway: integer("half_time_away"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   };
