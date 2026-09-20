@@ -101,7 +101,7 @@ test.describe("Goals charts, signed in", () => {
       "Koti- ja vierastilastot",
       "Nollapelit",
       "Putket",
-      "Käännetyt ottelut",
+      "Kääntyneet ottelut",
     ]);
   });
 });

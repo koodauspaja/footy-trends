@@ -65,9 +65,8 @@ const streaks: StreaksSeries = {
 };
 const comebacks: ComebacksSeries = {
   status: "ok",
-  trailed: 2,
-  won: 1,
-  drew: 1,
+  trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
+  led: { matches: 3, won: 1, drew: 1, lost: 1 },
   missing: 0,
   known: 5,
 };

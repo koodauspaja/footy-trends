@@ -1,6 +1,10 @@
 /**
- * How often a team recovers from losing at half-time — the data behind the
- * team page's `Käännetyt ottelut` panel (specs/036).
+ * What became of a team's matches after half-time — the data behind the team
+ * page's `Kääntyneet ottelut` panel (specs/036, specs/037).
+ *
+ * Two directions, one question: the deficits it rescued, and the leads it gave
+ * away. They are counted together because they come out of the same column and
+ * the same matches, so a match missing a half-time score is missing from both.
  *
  * **A match with no half-time score is counted as missing, never as 0–0.**
  * Neither provider guarantees one: football-data refuses older seasons
@@ -19,16 +23,33 @@ export type HalfTimeMatch = ResultMatch & {
   halfTimeAway: number | null;
 };
 
+/**
+ * One half-time position, and what became of the matches in it.
+ *
+ * All three outcomes are counted although the panel shows only two per
+ * direction (specs/037): the third is what makes `won + drew + lost` equal
+ * `matches`, which is the check that the arithmetic did not lose a match.
+ */
+export type HalfTimeOutcomes = {
+  /** Matches in this position at the break. */
+  matches: number;
+  won: number;
+  drew: number;
+  lost: number;
+};
+
 export type Comebacks = {
   /** Matches the team trailed at half-time, of those with a half-time score. */
-  trailed: number;
-  /** Of those, won at full time. */
-  won: number;
-  /** Of those, drew at full time. */
-  drew: number;
-  /** Matches counted in none of the above, because no half-time score was stored. */
+  trailed: HalfTimeOutcomes;
+  /** Matches the team led at half-time (specs/037). */
+  led: HalfTimeOutcomes;
+  /** Matches counted in neither direction, because no half-time score was stored. */
   missing: number;
-  /** Matches with a half-time score — what the figures are out of. */
+  /**
+   * Matches with a half-time score — what the figures are out of. Larger than
+   * `trailed.matches + led.matches` exactly when a match was level at the
+   * break, which belongs to neither direction.
+   */
   known: number;
 };
 
@@ -38,13 +59,17 @@ export type ComebacksSeries =
   | { status: "unavailable" }
   | { status: "error" };
 
+function noOutcomes(): HalfTimeOutcomes {
+  return { matches: 0, won: 0, drew: 0, lost: 0 };
+}
+
 /**
- * The comeback figures from this team's finished matches. `finished` may hold
- * every team's matches; only this team's count, read from its own side of each
- * fixture at half time as well as at full time.
+ * Both directions' figures from this team's finished matches. `finished` may
+ * hold every team's matches; only this team's count, read from its own side of
+ * each fixture at half time as well as at full time.
  */
 export function comebacksOf(finished: readonly HalfTimeMatch[], teamId: number): Comebacks {
-  const figures: Comebacks = { trailed: 0, won: 0, drew: 0, missing: 0, known: 0 };
+  const figures: Comebacks = { trailed: noOutcomes(), led: noOutcomes(), missing: 0, known: 0 };
 
   for (const match of teamMatchesInOrder(finished, teamId)) {
     const halfTime = halfTimeFor(match, teamId);
@@ -55,15 +80,21 @@ export function comebacksOf(finished: readonly HalfTimeMatch[], teamId: number):
 
     figures.known += 1;
     const [own, other] = halfTime;
-    if (own >= other) continue;
+    // Level at the break belongs to neither direction (specs/037).
+    if (own === other) continue;
 
-    figures.trailed += 1;
-    const [fullOwn, fullOther] = goalsFor(match, teamId);
-    if (fullOwn > fullOther) figures.won += 1;
-    else if (fullOwn === fullOther) figures.drew += 1;
+    record(own < other ? figures.trailed : figures.led, ...goalsFor(match, teamId));
   }
 
   return figures;
+}
+
+/** Adds one match's full-time outcome to the direction it was trailing or leading in. */
+function record(outcomes: HalfTimeOutcomes, own: number, other: number): void {
+  outcomes.matches += 1;
+  if (own > other) outcomes.won += 1;
+  else if (own === other) outcomes.drew += 1;
+  else outcomes.lost += 1;
 }
 
 /** `[own, other]` at half time, or `null` when the provider gave no half-time score. */

@@ -2917,13 +2917,14 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       });
     });
 
-    it("counts comebacks over the same league matches, not the playoff", async () => {
+    it("counts both directions over the same league matches, not the playoff", async () => {
       /**
-       * Half-time, from team 1's own side: 0–1 won, 0–1 drew, 0–1 lost, 1–0,
-       * none stored, 0–0 — and the playoff win, trailing 0–3 at the break, is
-       * not a league match. Count it and both `trailed` and `won` would rise.
+       * Half-time, from team 1's own side: 0–1 won, 0–1 drew, 1–0 lost (a lead
+       * given away), 1–0 won, none stored, 0–0 level — and the playoff win,
+       * trailing 0–3 at the break, is not a league match. Count that one and
+       * `trailed` would rise to 3.
        */
-      const halfTimes = [[0, 1], [0, 1], [0, 1], [1, 0], null, [0, 0], [0, 3]] as const;
+      const halfTimes = [[0, 1], [0, 1], [1, 0], [1, 0], null, [0, 0], [0, 3]] as const;
       mockStoredMatches(
         matches.map((row, index) => withHalfTime(row, halfTimes[index] ?? null)),
         rows
@@ -2931,9 +2932,8 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
       expect(await getTeamComebacks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
         status: "ok",
-        trailed: 3,
-        won: 1,
-        drew: 1,
+        trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
+        led: { matches: 2, won: 1, drew: 0, lost: 1 },
         missing: 1,
         known: 5,
       });
@@ -3201,7 +3201,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     expect(
       await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
-    ).toEqual({ status: "ok", trailed: 0, won: 0, drew: 0, missing: 0, known: 0 });
+    ).toEqual({
+      status: "ok",
+      trailed: { matches: 0, won: 0, drew: 0, lost: 0 },
+      led: { matches: 0, won: 0, drew: 0, lost: 0 },
+      missing: 0,
+      known: 0,
+    });
   });
 
   it("reports a comebacks error, and logs it, when the season cannot be read", async () => {
