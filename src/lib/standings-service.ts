@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
+import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
@@ -357,6 +358,35 @@ export async function getTeamStreaks(
 }
 
 /**
+ * This team's comebacks from a half-time deficit, for the team page's
+ * `Käännetyt ottelut` panel (specs/036). The same cached season read, and
+ * exactly the matches the other result panels count.
+ */
+export async function getTeamComebacks(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<ComebacksSeries> {
+  try {
+    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
+      competitionCode,
+      seasonId,
+      activeSeasonId
+    );
+    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
+
+    return { status: "ok", ...comebacksOf(toFinishedMatches(seasonMatches), teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compute the comebacks"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
  * A team's full match list for a season — played and upcoming — sorted by
  * kickoff time. A team is only known to exist here through its matches;
  * there is no independent teams table, so a team id that appears in no
@@ -550,6 +580,8 @@ export async function synchronizeMatches(
         awayTeamName: sql`excluded.away_team_name`,
         homeGoals: sql`excluded.home_goals`,
         awayGoals: sql`excluded.away_goals`,
+        halfTimeHome: sql`excluded.half_time_home`,
+        halfTimeAway: sql`excluded.half_time_away`,
         stage: sql`excluded.stage`,
         groupName: sql`excluded.group_name`,
         regularTimeHome: sql`excluded.regular_time_home`,

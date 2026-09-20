@@ -1,7 +1,6 @@
 # 036 — Comebacks from a half-time deficit
 
-> **Status: every question answered on 2026-09-20; awaiting go.** Nothing is
-> implemented until a human says **go**.
+> **Status: agreed on 2026-09-20 and implemented in PR #432.**
 
 ## Summary
 

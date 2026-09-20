@@ -54,6 +54,8 @@ describe("taso mapping", () => {
         team_B_name: "KuPS",
         fs_A: "2",
         fs_B: "1",
+        hts_A: "0",
+        hts_B: "1",
       },
       "spljp26",
       "VL",
@@ -61,6 +63,8 @@ describe("taso mapping", () => {
     );
 
     expect(result).toMatchObject({
+      halfTimeHome: 0,
+      halfTimeAway: 1,
       providerMatchId: 123,
       competitionCode: "spljp26",
       seasonId: 2026,
@@ -75,6 +79,33 @@ describe("taso mapping", () => {
       homeGoals: 2,
       awayGoals: 1,
     });
+  });
+
+  it("tells no half-time score from a goalless first half (specs/036)", () => {
+    // TASO sends `""` for a match it has no half-time score for — 1 of 132 in
+    // Ykkönen 2025 — and "0" for one that really was goalless at the break.
+    const played = (halfTime: string) => ({
+      match_id: "123",
+      status: "Played",
+      group_id: "1",
+      group_name: "Runkosarja",
+      date: "2026-05-01",
+      time: "18:00:00",
+      time_zone_offset: "+0300",
+      team_A_id: "10",
+      team_A_name: "HJK",
+      team_B_id: "20",
+      team_B_name: "KuPS",
+      fs_A: "2",
+      fs_B: "1",
+      hts_A: halfTime,
+      hts_B: "1",
+    });
+    const missing = normalizeTasoMatch(played(""), "spljp26", "VL", 2026);
+    const goalless = normalizeTasoMatch(played("0"), "spljp26", "VL", 2026);
+
+    expect(missing).toMatchObject({ halfTimeHome: null });
+    expect(goalless).toMatchObject({ halfTimeHome: 0 });
   });
 
   it("maps a not-yet-played fixture's empty-string score to null goals and SCHEDULED status", () => {

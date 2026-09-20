@@ -31,6 +31,8 @@ function buildMatch(overrides: Partial<NormalizedProviderMatch> = {}): Normalize
     awayTeamName: "Integration City",
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     stage: null,
     groupName: null,
     regularTimeHome: null,
@@ -102,6 +104,45 @@ describe("standings integration", () => {
 
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({ homeGoals: 1, awayGoals: 1 });
+  });
+
+  it("round-trips the half-time score, a goalless first half included (specs/036)", async () => {
+    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const goalless = buildMatch({ providerMatchId: 900011, halfTimeHome: 0, halfTimeAway: 0 });
+    const behind = buildMatch({ providerMatchId: 900012, halfTimeHome: 0, halfTimeAway: 1 });
+
+    await synchronizeMatches([goalless, behind]);
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(and(eq(matches.competitionCode, competitionCode), eq(matches.seasonId, seasonId)));
+
+    expect(
+      stored
+        .map((row) => [row.providerMatchId, row.halfTimeHome, row.halfTimeAway])
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+    ).toEqual([
+      [900011, 0, 0],
+      [900012, 0, 1],
+    ]);
+  });
+
+  it("fills in a half-time score a later sync brings, which is what the backfill does", async () => {
+    // Every row stored before specs/036 has `null` here; `--refetch` re-reads
+    // the season so the sync can write what the provider gives now.
+    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const providerMatch = buildMatch({ halfTimeHome: null, halfTimeAway: null });
+
+    await synchronizeMatches([providerMatch]);
+    await synchronizeMatches([{ ...providerMatch, halfTimeHome: 1, halfTimeAway: 2 }]);
+
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(eq(matches.providerMatchId, providerMatch.providerMatchId));
+
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ halfTimeHome: 1, halfTimeAway: 2 });
   });
 
   it("falls back to stored standings when the provider refresh fails", async () => {
@@ -214,6 +255,8 @@ describe("standings integration", () => {
       status: "SCHEDULED",
       homeGoals: null,
       awayGoals: null,
+      halfTimeHome: null,
+      halfTimeAway: null,
       homeTeamProviderId: 9003,
       homeTeamName: "Integration Rovers",
     });
@@ -277,6 +320,8 @@ describe("standings integration", () => {
         status: "SCHEDULED",
         homeGoals: null,
         awayGoals: null,
+        halfTimeHome: null,
+        halfTimeAway: null,
         matchday: 1,
         kickoffAt: new Date("2026-08-01T15:00:00Z"),
       }),
@@ -285,6 +330,8 @@ describe("standings integration", () => {
         status: "SCHEDULED",
         homeGoals: null,
         awayGoals: null,
+        halfTimeHome: null,
+        halfTimeAway: null,
         matchday: 2,
         kickoffAt: new Date("2026-08-08T15:00:00Z"),
       }),

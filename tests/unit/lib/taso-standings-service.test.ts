@@ -8,6 +8,7 @@ import {
   getSeasonMatchList,
   getSeasonStandings,
   getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -92,6 +93,8 @@ function match(
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     winner: null,
     // Fresh, not stale — a mockStoredMatches-based test is about the
     // matches themselves, not needsRefresh's staleness threshold (covered
@@ -209,6 +212,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 1,
         homeGoals: 0,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -238,6 +243,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 2,
         homeGoals: 3,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -277,6 +284,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "Relegated A",
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
       match({
         providerMatchId: 2,
@@ -288,6 +297,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "Relegated B",
         homeGoals: 2,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
       match({
         providerMatchId: 3,
@@ -300,6 +311,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "HJK",
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -377,6 +390,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 2,
         homeGoals: 3,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -406,6 +421,8 @@ describe("getSeasonStandings", () => {
         status: "SCHEDULED",
         homeGoals: null,
         awayGoals: null,
+        halfTimeHome: null,
+        halfTimeAway: null,
         matchday: 2,
         homeTeamProviderId: 3,
         homeTeamName: "IFK Mariehamn",
@@ -644,6 +661,8 @@ describe("getSeasonStandings", () => {
           matchday: 23,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -686,6 +705,8 @@ describe("getSeasonStandings", () => {
           matchday: 23,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1142,6 +1163,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser1",
           homeGoals: 3,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
         match({
           providerMatchId: 2,
@@ -1151,6 +1174,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser2",
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
         match({
           providerMatchId: 3,
@@ -1160,6 +1185,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser3",
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1278,6 +1305,8 @@ describe("standings edge cases", () => {
           awayTeamProviderId: 1,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1599,6 +1628,8 @@ describe("group standings storage", () => {
         matchday: 23,
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
     getSeasonGroupsMock.mockResolvedValue([
@@ -2268,6 +2299,8 @@ describe("getTeamPositionSeries", () => {
       status: score === null ? "SCHEDULED" : "FINISHED",
       homeGoals: score?.[0] ?? null,
       awayGoals: score?.[1] ?? null,
+      halfTimeHome: null,
+      halfTimeAway: null,
     });
   }
 
@@ -2732,7 +2765,20 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       awayTeamName: `Team ${awayId}`,
       homeGoals: home ? own : other,
       awayGoals: home ? other : own,
+      halfTimeHome: null,
+      halfTimeAway: null,
     });
+  }
+
+  /** The same match with a half-time score, given from team 1's own side. */
+  function withHalfTime<T extends { homeTeamProviderId: number }>(
+    row: T,
+    halfTime: readonly [number, number] | null
+  ): T {
+    if (halfTime === null) return row;
+    const [own, other] = halfTime;
+    const home = row.homeTeamProviderId === 1;
+    return { ...row, halfTimeHome: home ? own : other, halfTimeAway: home ? other : own };
   }
 
   function rowsFor(
@@ -2868,6 +2914,28 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
           defeats: { length: 1, from: 3, to: 3 },
           winless: { length: 2, from: 2, to: 3 },
         },
+      });
+    });
+
+    it("counts comebacks over the same league matches, not the playoff", async () => {
+      /**
+       * Half-time, from team 1's own side: 0–1 won, 0–1 drew, 0–1 lost, 1–0,
+       * none stored, 0–0 — and the playoff win, trailing 0–3 at the break, is
+       * not a league match. Count it and both `trailed` and `won` would rise.
+       */
+      const halfTimes = [[0, 1], [0, 1], [0, 1], [1, 0], null, [0, 0], [0, 3]] as const;
+      mockStoredMatches(
+        matches.map((row, index) => withHalfTime(row, halfTimes[index] ?? null)),
+        rows
+      );
+
+      expect(await getTeamComebacks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        trailed: 3,
+        won: 1,
+        drew: 1,
+        missing: 1,
+        known: 5,
       });
     });
 
@@ -3110,6 +3178,43 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
       "Unable to compute the TASO streaks"
+    );
+  });
+
+  it("has no comebacks panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamComebacks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no comebacks for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "ok", trailed: 0, won: 0, drew: 0, missing: 0, known: 0 });
+  });
+
+  it("reports a comebacks error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO comebacks"
     );
   });
 

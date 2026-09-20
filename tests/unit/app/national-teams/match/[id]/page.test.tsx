@@ -42,6 +42,8 @@ function row(overrides: Partial<FootballDataMatchRow> = {}): FootballDataMatchRo
     awayTeamName: "Sweden",
     homeGoals: 1,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     createdAt: new Date("2026-06-20T21:00:00Z"),
     updatedAt: new Date("2026-06-20T21:00:00Z"),
     ...overrides,

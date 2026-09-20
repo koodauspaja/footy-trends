@@ -4,6 +4,7 @@ import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
+import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import {
   categoryIdForSeason,
   categoryIdsFor,
@@ -21,12 +22,7 @@ import {
   positionsAfterEachRound,
   teamsInGroupsAbove,
 } from "./position-series";
-import {
-  calculateStandings,
-  type NormalizedMatch,
-  selectTeamMatches,
-  type TeamStanding,
-} from "./standings";
+import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   competitionIdFromSeason,
@@ -337,9 +333,18 @@ export type TeamMatchesResult =
   | { status: "empty" }
   | { status: "error" };
 
-function toFinishedMatches(matchList: MatchRow[]): NormalizedMatch[] {
+/**
+ * A stored match with a result, keeping the row's own type rather than
+ * narrowing to `NormalizedMatch`: the half-time score rides on a TASO row and
+ * the comebacks panel needs it (specs/036). `NormalizedMatch` is a subset of
+ * the row, so `calculateStandings` and friends still take one unchanged.
+ */
+type FinishedMatchRow = MatchRow & { homeGoals: number; awayGoals: number };
+
+/** The played matches, in the order they were given. */
+function toFinishedMatches(matchList: MatchRow[]): FinishedMatchRow[] {
   return matchList.filter(
-    (match): match is MatchRow & { homeGoals: number; awayGoals: number } =>
+    (match): match is FinishedMatchRow =>
       match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
   );
 }
@@ -752,6 +757,8 @@ export async function synchronizeMatches(
         awayTeamName: sql`excluded.away_team_name`,
         homeGoals: sql`excluded.home_goals`,
         awayGoals: sql`excluded.away_goals`,
+        halfTimeHome: sql`excluded.half_time_home`,
+        halfTimeAway: sql`excluded.half_time_away`,
         updatedAt: sql`excluded.updated_at`,
       },
     });
@@ -1514,6 +1521,41 @@ export async function getTeamStreaks(
 }
 
 /**
+ * This team's comebacks from a half-time deficit, for the team page's
+ * `Käännetyt ottelut` panel (specs/036). Counts exactly the matches the other
+ * result panels count.
+ */
+export async function getTeamComebacks(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<ComebacksSeries> {
+  try {
+    const league = await teamLeagueMatches(
+      categoryId,
+      competitionId,
+      teamProviderId,
+      seasonId,
+      activeSeasonId
+    );
+    if (league.status === "no-matches") {
+      return { status: "ok", ...comebacksOf([], teamProviderId) };
+    }
+    if (league.status !== "ok") return league;
+
+    return { status: "ok", ...comebacksOf(league.finished, teamProviderId) };
+  } catch (error) {
+    logger.error(
+      { err: error, categoryId, competitionId, seasonId, teamProviderId },
+      "Unable to compute the TASO comebacks"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
  * This team's finished league matches in a season — what every result-based
  * chart on the team page counts (specs/031 Q2, specs/032).
  *
@@ -1537,7 +1579,7 @@ async function teamLeagueMatches(
   seasonId: number,
   activeSeasonId: number
 ): Promise<
-  | { status: "ok"; finished: NormalizedMatch[] }
+  | { status: "ok"; finished: FinishedMatchRow[] }
   | { status: "no-matches" }
   | { status: "unavailable" }
   | { status: "error" }

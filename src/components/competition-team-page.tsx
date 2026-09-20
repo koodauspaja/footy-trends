@@ -24,6 +24,7 @@ import {
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
   getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
@@ -290,6 +291,8 @@ export async function CompetitionTeamPage({
             ),
           loadStreaks: () =>
             getTeamStreaks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          loadComebacks: () =>
+            getTeamComebacks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
         })
       : null;
 

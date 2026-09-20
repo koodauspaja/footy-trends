@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { ComebacksSeries } from "@/lib/comebacks";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
@@ -32,6 +33,9 @@ const getTeamCleanSheetSeriesMock = vi.fn(
 const getTeamStreaksMock = vi.fn(
   async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
+const getTeamComebacksMock = vi.fn(
+  async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -47,6 +51,7 @@ const analyticsSectionMock = vi.fn(
     loadHomeAway: () => Promise<HomeAwaySeries>;
     loadCleanSheets: () => Promise<CleanSheetSeries>;
     loadStreaks: () => Promise<StreaksSeries>;
+    loadComebacks: () => Promise<ComebacksSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -79,6 +84,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     getTeamGoalsSeries: getTeamGoalsSeriesMock,
     getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
     getTeamStreaks: getTeamStreaksMock,
+    getTeamComebacks: getTeamComebacksMock,
     getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
@@ -143,6 +149,8 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     winner: null,
     ...overrides,
   };
@@ -644,6 +652,21 @@ describe("Domestic team page league position (specs/030)", () => {
     await loadStreaks?.();
 
     expect(getTeamStreaksMock).toHaveBeenCalledWith(
+      categoryIdForSeason("VL", 2025),
+      competitionIdForSeason("VL", 2025),
+      1,
+      2025,
+      2026
+    );
+  });
+
+  it("asks for this team's comebacks in the same TASO category and competition (specs/036)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
+
+    await loadComebacks?.();
+
+    expect(getTeamComebacksMock).toHaveBeenCalledWith(
       categoryIdForSeason("VL", 2025),
       competitionIdForSeason("VL", 2025),
       1,

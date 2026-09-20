@@ -48,6 +48,9 @@ type MatchRow = {
   away: { id: number; name: string };
   home_goals: number;
   away_goals: number;
+  /** `null` for a match TASO gave no half-time score for (specs/036). */
+  half_time_home: number | null;
+  half_time_away: number | null;
 };
 
 function match(
@@ -57,7 +60,8 @@ function match(
   home: { id: number; name: string },
   away: { id: number; name: string },
   score: [number, number],
-  matchday: number | null
+  matchday: number | null,
+  halfTime: [number, number] | null = null
 ): MatchRow {
   return {
     taso_match_id: id,
@@ -69,29 +73,39 @@ function match(
     away,
     home_goals: score[0],
     away_goals: score[1],
+    half_time_home: halfTime?.[0] ?? null,
+    half_time_away: halfTime?.[1] ?? null,
   };
 }
 
 /**
  * Six league matches — every pair once — so the table has four teams with
  * genuinely different points, and three knockout matches across two groups.
+ *
+ * **The half-time scores are chosen for the comebacks panel** (specs/036).
+ * Fixture HJK, in the league: trailed and won, led, and one match with no
+ * half-time score at all — so the page must show the figures *and* say one is
+ * missing. Fixture KuPS: led and lost, trailed and won, trailed and drew.
+ * The knockout's HJK match is a comeback too, and must not be counted: it is a
+ * match list, not a league.
  */
 export const MATCHES: MatchRow[] = [
-  match(9_900_101, GROUPS.league, 1, TEAM.hjk, TEAM.kups, [2, 0], 1),
-  match(9_900_102, GROUPS.league, 2, TEAM.ilves, TEAM.inter, [1, 1], 1),
-  match(9_900_103, GROUPS.league, 3, TEAM.hjk, TEAM.ilves, [3, 1], 2),
-  match(9_900_104, GROUPS.league, 4, TEAM.kups, TEAM.inter, [2, 1], 2),
+  match(9_900_101, GROUPS.league, 1, TEAM.hjk, TEAM.kups, [2, 0], 1, [0, 1]),
+  match(9_900_102, GROUPS.league, 2, TEAM.ilves, TEAM.inter, [1, 1], 1, [1, 0]),
+  match(9_900_103, GROUPS.league, 3, TEAM.hjk, TEAM.ilves, [3, 1], 2, [1, 0]),
+  match(9_900_104, GROUPS.league, 4, TEAM.kups, TEAM.inter, [2, 1], 2, [0, 1]),
+  // No half-time score, as TASO gave none for 1 of Ykkönen 2025's 132 matches.
   match(9_900_105, GROUPS.league, 5, TEAM.hjk, TEAM.inter, [1, 0], 3),
-  match(9_900_106, GROUPS.league, 6, TEAM.kups, TEAM.ilves, [0, 0], 3),
+  match(9_900_106, GROUPS.league, 6, TEAM.kups, TEAM.ilves, [0, 0], 3, [0, 1]),
 
   // The knockout: two semi-finals and a third-place match.
-  match(9_900_201, GROUPS.knockout, 7, TEAM.hjk, TEAM.inter, [2, 1], null),
-  match(9_900_202, GROUPS.knockout, 7, TEAM.kups, TEAM.ilves, [1, 0], null),
-  match(9_900_203, GROUPS.knockout, 8, TEAM.inter, TEAM.ilves, [1, 2], null),
+  match(9_900_201, GROUPS.knockout, 7, TEAM.hjk, TEAM.inter, [2, 1], null, [0, 1]),
+  match(9_900_202, GROUPS.knockout, 7, TEAM.kups, TEAM.ilves, [1, 0], null, [1, 0]),
+  match(9_900_203, GROUPS.knockout, 8, TEAM.inter, TEAM.ilves, [1, 2], null, [1, 0]),
 
   // The final, over two legs.
-  match(9_900_301, GROUPS.final, 8, TEAM.hjk, TEAM.kups, [1, 0], null),
-  match(9_900_302, GROUPS.final, 9, TEAM.kups, TEAM.hjk, [1, 1], null),
+  match(9_900_301, GROUPS.final, 8, TEAM.hjk, TEAM.kups, [1, 0], null, [0, 0]),
+  match(9_900_302, GROUPS.final, 9, TEAM.kups, TEAM.hjk, [1, 1], null, [0, 1]),
 ];
 
 type TeamRow = {

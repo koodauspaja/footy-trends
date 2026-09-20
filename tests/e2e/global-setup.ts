@@ -73,6 +73,8 @@ async function seedFixtureSeason(url: string): Promise<void> {
             away_team_name: row.away.name,
             home_goals: row.home_goals,
             away_goals: row.away_goals,
+            half_time_home: row.half_time_home,
+            half_time_away: row.half_time_away,
           })}
         `;
       }
