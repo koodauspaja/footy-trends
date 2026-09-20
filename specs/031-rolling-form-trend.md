@@ -1,6 +1,6 @@
 # 031 — Rolling form trend
 
-> **Status: agreed on 2026-09-19 and implemented (#415).**
+> **Status: agreed on 2026-09-19 and implemented in PR #415.**
 
 ## Summary
 

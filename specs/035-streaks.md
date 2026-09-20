@@ -1,6 +1,6 @@
 # 035 — Streaks
 
-> **Status: agreed on 2026-09-20 and implemented (#428).**
+> **Status: agreed on 2026-09-20 and implemented in PR #428.**
 
 ## Summary
 

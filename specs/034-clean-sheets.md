@@ -1,6 +1,6 @@
 # 034 — Clean sheets over a season
 
-> **Status: agreed on 2026-09-20 and implemented (#427).**
+> **Status: agreed on 2026-09-20 and implemented in PR #427.**
 
 ## Summary
 
