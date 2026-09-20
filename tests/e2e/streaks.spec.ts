@@ -58,8 +58,18 @@ test.describe("Streaks, signed in", () => {
 
     expect(letters).toMatch(/^[VTH]{5}$/);
     expect(current).toContain(word);
-    // The Vire column sees only five matches, so it is a lower bound.
-    expect(Number(/^(\d+)/.exec(current)?.[1])).toBeGreaterThanOrEqual(runInVire);
+
+    /**
+     * When the run does not fill the column, the column has seen its start, so
+     * the two must agree exactly. Only a run of five or more is a lower bound —
+     * `Vire` cannot see past its own five.
+     */
+    const shown = Number(/^(\d+)/.exec(current)?.[1]);
+    if (runInVire < letters.length) {
+      expect(shown).toBe(runInVire);
+    } else {
+      expect(shown).toBeGreaterThanOrEqual(letters.length);
+    }
   });
 
   test("keeps every run inside the season's matches", async ({ page }) => {
