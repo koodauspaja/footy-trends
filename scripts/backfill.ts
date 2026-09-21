@@ -10,6 +10,7 @@
  *
  *   DATABASE_URL=<production> npm run backfill
  *   DATABASE_URL=<production> npm run backfill -- --reset=<database-name>
+ *   DATABASE_URL=<production> npm run backfill -- --refetch
  *
  * `DATABASE_URL` must come from the environment. The one in `.env` is
  * deliberately ignored: this script exists to write to production, and picking
@@ -77,7 +78,20 @@ async function main(): Promise<void> {
   }
 
   const { backfill } = await import("./backfill-run");
-  process.exitCode = await backfill({ reset: resetArg !== undefined });
+  /**
+   * `--refetch` fetches competition-seasons that are already stored, which the
+   * run otherwise skips. It exists for a column added after production was
+   * filled — the half-time score (specs/036) — where every stored row is
+   * complete by the old definition and empty by the new one. Without it such a
+   * column stays null until each season happens to become the active one again.
+   *
+   * It costs a full run's provider quota, so it is opt-in rather than the
+   * default. `--reset` is the other way to the same place, and throws the rows
+   * away first.
+   */
+  const refetch = args.includes("--refetch");
+
+  process.exitCode = await backfill({ reset: resetArg !== undefined, refetch });
 }
 
 // A rejection here — an unusable connection string surfacing while `src/db`

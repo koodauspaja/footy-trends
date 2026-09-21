@@ -135,6 +135,26 @@ minute nine would destroy its own work on restart.
 
 ---
 
+## Step 3b — After a new column, if you need to
+
+```sh
+DATABASE_URL='<production>' npm run backfill -- --refetch
+```
+
+`--refetch` fetches competition-seasons that are already stored, which a run
+otherwise skips. Use it when a **column was added after production was filled**:
+every stored row is complete by the old definition and empty by the new one, so
+an ordinary run skips them all and writes nothing.
+
+Added for the half-time score (`specs/036-halftime-comebacks.md`).
+
+It keeps the rows, unlike `--reset`, and costs a full run's provider quota —
+the ~11 minutes measured above. Without it the new column stays null for a past
+season until that season happens to become the active one again, which for a
+finished season is never.
+
+---
+
 ## Step 4 — Watch it
 
 One line per competition-season, to stdout:

@@ -23,11 +23,14 @@ import {
 } from "@/lib/page-context";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
+  getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
@@ -279,6 +282,17 @@ export async function CompetitionTeamPage({
               seasonId,
               context.activeSeasonId
             ),
+          loadCleanSheets: () =>
+            getTeamCleanSheetSeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+          loadStreaks: () =>
+            getTeamStreaks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          loadComebacks: () =>
+            getTeamComebacks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
         })
       : null;
 

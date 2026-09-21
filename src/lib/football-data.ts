@@ -37,6 +37,8 @@ export type ProviderMatch = {
   awayTeam?: ProviderTeam;
   score?: {
     fullTime?: ProviderScoreLine;
+    /** The score at the break, given for league matches too (specs/036). */
+    halfTime?: ProviderScoreLine;
     // `fullTime` INCLUDES a penalty shootout: Liverpool "1-5" PSG (LAST_16,
     // 2024/25) is really 0-1 with penalties 1-4. Anything aggregating a
     // two-legged tie must use `regularTime` + `extraTime` instead, which is
@@ -238,6 +240,13 @@ export type NormalizedProviderMatch = {
   // `matches` row satisfies it structurally, with no mapping step.
   /** Null outside a group stage — including every match of a LEAGUE_STAGE season. */
   groupName: string | null;
+  /**
+   * The half-time score, null when the provider reports none (specs/036).
+   * Unlike the breakdown below, it is given for league matches too — but not
+   * for a season outside the plan's window, which is refused entirely.
+   */
+  halfTimeHome: number | null;
+  halfTimeAway: number | null;
   // The score breakdown, null whenever the provider omits it (every league
   // match, and any cup match decided in normal time). Stored rather than
   // recomputed so the bracket still renders from the database when the
@@ -284,6 +293,9 @@ export function normalizeMatch(
     awayGoals: match.score?.fullTime?.away ?? null,
     stage: match.stage ?? null,
     groupName: match.group ?? null,
+    // `??`, not `||`: a goalless first half is 0, which is a score.
+    halfTimeHome: match.score?.halfTime?.home ?? null,
+    halfTimeAway: match.score?.halfTime?.away ?? null,
     regularTimeHome: match.score?.regularTime?.home ?? null,
     regularTimeAway: match.score?.regularTime?.away ?? null,
     extraTimeHome: match.score?.extraTime?.home ?? null,

@@ -315,7 +315,7 @@ describe("football-data mapping", () => {
           status: "FINISHED",
           homeTeam: { id: 57, name: "Arsenal FC" },
           awayTeam: { id: 61, name: "Chelsea FC" },
-          score: { fullTime: { home: 2, away: 1 } },
+          score: { halfTime: { home: 0, away: 1 }, fullTime: { home: 2, away: 1 } },
         },
         {
           id: 2,
@@ -349,6 +349,9 @@ describe("football-data mapping", () => {
         awayTeamName: "Chelsea FC",
         homeGoals: 2,
         awayGoals: 1,
+        // A comeback: behind at the break, won by full time (specs/036).
+        halfTimeHome: 0,
+        halfTimeAway: 1,
         stage: null,
         groupName: null,
         regularTimeHome: null,
@@ -371,6 +374,8 @@ describe("football-data mapping", () => {
         awayTeamName: "Arsenal FC",
         homeGoals: null,
         awayGoals: null,
+        halfTimeHome: null,
+        halfTimeAway: null,
         stage: null,
         groupName: null,
         regularTimeHome: null,

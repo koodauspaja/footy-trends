@@ -7,11 +7,14 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamStreaks,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -90,6 +93,8 @@ function match(
     awayTeamName: "KuPS",
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     winner: null,
     // Fresh, not stale — a mockStoredMatches-based test is about the
     // matches themselves, not needsRefresh's staleness threshold (covered
@@ -207,6 +212,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 1,
         homeGoals: 0,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -236,6 +243,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 2,
         homeGoals: 3,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -275,6 +284,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "Relegated A",
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
       match({
         providerMatchId: 2,
@@ -286,6 +297,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "Relegated B",
         homeGoals: 2,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
       match({
         providerMatchId: 3,
@@ -298,6 +311,8 @@ describe("getSeasonStandings", () => {
         awayTeamName: "HJK",
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -375,6 +390,8 @@ describe("getSeasonStandings", () => {
         awayTeamProviderId: 2,
         homeGoals: 3,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
 
@@ -404,6 +421,8 @@ describe("getSeasonStandings", () => {
         status: "SCHEDULED",
         homeGoals: null,
         awayGoals: null,
+        halfTimeHome: null,
+        halfTimeAway: null,
         matchday: 2,
         homeTeamProviderId: 3,
         homeTeamName: "IFK Mariehamn",
@@ -642,6 +661,8 @@ describe("getSeasonStandings", () => {
           matchday: 23,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -684,6 +705,8 @@ describe("getSeasonStandings", () => {
           matchday: 23,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1140,6 +1163,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser1",
           homeGoals: 3,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
         match({
           providerMatchId: 2,
@@ -1149,6 +1174,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser2",
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
         match({
           providerMatchId: 3,
@@ -1158,6 +1185,8 @@ describe("standings edge cases", () => {
           awayTeamName: "Loser3",
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1276,6 +1305,8 @@ describe("standings edge cases", () => {
           awayTeamProviderId: 1,
           homeGoals: 1,
           awayGoals: 0,
+          halfTimeHome: null,
+          halfTimeAway: null,
         }),
       ],
       [
@@ -1597,6 +1628,8 @@ describe("group standings storage", () => {
         matchday: 23,
         homeGoals: 1,
         awayGoals: 0,
+        halfTimeHome: null,
+        halfTimeAway: null,
       }),
     ]);
     getSeasonGroupsMock.mockResolvedValue([
@@ -2266,6 +2299,8 @@ describe("getTeamPositionSeries", () => {
       status: score === null ? "SCHEDULED" : "FINISHED",
       homeGoals: score?.[0] ?? null,
       awayGoals: score?.[1] ?? null,
+      halfTimeHome: null,
+      halfTimeAway: null,
     });
   }
 
@@ -2700,7 +2735,7 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
-describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeAwaySeries", () => {
+describe("the result charts: form, goals, home and away, clean sheets", () => {
   /**
    * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
    * against the calendar on purpose: form follows kickoff order.
@@ -2730,7 +2765,20 @@ describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeA
       awayTeamName: `Team ${awayId}`,
       homeGoals: home ? own : other,
       awayGoals: home ? other : own,
+      halfTimeHome: null,
+      halfTimeAway: null,
     });
+  }
+
+  /** The same match with a half-time score, given from team 1's own side. */
+  function withHalfTime<T extends { homeTeamProviderId: number }>(
+    row: T,
+    halfTime: readonly [number, number] | null
+  ): T {
+    if (halfTime === null) return row;
+    const [own, other] = halfTime;
+    const home = row.homeTeamProviderId === 1;
+    return { ...row, halfTimeHome: home ? own : other, halfTimeAway: home ? other : own };
   }
 
   function rowsFor(
@@ -2837,6 +2885,57 @@ describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeA
         status: "ok",
         home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
         away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
+      });
+    });
+
+    it("counts clean sheets over the same league matches, not the playoff", async () => {
+      // Conceded in the league, in kickoff order: 0, 1, 1, 0, 1, 0 — three.
+      mockStoredMatches(matches, rows);
+
+      const series = await getTeamCleanSheetSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+
+      expect(series.status === "ok" && series.points.at(-1)).toEqual({
+        match: 6,
+        kept: 3,
+        share: 50,
+      });
+    });
+
+    it("counts streaks over the same league matches, not the playoff", async () => {
+      // W D L W W D in the league; the playoff win on the 7th is not counted.
+      mockStoredMatches(matches, rows);
+
+      expect(await getTeamStreaks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        current: { outcome: "draw", length: 1 },
+        longest: {
+          wins: { length: 2, from: 4, to: 5 },
+          unbeaten: { length: 3, from: 4, to: 6 },
+          defeats: { length: 1, from: 3, to: 3 },
+          winless: { length: 2, from: 2, to: 3 },
+        },
+      });
+    });
+
+    it("counts both directions over the same league matches, not the playoff", async () => {
+      /**
+       * Half-time, from team 1's own side: 0–1 won, 0–1 drew, 1–0 lost (a lead
+       * given away), 1–0 won, none stored, 0–0 level — and the playoff win,
+       * trailing 0–3 at the break, is not a league match. Count that one and
+       * `trailed` would rise to 3.
+       */
+      const halfTimes = [[0, 1], [0, 1], [1, 0], [1, 0], null, [0, 0], [0, 3]] as const;
+      mockStoredMatches(
+        matches.map((row, index) => withHalfTime(row, halfTimes[index] ?? null)),
+        rows
+      );
+
+      expect(await getTeamComebacks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+        status: "ok",
+        trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
+        led: { matches: 2, won: 1, drew: 0, lost: 1 },
+        missing: 1,
+        known: 5,
       });
     });
 
@@ -3037,6 +3136,129 @@ describe("the result charts: getTeamFormSeries, getTeamGoalsSeries, getTeamHomeA
     expect(
       await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
     ).toEqual({ status: "error" });
+  });
+
+  it("has no streaks panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamStreaks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no streaks for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const streaks = await getTeamStreaks(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(streaks.status === "ok" && streaks.current).toBeNull();
+  });
+
+  it("reports a streaks error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamStreaks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO streaks"
+    );
+  });
+
+  it("has no comebacks panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamComebacks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no comebacks for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({
+      status: "ok",
+      trailed: { matches: 0, won: 0, drew: 0, lost: 0 },
+      led: { matches: 0, won: 0, drew: 0, lost: 0 },
+      missing: 0,
+      known: 0,
+    });
+  });
+
+  it("reports a comebacks error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO comebacks"
+    );
+  });
+
+  it("has no clean-sheet panel when the team played only in match lists", async () => {
+    const matches = [onDay("M1", "spljp25", 9, 1, 5, 1, 0)].map((row) => ({
+      ...row,
+      categoryId: "M1",
+    }));
+    mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
+
+    expect(await getTeamCleanSheetSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("has no clean-sheet points for a season with nothing stored", async () => {
+    mockStoredMatches([], []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "ok", points: [] });
+  });
+
+  it("reports a clean-sheet error, and logs it, when the season cannot be read", async () => {
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database down");
+    });
+
+    expect(
+      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
+      "Unable to compute the TASO clean-sheet series"
+    );
   });
 
   it("has no goals panels when the team played only in match lists", async () => {

@@ -1,6 +1,6 @@
 # 032 — Goals scored vs conceded
 
-> **Status: agreed on 2026-09-19 and implemented (#328).**
+> **Status: agreed on 2026-09-19 and implemented in PR #417.**
 
 ## Summary
 

@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { StreaksSeries } from "@/lib/streaks";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
@@ -21,10 +24,13 @@ import {
   AnalyticsSection,
   SIGNED_OUT_MESSAGE,
 } from "@/components/analytics-section";
+import { CLEAN_SHEETS_HEADING } from "@/components/clean-sheets-section";
+import { COMEBACKS_HEADING } from "@/components/comebacks-section";
 import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
+import { STREAKS_HEADING } from "@/components/streaks-section";
 
 const position: PositionSeries = {
   status: "ok",
@@ -43,15 +49,57 @@ const homeAway: HomeAwaySeries = {
   home: { matches: 3, won: 2, drawn: 1, lost: 0, scored: 5, conceded: 2 },
   away: { matches: 2, won: 0, drawn: 1, lost: 1, scored: 1, conceded: 3 },
 };
+const cleanSheets: CleanSheetSeries = {
+  status: "ok",
+  points: [{ match: 1, kept: 1, share: 100 }],
+};
+const streaks: StreaksSeries = {
+  status: "ok",
+  current: { outcome: "win", length: 1 },
+  longest: {
+    wins: { length: 1, from: 1, to: 1 },
+    unbeaten: { length: 1, from: 1, to: 1 },
+    defeats: null,
+    winless: null,
+  },
+};
+const comebacks: ComebacksSeries = {
+  status: "ok",
+  trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
+  led: { matches: 3, won: 1, drew: 1, lost: 1 },
+  missing: 0,
+  known: 5,
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
   loadForm = vi.fn(async (): Promise<FormSeries> => form),
   loadGoals = vi.fn(async (): Promise<GoalsSeries> => goals),
-  loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway)
+  loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway),
+  loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
+  loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
+  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks)
 ) {
-  const view = await AnalyticsSection({ loadPosition, loadForm, loadGoals, loadHomeAway });
-  return { ...render(<div>{view}</div>), loadPosition, loadForm, loadGoals, loadHomeAway, view };
+  const view = await AnalyticsSection({
+    loadPosition,
+    loadForm,
+    loadGoals,
+    loadHomeAway,
+    loadCleanSheets,
+    loadStreaks,
+    loadComebacks,
+  });
+  return {
+    ...render(<div>{view}</div>),
+    loadPosition,
+    loadForm,
+    loadGoals,
+    loadHomeAway,
+    loadCleanSheets,
+    loadStreaks,
+    loadComebacks,
+    view,
+  };
 }
 
 beforeEach(() => {
@@ -80,12 +128,24 @@ describe("AnalyticsSection, signed out", () => {
      * send its values. Not calling the loaders is what guarantees they are not
      * in the page.
      */
-    const { loadPosition, loadForm, loadGoals, loadHomeAway, container } = await renderSection();
+    const {
+      loadPosition,
+      loadForm,
+      loadGoals,
+      loadHomeAway,
+      loadCleanSheets,
+      loadStreaks,
+      loadComebacks,
+      container,
+    } = await renderSection();
 
     expect(loadPosition).not.toHaveBeenCalled();
     expect(loadForm).not.toHaveBeenCalled();
     expect(loadGoals).not.toHaveBeenCalled();
     expect(loadHomeAway).not.toHaveBeenCalled();
+    expect(loadCleanSheets).not.toHaveBeenCalled();
+    expect(loadStreaks).not.toHaveBeenCalled();
+    expect(loadComebacks).not.toHaveBeenCalled();
     expect(container.querySelector("svg")).toBeNull();
   });
 });
@@ -104,6 +164,9 @@ describe("AnalyticsSection, signed in", () => {
       ROLLING_HEADING,
       TOTALS_HEADING,
       HOME_AWAY_HEADING,
+      CLEAN_SHEETS_HEADING,
+      STREAKS_HEADING,
+      COMEBACKS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -126,7 +189,14 @@ describe("AnalyticsSection, signed in", () => {
 
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
-    ).toEqual([ROLLING_HEADING, TOTALS_HEADING, HOME_AWAY_HEADING]);
+    ).toEqual([
+      ROLLING_HEADING,
+      TOTALS_HEADING,
+      HOME_AWAY_HEADING,
+      CLEAN_SHEETS_HEADING,
+      STREAKS_HEADING,
+      COMEBACKS_HEADING,
+    ]);
   });
 
   it("sits in a fold that starts open, like the match list (#416)", async () => {
@@ -145,7 +215,10 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<PositionSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<FormSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<GoalsSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

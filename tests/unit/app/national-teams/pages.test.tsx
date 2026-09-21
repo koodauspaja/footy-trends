@@ -92,6 +92,8 @@ function englishMatch(id: number, home: [number, string], away: [number, string]
     awayTeamName: away[1],
     homeGoals: 2,
     awayGoals: 1,
+    halfTimeHome: null,
+    halfTimeAway: null,
     regularTimeHome: null,
     regularTimeAway: null,
     extraTimeHome: null,

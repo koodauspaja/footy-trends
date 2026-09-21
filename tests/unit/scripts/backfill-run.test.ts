@@ -97,3 +97,51 @@ describe("canSkip at a year boundary", () => {
     expect(canSkip(120, 2026, 2026)).toBe(false);
   });
 });
+
+/**
+ * `--refetch` exists for a column added after production was filled: every
+ * stored season is complete by the old definition and empty by the new one, so
+ * the ordinary run skips them all and writes nothing (specs/036).
+ *
+ * Read from the source for the same reason as the season guard above: what
+ * matters is the choice at each skip site, which no pure helper can see.
+ */
+describe("the backfill's refetch flag", () => {
+  it("guards every skip check, so a refetch run fetches what is stored", () => {
+    const guarded = SOURCE.match(/!refetch\s*&&\s*\(?await already/g) ?? [];
+
+    // The three: football-data's matches, TASO's matches, TASO's groups.
+    expect(guarded).toHaveLength(3);
+  });
+
+  it("leaves no skip check unguarded", () => {
+    const all = SOURCE.match(/await already[A-Za-z]*\(/g) ?? [];
+    const guarded = SOURCE.match(/!refetch\s*&&\s*\(?await already/g) ?? [];
+
+    expect(all).toHaveLength(guarded.length);
+  });
+
+  it("reaches both halves of the run", () => {
+    expect(SOURCE).toMatch(/backfillFootballData\([^)]*refetch/);
+    expect(SOURCE).toMatch(/backfillTaso\([^)]*refetch/);
+  });
+
+  it("is off unless asked for, so an ordinary run keeps its skips", () => {
+    expect(SOURCE).toMatch(/refetch\s*=\s*false/);
+  });
+
+  /**
+   * The entry point is the other half of the same wiring: a flag parsed and
+   * not passed on would leave every assertion above true and the run
+   * unchanged.
+   */
+  it("is read from the command line and handed to the run", () => {
+    const entryPoint = ts.transpileModule(
+      readFileSync(path.join(process.cwd(), "scripts", "backfill.ts"), "utf8"),
+      { compilerOptions: { removeComments: true, target: ts.ScriptTarget.ESNext } }
+    ).outputText;
+
+    expect(entryPoint).toMatch(/refetch\s*=\s*args\.includes\("--refetch"\)/);
+    expect(entryPoint).toMatch(/backfill\(\{[^}]*refetch/);
+  });
+});

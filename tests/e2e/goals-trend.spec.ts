@@ -99,6 +99,9 @@ test.describe("Goals charts, signed in", () => {
       ROLLING,
       TOTALS,
       "Koti- ja vierastilastot",
+      "Nollapelit",
+      "Putket",
+      "Kääntyneet ottelut",
     ]);
   });
 });

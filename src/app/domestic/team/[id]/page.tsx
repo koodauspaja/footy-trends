@@ -17,11 +17,14 @@ import {
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { matchCountLabel } from "@/lib/national-team";
 import {
+  getTeamCleanSheetSeries,
+  getTeamComebacks,
   getTeamFormSeries,
   getTeamGoalsSeries,
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
@@ -225,6 +228,30 @@ export default async function DomesticTeamPage({
             ),
           loadHomeAway: () =>
             getTeamHomeAwaySeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadCleanSheets: () =>
+            getTeamCleanSheetSeries(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadStreaks: () =>
+            getTeamStreaks(
+              context.categoryId,
+              context.competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+          loadComebacks: () =>
+            getTeamComebacks(
               context.categoryId,
               context.competitionId,
               teamProviderId,

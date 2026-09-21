@@ -6,8 +6,8 @@ import {
   homeAwaySentence,
   MEASURES,
   measureText,
-  percentText,
 } from "@/components/charts/home-away-chart";
+import { percentText } from "@/components/charts/line-chart";
 import type { SideStats } from "@/lib/home-away";
 
 /** Arsenal 2024/25: 39 points at home in 19 matches, 35 away. */
@@ -37,11 +37,6 @@ describe("the measures", () => {
 });
 
 describe("the numbers", () => {
-  it("prints a whole percent with a no-break space before the sign", () => {
-    expect(percentText(57.89)).toBe("58 %");
-    expect(percentText(0)).toBe("0 %");
-  });
-
   it("prints a dash, not a zero, for a side with no match", () => {
     expect(measureText(null, percentText)).toBe("–");
     expect(measureText(0, percentText)).toBe("0 %");

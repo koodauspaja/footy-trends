@@ -91,6 +91,9 @@ test.describe("Form chart, signed in", () => {
       "Maalit otteluittain",
       "Maalit yhteensä",
       "Koti- ja vierastilastot",
+      "Nollapelit",
+      "Putket",
+      "Kääntyneet ottelut",
     ]);
   });
 

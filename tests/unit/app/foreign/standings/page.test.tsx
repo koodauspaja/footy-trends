@@ -479,6 +479,8 @@ function cupMatch(options: CupMatchOptions) {
     awayTeamName: options.away[1],
     homeGoals: options.score?.[0] ?? null,
     awayGoals: options.score?.[1] ?? null,
+    halfTimeHome: null,
+    halfTimeAway: null,
     regularTimeHome: options.regularTime?.[0] ?? null,
     regularTimeAway: options.regularTime?.[1] ?? null,
     extraTimeHome: options.extraTime?.[0] ?? null,

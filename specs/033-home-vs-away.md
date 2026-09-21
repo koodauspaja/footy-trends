@@ -1,6 +1,6 @@
 # 033 — Home vs away
 
-> **Status: agreed on 2026-09-19 and implemented (#329).**
+> **Status: agreed on 2026-09-19 and implemented in PR #420.**
 
 ## Summary
 
