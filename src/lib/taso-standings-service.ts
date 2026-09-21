@@ -9,6 +9,7 @@ import {
   categoryIdForSeason,
   categoryIdsFor,
   earliestSeasonFor,
+  getDomesticCompetitionName,
   isDomesticCup,
 } from "./domestic-competitions";
 import { type FormSeries, formSeries } from "./form-series";
@@ -22,6 +23,12 @@ import {
   positionsAfterEachRound,
   teamsInGroupsAbove,
 } from "./position-series";
+import {
+  compareSeasons,
+  otherLeagueSeasons,
+  type SeasonComparisonSeries,
+  type SeasonRead,
+} from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
@@ -37,6 +44,7 @@ import {
   parseProviderId,
   type TasoGroup,
 } from "./taso";
+import type { TeamSeason } from "./team-seasons";
 
 const FINISHED_STATUS = "FINISHED";
 /**
@@ -1460,6 +1468,119 @@ export async function getTeamHomeAwaySeries(
  * team page's `Nollapelit` chart (specs/034). Counts exactly the matches the
  * other result charts count.
  */
+/**
+ * The selected season against this club's other stored seasons, for the team
+ * page's `Tämä kausi verrattuna` panel (specs/038).
+ *
+ * **League seasons only** (S6), which `otherLeagueSeasons` decides for both
+ * providers so the rule has one home.
+ *
+ * A season's `categoryId` and `competitionId` are derived from its code and
+ * year by pure lookups, so listing a club's other seasons costs no request of
+ * its own; the reads below are `classifySeasonGroups`'s, already cached and
+ * already the team page's for the selected season.
+ */
+export async function getTeamSeasonComparison(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[]
+): Promise<SeasonComparisonSeries> {
+  try {
+    const selected = await readTasoSeason(
+      competitionCode,
+      seasonId,
+      activeSeasonId,
+      teamProviderId
+    );
+    if (selected === null) return { status: "unavailable" };
+
+    const others = await Promise.all(
+      otherLeagueSeasons(seasons, { competitionCode, seasonId }, isDomesticLeague).map((season) =>
+        readTasoSeason(season.competitionCode, season.seasonId, activeSeasonId, teamProviderId)
+      )
+    );
+
+    return {
+      status: "ok",
+      ...compareSeasons(teamProviderId, selected, others.filter(isTasoRead)),
+    };
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compare the TASO season with the club's others"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * One TASO season as `compareSeasons` needs it.
+ *
+ * The club's own matches come from `teamLeagueMatches`, which is what every
+ * other panel counts — so a comparison can never rest on matches the season's
+ * charts do not. The season's whole fixture list comes from the same cached
+ * classification, and is the denominator of the share S9 matches on.
+ */
+async function readTasoSeason(
+  competitionCode: string,
+  seasonId: number,
+  activeSeasonId: number,
+  teamProviderId: number
+): Promise<SeasonRead | null> {
+  const categoryId = categoryIdForSeason(competitionCode, seasonId);
+  const competitionId = competitionIdFromSeason(seasonId);
+
+  // Classified first, so a season this app holds nothing for is `null` here
+  // rather than a branch further down that no test could take. The second call
+  // below reads the same cached classification.
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") return null;
+
+  const league = await teamLeagueMatches(
+    categoryId,
+    competitionId,
+    teamProviderId,
+    seasonId,
+    activeSeasonId
+  );
+  if (league.status !== "ok") return null;
+
+  // A season whose groups are a knockout or pass-through ranks nothing, which
+  // is not an error: its results still count towards every rate.
+  const series = positionSeriesFrom(
+    classified.matches,
+    classified.groups,
+    classified.teamRows,
+    categoryId,
+    competitionId,
+    teamProviderId
+  );
+
+  return {
+    competition: getDomesticCompetitionName(competitionCode),
+    finished: league.finished,
+    all: classified.matches,
+    points: series.status === "ok" ? series.points : [],
+    teamCount: series.status === "ok" ? series.teamCount : 0,
+  };
+}
+
+/** A domestic competition is a league unless it is one of the cups. */
+function isDomesticLeague(competitionCode: string): boolean {
+  return !isDomesticCup(competitionCode);
+}
+
+function isTasoRead(season: SeasonRead | null): season is SeasonRead {
+  return season !== null;
+}
+
 export async function getTeamCleanSheetSeries(
   categoryId: string,
   competitionId: string,

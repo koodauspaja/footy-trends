@@ -14,6 +14,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamSeasonComparison,
   getTeamStreaks,
   listSeasonRounds,
   listSelectableTasoRounds,
@@ -2799,6 +2800,139 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
   }
+
+  describe("getTeamSeasonComparison", () => {
+    const LEAGUE = "M1";
+    const SEASON = "spljp25";
+    /** Team 1 wins both its matches in one ordinary group. */
+    const matches = [
+      onDay(LEAGUE, SEASON, 1, 1, 2, 3, 0),
+      onDay(LEAGUE, SEASON, 1, 2, 3, 2, 0),
+    ].map((row) => ({ ...row, categoryId: LEAGUE }));
+    /**
+     * Points that agree with `calculateStandings` over those two matches —
+     * team 1 wins both — so the group is verified and its table ranks.
+     */
+    const rows = [
+      groupTeam({
+        categoryId: LEAGUE,
+        competitionCode: SEASON,
+        groupId: 1,
+        teamProviderId: 1,
+        teamName: "Team 1",
+        points: 6,
+      }),
+      groupTeam({
+        categoryId: LEAGUE,
+        competitionCode: SEASON,
+        groupId: 1,
+        teamProviderId: 2,
+        teamName: "Team 2",
+        points: 0,
+      }),
+      groupTeam({
+        categoryId: LEAGUE,
+        competitionCode: SEASON,
+        groupId: 1,
+        teamProviderId: 3,
+        teamName: "Team 3",
+        points: 0,
+      }),
+    ];
+
+    const seasons = [
+      { competitionCode: LEAGUE, seasonId: PAST_SEASON, matches: 2 },
+      { competitionCode: LEAGUE, seasonId: PAST_SEASON - 1, matches: 2 },
+    ];
+
+    it("sets the season against the club's other league seasons", async () => {
+      mockStoredMatches(matches, rows);
+
+      const comparison = await getTeamSeasonComparison(
+        LEAGUE,
+        1,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        seasons
+      );
+
+      expect(comparison.status).toBe("ok");
+      // The mock serves both reads the same rows, so the baseline equals the
+      // season: what is asserted here is that a second season was read at all,
+      // and named.
+      expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+      expect(comparison.status === "ok" && comparison.competitions).toEqual(["Ykkönen"]);
+      // The group's table ranks the club, so the position row has a value and
+      // the panel can print it as a place.
+      expect(comparison.status === "ok" && comparison.teamCount).toBe(3);
+      expect(comparison.status === "ok" && comparison.rows[0]?.selected).toBeCloseTo(1 / 3, 10);
+    });
+
+    it("keeps a season whose table ranks nothing, because its results still count", async () => {
+      // Published points that disagree with our calculation make the group
+      // pass-through: it is shown, but it ranks nobody (specs/030).
+      mockStoredMatches(matches, rowsFor(LEAGUE, SEASON, 1, [1, 2, 3], 99));
+
+      const comparison = await getTeamSeasonComparison(
+        LEAGUE,
+        1,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        seasons
+      );
+
+      expect(comparison.status).toBe("ok");
+      if (comparison.status !== "ok") return;
+      expect(comparison.teamCount).toBeNull();
+      expect(comparison.rows[0]?.measure).toBe("position");
+      expect(comparison.rows[0]?.selected).toBeNull();
+      // The rates are unaffected: two wins is still two wins.
+      expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
+    });
+
+    it("has no panel when the club played no league match that season", async () => {
+      // The season classifies, but this club is not in it.
+      mockStoredMatches(matches, rows);
+
+      expect(
+        await getTeamSeasonComparison(LEAGUE, 99, PAST_SEASON, ACTIVE_SEASON, seasons)
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("leaves out a cup, which has no table to rank a position in", async () => {
+      mockStoredMatches(matches, rows);
+
+      const comparison = await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, [
+        ...seasons,
+        { competitionCode: "MSC", seasonId: PAST_SEASON - 1, matches: 4 },
+      ]);
+
+      expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+    });
+
+    it("has no panel when the season has no league matches for the club", async () => {
+      mockStoredMatches([], []);
+
+      expect(await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)).toEqual(
+        { status: "unavailable" }
+      );
+    });
+
+    it("reports an error rather than a plausible comparison when a read fails", async () => {
+      const from = vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockRejectedValue(new Error("no db")) }),
+      }));
+      dbMock.select.mockReturnValue({ from });
+
+      expect(await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)).toEqual(
+        { status: "error" }
+      );
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ competitionCode: LEAGUE }),
+        "Unable to compare the TASO season with the club's others"
+      );
+    });
+  });
 
   describe("a split season with a playoff", () => {
     /**

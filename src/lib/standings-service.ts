@@ -4,6 +4,7 @@ import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import { type ComebacksSeries, comebacksOf } from "./comebacks";
+import { getCompetitionFormat, getCompetitionName } from "./competitions";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
@@ -13,12 +14,19 @@ import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import {
+  compareSeasons,
+  otherLeagueSeasons,
+  type SeasonComparisonSeries,
+  type SeasonRead,
+} from "./season-comparison";
+import {
   calculateStandings,
   selectTeamMatches,
   type TeamStanding,
   toFinishedMatches,
 } from "./standings";
 import { type StreaksSeries, streaksOf } from "./streaks";
+import type { TeamSeason } from "./team-seasons";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 
@@ -326,6 +334,83 @@ export async function getTeamCleanSheetSeries(
     );
     return { status: "error" };
   }
+}
+
+/**
+ * The selected season against this club's other stored seasons, for the team
+ * page's `Tämä kausi verrattuna` panel (specs/038).
+ *
+ * **League seasons only** (S6): a cup has no table to rank a position in, and a
+ * short knockout run folded into a per-match average distorts it.
+ *
+ * **No provider request for a past season.** `needsRefresh` returns `false` for
+ * any season with stored rows that is not the active one, and every season
+ * `getTeamSeasons` reports has rows — so the reads below are the database's.
+ */
+export async function getTeamSeasonComparison(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[]
+): Promise<SeasonComparisonSeries> {
+  try {
+    const selected = await readSeasonFor(competitionCode, seasonId, activeSeasonId, teamProviderId);
+    if (selected === null) return { status: "unavailable" };
+
+    const others = await Promise.all(
+      otherLeagueSeasons(seasons, { competitionCode, seasonId }, isLeagueCompetition).map(
+        (season) =>
+          readSeasonFor(season.competitionCode, season.seasonId, activeSeasonId, teamProviderId)
+      )
+    );
+
+    return {
+      status: "ok",
+      ...compareSeasons(teamProviderId, selected, others.filter(isRead)),
+    };
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compare the season with the club's others"
+    );
+    return { status: "error" };
+  }
+}
+
+/** Foreign competitions carry their format in the registry. */
+function isLeagueCompetition(competitionCode: string): boolean {
+  return getCompetitionFormat(competitionCode) === "league";
+}
+
+/** One season as `compareSeasons` needs it, or `null` when nothing is stored for it. */
+async function readSeasonFor(
+  competitionCode: string,
+  seasonId: number,
+  activeSeasonId: number,
+  teamProviderId: number
+): Promise<SeasonRead | null> {
+  const { matches: seasonMatches } = await getSyncedSeasonMatches(
+    competitionCode,
+    seasonId,
+    activeSeasonId
+  );
+  if (seasonMatches.length === 0) return null;
+
+  const finished = toFinishedMatches(seasonMatches);
+  const series = singleTableSeries(finished, seasonMatches, teamProviderId);
+
+  return {
+    competition: getCompetitionName(competitionCode),
+    finished,
+    all: seasonMatches,
+    points: series.status === "ok" ? series.points : [],
+    teamCount: series.status === "ok" ? series.teamCount : 0,
+  };
+}
+
+function isRead(season: SeasonRead | null): season is SeasonRead {
+  return season !== null;
 }
 
 /**

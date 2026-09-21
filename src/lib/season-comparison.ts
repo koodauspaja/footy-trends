@@ -224,12 +224,23 @@ export type SeasonRead = {
   teamCount: number;
 };
 
+export type SeasonComparisonSeries =
+  | ({ status: "ok" } & SeasonComparison)
+  /** No league table for this team's season, so no panel (specs/031, Q2). */
+  | { status: "unavailable" }
+  | { status: "error" };
+
 export type SeasonComparison = {
   rows: ComparisonRow[];
   /** How many other seasons the baseline covered. */
   seasons: number;
   /** The competitions they were played in, each named once, in the order met. */
   competitions: string[];
+  /**
+   * How many teams the selected season ranked the club among, so a share can be
+   * printed as a place the reader recognises. `null` when it ranked nothing.
+   */
+  teamCount: number | null;
 };
 
 /**
@@ -259,6 +270,7 @@ export function compareSeasons(
     ),
     seasons: others.length,
     competitions: [...new Set(others.map((season) => season.competition))],
+    teamCount: positionIn(selected, share)?.teamCount ?? null,
   };
 }
 
@@ -269,4 +281,29 @@ function positionIn(season: SeasonRead, share: number): SeasonPosition | null {
 
   const place = positionAtShare(season.points, length, share);
   return place === null ? null : { place, teamCount: season.teamCount };
+}
+
+/** The least a season needs to be told from the selected one. */
+export type SeasonKey = { competitionCode: string; seasonId: number };
+
+/**
+ * The club's league seasons other than the selected one (specs/038, S2 and S6).
+ *
+ * `isLeague` is the caller's, because the two providers answer it from
+ * different registries — a foreign competition carries its format, a domestic
+ * one is tested against the cup list. Excluding the selected season is the part
+ * that must not differ, so it lives here.
+ */
+export function otherLeagueSeasons<T extends SeasonKey>(
+  seasons: readonly T[],
+  selected: SeasonKey,
+  isLeague: (competitionCode: string) => boolean
+): T[] {
+  return seasons.filter(
+    (season) =>
+      isLeague(season.competitionCode) &&
+      !(
+        season.competitionCode === selected.competitionCode && season.seasonId === selected.seasonId
+      )
+  );
 }

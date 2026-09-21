@@ -24,6 +24,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamSeasonComparison,
   getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
@@ -202,6 +203,14 @@ export default async function DomesticTeamPage({
   const analyticsSection =
     result.status === "ok" && !isDomesticCup(competitionCode)
       ? await AnalyticsSection({
+          loadComparison: () =>
+            getTeamSeasonComparison(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              currentSeason,
+              played
+            ),
           loadPosition: () =>
             getTeamPositionSeries(
               context.categoryId,

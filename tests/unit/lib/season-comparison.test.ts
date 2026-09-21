@@ -6,6 +6,7 @@ import {
   comparisonRows,
   MEASURES,
   type Measure,
+  otherLeagueSeasons,
   positionAtShare,
   type SeasonSummary,
   seasonLength,
@@ -416,5 +417,47 @@ describe("compareSeasons", () => {
     expect(comparison.seasons).toBe(0);
     expect(comparison.competitions).toEqual([]);
     expect(comparison.rows.every((row) => row.baseline === null)).toBe(true);
+  });
+});
+
+describe("otherLeagueSeasons", () => {
+  const leagues = new Set(["VL", "M1"]);
+  const isLeague = (code: string) => leagues.has(code);
+
+  const seasons = [
+    { competitionCode: "VL", seasonId: 2026 },
+    { competitionCode: "MSC", seasonId: 2026 },
+    { competitionCode: "M1", seasonId: 2025 },
+    { competitionCode: "VL", seasonId: 2024 },
+  ];
+
+  it("drops the selected season, which must not be its own baseline", () => {
+    const others = otherLeagueSeasons(seasons, { competitionCode: "VL", seasonId: 2026 }, isLeague);
+
+    expect(others).not.toContainEqual({ competitionCode: "VL", seasonId: 2026 });
+  });
+
+  it("drops cups, which have no table and distort a per-match average", () => {
+    const others = otherLeagueSeasons(seasons, { competitionCode: "VL", seasonId: 2026 }, isLeague);
+
+    expect(others.map((season) => season.competitionCode)).toEqual(["M1", "VL"]);
+  });
+
+  it("keeps the same year in another competition, which is a different season", () => {
+    // The cup run of 2026 is dropped for being a cup, not for being 2026: the
+    // club's 2026 Ykkönen season would count.
+    const others = otherLeagueSeasons(
+      [...seasons, { competitionCode: "M1", seasonId: 2026 }],
+      { competitionCode: "VL", seasonId: 2026 },
+      isLeague
+    );
+
+    expect(others).toContainEqual({ competitionCode: "M1", seasonId: 2026 });
+  });
+
+  it("keeps the same competition in another year", () => {
+    const others = otherLeagueSeasons(seasons, { competitionCode: "VL", seasonId: 2026 }, isLeague);
+
+    expect(others).toContainEqual({ competitionCode: "VL", seasonId: 2024 });
   });
 });

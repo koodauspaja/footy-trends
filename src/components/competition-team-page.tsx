@@ -30,6 +30,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamSeasonComparison,
   getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/standings-service";
@@ -264,6 +265,14 @@ export async function CompetitionTeamPage({
   const analyticsSection =
     result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
       ? await AnalyticsSection({
+          loadComparison: () =>
+            getTeamSeasonComparison(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId,
+              played
+            ),
           loadPosition: () =>
             getTeamPositionSeries(
               competitionCode,

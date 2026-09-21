@@ -4,6 +4,7 @@ import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
+import { seasonComparisonPanel } from "@/components/season-comparison-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
@@ -14,6 +15,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { StreaksSeries } from "@/lib/streaks";
 
 /** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
@@ -47,6 +49,7 @@ export async function AnalyticsSection({
   loadCleanSheets,
   loadStreaks,
   loadComebacks,
+  loadComparison,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
@@ -55,6 +58,7 @@ export async function AnalyticsSection({
   loadCleanSheets: () => Promise<CleanSheetSeries>;
   loadStreaks: () => Promise<StreaksSeries>;
   loadComebacks: () => Promise<ComebacksSeries>;
+  loadComparison: () => Promise<SeasonComparisonSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -64,15 +68,17 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks] = await Promise.all([
-    loadPosition(),
-    loadForm(),
-    loadGoals(),
-    loadHomeAway(),
-    loadCleanSheets(),
-    loadStreaks(),
-    loadComebacks(),
-  ]);
+  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks, comparison] =
+    await Promise.all([
+      loadPosition(),
+      loadForm(),
+      loadGoals(),
+      loadHomeAway(),
+      loadCleanSheets(),
+      loadStreaks(),
+      loadComebacks(),
+      loadComparison(),
+    ]);
   const panels = {
     position: positionPanel(position),
     form: formPanel(form),
@@ -82,6 +88,7 @@ export async function AnalyticsSection({
     cleanSheets: cleanSheetsPanel(cleanSheets),
     streaks: streaksPanel(streaks),
     comebacks: comebacksPanel(comebacks),
+    comparison: seasonComparisonPanel(comparison),
   };
   if (Object.values(panels).every((panel) => panel === null)) return null;
 
@@ -95,6 +102,7 @@ export async function AnalyticsSection({
       {panels.cleanSheets}
       {panels.streaks}
       {panels.comebacks}
+      {panels.comparison}
     </Section>
   );
 }

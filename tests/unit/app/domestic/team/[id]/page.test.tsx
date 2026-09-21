@@ -7,6 +7,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -36,6 +37,9 @@ const getTeamStreaksMock = vi.fn(
 const getTeamComebacksMock = vi.fn(
   async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
+const getTeamSeasonComparisonMock = vi.fn(
+  async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
+);
 
 /**
  * The Analyysit section stands in here with a marker: its panels and its
@@ -52,6 +56,7 @@ const analyticsSectionMock = vi.fn(
     loadCleanSheets: () => Promise<CleanSheetSeries>;
     loadStreaks: () => Promise<StreaksSeries>;
     loadComebacks: () => Promise<ComebacksSeries>;
+    loadComparison: () => Promise<SeasonComparisonSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -85,6 +90,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
     getTeamStreaks: getTeamStreaksMock,
     getTeamComebacks: getTeamComebacksMock,
+    getTeamSeasonComparison: getTeamSeasonComparisonMock,
     getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
@@ -657,6 +663,23 @@ describe("Domestic team page league position (specs/030)", () => {
       1,
       2025,
       2026
+    );
+  });
+
+  it("asks for the season comparison by competition code, not by TASO category (specs/038)", async () => {
+    // The comparison reads many seasons, and a category id belongs to one: the
+    // service derives each season's own ids from the code and the year.
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
+
+    await loadComparison?.();
+
+    expect(getTeamSeasonComparisonMock).toHaveBeenCalledWith(
+      "VL",
+      1,
+      2025,
+      2026,
+      expect.any(Array)
     );
   });
 
