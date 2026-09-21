@@ -49,8 +49,8 @@ export const CHART = { width: 640, height: 320 } as const;
  *
  * `bottom` and `left` carry the axis labels, which are larger below `sm` (see
  * `AXIS_TEXT`): 56 keeps the x-tick row clear of the axis caption, and 72 fits
- * a three-digit y tick — `Nollapelien osuus` runs to 100 — beside the rotated
- * caption without crowding it. `MARGIN` is JavaScript, so it cannot answer the
+ * a three-digit y tick — the clean-sheet share axis runs to 100 — beside the
+ * rotated caption without crowding it. `MARGIN` is JavaScript, so it cannot answer the
  * breakpoint the way the font does; both gutters are therefore sized for the
  * larger text and cost a few units of plot at every width.
  */

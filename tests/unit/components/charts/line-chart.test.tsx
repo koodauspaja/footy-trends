@@ -300,6 +300,33 @@ function mobileAxisSize(container: HTMLElement, part: string): number {
   return Number(size);
 }
 
+/** The clean-sheet chart's axis, verbatim: a share, so its ticks reach 100. */
+function shareChart() {
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      invertY={false}
+      labelledBy="chart-heading"
+      series={[
+        {
+          name: "share",
+          points: [
+            { x: 1, y: 0 },
+            { x: 38, y: 100 },
+          ],
+        },
+      ]}
+      title="Nollapelit"
+      xDomain={[1, 38]}
+      xLabel="Ottelu"
+      xTicks={[1, 38]}
+      yDomain={[0, 100]}
+      yLabel="Nollapelien osuus"
+      yTicks={ticksFor(0, 100, 5)}
+    />
+  ).container;
+}
+
 describe("LineChart axis text on a phone", () => {
   // The text is inside the viewBox, so it scales with the drawing: at 640 units
   // on a 375-px phone, 12 units reached the reader at about 6 px. The font is
@@ -325,18 +352,22 @@ describe("LineChart axis text on a phone", () => {
     expect(caption - tick).toBeGreaterThanOrEqual(mobileAxisSize(container, "x-axis") * LINE_BOX);
   });
 
-  it("fits a three-digit y tick between the rotated caption and the plot", () => {
-    const container = chart(true);
+  it("fits the widest y tick between the rotated caption and the plot", () => {
+    // The clean-sheet chart's own axis, which is the tight case: a share runs
+    // to 100, the widest tick any chart prints, under a long caption.
+    const container = shareChart();
     const texts = [...container.querySelectorAll("[data-part=y-axis] text")];
+    const ticks = texts.slice(0, -1);
+    const caption = texts.at(-1)?.getAttribute("transform") ?? "";
     // The ticks are anchored at their end, so their x is where they stop.
-    const tickEnd = Number(texts[0]?.getAttribute("x"));
-    const transform = texts.at(-1)?.getAttribute("transform") ?? "";
-    const captionCentre = Number(/translate\((-?[\d.]+)/.exec(transform)?.[1]);
+    const tickEnd = Number(ticks[0]?.getAttribute("x"));
+    const captionCentre = Number(/translate\((-?[\d.]+)/.exec(caption)?.[1]);
     const size = mobileAxisSize(container, "y-axis");
+    const digits = Math.max(...ticks.map((tick) => (tick.textContent ?? "").length));
 
-    // "Nollapelien osuus" runs to 100, the widest tick any chart prints.
-    const widest = 3 * size * DIGIT_WIDTH;
-
-    expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(widest);
+    expect(digits).toBe(3);
+    expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(
+      digits * size * DIGIT_WIDTH
+    );
   });
 });
