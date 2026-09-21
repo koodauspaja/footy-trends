@@ -281,3 +281,62 @@ describe("percentText", () => {
     expect(percentText(0)).toBe("0 %");
   });
 });
+
+/** `text-xs` is 0,75rem, and inside a `viewBox` that is 12 *user units*. */
+const DESKTOP_AXIS_UNITS = 12;
+
+/** A line box, used to say the caption sits a whole line below the tick row. */
+const LINE_BOX = 1.2;
+
+/** A digit's width as a share of the font size — near enough for the UI font. */
+const DIGIT_WIDTH = 0.6;
+
+/** The axis font below `sm`, read from the class so the geometry checks follow it. */
+function mobileAxisSize(container: HTMLElement, part: string): number {
+  const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
+  const size = /text-\[(\d+)px\]/.exec(className)?.[1];
+
+  if (size === undefined) throw new Error(`No mobile axis size in "${className}"`);
+  return Number(size);
+}
+
+describe("LineChart axis text on a phone", () => {
+  // The text is inside the viewBox, so it scales with the drawing: at 640 units
+  // on a 375-px phone, 12 units reached the reader at about 6 px. The font is
+  // the only part of the chart a breakpoint can reach, since MARGIN is
+  // JavaScript — hence enlarging it below `sm` rather than narrowing the
+  // drawing, which would have cost the desktop canvas (#441).
+  it.each(["x-axis", "y-axis"])("enlarges %s text below sm, and keeps 12 units above", (part) => {
+    const container = chart(true);
+    const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
+
+    expect(className).toContain("sm:text-xs");
+    expect(mobileAxisSize(container, part)).toBeGreaterThan(DESKTOP_AXIS_UNITS);
+  });
+
+  it("keeps the x-tick row a whole line clear of the axis caption", () => {
+    const container = chart(true);
+    const texts = [...container.querySelectorAll("[data-part=x-axis] text")];
+    const tick = Number(texts[0]?.getAttribute("y"));
+    const caption = Number(texts.at(-1)?.getAttribute("y"));
+
+    // MARGIN.bottom carries both rows and cannot answer the breakpoint, so it
+    // is sized for the enlarged text; at the old 44 these touched on a phone.
+    expect(caption - tick).toBeGreaterThanOrEqual(mobileAxisSize(container, "x-axis") * LINE_BOX);
+  });
+
+  it("fits a three-digit y tick between the rotated caption and the plot", () => {
+    const container = chart(true);
+    const texts = [...container.querySelectorAll("[data-part=y-axis] text")];
+    // The ticks are anchored at their end, so their x is where they stop.
+    const tickEnd = Number(texts[0]?.getAttribute("x"));
+    const transform = texts.at(-1)?.getAttribute("transform") ?? "";
+    const captionCentre = Number(/translate\((-?[\d.]+)/.exec(transform)?.[1]);
+    const size = mobileAxisSize(container, "y-axis");
+
+    // "Nollapelien osuus" runs to 100, the widest tick any chart prints.
+    const widest = 3 * size * DIGIT_WIDTH;
+
+    expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(widest);
+  });
+});

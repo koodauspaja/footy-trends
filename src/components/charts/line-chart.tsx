@@ -44,7 +44,29 @@ export function percentText(value: number): string {
 
 /** The drawing area, in SVG user units; `viewBox` scales it to the page. */
 export const CHART = { width: 640, height: 320 } as const;
-export const MARGIN = { top: 16, right: 16, bottom: 44, left: 48 } as const;
+/**
+ * The gutters around the plot, in SVG user units.
+ *
+ * `bottom` and `left` carry the axis labels, which are larger below `sm` (see
+ * `AXIS_TEXT`): 56 keeps the x-tick row clear of the axis caption, and 72 fits
+ * a three-digit y tick — `Nollapelien osuus` runs to 100 — beside the rotated
+ * caption without crowding it. `MARGIN` is JavaScript, so it cannot answer the
+ * breakpoint the way the font does; both gutters are therefore sized for the
+ * larger text and cost a few units of plot at every width.
+ */
+export const MARGIN = { top: 16, right: 16, bottom: 56, left: 72 } as const;
+
+/**
+ * The axis font, which scales with the drawing because the text is inside the
+ * `viewBox` — `text-xs` is 12 *user units*, not 12 screen pixels, and SVG has
+ * no non-scaling equivalent for text.
+ *
+ * At 640 units shown on a 375-px phone the drawing is about 0,54x, so today's
+ * 12 units reached the reader at roughly 6 px. Enlarging the font below `sm`
+ * fixes that without narrowing the drawing, which would have cost the desktop
+ * canvas (#441).
+ */
+const AXIS_TEXT = "text-[19px] sm:text-xs";
 
 /**
  * `value` mapped from `domain` onto `range`, linearly.
@@ -157,7 +179,7 @@ export function LineChart({
         ))}
       </g>
 
-      <g className="fill-muted text-xs" data-part="y-axis">
+      <g className={`fill-muted ${AXIS_TEXT}`} data-part="y-axis">
         {yTicks.map((tick) => (
           <text dominantBaseline="middle" key={tick} textAnchor="end" x={left - 8} y={toY(tick)}>
             {tick}
@@ -173,7 +195,7 @@ export function LineChart({
         </text>
       </g>
 
-      <g className="fill-muted text-xs" data-part="x-axis">
+      <g className={`fill-muted ${AXIS_TEXT}`} data-part="x-axis">
         <line className="stroke-border" x1={left} x2={right} y1={bottom} y2={bottom} />
         {xTicks.map((tick) => (
           <text key={tick} textAnchor="middle" x={toX(tick)} y={bottom + 18}>
