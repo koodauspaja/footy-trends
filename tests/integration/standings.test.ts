@@ -55,13 +55,22 @@ function toPlayedMatches<T extends { homeGoals: number | null; awayGoals: number
   );
 }
 
+/**
+ * Both fixture seasons, for both fixture competitions.
+ *
+ * `seasonId - 1` is cleared as well as `seasonId`: the multi-season panels
+ * (specs/038, specs/039) store a second season, and leaving it behind let one
+ * test's rows reach the next one's baseline. Found when a records test made a
+ * comparison test read 1,5 points a match where it expected 0.
+ */
 async function clearFixtures() {
-  await db
-    .delete(matches)
-    .where(and(eq(matches.seasonId, seasonId), eq(matches.competitionCode, competitionCode)));
-  await db
-    .delete(matches)
-    .where(and(eq(matches.seasonId, seasonId), eq(matches.competitionCode, otherCompetitionCode)));
+  for (const code of [competitionCode, otherCompetitionCode]) {
+    for (const season of [seasonId, seasonId - 1]) {
+      await db
+        .delete(matches)
+        .where(and(eq(matches.seasonId, season), eq(matches.competitionCode, code)));
+    }
+  }
   await redis.del(cacheKey);
   await redis.del(`standings:${otherCompetitionCode}:${seasonId}`);
 }
@@ -216,6 +225,53 @@ describe("standings integration", () => {
     expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
     expect(comparison.rows.find((row) => row.measure === "points")?.baseline).toBe(0);
     // The past season has stored rows, so `needsRefresh` never reaches out.
+    expect(getSeasonMatches).not.toHaveBeenCalled();
+  });
+
+  it("reads streak records across stored seasons, asking the provider nothing (specs/039)", async () => {
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { synchronizeMatches, getTeamStreakRecords } = await import("@/lib/standings-service");
+
+    // Two consecutive seasons of one competition, each a win for team 9001:
+    // the run crosses the boundary and the record is two, named by both.
+    const olderSeasonId = seasonId - 1;
+    await synchronizeMatches([
+      // Distinct kickoffs, so the older season's match really is first in the
+      // sequence the record is read from.
+      buildMatch({
+        providerMatchId: 900202,
+        seasonId: olderSeasonId,
+        kickoffAt: new Date("2025-08-01T15:00:00Z"),
+        homeGoals: 2,
+        awayGoals: 0,
+      }),
+      buildMatch({
+        providerMatchId: 900201,
+        seasonId,
+        kickoffAt: new Date("2026-08-01T15:00:00Z"),
+        homeGoals: 3,
+        awayGoals: 0,
+      }),
+    ]);
+
+    const result = await getTeamStreakRecords(
+      9001,
+      seasonId,
+      [
+        { competitionCode, seasonId, matches: 1 },
+        { competitionCode, seasonId: olderSeasonId, matches: 1 },
+      ],
+      String
+    );
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.records.wins).toEqual({
+      length: 2,
+      from: String(olderSeasonId),
+      to: String(seasonId),
+    });
+    // Past seasons have stored rows, so `needsRefresh` never reaches out.
     expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
