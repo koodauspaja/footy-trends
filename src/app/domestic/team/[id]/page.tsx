@@ -213,7 +213,7 @@ export default async function DomesticTeamPage({
           // record names a season the way the rest of the page does.
           loadRecords: () =>
             seasons.status !== "error"
-              ? getTeamStreakRecords(teamProviderId, currentSeason, played, (year) => String(year))
+              ? getTeamStreakRecords(teamProviderId, currentSeason, played, String)
               : Promise.resolve({ status: "error" as const }),
           loadComparison: () =>
             seasons.status !== "error"

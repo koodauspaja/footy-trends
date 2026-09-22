@@ -67,10 +67,11 @@ export function seasonBlocks(seasons: readonly RecordSeason[]): RecordSeason[][]
   const blocks: Array<{ last: RecordSeason; seasons: RecordSeason[] }> = [];
   for (const season of ordered) {
     const current = blocks.at(-1);
+    // Compared rather than added to, so an absent block simply fails both
+    // tests instead of needing its own.
     const joins =
-      current !== undefined &&
-      current.last.competitionCode === season.competitionCode &&
-      current.last.seasonId + 1 === season.seasonId;
+      current?.last.competitionCode === season.competitionCode &&
+      current?.last.seasonId === season.seasonId - 1;
 
     if (joins) {
       current.seasons.push(season);
@@ -81,7 +82,7 @@ export function seasonBlocks(seasons: readonly RecordSeason[]): RecordSeason[][]
   }
 
   return blocks
-    .sort((left, right) => left.last.seasonId - right.last.seasonId)
+    .toSorted((left, right) => left.last.seasonId - right.last.seasonId)
     .map((block) => block.seasons);
 }
 
