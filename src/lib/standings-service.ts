@@ -14,10 +14,9 @@ import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import {
-  compareSeasons,
-  otherLeagueSeasons,
+  comparisonFor,
   type SeasonComparisonSeries,
-  type SeasonRead,
+  type SeasonReadResult,
 } from "./season-comparison";
 import {
   calculateStandings,
@@ -355,20 +354,13 @@ export async function getTeamSeasonComparison(
   seasons: readonly TeamSeason[]
 ): Promise<SeasonComparisonSeries> {
   try {
-    const selected = await readSeasonFor(competitionCode, seasonId, activeSeasonId, teamProviderId);
-    if (selected === null) return { status: "unavailable" };
-
-    const others = await Promise.all(
-      otherLeagueSeasons(seasons, { competitionCode, seasonId }, isLeagueCompetition).map(
-        (season) =>
-          readSeasonFor(season.competitionCode, season.seasonId, activeSeasonId, teamProviderId)
-      )
+    return await comparisonFor(
+      teamProviderId,
+      { competitionCode, seasonId },
+      seasons,
+      isLeagueCompetition,
+      (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
     );
-
-    return {
-      status: "ok",
-      ...compareSeasons(teamProviderId, selected, others.filter(isRead)),
-    };
   } catch (error) {
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
@@ -383,34 +375,41 @@ function isLeagueCompetition(competitionCode: string): boolean {
   return getCompetitionFormat(competitionCode) === "league";
 }
 
-/** One season as `compareSeasons` needs it, or `null` when nothing is stored for it. */
+/**
+ * One season as `compareSeasons` needs it.
+ *
+ * A season with nothing stored is `empty` — an ordinary season to leave out —
+ * while a season whose refresh failed and left nothing is `error`, the same
+ * distinction every other panel's service draws.
+ */
 async function readSeasonFor(
   competitionCode: string,
   seasonId: number,
   activeSeasonId: number,
   teamProviderId: number
-): Promise<SeasonRead | null> {
-  const { matches: seasonMatches } = await getSyncedSeasonMatches(
+): Promise<SeasonReadResult> {
+  const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
     competitionCode,
     seasonId,
     activeSeasonId
   );
-  if (seasonMatches.length === 0) return null;
+  if (seasonMatches.length === 0) {
+    return refreshFailed ? { status: "error" } : { status: "empty" };
+  }
 
   const finished = toFinishedMatches(seasonMatches);
   const series = singleTableSeries(finished, seasonMatches, teamProviderId);
 
   return {
-    competition: getCompetitionName(competitionCode),
-    finished,
-    all: seasonMatches,
-    points: series.status === "ok" ? series.points : [],
-    teamCount: series.status === "ok" ? series.teamCount : 0,
+    status: "ok",
+    read: {
+      competition: getCompetitionName(competitionCode),
+      finished,
+      all: seasonMatches,
+      points: series.status === "ok" ? series.points : [],
+      teamCount: series.status === "ok" ? series.teamCount : 0,
+    },
   };
-}
-
-function isRead(season: SeasonRead | null): season is SeasonRead {
-  return season !== null;
 }
 
 /**

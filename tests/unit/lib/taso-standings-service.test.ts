@@ -2840,20 +2840,37 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       }),
     ];
 
-    const seasons = [
-      { competitionCode: LEAGUE, seasonId: PAST_SEASON, matches: 2 },
-      { competitionCode: LEAGUE, seasonId: PAST_SEASON - 1, matches: 2 },
-    ];
+    /**
+     * A season id used by one test only.
+     *
+     * `classifySeasonGroups` is `cache()`d and `vi.clearAllMocks()` does not
+     * clear that memo, so two tests that supply different stored rows under
+     * one season id would poison each other — whichever ran first would decide
+     * what the other saw. Found by `npm run test:shuffle`.
+     */
+    let nextSeason = PAST_SEASON;
+    function ownSeason() {
+      nextSeason -= 10;
+      return nextSeason;
+    }
+
+    function seasonsFor(selected: number) {
+      return [
+        { competitionCode: LEAGUE, seasonId: selected, matches: 2 },
+        { competitionCode: LEAGUE, seasonId: selected - 1, matches: 2 },
+      ];
+    }
 
     it("sets the season against the club's other league seasons", async () => {
       mockStoredMatches(matches, rows);
 
+      const selected = ownSeason();
       const comparison = await getTeamSeasonComparison(
         LEAGUE,
         1,
-        PAST_SEASON,
+        selected,
         ACTIVE_SEASON,
-        seasons
+        seasonsFor(selected)
       );
 
       expect(comparison.status).toBe("ok");
@@ -2873,12 +2890,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // pass-through: it is shown, but it ranks nobody (specs/030).
       mockStoredMatches(matches, rowsFor(LEAGUE, SEASON, 1, [1, 2, 3], 99));
 
+      const selected = ownSeason();
       const comparison = await getTeamSeasonComparison(
         LEAGUE,
         1,
-        PAST_SEASON,
+        selected,
         ACTIVE_SEASON,
-        seasons
+        seasonsFor(selected)
       );
 
       expect(comparison.status).toBe("ok");
@@ -2890,32 +2908,58 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
     });
 
-    it("has no panel when the club played no league match that season", async () => {
-      // The season classifies, but this club is not in it.
-      mockStoredMatches(matches, rows);
+    it("reports an error when a season cannot be read at all", async () => {
+      // Its own season ids, because `classifySeasonGroups` is `cache()`d and
+      // `vi.clearAllMocks()` does not clear that memo: a failure cached here
+      // under a season another test uses would surface as an error there,
+      // depending on the order the suite happened to run in.
+      const brokenSeason = ownSeason();
+      mockStoredMatches([], []);
+      getSeasonGroupsMock.mockRejectedValue(new Error("TASO unavailable"));
+      getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
       expect(
-        await getTeamSeasonComparison(LEAGUE, 99, PAST_SEASON, ACTIVE_SEASON, seasons)
+        await getTeamSeasonComparison(LEAGUE, 1, brokenSeason, ACTIVE_SEASON, [
+          { competitionCode: LEAGUE, seasonId: brokenSeason, matches: 1 },
+        ])
+      ).toEqual({ status: "error" });
+    });
+
+    it("has no panel when the club played no league match that season", async () => {
+      // The season classifies, but this club is not in it.
+      getSeasonGroupsMock.mockResolvedValue([]);
+      getSeasonMatchesMock.mockResolvedValue([]);
+      mockStoredMatches(matches, rows);
+
+      const selected = ownSeason();
+      expect(
+        await getTeamSeasonComparison(LEAGUE, 99, selected, ACTIVE_SEASON, seasonsFor(selected))
       ).toEqual({ status: "unavailable" });
     });
 
     it("leaves out a cup, which has no table to rank a position in", async () => {
       mockStoredMatches(matches, rows);
 
-      const comparison = await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, [
-        ...seasons,
-        { competitionCode: "MSC", seasonId: PAST_SEASON - 1, matches: 4 },
+      const selected = ownSeason();
+      const comparison = await getTeamSeasonComparison(LEAGUE, 1, selected, ACTIVE_SEASON, [
+        ...seasonsFor(selected),
+        { competitionCode: "MSC", seasonId: selected - 1, matches: 4 },
       ]);
 
       expect(comparison.status === "ok" && comparison.seasons).toBe(1);
     });
 
     it("has no panel when the season has no league matches for the club", async () => {
+      // Reachable and empty, which is a season the app does not hold rather
+      // than a failure.
+      getSeasonGroupsMock.mockResolvedValue([]);
+      getSeasonMatchesMock.mockResolvedValue([]);
       mockStoredMatches([], []);
 
-      expect(await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)).toEqual(
-        { status: "unavailable" }
-      );
+      const selected = ownSeason();
+      expect(
+        await getTeamSeasonComparison(LEAGUE, 1, selected, ACTIVE_SEASON, seasonsFor(selected))
+      ).toEqual({ status: "unavailable" });
     });
 
     it("reports an error rather than a plausible comparison when a read fails", async () => {
@@ -2924,9 +2968,10 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       }));
       dbMock.select.mockReturnValue({ from });
 
-      expect(await getTeamSeasonComparison(LEAGUE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)).toEqual(
-        { status: "error" }
-      );
+      const selected = ownSeason();
+      expect(
+        await getTeamSeasonComparison(LEAGUE, 1, selected, ACTIVE_SEASON, seasonsFor(selected))
+      ).toEqual({ status: "error" });
       expect(loggerErrorMock).toHaveBeenCalledWith(
         expect.objectContaining({ competitionCode: LEAGUE }),
         "Unable to compare the TASO season with the club's others"

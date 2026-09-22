@@ -25,6 +25,8 @@ lengths. Each rule removes one way of comparing unlike with unlike.
 | A position with no table behind it | `–` | Without a `teamCount` a share is not a place, and printing the share itself would be a second unit in the same column. |
 | The text alternative's full stop | Suppressed when the value already ends in one | Caught by its own test: a position already carries its ordinal period, so the sentence read `tavallisesti 6,0..`. |
 | The TASO read's order | Classify first, then ask for the club's matches | Written the other way round first, which left `classified.status !== "ok"` unreachable — `teamLeagueMatches` has already classified and reported anything but "ok". Rather than keep a branch no test could take, the call order changed so the branch is real. |
+| Where the orchestration lives | `comparisonFor`, in the pure module, with the season `read` passed in | Written twice at first — once per provider — which cost two branches no test could take and one no test could reach. The providers differ in how a season is found and ranked and in nothing else, so the sequence lives once and the failure rules cannot drift apart. |
+| A failed read versus an empty season | Told apart, and any failure fails the panel | Sourcery caught the first version collapsing both into `null`: a failed *selected* season read as "no panel", and a failed *baseline* season was dropped silently, leaving a plausible comparison whose own `Verrattuna {n} muuhun kauteen` line stated an `n` it had not read. Both providers had it; both are fixed by the shared orchestrator. |
 | A season that ranks nothing | Kept, with a null position | A pass-through or knockout group ranks nobody, but the club's results are still its results. Dropping the season would quietly shrink the baseline of every rate to protect one row. |
 
 ## What the tests prove, and how
@@ -44,11 +46,11 @@ lengths. Each rule removes one way of comparing unlike with unlike.
   future change cannot quietly make both the same.
 - **Both providers**, each against its own fixtures, including a TASO season
   whose table ranks (verified rows) and one whose table does not (pass-through).
-- **Eighteen mutations**, all caught, listed below.
+- **Twenty-two mutations**, all caught, listed below.
 
 ### The mutations
 
-Eighteen, in three groups, each of which failed at least one test.
+Twenty-two, in four groups, each of which failed at least one test.
 
 **The arithmetic (10).** Baseline including the selected season; positions
 summed rather than averaged; the share inverted; the clean-sheet share not
@@ -66,7 +68,24 @@ outlined.
 selected season would count; the TASO service naming a season by its raw
 category id; the TASO service keeping a club with no league match that season.
 
-Two of these earned their place by failing first:
+**The failure rules (4), added after review.** Only an all-failed read failing
+the comparison; a failed selected season reading as "no panel"; a failed
+baseline season ignored; every successful read dropped from the baseline.
+
+### What `test:shuffle` caught that no single run did
+
+The TASO tests shared one season id while supplying **different** stored rows
+to it. `classifySeasonGroups` is `cache()`d and `vi.clearAllMocks()` does not
+clear that memo, so whichever test ran first decided what the others saw — a
+failure cached under a season became an error in a test expecting no panel.
+It passed in file order and failed about one shuffled run in three.
+
+Each test in that block now takes its own season id from a counter. The general
+rule the next such test needs: **`vi.clearAllMocks()` resets mocks, not React's
+`cache()`** — two tests that mean different things by the same cache key will
+collide however carefully their mocks are reset.
+
+Two mutations earned their place by failing first:
 
 - **The baseline bar's outline** was not asserted at all until its mutation
   escaped. The outline is the only thing telling the two columns apart without

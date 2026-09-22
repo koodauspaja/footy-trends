@@ -69,11 +69,12 @@ test.describe("Season comparison, signed in", () => {
     await page.goto(TEAM);
     const panel = page.getByRole("region", { name: HEADING });
 
-    // Arsenal's other stored Premier League seasons. The count and the
-    // competition are asserted exactly rather than by pattern: a line that
-    // said "0 muuhun kauteen" or named the wrong competition would still
-    // match a pattern, and the reader is being told what the bars mean.
-    await expect(panel.getByText("Verrattuna 2 muuhun kauteen: Valioliiga")).toBeVisible();
+    // The competition is pinned and the count is required to be at least one;
+    // the count itself is not, because the e2e database gains seasons as other
+    // specs sync them, and an exact number here fails for a reason that has
+    // nothing to do with this panel. "Verrattuna 0 muuhun kauteen" would still
+    // be caught, which is the claim that would mislead a reader.
+    await expect(panel.getByText(/^Verrattuna [1-9]\d* muuhun kauteen: Valioliiga$/)).toBeVisible();
   });
 
   test("comes last in Analyysit", async ({ page }) => {

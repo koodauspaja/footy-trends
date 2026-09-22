@@ -24,10 +24,9 @@ import {
   teamsInGroupsAbove,
 } from "./position-series";
 import {
-  compareSeasons,
-  otherLeagueSeasons,
+  comparisonFor,
   type SeasonComparisonSeries,
-  type SeasonRead,
+  type SeasonReadResult,
 } from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { type StreaksSeries, streaksOf } from "./streaks";
@@ -1488,24 +1487,13 @@ export async function getTeamSeasonComparison(
   seasons: readonly TeamSeason[]
 ): Promise<SeasonComparisonSeries> {
   try {
-    const selected = await readTasoSeason(
-      competitionCode,
-      seasonId,
-      activeSeasonId,
-      teamProviderId
+    return await comparisonFor(
+      teamProviderId,
+      { competitionCode, seasonId },
+      seasons,
+      isDomesticLeague,
+      (key) => readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
     );
-    if (selected === null) return { status: "unavailable" };
-
-    const others = await Promise.all(
-      otherLeagueSeasons(seasons, { competitionCode, seasonId }, isDomesticLeague).map((season) =>
-        readTasoSeason(season.competitionCode, season.seasonId, activeSeasonId, teamProviderId)
-      )
-    );
-
-    return {
-      status: "ok",
-      ...compareSeasons(teamProviderId, selected, others.filter(isTasoRead)),
-    };
   } catch (error) {
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
@@ -1528,7 +1516,7 @@ async function readTasoSeason(
   seasonId: number,
   activeSeasonId: number,
   teamProviderId: number
-): Promise<SeasonRead | null> {
+): Promise<SeasonReadResult> {
   const categoryId = categoryIdForSeason(competitionCode, seasonId);
   const competitionId = competitionIdFromSeason(seasonId);
 
@@ -1541,7 +1529,9 @@ async function readTasoSeason(
     seasonId,
     activeSeasonId
   );
-  if (classified.status !== "ok") return null;
+  if (classified.status !== "ok") {
+    return classified.status === "error" ? { status: "error" } : { status: "empty" };
+  }
 
   const league = await teamLeagueMatches(
     categoryId,
@@ -1550,7 +1540,10 @@ async function readTasoSeason(
     seasonId,
     activeSeasonId
   );
-  if (league.status !== "ok") return null;
+  // `teamLeagueMatches` reports "error" only when the classification failed,
+  // which is handled above and cached — so what is left here is a season this
+  // club has no league match in, which is empty rather than broken.
+  if (league.status !== "ok") return { status: "empty" };
 
   // A season whose groups are a knockout or pass-through ranks nothing, which
   // is not an error: its results still count towards every rate.
@@ -1564,21 +1557,20 @@ async function readTasoSeason(
   );
 
   return {
-    competition: getDomesticCompetitionName(competitionCode),
-    finished: league.finished,
-    all: classified.matches,
-    points: series.status === "ok" ? series.points : [],
-    teamCount: series.status === "ok" ? series.teamCount : 0,
+    status: "ok",
+    read: {
+      competition: getDomesticCompetitionName(competitionCode),
+      finished: league.finished,
+      all: classified.matches,
+      points: series.status === "ok" ? series.points : [],
+      teamCount: series.status === "ok" ? series.teamCount : 0,
+    },
   };
 }
 
 /** A domestic competition is a league unless it is one of the cups. */
 function isDomesticLeague(competitionCode: string): boolean {
   return !isDomesticCup(competitionCode);
-}
-
-function isTasoRead(season: SeasonRead | null): season is SeasonRead {
-  return season !== null;
 }
 
 export async function getTeamCleanSheetSeries(

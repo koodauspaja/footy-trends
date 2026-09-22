@@ -224,6 +224,21 @@ export type SeasonRead = {
   teamCount: number;
 };
 
+/**
+ * One season's read, told apart from its failures.
+ *
+ * A read that **failed** and a season the app simply holds nothing for must not
+ * collapse into one value: the first has to reach the reader as an error, while
+ * the second is an ordinary season to leave out. Collapsing them let a failed
+ * baseline read shrink the comparison silently, while the panel still said how
+ * many seasons it covered.
+ */
+export type SeasonReadResult =
+  | { status: "ok"; read: SeasonRead }
+  /** Nothing stored for this season; not an error, just not a baseline. */
+  | { status: "empty" }
+  | { status: "error" };
+
 export type SeasonComparisonSeries =
   | ({ status: "ok" } & SeasonComparison)
   /** No league table for this team's season, so no panel (specs/031, Q2). */
@@ -306,4 +321,54 @@ export function otherLeagueSeasons<T extends SeasonKey>(
         season.competitionCode === selected.competitionCode && season.seasonId === selected.seasonId
       )
   );
+}
+
+/**
+ * The seasons to compare against, or the failure that stops the panel.
+ *
+ * Any failed read fails the whole comparison. A baseline quietly computed over
+ * the seasons that happened to read is a plausible wrong answer, and the
+ * panel's own `Verrattuna {n} muuhun kauteen` line would state the wrong `n`.
+ */
+export function readSeasons(
+  results: readonly SeasonReadResult[]
+): { status: "ok"; reads: SeasonRead[] } | { status: "error" } {
+  if (results.some((result) => result.status === "error")) return { status: "error" };
+
+  return {
+    status: "ok",
+    reads: results.flatMap((result) => (result.status === "ok" ? [result.read] : [])),
+  };
+}
+
+/**
+ * The whole panel for one club and season, from a reader the caller supplies.
+ *
+ * **One orchestrator, both providers.** They differ in how a season is found
+ * and ranked — a `read` — and in what counts as a league, and in nothing else.
+ * Written twice at first, which cost two branches no test could take; written
+ * once, the failure rules below are proved once and cannot drift apart.
+ *
+ * Any failed read fails the comparison: a baseline quietly computed over the
+ * seasons that happened to read is a plausible wrong answer, and the panel's
+ * own `Verrattuna {n} muuhun kauteen` line would state the wrong `n`.
+ */
+export async function comparisonFor<T extends SeasonKey>(
+  teamId: number,
+  selectedKey: SeasonKey,
+  seasons: readonly T[],
+  isLeague: (competitionCode: string) => boolean,
+  read: (key: SeasonKey) => Promise<SeasonReadResult>
+): Promise<SeasonComparisonSeries> {
+  const selected = await read(selectedKey);
+  if (selected.status !== "ok") {
+    return selected.status === "error" ? { status: "error" } : { status: "unavailable" };
+  }
+
+  const others = readSeasons(
+    await Promise.all(otherLeagueSeasons(seasons, selectedKey, isLeague).map(read))
+  );
+  if (others.status === "error") return { status: "error" };
+
+  return { status: "ok", ...compareSeasons(teamId, selected.read, others.reads) };
 }

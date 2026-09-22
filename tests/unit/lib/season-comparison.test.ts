@@ -3,11 +3,13 @@ import type { ResultMatch } from "@/lib/form-series";
 import {
   type ComparisonRow,
   compareSeasons,
+  comparisonFor,
   comparisonRows,
   MEASURES,
   type Measure,
   otherLeagueSeasons,
   positionAtShare,
+  readSeasons,
   type SeasonSummary,
   seasonLength,
   shareCompleted,
@@ -459,5 +461,120 @@ describe("otherLeagueSeasons", () => {
     const others = otherLeagueSeasons(seasons, { competitionCode: "VL", seasonId: 2026 }, isLeague);
 
     expect(others).toContainEqual({ competitionCode: "VL", seasonId: 2024 });
+  });
+});
+
+describe("readSeasons", () => {
+  const read = {
+    competition: "Veikkausliiga",
+    finished: [],
+    all: [],
+    points: [],
+    teamCount: 0,
+  };
+
+  it("keeps the seasons that read, and drops the ones with nothing stored", () => {
+    const result = readSeasons([
+      { status: "ok", read },
+      { status: "empty" },
+      { status: "ok", read },
+    ]);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.reads).toHaveLength(2);
+  });
+
+  it("fails the whole comparison when any season failed to read", () => {
+    // A baseline quietly computed over the seasons that happened to read is a
+    // plausible wrong answer, and the panel's own "Verrattuna {n} muuhun
+    // kauteen" line would state the wrong n.
+    const result = readSeasons([{ status: "ok", read }, { status: "error" }]);
+
+    expect(result).toEqual({ status: "error" });
+  });
+
+  it("has no baseline, and no error, when every season is empty", () => {
+    const result = readSeasons([{ status: "empty" }, { status: "empty" }]);
+
+    expect(result).toEqual({ status: "ok", reads: [] });
+  });
+});
+
+describe("comparisonFor", () => {
+  const isLeague = (code: string) => code !== "CUP";
+  const selectedKey = { competitionCode: "PL", seasonId: 2024 };
+
+  /** A season that reads, with one finished match the club won. */
+  function okRead(competition = "Valioliiga") {
+    return {
+      status: "ok" as const,
+      read: {
+        competition,
+        finished: [{ ...match(1, 3, 0), matchday: 1 }],
+        all: [{ matchday: 1 }],
+        points: [{ round: 1, position: 1, played: true }],
+        teamCount: 20,
+      },
+    };
+  }
+
+  it("compares the selected season with the other league seasons", async () => {
+    const result = await comparisonFor(
+      TEAM,
+      selectedKey,
+      [
+        selectedKey,
+        { competitionCode: "PL", seasonId: 2023 },
+        { competitionCode: "CUP", seasonId: 2023 },
+      ],
+      isLeague,
+      async () => okRead()
+    );
+
+    expect(result.status).toBe("ok");
+    // The cup and the selected season are both left out.
+    expect(result.status === "ok" && result.seasons).toBe(1);
+  });
+
+  it("has no panel when the selected season is empty", async () => {
+    const result = await comparisonFor(TEAM, selectedKey, [selectedKey], isLeague, async () => ({
+      status: "empty",
+    }));
+
+    expect(result).toEqual({ status: "unavailable" });
+  });
+
+  it("reports an error when the selected season failed to read", async () => {
+    const result = await comparisonFor(TEAM, selectedKey, [selectedKey], isLeague, async () => ({
+      status: "error",
+    }));
+
+    expect(result).toEqual({ status: "error" });
+  });
+
+  it("reports an error when a baseline season failed, rather than comparing fewer", async () => {
+    let call = 0;
+    const result = await comparisonFor(
+      TEAM,
+      selectedKey,
+      [selectedKey, { competitionCode: "PL", seasonId: 2023 }],
+      isLeague,
+      async () => (call++ === 0 ? okRead() : { status: "error" as const })
+    );
+
+    expect(result).toEqual({ status: "error" });
+  });
+
+  it("leaves out a baseline season that is merely empty", async () => {
+    let call = 0;
+    const result = await comparisonFor(
+      TEAM,
+      selectedKey,
+      [selectedKey, { competitionCode: "PL", seasonId: 2023 }],
+      isLeague,
+      async () => (call++ === 0 ? okRead() : { status: "empty" as const })
+    );
+
+    expect(result.status === "ok" && result.seasons).toBe(0);
   });
 });

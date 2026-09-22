@@ -2002,7 +2002,33 @@ describe("getTeamSeasonComparison", () => {
     expect(comparison.rows.find((row) => row.measure === "points")?.baseline).toBeNull();
   });
 
+  it("reports an error when a baseline season's refresh failed, not a smaller baseline", async () => {
+    // The season has nothing stored and the provider could not be reached, so
+    // what the baseline would have been is unknown. Dropping it silently would
+    // leave the panel claiming a comparison over seasons it never read.
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
+    mockSeasonReads(strongSeason, []);
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "error" });
+  });
+
+  it("reports an error when the selected season's refresh failed", async () => {
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
+    mockSeasonReads([]);
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "error" });
+  });
+
   it("has no panel when nothing is stored for the selected season", async () => {
+    // The provider is reachable and simply has nothing, which is a season the
+    // app does not hold — not a failure.
+    getSeasonMatchesMock.mockResolvedValue([]);
     mockSeasonReads([]);
 
     expect(
@@ -2011,6 +2037,7 @@ describe("getTeamSeasonComparison", () => {
   });
 
   it("skips another season that has nothing stored, rather than counting it empty", async () => {
+    getSeasonMatchesMock.mockResolvedValue([]);
     mockSeasonReads(strongSeason, []);
 
     const comparison = await getTeamSeasonComparison(
