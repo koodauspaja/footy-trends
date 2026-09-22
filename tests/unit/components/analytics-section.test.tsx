@@ -7,6 +7,7 @@ import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
 import { COMPARISON_HEADING } from "@/components/season-comparison-section";
+import { RECORDS_HEADING } from "@/components/streak-records-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
 
 const position: PositionSeries = {
@@ -72,6 +74,16 @@ const comebacks: ComebacksSeries = {
   missing: 0,
   known: 5,
 };
+const records: StreakRecordsSeries = {
+  status: "ok",
+  records: {
+    wins: { length: 3, from: "2024", to: "2025" },
+    unbeaten: { length: 5, from: "2024", to: "2025" },
+    defeats: null,
+    winless: null,
+  },
+  seasons: 2,
+};
 const comparison: SeasonComparisonSeries = {
   status: "ok",
   rows: MEASURES.map((measure) => ({ measure, selected: 1, baseline: 2 })),
@@ -88,7 +100,8 @@ async function renderSection(
   loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
   loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
   loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks),
-  loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison)
+  loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison),
+  loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records)
 ) {
   const view = await AnalyticsSection({
     loadPosition,
@@ -99,6 +112,7 @@ async function renderSection(
     loadStreaks,
     loadComebacks,
     loadComparison,
+    loadRecords,
   });
   return {
     ...render(<div>{view}</div>),
@@ -179,6 +193,7 @@ describe("AnalyticsSection, signed in", () => {
       STREAKS_HEADING,
       COMEBACKS_HEADING,
       COMPARISON_HEADING,
+      RECORDS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -209,6 +224,7 @@ describe("AnalyticsSection, signed in", () => {
       STREAKS_HEADING,
       COMEBACKS_HEADING,
       COMPARISON_HEADING,
+      RECORDS_HEADING,
     ]);
   });
 
@@ -232,7 +248,8 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<SeasonComparisonSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<StreakRecordsSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

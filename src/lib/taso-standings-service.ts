@@ -30,6 +30,7 @@ import {
   type SeasonReadResult,
 } from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
+import { recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   competitionIdFromSeason,
@@ -1579,6 +1580,28 @@ async function readTasoSeason(
       teamCount: series.status === "ok" ? series.teamCount : 0,
     },
   };
+}
+
+/**
+ * This club's records across every stored season, for the team page's
+ * `Ennätykset` panel (specs/039).
+ *
+ * `label` is the page's own season wording, passed in so a record names a
+ * season exactly as the selector above it does — plain years domestically,
+ * `2024/25` abroad.
+ */
+export function getTeamStreakRecords(
+  teamProviderId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[],
+  label: (seasonId: number) => string
+): Promise<StreakRecordsSeries> {
+  return recordsFor(teamProviderId, seasons, isDomesticLeague, label, (key) =>
+    readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+  ).catch((error) => {
+    logger.error({ err: error, teamProviderId }, "Unable to read the club's TASO streak records");
+    return { status: "error" as const };
+  });
 }
 
 /**

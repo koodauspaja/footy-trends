@@ -24,6 +24,7 @@ import {
   type TeamStanding,
   toFinishedMatches,
 } from "./standings";
+import { recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import type { TeamSeason } from "./team-seasons";
 
@@ -368,6 +369,28 @@ export async function getTeamSeasonComparison(
     );
     return { status: "error" };
   }
+}
+
+/**
+ * This club's records across every stored season, for the team page's
+ * `Ennätykset` panel (specs/039).
+ *
+ * `label` is the page's own season wording, passed in so a record names a
+ * season exactly as the selector above it does — plain years domestically,
+ * `2024/25` abroad.
+ */
+export function getTeamStreakRecords(
+  teamProviderId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[],
+  label: (seasonId: number) => string
+): Promise<StreakRecordsSeries> {
+  return recordsFor(teamProviderId, seasons, isLeagueCompetition, label, (key) =>
+    readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+  ).catch((error) => {
+    logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
+    return { status: "error" as const };
+  });
 }
 
 /**

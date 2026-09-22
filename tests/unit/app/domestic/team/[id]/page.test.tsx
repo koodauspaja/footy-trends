@@ -8,6 +8,7 @@ import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
@@ -37,6 +38,9 @@ const getTeamStreaksMock = vi.fn(
 const getTeamComebacksMock = vi.fn(
   async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
+const getTeamStreakRecordsMock = vi.fn(
+  async (..._args: unknown[]): Promise<StreakRecordsSeries> => ({ status: "unavailable" })
+);
 const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
 );
@@ -57,6 +61,7 @@ const analyticsSectionMock = vi.fn(
     loadStreaks: () => Promise<StreaksSeries>;
     loadComebacks: () => Promise<ComebacksSeries>;
     loadComparison: () => Promise<SeasonComparisonSeries>;
+    loadRecords: () => Promise<StreakRecordsSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -91,6 +96,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     getTeamStreaks: getTeamStreaksMock,
     getTeamComebacks: getTeamComebacksMock,
     getTeamSeasonComparison: getTeamSeasonComparisonMock,
+    getTeamStreakRecords: getTeamStreakRecordsMock,
     getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
@@ -683,6 +689,19 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
+  it("reports an outage for the records too when the season lookup fails", async () => {
+    // The records would otherwise be computed over an empty season list and
+    // reported as "this club has no records", which is a lookup failure
+    // dressed as a fact about the club.
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
+
+    expect(await loadRecords?.()).toEqual({ status: "error" });
+    expect(getTeamStreakRecordsMock).not.toHaveBeenCalled();
+  });
+
   it("reports an outage when the season lookup fails, rather than claiming no history", async () => {
     // `played` is `[]` when the lookup fails, which the comparison would read
     // as "this club has no other seasons" and say so to the reader.
@@ -693,6 +712,23 @@ describe("Domestic team page league position (specs/030)", () => {
 
     expect(await loadComparison?.()).toEqual({ status: "error" });
     expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
+  });
+
+  it("asks for the records with the season wording the selector uses (specs/039)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
+
+    await loadRecords?.();
+
+    expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      1,
+      2026,
+      expect.any(Array),
+      expect.any(Function)
+    );
+    // A Finnish season is a plain year, as the selector writes it.
+    const label = getTeamStreakRecordsMock.mock.calls[0]?.[3] as (year: number) => string;
+    expect(label(2025)).toBe("2025");
   });
 
   it("asks for this team's comebacks in the same TASO category and competition (specs/036)", async () => {

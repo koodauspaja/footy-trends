@@ -95,6 +95,7 @@ test.describe("Form chart, signed in", () => {
       "Putket",
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",
+      "Ennätykset",
     ]);
   });
 
