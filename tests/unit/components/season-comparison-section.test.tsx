@@ -159,6 +159,17 @@ describe("seasonComparisonPanel", () => {
     expect(values.slice(1).every((text) => text !== "–")).toBe(true);
   });
 
+  it("tells the two columns apart by an outline, not by colour", () => {
+    // The same choice the home and away panel makes: an outline reads without
+    // colour vision and in both themes.
+    const container = ok();
+    const selected = container.querySelectorAll("[data-bar=selected] [data-part=fill]");
+    const baseline = container.querySelectorAll("[data-bar=baseline] [data-part=fill]");
+
+    expect([...selected].every((bar) => !bar.hasAttribute("data-outlined"))).toBe(true);
+    expect([...baseline].every((bar) => bar.hasAttribute("data-outlined"))).toBe(true);
+  });
+
   it("lists every measure as text, for a reader who cannot see the bars", () => {
     const container = ok();
     const sentences = [...container.querySelectorAll("ol.sr-only li")].map((li) => li.textContent);

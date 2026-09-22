@@ -102,6 +102,7 @@ test.describe("Goals charts, signed in", () => {
       "Nollapelit",
       "Putket",
       "Kääntyneet ottelut",
+      "Tämä kausi verrattuna",
     ]);
   });
 });

@@ -187,6 +187,38 @@ describe("standings integration", () => {
     expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
+  it("compares a season with the club's others, asking the provider nothing (specs/038)", async () => {
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { synchronizeMatches, getTeamSeasonComparison } = await import("@/lib/standings-service");
+
+    // Two stored seasons of the same competition: the club wins its match in
+    // the selected one and loses it in the other, so a baseline that included
+    // the selected season could not read 0 points a match.
+    const olderSeasonId = seasonId - 1;
+    await synchronizeMatches([
+      buildMatch({ providerMatchId: 900101, seasonId, homeGoals: 3, awayGoals: 0 }),
+      buildMatch({
+        providerMatchId: 900102,
+        seasonId: olderSeasonId,
+        homeGoals: 0,
+        awayGoals: 3,
+      }),
+    ]);
+
+    const comparison = await getTeamSeasonComparison(competitionCode, 9001, seasonId, seasonId, [
+      { competitionCode, seasonId, matches: 1 },
+      { competitionCode, seasonId: olderSeasonId, matches: 1 },
+    ]);
+
+    expect(comparison.status).toBe("ok");
+    if (comparison.status !== "ok") return;
+    expect(comparison.seasons).toBe(1);
+    expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
+    expect(comparison.rows.find((row) => row.measure === "points")?.baseline).toBe(0);
+    // The past season has stored rows, so `needsRefresh` never reaches out.
+    expect(getSeasonMatches).not.toHaveBeenCalled();
+  });
+
   it("backfills a season that has no stored matches", async () => {
     const { getSeasonMatches } = await import("@/lib/football-data");
     const providerMatches = [buildMatch()];

@@ -191,10 +191,11 @@ must not compute any value — the existing gate runs before any loader.
 
 | File | Minimal assertions |
 |---|---|
-| `tests/unit/lib/season-comparison.test.ts` | The baseline excludes the selected season; a one-season club (Q2); the mean over mixed competitions; `null` propagation for an empty measure |
-| `tests/unit/components/season-comparison-section.test.tsx` | Rows render; `–` for a missing value; the competitions line names what it covered; nothing renders signed out |
-| `tests/integration/...` | The multi-season read returns the seasons `loadTeamSeasons` reports, and makes no provider request for a past season |
-| `tests/e2e/season-comparison.spec.ts` | Signed in, the panel appears on a league team page for both providers; signed out, only the prompt |
+| `tests/unit/lib/season-comparison.test.ts` | The baseline excludes the selected season; pooling rather than averaging averages; positions averaged rather than pooled; a share read at the matching point of a season of another length; a club with no other season; `null` propagation |
+| `tests/unit/components/season-comparison-section.test.tsx` | A position printed as a place; `–` for a missing value; the baseline column empty rather than zero; the competitions line; the two columns told apart by an outline; nothing signed out |
+| `tests/unit/lib/standings-service.test.ts`, `tests/unit/lib/taso-standings-service.test.ts` | Both providers: cups and the selected season left out; a season that ranks nothing kept for its rates; an error rather than a plausible comparison |
+| `tests/integration/standings.test.ts` | Against a real database: two stored seasons compared, and `getSeasonMatches` never called for the past one |
+| `tests/e2e/season-comparison.spec.ts` | The season's own points per match equal the standings table's `P`/`O`; the competitions line; last in `Analyysit`; no value in a signed-out page's HTML |
 
 Every new test is mutation-checked before review, per
 `skills/self-review.md`.

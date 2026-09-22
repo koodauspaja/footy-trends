@@ -1951,7 +1951,11 @@ describe("getTeamSeasonComparison", () => {
   });
 
   it("leaves out a cup, which has no table and would distort a per-match rate", async () => {
-    mockSeasonReads(strongSeason, weakSeason);
+    // Four seasons' worth of rows are available, so a service that filtered
+    // nothing would read the selected season and the cup as well, and report
+    // three baseline seasons rather than one. Without this the test passes for
+    // the wrong reason: the mock simply runs out of rows.
+    mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
 
     const comparison = await getTeamSeasonComparison(
       COMPETITION_CODE,
@@ -1960,8 +1964,10 @@ describe("getTeamSeasonComparison", () => {
       ACTIVE_SEASON,
       [
         ...seasons,
-        // The FA Cup is a cup in the registry, so it is not a baseline season.
-        { competitionCode: "FAC", seasonId: OLDER_SEASON, matches: 6 },
+        // The Champions League is a cup in the registry, so it is not a
+        // baseline season. A code the registry does not know would default to
+        // a league, which is `getCompetitionFormat`'s own rule.
+        { competitionCode: "CL", seasonId: OLDER_SEASON, matches: 6 },
       ]
     );
 
