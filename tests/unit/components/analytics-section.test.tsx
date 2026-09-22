@@ -6,6 +6,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { StreaksSeries } from "@/lib/streaks";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
+import { COMPARISON_HEADING } from "@/components/season-comparison-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
 
 const position: PositionSeries = {
@@ -70,6 +72,13 @@ const comebacks: ComebacksSeries = {
   missing: 0,
   known: 5,
 };
+const comparison: SeasonComparisonSeries = {
+  status: "ok",
+  rows: MEASURES.map((measure) => ({ measure, selected: 1, baseline: 2 })),
+  seasons: 3,
+  competitions: ["Valioliiga"],
+  teamCount: 20,
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
@@ -78,7 +87,8 @@ async function renderSection(
   loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway),
   loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
   loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
-  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks)
+  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks),
+  loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison)
 ) {
   const view = await AnalyticsSection({
     loadPosition,
@@ -88,6 +98,7 @@ async function renderSection(
     loadCleanSheets,
     loadStreaks,
     loadComebacks,
+    loadComparison,
   });
   return {
     ...render(<div>{view}</div>),
@@ -167,6 +178,7 @@ describe("AnalyticsSection, signed in", () => {
       CLEAN_SHEETS_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
+      COMPARISON_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -196,6 +208,7 @@ describe("AnalyticsSection, signed in", () => {
       CLEAN_SHEETS_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
+      COMPARISON_HEADING,
     ]);
   });
 
@@ -218,7 +231,8 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<SeasonComparisonSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

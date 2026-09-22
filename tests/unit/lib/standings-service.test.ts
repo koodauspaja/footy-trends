@@ -12,6 +12,7 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamSeasonComparison,
   getTeamStreaks,
   synchronizeMatches,
 } from "@/lib/standings-service";
@@ -1861,6 +1862,227 @@ describe("getTeamComebacks", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
       "Unable to compute the comebacks"
+    );
+  });
+});
+
+describe("getTeamSeasonComparison", () => {
+  const OLDER_SEASON = 2023;
+
+  /** A finished match of `seasonId`, in `matchday`, between two teams. */
+  function playedIn(
+    seasonId: number,
+    matchday: number,
+    home: number,
+    away: number,
+    homeGoals: number,
+    awayGoals: number
+  ) {
+    return storedMatch({
+      providerMatchId: seasonId * 1000 + matchday * 100 + home * 10 + away,
+      seasonId,
+      matchday,
+      homeTeamProviderId: home,
+      homeTeamName: `Team ${home}`,
+      awayTeamProviderId: away,
+      awayTeamName: `Team ${away}`,
+      homeGoals,
+      awayGoals,
+      updatedAt: new Date(),
+    });
+  }
+
+  /** Each season's rows in the order the service reads them: selected first. */
+  function mockSeasonReads(...seasons: unknown[][]) {
+    const orderBy = vi.fn();
+    for (const rows of seasons) orderBy.mockResolvedValueOnce(rows);
+    orderBy.mockResolvedValue([]);
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    dbMock.select.mockReturnValue({ from });
+    return orderBy;
+  }
+
+  /** Team 1 wins both its matches; team 2 loses both. */
+  const strongSeason = [playedIn(PAST_SEASON, 1, 1, 2, 3, 0), playedIn(PAST_SEASON, 2, 1, 2, 2, 0)];
+  /** Team 1 loses both. */
+  const weakSeason = [playedIn(OLDER_SEASON, 1, 1, 2, 0, 3), playedIn(OLDER_SEASON, 2, 1, 2, 0, 2)];
+
+  const seasons = [
+    { competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON, matches: 2 },
+    { competitionCode: COMPETITION_CODE, seasonId: OLDER_SEASON, matches: 2 },
+  ];
+
+  it("sets the season against the club's other league seasons", async () => {
+    mockSeasonReads(strongSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      seasons
+    );
+
+    expect(comparison.status).toBe("ok");
+    if (comparison.status !== "ok") return;
+
+    // Six points from two matches this season, none from two the season before.
+    const points = comparison.rows.find((row) => row.measure === "points");
+    expect(points?.selected).toBe(3);
+    expect(points?.baseline).toBe(0);
+    expect(comparison.seasons).toBe(1);
+    expect(comparison.competitions).toEqual(["Valioliiga"]);
+  });
+
+  it("leaves the selected season out of its own baseline", async () => {
+    mockSeasonReads(strongSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      seasons
+    );
+
+    // Two seasons are stored and exactly one is compared against.
+    expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+  });
+
+  it("leaves out a cup, which has no table and would distort a per-match rate", async () => {
+    // Four seasons' worth of rows are available, so a service that filtered
+    // nothing would read the selected season and the cup as well, and report
+    // three baseline seasons rather than one. Without this the test passes for
+    // the wrong reason: the mock simply runs out of rows.
+    mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      [
+        ...seasons,
+        // The Champions League is a cup in the registry, so it is not a
+        // baseline season. A code the registry does not know would default to
+        // a league, which is `getCompetitionFormat`'s own rule.
+        { competitionCode: "CL", seasonId: OLDER_SEASON, matches: 6 },
+      ]
+    );
+
+    expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+  });
+
+  it("keeps a season with no finished match, which ranks nothing", async () => {
+    // Fixtures stored but none played: the season has a length but no table,
+    // so it supplies no position and no matches to any rate.
+    const unplayed = [
+      {
+        ...playedIn(OLDER_SEASON, 1, 1, 2, 0, 0),
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+      },
+    ];
+    mockSeasonReads(strongSeason, unplayed);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      seasons
+    );
+
+    expect(comparison.status).toBe("ok");
+    if (comparison.status !== "ok") return;
+    expect(comparison.seasons).toBe(1);
+    expect(comparison.rows.find((row) => row.measure === "position")?.baseline).toBeNull();
+    expect(comparison.rows.find((row) => row.measure === "points")?.baseline).toBeNull();
+  });
+
+  it("reports an error when a baseline season's refresh failed, not a smaller baseline", async () => {
+    // The season has nothing stored and the provider could not be reached, so
+    // what the baseline would have been is unknown. Dropping it silently would
+    // leave the panel claiming a comparison over seasons it never read.
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
+    mockSeasonReads(strongSeason, []);
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "error" });
+  });
+
+  it("reports an error when the selected season's refresh failed", async () => {
+    const { getSeasonMatches } = await import("@/lib/football-data");
+    vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
+    mockSeasonReads([]);
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "error" });
+  });
+
+  it("leaves out a competition the registry no longer carries", async () => {
+    // `getCompetitionFormat` answers "league" for an unknown code by design, so
+    // a stored season whose competition has left the registry would otherwise
+    // join the baseline — adding its matches to every rate, and its raw code to
+    // a Finnish sentence that would read "Verrattuna 2 muuhun kauteen: ZZZ".
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      [...seasons, { competitionCode: "ZZZ", seasonId: OLDER_SEASON, matches: 30 }]
+    );
+
+    expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+    expect(comparison.status === "ok" && comparison.competitions).toEqual(["Valioliiga"]);
+  });
+
+  it("has no panel when nothing is stored for the selected season", async () => {
+    // The provider is reachable and simply has nothing, which is a season the
+    // app does not hold — not a failure.
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads([]);
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "unavailable" });
+  });
+
+  it("skips another season that has nothing stored, rather than counting it empty", async () => {
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads(strongSeason, []);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      seasons
+    );
+
+    expect(comparison.status === "ok" && comparison.seasons).toBe(0);
+  });
+
+  it("reports an error rather than a plausible comparison when a read fails", async () => {
+    const orderBy = vi.fn().mockRejectedValue(new Error("no database"));
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    dbMock.select.mockReturnValue({ from });
+
+    expect(
+      await getTeamSeasonComparison(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons)
+    ).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: COMPETITION_CODE }),
+      "Unable to compare the season with the club's others"
     );
   });
 });

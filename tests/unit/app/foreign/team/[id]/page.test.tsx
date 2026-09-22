@@ -7,6 +7,7 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { TeamContextResult } from "@/lib/team-context";
@@ -45,6 +46,9 @@ const getTeamCleanSheetSeriesMock = vi.fn(
 const getTeamStreaksMock = vi.fn(
   async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
+const getTeamSeasonComparisonMock = vi.fn(
+  async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
+);
 const getTeamComebacksMock = vi.fn(
   async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
@@ -64,6 +68,7 @@ const analyticsSectionMock = vi.fn(
     loadCleanSheets: () => Promise<CleanSheetSeries>;
     loadStreaks: () => Promise<StreaksSeries>;
     loadComebacks: () => Promise<ComebacksSeries>;
+    loadComparison: () => Promise<SeasonComparisonSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -82,6 +87,7 @@ vi.mock("@/lib/standings-service", () => ({
   getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
   getTeamStreaks: getTeamStreaksMock,
   getTeamComebacks: getTeamComebacksMock,
+  getTeamSeasonComparison: getTeamSeasonComparisonMock,
   getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
@@ -781,6 +787,33 @@ describe("Team page league position (specs/030)", () => {
     await loadComebacks?.();
 
     expect(getTeamComebacksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+
+  it("asks for the season comparison with the club's stored seasons (specs/038)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
+
+    await loadComparison?.();
+
+    expect(getTeamSeasonComparisonMock).toHaveBeenCalledWith(
+      "PL",
+      1,
+      2024,
+      2025,
+      expect.any(Array)
+    );
+  });
+
+  it("reports an outage when the season lookup fails, rather than claiming no history", async () => {
+    // `played` is `[]` when the lookup fails, which the comparison would read
+    // as "this club has no other seasons" and say so to the reader.
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
+
+    expect(await loadComparison?.()).toEqual({ status: "error" });
+    expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
   });
 
   it("offers no section for a cup, which has no league position", async () => {

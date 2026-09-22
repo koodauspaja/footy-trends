@@ -94,6 +94,7 @@ test.describe("Form chart, signed in", () => {
       "Nollapelit",
       "Putket",
       "Kääntyneet ottelut",
+      "Tämä kausi verrattuna",
     ]);
   });
 
