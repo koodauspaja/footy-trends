@@ -27,6 +27,8 @@ lengths. Each rule removes one way of comparing unlike with unlike.
 | The TASO read's order | Classify first, then ask for the club's matches | Written the other way round first, which left `classified.status !== "ok"` unreachable — `teamLeagueMatches` has already classified and reported anything but "ok". Rather than keep a branch no test could take, the call order changed so the branch is real. |
 | Where the orchestration lives | `comparisonFor`, in the pure module, with the season `read` passed in | Written twice at first — once per provider — which cost two branches no test could take and one no test could reach. The providers differ in how a season is found and ranked and in nothing else, so the sequence lives once and the failure rules cannot drift apart. |
 | A failed read versus an empty season | Told apart, and any failure fails the panel | Sourcery caught the first version collapsing both into `null`: a failed *selected* season read as "no panel", and a failed *baseline* season was dropped silently, leaving a plausible comparison whose own `Verrattuna {n} muuhun kauteen` line stated an `n` it had not read. Both providers had it; both are fixed by the shared orchestrator. |
+| A failed season **lookup** | The panel reports the outage; it does not say the club has no history | Second review round. `getTeamSeasons` failing gives the page `played = []`, which the comparison would read as "no other seasons" and tell the reader so — the same failure-as-fact mistake as the round before, one level up. `not_found` is left alone: that genuinely means no stored match under this route. |
+| A refresh that fails while rows exist | The stored rows are served (S12) | Raised in review as a bug risk; kept deliberately. `getStandings` "falls back to stored standings when the provider refresh fails" is an asserted behaviour and every per-season panel follows it, so erroring only here would make this panel disagree with the eight beside it about the same season from the same read. A refresh that fails and leaves **nothing** is still an error. Only the active season can reach it at all. |
 | A season that ranks nothing | Kept, with a null position | A pass-through or knockout group ranks nobody, but the club's results are still its results. Dropping the season would quietly shrink the baseline of every rate to protect one row. |
 
 ## What the tests prove, and how
@@ -46,11 +48,11 @@ lengths. Each rule removes one way of comparing unlike with unlike.
   future change cannot quietly make both the same.
 - **Both providers**, each against its own fixtures, including a TASO season
   whose table ranks (verified rows) and one whose table does not (pass-through).
-- **Twenty-two mutations**, all caught, listed below.
+- **Twenty-four mutations**, all caught, listed below.
 
 ### The mutations
 
-Twenty-two, in four groups, each of which failed at least one test.
+Twenty-four, in five groups, each of which failed at least one test.
 
 **The arithmetic (10).** Baseline including the selected season; positions
 summed rather than averaged; the share inverted; the clean-sheet share not
@@ -68,9 +70,13 @@ outlined.
 selected season would count; the TASO service naming a season by its raw
 category id; the TASO service keeping a club with no league match that season.
 
-**The failure rules (4), added after review.** Only an all-failed read failing
-the comparison; a failed selected season reading as "no panel"; a failed
-baseline season ignored; every successful read dropped from the baseline.
+**The failure rules (4), added after the first review round.** Only an
+all-failed read failing the comparison; a failed selected season reading as "no
+panel"; a failed baseline season ignored; every successful read dropped from the
+baseline.
+
+**The season lookup (2), added after the second.** The failed lookup claiming
+the club has no history again; `not_found` treated as an outage.
 
 ### What `test:shuffle` caught that no single run did
 

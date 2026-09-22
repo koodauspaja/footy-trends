@@ -1478,6 +1478,10 @@ export async function getTeamHomeAwaySeries(
  * year by pure lookups, so listing a club's other seasons costs no request of
  * its own; the reads below are `classifySeasonGroups`'s, already cached and
  * already the team page's for the selected season.
+ *
+ * **Stale stored rows are served, not refused** (specs/038, S12), for the same
+ * reason the football-data service gives: erroring here alone would make this
+ * panel disagree with the others on the same page about the same season.
  */
 export async function getTeamSeasonComparison(
   competitionCode: string,

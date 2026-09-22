@@ -265,14 +265,21 @@ export async function CompetitionTeamPage({
   const analyticsSection =
     result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
       ? await AnalyticsSection({
+          // A failed season lookup is `played = []`, which the comparison
+          // would read as "this club has no other seasons" and say so — a
+          // database failure dressed as a fact about the club. It reports the
+          // outage instead. `not_found` is not a failure: it means the club
+          // genuinely has no stored match under this route.
           loadComparison: () =>
-            getTeamSeasonComparison(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId,
-              played
-            ),
+            seasons.status !== "error"
+              ? getTeamSeasonComparison(
+                  competitionCode,
+                  teamProviderId,
+                  seasonId,
+                  context.activeSeasonId,
+                  played
+                )
+              : Promise.resolve({ status: "error" as const }),
           loadPosition: () =>
             getTeamPositionSeries(
               competitionCode,

@@ -381,6 +381,15 @@ function isLeagueCompetition(competitionCode: string): boolean {
  * A season with nothing stored is `empty` — an ordinary season to leave out —
  * while a season whose refresh failed and left nothing is `error`, the same
  * distinction every other panel's service draws.
+ *
+ * **Stale stored rows are served, not refused** (specs/038, S12). A refresh
+ * that fails while rows exist is `refreshFailed` with those rows, and
+ * `getStandings` and every per-season panel render them rather than erroring —
+ * "falls back to stored standings when the provider refresh fails" is an
+ * asserted behaviour, not an accident. Erroring only here would make this one
+ * panel disagree with the eight beside it on the same page, about the same
+ * season, from the same read. Only the active season can reach this at all: a
+ * past season with rows never refreshes.
  */
 async function readSeasonFor(
   competitionCode: string,

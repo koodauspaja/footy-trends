@@ -804,6 +804,18 @@ describe("Team page league position (specs/030)", () => {
     );
   });
 
+  it("reports an outage when the season lookup fails, rather than claiming no history", async () => {
+    // `played` is `[]` when the lookup fails, which the comparison would read
+    // as "this club has no other seasons" and say so to the reader.
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
+
+    expect(await loadComparison?.()).toEqual({ status: "error" });
+    expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
+  });
+
   it("offers no section for a cup, which has no league position", async () => {
     await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
 

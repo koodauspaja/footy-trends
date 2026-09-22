@@ -683,6 +683,18 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
+  it("reports an outage when the season lookup fails, rather than claiming no history", async () => {
+    // `played` is `[]` when the lookup fails, which the comparison would read
+    // as "this club has no other seasons" and say so to the reader.
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
+
+    expect(await loadComparison?.()).toEqual({ status: "error" });
+    expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
+  });
+
   it("asks for this team's comebacks in the same TASO category and competition (specs/036)", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
