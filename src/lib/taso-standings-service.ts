@@ -1548,10 +1548,18 @@ async function readTasoSeason(
   // `teamLeagueMatches` reports "error" only when the classification failed,
   // which is handled above and cached — so what is left here is a season this
   // club has no league match in, which is empty rather than broken.
+  // A season with no **league** match is left out. `teamLeagueMatches` counts
+  // only table groups, so a season played entirely in knockout ("match-list")
+  // groups has none — the same rule `Vire`, `Maalit` and the standings table
+  // apply, and the reason the playoff is excluded from `Putket` and
+  // `Kääntyneet ottelut`. Counting them here would put matches in the baseline
+  // that the selected season's own measures leave out, which is the one thing
+  // specs/038 exists to prevent.
   if (league.status !== "ok") return { status: "empty" };
 
-  // A season whose groups are a knockout or pass-through ranks nothing, which
-  // is not an error: its results still count towards every rate.
+  // A **pass-through** season is different: its matches are league matches, its
+  // published table simply disagrees with ours, so it ranks nobody. It stays,
+  // with a null position, and its results count towards every rate.
   const series = positionSeriesFrom(
     classified.matches,
     classified.groups,

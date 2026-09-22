@@ -2937,6 +2937,44 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       ).toEqual({ status: "unavailable" });
     });
 
+    it("leaves out a season played entirely in knockout groups", async () => {
+      // A "match-list" group is not a table, so its matches are not league
+      // matches — the same rule `Vire`, `Maalit` and the standings table apply,
+      // and why the playoff is excluded from `Putket`. Counting them here would
+      // put matches in the baseline that the selected season's own measures
+      // leave out.
+      const knockout = [onDay(LEAGUE, SEASON, 9, 1, 5, 4, 0)].map((row) => ({
+        ...row,
+        categoryId: LEAGUE,
+      }));
+      mockStoredMatches(knockout, rowsFor(LEAGUE, SEASON, 9, [1, 5], null));
+
+      const selected = ownSeason();
+      expect(
+        await getTeamSeasonComparison(LEAGUE, 1, selected, ACTIVE_SEASON, seasonsFor(selected))
+      ).toEqual({ status: "unavailable" });
+    });
+
+    it("keeps a pass-through season, whose matches are league matches", async () => {
+      // Its published points disagree with ours so it ranks nobody, but the
+      // matches are in a table group and count towards every rate.
+      mockStoredMatches(matches, rowsFor(LEAGUE, SEASON, 1, [1, 2, 3], 99));
+
+      const selected = ownSeason();
+      const comparison = await getTeamSeasonComparison(
+        LEAGUE,
+        1,
+        selected,
+        ACTIVE_SEASON,
+        seasonsFor(selected)
+      );
+
+      expect(comparison.status).toBe("ok");
+      if (comparison.status !== "ok") return;
+      expect(comparison.rows[0]?.selected).toBeNull();
+      expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
+    });
+
     it("leaves out a competition the registry no longer carries", async () => {
       // `isDomesticCup` answers false for an unknown code, so a stored season
       // whose competition has left the registry would otherwise be treated as
