@@ -133,15 +133,15 @@ test.describe("Comebacks, signed in", () => {
     expect(count("Valunut tasapeliksi") + count("Käännetty tappioksi")).toBeLessThanOrEqual(led);
   });
 
-  test("comes second to last in Analyysit, before the season comparison", async ({ page }) => {
-    // `Tämä kausi verrattuna` (specs/038) was added after it and owns the
-    // last position; this was the last panel until then.
+  test("comes third to last in Analyysit", async ({ page }) => {
+    // `Tämä kausi verrattuna` (specs/038) and `Ennätykset` (specs/039) were
+    // both added after it; this was the last panel until then.
     await page.goto(FIXTURE_TEAM);
     const subheadings = page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 3 });
 
-    await expect(subheadings.nth((await subheadings.count()) - 2)).toHaveText(HEADING);
+    await expect(subheadings.nth((await subheadings.count()) - 3)).toHaveText(HEADING);
   });
 });
 
