@@ -31,6 +31,7 @@ import {
   getTeamMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamStreakRecords,
   getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/standings-service";
@@ -270,6 +271,14 @@ export async function CompetitionTeamPage({
           // database failure dressed as a fact about the club. It reports the
           // outage instead. `not_found` is not a failure: it means the club
           // genuinely has no stored match under this route.
+          // The same season wording the selector above the panel uses, so a
+          // record names a season the way the rest of the page does.
+          loadRecords: () =>
+            seasons.status !== "error"
+              ? getTeamStreakRecords(teamProviderId, context.activeSeasonId, played, (year) =>
+                  formatSeasonLabel(year, context.spansCalendarYears)
+                )
+              : Promise.resolve({ status: "error" as const }),
           loadComparison: () =>
             seasons.status !== "error"
               ? getTeamSeasonComparison(

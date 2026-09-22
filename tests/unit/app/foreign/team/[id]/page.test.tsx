@@ -9,6 +9,7 @@ import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { TeamMatchesResult } from "@/lib/standings-service";
+import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
@@ -46,6 +47,9 @@ const getTeamCleanSheetSeriesMock = vi.fn(
 const getTeamStreaksMock = vi.fn(
   async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
+const getTeamStreakRecordsMock = vi.fn(
+  async (..._args: unknown[]): Promise<StreakRecordsSeries> => ({ status: "unavailable" })
+);
 const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
 );
@@ -69,6 +73,7 @@ const analyticsSectionMock = vi.fn(
     loadStreaks: () => Promise<StreaksSeries>;
     loadComebacks: () => Promise<ComebacksSeries>;
     loadComparison: () => Promise<SeasonComparisonSeries>;
+    loadRecords: () => Promise<StreakRecordsSeries>;
   }) => "analytics section placeholder"
 );
 vi.mock("@/components/analytics-section", () => ({
@@ -88,6 +93,7 @@ vi.mock("@/lib/standings-service", () => ({
   getTeamStreaks: getTeamStreaksMock,
   getTeamComebacks: getTeamComebacksMock,
   getTeamSeasonComparison: getTeamSeasonComparisonMock,
+  getTeamStreakRecords: getTeamStreakRecordsMock,
   getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
@@ -804,6 +810,19 @@ describe("Team page league position (specs/030)", () => {
     );
   });
 
+  it("reports an outage for the records too when the season lookup fails", async () => {
+    // The records would otherwise be computed over an empty season list and
+    // reported as "this club has no records", which is a lookup failure
+    // dressed as a fact about the club.
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
+
+    expect(await loadRecords?.()).toEqual({ status: "error" });
+    expect(getTeamStreakRecordsMock).not.toHaveBeenCalled();
+  });
+
   it("reports an outage when the season lookup fails, rather than claiming no history", async () => {
     // `played` is `[]` when the lookup fails, which the comparison would read
     // as "this club has no other seasons" and say so to the reader.
@@ -814,6 +833,23 @@ describe("Team page league position (specs/030)", () => {
 
     expect(await loadComparison?.()).toEqual({ status: "error" });
     expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
+  });
+
+  it("asks for the records with the season wording the selector uses (specs/039)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
+
+    await loadRecords?.();
+
+    expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      1,
+      2025,
+      expect.any(Array),
+      expect.any(Function)
+    );
+    // A foreign league's seasons are written `2024/25`, as the selector writes them.
+    const label = getTeamStreakRecordsMock.mock.calls[0]?.[3] as (year: number) => string;
+    expect(label(2024)).toBe("2024/25");
   });
 
   it("offers no section for a cup, which has no league position", async () => {

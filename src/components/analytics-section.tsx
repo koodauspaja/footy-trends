@@ -6,6 +6,7 @@ import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { seasonComparisonPanel } from "@/components/season-comparison-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
+import { streakRecordsPanel } from "@/components/streak-records-section";
 import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
@@ -16,6 +17,7 @@ import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
 /** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
@@ -50,6 +52,7 @@ export async function AnalyticsSection({
   loadStreaks,
   loadComebacks,
   loadComparison,
+  loadRecords,
 }: Readonly<{
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
@@ -59,6 +62,7 @@ export async function AnalyticsSection({
   loadStreaks: () => Promise<StreaksSeries>;
   loadComebacks: () => Promise<ComebacksSeries>;
   loadComparison: () => Promise<SeasonComparisonSeries>;
+  loadRecords: () => Promise<StreakRecordsSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -68,7 +72,7 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks, comparison] =
+  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks, comparison, records] =
     await Promise.all([
       loadPosition(),
       loadForm(),
@@ -78,6 +82,7 @@ export async function AnalyticsSection({
       loadStreaks(),
       loadComebacks(),
       loadComparison(),
+      loadRecords(),
     ]);
   const panels = {
     position: positionPanel(position),
@@ -89,6 +94,7 @@ export async function AnalyticsSection({
     streaks: streaksPanel(streaks),
     comebacks: comebacksPanel(comebacks),
     comparison: seasonComparisonPanel(comparison),
+    records: streakRecordsPanel(records),
   };
   if (Object.values(panels).every((panel) => panel === null)) return null;
 
@@ -103,6 +109,7 @@ export async function AnalyticsSection({
       {panels.streaks}
       {panels.comebacks}
       {panels.comparison}
+      {panels.records}
     </Section>
   );
 }

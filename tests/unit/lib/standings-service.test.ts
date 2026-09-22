@@ -13,6 +13,7 @@ import {
   getTeamMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamStreakRecords,
   getTeamStreaks,
   synchronizeMatches,
 } from "@/lib/standings-service";
@@ -2043,6 +2044,33 @@ describe("getTeamSeasonComparison", () => {
 
     expect(comparison.status === "ok" && comparison.seasons).toBe(1);
     expect(comparison.status === "ok" && comparison.competitions).toEqual(["Valioliiga"]);
+  });
+
+  it("reads the club's records across its league seasons (specs/039)", async () => {
+    mockSeasonReads(strongSeason, strongSeason);
+
+    const result = await getTeamStreakRecords(1, ACTIVE_SEASON, seasons, String);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.seasons).toBe(2);
+    // Both stored seasons are wins, and they are consecutive years in one
+    // competition, so the run crosses the boundary.
+    expect(result.status === "ok" && result.records.wins?.length).toBe(4);
+  });
+
+  it("reports an error when a season's records cannot be read", async () => {
+    const orderBy = vi.fn().mockRejectedValue(new Error("no database"));
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const from = vi.fn().mockReturnValue({ where });
+    dbMock.select.mockReturnValue({ from });
+
+    expect(await getTeamStreakRecords(1, ACTIVE_SEASON, seasons, String)).toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ teamProviderId: 1 }),
+      "Unable to read the club's streak records"
+    );
   });
 
   it("has no panel when nothing is stored for the selected season", async () => {

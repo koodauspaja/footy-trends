@@ -15,6 +15,7 @@ import {
   getTeamMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamStreakRecords,
   getTeamStreaks,
   listSeasonRounds,
   listSelectableTasoRounds,
@@ -2973,6 +2974,34 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       if (comparison.status !== "ok") return;
       expect(comparison.rows[0]?.selected).toBeNull();
       expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
+    });
+
+    it("reads the club's records across its league seasons (specs/039)", async () => {
+      mockStoredMatches(matches, rows);
+
+      const selected = ownSeason();
+      const result = await getTeamStreakRecords(1, ACTIVE_SEASON, seasonsFor(selected), String);
+
+      expect(result.status).toBe("ok");
+      // Both seasons serve the same two wins, and they are consecutive years
+      // in one competition, so the run crosses the boundary.
+      expect(result.status === "ok" && result.records.wins?.length).toBe(4);
+    });
+
+    it("reports an error when a season's records cannot be read", async () => {
+      const from = vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockRejectedValue(new Error("no db")) }),
+      }));
+      dbMock.select.mockReturnValue({ from });
+
+      const selected = ownSeason();
+      expect(await getTeamStreakRecords(1, ACTIVE_SEASON, seasonsFor(selected), String)).toEqual({
+        status: "error",
+      });
+      expect(loggerErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({ teamProviderId: 1 }),
+        "Unable to read the club's TASO streak records"
+      );
     });
 
     it("leaves out a competition the registry no longer carries", async () => {

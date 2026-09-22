@@ -314,13 +314,27 @@ export function otherLeagueSeasons<T extends SeasonKey>(
   selected: SeasonKey,
   isLeague: (competitionCode: string) => boolean
 ): T[] {
-  return seasons.filter(
+  return leagueSeasons(seasons, isLeague).filter(
     (season) =>
-      isLeague(season.competitionCode) &&
       !(
         season.competitionCode === selected.competitionCode && season.seasonId === selected.seasonId
       )
   );
+}
+
+/**
+ * The club's league seasons, the selected one included.
+ *
+ * Split out because the record book (specs/039) counts every stored season
+ * while the comparison excludes the one being looked at — but "which seasons
+ * are league seasons" must mean the same thing to both, or the two panels would
+ * disagree about what a club's history is.
+ */
+export function leagueSeasons<T extends SeasonKey>(
+  seasons: readonly T[],
+  isLeague: (competitionCode: string) => boolean
+): T[] {
+  return seasons.filter((season) => isLeague(season.competitionCode));
 }
 
 /**

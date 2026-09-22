@@ -25,6 +25,7 @@ import {
   getTeamMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamStreakRecords,
   getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
@@ -208,6 +209,12 @@ export default async function DomesticTeamPage({
           // database failure dressed as a fact about the club. It reports the
           // outage instead. `not_found` is not a failure: it means the club
           // genuinely has no stored match under this route.
+          // The same season wording the selector above the panel uses, so a
+          // record names a season the way the rest of the page does.
+          loadRecords: () =>
+            seasons.status !== "error"
+              ? getTeamStreakRecords(teamProviderId, currentSeason, played, (year) => String(year))
+              : Promise.resolve({ status: "error" as const }),
           loadComparison: () =>
             seasons.status !== "error"
               ? getTeamSeasonComparison(
