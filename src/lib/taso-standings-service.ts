@@ -8,6 +8,7 @@ import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import {
   categoryIdForSeason,
   categoryIdsFor,
+  DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
@@ -1572,9 +1573,17 @@ async function readTasoSeason(
   };
 }
 
-/** A domestic competition is a league unless it is one of the cups. */
+/**
+ * A baseline season must be a domestic competition the registry **knows** to be
+ * a league. `isDomesticCup` answers `false` for an unknown code, so testing it
+ * alone would admit a competition whose stored rows outlived its registry
+ * entry — see the football-data service for what that costs.
+ */
 function isDomesticLeague(competitionCode: string): boolean {
-  return !isDomesticCup(competitionCode);
+  return (
+    DOMESTIC_COMPETITIONS.some((competition) => competition.code === competitionCode) &&
+    !isDomesticCup(competitionCode)
+  );
 }
 
 export async function getTeamCleanSheetSeries(

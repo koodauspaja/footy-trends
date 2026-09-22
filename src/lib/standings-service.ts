@@ -4,7 +4,7 @@ import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import { type ComebacksSeries, comebacksOf } from "./comebacks";
-import { getCompetitionFormat, getCompetitionName } from "./competitions";
+import { getCompetitionFormat, getCompetitionName, regionOfCompetition } from "./competitions";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
 import { type FormSeries, formSeries } from "./form-series";
 import { type GoalsSeries, goalsSeries } from "./goals-series";
@@ -370,9 +370,21 @@ export async function getTeamSeasonComparison(
   }
 }
 
-/** Foreign competitions carry their format in the registry. */
+/**
+ * A baseline season must be a competition the registry **knows** to be a
+ * league, not merely one it cannot prove is a cup.
+ *
+ * `getCompetitionFormat` answers `"league"` for an unknown code by design, so
+ * testing the format alone would let a competition the app no longer carries —
+ * stored rows outliving their registry entry — into the baseline, contributing
+ * its matches to every pooled rate and its raw code to the panel's
+ * `Verrattuna …` line, where a Finnish sentence would name it `PL`.
+ */
 function isLeagueCompetition(competitionCode: string): boolean {
-  return getCompetitionFormat(competitionCode) === "league";
+  return (
+    regionOfCompetition(competitionCode) !== null &&
+    getCompetitionFormat(competitionCode) === "league"
+  );
 }
 
 /**

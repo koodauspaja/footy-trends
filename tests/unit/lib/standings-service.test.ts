@@ -2025,6 +2025,26 @@ describe("getTeamSeasonComparison", () => {
     ).toEqual({ status: "error" });
   });
 
+  it("leaves out a competition the registry no longer carries", async () => {
+    // `getCompetitionFormat` answers "league" for an unknown code by design, so
+    // a stored season whose competition has left the registry would otherwise
+    // join the baseline — adding its matches to every rate, and its raw code to
+    // a Finnish sentence that would read "Verrattuna 2 muuhun kauteen: ZZZ".
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(
+      COMPETITION_CODE,
+      1,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      [...seasons, { competitionCode: "ZZZ", seasonId: OLDER_SEASON, matches: 30 }]
+    );
+
+    expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+    expect(comparison.status === "ok" && comparison.competitions).toEqual(["Valioliiga"]);
+  });
+
   it("has no panel when nothing is stored for the selected season", async () => {
     // The provider is reachable and simply has nothing, which is a season the
     // app does not hold — not a failure.

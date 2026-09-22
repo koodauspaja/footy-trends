@@ -2937,6 +2937,22 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       ).toEqual({ status: "unavailable" });
     });
 
+    it("leaves out a competition the registry no longer carries", async () => {
+      // `isDomesticCup` answers false for an unknown code, so a stored season
+      // whose competition has left the registry would otherwise be treated as
+      // a league and named by its raw code.
+      mockStoredMatches(matches, rows);
+
+      const selected = ownSeason();
+      const comparison = await getTeamSeasonComparison(LEAGUE, 1, selected, ACTIVE_SEASON, [
+        ...seasonsFor(selected),
+        { competitionCode: "ZZZ", seasonId: selected - 2, matches: 30 },
+      ]);
+
+      expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+      expect(comparison.status === "ok" && comparison.competitions).toEqual(["Ykkönen"]);
+    });
+
     it("leaves out a cup, which has no table to rank a position in", async () => {
       mockStoredMatches(matches, rows);
 
