@@ -30,6 +30,8 @@ import {
   getTeamHomeAwaySeries,
   getTeamMatches,
   getTeamPositionSeries,
+  getTeamSeasonComparison,
+  getTeamStreakRecords,
   getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/standings-service";
@@ -264,6 +266,29 @@ export async function CompetitionTeamPage({
   const analyticsSection =
     result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
       ? await AnalyticsSection({
+          // A failed season lookup is `played = []`, which the comparison
+          // would read as "this club has no other seasons" and say so — a
+          // database failure dressed as a fact about the club. It reports the
+          // outage instead. `not_found` is not a failure: it means the club
+          // genuinely has no stored match under this route.
+          // The same season wording the selector above the panel uses, so a
+          // record names a season the way the rest of the page does.
+          loadRecords: () =>
+            seasons.status !== "error"
+              ? getTeamStreakRecords(teamProviderId, context.activeSeasonId, played, (year) =>
+                  formatSeasonLabel(year, context.spansCalendarYears)
+                )
+              : Promise.resolve({ status: "error" as const }),
+          loadComparison: () =>
+            seasons.status !== "error"
+              ? getTeamSeasonComparison(
+                  competitionCode,
+                  teamProviderId,
+                  seasonId,
+                  context.activeSeasonId,
+                  played
+                )
+              : Promise.resolve({ status: "error" as const }),
           loadPosition: () =>
             getTeamPositionSeries(
               competitionCode,

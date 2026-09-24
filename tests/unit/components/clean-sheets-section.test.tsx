@@ -24,7 +24,7 @@ function renderPanel(shown: CleanSheetSeries = series) {
 describe("cleanSheetsPanel", () => {
   it("draws the chart under its own subheading, named by it", () => {
     const container = renderPanel();
-    const heading = screen.getByRole("heading", { level: 3, name: CLEAN_SHEETS_HEADING });
+    const heading = screen.getByRole("heading", { level: 4, name: CLEAN_SHEETS_HEADING });
 
     expect(CLEAN_SHEETS_HEADING).toBe("Nollapelit");
     expect(container.querySelector("svg")?.getAttribute("aria-labelledby")).toBe(heading.id);

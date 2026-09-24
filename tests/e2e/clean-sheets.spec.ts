@@ -59,15 +59,17 @@ test.describe("Clean sheets, signed in", () => {
     expect(kept).toBeLessThanOrEqual(played);
   });
 
-  test("comes after Koti- ja vierastilastot in Analyysit", async ({ page }) => {
-    // `Putket` (specs/035) follows it; the order is asserted in full in
+  test("ends the Ottelu ottelulta group, before Koti- ja vierastilastot", async ({ page }) => {
+    // #424 grouped the panels: a running share plotted match by match belongs
+    // with the other per-match series, and `Koti- ja vierastilastot` heads the
+    // next group. That swapped the two. The order is asserted in full in
     // form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const headings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
 
-    await expect(headings.nth(5)).toHaveText(HEADING);
+    await expect(headings.nth(4)).toHaveText(HEADING);
   });
 });
 

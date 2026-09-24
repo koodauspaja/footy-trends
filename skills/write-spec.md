@@ -13,6 +13,12 @@ Checklist (what a spec must contain)
 3. UX / UI (end-user visible)
    - All user-facing text must be provided in Finnish (exact strings where possible).
    - Specify where strings appear (page, component, modal, etc.).
+   - **A new `Analyysit` panel names the group it joins** — `Ottelu ottelulta`,
+     `Kausi kokonaisuutena` or `Muut kaudet` (#424). Choosing the group is part
+     of adding a panel, not a later tidy-up: five panels became ten, each
+     correctly appended to a flat list, and regrouping them cost a chore of its
+     own. A panel that fits no existing group is a new group, which is a
+     decision to make in the spec rather than discover in review.
 4. API & Data
    - List endpoints, required fields, and sample responses.
    - Caching policy (which endpoints, TTL values).
