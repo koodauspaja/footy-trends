@@ -92,14 +92,14 @@ test.describe("Goals charts, signed in", () => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
 
     await expect(
-      page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 3 })
+      page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 4 })
     ).toHaveText([
       "Sijoitus kierroksittain",
       "Vire otteluittain",
       ROLLING,
       TOTALS,
-      "Koti- ja vierastilastot",
       "Nollapelit",
+      "Koti- ja vierastilastot",
       "Putket",
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",

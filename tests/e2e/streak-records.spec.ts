@@ -68,7 +68,7 @@ test.describe("Streak records, signed in", () => {
     await page.goto(TEAM);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
 
     await expect(headings.last()).toHaveText(HEADING);
   });

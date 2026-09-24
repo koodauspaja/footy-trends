@@ -105,7 +105,7 @@ describe("seasonComparisonPanel", () => {
   it("shows the season's own values beside the baseline", () => {
     ok();
 
-    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(COMPARISON_HEADING);
+    expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent(COMPARISON_HEADING);
     expect(
       screen.getByText("Verrattuna 3 muuhun kauteen: Veikkausliiga, Ykkönen")
     ).toBeInTheDocument();

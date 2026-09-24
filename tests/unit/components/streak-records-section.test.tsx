@@ -52,7 +52,7 @@ describe("streakRecordsPanel", () => {
   it("says so when the club has no record at all", () => {
     ok();
 
-    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(RECORDS_HEADING);
+    expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent(RECORDS_HEADING);
     expect(screen.getByText(NO_RECORDS_MESSAGE)).toBeInTheDocument();
   });
 

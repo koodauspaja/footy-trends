@@ -25,7 +25,7 @@ function renderPanel(shown: FormSeries = series) {
 describe("formPanel", () => {
   it("draws the chart under its own subheading, named by it", () => {
     const container = renderPanel();
-    const heading = screen.getByRole("heading", { level: 3, name: FORM_HEADING });
+    const heading = screen.getByRole("heading", { level: 4, name: FORM_HEADING });
 
     expect(FORM_HEADING).toBe("Vire otteluittain");
     expect(container.querySelector("svg")?.getAttribute("aria-labelledby")).toBe(heading.id);

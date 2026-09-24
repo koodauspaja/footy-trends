@@ -27,7 +27,7 @@ function renderPanel(shown: PositionSeries = series) {
 describe("positionPanel", () => {
   it("draws the chart under its own subheading, named by it", () => {
     const container = renderPanel();
-    const heading = screen.getByRole("heading", { level: 3, name: POSITION_HEADING });
+    const heading = screen.getByRole("heading", { level: 4, name: POSITION_HEADING });
 
     expect(container.querySelector("svg")?.getAttribute("aria-labelledby")).toBe(heading.id);
     expect(screen.getByRole("region", { name: POSITION_HEADING })).toBeInTheDocument();
