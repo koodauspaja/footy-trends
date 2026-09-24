@@ -19,7 +19,7 @@ function renderPanel(series: HomeAwaySeries) {
 describe("homeAwayPanel", () => {
   it("draws the chart under its own subheading, named by it", () => {
     const container = renderPanel({ status: "ok", home: side, away: side });
-    const heading = screen.getByRole("heading", { level: 3, name: HOME_AWAY_HEADING });
+    const heading = screen.getByRole("heading", { level: 4, name: HOME_AWAY_HEADING });
 
     expect(HOME_AWAY_HEADING).toBe("Koti- ja vierastilastot");
     expect(container.querySelector("svg[role=img]")?.getAttribute("aria-labelledby")).toBe(

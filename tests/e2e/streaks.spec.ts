@@ -107,7 +107,7 @@ test.describe("Streaks, signed in", () => {
     // owns its own assertion.
     const subheadings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
     await expect(subheadings.nth((await subheadings.count()) - 4)).toHaveText(HEADING);
   });
 

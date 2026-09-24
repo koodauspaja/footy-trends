@@ -82,7 +82,7 @@ test.describe("Season comparison, signed in", () => {
     await page.goto(TEAM);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
 
     await expect(headings.nth((await headings.count()) - 2)).toHaveText(HEADING);
   });

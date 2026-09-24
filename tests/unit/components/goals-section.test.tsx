@@ -40,7 +40,7 @@ describe("the goals panels", () => {
     expect(ROLLING_HEADING).toBe("Maalit otteluittain");
     expect(TOTALS_HEADING).toBe("Maalit yhteensä");
     for (const name of [ROLLING_HEADING, TOTALS_HEADING]) {
-      const heading = screen.getByRole("heading", { level: 3, name });
+      const heading = screen.getByRole("heading", { level: 4, name });
       const region = screen.getByRole("region", { name });
       expect(region.querySelector("svg")?.getAttribute("aria-labelledby")).toBe(heading.id);
     }

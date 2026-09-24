@@ -139,7 +139,7 @@ test.describe("Comebacks, signed in", () => {
     await page.goto(FIXTURE_TEAM);
     const subheadings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
 
     await expect(subheadings.nth((await subheadings.count()) - 3)).toHaveText(HEADING);
   });

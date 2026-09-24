@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { cleanSheetsPanel } from "@/components/clean-sheets-section";
 import { comebacksPanel } from "@/components/comebacks-section";
 import { formPanel } from "@/components/form-section";
@@ -22,6 +23,10 @@ import type { StreaksSeries } from "@/lib/streaks";
 
 /** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
 export const ANALYTICS_HEADING = "Analyysit";
+/** The three group headings agreed on #424. */
+export const BY_MATCH_HEADING = "Ottelu ottelulta";
+export const WHOLE_SEASON_HEADING = "Kausi kokonaisuutena";
+export const OTHER_SEASONS_HEADING = "Muut kaudet";
 /** About analytics as a whole, not one panel: signed-out readers see none of them (specs/030, A). */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
@@ -96,21 +101,82 @@ export async function AnalyticsSection({
     comparison: seasonComparisonPanel(comparison),
     records: streakRecordsPanel(records),
   };
-  if (Object.values(panels).every((panel) => panel === null)) return null;
+
+  /**
+   * The three groups agreed on #424, in the order the page shows them.
+   *
+   * They group by **the question a reader is asking**, not by the subject of
+   * the measure: `Tämä kausi verrattuna` and `Ennätykset` each cover position,
+   * points and goals at once, so a subject grouping would have needed a
+   * non-subject group anyway.
+   *
+   * `Nollapelit` sits in the first group and `Koti- ja vierastilastot` at the
+   * head of the second, which swaps the two against the order before this
+   * change: a running share plotted match by match and a season summary belong
+   * on opposite sides of that line.
+   */
+  const groups = [
+    {
+      heading: BY_MATCH_HEADING,
+      id: "analytics-by-match",
+      // Keyed by name rather than listed, so each panel carries a stable key
+      // into the group and the membership stays one list rather than two.
+      panels: {
+        position: panels.position,
+        form: panels.form,
+        rollingGoals: panels.rollingGoals,
+        totalGoals: panels.totalGoals,
+        cleanSheets: panels.cleanSheets,
+      },
+    },
+    {
+      heading: WHOLE_SEASON_HEADING,
+      id: "analytics-whole-season",
+      panels: { homeAway: panels.homeAway, streaks: panels.streaks, comebacks: panels.comebacks },
+    },
+    {
+      heading: OTHER_SEASONS_HEADING,
+      id: "analytics-other-seasons",
+      panels: { comparison: panels.comparison, records: panels.records },
+    },
+  ];
+  // A group with nothing in it shows no heading: a cup season has no position
+  // chart, and a club with one stored season has no `Muut kaudet` content.
+  const shown = groups.filter((group) =>
+    Object.values(group.panels).some((panel) => panel !== null)
+  );
+  if (shown.length === 0) return null;
 
   return (
     <Section>
-      {panels.position}
-      {panels.form}
-      {panels.rollingGoals}
-      {panels.totalGoals}
-      {panels.homeAway}
-      {panels.cleanSheets}
-      {panels.streaks}
-      {panels.comebacks}
-      {panels.comparison}
-      {panels.records}
+      {shown.map((group) => (
+        <PanelGroup heading={group.heading} headingId={group.id} key={group.id}>
+          {Object.entries(group.panels).map(([name, panel]) => (
+            <Fragment key={name}>{panel}</Fragment>
+          ))}
+        </PanelGroup>
+      ))}
     </Section>
+  );
+}
+
+/**
+ * One group of panels under `Analyysit` (#424): a region named by its own
+ * heading, so a screen reader can move between groups as it moves between
+ * panels.
+ */
+function PanelGroup({
+  heading,
+  headingId,
+  children,
+}: Readonly<{ heading: string; headingId: string; children: React.ReactNode }>) {
+  return (
+    <section aria-labelledby={headingId} className="mt-6">
+      <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={headingId}>
+        {heading}
+      </h3>
+      {children}
+    </section>
   );
 }
 
