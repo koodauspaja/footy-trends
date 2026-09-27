@@ -99,11 +99,16 @@ test.describe("Form chart, signed in", () => {
     ]);
   });
 
-  test("offers no Analyysit for a cup", async ({ page }) => {
+  test("offers Analyysit for a cup, without a position chart (specs/040)", async ({ page }) => {
+    // A cup carried no analytics at all until specs/040. It has them now —
+    // every panel but `Sijoitus kierroksittain`, which needs a table a
+    // knockout has not got.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    await expect(page.getByRole("heading", { name: "Analyysit" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: HEADING })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sijoitus kierroksittain" })).toHaveCount(0);
   });
 });
 
