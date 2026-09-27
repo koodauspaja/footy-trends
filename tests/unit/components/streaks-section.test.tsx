@@ -66,7 +66,7 @@ describe("streaksPanel", () => {
     const container = renderPanel();
 
     expect(STREAKS_HEADING).toBe("Putket");
-    expect(screen.getByRole("heading", { level: 3, name: STREAKS_HEADING })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: STREAKS_HEADING })).toBeInTheDocument();
     expect(figures(container)).toEqual([
       `${CURRENT_LABEL}2 voittoa`,
       `${LONGEST_WINS_LABEL}3 voittoa Ottelut 12–14`,

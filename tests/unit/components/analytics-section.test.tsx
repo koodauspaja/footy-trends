@@ -6,6 +6,8 @@ import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
+import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -22,7 +24,10 @@ vi.mock("@/components/sign-in-prompt", () => ({
 import {
   ANALYTICS_HEADING,
   AnalyticsSection,
+  BY_MATCH_HEADING,
+  OTHER_SEASONS_HEADING,
   SIGNED_OUT_MESSAGE,
+  WHOLE_SEASON_HEADING,
 } from "@/components/analytics-section";
 import { CLEAN_SHEETS_HEADING } from "@/components/clean-sheets-section";
 import { COMEBACKS_HEADING } from "@/components/comebacks-section";
@@ -30,6 +35,8 @@ import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
+import { COMPARISON_HEADING } from "@/components/season-comparison-section";
+import { RECORDS_HEADING } from "@/components/streak-records-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
 
 const position: PositionSeries = {
@@ -70,6 +77,23 @@ const comebacks: ComebacksSeries = {
   missing: 0,
   known: 5,
 };
+const records: StreakRecordsSeries = {
+  status: "ok",
+  records: {
+    wins: { length: 3, from: "2024", to: "2025" },
+    unbeaten: { length: 5, from: "2024", to: "2025" },
+    defeats: null,
+    winless: null,
+  },
+  seasons: 2,
+};
+const comparison: SeasonComparisonSeries = {
+  status: "ok",
+  rows: MEASURES.map((measure) => ({ measure, selected: 1, baseline: 2 })),
+  seasons: 3,
+  competitions: ["Valioliiga"],
+  teamCount: 20,
+};
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
@@ -78,7 +102,9 @@ async function renderSection(
   loadHomeAway = vi.fn(async (): Promise<HomeAwaySeries> => homeAway),
   loadCleanSheets = vi.fn(async (): Promise<CleanSheetSeries> => cleanSheets),
   loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
-  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks)
+  loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks),
+  loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison),
+  loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records)
 ) {
   const view = await AnalyticsSection({
     loadPosition,
@@ -88,6 +114,8 @@ async function renderSection(
     loadCleanSheets,
     loadStreaks,
     loadComebacks,
+    loadComparison,
+    loadRecords,
   });
   return {
     ...render(<div>{view}</div>),
@@ -119,7 +147,7 @@ describe("AnalyticsSection, signed out", () => {
     expect(ANALYTICS_HEADING).toBe("Analyysit");
     expect(screen.getAllByText(SIGNED_OUT_MESSAGE)).toHaveLength(1);
     expect(SIGNED_OUT_MESSAGE).toBe("Kirjaudu sisään nähdäksesi analyysit ja trendit.");
-    expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 4 })).toBeNull();
   });
 
   it("never computes a chart, so the page carries no analytics value at all", async () => {
@@ -155,18 +183,23 @@ describe("AnalyticsSection, signed in", () => {
     await renderSection();
 
     const section = screen.getByRole("region", { name: ANALYTICS_HEADING });
-    const subheadings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    const subheadings = screen.getAllByRole("heading", { level: 4 }).map((h) => h.textContent);
 
     expect(section).toContainElement(screen.getByRole("region", { name: FORM_HEADING }));
+    // `Nollapelit` is a running share plotted match by match, so it joins the
+    // first group; `Koti- ja vierastilastot` summarises the season and heads
+    // the second. That swaps the two against the flat order before #424.
     expect(subheadings).toEqual([
       POSITION_HEADING,
       FORM_HEADING,
       ROLLING_HEADING,
       TOTALS_HEADING,
-      HOME_AWAY_HEADING,
       CLEAN_SHEETS_HEADING,
+      HOME_AWAY_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
+      COMPARISON_HEADING,
+      RECORDS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
   });
@@ -188,15 +221,55 @@ describe("AnalyticsSection, signed in", () => {
     );
 
     expect(
-      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
+      screen.getAllByRole("heading", { level: 4 }).map((heading) => heading.textContent)
     ).toEqual([
       ROLLING_HEADING,
       TOTALS_HEADING,
-      HOME_AWAY_HEADING,
       CLEAN_SHEETS_HEADING,
+      HOME_AWAY_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
+      COMPARISON_HEADING,
+      RECORDS_HEADING,
     ]);
+  });
+
+  it("puts each panel under its agreed group (#424)", async () => {
+    await renderSection();
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+
+    expect(groups).toEqual([BY_MATCH_HEADING, WHOLE_SEASON_HEADING, OTHER_SEASONS_HEADING]);
+    // Each group is a region, so a screen reader moves between groups as it
+    // moves between panels.
+    for (const [group, panel] of [
+      [BY_MATCH_HEADING, CLEAN_SHEETS_HEADING],
+      [WHOLE_SEASON_HEADING, HOME_AWAY_HEADING],
+      [OTHER_SEASONS_HEADING, RECORDS_HEADING],
+    ] as const) {
+      expect(screen.getByRole("region", { name: group })).toContainElement(
+        screen.getByRole("region", { name: panel })
+      );
+    }
+  });
+
+  it("shows no heading for a group whose panels all fall away", async () => {
+    // A cup season has no position chart; a club with one stored season has
+    // nothing in `Muut kaudet`. An empty group heading reads worse than none.
+    await renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      vi.fn(async (): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<StreakRecordsSeries> => ({ status: "unavailable" }))
+    );
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+
+    expect(groups).toEqual([BY_MATCH_HEADING, WHOLE_SEASON_HEADING]);
+    expect(screen.queryByText(OTHER_SEASONS_HEADING)).toBeNull();
   });
 
   it("sits in a fold that starts open, like the match list (#416)", async () => {
@@ -218,7 +291,9 @@ describe("AnalyticsSection, signed in", () => {
       vi.fn(async (): Promise<HomeAwaySeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<CleanSheetSeries> => ({ status: "unavailable" })),
       vi.fn(async (): Promise<StreaksSeries> => ({ status: "unavailable" })),
-      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" }))
+      vi.fn(async (): Promise<ComebacksSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })),
+      vi.fn(async (): Promise<StreakRecordsSeries> => ({ status: "unavailable" }))
     );
 
     expect(view).toBeNull();

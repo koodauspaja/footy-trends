@@ -21,6 +21,11 @@
  * text here is most of the content, and it scales with the drawing. At 400
  * units a phone's width shows it at about 0,86× and a desktop at about 1,1×;
  * at 640 a phone would show it at about half size.
+ *
+ * `LineChart` reached the same end differently (#441): its text is the axis
+ * rather than the content, so it kept its width and enlarges the font below
+ * `sm`. Narrowing stays right here, where the labels are what the reader is
+ * being shown.
  */
 const WIDTH = 400;
 /** Room at the right of the longest bar for its printed value, e.g. `100 %`. */

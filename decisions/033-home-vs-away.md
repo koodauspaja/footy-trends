@@ -47,3 +47,9 @@ is safe because each side is off by less than 0,005 × 19.
 - **The line charts' text is small on a phone**, for the same reason this chart
   was narrowed. Changing their width changes every line chart, which is not this
   issue's scope.
+
+  **Closed 2026-09-21 by #441**, and not the way this row assumed. Narrowing the
+  line charts would have cost the desktop canvas, so their axis font is enlarged
+  below `sm` instead — the text is inside the `viewBox`, so a breakpoint reaches
+  it even though `MARGIN` is JavaScript and cannot follow. `BarChart` keeps the
+  400 units decided here.

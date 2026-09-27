@@ -62,7 +62,7 @@ describe("comebacksPanel", () => {
   it("shows both directions under Kääntyneet ottelut, the deficit first", () => {
     const container = renderPanel();
 
-    expect(screen.getByRole("heading", { level: 3, name: COMEBACKS_HEADING })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: COMEBACKS_HEADING })).toBeInTheDocument();
     expect(COMEBACKS_HEADING).toBe("Kääntyneet ottelut");
     expect(figures(container)).toEqual([
       `${TRAILED_LABEL}5 ottelua`,
@@ -190,7 +190,7 @@ describe("comebacksPanel", () => {
   it("shows the error message instead of the figures", () => {
     const container = renderPanel({ status: "error" });
 
-    expect(screen.getByRole("heading", { level: 3, name: COMEBACKS_HEADING })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 4, name: COMEBACKS_HEADING })).toBeInTheDocument();
     expect(screen.getByText(COMEBACKS_ERROR_MESSAGE)).toBeInTheDocument();
     expect(COMEBACKS_ERROR_MESSAGE).toBe(
       "Kääntyneitä otteluita ei voitu laskea. Yritä myöhemmin uudelleen."

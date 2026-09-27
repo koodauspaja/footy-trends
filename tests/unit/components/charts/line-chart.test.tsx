@@ -281,3 +281,93 @@ describe("percentText", () => {
     expect(percentText(0)).toBe("0 %");
   });
 });
+
+/** `text-xs` is 0,75rem, and inside a `viewBox` that is 12 *user units*. */
+const DESKTOP_AXIS_UNITS = 12;
+
+/** A line box, used to say the caption sits a whole line below the tick row. */
+const LINE_BOX = 1.2;
+
+/** A digit's width as a share of the font size — near enough for the UI font. */
+const DIGIT_WIDTH = 0.6;
+
+/** The axis font below `sm`, read from the class so the geometry checks follow it. */
+function mobileAxisSize(container: HTMLElement, part: string): number {
+  const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
+  const size = /text-\[(\d+)px\]/.exec(className)?.[1];
+
+  if (size === undefined) throw new Error(`No mobile axis size in "${className}"`);
+  return Number(size);
+}
+
+/** The clean-sheet chart's axis, verbatim: a share, so its ticks reach 100. */
+function shareChart() {
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      invertY={false}
+      labelledBy="chart-heading"
+      series={[
+        {
+          name: "share",
+          points: [
+            { x: 1, y: 0 },
+            { x: 38, y: 100 },
+          ],
+        },
+      ]}
+      title="Nollapelit"
+      xDomain={[1, 38]}
+      xLabel="Ottelu"
+      xTicks={[1, 38]}
+      yDomain={[0, 100]}
+      yLabel="Nollapelien osuus"
+      yTicks={ticksFor(0, 100, 5)}
+    />
+  ).container;
+}
+
+describe("LineChart axis text on a phone", () => {
+  // The text is inside the viewBox, so it scales with the drawing: at 640 units
+  // on a 375-px phone, 12 units reached the reader at about 6 px. The font is
+  // the only part of the chart a breakpoint can reach, since MARGIN is
+  // JavaScript — hence enlarging it below `sm` rather than narrowing the
+  // drawing, which would have cost the desktop canvas (#441).
+  it.each(["x-axis", "y-axis"])("enlarges %s text below sm, and keeps 12 units above", (part) => {
+    const container = chart(true);
+    const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
+
+    expect(className).toContain("sm:text-xs");
+    expect(mobileAxisSize(container, part)).toBeGreaterThan(DESKTOP_AXIS_UNITS);
+  });
+
+  it("keeps the x-tick row a whole line clear of the axis caption", () => {
+    const container = chart(true);
+    const texts = [...container.querySelectorAll("[data-part=x-axis] text")];
+    const tick = Number(texts[0]?.getAttribute("y"));
+    const caption = Number(texts.at(-1)?.getAttribute("y"));
+
+    // MARGIN.bottom carries both rows and cannot answer the breakpoint, so it
+    // is sized for the enlarged text; at the old 44 these touched on a phone.
+    expect(caption - tick).toBeGreaterThanOrEqual(mobileAxisSize(container, "x-axis") * LINE_BOX);
+  });
+
+  it("fits the widest y tick between the rotated caption and the plot", () => {
+    // The clean-sheet chart's own axis, which is the tight case: a share runs
+    // to 100, the widest tick any chart prints, under a long caption.
+    const container = shareChart();
+    const texts = [...container.querySelectorAll("[data-part=y-axis] text")];
+    const ticks = texts.slice(0, -1);
+    const caption = texts.at(-1)?.getAttribute("transform") ?? "";
+    // The ticks are anchored at their end, so their x is where they stop.
+    const tickEnd = Number(ticks[0]?.getAttribute("x"));
+    const captionCentre = Number(/translate\((-?[\d.]+)/.exec(caption)?.[1]);
+    const size = mobileAxisSize(container, "y-axis");
+    const digits = Math.max(...ticks.map((tick) => (tick.textContent ?? "").length));
+
+    expect(digits).toBe(3);
+    expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(
+      digits * size * DIGIT_WIDTH
+    );
+  });
+});

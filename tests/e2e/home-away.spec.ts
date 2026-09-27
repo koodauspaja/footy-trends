@@ -96,15 +96,16 @@ test.describe("Home and away panel, signed in", () => {
     await expect(panel.locator("ul > li")).toHaveText([/^Kotona \(/, /^Vieraissa \(/]);
   });
 
-  test("comes after the goals charts in Analyysit", async ({ page }) => {
-    // `Nollapelit` (specs/034) follows it; the order is asserted in full in
-    // form-trend.spec.ts.
+  test("heads the Kausi kokonaisuutena group in Analyysit", async ({ page }) => {
+    // #424 grouped the panels: this one summarises the season rather than
+    // tracking it match by match, so it starts the second group and
+    // `Nollapelit` now precedes it. Asserted in full in form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const headings = page
       .getByRole("region", { name: "Analyysit" })
-      .getByRole("heading", { level: 3 });
+      .getByRole("heading", { level: 4 });
 
-    await expect(headings.nth(4)).toHaveText(HEADING);
+    await expect(headings.nth(5)).toHaveText(HEADING);
   });
 });
 

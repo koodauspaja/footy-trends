@@ -8,7 +8,9 @@ import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import {
   categoryIdForSeason,
   categoryIdsFor,
+  DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
+  getDomesticCompetitionName,
   isDomesticCup,
 } from "./domestic-competitions";
 import { type FormSeries, formSeries } from "./form-series";
@@ -22,7 +24,13 @@ import {
   positionsAfterEachRound,
   teamsInGroupsAbove,
 } from "./position-series";
+import {
+  comparisonFor,
+  type SeasonComparisonSeries,
+  type SeasonReadResult,
+} from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
+import { recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   competitionIdFromSeason,
@@ -37,6 +45,7 @@ import {
   parseProviderId,
   type TasoGroup,
 } from "./taso";
+import type { TeamSeason } from "./team-seasons";
 
 const FINISHED_STATUS = "FINISHED";
 /**
@@ -1460,6 +1469,154 @@ export async function getTeamHomeAwaySeries(
  * team page's `Nollapelit` chart (specs/034). Counts exactly the matches the
  * other result charts count.
  */
+/**
+ * The selected season against this club's other stored seasons, for the team
+ * page's `Tämä kausi verrattuna` panel (specs/038).
+ *
+ * **League seasons only** (S6), which `otherLeagueSeasons` decides for both
+ * providers so the rule has one home.
+ *
+ * A season's `categoryId` and `competitionId` are derived from its code and
+ * year by pure lookups, so listing a club's other seasons costs no request of
+ * its own; the reads below are `classifySeasonGroups`'s, already cached and
+ * already the team page's for the selected season.
+ *
+ * **Stale stored rows are served, not refused** (specs/038, S12), for the same
+ * reason the football-data service gives: erroring here alone would make this
+ * panel disagree with the others on the same page about the same season.
+ */
+export async function getTeamSeasonComparison(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[]
+): Promise<SeasonComparisonSeries> {
+  try {
+    return await comparisonFor(
+      teamProviderId,
+      { competitionCode, seasonId },
+      seasons,
+      isDomesticLeague,
+      (key) => readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, competitionCode, seasonId, teamProviderId },
+      "Unable to compare the TASO season with the club's others"
+    );
+    return { status: "error" };
+  }
+}
+
+/**
+ * One TASO season as `compareSeasons` needs it.
+ *
+ * The club's own matches come from `teamLeagueMatches`, which is what every
+ * other panel counts — so a comparison can never rest on matches the season's
+ * charts do not. The season's whole fixture list comes from the same cached
+ * classification, and is the denominator of the share S9 matches on.
+ */
+async function readTasoSeason(
+  competitionCode: string,
+  seasonId: number,
+  activeSeasonId: number,
+  teamProviderId: number
+): Promise<SeasonReadResult> {
+  const categoryId = categoryIdForSeason(competitionCode, seasonId);
+  const competitionId = competitionIdFromSeason(seasonId);
+
+  // Classified first, so a season this app holds nothing for is `null` here
+  // rather than a branch further down that no test could take. The second call
+  // below reads the same cached classification.
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") {
+    return classified.status === "error" ? { status: "error" } : { status: "empty" };
+  }
+
+  const league = await teamLeagueMatches(
+    categoryId,
+    competitionId,
+    teamProviderId,
+    seasonId,
+    activeSeasonId
+  );
+  // `teamLeagueMatches` reports "error" only when the classification failed,
+  // which is handled above and cached — so what is left here is a season this
+  // club has no league match in, which is empty rather than broken.
+  // A season with no **league** match is left out. `teamLeagueMatches` counts
+  // only table groups, so a season played entirely in knockout ("match-list")
+  // groups has none — the same rule `Vire`, `Maalit` and the standings table
+  // apply, and the reason the playoff is excluded from `Putket` and
+  // `Kääntyneet ottelut`. Counting them here would put matches in the baseline
+  // that the selected season's own measures leave out, which is the one thing
+  // specs/038 exists to prevent.
+  if (league.status !== "ok") return { status: "empty" };
+
+  // A **pass-through** season is different: its matches are league matches, its
+  // published table simply disagrees with ours, so it ranks nobody. It stays,
+  // with a null position, and its results count towards every rate.
+  const series = positionSeriesFrom(
+    classified.matches,
+    classified.groups,
+    classified.teamRows,
+    categoryId,
+    competitionId,
+    teamProviderId
+  );
+
+  return {
+    status: "ok",
+    read: {
+      competition: getDomesticCompetitionName(competitionCode),
+      finished: league.finished,
+      all: classified.matches,
+      points: series.status === "ok" ? series.points : [],
+      teamCount: series.status === "ok" ? series.teamCount : 0,
+    },
+  };
+}
+
+/**
+ * This club's records across every stored season, for the team page's
+ * `Ennätykset` panel (specs/039).
+ *
+ * `label` is the page's own season wording, passed in so a record names a
+ * season exactly as the selector above it does — plain years domestically,
+ * `2024/25` abroad.
+ */
+export function getTeamStreakRecords(
+  teamProviderId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[],
+  label: (seasonId: number) => string
+): Promise<StreakRecordsSeries> {
+  return recordsFor(teamProviderId, seasons, isDomesticLeague, label, (key) =>
+    readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+  ).catch((error) => {
+    logger.error({ err: error, teamProviderId }, "Unable to read the club's TASO streak records");
+    return { status: "error" as const };
+  });
+}
+
+/**
+ * A baseline season must be a domestic competition the registry **knows** to be
+ * a league. `isDomesticCup` answers `false` for an unknown code, so testing it
+ * alone would admit a competition whose stored rows outlived its registry
+ * entry — see the football-data service for what that costs.
+ */
+function isDomesticLeague(competitionCode: string): boolean {
+  return (
+    DOMESTIC_COMPETITIONS.some((competition) => competition.code === competitionCode) &&
+    !isDomesticCup(competitionCode)
+  );
+}
+
 export async function getTeamCleanSheetSeries(
   categoryId: string,
   competitionId: string,

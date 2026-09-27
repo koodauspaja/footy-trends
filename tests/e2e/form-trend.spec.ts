@@ -85,15 +85,17 @@ test.describe("Form chart, signed in", () => {
     const section = page.getByRole("region", { name: "Analyysit" });
 
     // The goals charts follow it (specs/032).
-    await expect(section.getByRole("heading", { level: 3 })).toHaveText([
+    await expect(section.getByRole("heading", { level: 4 })).toHaveText([
       "Sijoitus kierroksittain",
       HEADING,
       "Maalit otteluittain",
       "Maalit yhteensä",
-      "Koti- ja vierastilastot",
       "Nollapelit",
+      "Koti- ja vierastilastot",
       "Putket",
       "Kääntyneet ottelut",
+      "Tämä kausi verrattuna",
+      "Ennätykset",
     ]);
   });
 
