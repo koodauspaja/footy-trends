@@ -9,13 +9,17 @@ vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 
-// The page renders `Analyysit` since specs/041, and its sign-in prompt reads
-// the path — so these pages need the navigation mocks the team pages already
-// had. The test catching up with the feature, not a workaround.
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/maajoukkueet/huuhkajat",
-  useSearchParams: () => new URLSearchParams(),
+/**
+ * The `Analyysit` section stands in with a marker, as it does on the club
+ * pages: what it renders is `analytics-section.test.tsx`'s, and how this page
+ * asks for it is `national-team-page.test.tsx`'s. This file owns the year list.
+ *
+ * Not only separation — rendering the real section pulls ten panels and their
+ * charts into every test here, which took the first render past the five
+ * second budget in a full run and left its DOM behind for the next test.
+ */
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: async () => <p>analytics section placeholder</p>,
 }));
 
 function match(providerMatchId: number, competitionName: string, played: boolean) {
