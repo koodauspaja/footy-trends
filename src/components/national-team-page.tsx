@@ -1,8 +1,11 @@
+import { AnalyticsSection } from "@/components/analytics-section";
 import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { HISTORY_AXIS } from "@/lib/analytics-axis";
 import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
+import { nationalTeamAnalytics } from "@/lib/national-team-analytics";
 import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team-service";
 
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -56,11 +59,31 @@ function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; base
 export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }>) {
   const result = await getNationalTeamYears(team);
 
+  /**
+   * Above the year list, once (specs/041, S5): the panels describe every year,
+   * so they cannot sit inside one.
+   *
+   * The loaders are computed from `result.years` — rows already read — so the
+   * section adds no query and no provider request. They stay thunks because
+   * `AnalyticsSection` checks the sign-in gate before calling any of them, and
+   * a signed-out page must carry no computed value at all.
+   *
+   * A page that loaded some buckets and not others still gets its analytics,
+   * over what did load. The `incomplete` notice above already says the history
+   * may be short, and a partial history is still a history — see #180 for the
+   * same trade on the list itself.
+   */
+  const analyticsSection =
+    result.status === "ok"
+      ? await AnalyticsSection({ axis: HISTORY_AXIS, ...nationalTeamAnalytics(result.years) })
+      : null;
+
   return (
     <PageShell heading={team.displayName}>
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "ok" && result.incomplete && <Notice>{INCOMPLETE_MESSAGE}</Notice>}
+      {analyticsSection}
       {result.status === "ok" &&
         result.years.map((year) => (
           <YearSection basePath={team.basePath} key={year.year} year={year} />

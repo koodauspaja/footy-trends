@@ -8,6 +8,7 @@ import { PageShell } from "@/components/page-shell";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
+import { SEASON_AXIS } from "@/lib/analytics-axis";
 import {
   earliestSeasonFor,
   getCompetitionFormat,
@@ -273,6 +274,8 @@ export async function CompetitionTeamPage({
   const analyticsSection =
     result.status === "ok"
       ? await AnalyticsSection({
+          // A club page's periods are seasons (specs/041, S13).
+          axis: SEASON_AXIS,
           // A failed season lookup is `played = []`, which the comparison
           // would read as "this club has no other seasons" and say so — a
           // database failure dressed as a fact about the club. It reports the

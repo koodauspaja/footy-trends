@@ -33,7 +33,7 @@ import {
   UNRANKED_MEASURES,
 } from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
-import { recordsFor, type StreakRecordsSeries } from "./streak-records";
+import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   competitionIdFromSeason,
@@ -1606,8 +1606,13 @@ export function getTeamStreakRecords(
   seasons: readonly TeamSeason[],
   label: (seasonId: number) => string
 ): Promise<StreakRecordsSeries> {
-  return recordsFor(teamProviderId, seasons, seasonsBeside(competitionCode), label, (key) =>
-    readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+  return recordsFor(
+    teamProviderId,
+    seasons,
+    seasonsBeside(competitionCode),
+    label,
+    (key) => readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+    competitionScope
   ).catch((error) => {
     logger.error({ err: error, teamProviderId }, "Unable to read the club's TASO streak records");
     return { status: "error" as const };

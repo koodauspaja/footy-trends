@@ -1,3 +1,4 @@
+import type { AnalyticsAxis } from "@/lib/analytics-axis";
 import type { ComparisonRow, Measure } from "@/lib/season-comparison";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
@@ -27,8 +28,12 @@ const MEASURES: Record<Measure, { label: string; max: number }> = {
   winPercentage: { label: "Voittoprosentti", max: 100 },
 };
 
-/** The two columns, named once for the legend and the text alternative. */
-export const SELECTED_LABEL = "Tämä kausi";
+/**
+ * The baseline column, named once for the legend and the text alternative. The
+ * filled column names the page's own period instead, so it comes from the axis
+ * — `Tämä kausi` on a club page, `Tämä vuosi` on a national-team one
+ * (specs/041, S11).
+ */
 export const BASELINE_LABEL = "Tavallisesti";
 
 /**
@@ -63,9 +68,14 @@ export function measureText(
  * A position already ends in its ordinal period — `6,0.` — so the sentence does
  * not add a second one and read `6,0..`.
  */
-export function comparisonSentence(label: string, selected: string, baseline: string): string {
+export function comparisonSentence(
+  label: string,
+  selected: string,
+  baseline: string,
+  axis: AnalyticsAxis
+): string {
   const stop = baseline.endsWith(".") ? "" : ".";
-  return `${label}: ${SELECTED_LABEL.toLocaleLowerCase("fi")} ${selected}, ${BASELINE_LABEL.toLocaleLowerCase("fi")} ${baseline}${stop}`;
+  return `${label}: ${axis.selectedLabel.toLocaleLowerCase("fi")} ${selected}, ${BASELINE_LABEL.toLocaleLowerCase("fi")} ${baseline}${stop}`;
 }
 
 /**
@@ -74,12 +84,12 @@ export function comparisonSentence(label: string, selected: string, baseline: st
  * printed and listed as text.
  */
 export function SeasonComparisonChart({
-  title,
+  axis,
   headingId,
   rows,
   teamCount,
 }: Readonly<{
-  title: string;
+  axis: AnalyticsAxis;
   headingId: string;
   rows: readonly ComparisonRow[];
   teamCount: number | null;
@@ -97,7 +107,7 @@ export function SeasonComparisonChart({
         { name: "baseline", value: baseline ?? 0, text: baselineText, outlined: true },
       ],
     };
-    return { row, sentence: comparisonSentence(label, selectedText, baselineText) };
+    return { row, sentence: comparisonSentence(label, selectedText, baselineText, axis) };
   });
 
   return (
@@ -106,9 +116,11 @@ export function SeasonComparisonChart({
         describedBy={textId}
         labelledBy={headingId}
         rows={measured.map(({ row }) => row)}
-        title={title}
+        title={axis.comparisonHeading}
       />
-      <BarLegend items={[{ label: SELECTED_LABEL }, { label: BASELINE_LABEL, outlined: true }]} />
+      <BarLegend
+        items={[{ label: axis.selectedLabel }, { label: BASELINE_LABEL, outlined: true }]}
+      />
       <ol className="sr-only" id={textId}>
         {measured.map(({ row, sentence }) => (
           <li key={row.label}>{sentence}</li>

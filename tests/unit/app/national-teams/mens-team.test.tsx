@@ -9,6 +9,15 @@ vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 
+// The page renders `Analyysit` since specs/041, and its sign-in prompt reads
+// the path — so these pages need the navigation mocks the team pages already
+// had. The test catching up with the feature, not a workaround.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/maajoukkueet/huuhkajat",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 function match(providerMatchId: number, competitionName: string, played: boolean) {
   return {
     providerMatchId,
@@ -41,6 +50,17 @@ async function renderPage() {
 }
 
 warmModules(() => import("@/app/national-teams/mens-team/page"));
+
+/**
+ * The year folds, told apart from the `Analyysit` fold above them (specs/041).
+ * A year's summary is headed by the year itself, so that is what selects them
+ * — counting every `<details>` on the page would now count the section too.
+ */
+function yearSections(): HTMLElement[] {
+  return screen
+    .getAllByRole("heading", { level: 2, name: /^\d{4}$/ })
+    .map((heading) => heading.closest("details") as HTMLElement);
+}
 
 describe("Huuhkajat page", () => {
   beforeEach(() => {
@@ -100,7 +120,7 @@ describe("Huuhkajat page", () => {
 
     await renderPage();
 
-    const sections = document.querySelectorAll("details");
+    const sections = yearSections();
     expect(sections).toHaveLength(2);
     for (const section of sections) expect(section).toHaveAttribute("open");
   });
@@ -108,7 +128,7 @@ describe("Huuhkajat page", () => {
   it("marks each year's summary as something to press (#419)", async () => {
     await renderPage();
 
-    for (const section of document.querySelectorAll("details")) {
+    for (const section of yearSections()) {
       // `group` is what lets the marker turn when the year opens.
       expect(section.classList.contains("group")).toBe(true);
       expect(section.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
@@ -151,7 +171,7 @@ describe("Huuhkajat page", () => {
 
     await renderPage();
 
-    const headings = screen.getAllByRole("heading", { level: 2 });
+    const headings = screen.getAllByRole("heading", { level: 2, name: /^\d{4}$/ });
     expect(headings.map((heading) => heading.textContent)).toEqual(["2026", "2021"]);
   });
 
@@ -165,7 +185,7 @@ describe("Huuhkajat page", () => {
     await renderPage();
 
     // The years that loaded still render — the point of #180.
-    expect(document.querySelectorAll("details")).toHaveLength(1);
+    expect(yearSections()).toHaveLength(1);
     expect(
       screen.getByText("Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.")
     ).toBeInTheDocument();

@@ -26,7 +26,7 @@ import {
   type TeamStanding,
   toFinishedMatches,
 } from "./standings";
-import { recordsFor, type StreakRecordsSeries } from "./streak-records";
+import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import type { TeamSeason } from "./team-seasons";
 
@@ -389,8 +389,13 @@ export function getTeamStreakRecords(
   seasons: readonly TeamSeason[],
   label: (seasonId: number) => string
 ): Promise<StreakRecordsSeries> {
-  return recordsFor(teamProviderId, seasons, seasonsBeside(competitionCode), label, (key) =>
-    readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+  return recordsFor(
+    teamProviderId,
+    seasons,
+    seasonsBeside(competitionCode),
+    label,
+    (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+    competitionScope
   ).catch((error) => {
     logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
     return { status: "error" as const };

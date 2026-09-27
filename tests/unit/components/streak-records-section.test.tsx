@@ -12,41 +12,53 @@ import {
   LONGEST_UNBEATEN_LABEL,
   LONGEST_WINS_LABEL,
 } from "@/components/streaks-section";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
 import type { StreakRecords } from "@/lib/streak-records";
 
 const none: StreakRecords = { wins: null, unbeaten: null, defeats: null, winless: null };
 
-function ok(records: Partial<StreakRecords> = {}, competitions = ["Veikkausliiga"]) {
+function ok(records: Partial<StreakRecords> = {}, scope = "Veikkausliiga") {
   return render(
     <div>
-      {streakRecordsPanel({ status: "ok", records: { ...none, ...records }, competitions })}
+      {streakRecordsPanel({ status: "ok", records: { ...none, ...records }, scope }, SEASON_AXIS)}
     </div>
   ).container;
 }
 
 describe("seasonSpanText", () => {
   it("names the one season a record sits in", () => {
-    expect(seasonSpanText({ length: 4, from: "2024", to: "2024" })).toBe("Kausi 2024");
+    expect(seasonSpanText({ length: 4, from: "2024", to: "2024" }, SEASON_AXIS)).toBe("Kausi 2024");
   });
 
   it("names both seasons a record crossed", () => {
-    expect(seasonSpanText({ length: 6, from: "2024", to: "2025" })).toBe("Kaudet 2024–2025");
+    expect(seasonSpanText({ length: 6, from: "2024", to: "2025" }, SEASON_AXIS)).toBe(
+      "Kaudet 2024–2025"
+    );
   });
 
   it("keeps a foreign season's own wording", () => {
-    expect(seasonSpanText({ length: 6, from: "2023/24", to: "2024/25" })).toBe(
+    expect(seasonSpanText({ length: 6, from: "2023/24", to: "2024/25" }, SEASON_AXIS)).toBe(
       "Kaudet 2023/24–2024/25"
+    );
+  });
+
+  it("says vuosi on a page whose periods are calendar years (specs/041, S11)", () => {
+    expect(seasonSpanText({ length: 4, from: "2019", to: "2019" }, HISTORY_AXIS)).toBe(
+      "Vuosi 2019"
+    );
+    expect(seasonSpanText({ length: 9, from: "2019", to: "2020" }, HISTORY_AXIS)).toBe(
+      "Vuodet 2019–2020"
     );
   });
 });
 
 describe("streakRecordsPanel", () => {
   it("is no panel at all when the club has no stored league season", () => {
-    expect(streakRecordsPanel({ status: "unavailable" })).toBeNull();
+    expect(streakRecordsPanel({ status: "unavailable" }, SEASON_AXIS)).toBeNull();
   });
 
   it("says so when the records cannot be computed", () => {
-    render(<div>{streakRecordsPanel({ status: "error" })}</div>);
+    render(<div>{streakRecordsPanel({ status: "error" }, SEASON_AXIS)}</div>);
 
     expect(screen.getByText(RECORDS_ERROR_MESSAGE)).toBeInTheDocument();
   });
@@ -88,15 +100,23 @@ describe("streakRecordsPanel", () => {
   it("names the competition its records cover", () => {
     // The panel said nothing about its scope before specs/040: on a club's cup
     // page, its records would otherwise read as the club's own.
-    ok({ wins: { length: 3, from: "2024", to: "2024" } }, ["Suomen Cup"]);
+    ok({ wins: { length: 3, from: "2024", to: "2024" } }, "Suomen Cup");
 
     expect(screen.getByText("Suomen Cup")).toBeInTheDocument();
   });
 
   it("names every competition when a club's history spans two", () => {
-    ok({ wins: { length: 3, from: "2024", to: "2024" } }, ["Veikkausliiga", "Ykkönen"]);
+    ok({ wins: { length: 3, from: "2024", to: "2024" } }, "Veikkausliiga, Ykkönen");
 
     expect(screen.getByText("Veikkausliiga, Ykkönen")).toBeInTheDocument();
+  });
+
+  it("prints a span of years when that is what the records cover (specs/041, S12)", () => {
+    // A national-team page's records cross every competition deliberately, so
+    // the useful fact is how far back they reach.
+    ok({ wins: { length: 4, from: "2019", to: "2019" } }, "2018–2026");
+
+    expect(screen.getByText("2018–2026")).toBeInTheDocument();
   });
 
   it("says which single figure is missing, without hiding the others", () => {

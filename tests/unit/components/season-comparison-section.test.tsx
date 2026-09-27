@@ -5,16 +5,13 @@ import {
   BASELINE_LABEL,
   comparisonSentence,
   measureText,
-  SELECTED_LABEL,
 } from "@/components/charts/season-comparison-chart";
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
 import {
-  baselineLine,
   COMPARISON_ERROR_MESSAGE,
-  COMPARISON_HEADING,
-  NO_OTHER_SEASONS_MESSAGE,
   seasonComparisonPanel,
 } from "@/components/season-comparison-section";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
 import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
 
 /** Every measure with a value, so a test can vary only what it is about. */
@@ -22,17 +19,23 @@ function rowsWith(selected: number | null, baseline: number | null) {
   return MEASURES.map((measure) => ({ measure, selected, baseline }));
 }
 
-function ok(over: Partial<Extract<SeasonComparisonSeries, { status: "ok" }>> = {}) {
+function ok(
+  over: Partial<Extract<SeasonComparisonSeries, { status: "ok" }>> = {},
+  axis = SEASON_AXIS
+) {
   return render(
     <div>
-      {seasonComparisonPanel({
-        status: "ok",
-        rows: rowsWith(0.25, 0.5),
-        seasons: 3,
-        competitions: ["Veikkausliiga", "Ykkönen"],
-        teamCount: 12,
-        ...over,
-      })}
+      {seasonComparisonPanel(
+        {
+          status: "ok",
+          rows: rowsWith(0.25, 0.5),
+          seasons: 3,
+          competitions: ["Veikkausliiga", "Ykkönen"],
+          teamCount: 12,
+          ...over,
+        },
+        axis
+      )}
     </div>
   ).container;
 }
@@ -71,33 +74,47 @@ describe("measureText", () => {
 
 describe("comparisonSentence", () => {
   it("names both columns in lower case, mid-sentence", () => {
-    expect(comparisonSentence("Voittoprosentti", "58 %", "47 %")).toBe(
+    expect(comparisonSentence("Voittoprosentti", "58 %", "47 %", SEASON_AXIS)).toBe(
       "Voittoprosentti: tämä kausi 58 %, tavallisesti 47 %."
     );
   });
 
   it("does not add a second full stop after a place, which carries its own", () => {
-    expect(comparisonSentence("Sijoitus", "3.", "6,0.")).toBe(
+    expect(comparisonSentence("Sijoitus", "3.", "6,0.", SEASON_AXIS)).toBe(
       "Sijoitus: tämä kausi 3., tavallisesti 6,0."
+    );
+  });
+
+  it("names the year rather than the season where that is the period", () => {
+    // The text alternative is the chart for a screen-reader, so it cannot say
+    // `kausi` while the page says `vuosi` (specs/041, S11).
+    expect(comparisonSentence("Voittoprosentti", "58 %", "47 %", HISTORY_AXIS)).toBe(
+      "Voittoprosentti: tämä vuosi 58 %, tavallisesti 47 %."
     );
   });
 });
 
-describe("baselineLine", () => {
+describe("the axis's baseline line", () => {
   it("says how many seasons the baseline covered, and which competitions", () => {
-    expect(baselineLine(11, ["Veikkausliiga", "Ykkönen"])).toBe(
+    expect(SEASON_AXIS.baselineLine(11, ["Veikkausliiga", "Ykkönen"])).toBe(
       "Verrattuna 11 muuhun kauteen: Veikkausliiga, Ykkönen"
+    );
+  });
+
+  it("counts years instead on a page whose periods are years (specs/041, S11)", () => {
+    expect(HISTORY_AXIS.baselineLine(8, ["2018", "2019"])).toBe(
+      "Verrattuna 8 muuhun vuoteen: 2018, 2019"
     );
   });
 });
 
 describe("seasonComparisonPanel", () => {
   it("is no panel at all when the season ranks nothing", () => {
-    expect(seasonComparisonPanel({ status: "unavailable" })).toBeNull();
+    expect(seasonComparisonPanel({ status: "unavailable" }, SEASON_AXIS)).toBeNull();
   });
 
   it("says so when the comparison cannot be computed", () => {
-    render(<div>{seasonComparisonPanel({ status: "error" })}</div>);
+    render(<div>{seasonComparisonPanel({ status: "error" }, SEASON_AXIS)}</div>);
 
     expect(screen.getByText(COMPARISON_ERROR_MESSAGE)).toBeInTheDocument();
   });
@@ -105,7 +122,9 @@ describe("seasonComparisonPanel", () => {
   it("shows the season's own values beside the baseline", () => {
     ok();
 
-    expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent(COMPARISON_HEADING);
+    expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent(
+      SEASON_AXIS.comparisonHeading
+    );
     expect(
       screen.getByText("Verrattuna 3 muuhun kauteen: Veikkausliiga, Ykkönen")
     ).toBeInTheDocument();
@@ -114,8 +133,26 @@ describe("seasonComparisonPanel", () => {
   it("names both columns in the legend", () => {
     ok();
 
-    expect(screen.getByText(SELECTED_LABEL)).toBeInTheDocument();
+    expect(screen.getByText(SEASON_AXIS.selectedLabel)).toBeInTheDocument();
     expect(screen.getByText(BASELINE_LABEL)).toBeInTheDocument();
+  });
+
+  it("heads the panel with the page's own period", () => {
+    // Only the e2e proved this before, and a heading is the first thing a
+    // reader sees — so the unit suite pins the wording too (specs/041, S11).
+    ok({}, HISTORY_AXIS);
+
+    expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent("Tämä vuosi verrattuna");
+    expect(screen.queryByText("Tämä kausi verrattuna")).not.toBeInTheDocument();
+  });
+
+  it("names the filled column for the page's own period", () => {
+    // The legend is the one place the chart names the period out loud, so a
+    // page saying `vuosi` everywhere else cannot say `kausi` here.
+    ok({}, HISTORY_AXIS);
+
+    expect(screen.getByText(HISTORY_AXIS.selectedLabel)).toBeInTheDocument();
+    expect(screen.queryByText(SEASON_AXIS.selectedLabel)).not.toBeInTheDocument();
   });
 
   it("uses specs/032's line before the season's first match", () => {
@@ -129,7 +166,7 @@ describe("seasonComparisonPanel", () => {
     // history grows, and this is where a reader asks whether a season is normal.
     const container = ok({ rows: rowsWith(0.25, null), seasons: 0, competitions: [] });
 
-    expect(screen.getByText(NO_OTHER_SEASONS_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(SEASON_AXIS.noOthersMessage)).toBeInTheDocument();
     expect(container.querySelectorAll("[data-part=row]")).toHaveLength(MEASURES.length);
   });
 
