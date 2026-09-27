@@ -10,6 +10,20 @@
   "lockFileMaintenance": {
     "enabled": true
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": [
+        "README.md and INSTALL.md both state the npm version package.json pins, so Renovate updates them in the same pull request it bumps the pin in.",
+        "tests/unit/scripts/setup-plan.test.ts fails when a document and the pin disagree, and tests/unit/config/renovate-npm-docs.test.ts checks these patterns still match what those documents say.",
+        "Without this, every npm update opened a red pull request that needed a hand-written commit: #400 (12.0.1 against 12.0.2) and #456 (12.0.2 against 12.1.0)."
+      ],
+      "managerFilePatterns": ["/^README\\.md$/", "/^INSTALL\\.md$/"],
+      "matchStrings": ["npm[ @](?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "npm",
+      "datasourceTemplate": "npm"
+    }
+  ],
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch"],

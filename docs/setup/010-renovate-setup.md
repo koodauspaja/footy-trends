@@ -25,43 +25,21 @@ minutes. Do not merge it yet — configure it first in the next step.
 Rather than accepting Renovate's default config from the onboarding PR, create
 the config file yourself so it is intentional and documented.
 
-Create file: `renovate.json` in the repo root.
-
-```json
-{
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
-  ],
-  "timezone": "Europe/Helsinki",
-  "schedule": ["before 7am on Monday"],
-  "prConcurrentLimit": 3,
-  "prHourlyLimit": 2,
-  "labels": ["dependencies"],
-  "assignees": ["your-github-username"],
-  "packageRules": [
-    {
-      "matchUpdateTypes": ["minor", "patch"],
-      "matchCurrentVersion": "!/^0/",
-      "automerge": false
-    },
-    {
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": false
-    }
-  ]
-}
-```
+Create file: `renovate.json` in the repo root. The committed
+[`renovate.json`](../../renovate.json) is the reference — copy it rather than a
+snapshot of it here, which would go stale the first time the real one changes.
 
 A few decisions baked into this config worth knowing:
 
 | Setting | Value | Reason |
 |---------|-------|--------|
 | `schedule` | Monday before 7am | Updates arrive at the start of the week, not randomly mid-sprint |
-| `prConcurrentLimit` | 3 | Avoids a wall of PRs when many deps update at once |
+| `prConcurrentLimit` | 10 | Caps the batch when many deps update at once |
 | `automerge` | false | Every update goes through Sourcery + SonarCloud review — nothing merges unreviewed |
 | `timezone` | Europe/Helsinki | Schedule fires at a sensible local time |
+| `lockFileMaintenance` | enabled | Refreshes transitive deps the manifest alone never moves |
+| `customManagers` | The stated npm version | README.md and INSTALL.md repeat the `packageManager` pin, and `tests/unit/scripts/setup-plan.test.ts` fails when they disagree with it. The manager bumps them in the same PR — see `tests/unit/config/renovate-npm-docs.test.ts` (#461) |
+| `packageRules` | TypeScript `<7` | TypeScript 7 ships no in-process parser, and three tests read our own source as an AST. The config carries the full reason; see #43 |
 
 ---
 
