@@ -73,6 +73,23 @@ Both teams, both themes, at 375 px, with Playwright screenshots read back:
 That is also how the legend was caught. The first screenshot pass is what
 turned two settled decisions into three.
 
+## Two things review caught
+
+Both from Sourcery on the first push, and both real:
+
+- **`Ennätykset` could name a year it read nothing from.** The span was built
+  from every year the page holds, so in January — when the newest bucket carries
+  fixtures and no results — it would have read `2018–2026` while 2026
+  contributed no record. `readYear` now answers `empty` for a year with no
+  finished match, which is the rule `selectedYear` already applied at the other
+  end, and the span is built from the years `recordsFor` actually read. The same
+  fix keeps such a year out of the comparison's baseline, where it was
+  contributing a period worth nothing.
+- **`selectedYear` ran before the sign-in gate**, because it was computed while
+  the loaders were being built. Cheap, but the surrounding comment claimed a
+  signed-out request computes nothing, and it no longer quite did. It moved
+  inside `loadComparison`.
+
 ## Left open, deliberately
 
 - **`Kääntyneet ottelut` says `Puoliaikatulos puuttuu 76 ottelusta.`** on

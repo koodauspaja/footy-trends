@@ -97,12 +97,19 @@ export function selectedYear(years: readonly NationalTeamYear[]): number | null 
  * The span the records cover, as `Ennätykset` prints it (specs/041, S12):
  * `2018–2026`, or one year alone when that is the whole history.
  *
+ * Built from the years that actually **contributed** a record rather than from
+ * every year the page holds — in January the newest bucket carries fixtures and
+ * no results, and a span reaching through it would claim coverage of a year
+ * nothing was read from. `recordsFor` passes those years in, so this cannot
+ * disagree with what the panel is showing.
+ *
  * An en dash, matching every other range this app writes.
  */
-export function yearSpan(years: readonly NationalTeamYear[]): string {
-  const played = years.map((year) => year.year);
-  const from = Math.min(...played);
-  const to = Math.max(...played);
+export function yearSpan(years: readonly number[]): string {
+  if (years.length === 0) return "";
+
+  const from = Math.min(...years);
+  const to = Math.max(...years);
   return from === to ? `${from}` : `${from}–${to}`;
 }
 
@@ -118,6 +125,11 @@ export function yearSpan(years: readonly NationalTeamYear[]): string {
  * `competition` is the **year**, because a year here spans friendlies,
  * qualifiers and a tournament at once: the competition is not what tells one
  * period from another, the year is (specs/041, S8).
+ *
+ * A year with no finished match is `empty` rather than an empty period: it can
+ * contribute to neither a baseline nor a record, and counting it would let both
+ * panels describe a year they read nothing from — the same rule `selectedYear`
+ * applies at the other end (specs/041, S6).
  */
 export function readYear(
   years: readonly NationalTeamYear[],
@@ -126,11 +138,14 @@ export function readYear(
   const year = years.find((candidate) => candidate.year === key.seasonId);
   if (year === undefined) return Promise.resolve({ status: "empty" });
 
+  const finished = toFinishedMatches(year.matches);
+  if (finished.length === 0) return Promise.resolve({ status: "empty" });
+
   return Promise.resolve({
     status: "ok",
     read: {
       competition: `${year.year}`,
-      finished: toFinishedMatches(year.matches),
+      finished,
       all: year.matches,
       points: [],
       teamCount: 0,
@@ -146,7 +161,6 @@ export function readYear(
  */
 export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
   const finished = () => finishedHistory(years);
-  const selected = selectedYear(years);
 
   return {
     // No table, ever, so the one panel that needs one is absent (specs/041, S1
@@ -164,8 +178,13 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
       Promise.resolve({ status: "ok" as const, ...streaksOf(finished(), FINLAND_TEAM_ID) }),
     loadComebacks: () =>
       Promise.resolve({ status: "ok" as const, ...comebacksOf(finished(), FINLAND_TEAM_ID) }),
-    loadComparison: () =>
-      selected === null
+    // `selectedYear` is read here rather than above, so that a signed-out
+    // request really does compute nothing: the gate in `AnalyticsSection` runs
+    // before any loader is called.
+    loadComparison: () => {
+      const selected = selectedYear(years);
+
+      return selected === null
         ? Promise.resolve({ status: "unavailable" as const })
         : comparisonFor(
             FINLAND_TEAM_ID,
@@ -176,7 +195,8 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
             () => true,
             (key) => readYear(years, key),
             UNRANKED_MEASURES
-          ),
+          );
+    },
     loadRecords: () =>
       recordsFor(
         FINLAND_TEAM_ID,
@@ -186,7 +206,8 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
         (key) => readYear(years, key),
         // Not the competitions met: the records deliberately cross all of them,
         // so what a reader needs is how far back they reach (specs/041, S12).
-        () => yearSpan(years)
+        // The years come from `recordsFor`, so the line names what was read.
+        (covered) => yearSpan(covered.map(({ seasonId }) => seasonId))
       ),
   };
 }

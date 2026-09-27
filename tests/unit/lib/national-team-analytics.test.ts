@@ -142,13 +142,15 @@ describe("selectedYear", () => {
 
 describe("yearSpan", () => {
   it("names the first and last year, with an en dash", () => {
-    const given = years([2026, [home(2026, 1, 1, 0)]], [2018, [home(2018, 1, 1, 0)]]);
-
-    expect(yearSpan(given)).toBe("2018–2026");
+    expect(yearSpan([2018, 2026])).toBe("2018–2026");
   });
 
   it("names the one year when that is the whole history", () => {
-    expect(yearSpan(years([2026, [home(2026, 1, 1, 0)]]))).toBe("2026");
+    expect(yearSpan([2026])).toBe("2026");
+  });
+
+  it("says nothing when no year contributed", () => {
+    expect(yearSpan([])).toBe("");
   });
 });
 
@@ -176,6 +178,17 @@ describe("readYear", () => {
 
     expect(
       await readYear(given, { competitionCode: NATIONAL_TEAM_PERIOD_CODE, seasonId: 2019 })
+    ).toEqual({ status: "empty" });
+  });
+
+  it("is empty for a year whose matches are all still ahead of it", async () => {
+    // January: the fixtures are published and nothing has been played. Such a
+    // year can contribute to neither a baseline nor a record, so counting it
+    // would let both panels describe a year they read nothing from.
+    const given = years([2026, [scheduled(2026, 20)]]);
+
+    expect(
+      await readYear(given, { competitionCode: NATIONAL_TEAM_PERIOD_CODE, seasonId: 2026 })
     ).toEqual({ status: "empty" });
   });
 });
@@ -300,6 +313,36 @@ describe("nationalTeamAnalytics", () => {
     ).loadComparison();
 
     expect(result).toEqual({ status: "unavailable" });
+  });
+
+  it("leaves a year with no result out of the records' span", async () => {
+    // Two years played and a third holding only fixtures — `2025–2026`, not
+    // `2025–2027`, which would claim coverage of a year nothing was read from.
+    const january = years(
+      [2027, [scheduled(2027, 20)]],
+      [2026, [home(2026, 1, 1, 0)]],
+      [2025, [home(2025, 1, 3, 0)]]
+    );
+    const result = await nationalTeamAnalytics(january).loadRecords();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.scope).toBe("2025–2026");
+  });
+
+  it("leaves a year with no result out of the comparison's baseline", async () => {
+    const january = years(
+      [2027, [scheduled(2027, 20)]],
+      [2026, [home(2026, 1, 1, 0)]],
+      [2025, [home(2025, 1, 3, 0)]]
+    );
+    const result = await nationalTeamAnalytics(january).loadComparison();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    // 2026 is the selected year, 2025 the only baseline — 2027 is neither.
+    expect(result.seasons).toBe(1);
+    expect(result.competitions).toEqual(["2025"]);
   });
 
   it("lets a record run across 31 December, and names the span it covers", async () => {
