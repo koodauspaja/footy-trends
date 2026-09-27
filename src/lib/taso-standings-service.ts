@@ -8,6 +8,7 @@ import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import {
   categoryIdForSeason,
   categoryIdsFor,
+  competitionCodeForCategory,
   DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
   getDomesticCompetitionName,
@@ -26,8 +27,10 @@ import {
 } from "./position-series";
 import {
   comparisonFor,
+  RANKED_MEASURES,
   type SeasonComparisonSeries,
   type SeasonReadResult,
+  UNRANKED_MEASURES,
 } from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { recordsFor, type StreakRecordsSeries } from "./streak-records";
@@ -1367,7 +1370,8 @@ export async function getTeamPositionSeries(
 
 /**
  * This team's form after each match of a season, for the team page's chart
- * (specs/031). Counts the matches `teamLeagueMatches` selects.
+ * (specs/031). Counts the matches `teamPanelMatches` selects — a league's
+ * table groups, or a cup's every group (specs/040).
  */
 export async function getTeamFormSeries(
   categoryId: string,
@@ -1377,7 +1381,7 @@ export async function getTeamFormSeries(
   activeSeasonId: number
 ): Promise<FormSeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1410,7 +1414,7 @@ export async function getTeamGoalsSeries(
   activeSeasonId: number
 ): Promise<GoalsSeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1443,7 +1447,7 @@ export async function getTeamHomeAwaySeries(
   activeSeasonId: number
 ): Promise<HomeAwaySeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1497,8 +1501,9 @@ export async function getTeamSeasonComparison(
       teamProviderId,
       { competitionCode, seasonId },
       seasons,
-      isDomesticLeague,
-      (key) => readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+      seasonsBeside(competitionCode),
+      (key) => readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+      isDomesticCup(competitionCode) ? UNRANKED_MEASURES : RANKED_MEASURES
     );
   } catch (error) {
     logger.error(
@@ -1512,7 +1517,7 @@ export async function getTeamSeasonComparison(
 /**
  * One TASO season as `compareSeasons` needs it.
  *
- * The club's own matches come from `teamLeagueMatches`, which is what every
+ * The club's own matches come from `teamPanelMatches`, which is what every
  * other panel counts — so a comparison can never rest on matches the season's
  * charts do not. The season's whole fixture list comes from the same cached
  * classification, and is the denominator of the share S9 matches on.
@@ -1539,23 +1544,27 @@ async function readTasoSeason(
     return classified.status === "error" ? { status: "error" } : { status: "empty" };
   }
 
-  const league = await teamLeagueMatches(
+  const league = await teamPanelMatches(
     categoryId,
     competitionId,
     teamProviderId,
     seasonId,
     activeSeasonId
   );
-  // `teamLeagueMatches` reports "error" only when the classification failed,
+  // Either selection reports "error" only when the classification failed,
   // which is handled above and cached — so what is left here is a season this
-  // club has no league match in, which is empty rather than broken.
-  // A season with no **league** match is left out. `teamLeagueMatches` counts
-  // only table groups, so a season played entirely in knockout ("match-list")
-  // groups has none — the same rule `Vire`, `Maalit` and the standings table
-  // apply, and the reason the playoff is excluded from `Putket` and
-  // `Kääntyneet ottelut`. Counting them here would put matches in the baseline
-  // that the selected season's own measures leave out, which is the one thing
-  // specs/038 exists to prevent.
+  // club has no counted match in, which is empty rather than broken.
+  //
+  // What "counted" means is the competition's own shape (specs/040, S8). For a
+  // **league** season that is its table groups, so a season played entirely in
+  // knockout ("match-list") groups has none — the same rule `Vire`, `Maalit`
+  // and the standings table apply, and the reason the playoff is excluded from
+  // `Putket`. For a **cup** season it is every group, because a cup has no
+  // table and its knockout rounds are the competition rather than an appendix
+  // to it.
+  //
+  // Either way the baseline counts what the selected season's own measures
+  // count, which is the one thing specs/038 exists to prevent breaking.
   if (league.status !== "ok") return { status: "empty" };
 
   // A **pass-through** season is different: its matches are league matches, its
@@ -1591,12 +1600,13 @@ async function readTasoSeason(
  * `2024/25` abroad.
  */
 export function getTeamStreakRecords(
+  competitionCode: string,
   teamProviderId: number,
   activeSeasonId: number,
   seasons: readonly TeamSeason[],
   label: (seasonId: number) => string
 ): Promise<StreakRecordsSeries> {
-  return recordsFor(teamProviderId, seasons, isDomesticLeague, label, (key) =>
+  return recordsFor(teamProviderId, seasons, seasonsBeside(competitionCode), label, (key) =>
     readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
   ).catch((error) => {
     logger.error({ err: error, teamProviderId }, "Unable to read the club's TASO streak records");
@@ -1610,6 +1620,15 @@ export function getTeamStreakRecords(
  * alone would admit a competition whose stored rows outlived its registry
  * entry — see the football-data service for what that costs.
  */
+/**
+ * Which of the club's seasons belong beside the one being looked at
+ * (specs/040, S5) — the league ones for a league page, that cup's own for a
+ * cup page.
+ */
+function seasonsBeside(competitionCode: string): (code: string) => boolean {
+  return isDomesticCup(competitionCode) ? (code) => code === competitionCode : isDomesticLeague;
+}
+
 function isDomesticLeague(competitionCode: string): boolean {
   return (
     DOMESTIC_COMPETITIONS.some((competition) => competition.code === competitionCode) &&
@@ -1625,7 +1644,7 @@ export async function getTeamCleanSheetSeries(
   activeSeasonId: number
 ): Promise<CleanSheetSeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1657,7 +1676,7 @@ export async function getTeamStreaks(
   activeSeasonId: number
 ): Promise<StreaksSeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1691,7 +1710,7 @@ export async function getTeamComebacks(
   activeSeasonId: number
 ): Promise<ComebacksSeries> {
   try {
-    const league = await teamLeagueMatches(
+    const league = await teamPanelMatches(
       categoryId,
       competitionId,
       teamProviderId,
@@ -1730,6 +1749,72 @@ export async function getTeamComebacks(
  * `no-matches` is a season with nothing stored yet; `unavailable` is a team
  * that played only in match lists.
  */
+/**
+ * A cup's matches for this team — every group, because a cup has no table.
+ *
+ * **Beside `teamLeagueMatches`, deliberately, not a flag inside it**
+ * (specs/040, S8). That function's table-groups-only step is what keeps the
+ * Veikkausliiga playoff out of `Putket`, `Kääntyneet ottelut` and every other
+ * panel. One function that sometimes skips the step would put that rule one
+ * edit away from being widened, and a league would then count playoff matches
+ * with nothing to notice it.
+ */
+async function teamCupMatches(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<
+  | { status: "ok"; finished: FinishedMatchRow[] }
+  | { status: "no-matches" }
+  | { status: "unavailable" }
+  | { status: "error" }
+> {
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") {
+    return classified.status === "error" ? { status: "error" } : { status: "no-matches" };
+  }
+
+  const cupMatches = classified.matches.filter(
+    (match) =>
+      match.homeTeamProviderId === teamProviderId || match.awayTeamProviderId === teamProviderId
+  );
+  if (cupMatches.length === 0) return { status: "unavailable" };
+
+  return { status: "ok", finished: toFinishedMatches(cupMatches) };
+}
+
+/** Whether this TASO category belongs to a competition the registry calls a cup. */
+function isCupCategory(categoryId: string): boolean {
+  const code = competitionCodeForCategory(categoryId);
+  return code !== null && isDomesticCup(code);
+}
+
+/**
+ * The matches a panel counts for this team and season, by the competition's
+ * own shape: a league's table groups, or a cup's every group.
+ *
+ * The services call this rather than either function directly, so the choice
+ * is made once and no panel can disagree with another about what a cup match
+ * is.
+ */
+function teamPanelMatches(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+) {
+  const select = isCupCategory(categoryId) ? teamCupMatches : teamLeagueMatches;
+  return select(categoryId, competitionId, teamProviderId, seasonId, activeSeasonId);
+}
+
 async function teamLeagueMatches(
   categoryId: string,
   competitionId: string,

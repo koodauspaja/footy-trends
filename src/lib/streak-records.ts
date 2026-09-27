@@ -37,7 +37,15 @@ export type StreakRecord = { length: number; from: string; to: string };
 export type StreakRecords = Record<StreakKind, StreakRecord | null>;
 
 export type StreakRecordsSeries =
-  | ({ status: "ok" } & { records: StreakRecords; seasons: number })
+  | ({ status: "ok" } & {
+      records: StreakRecords;
+      /**
+       * The competitions the records cover, each named once (specs/040, S9).
+       * The panel says which, because it never did on any page — a reader on a
+       * club's cup page could otherwise take its records for the club's own.
+       */
+      competitions: string[];
+    })
   /** No league season at all for this club, so no panel. */
   | { status: "unavailable" }
   | { status: "error" };
@@ -178,19 +186,21 @@ export async function recordsFor<T extends SeasonKey>(
   );
   if (results.some(({ result }) => result.status === "error")) return { status: "error" };
 
-  const stored: RecordSeason[] = results.flatMap(({ season, result }) =>
-    result.status === "ok"
-      ? [
-          {
-            competitionCode: season.competitionCode,
-            seasonId: season.seasonId,
-            label: label(season.seasonId),
-            finished: result.read.finished,
-          },
-        ]
-      : []
+  const loaded = results.flatMap(({ season, result }) =>
+    result.status === "ok" ? [{ season, season_read: result.read }] : []
   );
-  if (stored.length === 0) return { status: "unavailable" };
+  if (loaded.length === 0) return { status: "unavailable" };
 
-  return { status: "ok", records: streakRecords(stored, teamId), seasons: stored.length };
+  const stored: RecordSeason[] = loaded.map(({ season, season_read }) => ({
+    competitionCode: season.competitionCode,
+    seasonId: season.seasonId,
+    label: label(season.seasonId),
+    finished: season_read.finished,
+  }));
+
+  return {
+    status: "ok",
+    records: streakRecords(stored, teamId),
+    competitions: [...new Set(loaded.map(({ season_read }) => season_read.competition))],
+  };
 }

@@ -94,12 +94,13 @@ export function summariseSeason(
 /** Every row of the panel, from the selected season and the seasons it is compared with. */
 export function comparisonRows(
   selected: SeasonSummary,
-  others: readonly SeasonSummary[]
+  others: readonly SeasonSummary[],
+  measures: readonly Measure[] = MEASURES
 ): ComparisonRow[] {
   const pooled = others.reduce((total, season) => addStats(total, season.stats), EMPTY);
   const pooledCleanSheets = others.reduce((total, season) => total + season.cleanSheets, 0);
 
-  return MEASURES.map((measure) => ({
+  return measures.map((measure) => ({
     measure,
     selected: measureValue(
       measure,
@@ -273,7 +274,8 @@ export type SeasonComparison = {
 export function compareSeasons(
   teamId: number,
   selected: SeasonRead,
-  others: readonly SeasonRead[]
+  others: readonly SeasonRead[],
+  measures: readonly Measure[] = MEASURES
 ): SeasonComparison {
   const length = seasonLength(selected.all);
   const share = shareCompleted(lastRoundPlayedBy(selected.finished, teamId), length) ?? 1;
@@ -281,7 +283,8 @@ export function compareSeasons(
   return {
     rows: comparisonRows(
       summariseSeason(selected.finished, teamId, positionIn(selected, share)),
-      others.map((season) => summariseSeason(season.finished, teamId, positionIn(season, share)))
+      others.map((season) => summariseSeason(season.finished, teamId, positionIn(season, share))),
+      measures
     ),
     seasons: others.length,
     competitions: [...new Set(others.map((season) => season.competition))],
@@ -372,7 +375,8 @@ export async function comparisonFor<T extends SeasonKey>(
   selectedKey: SeasonKey,
   seasons: readonly T[],
   isLeague: (competitionCode: string) => boolean,
-  read: (key: SeasonKey) => Promise<SeasonReadResult>
+  read: (key: SeasonKey) => Promise<SeasonReadResult>,
+  measures: readonly Measure[] = MEASURES
 ): Promise<SeasonComparisonSeries> {
   const selected = await read(selectedKey);
   if (selected.status !== "ok") {
@@ -384,5 +388,18 @@ export async function comparisonFor<T extends SeasonKey>(
   );
   if (others.status === "error") return { status: "error" };
 
-  return { status: "ok", ...compareSeasons(teamId, selected.read, others.reads) };
+  return { status: "ok", ...compareSeasons(teamId, selected.read, others.reads, measures) };
 }
+
+/**
+ * The measures a page can show: every one, or every one but the position
+ * (specs/040, S7).
+ *
+ * A cup has no table, so `Sijoitus` can never have a value there — and a row
+ * that is structurally impossible is noise rather than the `–` that means "not
+ * this time".
+ */
+export const RANKED_MEASURES: readonly Measure[] = MEASURES;
+export const UNRANKED_MEASURES: readonly Measure[] = MEASURES.filter(
+  (measure) => measure !== "position"
+);
