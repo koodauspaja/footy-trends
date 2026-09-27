@@ -215,7 +215,13 @@ function isNumber(value: number | null): value is number {
  * provider's own ranking produced.
  */
 export type SeasonRead = {
-  /** The competition, as the panel names it to the reader. */
+  /**
+   * The competition's **Finnish display name**, from the registry — the two
+   * readers set it with `getCompetitionName` and `getDomesticCompetitionName`
+   * and nothing else writes it. Never a provider string and never a code: a
+   * page renders only a competition its own parameter validation accepted, and
+   * that validation is registry membership.
+   */
   competition: string;
   /** The club's finished matches. They carry their round, which S9 needs. */
   finished: readonly SeasonMatch[];

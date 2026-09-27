@@ -258,10 +258,17 @@ export async function CompetitionTeamPage({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   /**
-   * League competitions only (specs/030 and specs/031, Q2): a cup and a
-   * national-team tournament have no league position and no league form. And
-   * only for a team with matches this season — otherwise the page already says
-   * why there is nothing to show.
+   * Every competition, league or cup (specs/040). It was league-only until
+   * then, because specs/030 Q2's rule — a league position needs a league table
+   * — was applied to the whole section rather than to the one panel that needs
+   * it. Nine of the ten are computed from results, which a cup has.
+   *
+   * `Sijoitus kierroksittain` is still absent on a cup, but that is decided by
+   * its own loader below rather than here: the panel that needs a table is the
+   * only place that knows about tables.
+   *
+   * Still only for a team with matches this season — otherwise the page
+   * already says why there is nothing to show.
    */
   const analyticsSection =
     result.status === "ok"
