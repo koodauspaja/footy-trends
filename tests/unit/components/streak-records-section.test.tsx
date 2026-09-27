@@ -16,9 +16,11 @@ import type { StreakRecords } from "@/lib/streak-records";
 
 const none: StreakRecords = { wins: null, unbeaten: null, defeats: null, winless: null };
 
-function ok(records: Partial<StreakRecords> = {}, seasons = 3) {
+function ok(records: Partial<StreakRecords> = {}, competitions = ["Veikkausliiga"]) {
   return render(
-    <div>{streakRecordsPanel({ status: "ok", records: { ...none, ...records }, seasons })}</div>
+    <div>
+      {streakRecordsPanel({ status: "ok", records: { ...none, ...records }, competitions })}
+    </div>
   ).container;
 }
 
@@ -81,6 +83,20 @@ describe("streakRecordsPanel", () => {
     expect(screen.getByText(LONGEST_UNBEATEN_LABEL)).toBeInTheDocument();
     expect(screen.getByText(LONGEST_DEFEATS_LABEL)).toBeInTheDocument();
     expect(screen.getByText(/9 ottelua ilman tappiota/)).toBeInTheDocument();
+  });
+
+  it("names the competition its records cover", () => {
+    // The panel said nothing about its scope before specs/040: on a club's cup
+    // page, its records would otherwise read as the club's own.
+    ok({ wins: { length: 3, from: "2024", to: "2024" } }, ["Suomen Cup"]);
+
+    expect(screen.getByText("Suomen Cup")).toBeInTheDocument();
+  });
+
+  it("names every competition when a club's history spans two", () => {
+    ok({ wins: { length: 3, from: "2024", to: "2024" } }, ["Veikkausliiga", "Ykkönen"]);
+
+    expect(screen.getByText("Veikkausliiga, Ykkönen")).toBeInTheDocument();
   });
 
   it("says which single figure is missing, without hiding the others", () => {

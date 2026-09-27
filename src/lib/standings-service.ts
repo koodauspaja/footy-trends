@@ -15,8 +15,10 @@ import { redis } from "./redis";
 import { resolveCurrentRound } from "./rounds";
 import {
   comparisonFor,
+  RANKED_MEASURES,
   type SeasonComparisonSeries,
   type SeasonReadResult,
+  UNRANKED_MEASURES,
 } from "./season-comparison";
 import {
   calculateStandings,
@@ -359,8 +361,9 @@ export async function getTeamSeasonComparison(
       teamProviderId,
       { competitionCode, seasonId },
       seasons,
-      isLeagueCompetition,
-      (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
+      seasonsBeside(competitionCode),
+      (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+      getCompetitionFormat(competitionCode) === "cup" ? UNRANKED_MEASURES : RANKED_MEASURES
     );
   } catch (error) {
     logger.error(
@@ -380,12 +383,13 @@ export async function getTeamSeasonComparison(
  * `2024/25` abroad.
  */
 export function getTeamStreakRecords(
+  competitionCode: string,
   teamProviderId: number,
   activeSeasonId: number,
   seasons: readonly TeamSeason[],
   label: (seasonId: number) => string
 ): Promise<StreakRecordsSeries> {
-  return recordsFor(teamProviderId, seasons, isLeagueCompetition, label, (key) =>
+  return recordsFor(teamProviderId, seasons, seasonsBeside(competitionCode), label, (key) =>
     readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId)
   ).catch((error) => {
     logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
@@ -403,6 +407,21 @@ export function getTeamStreakRecords(
  * its matches to every pooled rate and its raw code to the panel's
  * `Verrattuna …` line, where a Finnish sentence would name it `PL`.
  */
+/**
+ * Which of the club's seasons belong beside the one being looked at
+ * (specs/040, S5).
+ *
+ * A league page compares against the club's league seasons, across divisions.
+ * A cup page compares against **that cup's** other seasons only: a cup run
+ * measured against a league season is the mixing S1 forbids, arriving by
+ * another route.
+ */
+function seasonsBeside(competitionCode: string): (code: string) => boolean {
+  return getCompetitionFormat(competitionCode) === "cup"
+    ? (code) => code === competitionCode
+    : isLeagueCompetition;
+}
+
 function isLeagueCompetition(competitionCode: string): boolean {
   return (
     regionOfCompetition(competitionCode) !== null &&

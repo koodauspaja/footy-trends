@@ -73,10 +73,12 @@ test("keeps no analytics value in a folded signed-out page", async ({ page }) =>
   expect(html).not.toContain("ottelun jälkeen");
 });
 
-test("a cup page folds its match list and has no Analyysit", async ({ page }) => {
+test("a cup page folds its match list and its Analyysit", async ({ page }) => {
+  // Both folds, since specs/040 gave a cup its analytics: it had only the
+  // match list before.
   await signedIn(page);
   await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
 
   await expect(summary(page, "Ottelut")).toBeVisible();
-  await expect(summary(page, "Analyysit")).toHaveCount(0);
+  await expect(summary(page, "Analyysit")).toBeVisible();
 });

@@ -51,6 +51,10 @@ function bodyFor(series: Exclude<StreakRecordsSeries, { status: "unavailable" }>
   if (series.status === "error") return <p>{RECORDS_ERROR_MESSAGE}</p>;
   if (!hasAnyRecord(series.records)) return <p>{NO_RECORDS_MESSAGE}</p>;
 
+  // Which competition these records are of (specs/040, S9). The panel never
+  // said, on any page: a reader on a club's cup page could otherwise take its
+  // records for the club's own. No season count — each record names its own.
+
   const figures = [
     [LONGEST_WINS_LABEL, series.records.wins, "voitto", "voittoa"],
     [
@@ -69,22 +73,25 @@ function bodyFor(series: Exclude<StreakRecordsSeries, { status: "unavailable" }>
   ] as const;
 
   return (
-    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-      {figures.map(([label, record, one, many]) => (
-        <div key={label}>
-          <dt className="text-muted text-sm">{label}</dt>
-          <dd>
-            {record === null ? (
-              NO_RECORDS_MESSAGE
-            ) : (
-              <>
-                {count(record.length, one, many)}{" "}
-                <span className="text-muted text-sm">{seasonSpanText(record)}</span>
-              </>
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div>
+      <p className="mb-2 text-muted text-sm">{series.competitions.join(", ")}</p>
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {figures.map(([label, record, one, many]) => (
+          <div key={label}>
+            <dt className="text-muted text-sm">{label}</dt>
+            <dd>
+              {record === null ? (
+                NO_RECORDS_MESSAGE
+              ) : (
+                <>
+                  {count(record.length, one, many)}{" "}
+                  <span className="text-muted text-sm">{seasonSpanText(record)}</span>
+                </>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

@@ -258,13 +258,20 @@ export async function CompetitionTeamPage({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   /**
-   * League competitions only (specs/030 and specs/031, Q2): a cup and a
-   * national-team tournament have no league position and no league form. And
-   * only for a team with matches this season — otherwise the page already says
-   * why there is nothing to show.
+   * Every competition, league or cup (specs/040). It was league-only until
+   * then, because specs/030 Q2's rule — a league position needs a league table
+   * — was applied to the whole section rather than to the one panel that needs
+   * it. Nine of the ten are computed from results, which a cup has.
+   *
+   * `Sijoitus kierroksittain` is still absent on a cup, but that is decided by
+   * its own loader below rather than here: the panel that needs a table is the
+   * only place that knows about tables.
+   *
+   * Still only for a team with matches this season — otherwise the page
+   * already says why there is nothing to show.
    */
   const analyticsSection =
-    result.status === "ok" && getCompetitionFormat(competitionCode) === "league"
+    result.status === "ok"
       ? await AnalyticsSection({
           // A failed season lookup is `played = []`, which the comparison
           // would read as "this club has no other seasons" and say so — a
@@ -275,8 +282,12 @@ export async function CompetitionTeamPage({
           // record names a season the way the rest of the page does.
           loadRecords: () =>
             seasons.status !== "error"
-              ? getTeamStreakRecords(teamProviderId, context.activeSeasonId, played, (year) =>
-                  formatSeasonLabel(year, context.spansCalendarYears)
+              ? getTeamStreakRecords(
+                  competitionCode,
+                  teamProviderId,
+                  context.activeSeasonId,
+                  played,
+                  (year) => formatSeasonLabel(year, context.spansCalendarYears)
                 )
               : Promise.resolve({ status: "error" as const }),
           loadComparison: () =>
@@ -289,13 +300,18 @@ export async function CompetitionTeamPage({
                   played
                 )
               : Promise.resolve({ status: "error" as const }),
+          // A cup has no table to rank a position in, so the panel is absent
+          // rather than empty (specs/040, S2). Every other panel is computed
+          // from results, which a cup has.
           loadPosition: () =>
-            getTeamPositionSeries(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId
-            ),
+            getCompetitionFormat(competitionCode) === "cup"
+              ? Promise.resolve({ status: "unavailable" as const })
+              : getTeamPositionSeries(
+                  competitionCode,
+                  teamProviderId,
+                  seasonId,
+                  context.activeSeasonId
+                ),
           loadForm: () =>
             getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
           loadGoals: () =>

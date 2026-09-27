@@ -67,7 +67,13 @@ vi.mock("@/lib/team-seasons", async (importOriginal) => {
 
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// `usePathname` as well as `useRouter` since specs/040: a cup team page now
+// renders `Analyysit`, and the sign-in prompt inside it reads the path.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/maajoukkueet/joukkue/1",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const seasonContext: SeasonContext = {
   activeSeasonId: 2026,

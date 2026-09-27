@@ -85,7 +85,7 @@ const records: StreakRecordsSeries = {
     defeats: null,
     winless: null,
   },
-  seasons: 2,
+  competitions: ["Valioliiga"],
 };
 const comparison: SeasonComparisonSeries = {
   status: "ok",

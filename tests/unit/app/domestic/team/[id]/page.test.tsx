@@ -721,13 +721,14 @@ describe("Domestic team page league position (specs/030)", () => {
     await loadRecords?.();
 
     expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      "VL",
       1,
       2026,
       expect.any(Array),
       expect.any(Function)
     );
     // A Finnish season is a plain year, as the selector writes it.
-    const label = getTeamStreakRecordsMock.mock.calls[0]?.[3] as (year: number) => string;
+    const label = getTeamStreakRecordsMock.mock.calls[0]?.[4] as (year: number) => string;
     expect(label(2025)).toBe("2025");
   });
 
@@ -746,10 +747,13 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
-  it("offers no section for a cup, which has no league position", async () => {
+  it("offers the section for a cup, but never a league position (specs/040)", async () => {
     await renderTeam("1", { kilpailu: "MSC", kausi: "2025" });
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 
-    expect(analyticsSectionMock).not.toHaveBeenCalled();
+    expect(analyticsSectionMock).toHaveBeenCalled();
+    expect(await loadPosition?.()).toEqual({ status: "unavailable" });
+    expect(getTeamPositionSeriesMock).not.toHaveBeenCalled();
   });
 
   it("offers no section when the team has no matches this season", async () => {

@@ -255,6 +255,7 @@ describe("standings integration", () => {
     ]);
 
     const result = await getTeamStreakRecords(
+      competitionCode,
       9001,
       seasonId,
       [
@@ -266,6 +267,7 @@ describe("standings integration", () => {
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
+    expect(result.competitions).toEqual(["Valioliiga"]);
     expect(result.records.wins).toEqual({
       length: 2,
       from: String(olderSeasonId),
