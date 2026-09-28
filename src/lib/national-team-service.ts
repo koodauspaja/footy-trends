@@ -7,6 +7,7 @@ import {
   NATIONAL_TEAM_SEASONS,
   type NationalTeam,
   nationalTeamCategories,
+  normalizeFinlandId,
 } from "./national-team";
 import type { NormalizedTasoMatch } from "./taso";
 import { getSeasonCategoryNameMap, getSeasonMatchList } from "./taso-standings-service";
@@ -93,7 +94,12 @@ async function loadSeason(
     // Names are normalised before the filter, not after, so a row can never be
     // matched on one spelling and displayed as another.
     for (const match of toFinnishTasoTeamNames(result.matches)) {
-      if (isFinlandMatch(match)) matches.push({ ...match, competitionName });
+      // `normalizeFinlandId` runs here and nowhere else: this is the one place
+      // that has already worked out which side Finland is, and the analytics
+      // functions all key on an id (specs/041, S1 and S2).
+      if (isFinlandMatch(match)) {
+        matches.push({ ...normalizeFinlandId(match), competitionName });
+      }
     }
   }
 

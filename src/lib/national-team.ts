@@ -169,6 +169,51 @@ export function isFinlandMatch(match: { homeTeamName: string; awayTeamName: stri
 }
 
 /**
+ * The id every analytics function keys on for Finland (specs/041, S1).
+ *
+ * TASO publishes no id for Finland that is stable across categories — which is
+ * why `isFinlandMatch` matches the name — while all eight analytics functions
+ * take a `teamId: number` and compare it against `homeTeamProviderId` or
+ * `awayTeamProviderId`. One reserved id is the only thing that *is* stable, so
+ * the read boundary writes it on Finland's side and every function works
+ * untouched.
+ *
+ * Negative because provider ids are positive, so this cannot collide with a
+ * real team's. The sentinel never leaves the app: nothing stores it, nothing
+ * fetches by it, and no URL carries it.
+ */
+export const FINLAND_TEAM_ID = -1;
+
+/**
+ * The same match with `FINLAND_TEAM_ID` on Finland's side, whichever side that
+ * is (specs/041, S2).
+ *
+ * Applied once, here, beside the filter that already knows which side Finland
+ * is. The opponent's own id is left exactly as TASO sent it, because the match
+ * page and the head-to-head still read it.
+ *
+ * A match Finland is not in comes back unchanged. That cannot reach the pages —
+ * `isFinlandMatch` runs first — but a transformation that quietly relabelled
+ * some other team's id would be worse than one that does nothing.
+ */
+export function normalizeFinlandId<
+  T extends {
+    homeTeamName: string;
+    awayTeamName: string;
+    homeTeamProviderId: number;
+    awayTeamProviderId: number;
+  },
+>(match: T): T {
+  if (match.homeTeamName === FINLAND_TEAM_NAME) {
+    return { ...match, homeTeamProviderId: FINLAND_TEAM_ID };
+  }
+  if (match.awayTeamName === FINLAND_TEAM_NAME) {
+    return { ...match, awayTeamProviderId: FINLAND_TEAM_ID };
+  }
+  return match;
+}
+
+/**
  * Chronological within a year, `match_id` breaking a tie so the order does not
  * shift between renders of the same data.
  */

@@ -267,7 +267,7 @@ describe("standings integration", () => {
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
-    expect(result.competitions).toEqual(["Valioliiga"]);
+    expect(result.scope).toBe("Valioliiga");
     expect(result.records.wins).toEqual({
       length: 2,
       from: String(olderSeasonId),

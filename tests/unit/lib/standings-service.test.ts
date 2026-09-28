@@ -2052,7 +2052,7 @@ describe("getTeamSeasonComparison", () => {
     const result = await getTeamStreakRecords(COMPETITION_CODE, 1, ACTIVE_SEASON, seasons, String);
 
     expect(result.status).toBe("ok");
-    expect(result.status === "ok" && result.competitions).toEqual(["Valioliiga"]);
+    expect(result.status === "ok" && result.scope).toBe("Valioliiga");
     // Both stored seasons are wins, and they are consecutive years in one
     // competition, so the run crosses the boundary.
     expect(result.status === "ok" && result.records.wins?.length).toBe(4);
@@ -2109,7 +2109,7 @@ describe("getTeamSeasonComparison", () => {
       String
     );
 
-    expect(result.status === "ok" && result.competitions).toEqual(["Mestarien liiga"]);
+    expect(result.status === "ok" && result.scope).toBe("Mestarien liiga");
   });
 
   it("has no panel when nothing is stored for the selected season", async () => {

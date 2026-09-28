@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FINLAND_TEAM_ID } from "@/lib/national-team";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import { warmModules } from "../../support/warm-module";
 
@@ -95,6 +96,27 @@ describe("getNationalTeamYears", () => {
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
     expect(result.years[0]?.matches.map((m) => m.providerMatchId)).toEqual([1]);
+  });
+
+  it("writes the reserved Finland id on whichever side Finland played (specs/041, S1)", async () => {
+    onlyIn2026({ ECQ: "EM-karsinnat Huuhkajat" });
+    getSeasonMatchListMock.mockResolvedValue({
+      status: "ok",
+      matches: [match(1, "Suomi", "Malta"), match(2, "Malta", "Suomi")],
+    });
+
+    const result = await load();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    const [atHome, away] = result.years[0]?.matches ?? [];
+    // Every analytics function keys on an id, and TASO has none for Finland
+    // that is stable across categories — so the read boundary supplies one.
+    expect(atHome?.homeTeamProviderId).toBe(FINLAND_TEAM_ID);
+    expect(away?.awayTeamProviderId).toBe(FINLAND_TEAM_ID);
+    // The opponent keeps the id TASO sent: the match page still reads it.
+    expect(atHome?.awayTeamProviderId).toBe(2);
+    expect(away?.homeTeamProviderId).toBe(1);
   });
 
   /**

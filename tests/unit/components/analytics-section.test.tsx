@@ -25,9 +25,7 @@ import {
   ANALYTICS_HEADING,
   AnalyticsSection,
   BY_MATCH_HEADING,
-  OTHER_SEASONS_HEADING,
   SIGNED_OUT_MESSAGE,
-  WHOLE_SEASON_HEADING,
 } from "@/components/analytics-section";
 import { CLEAN_SHEETS_HEADING } from "@/components/clean-sheets-section";
 import { COMEBACKS_HEADING } from "@/components/comebacks-section";
@@ -35,9 +33,9 @@ import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
-import { COMPARISON_HEADING } from "@/components/season-comparison-section";
 import { RECORDS_HEADING } from "@/components/streak-records-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
 
 const position: PositionSeries = {
   status: "ok",
@@ -85,7 +83,7 @@ const records: StreakRecordsSeries = {
     defeats: null,
     winless: null,
   },
-  competitions: ["Valioliiga"],
+  scope: "Valioliiga",
 };
 const comparison: SeasonComparisonSeries = {
   status: "ok",
@@ -104,9 +102,11 @@ async function renderSection(
   loadStreaks = vi.fn(async (): Promise<StreaksSeries> => streaks),
   loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks),
   loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison),
-  loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records)
+  loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records),
+  axis = SEASON_AXIS
 ) {
   const view = await AnalyticsSection({
+    axis,
     loadPosition,
     loadForm,
     loadGoals,
@@ -133,6 +133,30 @@ async function renderSection(
 beforeEach(() => {
   canSeeAnalytics.mockReset();
   canSeeAnalytics.mockResolvedValue(true);
+});
+
+describe("the groups a page's axis names (specs/041, S13)", () => {
+  it("names the middle group for the history it covers, and the last for years", async () => {
+    const { container } = await renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      HISTORY_AXIS
+    );
+
+    const groups = [...container.querySelectorAll("h3")].map((heading) => heading.textContent);
+    expect(groups).toContain(HISTORY_AXIS.wholeHeading);
+    expect(groups).toContain(HISTORY_AXIS.otherHeading);
+    // The club pages' wording is gone from this page entirely, heading and all.
+    expect(groups).not.toContain(SEASON_AXIS.wholeHeading);
+    expect(groups).not.toContain(SEASON_AXIS.otherHeading);
+  });
 });
 
 describe("AnalyticsSection, signed out", () => {
@@ -198,7 +222,7 @@ describe("AnalyticsSection, signed in", () => {
       HOME_AWAY_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
-      COMPARISON_HEADING,
+      SEASON_AXIS.comparisonHeading,
       RECORDS_HEADING,
     ]);
     expect(screen.queryByText(SIGNED_OUT_MESSAGE)).toBeNull();
@@ -229,7 +253,7 @@ describe("AnalyticsSection, signed in", () => {
       HOME_AWAY_HEADING,
       STREAKS_HEADING,
       COMEBACKS_HEADING,
-      COMPARISON_HEADING,
+      SEASON_AXIS.comparisonHeading,
       RECORDS_HEADING,
     ]);
   });
@@ -238,13 +262,13 @@ describe("AnalyticsSection, signed in", () => {
     await renderSection();
     const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
-    expect(groups).toEqual([BY_MATCH_HEADING, WHOLE_SEASON_HEADING, OTHER_SEASONS_HEADING]);
+    expect(groups).toEqual([BY_MATCH_HEADING, SEASON_AXIS.wholeHeading, SEASON_AXIS.otherHeading]);
     // Each group is a region, so a screen reader moves between groups as it
     // moves between panels.
     for (const [group, panel] of [
       [BY_MATCH_HEADING, CLEAN_SHEETS_HEADING],
-      [WHOLE_SEASON_HEADING, HOME_AWAY_HEADING],
-      [OTHER_SEASONS_HEADING, RECORDS_HEADING],
+      [SEASON_AXIS.wholeHeading, HOME_AWAY_HEADING],
+      [SEASON_AXIS.otherHeading, RECORDS_HEADING],
     ] as const) {
       expect(screen.getByRole("region", { name: group })).toContainElement(
         screen.getByRole("region", { name: panel })
@@ -268,8 +292,8 @@ describe("AnalyticsSection, signed in", () => {
     );
     const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
-    expect(groups).toEqual([BY_MATCH_HEADING, WHOLE_SEASON_HEADING]);
-    expect(screen.queryByText(OTHER_SEASONS_HEADING)).toBeNull();
+    expect(groups).toEqual([BY_MATCH_HEADING, SEASON_AXIS.wholeHeading]);
+    expect(screen.queryByText(SEASON_AXIS.otherHeading)).toBeNull();
   });
 
   it("sits in a fold that starts open, like the match list (#416)", async () => {

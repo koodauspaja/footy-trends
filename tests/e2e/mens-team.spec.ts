@@ -26,7 +26,12 @@ test.describe("Huuhkajat", () => {
     // current year is filtered out rather than pinned, because the page omits
     // a year with no matches and January would otherwise fail an application
     // behaving exactly as specified.
-    const years = (await page.locator("details h2").allTextContents()).map(Number);
+    // Year folds only: the `Analyysit` fold above them is a `<details>` with an
+    // `h2` of its own since specs/041, and a section that is not a year is no
+    // longer an unexpected one.
+    const years = (await page.locator("details h2").allTextContents())
+      .filter((heading) => /^\d{4}$/.test(heading))
+      .map(Number);
 
     // The only year that may legitimately be absent is the newest *configured*
     // bucket, whose season may not have started. That is deliberately not
@@ -45,14 +50,23 @@ test.describe("Huuhkajat", () => {
   test("orders the years newest first", async ({ page }) => {
     await page.goto("/maajoukkueet/huuhkajat");
 
-    const years = await page.locator("details h2").allTextContents();
-    const asNumbers = years.map(Number);
-    expect(asNumbers).toEqual([...asNumbers].sort((left, right) => right - left));
+    // Filtered to years: `Analyysit` is a fold too since specs/041, and
+    // `Number("Analyysit")` is `NaN`, which no comparison sorts.
+    const years = (await page.locator("details h2").allTextContents())
+      .filter((heading) => /^\d{4}$/.test(heading))
+      .map(Number);
+    expect(years).not.toEqual([]);
+    expect(years).toEqual([...years].sort((left, right) => right - left));
   });
 
   test("folds a year away and back", async ({ page }) => {
     await page.goto("/maajoukkueet/huuhkajat");
-    const first = page.locator("details").first();
+    // The first *year*, not the first fold: `Analyysit` sits above them since
+    // specs/041, and folding it would prove nothing about a year.
+    const first = page
+      .locator("details")
+      .filter({ has: page.getByRole("heading", { level: 2, name: /^\d{4}$/ }) })
+      .first();
 
     await expect(first).toHaveAttribute("open", "");
     await first.locator("summary").click();

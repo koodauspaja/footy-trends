@@ -11,6 +11,7 @@ import { streakRecordsPanel } from "@/components/streak-records-section";
 import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
 import { canSeeAnalytics } from "@/lib/analytics-access";
+import type { AnalyticsAxis } from "@/lib/analytics-axis";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
@@ -23,10 +24,12 @@ import type { StreaksSeries } from "@/lib/streaks";
 
 /** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
 export const ANALYTICS_HEADING = "Analyysit";
-/** The three group headings agreed on #424. */
+/**
+ * The first of the three group headings agreed on #424. The other two name a
+ * period, so they come from the page's axis — see `SEASON_AXIS` and
+ * `HISTORY_AXIS` (specs/041, S13).
+ */
 export const BY_MATCH_HEADING = "Ottelu ottelulta";
-export const WHOLE_SEASON_HEADING = "Kausi kokonaisuutena";
-export const OTHER_SEASONS_HEADING = "Muut kaudet";
 /** About analytics as a whole, not one panel: signed-out readers see none of them (specs/030, A). */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
@@ -49,6 +52,7 @@ const HEADING_ID = "analytics";
  * `CompetitionTeamPage` already uses.
  */
 export async function AnalyticsSection({
+  axis,
   loadPosition,
   loadForm,
   loadGoals,
@@ -59,6 +63,12 @@ export async function AnalyticsSection({
   loadComparison,
   loadRecords,
 }: Readonly<{
+  /**
+   * What a period is on this page, and so every string that names one. Required
+   * rather than defaulted: a page that forgot it would quietly claim its panels
+   * were about a season (specs/041, S11 and S13).
+   */
+  axis: AnalyticsAxis;
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
@@ -98,8 +108,8 @@ export async function AnalyticsSection({
     cleanSheets: cleanSheetsPanel(cleanSheets),
     streaks: streaksPanel(streaks),
     comebacks: comebacksPanel(comebacks),
-    comparison: seasonComparisonPanel(comparison),
-    records: streakRecordsPanel(records),
+    comparison: seasonComparisonPanel(comparison, axis),
+    records: streakRecordsPanel(records, axis),
   };
 
   /**
@@ -130,12 +140,12 @@ export async function AnalyticsSection({
       },
     },
     {
-      heading: WHOLE_SEASON_HEADING,
+      heading: axis.wholeHeading,
       id: "analytics-whole-season",
       panels: { homeAway: panels.homeAway, streaks: panels.streaks, comebacks: panels.comebacks },
     },
     {
-      heading: OTHER_SEASONS_HEADING,
+      heading: axis.otherHeading,
       id: "analytics-other-seasons",
       panels: { comparison: panels.comparison, records: panels.records },
     },

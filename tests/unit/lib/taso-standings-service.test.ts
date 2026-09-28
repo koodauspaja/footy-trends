@@ -2923,7 +2923,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
         String
       );
 
-      expect(result.status === "ok" && result.competitions).toEqual(["Miesten Suomen Cup"]);
+      expect(result.status === "ok" && result.scope).toBe("Miesten Suomen Cup");
     });
   });
 

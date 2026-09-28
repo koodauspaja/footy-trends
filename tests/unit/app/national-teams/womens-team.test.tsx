@@ -9,6 +9,19 @@ vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 
+/**
+ * The `Analyysit` section stands in with a marker, as it does on the club
+ * pages: what it renders is `analytics-section.test.tsx`'s, and how this page
+ * asks for it is `national-team-page.test.tsx`'s. This file owns the year list.
+ *
+ * Not only separation — rendering the real section pulls ten panels and their
+ * charts into every test here, which took the first render past the five
+ * second budget in a full run and left its DOM behind for the next test.
+ */
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: async () => <p>analytics section placeholder</p>,
+}));
+
 function match(providerMatchId: number, competitionName: string, played: boolean) {
   return {
     providerMatchId,
@@ -41,6 +54,17 @@ async function renderPage() {
 }
 
 warmModules(() => import("@/app/national-teams/womens-team/page"));
+
+/**
+ * The year folds, told apart from the `Analyysit` fold above them (specs/041).
+ * A year's summary is headed by the year itself, so that is what selects them
+ * — counting every `<details>` on the page would now count the section too.
+ */
+function yearSections(): HTMLElement[] {
+  return screen
+    .getAllByRole("heading", { level: 2, name: /^\d{4}$/ })
+    .map((heading) => heading.closest("details") as HTMLElement);
+}
 
 describe("Helmarit page", () => {
   beforeEach(() => {
@@ -100,7 +124,7 @@ describe("Helmarit page", () => {
 
     await renderPage();
 
-    const sections = document.querySelectorAll("details");
+    const sections = yearSections();
     expect(sections).toHaveLength(2);
     for (const section of sections) expect(section).toHaveAttribute("open");
   });
@@ -141,7 +165,7 @@ describe("Helmarit page", () => {
 
     await renderPage();
 
-    const headings = screen.getAllByRole("heading", { level: 2 });
+    const headings = screen.getAllByRole("heading", { level: 2, name: /^\d{4}$/ });
     expect(headings.map((heading) => heading.textContent)).toEqual(["2026", "2021"]);
   });
 
@@ -155,7 +179,7 @@ describe("Helmarit page", () => {
     await renderPage();
 
     // The years that loaded still render — the point of #180.
-    expect(document.querySelectorAll("details")).toHaveLength(1);
+    expect(yearSections()).toHaveLength(1);
     expect(
       screen.getByText("Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.")
     ).toBeInTheDocument();
