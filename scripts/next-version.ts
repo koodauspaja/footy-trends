@@ -76,19 +76,25 @@ function typeOf(commit: Commit): string | undefined {
 const DEPENDENCY_SCOPE = "deps";
 
 /**
- * Whether a `fix:` commit fixed **this** application.
+ * Whether a commit updates a dependency, whichever type it carries.
  *
  * `fix(deps): update dependency next to v16.3.6` is maintenance: nothing in
  * this repository was broken, and a reader of the release notes looking under
- * `Bugs` for what went wrong finds three library bumps instead. A dependency
- * update belongs with the chores whichever type Renovate gave it.
+ * `Bugs` for what went wrong finds three library bumps instead.
  *
- * It changes no version: `fix` and `chore` are both a patch, so this moves a
- * commit between two sections of the notes and nowhere else.
+ * **The scope decides, not the type**, and that has to hold for `feat(deps)`
+ * as well — which is the case worth naming, because a feature moves the
+ * *minor*. A library's own release being a feature says nothing about whether
+ * this application gained one. Raised in review on #471, where the first
+ * version excluded `deps` from the fixes and not from the features.
+ *
+ * A **breaking** commit is still breaking. `!` and a `BREAKING CHANGE:` footer
+ * are deliberate statements by whoever wrote them, rather than a type copied
+ * from an upstream changelog, and an upgrade that breaks this application is
+ * exactly what they are for.
  */
-function isOurFix(commit: Commit): boolean {
-  const { type, scope } = parseSubject(commit.subject);
-  return type === "fix" && scope !== DEPENDENCY_SCOPE;
+function isDependencyUpdate(commit: Commit): boolean {
+  return parseSubject(commit.subject).scope === DEPENDENCY_SCOPE;
 }
 
 /**
@@ -192,11 +198,14 @@ function sortCommits(commits: Commit[]): {
 
   return {
     breaking: subjects(isBreaking),
-    features: subjects((c) => !isBreaking(c) && typeOf(c) === "feat"),
-    fixes: subjects((c) => !isBreaking(c) && isOurFix(c)),
-    // Everything that is neither a feature nor a fix of ours — including a
-    // dependency update Renovate happened to label `fix`.
-    other: subjects((c) => !isBreaking(c) && typeOf(c) !== "feat" && !isOurFix(c)),
+    features: subjects((c) => !isBreaking(c) && !isDependencyUpdate(c) && typeOf(c) === "feat"),
+    fixes: subjects((c) => !isBreaking(c) && !isDependencyUpdate(c) && typeOf(c) === "fix"),
+    // Everything else, which is where a dependency update lands whatever type
+    // it was given — so a library's own release notes cannot move our version.
+    other: subjects(
+      (c) =>
+        !isBreaking(c) && (isDependencyUpdate(c) || (typeOf(c) !== "feat" && typeOf(c) !== "fix"))
+    ),
   };
 }
 

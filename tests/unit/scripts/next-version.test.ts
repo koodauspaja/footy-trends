@@ -220,6 +220,31 @@ describe("decideVersion", () => {
     ]);
   });
 
+  it("does not let a dependency update reach the minor as a feature", () => {
+    /**
+     * The case worth naming, because a feature moves the *minor*: a library's
+     * own release being a feature says nothing about whether this application
+     * gained one. The first version of this rule excluded `deps` from the
+     * fixes and not from the features, which #471's review caught.
+     */
+    const d = decideVersion([c("feat(deps): update dependency next to v17")], "v1.8.0");
+
+    expect(d.features).toEqual([]);
+    expect(d.other).toEqual(["feat(deps): update dependency next to v17"]);
+    expect(d.bump).toBe("patch");
+    expect(d.next).toBe("v1.8.1");
+  });
+
+  it("still treats a breaking dependency upgrade as breaking", () => {
+    // `!` is a deliberate statement by whoever wrote it, not a type copied
+    // from an upstream changelog — and an upgrade that breaks us is what it
+    // is for.
+    const d = decideVersion([c("feat(deps)!: drop Node 22")], "v1.8.0");
+
+    expect(d.breaking).toEqual(["feat(deps)!: drop Node 22"]);
+    expect(d.bump).toBe("major");
+  });
+
   it("still calls a scoped fix of ours a fix", () => {
     // Only `deps` moves. `fix(analytics):` is ours and stays a bug.
     const d = decideVersion([c("fix(analytics): the comparison row")], "v1.0.0");
