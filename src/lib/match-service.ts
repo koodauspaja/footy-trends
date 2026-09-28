@@ -156,6 +156,111 @@ async function tasoHeadToHead(
   return { status: "ok", matches: rows };
 }
 
+/**
+ * Every stored meeting between two teams, newest first — the whole history
+ * behind specs/042, rather than the five a match page shows.
+ *
+ * Three things differ from the block on the match page, and each is a decision
+ * rather than an omission:
+ *
+ * - **no anchor** (S4). The match page takes only meetings before its own
+ *   kickoff, because it is context for that fixture; a history of the pair is
+ *   not about one fixture, so a meeting played since belongs in it;
+ * - **no limit** (S5). `HEAD_TO_HEAD_LIMIT` is a choice about the match page;
+ * - **no exclusion** of the match linked from, which is one of the meetings.
+ *
+ * What is *not* different is the competition scope (S2) or which matches count
+ * (S3): every competition in the region, finished, both scores stored. A
+ * fixture still to come is returned by neither read, so nothing on that page
+ * can describe a match that has not been played.
+ */
+export const getHeadToHeadHistory = cache(
+  async (source: MatchSource, first: number, second: number): Promise<HeadToHeadResult> => {
+    // A team has no history against itself, and asking would return every
+    // meeting it ever hosted against itself: none, but by accident.
+    if (first === second) return { status: "unavailable" };
+
+    try {
+      return source.kind === "taso"
+        ? await tasoHistory(source.bucket, first, second)
+        : await footballDataHistory(source.region, first, second);
+    } catch (error) {
+      logger.error({ err: error, first, second }, "Unable to read the head-to-head history");
+      return { status: "error" };
+    }
+  }
+);
+
+/**
+ * How many stored meetings the pair has — the number the match page's link
+ * carries (specs/042, S10).
+ *
+ * Counted from the same read the full page performs, so the two cannot
+ * disagree: `(24)` on the link is 24 rows on the page. A separate `count()`
+ * would be cheaper and would be a second query able to answer differently.
+ */
+export async function countHeadToHeadHistory(
+  source: MatchSource,
+  first: number,
+  second: number
+): Promise<number | null> {
+  const history = await getHeadToHeadHistory(source, first, second);
+  return history.status === "ok" ? history.matches.length : null;
+}
+
+async function footballDataHistory(
+  region: CompetitionRegion,
+  first: number,
+  second: number
+): Promise<HeadToHeadResult> {
+  const codes = competitionsInRegion(region).map((competition) => competition.code);
+
+  const rows = await db
+    .select()
+    .from(matches)
+    .where(
+      and(
+        or(
+          and(eq(matches.homeTeamProviderId, first), eq(matches.awayTeamProviderId, second)),
+          and(eq(matches.homeTeamProviderId, second), eq(matches.awayTeamProviderId, first))
+        ),
+        eq(matches.status, FINISHED_STATUS),
+        isNotNull(matches.homeGoals),
+        isNotNull(matches.awayGoals),
+        inArray(matches.competitionCode, codes)
+      )
+    )
+    .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId));
+  return { status: "ok", matches: rows };
+}
+
+async function tasoHistory(
+  bucket: "domestic" | "national",
+  first: number,
+  second: number
+): Promise<HeadToHeadResult> {
+  const rows = await db
+    .select()
+    .from(tasoMatches)
+    .where(
+      and(
+        or(
+          and(
+            eq(tasoMatches.homeTeamProviderId, first),
+            eq(tasoMatches.awayTeamProviderId, second)
+          ),
+          and(eq(tasoMatches.homeTeamProviderId, second), eq(tasoMatches.awayTeamProviderId, first))
+        ),
+        eq(tasoMatches.status, FINISHED_STATUS),
+        isNotNull(tasoMatches.homeGoals),
+        isNotNull(tasoMatches.awayGoals),
+        tasoBucketPredicate(bucket)
+      )
+    )
+    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
+  return { status: "ok", matches: rows };
+}
+
 const FINISHED_STATUS = "FINISHED";
 
 /**

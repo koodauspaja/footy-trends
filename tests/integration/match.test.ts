@@ -2,7 +2,11 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getMatchPageData } from "@/lib/match-service";
+import {
+  countHeadToHeadHistory,
+  getHeadToHeadHistory,
+  getMatchPageData,
+} from "@/lib/match-service";
 
 /**
  * The match page's two queries against a real Postgres — the lookup by provider
@@ -240,5 +244,104 @@ describe("the head-to-head selection", () => {
 
     if (result.status !== "ok" || result.headToHead.status !== "ok") throw new Error("no result");
     expect(result.headToHead.matches.map((row) => row.providerMatchId)).toEqual([991002]);
+  });
+});
+
+/**
+ * The full history behind specs/042, against the real schema.
+ *
+ * What it must differ from the block above in, and only in: no anchor, no
+ * limit, and no exclusion of the match linked from.
+ */
+describe("the head-to-head history", () => {
+  const DOMESTIC = { kind: "taso", bucket: "domestic" } as const;
+
+  it("returns every meeting, both orientations, newest first and uncapped", async () => {
+    await db.insert(tasoMatches).values(
+      [0, 1, 2, 3, 4, 5, 6, 7].map((offset) =>
+        tasoRow({
+          providerMatchId: 991001 + offset,
+          kickoffAt: new Date(`2026-0${offset + 1}-01T15:00:00Z`),
+          homeTeamProviderId: offset % 2 === 0 ? AWAY : HOME,
+          awayTeamProviderId: offset % 2 === 0 ? HOME : AWAY,
+        })
+      )
+    );
+
+    const result = await getHeadToHeadHistory(DOMESTIC, HOME, AWAY);
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    // Eight, not the five `HEAD_TO_HEAD_LIMIT` caps the match page at.
+    expect(result.matches).toHaveLength(8);
+    expect(result.matches.map((row) => row.providerMatchId)).toEqual([
+      991008, 991007, 991006, 991005, 991004, 991003, 991002, 991001,
+    ]);
+  });
+
+  it("includes a meeting played after the one a reader arrived from", async () => {
+    // The match page anchors on its own kickoff because it is context for that
+    // fixture. A history of the pair is not (specs/042, S4).
+    await db
+      .insert(tasoMatches)
+      .values([
+        tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-06-01T15:00:00Z") }),
+        tasoRow({ providerMatchId: 991002, kickoffAt: new Date("2026-09-01T15:00:00Z") }),
+      ]);
+
+    const result = await getHeadToHeadHistory(DOMESTIC, HOME, AWAY);
+
+    if (result.status !== "ok") throw new Error("no result");
+    expect(result.matches.map((row) => row.providerMatchId)).toEqual([991002, 991001]);
+  });
+
+  it("returns no unplayed fixture, so nothing on the page describes one", async () => {
+    await db.insert(tasoMatches).values([
+      tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-06-01T15:00:00Z") }),
+      tasoRow({
+        providerMatchId: 991002,
+        kickoffAt: new Date("2027-06-01T15:00:00Z"),
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+    ]);
+
+    const result = await getHeadToHeadHistory(DOMESTIC, HOME, AWAY);
+
+    if (result.status !== "ok") throw new Error("no result");
+    expect(result.matches.map((row) => row.providerMatchId)).toEqual([991001]);
+  });
+
+  it("leaves out a third team's matches", async () => {
+    await db.insert(tasoMatches).values([
+      tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-06-01T15:00:00Z") }),
+      tasoRow({
+        providerMatchId: 991003,
+        kickoffAt: new Date("2026-05-01T15:00:00Z"),
+        awayTeamProviderId: OTHER,
+        awayTeamName: "Integration Third",
+      }),
+    ]);
+
+    const result = await getHeadToHeadHistory(DOMESTIC, HOME, AWAY);
+
+    if (result.status !== "ok") throw new Error("no result");
+    expect(result.matches.map((row) => row.providerMatchId)).toEqual([991001]);
+  });
+
+  it("has no history for a team against itself", async () => {
+    expect(await getHeadToHeadHistory(DOMESTIC, HOME, HOME)).toEqual({ status: "unavailable" });
+  });
+
+  it("counts what the page will show, so the link cannot disagree with it", async () => {
+    await db
+      .insert(tasoMatches)
+      .values([
+        tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-06-01T15:00:00Z") }),
+        tasoRow({ providerMatchId: 991002, kickoffAt: new Date("2026-07-01T15:00:00Z") }),
+      ]);
+
+    expect(await countHeadToHeadHistory(DOMESTIC, HOME, AWAY)).toBe(2);
   });
 });

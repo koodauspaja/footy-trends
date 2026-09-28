@@ -4,6 +4,8 @@ import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
+/** The link to the full history asks how many meetings there are (specs/042). */
+const countHeadToHeadHistoryMock = vi.fn<() => Promise<number | null>>(async () => 24);
 const getSeasonCategoryNameMapMock =
   vi.fn<
     (
@@ -15,6 +17,7 @@ const getSeasonCategoryNameMapMock =
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
+  countHeadToHeadHistory: countHeadToHeadHistoryMock,
 }));
 
 vi.mock("@/lib/taso-standings-service", () => ({

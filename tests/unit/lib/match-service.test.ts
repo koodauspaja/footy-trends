@@ -20,7 +20,20 @@ vi.mock("@/db", () => ({
         where: (...args: unknown[]) => {
           const builder = {
             limit: () => selectMock(...args),
-            orderBy: () => ({ limit: () => selectMock(...args) }),
+            /**
+             * Awaitable *and* chainable: the match page's query ends in
+             * `.orderBy(...).limit(n)` while the full history (specs/042) ends
+             * at `.orderBy(...)`, so this has to answer both.
+             *
+             * One promise, created lazily and shared by both paths, so the spy
+             * is called once per query however the chain ends — an eager
+             * `Promise.resolve(selectMock(...))` called it for the `.limit()`
+             * chain as well and doubled every existing call-count assertion.
+             */
+            orderBy: () => {
+              const rows = Promise.resolve().then(() => selectMock(...args));
+              return Object.assign(rows, { limit: () => rows });
+            },
           };
           return builder;
         },
@@ -230,5 +243,71 @@ describe("getMatchPageData", () => {
       expect.anything(),
       "Unable to load the head-to-head"
     );
+  });
+});
+
+/**
+ * The full history behind specs/042. Its SQL is proved in
+ * `tests/integration/match.test.ts`; these are the decisions made around it.
+ */
+describe("getHeadToHeadHistory", () => {
+  it("has no history for a team against itself, and asks nothing", async () => {
+    const { getHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await getHeadToHeadHistory(DOMESTIC, 7, 7)).toEqual({ status: "unavailable" });
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the rows a source's own table holds", async () => {
+    selectMock.mockReturnValue([tasoRow({ providerMatchId: 1 })]);
+    const { getHeadToHeadHistory } = await import("@/lib/match-service");
+
+    const result = await getHeadToHeadHistory(DOMESTIC, 1, 2);
+
+    expect(result.status).toBe("ok");
+    expect(result.status === "ok" && result.matches).toHaveLength(1);
+  });
+
+  it("reads football-data's table for a football-data source", async () => {
+    selectMock.mockReturnValue([]);
+    const { getHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await getHeadToHeadHistory(FOREIGN, 1, 2)).toEqual({ status: "ok", matches: [] });
+  });
+
+  it("reads the national bucket without crossing into the domestic one", async () => {
+    selectMock.mockReturnValue([]);
+    const { getHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await getHeadToHeadHistory(NATIONAL, 1, 2)).toEqual({ status: "ok", matches: [] });
+  });
+
+  it("reports a failed read as an error rather than as no meetings", async () => {
+    // An empty list would claim these teams have never met.
+    selectMock.mockImplementation(() => {
+      throw new Error("connection lost");
+    });
+    const { getHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await getHeadToHeadHistory(DOMESTIC, 1, 2)).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalled();
+  });
+});
+
+describe("countHeadToHeadHistory", () => {
+  it("counts what the page will show", async () => {
+    selectMock.mockReturnValue([tasoRow({ providerMatchId: 1 }), tasoRow({ providerMatchId: 2 })]);
+    const { countHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await countHeadToHeadHistory(DOMESTIC, 1, 2)).toBe(2);
+  });
+
+  it("is null when the history could not be read, so no link promises a number", async () => {
+    selectMock.mockImplementation(() => {
+      throw new Error("connection lost");
+    });
+    const { countHeadToHeadHistory } = await import("@/lib/match-service");
+
+    expect(await countHeadToHeadHistory(DOMESTIC, 1, 2)).toBeNull();
   });
 });

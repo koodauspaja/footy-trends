@@ -27,16 +27,28 @@ const nextConfig: NextConfig = {
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
+      {
+        source: "/kotimaa/kohtaamiset/:a/:b",
+        destination: "/domestic/head-to-head/:a/:b",
+      },
       { source: "/kotimaa/ottelut", destination: "/domestic/matches" },
       { source: "/kotimaa/sarjataulukko", destination: "/domestic/standings" },
       { source: "/ulkomaat", destination: "/foreign" },
       { source: "/ulkomaat/joukkue/:id", destination: "/foreign/team/:id" },
       { source: "/ulkomaat/ottelu/:id", destination: "/foreign/match/:id" },
+      {
+        source: "/ulkomaat/kohtaamiset/:a/:b",
+        destination: "/foreign/head-to-head/:a/:b",
+      },
       { source: "/ulkomaat/ottelut", destination: "/foreign/matches" },
       { source: "/ulkomaat/sarjataulukko", destination: "/foreign/standings" },
       { source: "/maajoukkueet", destination: "/national-teams" },
       { source: "/maajoukkueet/joukkue/:id", destination: "/national-teams/team/:id" },
       { source: "/maajoukkueet/ottelu/:id", destination: "/national-teams/match/:id" },
+      {
+        source: "/maajoukkueet/kohtaamiset/:a/:b",
+        destination: "/national-teams/head-to-head/:a/:b",
+      },
       { source: "/maajoukkueet/ottelut", destination: "/national-teams/matches" },
       { source: "/maajoukkueet/sarjataulukko", destination: "/national-teams/standings" },
       { source: "/maajoukkueet/huuhkajat", destination: "/national-teams/mens-team" },
@@ -46,8 +58,16 @@ const nextConfig: NextConfig = {
       // independent and 317 ids already exist in both tables. See
       // specs/019-match-page.md.
       {
+        source: "/maajoukkueet/huuhkajat/kohtaamiset/:a/:b",
+        destination: "/national-teams/mens-team/head-to-head/:a/:b",
+      },
+      {
         source: "/maajoukkueet/huuhkajat/ottelu/:id",
         destination: "/national-teams/mens-team/match/:id",
+      },
+      {
+        source: "/maajoukkueet/helmarit/kohtaamiset/:a/:b",
+        destination: "/national-teams/womens-team/head-to-head/:a/:b",
       },
       {
         source: "/maajoukkueet/helmarit/ottelu/:id",

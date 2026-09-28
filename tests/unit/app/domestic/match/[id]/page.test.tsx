@@ -4,9 +4,12 @@ import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
+/** The link to the full history asks how many meetings there are (specs/042). */
+const countHeadToHeadHistoryMock = vi.fn<() => Promise<number | null>>(async () => 24);
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
+  countHeadToHeadHistory: countHeadToHeadHistoryMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -299,5 +302,69 @@ describe("/kotimaa/ottelu/:id", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "4036979" }) })).toEqual({
       title: "VPS – FC Lahti, Veikkausliiga 2026",
     });
+  });
+});
+
+describe("the link to the full history (specs/042)", () => {
+  /**
+   * Its own setup: this block is a sibling of the one above, so its
+   * `beforeEach` does not run here — and without this, a shuffled run inherits
+   * whichever fixture the previous test left behind. It did: the placeholder
+   * match leaked in and the link vanished for the wrong reason.
+   */
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "ok", matches: [] },
+    });
+    countHeadToHeadHistoryMock.mockResolvedValue(24);
+  });
+
+  it("carries the number of meetings the page behind it will show", async () => {
+    await renderPage();
+
+    const link = screen.getByRole("link", { name: "Kaikki kohtaamiset (24)" });
+    expect(link).toBeInTheDocument();
+  });
+
+  it("points at this region's pairing, by the two teams' provider ids", async () => {
+    await renderPage();
+
+    const link = screen.getByRole("link", { name: /Kaikki kohtaamiset/ });
+    expect(link.getAttribute("href")).toMatch(/^\/kotimaa\/kohtaamiset\/\d+\/\d+$/);
+  });
+
+  it("is absent for an unresolved bracket slot, which has no pair to open", async () => {
+    // The block above already says the meetings cannot be shown; offering a
+    // link to a page about a team that does not exist yet says the opposite.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow({ homeTeamProviderId: 0, homeTeamName: "" }) },
+      headToHead: { status: "unavailable" },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
+    expect(countHeadToHeadHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it("is absent when the count could not be read", async () => {
+    // A failed read is not zero meetings, and a link promising a number it
+    // does not have is worse than no link.
+    countHeadToHeadHistoryMock.mockResolvedValue(null);
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
+  });
+
+  it("is absent when the pair has no stored meeting", async () => {
+    // A link to an empty page is worse than no link.
+    countHeadToHeadHistoryMock.mockResolvedValue(0);
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
   });
 });
