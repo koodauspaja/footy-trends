@@ -3,247 +3,296 @@
 ## Summary
 
 Add Liigacup — the Veikkausliiga-level league cup — to `/kotimaa` as a cup
-competition, and correct `specs/015-finnish-cups.md`, which records its absence
-as a decision that was never made (#474).
+competition, with its semi-finals and final drawn as a bracket, and correct
+`specs/015-finnish-cups.md`, which records its absence as a decision that was
+never made (#474).
 
 ## Scope
 
 ### In scope
 
-- A **Liigacup** entry in `DOMESTIC_COMPETITIONS`, with `format: "cup"`, so it
-  renders through the cup path specs/015 built: collapsible rounds, and
-  standings tables for groups that carry points.
-- `competitionIdPrefix: "Liigacup"` and two category eras (`LC2023`, then
-  `LC`) — both already supported by the registry; see API & Data.
-- Correcting `specs/015-finnish-cups.md`'s Out of scope line so it no longer
-  says Liigacup was deliberately excluded.
+- A **`Liigacup`** entry in `DOMESTIC_COMPETITIONS`, `format: "cup"`, placed
+  after `Naisten Suomen Cup` and before `Ykkösliigacup`.
+- Its two `competition_id` schemes and two category ids (see API & Data).
+- Cup classification keyed on the **competition**, not the `category_id` — a
+  fix Liigacup needs, because its 2023 category is `LC2023`.
+- A **`Pudotuspelit` bracket drawn from the `1-4` group**, which holds the two
+  semi-finals and the final in one group (see API & Data).
+- Correcting `specs/015-finnish-cups.md`'s Out of scope line.
 
 ### Out of scope
 
 - **Miesten/Naisten Regions Cup, Roots Cup, Kansallinen Cup** — the other three
-  on specs/015's line. Whether they were misrecorded too is a separate question
-  with its own answer; this spec leaves them excluded and leaves their wording
-  in specs/015 alone except for removing Liigacup from the list.
-- Any change to how an existing competition renders.
-- Any change to the cup rendering, the bracket walk, or round-name
-  normalisation from specs/015. If Liigacup's data breaks one of them, that is
-  a finding to raise, not something to patch quietly inside this feature.
+  on specs/015's line. Whether they were misrecorded too is a separate question;
+  this spec leaves them excluded.
+- Round-name normalisation, and the backwards walk for cups whose rounds are
+  separate groups (MSC, NSC) — unchanged.
+- Whether a cup's points-carrying groups render as tables — see Open
+  Question 4. Not changed here unless that question says so.
 
 ## UX / UI (Finnish strings)
 
 ### Picker (`/kotimaa`)
 
-One entry joins the flat list, displayed as **`Liigacup`** (the registry's
-`name`). Season pages show TASO's own `category_name` for that season, as every
-other competition already does.
+**`Liigacup`**, after `Naisten Suomen Cup` and before `Ykkösliigacup` — tier
+order, Liigacup being the first-tier league cup (confirmed in chat
+2026-09-28). Season pages show TASO's own `category_name` per season, as every
+competition already does.
 
-Position: among the cups at the end of the list — after `Naisten Suomen Cup`,
-**before** `Ykkösliigacup`, since the list is ordered by tier and Liigacup is
-the first-tier league cup. *(Open Question 4.)*
+### Season page
 
-### Pages
+No new strings. Liigacup reuses specs/015's cup page:
 
-No new strings. Liigacup reuses what specs/015 introduced — the collapsible
-round with its summary `<round> (N ottelua)` — and everything else a domestic
-competition already shows. It draws no `Pudotuspelit` bracket; see API & Data.
+- **`Pudotuspelit`** above the rounds: a two-column tree, semi-finals then
+  final, winner in bold. Round headings in the tree are `Välierät` and
+  `Loppuottelu` — the Finnish names Suomen Cup's tree already shows for those
+  rounds, since the tree needs a heading per column and TASO names only the
+  group (`1-4`), not the rounds inside it.
+- Each group below it as a collapsible round, `1-4` included, with its summary
+  `<group> (N ottelua)`.
+
+### specs/015 correction
+
+The Out of scope line loses Liigacup and gains:
+
+> Liigacup was listed here in error; its exclusion was not decided. Added in
+> specs/043-liigacup.md (#474).
+
+(Wording confirmed in chat 2026-09-28.) The other three stay listed as
+excluded.
 
 ### Where it appears
 
-Everywhere a domestic competition does, with no competition-specific code:
-
-- the `/kotimaa` picker, standings and match lists;
-- team pages reached from a Liigacup page;
-- `Analyysit` on a cup team page (specs/040);
-- head-to-head history (specs/042), which spans every competition in the
-  region.
+Everywhere a domestic competition does: the picker, standings and match lists,
+team pages, `Analyysit` on a cup team page (specs/040), head-to-head history
+(specs/042).
 
 ## API & Data
 
-### Endpoints — no new provider surface
+### Where TASO publishes it — verified live 2026-09-28
 
-The same three TASO calls already made per competition-season: `getMatches`,
-`getGroups` (`getCategory`), `getCategories`. No new endpoint, no new field.
+Probed from local dev (the drafting session cannot reach TASO):
 
-### Caching
+| Season | `competition_id` | `category_id` | Groups (matches) |
+|---|---|---|---|
+| 2015 | `spljp15` (umbrella) | `LC` | 5 groups, 31 matches, 12 teams |
+| 2016–2022 | — | — | nothing: `spljp16`–`22` have no Liigacup category, `Liigacup16`–`22` no categories |
+| 2023 | `Liigacup23` | `LC2023` | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
+| 2024–2026 | `Liigacup24`–`26` | `LC` | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
+| 2027 | `Liigacup27` | — | no categories yet |
 
-Unchanged. Liigacup's responses are cached under the existing
-`tasoMatchesCacheKey` / `tasoCategoryCacheKey` keys with the existing TTLs,
-which are keyed on `competition_id` + `category_id` and so need no change
-whichever layout TASO uses.
+Every match 2023–2026 is played. `getCompetitions` lists only `Liigacup26`,
+which is why the older ids had to be probed.
 
-### Competition id and category id — verified live, 2026-09-28
+So Liigacup is **one competition under two `competition_id` schemes**: the
+umbrella in 2015, its own `Liigacup{YY}` from 2023. Today
+`competitionIdPrefix` sits on the competition and covers its whole history, so
+it cannot say this. Whether 2015 is in at all is Open Question 1; if it is:
 
-Probed against TASO from local dev (the drafting session could not reach it):
-
-| `competition_id` | Categories | Matches |
-|---|---|---|
-| `Liigacup15` – `Liigacup22` | none | — |
-| `Liigacup23` | `LC2023` (`Liigacup`) | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
-| `Liigacup24` | `LC` (`Liigacup`) | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
-| `Liigacup25` | `LC` (`Liigacup`) | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
-| `Liigacup26` | `LC` (`Liigacup`) | `Lohko A` 15, `Lohko B` 15, `1-4` 3 |
-| `Liigacup27` | none | — |
-
-Every match in 2023–2026 is played. `getCompetitions` lists only
-`Liigacup26` — it lists current competitions, not history, which is why the
-earlier ids had to be probed directly.
-
-Separately, `getCategories?competition_id=spljp15` returns a category
-`LC` / `Liigacup` inside the umbrella, and no `spljp16`–`spljp26` season does.
-Whether it holds any matches is Open Question 1.
-
-So Liigacup is **its own competition**, like Ykkösliigacup, and published
-under **two category ids**:
+- `competitionIdPrefix` moves onto `CompetitionCategory`, so each era names its
+  own scheme. Every existing competition keeps the same answer (no era of
+  theirs declares one; Ykkösliigacup's single era carries `M1LCUP`).
+- `competitionIdForSeason` resolves the era first, then its prefix.
+  `scripts/backfill-run.ts`, the scheduled refresh and the forced refresh
+  already go through `competitionIdForSeason`, so they follow.
 
 ```ts
 {
   code: "LC",
   name: "Liigacup",
   categories: [
-    { fromSeason: 2024, categoryId: "LC" },
-    { fromSeason: 2023, categoryId: "LC2023" },
+    { fromSeason: 2024, categoryId: "LC", competitionIdPrefix: "Liigacup" },
+    { fromSeason: 2023, categoryId: "LC2023", competitionIdPrefix: "Liigacup" },
+    { fromSeason: 2015, categoryId: "LC" }, // umbrella — only if 2015 is in
   ],
-  competitionIdPrefix: "Liigacup",
   format: "cup",
 }
 ```
 
-This is registry-only: `competitionIdForSeason` already takes a per-competition
-prefix (the mixed-case `Liigacup` is just a string to it), and
-`categoryIdForSeason` already resolves eras. Season floor **2023**.
+`SEASON_COMPETITION_ID` (`^spljp\d{2}$`, specs/011) is **not** relaxed; the
+current season follows the umbrella's, as Ykkösliigacup's does.
 
-`SEASON_COMPETITION_ID` (`^spljp\d{2}$`, specs/011) is **not** relaxed.
-Liigacup's current season follows the umbrella's, exactly as Ykkösliigacup's
-does.
+Stored rows: `category_id` `LC` is used by both 2015 and 2024+. The two never
+collide, because every stored-row lookup (`alreadyStoredTaso`,
+`categoryIdsFor`, team-context resolution) also keys on the season.
 
-### Shape: two groups and a `1-4` group — no bracket
+### Cup classification must key on the competition
 
-Every season 2023–2026 has the same shape: two six-team round-robins (15
-matches each) and a `1-4` group of 3 matches — presumably two semi-finals and a
-final, all published as **one 4-team group**.
+`buildGroup` in `src/lib/taso-standings-service.ts` decides "this is a cup"
+with `isDomesticCup(categoryId)`, passing a **category id** to a function that
+takes a **competition code**. It works today only because every existing cup's
+category id equals its code (`MSC`, `NSC`, `M1LCUP`). Liigacup 2023 is
+`LC2023`, which is no code, so 2023 would render as a league while 2024 renders
+as a cup. Fixed by resolving the category through `competitionCodeForCategory`
+(or passing the code through) before asking.
 
-specs/015's backwards walk needs a 2-team knockout group to start a bracket, and
-there is none, so **no `Pudotuspelit` section is drawn** in any season. `1-4`
-renders as a match list if it carries no points (as Ykkösliigacup's `1-4`
-does) — to be confirmed, Open Question 2. This is the same outcome
-Ykkösliigacup has today, and changing the walk to split a combined group into
-rounds is out of scope.
+### The `1-4` group is a bracket
+
+TASO publishes the semi-finals and the final as **one group** called `1-4`:
+three matches between four teams (confirmed in chat 2026-09-28: *"1-4 are
+brackets, similar to suomen cup (semifinals and final)"*). Its `getCategory`
+rows are one per bracket slot — 6 rows, 4 + 2 — and their `points` are
+meaningless for a table (`[4,1,1,1,0,0]` in 2023, all zero in 2025).
+
+The format (confirmed in chat 2026-09-28): two round-robin groups; then **A1 v
+B2** and **B1 v A2** as semi-finals; the two winners meet in the final. The
+split below does not rely on that pairing — it reads the structure of the
+matches, not the group positions — but the pairing is what the drawn tree
+shows, and it is what the unit tests' fixtures are built from.
+
+specs/015's backwards walk cannot draw it: it looks for a separate 2-team group
+as the final, and there is none. So a knockout group is **split into rounds by
+its own structure** before the walk sees it:
+
+1. A group qualifies when its matches involve exactly **4 distinct teams** in
+   exactly **3 matches**, and the **latest-kicking-off** match is between the
+   winners of the other two — winner from TASO's `winner` field, as for every
+   other cup tie.
+2. Those two earlier matches become a 4-team round `Välierät`, the last one a
+   2-team round `Loppuottelu`, both carrying the group's id for their list.
+3. A group that does not qualify is left whole, exactly as today.
+
+Structural rather than by name, for the same reason specs/015 gives: `1-4` is
+a label, not a promise. A `1-4` where the last match is between the two semi
+losers — a third-place match — fails rule 1 and stays a list.
+
+Whether the split also applies to **Ykkösliigacup's** `1-4` is Open
+Question 3: specs/015 records it as a placement group rendered as a list, and a
+generic rule would draw it too if its shape matches.
+
+### Caching
+
+Unchanged: same three calls per competition-season (`getMatches`,
+`getCategory`, `getCategories`), same keys, same TTLs. Keys include
+`competition_id`, so the two schemes cache separately.
 
 ## Edge Cases
 
-- **No gaps in range.** 2023–2026 are contiguous, so the selector (a floor, not
-  a list) offers no season without data.
-- **Two category ids.** 2023 is `LC2023`, 2024 on is `LC`; a stored 2023 row
-  and a 2024 row both resolve to Liigacup via `competitionCodeForCategory`.
-- **`LC` also exists in `spljp15`.** Harmless while Liigacup's floor is 2023:
-  nothing requests `spljp15`/`LC`. If Open Question 1 brings 2015 in, it is not.
-- **Groups plus a combined `1-4`** — `Lohko A`/`Lohko B` render as standings
-  tables, `1-4` as a match list; no `Pudotuspelit` section, no error.
-- **A level match in `1-4`** — shown with its score, as in any match list. The
-  bracket's `winner` handling from specs/015 does not come into play, because
-  nothing is drawn.
-- **`Liigacup27`** — returns no categories today. When 2027 is the current
-  season it is offered, and until TASO publishes it the page shows the existing
-  empty state, exactly as for `M1LCUP27`.
-- **A `kilpailu` value below Liigacup's floor** — not offered by the selector;
-  a hand-typed URL is handled as for every other competition.
-- **A team that appears only in Liigacup** in the stored data — its team page
-  resolves through `competitionCodeForCategory`, which gains Liigacup's
-  category id(s) by being in the registry.
+- **Two category ids** — 2023 `LC2023`, 2024+ `LC`; both resolve to Liigacup,
+  and both render as a cup (see the classification fix).
+- **The 2016–2022 gap** (only if 2015 is in) — Open Question 2.
+- **A `1-4` not yet fully played** — the final is unknown or has no winner, so
+  rule 1 cannot confirm the shape: the group stays a plain list and no bracket
+  is drawn until it can. No half-drawn tree from a guess.
+- **A level semi-final or final** — decided by TASO's `winner`, labelled
+  `declared`, no `(rp)`, per specs/015.
+- **A third-place match in a `1-4`-shaped group** — fails rule 1, stays a list.
+- **`Liigacup27`** — offered once 2027 is current; until TASO publishes it the
+  existing empty state shows, as for `M1LCUP27`.
+- **2015's own shape** — five groups; how its knockout is published is not yet
+  known (Open Question 1 asks for it). It gets a bracket only if it satisfies
+  either specs/015's walk or the split above; otherwise lists, no error.
 
 ## Performance & Limits
 
-- No new requests per page. One competition added to the refresh set, so the
-  scheduled refresh does one more competition's worth of TASO calls per season
-  it covers — small next to MSC, which is up to ten rounds and 248 teams.
-- No pagination changes.
+- No new requests per page. The backfill and refresh gain one competition:
+  four seasons (five with 2015), three calls each.
+- The split is O(1): at most three matches per group examined.
 
 ## Security & Secrets
 
-- No new environment variables. `TASO_API_KEY` already exists.
+- No new environment variables; `TASO_API_KEY` exists.
 - `kilpailu` is validated against the registry before reaching a provider URL,
-  cache key or query, as today. A `competitionIdPrefix`, if needed, is a
-  constant in the registry — never built from input.
+  cache key or query. Every `competitionIdPrefix` is a registry constant, never
+  built from input.
 - No secrets committed.
 
 ## Acceptance Criteria
 
-- [ ] `/kotimaa` lists `Liigacup` among the cups, in the position agreed in
-      Open Question 4.
-- [ ] The Liigacup season selector offers 2023 onward and nothing earlier.
-- [ ] Liigacup 2026 renders `Lohko A` and `Lohko B` as standings tables and
-      `1-4` as a collapsible match list of 3 matches.
-- [ ] Liigacup 2023 renders the same way, read from category `LC2023`.
-- [ ] No Liigacup season shows a `Pudotuspelit` section, and none errors.
-- [ ] A team page reached from a Liigacup page loads, and its `Analyysit`
-      section renders as a cup team page does (specs/040).
+- [ ] `/kotimaa` lists `Liigacup` after `Naisten Suomen Cup` and before
+      `Ykkösliigacup`.
+- [ ] The season selector offers 2023–2026 — plus whatever Open Questions 1 and
+      2 settle for 2015 and 2016–2022.
+- [ ] Liigacup 2026 shows `Pudotuspelit` above the rounds, with `Välierät` (2
+      ties) feeding `Loppuottelu` (1 tie), and the final's winner in bold as
+      TASO records it.
+- [ ] Liigacup 2023, read from `LC2023`, renders as a cup exactly as 2026 does.
+- [ ] `Lohko A`, `Lohko B` and `1-4` each render as a collapsible round below
+      the bracket.
+- [ ] MSC, NSC and every league render exactly as before; Ykkösliigacup as Open
+      Question 3 settles.
+- [ ] `npm run backfill` fetches and stores every Liigacup season in range, each
+      from its own `competition_id`, and a re-run skips them.
+- [ ] A team page reached from Liigacup loads, and its `Analyysit` renders as a
+      cup team page does (specs/040).
 - [ ] Head-to-head history (specs/042) between two Veikkausliiga clubs includes
-      their Liigacup meetings once the data is stored.
-- [ ] `npm run backfill` fetches and stores Liigacup 2023–2026 — `Liigacup23`
-      with `LC2023`, `Liigacup24`–`26` with `LC` — and a re-run skips them.
-- [ ] Existing competitions on `/kotimaa` are unchanged.
-- [ ] `specs/015-finnish-cups.md`'s Out of scope line no longer claims Liigacup
-      was deliberately excluded.
+      their Liigacup meetings once stored.
+- [ ] `specs/015-finnish-cups.md`'s Out of scope line carries the agreed
+      correction.
 - [ ] Every user-facing string added is Finnish.
 
 ## Tests Required
 
 - `tests/unit/lib/domestic-competitions.test.ts`
-  - The `LC` entry exists with `format: "cup"`.
-  - `competitionIdForSeason("LC", 2023)` is `Liigacup23`, and 2026 is
-    `Liigacup26`.
-  - `categoryIdForSeason("LC", 2023)` is `LC2023`; 2024 and 2026 are `LC`.
-  - `categoryIdsFor("LC")` is `["LC", "LC2023"]`.
-  - `earliestSeasonFor("LC")` is 2023.
-  - `isDomesticCup("LC")` is true.
-  - `competitionCodeForCategory` maps both `LC` and `LC2023` to `LC`.
+  - `LC` exists, `format: "cup"`, positioned before `M1LCUP`.
+  - `competitionIdForSeason("LC", 2023)` → `Liigacup23`; 2026 → `Liigacup26`;
+    2015 → `spljp15` if 2015 is in.
+  - `categoryIdForSeason("LC", …)`: 2023 → `LC2023`, 2024/2026 → `LC`.
+  - `earliestSeasonFor("LC")` → the agreed floor.
+  - `competitionCodeForCategory` maps `LC` and `LC2023` to `LC`.
+  - Every existing competition's `competitionIdForSeason` answer is unchanged
+    (a table over all codes and a spread of seasons).
+- `tests/unit/lib/cup-rounds.test.ts`
+  - A qualifying `1-4` (4 teams, 3 matches, final between the semi winners)
+    splits into `Välierät` + `Loppuottelu`.
+  - Last match between the semi **losers** → not split.
+  - Final unplayed / no winner → not split.
+  - 3 teams or 4 matches → not split.
+  - A level semi decided by `winner` → the declared winner is the one in the
+    final.
+  - MSC/NSC shapes from specs/015's tests → unchanged.
+- `tests/unit/lib/taso-standings-service.test.ts`
+  - A group stored under `LC2023` is classified as a cup group.
 - `tests/unit/app/domestic/standings/page.test.tsx`
-  - A Liigacup season shaped like the verified data — two 6-team groups with
-    points, one 4-team `1-4` group without — renders two tables, one match
-    list, and no `Pudotuspelit`.
-- `tests/e2e/` — `/kotimaa/sarjataulukko?kilpailu=LC&kausi=2026` shows
-  `Lohko A`, `Lohko B` and `1-4`.
+  - A Liigacup season shaped like the verified data renders `Pudotuspelit` with
+    two columns, and three collapsible rounds.
+- `tests/e2e/cup-domestic.spec.ts`
+  - `?kilpailu=LC&kausi=2026` shows `Pudotuspelit`, `Lohko A`, `Lohko B`, `1-4`.
+  - The selector offers exactly the agreed seasons.
 
 ## Files To Update
 
 - `specs/043-liigacup.md` — this file.
-- `specs/015-finnish-cups.md` — the Out of scope line: Liigacup removed from
-  it, with a note that its exclusion was misrecorded and a pointer here.
-- `src/lib/domestic-competitions.ts` — one entry, plus a comment recording the
-  live probes behind its season floor.
-- `scripts/backfill-run.ts` — **no change expected.** It already walks
-  `DOMESTIC_COMPETITIONS` and resolves each season through
-  `competitionIdForSeason`, `categoryIdForSeason` and `earliestSeasonFor`, so
-  the registry entry puts Liigacup in the backfill. Verified by running it, per
-  the acceptance criterion, not assumed. If Open Question 1 brings 2015 in, this
-  stops being true: `alreadyStoredTaso` keys on `category_id` + season only, and
-  the backfill resolves one prefix per competition.
+- `specs/015-finnish-cups.md` — the Out of scope correction.
+- `src/lib/domestic-competitions.ts` — the entry; `competitionIdPrefix` per era
+  if 2015 is in; a comment recording the live probes.
+- `src/lib/taso-standings-service.ts` — cup classification by competition.
+- `src/lib/cup-rounds.ts` — splitting a combined knockout group.
+- `src/app/domestic/standings/page.tsx` — only if the split needs wiring there.
+- `scripts/backfill-run.ts` — **no change expected**: it walks
+  `DOMESTIC_COMPETITIONS` through `competitionIdForSeason`,
+  `categoryIdForSeason` and `earliestSeasonFor`, so it follows the registry.
+  Verified by running it, per the acceptance criterion.
 - `decisions/043-liigacup.md` — written by the implementing agent.
 - `.env.example` — **no change**; noted so the reviewer knows it was checked.
 
 ## Open Questions
 
-1. **Does `spljp15`/`LC` hold matches? — blocking.** The category exists; the
-   probe of its matches came back empty, but through a filter that would also
-   hide an error, so it is not yet proven empty. If it is empty, the floor is
-   2023 and this is registry-only. If it has matches, 2015 lives in the
-   umbrella while 2023+ live under `Liigacup{YY}` — one competition in two
-   `competition_id` schemes, which `competitionIdPrefix` (one prefix for a
-   competition's whole history) cannot express. That would be new plumbing and
-   a decision: build it, or set the floor at 2023 and leave 2015 out on
-   purpose, saying so here.
-2. **Does `1-4` carry points?** Expected not, like Ykkösliigacup's `1-4`, in
-   which case it renders as a match list. If it does, it renders as a
-   four-team table, which would read oddly for three knockout matches.
-3. **Picker name** — `Liigacup` (proposed, TASO's own `category_name`), or a
-   longer form such as `Miesten Liigacup`? Season pages show TASO's name
-   regardless; this is only the registry's `name`.
-4. **Picker position** — before `Ykkösliigacup` (proposed: tier order), or at
-   the very end?
-5. **specs/015 correction wording** — proposed: remove Liigacup from the
-   excluded list and add *"Liigacup was listed here in error; its exclusion was
-   not decided. Added in specs/043-liigacup.md (#474)."* The line keeps saying
-   the other three are excluded, since this spec does not decide them.
+1. **Is 2015 in?** It exists — `spljp15`/`LC`, 31 matches, 12 teams, 5 groups.
+   Including it costs the per-era `competitionIdPrefix` above, and opens
+   question 2. Leaving it out keeps the floor at 2023 and needs a sentence here
+   saying so on purpose. If in: its match shape is needed to know what it
+   renders as (command in chat).
+2. **If 2015 is in, what about 2016–2022?** Seven seasons with no Liigacup. The
+   selector today is a floor-to-current range, so it would offer all seven, each
+   showing the empty state. Hiding them needs a new registry notion — seasons a
+   competition *skips* — that no competition has today.
+3. **Does the `1-4` split apply to Ykkösliigacup?** specs/015 recorded its `1-4`
+   as a placement group rendered as a list. If its three matches have the same
+   semi-final + final shape (command in chat), a structural rule draws it too —
+   a change to an existing competition, which this spec otherwise avoids.
+4. **Cup groups that carry points render as match lists today** — read from the
+   code, not yet seen on a page. `buildGroup` returns a match list for *every*
+   group of a cup, before `keepsATable` is consulted (the #272 fix). specs/015
+   says Ykkösliigacup's `Lohko A`/`Lohko B` render as tables, and its e2e test
+   checks only that the headings exist, so nothing would have caught the
+   difference. Liigacup's `Lohko A`/`Lohko B` would inherit the same. Fix here,
+   or as a separate bug against specs/015 first?
 
-Resolved: *Where does TASO publish Liigacup, and for which seasons?* —
-`Liigacup{YY}`, 2023–2026, verified live 2026-09-28; see API & Data.
+Resolved in chat, 2026-09-28:
+- *Where does TASO publish it?* — see the table in API & Data.
+- *Does `1-4` carry points?* — it does, meaninglessly; it is a bracket (semis +
+  final), not a table.
+- *Picker name* — `Liigacup`.
+- *Picker position* — before `Ykkösliigacup`.
+- *specs/015 wording* — as proposed.
