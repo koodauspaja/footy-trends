@@ -44,6 +44,19 @@ what follows is that rule applied somewhere.
   it, and the link offered for a placeholder team. Two by integration: the limit
   coming back, and a team allowed a history against itself.
 
+### The page reached for the provider, and CI caught it
+
+The first version resolved `spansCalendarYears` through `getSeasonContext`,
+to choose between `2023/24` and `2026` in the window sentence. That is a
+provider request, on a page whose spec promises none — and it passed locally
+while timing out on CI, where there is no API key.
+
+It is decided from the region now, which is what the distinction actually is:
+the foreign competitions are leagues played across a winter and the
+national-team ones are tournaments played inside one summer. TASO ignores the
+flag entirely. **`@/lib/football-data` is deliberately not mocked** in the page
+tests, so a future reach for a provider hangs rather than quietly passing.
+
 ### Dead code the coverage gate found
 
 `Summary` guarded against `record === null`, which cannot happen: a view exists

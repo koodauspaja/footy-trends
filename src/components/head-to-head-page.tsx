@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
-import { getSeasonContext } from "@/lib/football-data";
 import {
   type HeadToHeadRecord,
   headToHeadRecord,
   headToHeadWindow,
   headToHeadWindowSentence,
 } from "@/lib/head-to-head";
-import { logger } from "@/lib/logger";
 import { teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
@@ -94,19 +92,17 @@ type View = {
 /**
  * Whether this region's seasons cross a calendar year, for the window sentence.
  *
- * `false` when the provider cannot be reached, which is what the match page
- * does for the same sentence: a season label that reads `2026` rather than
- * `2026/27` is a smaller wrong than no page.
+ * **Decided from the region, not asked of the provider.** specs/042 promises
+ * this page makes no provider request, and the first version called
+ * `getSeasonContext` — which hangs a test runner with no API key and, worse,
+ * made the promise false. The flag only shapes a label (`2023/24` against
+ * `2026`), and that distinction is exactly region-shaped: the foreign
+ * competitions are leagues played across a winter, the national-team ones are
+ * tournaments played inside one summer. TASO ignores the flag entirely —
+ * `headToHeadWindow` answers with a year or a bare season there.
  */
-async function resolveSpans(source: MatchSource): Promise<boolean> {
-  if (source.kind !== "football-data") return false;
-  try {
-    const [first] = source.region === "national-teams" ? ["WC"] : ["PL"];
-    return (await getSeasonContext(first as string)).spansCalendarYears;
-  } catch (error) {
-    logger.error({ err: error }, "Unable to resolve the head-to-head window label");
-    return false;
-  }
+function spansCalendarYears(source: MatchSource): boolean {
+  return source.kind === "football-data" && source.region === "foreign";
 }
 
 /**
@@ -144,7 +140,7 @@ async function buildView(
   options: HeadToHeadPageOptions
 ): Promise<View | null> {
   const windowSentence = headToHeadWindowSentence(
-    headToHeadWindow(options.source, await resolveSpans(options.source))
+    headToHeadWindow(options.source, spansCalendarYears(options.source))
   );
 
   if (options.source.kind === "football-data") {

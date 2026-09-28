@@ -22,6 +22,16 @@ vi.mock("@/lib/taso-standings-service", () => ({
   getSeasonCategoryNameMap: vi.fn(async () => null),
 }));
 
+/**
+ * Nothing mocks `@/lib/football-data`, deliberately.
+ *
+ * specs/042 promises this page makes no provider request, and the first
+ * version called `getSeasonContext` for a season label — which passed here and
+ * timed out on CI, where there is no API key. An unmocked provider module is
+ * what makes that promise testable: if the page ever reaches for one again,
+ * these tests hang rather than quietly pass.
+ */
+
 import { warmModules } from "../../support/warm-module";
 
 const HJK = 1;
@@ -65,6 +75,29 @@ async function renderPage(a = String(HJK), b = String(KUPS)) {
 }
 
 warmModules(() => import("@/components/head-to-head-page"));
+
+describe("the window sentence's label", () => {
+  it("spans calendar years abroad, and does not for a tournament", async () => {
+    // `2023/24` for a league played across a winter, `2026` for one played
+    // inside a summer — decided from the region rather than asked of the
+    // provider, which is what keeps this page free of provider requests.
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1 })],
+    });
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+
+    render(
+      await HeadToHeadPage({
+        source: { kind: "football-data", region: "foreign" },
+        basePath: "/ulkomaat",
+        params: Promise.resolve({ a: "1", b: "2" }),
+      })
+    );
+
+    expect(screen.getByText(/Perustuu kaudesta \d{4}\/\d{2} alkaen/)).toBeInTheDocument();
+  });
+});
 
 describe("HeadToHeadPage", () => {
   beforeEach(() => {

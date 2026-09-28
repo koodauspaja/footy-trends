@@ -105,7 +105,7 @@ table, the window sentence, the error and empty messages — is reused.
 | Home and away | `HJK kotona 8 – 3 – 1` and `KuPS kotona 3 – 3 – 6`, each a win–draw–loss from that ground's home side |
 | `Kohtaamiset` | The section heading over the meetings |
 | The list | Every meeting, newest first: date, competition, teams, score. The same `MatchListTable` the team pages use, with `Kilpailu` as its fourth column |
-| Window sentence | `Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.` (unchanged), under `Kohtaamiset` — it describes how far *back* we looked, so it belongs with the past |
+| Window sentence | `Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.` (unchanged), under `Kohtaamiset` — it describes how far *back* we looked, so it belongs with the past. Its season label is decided from the region rather than asked of the provider, which is what keeps this page free of provider requests |
 | The link that leads here | `Kaikki kohtaamiset (24)`, under `Aiemmat kohtaamiset` on the match page |
 
 ## Edge cases
