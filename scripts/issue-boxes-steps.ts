@@ -103,7 +103,9 @@ export async function runCheck(
     return 1;
   }
 
-  const token = env.GH_TOKEN ?? env.GITHUB_TOKEN;
+  // `||`, not `??`: an exported but empty `GH_TOKEN` is not a token, and
+  // nullish coalescing would let it shadow a perfectly good `GITHUB_TOKEN`.
+  const token = env.GH_TOKEN || env.GITHUB_TOKEN;
   if (!token) {
     console.err("Set GH_TOKEN. With the GitHub CLI already authenticated:");
     console.err("  GH_TOKEN=$(gh auth token) npm run check:boxes -- 464");

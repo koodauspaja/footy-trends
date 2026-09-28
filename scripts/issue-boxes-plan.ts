@@ -30,6 +30,17 @@ const CLOSING_KEYWORD = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi
 /** A list item that is a checkbox: `- [ ]` or `* [x]`, indented or not. */
 const CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s?(.*)$/;
 
+/**
+ * A fenced code block's delimiter, which Markdown allows to be backticks or
+ * tildes, three or more, indented by up to three spaces.
+ *
+ * Everything between a pair of them is code, and a checkbox drawn inside one is
+ * an *example* of a checkbox. An issue explaining this very convention would
+ * otherwise be reported as having a bare box — which is the check calling a
+ * document about itself a failure. Raised in review on #468.
+ */
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
 /** Any other list item, which ends the box above it. */
 const LIST_ITEM = /^\s*[-*]\s/;
 
@@ -96,7 +107,18 @@ export function boxesIn(issueBody: string): Box[] {
    */
   let open: Box | null = null;
 
+  let fenced = false;
+
   for (const line of issueBody.split("\n")) {
+    if (FENCE.test(line)) {
+      // A fence both opens and closes, and either way ends the box above it:
+      // an example under a criterion is not that criterion's reason.
+      fenced = !fenced;
+      open = null;
+      continue;
+    }
+    if (fenced) continue;
+
     const box = CHECKBOX.exec(line)?.slice(1);
     if (box) {
       const [mark = " ", text = ""] = box;

@@ -118,6 +118,37 @@ describe("boxesIn", () => {
     expect(boxes.map((box) => box.explained)).toEqual([false, true]);
   });
 
+  it("ignores a checkbox drawn inside a fenced code block", () => {
+    /**
+     * An issue explaining this convention shows an example of a bare box. It
+     * is documentation, not a criterion — reporting it would make the check
+     * call a document about itself a failure.
+     */
+    const body = [
+      "- [x] a real one",
+      "",
+      "```",
+      "- [ ] The criterion — **not ticked: an example, not a box.**",
+      "- [ ] and a bare one",
+      "```",
+    ].join("\n");
+
+    expect(boxesIn(body).map((box) => box.text)).toEqual(["a real one"]);
+    expect(bareBoxes(body)).toEqual([]);
+  });
+
+  it("reads boxes again after the fence closes", () => {
+    const body = ["```", "- [ ] example", "```", "- [ ] a real bare one"].join("\n");
+
+    expect(bareBoxes(body).map((box) => box.text)).toEqual(["a real bare one"]);
+  });
+
+  it("takes a tilde fence too, which Markdown allows", () => {
+    const body = ["~~~", "- [ ] example", "~~~"].join("\n");
+
+    expect(boxesIn(body)).toEqual([]);
+  });
+
   it("finds nothing in a body with no checkboxes", () => {
     expect(boxesIn("## Summary\n\nJust prose, and a - dash.")).toEqual([]);
   });

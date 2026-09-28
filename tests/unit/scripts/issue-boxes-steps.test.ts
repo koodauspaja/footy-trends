@@ -153,6 +153,20 @@ describe("runCheck", () => {
     expect(spy.lines.err.join("\n")).toContain("GH_TOKEN");
   });
 
+  it("does not let an empty GH_TOKEN shadow a real GITHUB_TOKEN", async () => {
+    const spy = consoleSpy();
+    // Exported but empty is not a token, and `??` would have taken it.
+    const code = await runCheck(
+      ["node", "script", "464"],
+      { GH_TOKEN: "", GITHUB_TOKEN: "ci" },
+      spy,
+      () => reading({ [path(464)]: "no keyword" })
+    );
+
+    expect(code).toBe(0);
+    expect(spy.lines.err).toEqual([]);
+  });
+
   it("takes GITHUB_TOKEN too, which is what CI supplies", async () => {
     const spy = consoleSpy();
     const code = await runCheck(["node", "script", "464"], { GITHUB_TOKEN: "ci" }, spy, () =>
