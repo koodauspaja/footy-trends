@@ -27,9 +27,7 @@ export type VersionDecision = {
   other: string[];
 };
 
-// `scope` is matched but not captured: nothing reads it, and a named group
-// nobody uses reads as a plan rather than as dead weight.
-const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary>.+)$/;
+const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s(?<summary>.+)$/;
 
 /**
  * One conventional-commit subject, taken apart.
@@ -42,12 +40,14 @@ const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary
  */
 function parseSubject(subject: string): {
   type: string | undefined;
+  scope: string | undefined;
   breaking: boolean;
   summary: string | undefined;
 } {
   const groups = CONVENTIONAL.exec(subject)?.groups;
   return {
     type: groups?.type,
+    scope: groups?.scope,
     breaking: groups?.breaking !== undefined,
     summary: groups?.summary,
   };
@@ -64,6 +64,31 @@ function isBreaking(commit: Commit): boolean {
 
 function typeOf(commit: Commit): string | undefined {
   return parseSubject(commit.subject).type;
+}
+
+/**
+ * The scope Renovate uses for a dependency update.
+ *
+ * It writes `fix(deps):` when the *upstream* release called itself a fix, and
+ * `chore(deps):` otherwise — a distinction about someone else's library, taken
+ * from someone else's changelog.
+ */
+const DEPENDENCY_SCOPE = "deps";
+
+/**
+ * Whether a `fix:` commit fixed **this** application.
+ *
+ * `fix(deps): update dependency next to v16.3.6` is maintenance: nothing in
+ * this repository was broken, and a reader of the release notes looking under
+ * `Bugs` for what went wrong finds three library bumps instead. A dependency
+ * update belongs with the chores whichever type Renovate gave it.
+ *
+ * It changes no version: `fix` and `chore` are both a patch, so this moves a
+ * commit between two sections of the notes and nowhere else.
+ */
+function isOurFix(commit: Commit): boolean {
+  const { type, scope } = parseSubject(commit.subject);
+  return type === "fix" && scope !== DEPENDENCY_SCOPE;
 }
 
 /**
@@ -168,8 +193,10 @@ function sortCommits(commits: Commit[]): {
   return {
     breaking: subjects(isBreaking),
     features: subjects((c) => !isBreaking(c) && typeOf(c) === "feat"),
-    fixes: subjects((c) => !isBreaking(c) && typeOf(c) === "fix"),
-    other: subjects((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix"),
+    fixes: subjects((c) => !isBreaking(c) && isOurFix(c)),
+    // Everything that is neither a feature nor a fix of ours — including a
+    // dependency update Renovate happened to label `fix`.
+    other: subjects((c) => !isBreaking(c) && typeOf(c) !== "feat" && !isOurFix(c)),
   };
 }
 
