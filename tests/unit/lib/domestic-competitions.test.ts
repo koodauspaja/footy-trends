@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   categoryIdForSeason,
   categoryIdsFor,
+  competitionCodeForCategory,
   competitionIdForSeason,
+  cupFormatFor,
   DEFAULT_DOMESTIC_COMPETITION_CODE,
   DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
   getDomesticCompetitionName,
+  isDomesticCup,
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 
@@ -16,7 +19,7 @@ describe("domestic competitions", () => {
     expect(DOMESTIC_COMPETITIONS.map((c) => c.code)).toContain("VL");
   });
 
-  it("lists the thirteen competitions, leagues in tier order then the cups", () => {
+  it("lists the fourteen competitions, leagues in tier order then the cups", () => {
     expect(DOMESTIC_COMPETITIONS.map((competition) => competition.code)).toEqual([
       "VL",
       "M1L",
@@ -30,6 +33,7 @@ describe("domestic competitions", () => {
       "T18SM",
       "MSC",
       "NSC",
+      "LC",
       "M1LCUP",
     ]);
   });
@@ -48,6 +52,7 @@ describe("domestic competitions", () => {
       "T18 SM",
       "Miesten Suomen Cup",
       "Naisten Suomen Cup",
+      "Liigacup",
       "Ykkösliigacup",
     ]);
   });
@@ -206,5 +211,50 @@ describe("the cup competitions", () => {
     for (const code of ["MSC", "NSC", "M1LCUP"]) {
       expect(parseDomesticCompetitionParam(code)).toEqual({ kind: "valid", code });
     }
+  });
+});
+
+describe("Liigacup", () => {
+  it("is its own competition, published as Liigacup{YY}", () => {
+    expect(competitionIdForSeason("LC", 2023)).toBe("Liigacup23");
+    expect(competitionIdForSeason("LC", 2026)).toBe("Liigacup26");
+  });
+
+  it("reads 2023 from LC2023 and every later season from LC", () => {
+    expect(categoryIdForSeason("LC", 2023)).toBe("LC2023");
+    expect(categoryIdForSeason("LC", 2024)).toBe("LC");
+    expect(categoryIdForSeason("LC", 2026)).toBe("LC");
+    expect(categoryIdsFor("LC")).toEqual(["LC", "LC2023"]);
+  });
+
+  it("starts at 2023 — the isolated 2015 season is left out on purpose", () => {
+    expect(earliestSeasonFor("LC")).toBe(2023);
+  });
+
+  it("maps both of its category ids back to it", () => {
+    expect(competitionCodeForCategory("LC")).toBe("LC");
+    expect(competitionCodeForCategory("LC2023")).toBe("LC");
+  });
+
+  it("is a cup, accepted as a kilpailu value", () => {
+    expect(isDomesticCup("LC")).toBe(true);
+    expect(parseDomesticCompetitionParam("LC")).toEqual({ kind: "valid", code: "LC" });
+  });
+});
+
+describe("cupFormatFor", () => {
+  it("gives the two league cups groups and a playoff", () => {
+    expect(cupFormatFor("LC")).toBe("groups-and-playoff");
+    expect(cupFormatFor("M1LCUP")).toBe("groups-and-playoff");
+  });
+
+  it("leaves both Suomen Cups as knockout cups", () => {
+    expect(cupFormatFor("MSC")).toBe("knockout");
+    expect(cupFormatFor("NSC")).toBe("knockout");
+  });
+
+  it("answers knockout for a league or an unknown code", () => {
+    expect(cupFormatFor("VL")).toBe("knockout");
+    expect(cupFormatFor("XX")).toBe("knockout");
   });
 });

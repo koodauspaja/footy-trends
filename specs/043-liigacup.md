@@ -322,7 +322,9 @@ data already loaded.
 - `src/lib/domestic-competitions.ts` — the entry and its probe comment;
   `cupFormat` on the type and on Ykkösliigacup.
 - `src/lib/taso-standings-service.ts` — classification by competition; a
-  `groups-and-playoff` cup's groups classified by the round-robin rule.
+  `groups-and-playoff` cup's groups classified by the round-robin rule; no
+  round selector on a cup; the season comparison reading a cup's own
+  `competition_id` rather than the umbrella's.
 - `src/lib/cup-rounds.ts` — round-robin check; splitting a combined group.
 - `src/app/domestic/standings/page.tsx` — CL layout for a
   `groups-and-playoff` cup; a drawn round not also listed in that layout.

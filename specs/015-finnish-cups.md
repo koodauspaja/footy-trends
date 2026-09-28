@@ -24,8 +24,9 @@ bracket for the closing rounds.
 
 - Champions League, World Cup, Euro (#68 shipped; #165 pending).
 - Huuhkajat and Helmarit (#166, #167).
-- **Miesten/Naisten Regions Cup, Roots Cup, Kansallinen Cup, Liigacup** —
-  present in TASO, deliberately excluded (confirmed in chat).
+- **Miesten/Naisten Regions Cup, Roots Cup, Kansallinen Cup** — present in
+  TASO, deliberately excluded (confirmed in chat). Liigacup was listed here in
+  error; its exclusion was not decided. Added in specs/043-liigacup.md (#474).
 - Any change to how league competitions render on `/kotimaa`.
 - Changing `keepsATable`. Cup rounds already classify correctly through it;
   see below.
@@ -45,6 +46,12 @@ Ykkösliigacup's competition-id scheme.
 `M1LCUP26` confirms the classification works the other way too: its `Lohko A`
 and `Lohko B` carry real points (9/7/6 and 7/6/5) and will render as tables,
 while its `1-4` placement group has none and will render as a match list.
+
+> **Superseded for Ykkösliigacup by specs/043-liigacup.md.** #272 stopped
+> this classification working for cups — every cup group became a list — and
+> `1-4` turned out to be its semi-finals and final. Ykkösliigacup's layout is now
+> specified there: tables first, `1-4` drawn as a bracket below them. Nothing
+> here changes for Miesten or Naisten Suomen Cup.
 
 ## UX / UI (Finnish strings)
 
@@ -289,7 +296,8 @@ dropped.
 - [ ] NSC 2015 lists `Pikkufinaali` and does not place it in the bracket.
 - [ ] MSC 2021 renders without a `Pudotuspelit` section and without an error.
 - [ ] Ykkösliigacup 2026 renders `Lohko A` and `Lohko B` as tables and `1-4`
-      as a match list.
+      as a match list. *(Superseded by specs/043-liigacup.md: `1-4` is drawn
+      as a bracket below the tables.)*
 - [ ] The Ykkösliigacup season selector offers only 2024–2026.
 - [ ] Existing league competitions on `/kotimaa` are unchanged.
 - [ ] `N. Kierros` seasons (MSC 2024) display `Kierros N`, and `Finaali`

@@ -5,10 +5,13 @@ import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import { type ComebacksSeries, comebacksOf } from "./comebacks";
+import { isRoundRobin } from "./cup-rounds";
 import {
   categoryIdForSeason,
   categoryIdsFor,
   competitionCodeForCategory,
+  competitionIdForSeason,
+  cupFormatFor,
   DOMESTIC_COMPETITIONS,
   earliestSeasonFor,
   getDomesticCompetitionName,
@@ -1529,7 +1532,9 @@ async function readTasoSeason(
   teamProviderId: number
 ): Promise<SeasonReadResult> {
   const categoryId = categoryIdForSeason(competitionCode, seasonId);
-  const competitionId = competitionIdFromSeason(seasonId);
+  // The registry's id, not the umbrella's: a cup published as its own
+  // competition (`Liigacup26`, `M1LCUP26`) has nothing under `spljp26`.
+  const competitionId = competitionIdForSeason(competitionCode, seasonId);
 
   // Classified first, so a season this app holds nothing for is `null` here
   // rather than a branch further down that no test could take. The second call
@@ -1802,6 +1807,16 @@ function isCupCategory(categoryId: string): boolean {
 }
 
 /**
+ * Whether this category's cup plays round-robin groups before its playoff,
+ * so those groups keep a table (specs/043-liigacup.md). Never true for a
+ * knockout cup or a league.
+ */
+function tablesRoundRobinGroups(categoryId: string): boolean {
+  const code = competitionCodeForCategory(categoryId);
+  return code !== null && cupFormatFor(code) === "groups-and-playoff";
+}
+
+/**
  * The matches a panel counts for this team and season, by the competition's
  * own shape: a league's table groups, or a cup's every group.
  *
@@ -2065,14 +2080,19 @@ function buildGroup(
    * Suomen Cup as a league table, took the bracket with it (it is built from
    * the groups that render as matches) and put a `Kierros` selector on a page
    * that has no rounds to filter. See specs/015-finnish-cups.md.
+   *
+   * Asked of the competition, not the category id: they coincide for Suomen
+   * Cup and Ykkösliigacup, but Liigacup 2023 is `LC2023`, which is no code.
+   *
+   * The exception is a `groups-and-playoff` cup's round-robin group — Liigacup's
+   * and Ykkösliigacup's `Lohko A`/`Lohko B` — which is a points competition and
+   * goes on to be tabled like a league's. Told apart by structure, since points
+   * are what #272 found unreliable. See specs/043-liigacup.md.
    */
-  if (isDomesticCup(categoryId)) {
-    return {
-      kind: "match-list",
-      groupId,
-      groupName,
-      matches: selectGroupMatches(seasonMatches, groupId),
-    };
+  if (isCupCategory(categoryId)) {
+    const matches = selectGroupMatches(seasonMatches, groupId);
+    const isTabledGroup = tablesRoundRobinGroups(categoryId) && isRoundRobin(matches);
+    if (!isTabledGroup) return { kind: "match-list", groupId, groupName, matches };
   }
   // Whether TASO's groups are known for this season *at all*. Without that
   // distinction, an unreachable `getCategory` with nothing yet stored would make
@@ -2251,6 +2271,10 @@ export async function listSeasonRounds(
       activeSeasonId
     );
     if (classified.status !== "ok") return [];
+    // A cup page has no round selector (specs/015), and a `groups-and-playoff`
+    // cup's tabled groups do not change that: its rounds are one short group
+    // stage, and the page's other half is a playoff no round filters.
+    if (isCupCategory(categoryId)) return [];
 
     // Own-calculated only. A match-list group has no table to filter, and a
     // pass-through group shows TASO's final numbers whatever round is picked —
