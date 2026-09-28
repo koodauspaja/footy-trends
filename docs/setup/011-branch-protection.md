@@ -89,6 +89,7 @@ Enable the following:
     - `Integration tests`
     - `SonarCloud scan`
     - `Sourcery review`
+    - `Issue checkboxes`
 
 > **Note:** the status check names won't be available to select until each
 > workflow has run on a PR at least once. Come back and add them after

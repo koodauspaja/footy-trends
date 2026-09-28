@@ -60,8 +60,33 @@ already, and #390 found two classes that had never been written down at all.
    on 2026-08-25 — worth stating, because the repo is public and Sourcery
    applies the Open Source plan to public repositories by default, so the
    pricing page alone does not settle which row applies here.
-4. Push the branch and open a PR against main.
-5. Fill in the PR template:
+4. **Tick the issue's checkboxes before opening the pull request.** Go through
+   its checklist sections — Acceptance criteria always, plus Scope where the
+   template has it — and mark each box whose outcome was **verified**, not each
+   one whose code was written. If a criterion says a page renders something,
+   load it and look.
+
+   Where a criterion cannot be ticked honestly, **say so on the box itself**,
+   after an em dash and in bold, so a reader of the issue sees the gap where
+   the gap is:
+
+   ```
+   - [ ] Correct in light and dark at 375 px — **not ticked: this needs a live
+         page, and I have not looked.**
+   ```
+
+   That shape is what `npm run check:boxes` reads, and the `Issue checkboxes`
+   job in CI runs it on every pull request (#463). Ticking before opening is
+   what keeps that check green from its first run: GitHub does not re-run a
+   check when an issue is edited, so a box ticked afterwards leaves a stale red
+   result until someone re-runs the job.
+
+   The check is the second line, not the first. It cannot tell whether a ticked
+   box is true — only that no box is both unticked and silent. #158 and #425
+   were each merged and closed with every box empty, which is what it exists to
+   stop happening again.
+5. Push the branch and open a PR against main.
+6. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`) — never a bare mention like
      `Refs #NNN` or `#NNN` on its own. GitHub only populates the PR↔issue
@@ -130,7 +155,7 @@ already, and #390 found two classes that had never been written down at all.
    - Link the decisions file path
    - Write a one or two sentence summary of what was built
    - List the steps a reviewer should take to verify the feature works
-6. Verify Sourcery actually reviewed the commit that would be merged, before
+7. Verify Sourcery actually reviewed the commit that would be merged, before
    handing the PR off. Query the check-run at the PR head — not
    `gh pr checks`, which reports the *latest* state rather than that
    commit's:
@@ -198,7 +223,7 @@ already, and #390 found two classes that had never been written down at all.
    reactions to later pushes are deliberately light and create no new review
    object, so that value stays pinned to the first reviewed commit and would
    block nearly every PR that fixed a finding.
-7. **Read the review threads before merging, every time.** The check-run
+8. **Read the review threads before merging, every time.** The check-run
    query above tells you a review happened. It does not tell you what it
    said, and `mergeStateStatus: CLEAN` says only that the required checks
    passed — never that anyone read the comments.
@@ -223,19 +248,19 @@ already, and #390 found two classes that had never been written down at all.
    before merging rather than relying on having looked once: #229 was merged
    on a green state with two findings on it that were eleven minutes old.
 
-8. A light re-check is not a full review. Sourcery reviews thoroughly when a
+9. A light re-check is not a full review. Sourcery reviews thoroughly when a
    PR opens; every push after that gets a lighter pass that re-checks
    existing comments, resolves addressed threads and re-runs security scans,
    but does not regenerate the summary or the full set of inline comments.
    After substantive fix commits, comment `@sourcery-ai review` on the PR to
    force a complete review of the final state, and wait for it before
    handing off.
-9. **Never merge on your own initiative** — however green it is. Merge only
+10. **Never merge on your own initiative** — however green it is. Merge only
    when a human tells you to; that instruction is the allowed final step, not
    an exception to the rule. Otherwise leave it for human review. **Either Miikka
    or Kalle** may be that reviewer — the two are interchangeable, so work
    never waits on one named person being available.
-10. If the PR merges without the issue auto-closing (for example the closing
+11. If the PR merges without the issue auto-closing (for example the closing
    keyword was missing or malformed), close the issue manually and note in a
    comment which PR shipped it. This does not apply to the earlier PRs of a
    stacked series, which are *meant* to merge without closing — there, do the
