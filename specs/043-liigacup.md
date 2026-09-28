@@ -18,8 +18,8 @@ which records Liigacup's absence as a decision that was never made (#474).
   standings table again, as specs/015 specifies and as #272 stopped. Applies to
   every Finnish cup, not only Liigacup (see API & Data).
 - **The `1-4` group as a bracket.** A knockout group holding semi-finals and
-  final together is split into those two rounds and drawn. Applies to
-  Ykkösliigacup too, whose `1-4` has the same format.
+  final together is split into those two rounds and drawn. Applies to any cup
+  whose group has that shape — most likely Ykkösliigacup's `1-4` too.
 - **Champions League layout for a cup season with tables:** tables first,
   `Pudotuspelit` below them.
 - **Cup classification keyed on the competition**, not the `category_id` —
@@ -126,10 +126,19 @@ season follows the umbrella's, as Ykkösliigacup's does.
 
 ### The format
 
-Confirmed in chat 2026-09-28: two six-team round-robins; then **A1 v B2** and
-**B1 v A2** as semi-finals; the winners meet in the final. TASO publishes the
-semi-finals and final together as one group, `1-4`: 3 matches, 4 teams, and
-one `getCategory` row per bracket slot (6). Ykkösliigacup has the same format.
+Confirmed in chat 2026-09-28: two groups, `Lohko A` and `Lohko B`, each a
+**single round-robin** (six teams, every pair once — 15 matches). The top two
+of each group go through: **A1 v B2** and **B1 v A2** in the semi-finals, and
+the two winners meet in the final. TASO publishes the semi-finals and final
+together as one group, `1-4`: 3 matches, 4 teams, and one `getCategory` row per
+bracket slot (6).
+
+Ykkösliigacup is **most likely** the same format — said in chat, not verified.
+Its `1-4` is known to be 3 matches without points (specs/015); nothing yet
+confirms it is two semi-finals and a final. The split below is structural, so
+it draws Ykkösliigacup's `1-4` only if its matches actually have that shape, and
+leaves it a list otherwise. The implementation checks the stored matches before
+calling its acceptance criterion done, rather than assuming.
 
 ### Cup classification must key on the competition
 
@@ -240,8 +249,10 @@ data already loaded.
       B1 v A2.
 - [ ] `1-4` does not appear as a separate list when it is drawn.
 - [ ] Liigacup 2023, read from `LC2023`, renders exactly as 2026 does.
-- [ ] Ykkösliigacup 2026 shows `Lohko A`/`Lohko B` as tables and its `1-4` as a
-      `Välierät` → `Loppuottelu` tree below them.
+- [ ] Ykkösliigacup 2026 shows `Lohko A`/`Lohko B` as tables, and its `1-4` as
+      a `Välierät` → `Loppuottelu` tree below them — if its matches have the
+      semi-final + final shape; if they do not, as a list under
+      `Pudotuspelit`, and that is reported on the issue.
 - [ ] MSC 2018 shows `Lohko A`–`Lohko E` as tables, and its knockout rounds
       under `Pudotuspelit` below them.
 - [ ] MSC 2025 (no group stage) is unchanged: bracket above the rounds, drawn
@@ -314,7 +325,8 @@ None outstanding. Resolved in chat, 2026-09-28:
 - *The 2016–2022 gap* — moot without 2015.
 - *What is `1-4`?* — semi-finals (A1 v B2, B1 v A2) and final in one group;
   drawn as a bracket, as Champions League draws its knockout.
-- *Does that apply to Ykkösliigacup?* — yes, same format.
+- *Does that apply to Ykkösliigacup?* — most likely the same format; the
+  structural rule draws it only if its matches bear that out.
 - *Are `Lohko A`/`Lohko B` tables?* — yes; the #272 regression is fixed here,
   for every cup.
 - *Picker name / position* — `Liigacup`, before `Ykkösliigacup`.
