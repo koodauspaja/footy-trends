@@ -121,18 +121,19 @@ export function labelFootballDataRows(
 }
 
 /** Each TASO row labelled by its competition, through whichever of the two lookups applies. */
-export function labelTasoRows(
+export async function labelTasoRows(
   team: NationalTeam | undefined,
   rows: readonly TasoMatchRow[],
   names: CategoryNames
 ): Promise<Array<Labelled<TasoMatchRow>>> {
+  // A domestic row's competition is in our own registry, so nothing is fetched
+  // and nothing is awaited — `Promise.all` over plain values would say
+  // otherwise.
   if (team === undefined) {
-    return Promise.all(
-      rows.map((row) => {
-        const code = competitionCodeForCategory(row.categoryId);
-        return { ...row, label: code === null ? row.groupName : getDomesticCompetitionName(code) };
-      })
-    );
+    return rows.map((row) => {
+      const code = competitionCodeForCategory(row.categoryId);
+      return { ...row, label: code === null ? row.groupName : getDomesticCompetitionName(code) };
+    });
   }
 
   return Promise.all(
