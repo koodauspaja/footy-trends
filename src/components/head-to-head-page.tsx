@@ -8,7 +8,7 @@ import {
   headToHeadWindow,
   headToHeadWindowSentence,
 } from "@/lib/head-to-head";
-import { teamDisplayName } from "@/lib/match-detail";
+import { PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
   getHeadToHeadHistory,
@@ -234,13 +234,14 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
 
 /**
  * The ids are the *provider's* team ids, as every team link on the site uses.
- * A non-numeric id, or a team against itself, never reaches a query.
+ * A non-numeric id, the placeholder team, or a team against itself never
+ * reaches a query.
  */
 async function resolve(options: HeadToHeadPageOptions) {
   const { a, b } = await options.params;
   const first = Number(a);
   const second = Number(b);
-  if (!isStoredInteger(first) || !isStoredInteger(second) || first === second) {
+  if (!isTeamId(first) || !isTeamId(second) || first === second) {
     return { status: "not_found" } as const;
   }
 
@@ -253,6 +254,10 @@ async function resolve(options: HeadToHeadPageOptions) {
 
   const view = await buildView(history, first, options);
   return view === null ? ({ status: "not_found" } as const) : { status: "ok" as const, view };
+}
+
+function isTeamId(id: number): boolean {
+  return isStoredInteger(id) && id !== PLACEHOLDER_TEAM_ID;
 }
 
 export async function headToHeadMetadata(

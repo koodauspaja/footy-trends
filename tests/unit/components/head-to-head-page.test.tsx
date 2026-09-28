@@ -189,6 +189,15 @@ describe("HeadToHeadPage", () => {
     expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
   });
 
+  it("is not found for the placeholder team's id, before any query", async () => {
+    // A hand-typed /kohtaamiset/0/<id>: stored placeholder matches must not
+    // render as a history against "Tuntematon joukkue".
+    await renderPage("0", String(KUPS));
+
+    expect(screen.getByText("Kohtaamisia ei löytynyt.")).toBeInTheDocument();
+    expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
+  });
+
   it("is not found when the pair has never met", async () => {
     // Reached only from a match page, so an empty history is a hand-typed URL.
     getHeadToHeadHistoryMock.mockResolvedValue({ status: "ok", matches: [] });
