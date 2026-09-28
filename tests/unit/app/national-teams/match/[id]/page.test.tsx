@@ -69,7 +69,7 @@ describe("/maajoukkueet/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "football-data", match: row() },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
   });
 
@@ -113,6 +113,7 @@ describe("/maajoukkueet/ottelu/:id", () => {
       match: { source: "football-data", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({
             providerMatchId: 428742,

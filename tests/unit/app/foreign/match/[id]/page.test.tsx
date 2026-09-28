@@ -71,6 +71,7 @@ describe("/ulkomaat/ottelu/:id", () => {
       match: { source: "football-data", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({
             providerMatchId: 490100,
@@ -140,7 +141,7 @@ describe("/ulkomaat/ottelu/:id", () => {
           penaltiesAway: 3,
         }),
       },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 

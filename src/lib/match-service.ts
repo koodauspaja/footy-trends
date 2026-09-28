@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, like, lt, ne, notLike, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, like, notLike, or } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
@@ -37,10 +37,25 @@ export type HeadToHeadResult =
   | { status: "unavailable" }
   | { status: "error" };
 
+/**
+ * The match page's head-to-head block: the five meetings it lists, and how many
+ * the pair has in all — the number its link to the full history carries
+ * (specs/042, S10).
+ *
+ * Both come from one read of the whole history, so `total` is the row count of
+ * the page the link leads to rather than a second query able to disagree with
+ * it, and a match page costs one head-to-head query, not two.
+ */
+export type PreviousMeetings =
+  | { status: "ok"; matches: FootballDataMatchRow[]; total: number }
+  | { status: "ok"; matches: TasoMatchRow[]; total: number }
+  | { status: "unavailable" }
+  | { status: "error" };
+
 export type MatchPageData =
   | { status: "not_found" }
   | { status: "error" }
-  | { status: "ok"; match: StoredMatch; headToHead: HeadToHeadResult };
+  | { status: "ok"; match: StoredMatch; headToHead: PreviousMeetings };
 
 /** The `competition_id` predicate that splits TASO's shared table by bucket. */
 function tasoBucketPredicate(bucket: "domestic" | "national") {
@@ -64,102 +79,148 @@ function isInBucket(row: TasoMatchRow, bucket: "domestic" | "national"): boolean
 }
 
 /**
- * The five most recent meetings between the same two teams, newest first.
+ * The five most recent meetings before `match`, newest first, out of the pair's
+ * whole history.
  *
- * Every clause is a decision, and they are set out in specs/019-match-page.md:
- * both orientations, strictly earlier than this match, played matches only, and
+ * Every clause is a decision, set out in specs/019-match-page.md: both
+ * orientations, strictly earlier than this match, played matches only, and
  * scoped to the same source so a Kotimaa page cannot surface a Huuhkajat row
- * out of the table they share. The ordering is total — two meetings can share a
- * kickoff instant, and a page that reordered between renders would be a bug
- * nobody could reproduce.
+ * out of the table they share. The history already applies all but "strictly
+ * earlier", and a row cannot kick off strictly before itself, so that one
+ * clause also keeps the match off its own list. The history's ordering is
+ * total — two meetings can share a kickoff instant, and a page that reordered
+ * between renders would be a bug nobody could reproduce — and filtering keeps it.
  *
  * A leg of a two-legged tie is a match here, with its own row and its own
  * score. Ties belong to the bracket; this is a list of matches.
  */
+function previousOf<Row extends FootballDataMatchRow | TasoMatchRow>(
+  match: Row,
+  history: readonly Row[]
+): Row[] {
+  return history.filter((row) => row.kickoffAt < match.kickoffAt).slice(0, HEAD_TO_HEAD_LIMIT);
+}
+
 /**
- * The five most recent meetings between the same two teams, newest first.
- *
  * Two functions rather than one taking both providers: a single one had to
  * re-check that the row and the route agreed about the source, which the caller
  * already knows by construction — and that check was an unreachable branch
  * pretending to be error handling. Each is called from the branch that already
  * proved its own types.
- *
- * Every clause is a decision, set out in specs/019-match-page.md: both
- * orientations, strictly earlier than this match, played matches only, and
- * scoped to the same source so a Kotimaa page cannot surface a Huuhkajat row
- * out of the table they share. The ordering is total — two meetings can share a
- * kickoff instant, and a page that reordered between renders would be a bug
- * nobody could reproduce.
- *
- * A leg of a two-legged tie is a match here, with its own row and its own
- * score. Ties belong to the bracket; this is a list of matches.
  */
 async function footballDataHeadToHead(
   region: CompetitionRegion,
   match: FootballDataMatchRow
-): Promise<HeadToHeadResult> {
+): Promise<PreviousMeetings> {
   if (hasPlaceholderTeam(match)) return { status: "unavailable" };
-  const home = match.homeTeamProviderId;
-  const away = match.awayTeamProviderId;
+  const history = await footballDataHistory(
+    region,
+    match.homeTeamProviderId,
+    match.awayTeamProviderId
+  );
+  return { status: "ok", matches: previousOf(match, history), total: history.length };
+}
+
+async function tasoHeadToHead(
+  bucket: "domestic" | "national",
+  match: TasoMatchRow
+): Promise<PreviousMeetings> {
+  if (hasPlaceholderTeam(match)) return { status: "unavailable" };
+  const history = await tasoHistory(bucket, match.homeTeamProviderId, match.awayTeamProviderId);
+  return { status: "ok", matches: previousOf(match, history), total: history.length };
+}
+
+/**
+ * Every stored meeting between two teams, newest first — the whole history
+ * behind specs/042, rather than the five a match page shows.
+ *
+ * Three things differ from the block on the match page, and each is a decision
+ * rather than an omission:
+ *
+ * - **no anchor** (S4). The match page takes only meetings before its own
+ *   kickoff, because it is context for that fixture; a history of the pair is
+ *   not about one fixture, so a meeting played since belongs in it;
+ * - **no limit** (S5). `HEAD_TO_HEAD_LIMIT` is a choice about the match page;
+ * - **no exclusion** of the match linked from, which is one of the meetings.
+ *
+ * What is *not* different is the competition scope (S2) or which matches count
+ * (S3): every competition in the region, finished, both scores stored. A
+ * fixture still to come is returned by neither read, so nothing on that page
+ * can describe a match that has not been played.
+ */
+export const getHeadToHeadHistory = cache(
+  async (source: MatchSource, first: number, second: number): Promise<HeadToHeadResult> => {
+    // A team has no history against itself, and asking would return every
+    // meeting it ever hosted against itself: none, but by accident.
+    if (first === second) return { status: "unavailable" };
+
+    try {
+      return source.kind === "taso"
+        ? { status: "ok", matches: await tasoHistory(source.bucket, first, second) }
+        : { status: "ok", matches: await footballDataHistory(source.region, first, second) };
+    } catch (error) {
+      logger.error({ err: error, first, second }, "Unable to read the head-to-head history");
+      return { status: "error" };
+    }
+  }
+);
+
+async function footballDataHistory(
+  region: CompetitionRegion,
+  first: number,
+  second: number
+): Promise<FootballDataMatchRow[]> {
   const codes = competitionsInRegion(region).map((competition) => competition.code);
 
-  const rows = await db
+  return db
     .select()
     .from(matches)
     .where(
       and(
         or(
-          and(eq(matches.homeTeamProviderId, home), eq(matches.awayTeamProviderId, away)),
-          and(eq(matches.homeTeamProviderId, away), eq(matches.awayTeamProviderId, home))
+          and(eq(matches.homeTeamProviderId, first), eq(matches.awayTeamProviderId, second)),
+          and(eq(matches.homeTeamProviderId, second), eq(matches.awayTeamProviderId, first))
         ),
-        ne(matches.providerMatchId, match.providerMatchId),
-        lt(matches.kickoffAt, match.kickoffAt),
         eq(matches.status, FINISHED_STATUS),
         isNotNull(matches.homeGoals),
         isNotNull(matches.awayGoals),
         inArray(matches.competitionCode, codes)
       )
     )
-    .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
-    .limit(HEAD_TO_HEAD_LIMIT);
-  return { status: "ok", matches: rows };
+    .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId));
 }
 
-async function tasoHeadToHead(
+async function tasoHistory(
   bucket: "domestic" | "national",
-  match: TasoMatchRow
-): Promise<HeadToHeadResult> {
-  if (hasPlaceholderTeam(match)) return { status: "unavailable" };
-  const home = match.homeTeamProviderId;
-  const away = match.awayTeamProviderId;
-
-  const rows = await db
+  first: number,
+  second: number
+): Promise<TasoMatchRow[]> {
+  return db
     .select()
     .from(tasoMatches)
     .where(
       and(
         or(
-          and(eq(tasoMatches.homeTeamProviderId, home), eq(tasoMatches.awayTeamProviderId, away)),
-          and(eq(tasoMatches.homeTeamProviderId, away), eq(tasoMatches.awayTeamProviderId, home))
+          and(
+            eq(tasoMatches.homeTeamProviderId, first),
+            eq(tasoMatches.awayTeamProviderId, second)
+          ),
+          and(eq(tasoMatches.homeTeamProviderId, second), eq(tasoMatches.awayTeamProviderId, first))
         ),
-        ne(tasoMatches.providerMatchId, match.providerMatchId),
-        lt(tasoMatches.kickoffAt, match.kickoffAt),
         eq(tasoMatches.status, FINISHED_STATUS),
         isNotNull(tasoMatches.homeGoals),
         isNotNull(tasoMatches.awayGoals),
         tasoBucketPredicate(bucket)
       )
     )
-    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
-    .limit(HEAD_TO_HEAD_LIMIT);
-  return { status: "ok", matches: rows };
+    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
 }
 
 const FINISHED_STATUS = "FINISHED";
 
 /**
- * One match and its previous meetings, or why neither is there.
+ * One match, its previous meetings and how many meetings the pair has in all,
+ * or why they are not there.
  *
  * Cached per request because Next.js calls `generateMetadata` and the page
  * separately, and both need the same two rows — the same reason
@@ -184,7 +245,7 @@ const loadMatchPageData = cache(async function loadMatchPageData(
   let stored: StoredMatch;
   // Bound inside the branch that knows both the row's type and the route's, so
   // the two can never disagree.
-  let headToHead: () => Promise<HeadToHeadResult>;
+  let headToHead: () => Promise<PreviousMeetings>;
   try {
     if (source.kind === "football-data") {
       const [row] = await db

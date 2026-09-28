@@ -56,6 +56,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           tasoRow({
             providerMatchId: 4000001,
@@ -120,6 +121,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           tasoRow({
             providerMatchId: 4000002,
@@ -151,6 +153,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [tasoRow({ providerMatchId: 4000004, categoryId: "X99", groupName: "Lohko A" })],
       },
     });
@@ -171,7 +174,7 @@ describe("/kotimaa/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow() },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -188,7 +191,7 @@ describe("/kotimaa/ottelu/:id", () => {
         source: "taso",
         match: tasoRow({ homeGoals: 1, awayGoals: 1, winner: "away", categoryId: "MSC" }),
       },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -225,7 +228,7 @@ describe("/kotimaa/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow({ categoryId: "X99" }) },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -299,5 +302,77 @@ describe("/kotimaa/ottelu/:id", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "4036979" }) })).toEqual({
       title: "VPS – FC Lahti, Veikkausliiga 2026",
     });
+  });
+});
+
+describe("the link to the full history (specs/042)", () => {
+  /**
+   * Its own setup: this block is a sibling of the one above, so its
+   * `beforeEach` does not run here — and without this, a shuffled run inherits
+   * whichever fixture the previous test left behind. It did: the placeholder
+   * match leaked in and the link vanished for the wrong reason.
+   */
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "ok", matches: [], total: 24 },
+    });
+  });
+
+  it("carries the number of meetings the page behind it will show", async () => {
+    // The five listed are not the count: `total` is the whole history they
+    // were taken from, which is what the page behind the link lists.
+    await renderPage();
+
+    const link = screen.getByRole("link", { name: "Kaikki kohtaamiset (24)" });
+    expect(link).toBeInTheDocument();
+  });
+
+  it("points at this region's pairing, by the two teams' provider ids", async () => {
+    await renderPage();
+
+    const link = screen.getByRole("link", { name: /Kaikki kohtaamiset/ });
+    expect(link.getAttribute("href")).toMatch(/^\/kotimaa\/kohtaamiset\/\d+\/\d+$/);
+  });
+
+  it("is absent for an unresolved bracket slot, which has no pair to open", async () => {
+    // The block above already says the meetings cannot be shown; offering a
+    // link to a page about a team that does not exist yet says the opposite.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow({ homeTeamProviderId: 0, homeTeamName: "" }) },
+      headToHead: { status: "unavailable" },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
+  });
+
+  it("is absent when the history could not be read", async () => {
+    // A failed read is not zero meetings, and a link promising a number it
+    // does not have is worse than no link.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "error" },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
+  });
+
+  it("is absent when the pair has no stored meeting", async () => {
+    // A link to an empty page is worse than no link.
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "ok", matches: [], total: 0 },
+    });
+    await renderPage();
+
+    expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
   });
 });
