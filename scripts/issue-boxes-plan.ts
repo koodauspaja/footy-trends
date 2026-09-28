@@ -142,25 +142,37 @@ export function report(verdicts: readonly IssueVerdict[]): string[] {
   const failing = verdicts.filter((verdict) => verdict.bare.length > 0);
   if (failing.length === 0) return [];
 
-  const lines: string[] = [];
-  for (const { issue, bare } of failing) {
-    lines.push(
-      `Issue #${issue} has ${bare.length === 1 ? "a box" : `${bare.length} boxes`} that is neither ticked nor explained:`
-    );
-    for (const box of bare) lines.push(`  - [ ] ${box.text}`);
-    lines.push("");
-  }
-
-  lines.push("Tick each one it is honest to tick — a box is ticked because the outcome");
-  lines.push("was verified, not because the code was written. Where a criterion cannot be");
-  lines.push("ticked honestly, say so on the issue instead, after an em dash and in bold:");
-  lines.push("");
-  lines.push(
-    "  - [ ] The criterion — **not ticked: it needs a live page, and I have not looked.**"
-  );
-
-  return lines;
+  return [
+    ...failing.flatMap(({ issue, bare }) => [
+      `Issue #${issue} has ${countOf(bare)}:`,
+      ...bare.map((box) => `  - [ ] ${box.text}`),
+      "",
+    ]),
+    ...ADVICE,
+  ];
 }
+
+/** `a box that is neither ticked nor explained`, in whichever number it is. */
+function countOf(bare: readonly Box[]): string {
+  const subject = bare.length === 1 ? "a box that is" : `${bare.length} boxes that are`;
+  return `${subject} neither ticked nor explained`;
+}
+
+/**
+ * What to do about a bare box, printed once after the list however many issues
+ * the pull request closed.
+ *
+ * The instruction is the rule itself rather than "tick them": a box ticked to
+ * clear a red check is the failure this whole thing exists to catch, so the
+ * message says what a tick means before it asks for one.
+ */
+const ADVICE: readonly string[] = [
+  "Tick each one it is honest to tick — a box is ticked because the outcome",
+  "was verified, not because the code was written. Where a criterion cannot be",
+  "ticked honestly, say so on the issue instead, after an em dash and in bold:",
+  "",
+  "  - [ ] The criterion — **not ticked: it needs a live page, and I have not looked.**",
+];
 
 /** What the check prints when nothing is wrong, so a green run still says what it checked. */
 export function summary(verdicts: readonly IssueVerdict[]): string {

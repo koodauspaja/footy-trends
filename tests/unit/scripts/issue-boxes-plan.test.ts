@@ -71,38 +71,44 @@ describe("boxesIn", () => {
     ]);
   });
 
-  it("takes an em dash and bold as the reason, as #448 writes it", () => {
-    expect(boxesIn(ISSUE_448)[0]?.explained).toBe(true);
-  });
-
-  it("takes a reason that never says the words not ticked, as #426 writes it", () => {
-    expect(boxesIn(ISSUE_426)[0]?.explained).toBe(true);
-  });
-
-  it("reads a reason that wraps onto the next line, as #406 stores it", () => {
-    // Reading only the first line would call this bare, which is the one
-    // verdict the check must never get wrong.
-    expect(boxesIn(ISSUE_406)[0]?.explained).toBe(true);
-  });
-
-  it("does not take an em dash alone as a reason, as #467's own boxes show", () => {
-    /**
-     * Criterion text contains em dashes routinely — #467 opens with one — so
-     * the dash cannot be the marker. The **bold** is, and without this the
-     * check would pass every issue whose scope happens to be written with a
-     * dash in it.
-     */
-    const body =
-      "- [ ] Establish the cause rather than assume it — the collision above is a hypothesis";
-
-    expect(boxesIn(body)[0]?.explained).toBe(false);
-  });
-
-  it("does not take bold alone as a reason either", () => {
-    // Bold appears inside criteria too: #463's own scope bolds a phrase.
-    const body = "- [ ] A script that, given a PR, **resolves** the issue it closes";
-
-    expect(boxesIn(body)[0]?.explained).toBe(false);
+  /**
+   * What counts as a reason, and what does not — one table, because every row
+   * asks the same question of a different body and a list of near-identical
+   * `it`s hides the shape.
+   *
+   * The true rows are quoted from the issues that carry a reason (#448, #426,
+   * #406) rather than written to fit the regex. The false ones are the two
+   * halves of its shape, each of which appears in ordinary criterion text:
+   * #467's first box opens with an em dash, and #463's scope bolds a phrase.
+   */
+  it.each([
+    ["#448's em dash and bold", ISSUE_448, true],
+    ["#426's reason, which never says the words not ticked", ISSUE_426, true],
+    ["#406's reason, wrapped onto the next line", ISSUE_406, true],
+    [
+      "an em dash alone, as #467's own boxes have",
+      "- [ ] Establish the cause rather than assume it — the collision above is a hypothesis",
+      false,
+    ],
+    [
+      "bold alone, as #463's scope has",
+      "- [ ] A script that, given a PR, **resolves** the issue it closes",
+      false,
+    ],
+    [
+      "a paragraph after a blank line",
+      "- [ ] bare\n\nA note about the issue — **which is not this box's reason.**",
+      false,
+    ],
+    ["the next heading's text", "- [ ] bare\n## Notes — **not a reason either**", false],
+    ["an indented heading, which Markdown allows", "- [ ] bare\n   ## Notes — **no**", false],
+    [
+      "a hashtag, which is not a heading and must not cut a reason in half",
+      "- [ ] bare\n#tag — **and this is the reason.**",
+      true,
+    ],
+  ])("reads %s", (_case, body, explained) => {
+    expect(boxesIn(body as string)[0]?.explained).toBe(explained);
   });
 
   it("does not let the next box's reason explain the one above it", () => {
