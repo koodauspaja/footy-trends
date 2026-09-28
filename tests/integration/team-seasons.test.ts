@@ -9,17 +9,17 @@ import { getTeamName, getTeamSeasons } from "@/lib/team-seasons";
  * club has matches for, and in what order the selector receives them. See
  * specs/022-teams-between-tiers.md.
  */
-const TEAM = 993101;
-const OTHER = 993102;
-const TASO_IDS = [993001, 993002, 993003, 993004, 993005];
-const FD_IDS = [993001, 993002];
+const TEAM = 994101;
+const OTHER = 994102;
+const TASO_IDS = [994001, 994002, 994003, 994004, 994005];
+const FD_IDS = [994001, 994002];
 
 function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
   return {
-    providerMatchId: 993001,
+    providerMatchId: 994001,
     competitionCode: "spljp90",
     categoryId: "VL",
-    seasonId: 990801,
+    seasonId: 994801,
     groupId: 1,
     groupName: "Runkosarja",
     kickoffAt: new Date("2026-05-01T15:00:00Z"),
@@ -38,9 +38,9 @@ function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
 
 function footballDataRow(overrides: Partial<typeof matches.$inferInsert> = {}) {
   return {
-    providerMatchId: 993001,
+    providerMatchId: 994001,
     competitionCode: "PL",
-    seasonId: 990801,
+    seasonId: 994801,
     kickoffAt: new Date("2026-05-01T15:00:00Z"),
     matchday: 1,
     status: "FINISHED",
@@ -73,11 +73,11 @@ afterEach(clearFixtures);
 describe("a club's own seasons", () => {
   it("returns every competition and season it played, newest first", async () => {
     await db.insert(tasoMatches).values([
-      tasoRow({ providerMatchId: 993001, categoryId: "VL", seasonId: 990800 }),
+      tasoRow({ providerMatchId: 994001, categoryId: "VL", seasonId: 994800 }),
       tasoRow({
-        providerMatchId: 993002,
+        providerMatchId: 994002,
         categoryId: "M1L",
-        seasonId: 990801,
+        seasonId: 994801,
         kickoffAt: new Date("2026-08-01T15:00:00Z"),
       }),
     ]);
@@ -87,8 +87,8 @@ describe("a club's own seasons", () => {
     expect(result).toEqual({
       status: "ok",
       seasons: [
-        { competitionCode: "M1L", seasonId: 990801, matches: 1 },
-        { competitionCode: "VL", seasonId: 990800, matches: 1 },
+        { competitionCode: "M1L", seasonId: 994801, matches: 1 },
+        { competitionCode: "VL", seasonId: 994800, matches: 1 },
       ],
     });
   });
@@ -98,9 +98,9 @@ describe("a club's own seasons", () => {
     await db
       .insert(tasoMatches)
       .values([
-        tasoRow({ providerMatchId: 993001, categoryId: "MSC" }),
-        tasoRow({ providerMatchId: 993002, categoryId: "VL" }),
-        tasoRow({ providerMatchId: 993003, categoryId: "VL" }),
+        tasoRow({ providerMatchId: 994001, categoryId: "MSC" }),
+        tasoRow({ providerMatchId: 994002, categoryId: "VL" }),
+        tasoRow({ providerMatchId: 994003, categoryId: "VL" }),
       ]);
 
     const result = await getTeamSeasons({ kind: "taso", bucket: "domestic" }, TEAM);
@@ -135,18 +135,18 @@ describe("a club's own seasons", () => {
     await db
       .insert(matches)
       .values([
-        footballDataRow({ providerMatchId: 993001, competitionCode: "PL", seasonId: 990801 }),
-        footballDataRow({ providerMatchId: 993002, competitionCode: "WC", seasonId: 990800 }),
+        footballDataRow({ providerMatchId: 994001, competitionCode: "PL", seasonId: 994801 }),
+        footballDataRow({ providerMatchId: 994002, competitionCode: "WC", seasonId: 994800 }),
       ]);
 
     const result = await getTeamSeasons({ kind: "football-data", region: "foreign" }, TEAM);
 
     if (result.status !== "ok") throw new Error("expected seasons");
-    expect(result.seasons).toEqual([{ competitionCode: "PL", seasonId: 990801, matches: 1 }]);
+    expect(result.seasons).toEqual([{ competitionCode: "PL", seasonId: 994801, matches: 1 }]);
   });
 
   it("answers not_found for a club with nothing stored", async () => {
-    expect(await getTeamSeasons({ kind: "taso", bucket: "domestic" }, 993999)).toEqual({
+    expect(await getTeamSeasons({ kind: "taso", bucket: "domestic" }, 994999)).toEqual({
       status: "not_found",
     });
   });

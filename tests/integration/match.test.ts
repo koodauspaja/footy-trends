@@ -12,11 +12,11 @@ import { getMatchPageData } from "@/lib/match-service";
  * Fixture ids are far above anything either provider issues, and are deleted
  * either side of every test.
  */
-const HOME = 990101;
-const AWAY = 990102;
-const OTHER = 990103;
+const HOME = 991101;
+const AWAY = 991102;
+const OTHER = 991103;
 // Distinct from the standings suite's own fixtures, which share these tables.
-const SEASON = 990777;
+const SEASON = 991777;
 
 const TASO_IDS = [991001, 991002, 991003, 991004, 991005, 991006, 991007, 991008, 991009];
 const FD_IDS = [991001, 991002, 991003];
