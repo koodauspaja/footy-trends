@@ -70,7 +70,35 @@ Workflow
 7. Commit the change with a conventional commit message that references the
    issue when applicable, for example:
    `chore: update development documentation (#NNN)`.
-8. Push the chore branch and open a pull request against `main`.
+8. **Tick the issue's checkboxes before opening the pull request.** Go through the
+   issue's checklist sections — Acceptance criteria always, plus Scope
+   where the template has it — and mark each box that is done.
+
+   A box is ticked because the outcome was **verified**, not because the code
+   was written — if a criterion says a page renders something, load it and
+   look. Where a criterion cannot be ticked honestly, say so on the issue
+   rather than leaving it silently blank or ticking it anyway.
+
+   **Do it before the pull request is opened**, not after. `npm run
+   check:boxes` reads the issue on every pull request through CI's `Issue
+   checkboxes` job (#463), and GitHub does not re-run a check when an issue is
+   edited — so a box ticked afterwards leaves a stale red result until someone
+   re-runs the job.
+
+   A criterion that cannot be ticked honestly says so **on the box**, after an
+   em dash and in bold, which is the shape that check reads:
+
+   ```
+   - [ ] The criterion — **not ticked: it needs a live page, and I have not
+         looked.**
+   ```
+
+   This is as much a check on the work as a record of it: a criterion that
+   resists ticking usually means something was missed. It is easy to skip
+   because nothing fails when you do — #158 was implemented, verified, merged
+   and closed with all eight boxes empty.
+
+9. Push the chore branch and open a pull request against `main`.
    - Link the originating GitHub issue with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or `Refs #NNN`.
      Only a closing keyword makes GitHub populate the PR↔issue link; the
@@ -82,20 +110,6 @@ Workflow
    - Mark the Spec and Decision record sections as `Not applicable - chore`.
    - Do not create placeholder files in `specs/` or `decisions/`.
    - Move the card to `In Review` once the pull request is open.
-9. **Tick the issue's checkboxes before handing the PR off.** Go through the
-   issue's checklist sections — Acceptance criteria always, plus Scope
-   where the template has it — and mark each box that is done.
-
-   A box is ticked because the outcome was **verified**, not because the code
-   was written — if a criterion says a page renders something, load it and
-   look. Where a criterion cannot be ticked honestly, say so on the issue
-   rather than leaving it silently blank or ticking it anyway.
-
-   This is as much a check on the work as a record of it: a criterion that
-   resists ticking usually means something was missed. It is easy to skip
-   because nothing fails when you do — #158 was implemented, verified, merged
-   and closed with all eight boxes empty.
-
 10. Leave the pull request for human review. **Never merge on your own
     initiative** — however green it is. Merge only when a human tells you to;
     that instruction is the allowed final step, not an exception to the rule.
