@@ -179,6 +179,8 @@ rounds is out of scope.
       section renders as a cup team page does (specs/040).
 - [ ] Head-to-head history (specs/042) between two Veikkausliiga clubs includes
       their Liigacup meetings once the data is stored.
+- [ ] `npm run backfill` fetches and stores Liigacup 2023–2026 — `Liigacup23`
+      with `LC2023`, `Liigacup24`–`26` with `LC` — and a re-run skips them.
 - [ ] Existing competitions on `/kotimaa` are unchanged.
 - [ ] `specs/015-finnish-cups.md`'s Out of scope line no longer claims Liigacup
       was deliberately excluded.
@@ -209,6 +211,13 @@ rounds is out of scope.
   it, with a note that its exclusion was misrecorded and a pointer here.
 - `src/lib/domestic-competitions.ts` — one entry, plus a comment recording the
   live probes behind its season floor.
+- `scripts/backfill-run.ts` — **no change expected.** It already walks
+  `DOMESTIC_COMPETITIONS` and resolves each season through
+  `competitionIdForSeason`, `categoryIdForSeason` and `earliestSeasonFor`, so
+  the registry entry puts Liigacup in the backfill. Verified by running it, per
+  the acceptance criterion, not assumed. If Open Question 1 brings 2015 in, this
+  stops being true: `alreadyStoredTaso` keys on `category_id` + season only, and
+  the backfill resolves one prefix per competition.
 - `decisions/043-liigacup.md` — written by the implementing agent.
 - `.env.example` — **no change**; noted so the reviewer knows it was checked.
 
