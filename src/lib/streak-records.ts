@@ -37,10 +37,27 @@ export type StreakRecord = { length: number; from: string; to: string };
 export type StreakRecords = Record<StreakKind, StreakRecord | null>;
 
 export type StreakRecordsSeries =
-  | ({ status: "ok" } & { records: StreakRecords; seasons: number })
+  | ({ status: "ok" } & {
+      records: StreakRecords;
+      /**
+       * What the records cover, as the panel prints it (specs/040 S9, specs/041
+       * S12). The panel says so because it never did on any page — a reader on a
+       * club's cup page could otherwise take its records for the club's own.
+       *
+       * **One line, built by the caller**, because what identifies the run
+       * differs by page: a club page names the competitions, and a
+       * national-team page names the span of years its records reach across.
+       * A field holding competition names that sometimes held years instead
+       * would be two meanings in one place.
+       */
+      scope: string;
+    })
   /** No league season at all for this club, so no panel. */
   | { status: "unavailable" }
   | { status: "error" };
+
+/** One period the records were read from, for the line that says what they cover. */
+export type Covered = { competition: string; seasonId: number };
 
 /** A match tagged with the season it was played in, so a record can name it. */
 type PlacedMatch = ResultMatch & { label: string };
@@ -168,7 +185,8 @@ export async function recordsFor<T extends SeasonKey>(
   seasons: readonly T[],
   isLeague: (competitionCode: string) => boolean,
   label: (seasonId: number) => string,
-  read: (key: SeasonKey) => Promise<SeasonReadResult>
+  read: (key: SeasonKey) => Promise<SeasonReadResult>,
+  describe: (covered: readonly Covered[]) => string
 ): Promise<StreakRecordsSeries> {
   const results: Array<{ season: T; result: SeasonReadResult }> = await Promise.all(
     leagueSeasons(seasons, isLeague).map(async (season) => ({
@@ -178,19 +196,37 @@ export async function recordsFor<T extends SeasonKey>(
   );
   if (results.some(({ result }) => result.status === "error")) return { status: "error" };
 
-  const stored: RecordSeason[] = results.flatMap(({ season, result }) =>
-    result.status === "ok"
-      ? [
-          {
-            competitionCode: season.competitionCode,
-            seasonId: season.seasonId,
-            label: label(season.seasonId),
-            finished: result.read.finished,
-          },
-        ]
-      : []
+  const loaded = results.flatMap(({ season, result }) =>
+    result.status === "ok" ? [{ season, season_read: result.read }] : []
   );
-  if (stored.length === 0) return { status: "unavailable" };
+  if (loaded.length === 0) return { status: "unavailable" };
 
-  return { status: "ok", records: streakRecords(stored, teamId), seasons: stored.length };
+  const stored: RecordSeason[] = loaded.map(({ season, season_read }) => ({
+    competitionCode: season.competitionCode,
+    seasonId: season.seasonId,
+    label: label(season.seasonId),
+    finished: season_read.finished,
+  }));
+
+  return {
+    status: "ok",
+    records: streakRecords(stored, teamId),
+    scope: describe(
+      loaded.map(({ season, season_read }) => ({
+        competition: season_read.competition,
+        seasonId: season.seasonId,
+      }))
+    ),
+  };
+}
+
+/**
+ * What a club page's records cover: the competitions, each named once, in the
+ * order met (specs/040, S9).
+ *
+ * Shared by both providers rather than written at each call site — they differ
+ * in how a season is read and in nothing about how it is named.
+ */
+export function competitionScope(covered: readonly Covered[]): string {
+  return [...new Set(covered.map(({ competition }) => competition))].join(", ");
 }

@@ -2049,10 +2049,10 @@ describe("getTeamSeasonComparison", () => {
   it("reads the club's records across its league seasons (specs/039)", async () => {
     mockSeasonReads(strongSeason, strongSeason);
 
-    const result = await getTeamStreakRecords(1, ACTIVE_SEASON, seasons, String);
+    const result = await getTeamStreakRecords(COMPETITION_CODE, 1, ACTIVE_SEASON, seasons, String);
 
     expect(result.status).toBe("ok");
-    expect(result.status === "ok" && result.seasons).toBe(2);
+    expect(result.status === "ok" && result.scope).toBe("Valioliiga");
     // Both stored seasons are wins, and they are consecutive years in one
     // competition, so the run crosses the boundary.
     expect(result.status === "ok" && result.records.wins?.length).toBe(4);
@@ -2064,13 +2064,52 @@ describe("getTeamSeasonComparison", () => {
     const from = vi.fn().mockReturnValue({ where });
     dbMock.select.mockReturnValue({ from });
 
-    expect(await getTeamStreakRecords(1, ACTIVE_SEASON, seasons, String)).toEqual({
-      status: "error",
-    });
+    expect(await getTeamStreakRecords(COMPETITION_CODE, 1, ACTIVE_SEASON, seasons, String)).toEqual(
+      { status: "error" }
+    );
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ teamProviderId: 1 }),
       "Unable to read the club's streak records"
     );
+  });
+
+  it("compares a cup season only with that cup's other seasons (specs/040)", async () => {
+    const CUP = "CL";
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
+
+    const comparison = await getTeamSeasonComparison(CUP, 1, PAST_SEASON, ACTIVE_SEASON, [
+      { competitionCode: CUP, seasonId: PAST_SEASON, matches: 8 },
+      { competitionCode: CUP, seasonId: OLDER_SEASON, matches: 8 },
+      // A league season of the same club is never a cup baseline (S1).
+      { competitionCode: COMPETITION_CODE, seasonId: OLDER_SEASON, matches: 38 },
+    ]);
+
+    expect(comparison.status).toBe("ok");
+    if (comparison.status !== "ok") return;
+    expect(comparison.seasons).toBe(1);
+    expect(comparison.competitions).toEqual(["Mestarien liiga"]);
+    // Dropped, not `–`: a cup has no table to rank a position in (S7).
+    expect(comparison.rows.map((row) => row.measure)).not.toContain("position");
+  });
+
+  it("names the cup in the records it covers (specs/040)", async () => {
+    const CUP = "CL";
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockSeasonReads(strongSeason, weakSeason);
+
+    const result = await getTeamStreakRecords(
+      CUP,
+      1,
+      ACTIVE_SEASON,
+      [
+        { competitionCode: CUP, seasonId: PAST_SEASON, matches: 8 },
+        { competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON, matches: 38 },
+      ],
+      String
+    );
+
+    expect(result.status === "ok" && result.scope).toBe("Mestarien liiga");
   });
 
   it("has no panel when nothing is stored for the selected season", async () => {

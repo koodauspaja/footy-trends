@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ResultMatch } from "@/lib/form-series";
 import {
+  competitionScope,
   hasAnyRecord,
   labelAt,
   type RecordSeason,
@@ -220,13 +221,18 @@ describe("recordsFor", () => {
   const isLeague = (code: string) => code !== "CUP";
   const label = (year: number) => String(year);
 
-  /** A season read carrying `results` for this team. */
-  function readOf(seasonId: number, results: string) {
+  /**
+   * A season read carrying `results` for this team, named after its code — so
+   * `competitions` says exactly which seasons were counted rather than only
+   * how many.
+   */
+  const NAMES: Record<string, string> = { VL: "Veikkausliiga", M1: "Ykkönen", CUP: "Suomen Cup" };
+  function readOf(code: string, seasonId: number, results: string) {
     return {
       status: "ok" as const,
       read: {
-        competition: "Veikkausliiga",
-        finished: season("VL", seasonId, results).finished.map((m) => ({ ...m, matchday: null })),
+        competition: NAMES[code] ?? code,
+        finished: season(code, seasonId, results).finished.map((m) => ({ ...m, matchday: null })),
         all: [],
         points: [],
         teamCount: 0,
@@ -243,12 +249,14 @@ describe("recordsFor", () => {
       ],
       isLeague,
       label,
-      async (key) => readOf(key.seasonId, key.seasonId === 2024 ? "HVVV" : "VVVH")
+      async (key) =>
+        readOf(key.competitionCode, key.seasonId, key.seasonId === 2024 ? "HVVV" : "VVVH"),
+      competitionScope
     );
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
-    expect(result.seasons).toBe(2);
+    expect(result.scope).toBe("Veikkausliiga");
     // The run crosses the boundary: three wins then three more.
     expect(result.records.wins).toEqual({ length: 6, from: "2024", to: "2025" });
   });
@@ -262,10 +270,12 @@ describe("recordsFor", () => {
       ],
       isLeague,
       label,
-      async (key) => readOf(key.seasonId, "VV")
+      async (key) => readOf(key.competitionCode, key.seasonId, "VV"),
+      competitionScope
     );
 
-    expect(result.status === "ok" && result.seasons).toBe(1);
+    // The cup is not counted, so it is not named either.
+    expect(result.status === "ok" && result.scope).toBe("Veikkausliiga");
   });
 
   it("fails the panel when any season failed to read", async () => {
@@ -277,7 +287,9 @@ describe("recordsFor", () => {
       ],
       isLeague,
       label,
-      async (key) => (key.seasonId === 2024 ? readOf(2024, "VV") : { status: "error" as const })
+      async (key) =>
+        key.seasonId === 2024 ? readOf("VL", 2024, "VV") : { status: "error" as const },
+      competitionScope
     );
 
     expect(result).toEqual({ status: "error" });
@@ -292,10 +304,13 @@ describe("recordsFor", () => {
       ],
       isLeague,
       label,
-      async (key) => (key.seasonId === 2024 ? readOf(2024, "VV") : { status: "empty" as const })
+      async (key) =>
+        key.seasonId === 2024 ? readOf("VL", 2024, "VV") : { status: "empty" as const },
+      competitionScope
     );
 
-    expect(result.status === "ok" && result.seasons).toBe(1);
+    // The empty season contributes nothing, so only the one that read is named.
+    expect(result.status === "ok" && result.scope).toBe("Veikkausliiga");
   });
 
   it("has no panel when the club has no stored league season at all", async () => {
@@ -304,7 +319,8 @@ describe("recordsFor", () => {
       [{ competitionCode: "CUP", seasonId: 2024 }],
       isLeague,
       label,
-      async () => readOf(2024, "VV")
+      async () => readOf("VL", 2024, "VV"),
+      competitionScope
     );
 
     expect(result).toEqual({ status: "unavailable" });

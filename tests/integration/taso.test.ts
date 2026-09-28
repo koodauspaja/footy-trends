@@ -11,8 +11,8 @@ vi.mock("@/lib/taso", async (importOriginal) => {
   return { ...actual, getSeasonMatches: vi.fn(), getSeasonGroups: vi.fn() };
 });
 
-const competitionId = "spljp990001";
-const seasonId = 990001;
+const competitionId = "spljp901101";
+const seasonId = 901101;
 /** Makes `seasonId` a completed past season rather than the one being played. */
 const laterActiveSeasonId = seasonId + 1;
 
@@ -30,7 +30,7 @@ function toFinishedMatches<T extends { homeGoals: number | null; awayGoals: numb
 
 function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTasoMatch {
   return {
-    providerMatchId: 900001,
+    providerMatchId: 901001,
     competitionCode: competitionId,
     categoryId: CATEGORY_ID,
     seasonId,
@@ -106,8 +106,8 @@ describe("taso integration", () => {
 
   it("round-trips the half-time score, a goalless first half included (specs/036)", async () => {
     const { synchronizeMatches } = await import("@/lib/taso-standings-service");
-    const goalless = buildMatch({ providerMatchId: 900011, halfTimeHome: 0, halfTimeAway: 0 });
-    const behind = buildMatch({ providerMatchId: 900012, halfTimeHome: 0, halfTimeAway: 1 });
+    const goalless = buildMatch({ providerMatchId: 901011, halfTimeHome: 0, halfTimeAway: 0 });
+    const behind = buildMatch({ providerMatchId: 901012, halfTimeHome: 0, halfTimeAway: 1 });
 
     await synchronizeMatches([goalless, behind]);
     const stored = await db
@@ -122,8 +122,8 @@ describe("taso integration", () => {
         .map((row) => [row.providerMatchId, row.halfTimeHome, row.halfTimeAway])
         .sort((a, b) => Number(a[0]) - Number(b[0]))
     ).toEqual([
-      [900011, 0, 0],
-      [900012, 0, 1],
+      [901011, 0, 0],
+      [901012, 0, 1],
     ]);
   });
 
@@ -156,9 +156,9 @@ describe("taso integration", () => {
     const otherCategoryId = "M2";
 
     await synchronizeMatches([
-      buildMatch({ providerMatchId: 900001, groupId: 1, groupName: "Runkosarja" }),
+      buildMatch({ providerMatchId: 901001, groupId: 1, groupName: "Runkosarja" }),
       buildMatch({
-        providerMatchId: 900002,
+        providerMatchId: 901002,
         categoryId: otherCategoryId,
         groupId: 1,
         groupName: "Lohko A",
@@ -207,16 +207,16 @@ describe("taso integration", () => {
     );
     expect(kakkonenMatches.status === "ok" && kakkonenMatches.matches).toHaveLength(1);
     expect(kakkonenMatches.status === "ok" && kakkonenMatches.matches[0]?.providerMatchId).toBe(
-      900002
+      901002
     );
   });
 
   it("own-calculates the origin group from stored matches, round-filtered", async () => {
     const { synchronizeMatches, getSeasonStandings } = await import("@/lib/taso-standings-service");
     await synchronizeMatches([
-      buildMatch({ providerMatchId: 900001, matchday: 1 }),
+      buildMatch({ providerMatchId: 901001, matchday: 1 }),
       buildMatch({
-        providerMatchId: 900002,
+        providerMatchId: 901002,
         matchday: 2,
         homeTeamProviderId: 9002,
         awayTeamProviderId: 9001,
@@ -257,7 +257,7 @@ describe("taso integration", () => {
     );
     const finished = buildMatch();
     const upcoming = buildMatch({
-      providerMatchId: 900002,
+      providerMatchId: 901002,
       status: "SCHEDULED",
       homeGoals: null,
       awayGoals: null,
@@ -292,14 +292,14 @@ describe("taso integration", () => {
     const { synchronizeMatches, getTeamMatches } = await import("@/lib/taso-standings-service");
     await synchronizeMatches([
       buildMatch({
-        providerMatchId: 900002,
+        providerMatchId: 901002,
         groupId: 2,
         groupName: "Mestaruussarja",
         matchday: 23,
         kickoffAt: new Date("2026-09-01T15:00:00Z"),
       }),
       buildMatch({
-        providerMatchId: 900001,
+        providerMatchId: 901001,
         groupId: 1,
         groupName: "Runkosarja",
         kickoffAt: new Date("2026-08-01T15:00:00Z"),
@@ -310,7 +310,7 @@ describe("taso integration", () => {
 
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
-      900001, 900002,
+      901001, 901002,
     ]);
     expect(result.status === "ok" && result.matches.map((m) => m.groupName)).toEqual([
       "Runkosarja",
@@ -322,20 +322,20 @@ describe("taso integration", () => {
     const { synchronizeMatches, getSeasonMatchList } = await import("@/lib/taso-standings-service");
     await synchronizeMatches([
       buildMatch({
-        providerMatchId: 900002,
+        providerMatchId: 901002,
         groupId: 2,
         groupName: "Mestaruussarja",
         matchday: 23,
         kickoffAt: new Date("2026-09-01T15:00:00Z"),
       }),
-      buildMatch({ providerMatchId: 900001, kickoffAt: new Date("2026-08-01T15:00:00Z") }),
+      buildMatch({ providerMatchId: 901001, kickoffAt: new Date("2026-08-01T15:00:00Z") }),
     ]);
 
     const result = await getSeasonMatchList(CATEGORY_ID, competitionId, seasonId, seasonId);
 
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([
-      900001, 900002,
+      901001, 901002,
     ]);
   });
 
@@ -406,7 +406,7 @@ describe("synchronizeGroupTeams concurrency", () => {
     // both insert — and one dies on the identity index. Only reachable on a cold
     // database, which is exactly a first deploy, and exactly when there is no
     // stored data for the caller's catch to fall back to.
-    const seasonId = 990002;
+    const seasonId = 901102;
     const rows = [1, 2, 3].map((id) => ({
       categoryId: "VL",
       competitionCode: "spljp99",

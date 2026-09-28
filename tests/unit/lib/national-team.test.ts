@@ -3,6 +3,7 @@ import {
   byKickoffThenId,
   competitionIdForYear,
   competitionLabel,
+  FINLAND_TEAM_ID,
   groupByPlayedYear,
   isFinlandMatch,
   MENS_TEAM,
@@ -10,6 +11,7 @@ import {
   NATIONAL_TEAM_ACTIVE_YEAR,
   NATIONAL_TEAM_YEARS,
   nationalTeamCategories,
+  normalizeFinlandId,
   playedYear,
   WOMENS_TEAM,
 } from "@/lib/national-team";
@@ -234,5 +236,57 @@ describe("groupByPlayedYear", () => {
 
   it("produces no group for a year with no matches", () => {
     expect(groupByPlayedYear([]).map((group) => group.year)).toEqual([]);
+  });
+});
+
+describe("normalizeFinlandId (specs/041, S1)", () => {
+  const base = {
+    homeTeamName: "Suomi",
+    homeTeamProviderId: 4321,
+    awayTeamName: "Ruotsi",
+    awayTeamProviderId: 99,
+  };
+
+  it("writes the reserved id on Finland at home, leaving the opponent alone", () => {
+    expect(normalizeFinlandId(base)).toEqual({
+      ...base,
+      homeTeamProviderId: FINLAND_TEAM_ID,
+    });
+  });
+
+  it("writes it on Finland away, wherever TASO put them", () => {
+    const away = {
+      homeTeamName: "Ruotsi",
+      homeTeamProviderId: 99,
+      awayTeamName: "Suomi",
+      awayTeamProviderId: 8765,
+    };
+
+    expect(normalizeFinlandId(away)).toEqual({ ...away, awayTeamProviderId: FINLAND_TEAM_ID });
+  });
+
+  it("leaves a match Finland is not in exactly as it was", () => {
+    const other = {
+      homeTeamName: "Ruotsi",
+      homeTeamProviderId: 99,
+      awayTeamName: "Norja",
+      awayTeamProviderId: 98,
+    };
+
+    // Unreachable through the page, because `isFinlandMatch` runs first — but a
+    // transformation that quietly relabelled another team would be worse than
+    // one that does nothing.
+    expect(normalizeFinlandId(other)).toEqual(other);
+  });
+
+  it("cannot collide with a provider id, which is always positive", () => {
+    expect(FINLAND_TEAM_ID).toBeLessThan(0);
+  });
+
+  it("does not mutate the match it was given", () => {
+    const match = { ...base };
+    normalizeFinlandId(match);
+
+    expect(match.homeTeamProviderId).toBe(4321);
   });
 });

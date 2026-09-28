@@ -12,7 +12,7 @@ vi.mock("@/lib/football-data", () => ({
 
 const competitionCode = "PL";
 const otherCompetitionCode = "BL1";
-const seasonId = 990001;
+const seasonId = 900901;
 /** Makes `seasonId` a completed past season rather than the one being played. */
 const laterActiveSeasonId = seasonId + 1;
 const cacheKey = `standings:${competitionCode}:${seasonId}`;
@@ -255,6 +255,7 @@ describe("standings integration", () => {
     ]);
 
     const result = await getTeamStreakRecords(
+      competitionCode,
       9001,
       seasonId,
       [
@@ -266,6 +267,7 @@ describe("standings integration", () => {
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
+    expect(result.scope).toBe("Valioliiga");
     expect(result.records.wins).toEqual({
       length: 2,
       from: String(olderSeasonId),

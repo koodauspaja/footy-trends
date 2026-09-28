@@ -2802,6 +2802,131 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     );
   }
 
+  describe("a cup, which has no table (specs/040)", () => {
+    const CUP = "MSC";
+    const SEASON = "spljp25";
+    /** Two knockout ties: `points: null` makes the group a match list. */
+    const matches = [onDay(CUP, SEASON, 9, 1, 2, 3, 0), onDay(CUP, SEASON, 9, 2, 3, 2, 0)].map(
+      (row) => ({ ...row, categoryId: CUP })
+    );
+    const rows = rowsFor(CUP, SEASON, 9, [1, 2, 3], null);
+
+    let nextCupSeason = PAST_SEASON - 100;
+    function ownSeason() {
+      nextCupSeason -= 10;
+      return nextCupSeason;
+    }
+
+    it("counts a knockout group's matches, which the league selection drops", async () => {
+      // `teamLeagueMatches` keeps only table groups, so it finds nothing here.
+      // The cup selection keeps every group, which is why the panels appear.
+      mockStoredMatches(matches, rows);
+
+      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+
+      expect(series.status).toBe("ok");
+      expect(series.status === "ok" && series.longest.wins?.length).toBe(2);
+    });
+
+    it("counts the club on either side of a cup tie", async () => {
+      // Away, so the selection is not quietly reading only the home column.
+      const away = [onDay(CUP, SEASON, 9, 3, 4, 2, 1, false)].map((row) => ({
+        ...row,
+        categoryId: CUP,
+      }));
+      mockStoredMatches(away, rowsFor(CUP, SEASON, 9, [1, 4], null));
+
+      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+
+      expect(series.status === "ok" && series.longest.wins?.length).toBe(1);
+    });
+
+    it("has no panel when the club played no cup match that season", async () => {
+      getSeasonGroupsMock.mockResolvedValue([]);
+      getSeasonMatchesMock.mockResolvedValue([]);
+      mockStoredMatches(matches, rows);
+
+      expect(await getTeamStreaks(CUP, SEASON, 99, ownSeason(), ACTIVE_SEASON)).toEqual({
+        status: "unavailable",
+      });
+    });
+
+    it("reports an empty season rather than a missing one for a cup with nothing stored", async () => {
+      // Reachable and empty is a season not stored, not a failure. The league
+      // path answers the same way — `no-matches` becomes an ok series with no
+      // runs in it — so a cup does not invent a third behaviour.
+      getSeasonGroupsMock.mockResolvedValue([]);
+      getSeasonMatchesMock.mockResolvedValue([]);
+      mockStoredMatches([], []);
+
+      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+
+      expect(series.status).toBe("ok");
+      expect(series.status === "ok" && series.current).toBeNull();
+      expect(series.status === "ok" && series.longest.wins).toBeNull();
+    });
+
+    it("reports an error when a cup season cannot be read at all", async () => {
+      mockStoredMatches([], []);
+      getSeasonGroupsMock.mockRejectedValue(new Error("TASO unavailable"));
+      getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
+
+      expect(await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON)).toEqual({
+        status: "error",
+      });
+    });
+
+    it("compares a cup season only with that cup's other seasons", async () => {
+      mockStoredMatches(matches, rows);
+      const selected = ownSeason();
+
+      const comparison = await getTeamSeasonComparison(CUP, 1, selected, ACTIVE_SEASON, [
+        { competitionCode: CUP, seasonId: selected, matches: 2 },
+        { competitionCode: CUP, seasonId: selected - 1, matches: 2 },
+        // A league season of the same club is never a cup baseline (S1).
+        { competitionCode: "VL", seasonId: selected - 1, matches: 27 },
+      ]);
+
+      expect(comparison.status).toBe("ok");
+      expect(comparison.status === "ok" && comparison.seasons).toBe(1);
+      expect(comparison.status === "ok" && comparison.competitions).toEqual(["Miesten Suomen Cup"]);
+    });
+
+    it("shows no Sijoitus row at all on a cup", async () => {
+      mockStoredMatches(matches, rows);
+      const selected = ownSeason();
+
+      const comparison = await getTeamSeasonComparison(CUP, 1, selected, ACTIVE_SEASON, [
+        { competitionCode: CUP, seasonId: selected, matches: 2 },
+        { competitionCode: CUP, seasonId: selected - 1, matches: 2 },
+      ]);
+
+      // Dropped, not `–`: a row that can never have a value is noise (S7).
+      expect(comparison.status === "ok" && comparison.rows.map((row) => row.measure)).not.toContain(
+        "position"
+      );
+      expect(comparison.status === "ok" && comparison.rows[0]?.measure).toBe("points");
+    });
+
+    it("names the cup in the records it covers", async () => {
+      mockStoredMatches(matches, rows);
+      const selected = ownSeason();
+
+      const result = await getTeamStreakRecords(
+        CUP,
+        1,
+        ACTIVE_SEASON,
+        [
+          { competitionCode: CUP, seasonId: selected, matches: 2 },
+          { competitionCode: "VL", seasonId: selected, matches: 27 },
+        ],
+        String
+      );
+
+      expect(result.status === "ok" && result.scope).toBe("Miesten Suomen Cup");
+    });
+  });
+
   describe("getTeamSeasonComparison", () => {
     const LEAGUE = "M1";
     const SEASON = "spljp25";
@@ -2980,7 +3105,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       mockStoredMatches(matches, rows);
 
       const selected = ownSeason();
-      const result = await getTeamStreakRecords(1, ACTIVE_SEASON, seasonsFor(selected), String);
+      const result = await getTeamStreakRecords(
+        LEAGUE,
+        1,
+        ACTIVE_SEASON,
+        seasonsFor(selected),
+        String
+      );
 
       expect(result.status).toBe("ok");
       // Both seasons serve the same two wins, and they are consecutive years
@@ -2995,9 +3126,9 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       dbMock.select.mockReturnValue({ from });
 
       const selected = ownSeason();
-      expect(await getTeamStreakRecords(1, ACTIVE_SEASON, seasonsFor(selected), String)).toEqual({
-        status: "error",
-      });
+      expect(
+        await getTeamStreakRecords(LEAGUE, 1, ACTIVE_SEASON, seasonsFor(selected), String)
+      ).toEqual({ status: "error" });
       expect(loggerErrorMock).toHaveBeenCalledWith(
         expect.objectContaining({ teamProviderId: 1 }),
         "Unable to read the club's TASO streak records"

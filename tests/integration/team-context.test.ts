@@ -20,7 +20,7 @@ function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
     providerMatchId: 992001,
     competitionCode: "spljp90",
     categoryId: "VL",
-    seasonId: 990990,
+    seasonId: 992990,
     groupId: 1,
     groupName: "Mestaruussarja",
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
@@ -41,7 +41,7 @@ function footballDataRow(overrides: Partial<typeof matches.$inferInsert> = {}) {
   return {
     providerMatchId: 992001,
     competitionCode: "PL",
-    seasonId: 990990,
+    seasonId: 992990,
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
     matchday: 1,
     status: "FINISHED",
@@ -74,18 +74,18 @@ afterEach(clearFixtures);
 describe("resolving a team's own context", () => {
   it("takes the competition and season of the newest stored match", async () => {
     await db.insert(tasoMatches).values([
-      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 990990 }),
+      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 992990 }),
       tasoRow({
         providerMatchId: 992002,
         categoryId: "M2",
-        seasonId: 990991,
+        seasonId: 992991,
         kickoffAt: new Date("2026-09-01T15:00:00Z"),
       }),
     ]);
 
     expect(await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM)).toEqual({
       status: "ok",
-      context: { competitionCode: "M2", seasonId: 990991 },
+      context: { competitionCode: "M2", seasonId: 992991 },
     });
   });
 
@@ -96,40 +96,40 @@ describe("resolving a team's own context", () => {
 
     expect(await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM)).toEqual({
       status: "ok",
-      context: { competitionCode: "M1", seasonId: 990990 },
+      context: { competitionCode: "M1", seasonId: 992990 },
     });
   });
 
   it("narrows to the newest season within a competition the URL named", async () => {
     await db.insert(tasoMatches).values([
-      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 990990 }),
+      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 992990 }),
       tasoRow({
         providerMatchId: 992002,
         categoryId: "M2",
-        seasonId: 990991,
+        seasonId: 992991,
         kickoffAt: new Date("2026-09-01T15:00:00Z"),
       }),
     ]);
 
     expect(
       await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM, { competitionCode: "VL" })
-    ).toEqual({ status: "ok", context: { competitionCode: "VL", seasonId: 990990 } });
+    ).toEqual({ status: "ok", context: { competitionCode: "VL", seasonId: 992990 } });
   });
 
   it("takes the competition of the newest match within a season the URL named", async () => {
     await db.insert(tasoMatches).values([
-      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 990990 }),
+      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 992990 }),
       tasoRow({
         providerMatchId: 992002,
         categoryId: "MSC",
-        seasonId: 990990,
+        seasonId: 992990,
         kickoffAt: new Date("2026-09-01T15:00:00Z"),
       }),
     ]);
 
     expect(
-      await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM, { seasonId: 990990 })
-    ).toEqual({ status: "ok", context: { competitionCode: "MSC", seasonId: 990990 } });
+      await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM, { seasonId: 992990 })
+    ).toEqual({ status: "ok", context: { competitionCode: "MSC", seasonId: 992990 } });
   });
 
   it("does not resolve a /kotimaa team page from a national-team row", async () => {
@@ -144,7 +144,7 @@ describe("resolving a team's own context", () => {
 
   it("ignores a row whose category no competition in the picker claims", async () => {
     await db.insert(tasoMatches).values([
-      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 990990 }),
+      tasoRow({ providerMatchId: 992001, categoryId: "VL", seasonId: 992990 }),
       tasoRow({
         providerMatchId: 992002,
         categoryId: "X99",
@@ -154,7 +154,7 @@ describe("resolving a team's own context", () => {
 
     expect(await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM)).toEqual({
       status: "ok",
-      context: { competitionCode: "VL", seasonId: 990990 },
+      context: { competitionCode: "VL", seasonId: 992990 },
     });
   });
 
@@ -171,7 +171,7 @@ describe("resolving a team's own context", () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       expect(await getTeamContext({ kind: "taso", bucket: "domestic" }, TEAM)).toEqual({
         status: "ok",
-        context: { competitionCode: "M2", seasonId: 990990 },
+        context: { competitionCode: "M2", seasonId: 992990 },
       });
     }
   });
@@ -188,12 +188,12 @@ describe("resolving a team's own context", () => {
 
     expect(await getTeamContext({ kind: "football-data", region: "foreign" }, TEAM)).toEqual({
       status: "ok",
-      context: { competitionCode: "BL1", seasonId: 990990 },
+      context: { competitionCode: "BL1", seasonId: 992990 },
     });
     expect(await getTeamContext({ kind: "football-data", region: "national-teams" }, TEAM)).toEqual(
       {
         status: "ok",
-        context: { competitionCode: "WC", seasonId: 990990 },
+        context: { competitionCode: "WC", seasonId: 992990 },
       }
     );
   });

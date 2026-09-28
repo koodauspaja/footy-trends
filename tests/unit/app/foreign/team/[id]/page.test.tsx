@@ -842,21 +842,26 @@ describe("Team page league position (specs/030)", () => {
     await loadRecords?.();
 
     expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      "PL",
       1,
       2025,
       expect.any(Array),
       expect.any(Function)
     );
     // A foreign league's seasons are written `2024/25`, as the selector writes them.
-    const label = getTeamStreakRecordsMock.mock.calls[0]?.[3] as (year: number) => string;
+    const label = getTeamStreakRecordsMock.mock.calls[0]?.[4] as (year: number) => string;
     expect(label(2024)).toBe("2024/25");
   });
 
-  it("offers no section for a cup, which has no league position", async () => {
+  it("offers the section for a cup, but never a league position (specs/040)", async () => {
     await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
+    const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 
-    expect(analyticsSectionMock).not.toHaveBeenCalled();
-    expect(screen.queryByText("analytics section placeholder")).toBeNull();
+    expect(analyticsSectionMock).toHaveBeenCalled();
+    // A knockout has no table to rank a position in, so the panel is absent
+    // rather than empty — and the series is never even asked for.
+    expect(await loadPosition?.()).toEqual({ status: "unavailable" });
+    expect(getTeamPositionSeriesMock).not.toHaveBeenCalled();
   });
 
   it("offers no section when the team has no matches this season", async () => {

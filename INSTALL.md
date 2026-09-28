@@ -18,7 +18,7 @@ nothing that is already set.
 | | |
 |---|---|
 | Node.js | The major version in `.nvmrc` (24). `nvm install` or `fnm install` reads it |
-| npm | 12.0.2, the `packageManager` pin. `npm install -g npm@12.0.2` |
+| npm | 12.1.0, the `packageManager` pin. `npm install -g npm@12.1.0` |
 | A container runtime | Anything providing `docker compose`: Docker Desktop, OrbStack, Colima, or Podman with its docker-compatible CLI |
 
 `scripts/setup` checks all of these and reports every one that is missing at

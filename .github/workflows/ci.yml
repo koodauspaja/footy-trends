@@ -128,3 +128,62 @@ jobs:
 
       - name: Integration tests
         run: npm run test:integration
+
+  # The rule CLAUDE.md states and nothing enforced: a box on this pull
+  # request's issue is ticked, or says why it is not (#463). It was skipped on
+  # #158 and on #425 — both merged and closed with every box empty — because
+  # nothing failed when it was.
+  #
+  # Runs on a pull request only. On a push to `main` there is no pull request
+  # to read, and the boxes have already been through this job on the way in.
+  #
+  # `pull-requests: read` rather than the default: the job reads the pull
+  # request's body and the bodies of the issues it closes, and writes nothing.
+  #
+  # **The actor condition stays**, and #468 argued it both ways before settling.
+  # Dropping it means a fork's pull request runs `npm ci` and this repository's
+  # own npm script *from the fork's checkout*, with `GITHUB_TOKEN` in the
+  # environment — a pull request can rewrite `package.json` or the script it
+  # runs. `--ignore-scripts` narrows that; it does not close it.
+  #
+  # What the condition costs is real and worth naming: an outside contributor
+  # writing `Closes #N` gets no checkbox check. That is a pull request no one
+  # can merge without a maintainer reading it, and this job enforces a workflow
+  # only the maintainers follow — so the gap is one a human is already standing
+  # in. Running untrusted code against a credential to close it would be the
+  # worse trade.
+  #
+  # Checking out the base commit instead would fix the trust problem, but then
+  # a pull request could never change the check itself: this one adds it, and
+  # `main` has no `check:boxes` script to run.
+  boxes:
+    name: Issue checkboxes
+    if: |
+      github.event_name == 'pull_request' && (
+        github.actor == vars.OWNER_USERNAME ||
+        github.actor == vars.COLLABORATOR_USERNAME ||
+        github.actor == 'renovate[bot]'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Issue checkboxes
+        run: npm run check:boxes -- ${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

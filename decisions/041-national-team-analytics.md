@@ -1,0 +1,100 @@
+# 041 — Analytics for the national teams: decisions
+
+Implementation notes for `specs/041-national-team-analytics.md` (#459). The spec
+says what the pages show; this says how, and where the implementation had to
+decide something the spec did not.
+
+## The property everything serves
+
+**A page's panels are about the period that page actually has.** The national
+teams have no season — they have a history and a set of calendar years — so
+every figure, every heading and every label on these two pages names one of
+those two, and never a season. Each decision below is that rule applied
+somewhere: to the identity the figures are keyed on, to the axis, to the
+strings, and to the one field that used to mean two things.
+
+## Decisions taken
+
+| Decision | Choice | Why |
+|---|---|---|
+| Finland's identity | `FINLAND_TEAM_ID = -1`, written on Finland's side by `normalizeFinlandId` at the read boundary | The spec's S1 and S2. All eight analytics functions take a `teamId: number`; teaching each to match `"Suomi"` instead would put the name in eight modules and leave every club page carrying a branch it never takes. The mutation that handles only the home side fails 2 tests. |
+| Where it is applied | Inside `loadSeason`, beside `isFinlandMatch` | The one place that has already worked out which side Finland is. Applied in the loaders instead it would be applied nine times, and the ninth would be the one that forgot. |
+| The two axes | `nationalTeamAnalytics` builds seven loaders from the whole history and two from calendar years | The spec's S3 and S4. `comparisonFor` and `recordsFor` take `{ competitionCode, seasonId }` keys, so a year becomes a period under one synthetic code — `NATIONAL_TEAM_PERIOD_CODE`. One code for every year is also what lets `recordsFor` join them, since it joins only consecutive periods of the same competition: that is how a run crosses 31 December. |
+| The period's wording | **One `AnalyticsAxis` per page**, not a flag per string | S11 and S13 together name six strings. Six props would let a page say `Tämä vuosi verrattuna` under a group called `Muut kaudet`, which is worse than saying neither. `SEASON_AXIS` and `HISTORY_AXIS` are the only two the app has, and the prop is required so a new page cannot quietly claim its panels are about a season. |
+| The chart legend | Also from the axis | Not in the spec, and **found by looking at the page**: the first build read `Tämä vuosi verrattuna` in the heading and `Tämä kausi` in the legend directly beneath it. `SELECTED_LABEL` is gone; `BASELINE_LABEL` (`Tavallisesti`) stays shared, because it names no period. |
+| `StreakRecordsSeries.competitions` | **Replaced by `scope: string`**, built by the caller | The spec left this open deliberately. A list of competition names that sometimes held a span of years would be two meanings in one field — the pair that drifts, and the same field already shipped unrendered once in #425. `competitionScope` is exported for the two club services, so the join lives in one place rather than at each call site. |
+| The section's place | Above the year list, once | S5. It describes every year, so it cannot sit inside one. |
+| A partial history | Still gets its analytics | The `incomplete` notice already says the history may be short. A partial history is still a history — the same trade #180 made for the list itself. Stated here because the alternative is defensible and the page gives no other sign. |
+
+## What the tests prove, and how
+
+- **The identity, in both directions**: the sentinel lands on Finland at home
+  and away, the opponent keeps the id TASO sent, and a match Finland is not in
+  comes back untouched.
+- **The two axes are not the same**: five matches over three years fill exactly
+  one five-match form window and one five-point clean-sheet series, while the
+  comparison sees 2 other periods and names them `2024`, `2025`. A test using
+  one year would pass for either axis.
+- **A record crosses the year boundary** — three wins from 2025 into 2026 are
+  one run — and its line reads `2025–2026` rather than a competition name.
+- **The club pages are unchanged**: `Tämä kausi verrattuna`, `Muut kaudet` and
+  the `Kausi 2024` wording are asserted on the season axis in the same files.
+- **Twelve mutations, all caught**: the history unreversed, the selected year
+  ignoring whether anything was played, the span losing its end, a period named
+  by code, Finland found only at home, the `Sijoitus` row kept, either group
+  heading reverted, the records naming competitions, the legend hardcoded, the
+  page put on the season axis, and the comparison heading reverted.
+
+### One mutation escaped first time
+
+Reverting `HISTORY_AXIS.comparisonHeading` to `Tämä kausi verrattuna` broke no
+unit test — only the e2e. A heading is the first thing a reader sees, so the
+unit suite now pins it at the render site.
+
+### `history()` sorts for its own sake
+
+Every panel re-sorts by kickoff through `teamMatchesInOrder`, so reversing the
+service's newest-first years is **not** load-bearing for any figure — the
+mutation that drops it fails only the test of `history` itself. It stays because
+a function called `history` returning its matches backwards is a trap for the
+next caller, and it costs one `reverse`.
+
+## Looked at, rather than inferred
+
+Both teams, both themes, at 375 px, with Playwright screenshots read back:
+
+- the three groups read `Ottelu ottelulta`, `Koko historia`, `Muut vuodet`;
+- no `Sijoitus kierroksittain`, and no `Sijoitus` row in the comparison;
+- `Verrattuna 8 muuhun vuoteen: 2018, 2019, …` on Helmarit, 84 matches on the
+  axis and still legible at that width;
+- `Ennätykset` headed `2018–2026`, with a record reading `Vuodet 2020–2021` —
+  which is S4's boundary-crossing run, visible on the page.
+
+That is also how the legend was caught. The first screenshot pass is what
+turned two settled decisions into three.
+
+## Two things review caught
+
+Both from Sourcery on the first push, and both real:
+
+- **`Ennätykset` could name a year it read nothing from.** The span was built
+  from every year the page holds, so in January — when the newest bucket carries
+  fixtures and no results — it would have read `2018–2026` while 2026
+  contributed no record. `readYear` now answers `empty` for a year with no
+  finished match, which is the rule `selectedYear` already applied at the other
+  end, and the span is built from the years `recordsFor` actually read. The same
+  fix keeps such a year out of the comparison's baseline, where it was
+  contributing a period worth nothing.
+- **`selectedYear` ran before the sign-in gate**, because it was computed while
+  the loaders were being built. Cheap, but the surrounding comment claimed a
+  signed-out request computes nothing, and it no longer quite did. It moved
+  inside `loadComparison`.
+
+## Left open, deliberately
+
+- **`Kääntyneet ottelut` says `Puoliaikatulos puuttuu 76 ottelusta.`** on
+  Huuhkajat, because TASO stores no half-time score for most older national
+  matches. The panel's existing line already says so; making it say more is a
+  change to what that panel shows, which specs/041 puts out of scope.
+- **The opponent pages** under `/maajoukkueet/joukkue/[id]` are football-data
+  club pages and keep the season axis. Nothing here touches them.

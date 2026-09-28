@@ -8,6 +8,7 @@ import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
+import { SEASON_AXIS } from "@/lib/analytics-axis";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
@@ -202,8 +203,10 @@ export default async function DomesticTeamPage({
    * with matches this season.
    */
   const analyticsSection =
-    result.status === "ok" && !isDomesticCup(competitionCode)
+    result.status === "ok"
       ? await AnalyticsSection({
+          // A club page's periods are seasons (specs/041, S13).
+          axis: SEASON_AXIS,
           // A failed season lookup is `played = []`, which the comparison
           // would read as "this club has no other seasons" and say so — a
           // database failure dressed as a fact about the club. It reports the
@@ -213,7 +216,7 @@ export default async function DomesticTeamPage({
           // record names a season the way the rest of the page does.
           loadRecords: () =>
             seasons.status !== "error"
-              ? getTeamStreakRecords(teamProviderId, currentSeason, played, String)
+              ? getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String)
               : Promise.resolve({ status: "error" as const }),
           loadComparison: () =>
             seasons.status !== "error"
@@ -225,14 +228,18 @@ export default async function DomesticTeamPage({
                   played
                 )
               : Promise.resolve({ status: "error" as const }),
+          // A cup has no table to rank a position in, so the panel is absent
+          // rather than empty (specs/040, S2).
           loadPosition: () =>
-            getTeamPositionSeries(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
+            isDomesticCup(competitionCode)
+              ? Promise.resolve({ status: "unavailable" as const })
+              : getTeamPositionSeries(
+                  context.categoryId,
+                  context.competitionId,
+                  teamProviderId,
+                  seasonId,
+                  currentSeason
+                ),
           loadForm: () =>
             getTeamFormSeries(
               context.categoryId,

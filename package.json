@@ -26,6 +26,7 @@
     "release:pr": "tsx scripts/release-pr.ts",
     "release:version": "tsx scripts/release-version.ts",
     "review:findings": "tsx scripts/review-findings.ts",
+    "check:boxes": "tsx scripts/issue-boxes.ts",
     "setup": "tsx scripts/setup-main.ts",
     "start": "next start",
     "test": "npm run test:unit",
@@ -43,11 +44,11 @@
   },
   "dependencies": {
     "@axiomhq/pino": "2.0.0",
-    "@sentry/nextjs": "10.75.0",
-    "better-auth": "1.7.5",
+    "@sentry/nextjs": "10.75.3",
+    "better-auth": "1.7.6",
     "drizzle-orm": "0.45.3",
     "ioredis": "6.0.0",
-    "next": "16.3.5",
+    "next": "16.3.6",
     "pino": "10.3.1",
     "postgres": "3.4.9",
     "react": "19.3.0",
@@ -68,7 +69,7 @@
     "@vitest/coverage-v8": "5.0.1",
     "drizzle-kit": "0.31.11",
     "husky": "9.1.7",
-    "jsdom": "30.1.0",
+    "jsdom": "30.1.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vitest": "5.0.1"
@@ -85,7 +86,7 @@
     "sharp@0.35.3": true,
     "@sentry/cli@2.58.6": true
   },
-  "packageManager": "npm@12.0.2",
+  "packageManager": "npm@12.1.0",
   "overrides": {
     "browserslist": "^4.28.7",
     "fast-uri": "^4.0.0",

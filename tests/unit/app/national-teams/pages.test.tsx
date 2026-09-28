@@ -67,7 +67,22 @@ vi.mock("@/lib/team-seasons", async (importOriginal) => {
 
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/maajoukkueet/joukkue/1",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+/**
+ * The `Analyysit` section stands in with a marker. This file asserts nothing
+ * about it — what it owns is the page's headings, notices and season wiring —
+ * and since specs/040 gave cup pages analytics, rendering the real thing meant
+ * ten panels and their charts on every test here. That took the first render
+ * past the five second budget in a full run.
+ */
+vi.mock("@/components/analytics-section", () => ({
+  AnalyticsSection: async () => <p>analytics section placeholder</p>,
+}));
 
 const seasonContext: SeasonContext = {
   activeSeasonId: 2026,

@@ -95,6 +95,26 @@ export default defineConfig({
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
+          /**
+           * **One file at a time**, because they share one database (#467).
+           *
+           * `team-search.test.ts` clears a whole range of `providerMatchId` in
+           * `beforeEach` and `afterEach` — it searches by name, so it has to
+           * clear everything it might have created — and that range covered ids
+           * `team-seasons.test.ts` had just inserted. Run together the two
+           * failed four or five assertions every time and passed alone, which
+           * is how it reached `main`: a suite that fails on timing trains
+           * everyone to re-run rather than to read.
+           *
+           * The ids no longer overlap either, and
+           * `tests/unit/scripts/integration-fixtures.test.ts` keeps them apart.
+           * This is the guarantee behind that convention: sharing a database is
+           * the coupling, and an id is only the way it showed up first.
+           *
+           * It costs seconds. The suite is 154 tests and the whole thing runs
+           * in about ten.
+           */
+          fileParallelism: false,
         },
       },
     ],

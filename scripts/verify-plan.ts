@@ -48,6 +48,8 @@ export const NOT_A_STAGE: Readonly<Record<string, string>> = {
     "the release gate builds before its e2e run; CI does not build, and `verify` is not the release gate",
   "release:version":
     "cuts the tag once every gate is green; it is the release itself, not a check of it",
+  "check:boxes":
+    "reads the issues a pull request closes, so there is nothing for it to read until one exists (#463)",
 };
 
 const RUN_PREFIX = "npm run ";
