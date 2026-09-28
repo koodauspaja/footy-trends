@@ -264,12 +264,22 @@ describe("startCheck", () => {
         status: 200,
       })
     );
+    // `delete`, not `= undefined`: Node stores the *string* "undefined" for the
+    // latter, so a later test asking whether the variable is absent would see a
+    // bogus token instead.
+    const previous = process.env.GH_TOKEN;
     process.env.GH_TOKEN = "token";
 
     expect(await startCheck()).toBe(0);
     expect(written.join("")).toContain("No issue is closed");
 
-    process.env.GH_TOKEN = undefined;
+    if (previous === undefined) delete process.env.GH_TOKEN;
+    else process.env.GH_TOKEN = previous;
+
+    // Asserted, because `= undefined` leaves the string "undefined" behind and
+    // nothing else in this file would notice: every other test passes its own
+    // `env`, so only this one touches the real one.
+    expect(process.env.GH_TOKEN).toBe(previous);
     fetchSpy.mockRestore();
     argv.mockRestore();
     outSpy.mockRestore();

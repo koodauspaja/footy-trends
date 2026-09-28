@@ -139,6 +139,12 @@ jobs:
   #
   # `pull-requests: read` rather than the default: the job reads the pull
   # request's body and the bodies of the issues it closes, and writes nothing.
+  #
+  # The actor condition is the same one every job here carries, and is kept
+  # rather than dropped because this check enforces *this* repository's own
+  # workflow. An outside contributor does not file our issues or tick our
+  # boxes, so their pull request closes none and the check would pass without
+  # having checked anything. Raised in review on #468.
   boxes:
     name: Issue checkboxes
     if: |
