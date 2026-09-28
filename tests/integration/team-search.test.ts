@@ -41,7 +41,7 @@ function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
     providerMatchId: 993001,
     competitionCode: "spljp90",
     categoryId: "VL",
-    seasonId: 990990,
+    seasonId: 993990,
     groupId: 1,
     groupName: "Mestaruussarja",
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
@@ -62,7 +62,7 @@ function footballDataRow(overrides: Partial<typeof matches.$inferInsert> = {}) {
   return {
     providerMatchId: 993101,
     competitionCode: "PL",
-    seasonId: 990990,
+    seasonId: 993990,
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
     matchday: 1,
     status: "FINISHED",
@@ -234,14 +234,14 @@ describe("searching real rows", () => {
   });
 
   it("names the competition and season of the most recent appearance", async () => {
-    await db.insert(tasoMatches).values(tasoRow({ categoryId: "VL", seasonId: 990990 }));
+    await db.insert(tasoMatches).values(tasoRow({ categoryId: "VL", seasonId: 993990 }));
 
     const team = (await searchTeams("jarvenpaa")).find(
       (candidate) => candidate.teamProviderId === JARVENPAA
     );
 
     expect(team?.competitionName).toBe("Veikkausliiga");
-    expect(team?.seasonId).toBe(990990);
+    expect(team?.seasonId).toBe(993990);
     expect(team?.region).toBe("kotimaa");
   });
 

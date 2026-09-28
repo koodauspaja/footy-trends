@@ -12,7 +12,7 @@ vi.mock("@/lib/football-data", () => ({
 
 const competitionCode = "PL";
 const otherCompetitionCode = "BL1";
-const seasonId = 990001;
+const seasonId = 900901;
 /** Makes `seasonId` a completed past season rather than the one being played. */
 const laterActiveSeasonId = seasonId + 1;
 const cacheKey = `standings:${competitionCode}:${seasonId}`;
