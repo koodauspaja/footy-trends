@@ -4,12 +4,9 @@ import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
-/** The link to the full history asks how many meetings there are (specs/042). */
-const countHeadToHeadHistoryMock = vi.fn<() => Promise<number | null>>(async () => 24);
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
-  countHeadToHeadHistory: countHeadToHeadHistoryMock,
 }));
 
 vi.mock("@/lib/logger", () => ({
@@ -59,6 +56,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           tasoRow({
             providerMatchId: 4000001,
@@ -123,6 +121,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           tasoRow({
             providerMatchId: 4000002,
@@ -154,6 +153,7 @@ describe("/kotimaa/ottelu/:id", () => {
       match: { source: "taso", match: tasoRow() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [tasoRow({ providerMatchId: 4000004, categoryId: "X99", groupName: "Lohko A" })],
       },
     });
@@ -174,7 +174,7 @@ describe("/kotimaa/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow() },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -191,7 +191,7 @@ describe("/kotimaa/ottelu/:id", () => {
         source: "taso",
         match: tasoRow({ homeGoals: 1, awayGoals: 1, winner: "away", categoryId: "MSC" }),
       },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -228,7 +228,7 @@ describe("/kotimaa/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow({ categoryId: "X99" }) },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderPage();
 
@@ -318,12 +318,13 @@ describe("the link to the full history (specs/042)", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow() },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
-    countHeadToHeadHistoryMock.mockResolvedValue(24);
   });
 
   it("carries the number of meetings the page behind it will show", async () => {
+    // The five listed are not the count: `total` is the whole history they
+    // were taken from, which is what the page behind the link lists.
     await renderPage();
 
     const link = screen.getByRole("link", { name: "Kaikki kohtaamiset (24)" });
@@ -348,13 +349,16 @@ describe("the link to the full history (specs/042)", () => {
     await renderPage();
 
     expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
-    expect(countHeadToHeadHistoryMock).not.toHaveBeenCalled();
   });
 
-  it("is absent when the count could not be read", async () => {
+  it("is absent when the history could not be read", async () => {
     // A failed read is not zero meetings, and a link promising a number it
     // does not have is worse than no link.
-    countHeadToHeadHistoryMock.mockResolvedValue(null);
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "error" },
+    });
     await renderPage();
 
     expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();
@@ -362,7 +366,11 @@ describe("the link to the full history (specs/042)", () => {
 
   it("is absent when the pair has no stored meeting", async () => {
     // A link to an empty page is worse than no link.
-    countHeadToHeadHistoryMock.mockResolvedValue(0);
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "taso", match: tasoRow() },
+      headToHead: { status: "ok", matches: [], total: 0 },
+    });
     await renderPage();
 
     expect(screen.queryByRole("link", { name: /Kaikki kohtaamiset/ })).not.toBeInTheDocument();

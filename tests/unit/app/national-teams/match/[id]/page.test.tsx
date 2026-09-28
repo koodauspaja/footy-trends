@@ -5,13 +5,10 @@ import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
-/** The link to the full history asks how many meetings there are (specs/042). */
-const countHeadToHeadHistoryMock = vi.fn<() => Promise<number | null>>(async () => 24);
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
-  countHeadToHeadHistory: countHeadToHeadHistoryMock,
 }));
 
 vi.mock("@/lib/football-data", () => ({
@@ -72,7 +69,7 @@ describe("/maajoukkueet/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "football-data", match: row() },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
   });
 
@@ -116,6 +113,7 @@ describe("/maajoukkueet/ottelu/:id", () => {
       match: { source: "football-data", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({
             providerMatchId: 428742,

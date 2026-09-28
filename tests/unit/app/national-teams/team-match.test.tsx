@@ -4,8 +4,6 @@ import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
-/** The link to the full history asks how many meetings there are (specs/042). */
-const countHeadToHeadHistoryMock = vi.fn<() => Promise<number | null>>(async () => 24);
 const getSeasonCategoryNameMapMock =
   vi.fn<
     (
@@ -17,7 +15,6 @@ const getSeasonCategoryNameMapMock =
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
-  countHeadToHeadHistory: countHeadToHeadHistoryMock,
 }));
 
 vi.mock("@/lib/taso-standings-service", () => ({
@@ -83,6 +80,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({
             providerMatchId: 4200001,
@@ -127,6 +125,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [row({ providerMatchId: 4200002, categoryId: "WCQ", groupName: "Lohko J" })],
       },
     });
@@ -145,6 +144,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({ providerMatchId: 4200002, categoryId: "UNL" }),
           row({ providerMatchId: 4200003, categoryId: "WCQ" }),
@@ -236,7 +236,7 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
         source: "taso",
         match: row({ categoryId: "WUNL", homeTeamProviderId: 144367, awayTeamName: "Croatia" }),
       },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
   });
 
@@ -253,7 +253,7 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: row({ categoryId: "WCQ" }) },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderWomensPage();
 

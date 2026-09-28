@@ -21,16 +21,14 @@ import {
   declaredWinnerSide,
   formatKickoff,
   formatScore,
-  hasPlaceholderTeam,
   isPlaceholderTeam,
   matchContextLines,
   teamDisplayName,
 } from "@/lib/match-detail";
 import {
-  countHeadToHeadHistory,
   type FootballDataMatchRow,
   getMatchPageData,
-  type HeadToHeadResult,
+  type PreviousMeetings,
   type StoredMatch,
   type TasoMatchRow,
 } from "@/lib/match-service";
@@ -147,7 +145,7 @@ function linkableTeamHref(
   return isPlaceholderTeam(teamProviderId, teamName) ? null : build(teamProviderId);
 }
 
-function headToHeadRowsOf(result: HeadToHeadResult): Array<FootballDataMatchRow | TasoMatchRow> {
+function headToHeadRowsOf(result: PreviousMeetings): Array<FootballDataMatchRow | TasoMatchRow> {
   return result.status === "ok" ? result.matches : [];
 }
 
@@ -156,32 +154,30 @@ function headToHeadRowsOf(result: HeadToHeadResult): Array<FootballDataMatchRow 
  *
  * `null` for a placeholder team, which has no identity to pair — the same
  * reason the block above says `HEAD_TO_HEAD_UNAVAILABLE` rather than showing an
- * empty list — and `null` when the pair has no stored meeting at all, since a
- * link to an empty page is worse than no link.
+ * empty list — for a history that could not be read, and when the pair has no
+ * stored meeting at all, since a link to an empty page is worse than no link.
  *
- * The count comes from the same read the page performs, so the number on the
- * link is the number of rows behind it (specs/042, S10).
+ * The count is the length of the history the previous meetings were taken
+ * from — the same read the full page performs — so the number on the link is
+ * the number of rows behind it (specs/042, S10).
  */
-async function allMeetingsLink(
+function allMeetingsLink(
   match: FootballDataMatchRow | TasoMatchRow,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
-): Promise<MeetingsLink | null> {
-  if (hasPlaceholderTeam(match)) return null;
-
-  const home = match.homeTeamProviderId;
-  const away = match.awayTeamProviderId;
+): MeetingsLink | null {
   return meetingsLink(
     options.basePath,
-    home,
-    away,
-    await countHeadToHeadHistory(options.source, home, away)
+    match.homeTeamProviderId,
+    match.awayTeamProviderId,
+    headToHead.status === "ok" ? headToHead.total : null
   );
 }
 
 /** The football-data half of the view: `/ulkomaat` and `/maajoukkueet`'s WC and EC. */
 async function footballDataView(
   match: FootballDataMatchRow,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   const spans = await resolveSpansCalendarYears(match.competitionCode);
@@ -218,7 +214,7 @@ async function footballDataView(
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, spans ?? false)),
     headToHeadHeader: COMPETITION_COLUMN,
     headToHeadRows: labelFootballDataRows(localisedRows),
-    allMeetings: await allMeetingsLink(match, options),
+    allMeetings: allMeetingsLink(match, headToHead, options),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}, ${competitionName} ${seasonLabel}`,
   };
 }
@@ -244,7 +240,7 @@ function tasoCompetitionName(
 /** The TASO half: `/kotimaa`, and the two national-team routes. */
 async function tasoView(
   match: TasoMatchRow,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   const national = options.nationalTeam;
@@ -282,7 +278,7 @@ async function tasoView(
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, false)),
     headToHeadHeader: COMPETITION_COLUMN,
     headToHeadRows: labelledRows,
-    allMeetings: await allMeetingsLink(match, options),
+    allMeetings: allMeetingsLink(match, headToHead, options),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}${
       competitionName === null ? "" : `, ${competitionName} ${season}`
     }`,
@@ -291,7 +287,7 @@ async function tasoView(
 
 function buildView(
   stored: StoredMatch,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   return stored.source === "football-data"

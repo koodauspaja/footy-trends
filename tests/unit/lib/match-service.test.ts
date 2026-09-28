@@ -21,19 +21,10 @@ vi.mock("@/db", () => ({
           const builder = {
             limit: () => selectMock(...args),
             /**
-             * Awaitable *and* chainable: the match page's query ends in
-             * `.orderBy(...).limit(n)` while the full history (specs/042) ends
-             * at `.orderBy(...)`, so this has to answer both.
-             *
-             * One promise, created lazily and shared by both paths, so the spy
-             * is called once per query however the chain ends — an eager
-             * `Promise.resolve(selectMock(...))` called it for the `.limit()`
-             * chain as well and doubled every existing call-count assertion.
+             * Every head-to-head read — the full history, and the match page's
+             * five taken from it (specs/042) — ends at `.orderBy(...)`.
              */
-            orderBy: () => {
-              const rows = Promise.resolve().then(() => selectMock(...args));
-              return Object.assign(rows, { limit: () => rows });
-            },
+            orderBy: () => Promise.resolve().then(() => selectMock(...args)),
           };
           return builder;
         },
@@ -118,7 +109,11 @@ describe("getMatchPageData", () => {
   });
 
   it("returns the match and its meetings", async () => {
-    const meeting = tasoRow({ id: 2, providerMatchId: 4000001 });
+    const meeting = tasoRow({
+      id: 2,
+      providerMatchId: 4000001,
+      kickoffAt: new Date("2026-05-01T15:00:00Z"),
+    });
     selectMock.mockResolvedValueOnce([tasoRow()]).mockResolvedValueOnce([meeting]);
     const getMatchPageData = await load();
 
@@ -127,7 +122,27 @@ describe("getMatchPageData", () => {
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
     expect(result.match.source).toBe("taso");
-    expect(result.headToHead).toEqual({ status: "ok", matches: [meeting] });
+    expect(result.headToHead).toEqual({ status: "ok", matches: [meeting], total: 1 });
+  });
+
+  it("lists five meetings before kickoff and counts the whole history they came from", async () => {
+    // One read serves both: the link's count is the length of the history the
+    // full page lists (specs/042, S10), and the five are taken from it.
+    const at = (month: number) => new Date(Date.UTC(2026, month, 1, 15));
+    const later = tasoRow({ providerMatchId: 4000009, kickoffAt: at(9) });
+    const itself = tasoRow();
+    const earlier = [7, 6, 5, 4, 3, 2].map((month) =>
+      tasoRow({ providerMatchId: 4000000 + month, kickoffAt: at(month) })
+    );
+    selectMock.mockResolvedValueOnce([itself]).mockResolvedValueOnce([later, itself, ...earlier]);
+    const getMatchPageData = await load();
+
+    const result = await getMatchPageData(DOMESTIC, 4036979);
+
+    if (result.status !== "ok") throw new Error("expected the match to render");
+    expect(result.headToHead).toEqual({ status: "ok", matches: earlier.slice(0, 5), total: 8 });
+    // Two calls: the lookup and the one history read. No second read to count.
+    expect(selectMock).toHaveBeenCalledTimes(2);
   });
 
   it("answers not_found when nothing is stored under that id", async () => {
@@ -291,23 +306,5 @@ describe("getHeadToHeadHistory", () => {
 
     expect(await getHeadToHeadHistory(DOMESTIC, 1, 2)).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalled();
-  });
-});
-
-describe("countHeadToHeadHistory", () => {
-  it("counts what the page will show", async () => {
-    selectMock.mockReturnValue([tasoRow({ providerMatchId: 1 }), tasoRow({ providerMatchId: 2 })]);
-    const { countHeadToHeadHistory } = await import("@/lib/match-service");
-
-    expect(await countHeadToHeadHistory(DOMESTIC, 1, 2)).toBe(2);
-  });
-
-  it("is null when the history could not be read, so no link promises a number", async () => {
-    selectMock.mockImplementation(() => {
-      throw new Error("connection lost");
-    });
-    const { countHeadToHeadHistory } = await import("@/lib/match-service");
-
-    expect(await countHeadToHeadHistory(DOMESTIC, 1, 2)).toBeNull();
   });
 });

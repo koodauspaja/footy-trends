@@ -2,11 +2,7 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import {
-  countHeadToHeadHistory,
-  getHeadToHeadHistory,
-  getMatchPageData,
-} from "@/lib/match-service";
+import { getHeadToHeadHistory, getMatchPageData } from "@/lib/match-service";
 
 /**
  * The match page's two queries against a real Postgres — the lookup by provider
@@ -334,14 +330,24 @@ describe("the head-to-head history", () => {
     expect(await getHeadToHeadHistory(DOMESTIC, HOME, HOME)).toEqual({ status: "unavailable" });
   });
 
-  it("counts what the page will show, so the link cannot disagree with it", async () => {
+  it("gives the match page the count the page will show, so the link cannot disagree", async () => {
+    // The match page lists only meetings before its own kickoff, but its link
+    // counts the whole history: here that includes a meeting played since.
     await db
       .insert(tasoMatches)
       .values([
         tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-06-01T15:00:00Z") }),
         tasoRow({ providerMatchId: 991002, kickoffAt: new Date("2026-07-01T15:00:00Z") }),
+        tasoRow({ providerMatchId: 991003, kickoffAt: new Date("2026-08-01T15:00:00Z") }),
       ]);
 
-    expect(await countHeadToHeadHistory(DOMESTIC, HOME, AWAY)).toBe(2);
+    const page = await getMatchPageData(DOMESTIC, 991002);
+    const history = await getHeadToHeadHistory(DOMESTIC, HOME, AWAY);
+
+    if (page.status !== "ok" || page.headToHead.status !== "ok") throw new Error("no page");
+    if (history.status !== "ok") throw new Error("no history");
+    expect(page.headToHead.matches.map((row) => row.providerMatchId)).toEqual([991001]);
+    expect(page.headToHead.total).toBe(history.matches.length);
+    expect(page.headToHead.total).toBe(3);
   });
 });
