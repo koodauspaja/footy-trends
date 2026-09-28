@@ -140,22 +140,30 @@ jobs:
   # `pull-requests: read` rather than the default: the job reads the pull
   # request's body and the bodies of the issues it closes, and writes nothing.
   #
-  # **No actor condition**, unlike the jobs above. The first version carried the
-  # same one on the reasoning that an outside contributor files none of our
-  # issues, so their pull request would close none and the check would pass
-  # having checked nothing. That is an assumption, not a guarantee: anyone can
-  # write `Closes #N` against an issue of ours, and the check would then be
-  # skipped on the one pull request it was most needed for. Raised twice in
-  # review on #468.
+  # **The actor condition stays**, and #468 argued it both ways before settling.
+  # Dropping it means a fork's pull request runs `npm ci` and this repository's
+  # own npm script *from the fork's checkout*, with `GITHUB_TOKEN` in the
+  # environment — a pull request can rewrite `package.json` or the script it
+  # runs. `--ignore-scripts` narrows that; it does not close it.
   #
-  # The condition exists elsewhere to keep secrets and runner minutes away from
-  # forks. Neither applies here: this job reads two bodies with the default
-  # token, holds no secret, and takes half a minute. It installs with
-  # `--ignore-scripts`, which is this repository's documented mitigation for
-  # running `npm ci` on code it did not write.
+  # What the condition costs is real and worth naming: an outside contributor
+  # writing `Closes #N` gets no checkbox check. That is a pull request no one
+  # can merge without a maintainer reading it, and this job enforces a workflow
+  # only the maintainers follow — so the gap is one a human is already standing
+  # in. Running untrusted code against a credential to close it would be the
+  # worse trade.
+  #
+  # Checking out the base commit instead would fix the trust problem, but then
+  # a pull request could never change the check itself: this one adds it, and
+  # `main` has no `check:boxes` script to run.
   boxes:
     name: Issue checkboxes
-    if: github.event_name == 'pull_request'
+    if: |
+      github.event_name == 'pull_request' && (
+        github.actor == vars.OWNER_USERNAME ||
+        github.actor == vars.COLLABORATOR_USERNAME ||
+        github.actor == 'renovate[bot]'
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
