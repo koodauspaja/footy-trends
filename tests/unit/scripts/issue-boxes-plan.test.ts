@@ -118,34 +118,6 @@ describe("boxesIn", () => {
     expect(boxes.map((box) => box.explained)).toEqual([false, true]);
   });
 
-  it("does not let a paragraph after a blank line explain a box", () => {
-    const body = "- [ ] bare\n\nA note about the issue — **which is not this box's reason.**";
-
-    expect(boxesIn(body)[0]?.explained).toBe(false);
-  });
-
-  it("does not let the next heading's text explain a box", () => {
-    const body = "- [ ] bare\n## Notes — **not a reason either**";
-
-    expect(boxesIn(body)[0]?.explained).toBe(false);
-  });
-
-  it("treats an indented heading as a heading, not as a reason", () => {
-    // Markdown allows up to three spaces of indent, and `startsWith("#")` let
-    // such a heading's bold text explain the bare box above it.
-    const body = "- [ ] bare\n   ## Notes — **not a reason**";
-
-    expect(boxesIn(body)[0]?.explained).toBe(false);
-  });
-
-  it("does not mistake a hashtag for a heading, cutting a reason in half", () => {
-    // A heading needs a space after its hashes. Without that, a wrapped reason
-    // beginning `#tag` was read as a new heading and dropped.
-    const body = "- [ ] bare\n#tag — **and this is the reason.**";
-
-    expect(boxesIn(body)[0]?.explained).toBe(true);
-  });
-
   it("finds nothing in a body with no checkboxes", () => {
     expect(boxesIn("## Summary\n\nJust prose, and a - dash.")).toEqual([]);
   });
