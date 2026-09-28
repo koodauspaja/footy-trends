@@ -11,10 +11,10 @@ import { account, session, user } from "@/db/schema";
  * Ids are strings here because better-auth generates its own — see the comment
  * on these tables in src/db/schema.ts.
  */
-const USER_ID = "itest-user-993101";
-const OTHER_USER_ID = "itest-user-993102";
+const USER_ID = "itest-user-995101";
+const OTHER_USER_ID = "itest-user-995102";
 const USER_IDS = [USER_ID, OTHER_USER_ID];
-const GOOGLE_SUB = "itest-google-993101";
+const GOOGLE_SUB = "itest-google-995101";
 
 function userRow(id: string, email: string) {
   return { id, name: "Integration Reader", email, emailVerified: true };
