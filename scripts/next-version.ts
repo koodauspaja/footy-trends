@@ -27,9 +27,7 @@ export type VersionDecision = {
   other: string[];
 };
 
-// `scope` is matched but not captured: nothing reads it, and a named group
-// nobody uses reads as a plan rather than as dead weight.
-const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary>.+)$/;
+const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s(?<summary>.+)$/;
 
 /**
  * One conventional-commit subject, taken apart.
@@ -42,12 +40,14 @@ const CONVENTIONAL = /^(?<type>[a-z]+)(?:\([^)]*\))?(?<breaking>!)?:\s(?<summary
  */
 function parseSubject(subject: string): {
   type: string | undefined;
+  scope: string | undefined;
   breaking: boolean;
   summary: string | undefined;
 } {
   const groups = CONVENTIONAL.exec(subject)?.groups;
   return {
     type: groups?.type,
+    scope: groups?.scope,
     breaking: groups?.breaking !== undefined,
     summary: groups?.summary,
   };
@@ -64,6 +64,37 @@ function isBreaking(commit: Commit): boolean {
 
 function typeOf(commit: Commit): string | undefined {
   return parseSubject(commit.subject).type;
+}
+
+/**
+ * The scope Renovate uses for a dependency update.
+ *
+ * It writes `fix(deps):` when the *upstream* release called itself a fix, and
+ * `chore(deps):` otherwise — a distinction about someone else's library, taken
+ * from someone else's changelog.
+ */
+const DEPENDENCY_SCOPE = "deps";
+
+/**
+ * Whether a commit updates a dependency, whichever type it carries.
+ *
+ * `fix(deps): update dependency next to v16.3.6` is maintenance: nothing in
+ * this repository was broken, and a reader of the release notes looking under
+ * `Bugs` for what went wrong finds three library bumps instead.
+ *
+ * **The scope decides, not the type**, and that has to hold for `feat(deps)`
+ * as well — which is the case worth naming, because a feature moves the
+ * *minor*. A library's own release being a feature says nothing about whether
+ * this application gained one. Raised in review on #471, where the first
+ * version excluded `deps` from the fixes and not from the features.
+ *
+ * A **breaking** commit is still breaking. `!` and a `BREAKING CHANGE:` footer
+ * are deliberate statements by whoever wrote them, rather than a type copied
+ * from an upstream changelog, and an upgrade that breaks this application is
+ * exactly what they are for.
+ */
+function isDependencyUpdate(commit: Commit): boolean {
+  return parseSubject(commit.subject).scope === DEPENDENCY_SCOPE;
 }
 
 /**
@@ -167,9 +198,14 @@ function sortCommits(commits: Commit[]): {
 
   return {
     breaking: subjects(isBreaking),
-    features: subjects((c) => !isBreaking(c) && typeOf(c) === "feat"),
-    fixes: subjects((c) => !isBreaking(c) && typeOf(c) === "fix"),
-    other: subjects((c) => !isBreaking(c) && typeOf(c) !== "feat" && typeOf(c) !== "fix"),
+    features: subjects((c) => !isBreaking(c) && !isDependencyUpdate(c) && typeOf(c) === "feat"),
+    fixes: subjects((c) => !isBreaking(c) && !isDependencyUpdate(c) && typeOf(c) === "fix"),
+    // Everything else, which is where a dependency update lands whatever type
+    // it was given — so a library's own release notes cannot move our version.
+    other: subjects(
+      (c) =>
+        !isBreaking(c) && (isDependencyUpdate(c) || (typeOf(c) !== "feat" && typeOf(c) !== "fix"))
+    ),
   };
 }
 
