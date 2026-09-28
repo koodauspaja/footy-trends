@@ -99,12 +99,16 @@ Workflow
    and closed with all eight boxes empty.
 
 9. Push the chore branch and open a pull request against `main`.
-   - Link the originating GitHub issue with a closing keyword — `Closes #NNN`
-     (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or `Refs #NNN`.
-     Only a closing keyword makes GitHub populate the PR↔issue link; the
-     link is mandatory even though the issue auto-closing on merge is just
-     an accepted side effect of it. See `skills/open-pr.md` for the full
+   - **When the chore has an issue**, link it with a closing keyword —
+     `Closes #NNN` (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or
+     `Refs #NNN`. Only a closing keyword makes GitHub populate the PR↔issue
+     link; the link is mandatory even though the issue auto-closing on merge is
+     just an accepted side effect of it. See `skills/open-pr.md` for the full
      rationale.
+
+     A trivial chore may legitimately have no issue at all — step 3 says so,
+     and `npm run check:boxes` passes a pull request that closes none for the
+     same reason. Then there is nothing to link, and nothing to tick.
    - Summarize what changed and why.
    - List the validation commands and their results.
    - Mark the Spec and Decision record sections as `Not applicable - chore`.

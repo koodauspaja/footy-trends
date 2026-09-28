@@ -34,6 +34,17 @@ const CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s?(.*)$/;
 const LIST_ITEM = /^\s*[-*]\s/;
 
 /**
+ * An ATX heading, which ends the box above it.
+ *
+ * Markdown allows up to three spaces of indent, and requires a space after the
+ * hashes — so `   ## Notes` is a heading and `#tag` is ordinary text. Testing
+ * `startsWith("#")` got both wrong in the same line: an indented heading could
+ * explain the box above it, and a wrapped reason beginning `#tag` was cut off
+ * from the box it belonged to. Raised in review on #468.
+ */
+const HEADING = /^ {0,3}#{1,6}(?:\s|$)/;
+
+/**
  * A reason, as the four issues that carry one write it: an em dash, then bold.
  *
  * Deliberately a shape rather than a wording. `- [ ] … — **not ticked: …**`
@@ -97,7 +108,7 @@ export function boxesIn(issueBody: string): Box[] {
 
     // A blank line, a heading or another list item ends the item, and nothing
     // after one can be read as that box's reason.
-    if (line.trim() === "" || line.startsWith("#") || LIST_ITEM.test(line)) {
+    if (line.trim() === "" || HEADING.test(line) || LIST_ITEM.test(line)) {
       open = null;
       continue;
     }
