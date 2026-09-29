@@ -2194,7 +2194,7 @@ function inPublishedOrder(standings: TeamStanding[], teamRows: StoredGroupTeam[]
   if (ranked.length < standings.length) return standings;
 
   return ranked
-    .sort((left, right) => left.position - right.position)
+    .toSorted((left, right) => left.position - right.position)
     .map(({ team }, index) => ({ ...team, position: index + 1 }));
 }
 
