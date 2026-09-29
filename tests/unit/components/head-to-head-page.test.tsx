@@ -1,11 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CompetitionAverages,
   FootballDataMatchRow,
   HeadToHeadResult,
   TasoMatchRow,
+  TeamForm,
 } from "@/lib/match-service";
+import type { MatchSource } from "@/lib/match-source";
 import { MENS_TEAM } from "@/lib/national-team";
 
 /**
@@ -28,9 +30,14 @@ const getCompetitionAveragesMock = vi.fn(
 /** Signed out unless a test says otherwise, which is also what specs/042's tests assume. */
 const canSeeAnalyticsMock = vi.fn(async () => false);
 
+const getTeamFormMock = vi.fn(
+  async (_source: MatchSource, _team: number): Promise<TeamForm> => ({ status: "too-few" })
+);
+
 vi.mock("@/lib/match-service", () => ({
   getHeadToHeadHistory: getHeadToHeadHistoryMock,
   getCompetitionAverages: getCompetitionAveragesMock,
+  getTeamForm: getTeamFormMock,
 }));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
@@ -103,6 +110,16 @@ warmModules(() => import("@/components/head-to-head-page"));
 // signed-in reader of whichever specs/044 test ran before them.
 beforeEach(() => {
   canSeeAnalyticsMock.mockResolvedValue(false);
+  // specs/042 and specs/044's tests describe the page with no form group: in
+  // 2030 their 2024–2025 fixtures are a rivalry no longer played (specs/047,
+  // S8), so the page is exactly as those specs made it. specs/047's tests set
+  // their own date.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2030-06-01T12:00:00Z"));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("the window sentence's label", () => {
@@ -686,5 +703,161 @@ describe("the analysis sections (specs/044)", () => {
     expect(getCompetitionAveragesMock).not.toHaveBeenCalled();
     expect(container.innerHTML).not.toContain("Yleisin");
     expect(container.innerHTML).not.toContain("data-level");
+  });
+});
+
+describe("the rivalry: current form beside the history (specs/047)", () => {
+  /** Five finished matches for one team, oldest first, as `latestForm` returns them. */
+  function okForm(firstId: number, results: string, latest: string): TeamForm {
+    const letters = [...results] as Array<"V" | "T" | "H">;
+    const labels = { V: "Voitto", T: "Tasapeli", H: "Häviö" } as const;
+    return {
+      status: "ok",
+      entries: letters.map((result, index) => ({
+        match: meeting({ providerMatchId: firstId + index }) as never,
+        result,
+        label: labels[result],
+      })),
+      pointsPerMatch:
+        letters.reduce((sum, r) => sum + (r === "V" ? 3 : r === "T" ? 1 : 0), 0) / letters.length,
+      latest: new Date(latest),
+    };
+  }
+
+  function h2s(): Array<string | null> {
+    return screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.setSystemTime(new Date("2026-09-29T12:00:00Z"));
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1, kickoffAt: new Date("2025-07-12T16:00:00Z") })],
+    });
+    getTeamFormMock.mockImplementation(async (_source, team) =>
+      team === HJK
+        ? okForm(100, "VVTHV", "2026-09-21T15:00:00Z")
+        : okForm(200, "HHTTV", "2026-09-20T15:00:00Z")
+    );
+  });
+
+  it("puts Nykyinen vire first and the whole history under Keskinäinen historia (S4)", async () => {
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+    const history = screen.getByRole("region", { name: "Keskinäinen historia" });
+    expect(
+      within(history)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent)
+    ).toEqual(["Yhteenveto", "Tulokset", "Maalit kilpailuittain", "Kohtaamiset"]);
+  });
+
+  it("asks for each team's form within the pair's own source (S1)", async () => {
+    await renderPage();
+
+    expect(getTeamFormMock).toHaveBeenCalledWith(ROUTE.source, HJK);
+    expect(getTeamFormMock).toHaveBeenCalledWith(ROUTE.source, KUPS);
+  });
+
+  it("shows the first team's block first, and swaps with the URL", async () => {
+    await renderPage();
+    const blocks = () =>
+      within(screen.getByRole("region", { name: "Nykyinen vire" }))
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent);
+    expect(blocks()).toEqual(["HJK", "KuPS"]);
+
+    document.body.innerHTML = "";
+    await renderPage(String(KUPS), String(HJK));
+    expect(blocks()).toEqual(["KuPS", "HJK"]);
+  });
+
+  it("shows five results oldest first, each linking to its match, as the Vire column spells them (S7)", async () => {
+    await renderPage();
+    const block = screen.getByRole("region", { name: "HJK" });
+    const links = within(block).getAllByRole("link");
+
+    expect(links.map((link) => link.textContent)).toEqual(["V", "V", "T", "H", "V"]);
+    expect(links[0]).toHaveAttribute("href", "/kotimaa/ottelu/100");
+    expect(links[0]).toHaveAttribute("title", "Voitto");
+    expect(links[3]).toHaveAttribute("title", "Häviö");
+    // V V T H V: 3 + 3 + 1 + 0 + 3 = 10 points over five.
+    expect(within(block).getByText("2,0 pistettä ottelua kohden")).toBeInTheDocument();
+    expect(within(block).getByText("Viimeisin ottelu 21.09.2026")).toBeInTheDocument();
+  });
+
+  it("says too few, or that the read failed, in that team's block only (S9)", async () => {
+    getTeamFormMock.mockImplementation(async (_source, team) =>
+      team === HJK ? ({ status: "too-few" } as const) : ({ status: "error" } as const)
+    );
+    await renderPage();
+
+    expect(
+      within(screen.getByRole("region", { name: "HJK" })).getByText(
+        "Vire näytetään, kun joukkue on pelannut vähintään viisi ottelua."
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "KuPS" })).getByText(
+        "Virettä ei voitu laskea. Yritä myöhemmin uudelleen."
+      )
+    ).toBeInTheDocument();
+    // The history is untouched by either.
+    expect(screen.getByRole("region", { name: "Keskinäinen historia" })).toBeInTheDocument();
+  });
+
+  it("counts a meeting in current year − 2, in Helsinki's calendar (S13)", async () => {
+    // 00:30 on 1 January 2024 in Helsinki is still 31 December 2023 in UTC.
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1, kickoffAt: new Date("2023-12-31T22:30:00Z") })],
+    });
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+  });
+
+  it("leaves a rivalry no longer played exactly as it was, reading no form (S8, S12)", async () => {
+    // 23:30 on 31 December 2023 in Helsinki: 2023, three years back.
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1, kickoffAt: new Date("2023-12-31T21:30:00Z") })],
+    });
+    await renderPage();
+
+    expect(h2s()).toEqual(["Yhteenveto", "Tulokset", "Maalit kilpailuittain", "Kohtaamiset"]);
+    expect(getTeamFormMock).not.toHaveBeenCalled();
+  });
+
+  it("reads no form and adds no group for a signed-out reader (S11, S14)", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(false);
+    const { container } = render(
+      await (await import("@/components/head-to-head-page")).HeadToHeadPage({
+        ...ROUTE,
+        params: Promise.resolve({ a: "1", b: "2" }),
+      })
+    );
+
+    expect(h2s()).toEqual(["Yhteenveto", "Kohtaamiset"]);
+    expect(getTeamFormMock).not.toHaveBeenCalled();
+    expect(container.innerHTML).not.toContain("pistettä ottelua kohden");
+  });
+
+  it("adds nothing on a TASO national-team route (S10)", async () => {
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+    render(
+      await HeadToHeadPage({
+        source: { kind: "taso", bucket: "national" },
+        basePath: "/maajoukkueet/huuhkajat",
+        nationalTeam: MENS_TEAM,
+        params: Promise.resolve({ a: "1", b: "2" }),
+      })
+    );
+
+    expect(h2s()).toEqual(["Yhteenveto", "Tulokset", "Kohtaamiset"]);
+    expect(getTeamFormMock).not.toHaveBeenCalled();
   });
 });

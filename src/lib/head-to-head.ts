@@ -11,7 +11,7 @@
 import { competitionsInRegion, earliestSeasonFor } from "./competitions";
 import { hasPlaceholderTeam } from "./match-detail";
 import type { MatchSource } from "./match-source";
-import { EARLIEST_NATIONAL_TEAM_YEAR } from "./national-team";
+import { EARLIEST_NATIONAL_TEAM_YEAR, playedYear } from "./national-team";
 import { formatSeasonLabel, resolveEarliestSeason } from "./seasons";
 import { EARLIEST_TASO_SEASON } from "./taso";
 
@@ -557,3 +557,20 @@ export type OpponentsSeries =
   /** A page the panel is not on: a national team's (S5). */
   | { status: "unavailable" }
   | { status: "error" };
+
+/** How many calendar years back a meeting keeps a rivalry current (specs/047, S8). */
+const CURRENT_RIVALRY_YEARS = 3;
+
+/**
+ * Whether the pair's latest meeting keeps the rivalry current (specs/047, S8,
+ * S13): played in `current year − 2` or later — in 2026, a 2024 meeting counts
+ * and any 2023 one does not.
+ *
+ * Both years are Helsinki's, as `playedYear` reads every date on the site, so
+ * a late kick-off on 31 December is not filed under the next year because UTC
+ * has already turned. `today` is passed in, never read here, so the rule is
+ * testable at its boundary.
+ */
+export function isCurrentRivalry(latestMeeting: Date, today: Date): boolean {
+  return playedYear(latestMeeting) > playedYear(today) - CURRENT_RIVALRY_YEARS;
+}

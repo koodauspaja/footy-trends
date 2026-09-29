@@ -7,6 +7,7 @@ import {
   getCompetitionAverages,
   getHeadToHeadHistory,
   getMatchPageData,
+  getTeamForm,
   getWorstOpponents,
   type TasoMatchRow,
 } from "@/lib/match-service";
@@ -28,7 +29,7 @@ const SEASON = 991777;
 
 const TASO_IDS = [
   991001, 991002, 991003, 991004, 991005, 991006, 991007, 991008, 991009, 991010, 991011, 991012,
-  991013, 991014, 991015, 991016, 991017,
+  991013, 991014, 991015, 991016, 991017, 991018, 991019, 991020, 991021, 991022, 991023, 991024,
 ];
 const FD_IDS = [991001, 991002, 991003, 991004];
 
@@ -525,5 +526,73 @@ describe("a club's worst opponents (specs/045)", () => {
     expect(row && [row.played, row.wins, row.draws, row.losses]).toEqual(
       record && [record.played, record.wins, record.draws, record.losses]
     );
+  });
+});
+
+describe("a team's latest form (specs/047)", () => {
+  /** A finished match for HOME on `day` of September 2026, home or away. */
+  function played(
+    id: number,
+    day: number,
+    homeTeam: number,
+    own: number,
+    other: number,
+    extra = {}
+  ) {
+    const homeIsHome = homeTeam === HOME;
+    return tasoRow({
+      providerMatchId: id,
+      kickoffAt: new Date(Date.UTC(2026, 8, day, 15)),
+      homeTeamProviderId: homeIsHome ? HOME : OTHER,
+      homeTeamName: homeIsHome ? "Integration VPS" : "Integration Other",
+      awayTeamProviderId: homeIsHome ? OTHER : HOME,
+      awayTeamName: homeIsHome ? "Integration Other" : "Integration VPS",
+      homeGoals: homeIsHome ? own : other,
+      awayGoals: homeIsHome ? other : own,
+      ...extra,
+    });
+  }
+
+  it("reads the latest five, home and away, across competitions, finished only", async () => {
+    await db.insert(tasoMatches).values([
+      // The oldest: one too many, so it must fall out of the five.
+      played(991018, 1, HOME, 0, 3),
+      played(991019, 5, HOME, 2, 0),
+      played(991020, 9, OTHER, 1, 1),
+      // Another competition in the same bucket: counted (S5).
+      played(991021, 12, HOME, 0, 1, { categoryId: "MSC", competitionCode: "spljp90" }),
+      played(991022, 15, OTHER, 3, 2),
+      played(991023, 19, HOME, 1, 0),
+      // Newer, but in progress: not a result, so not in the five.
+      played(991024, 25, HOME, 0, 4, { status: "IN_PLAY" }),
+    ]);
+
+    const form = await getTeamForm({ kind: "taso", bucket: "domestic" }, HOME);
+
+    expect(form.status).toBe("ok");
+    if (form.status !== "ok") return;
+    expect(form.entries.map((entry) => entry.match.providerMatchId)).toEqual([
+      991019, 991020, 991021, 991022, 991023,
+    ]);
+    expect(form.entries.map((entry) => entry.result)).toEqual(["V", "T", "H", "V", "V"]);
+    // 3 + 1 + 0 + 3 + 3 = 10 over five.
+    expect(form.pointsPerMatch).toBe(2);
+    expect(form.latest).toEqual(new Date(Date.UTC(2026, 8, 19, 15)));
+  });
+
+  it("does not read the national bucket for a domestic team", async () => {
+    await db
+      .insert(tasoMatches)
+      .values([
+        played(991018, 1, HOME, 1, 0),
+        played(991019, 2, HOME, 1, 0),
+        played(991020, 3, HOME, 1, 0),
+        played(991021, 4, HOME, 1, 0),
+        played(991022, 5, HOME, 1, 0, { competitionCode: "maajp90" }),
+      ]);
+
+    await expect(getTeamForm({ kind: "taso", bucket: "domestic" }, HOME)).resolves.toEqual({
+      status: "too-few",
+    });
   });
 });

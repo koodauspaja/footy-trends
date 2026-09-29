@@ -25,7 +25,15 @@ vi.mock("@/db", () => ({
              * Every head-to-head read — the full history, and the match page's
              * five taken from it (specs/042) — ends at `.orderBy(...)`.
              */
-            orderBy: () => Promise.resolve().then(() => selectMock(...args)),
+            orderBy: () => ({
+              /** A team's latest five (specs/047) end at `.orderBy(...).limit(...)`. */
+              limit: () => Promise.resolve().then(() => selectMock(...args)),
+              // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
+              then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+                Promise.resolve()
+                  .then(() => selectMock(...args))
+                  .then(resolve, reject),
+            }),
             /** The competition averages (specs/044) are awaited straight after `.where(...)`. */
             // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
             then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -466,6 +474,72 @@ describe("getWorstOpponents (specs/045)", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), team: CLUB }),
       "Unable to read the club's opponents"
+    );
+  });
+});
+
+describe("getTeamForm (specs/047)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  const TEAM = 60901;
+
+  /** Five results for TEAM, newest first as the read returns them: W D L W W, oldest first. */
+  function five() {
+    const scores: Array<[number, number]> = [
+      [2, 0],
+      [3, 1],
+      [0, 1],
+      [1, 1],
+      [2, 1],
+    ];
+    return scores.map(([own, other], index) =>
+      tasoRow({
+        providerMatchId: 500 + index,
+        kickoffAt: new Date(Date.UTC(2026, 8, 20 - index)),
+        homeTeamProviderId: TEAM,
+        homeGoals: own,
+        awayGoals: other,
+      })
+    );
+  }
+
+  it("reads the team's latest five within the source and gives their form, oldest first", async () => {
+    const { getTeamForm } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce(five());
+
+    const form = await getTeamForm(DOMESTIC, TEAM);
+
+    expect(form.status === "ok" ? form.entries.map((e) => e.result) : []).toEqual([
+      "V",
+      "T",
+      "H",
+      "V",
+      "V",
+    ]);
+    // 3 + 1 + 0 + 3 + 3 = 10 over five.
+    expect(form).toMatchObject({ status: "ok", pointsPerMatch: 2 });
+    expect(form.status === "ok" ? form.latest : null).toEqual(new Date(Date.UTC(2026, 8, 20)));
+  });
+
+  it("reads football-data's the same way", async () => {
+    const { getTeamForm } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]);
+
+    await expect(getTeamForm(FOREIGN, TEAM)).resolves.toEqual({ status: "too-few" });
+    expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns a failed read into its own case, never too few", async () => {
+    const { getTeamForm } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getTeamForm(DOMESTIC, TEAM)).resolves.toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), team: TEAM }),
+      "Unable to read the team's latest matches"
     );
   });
 });
