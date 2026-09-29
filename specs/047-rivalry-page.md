@@ -1,7 +1,7 @@
 # 047 — The rivalry: shared history beside both teams' current form
 
-> **Status: all questions (Q1–Q12) answered in chat on 2026-09-29; #355 updated
-> from this spec the same day, awaiting approval to start.** Written for #355, the last of the
+> **Status: agreed in chat on 2026-09-29 (Q1–Q12, and the date format asked at
+> the start of implementation); #355 moved to Ready the same day.** Written for #355, the last of the
 > matchup features after specs/042, specs/044 and specs/045. The live prediction
 > #355 first named was split out as #480 on 2026-09-29 and is not part of this
 > spec.
@@ -65,6 +65,7 @@ regardless of season, and splitting the page into *now* and *history*.
 | S12 | When the groups appear | **Only together.** Both group headings are shown only when `Nykyinen vire` is; otherwise the page is exactly as today — no group headings, sections at `h2` | Miikka, 2026-09-29 (Q10, Q11). A single group is a heading over the whole page, saying nothing the page title does not. Covers the two TASO national-team routes (S10), a rivalry S8 hides, and a signed-out reader (S14) |
 | S13 | "Within three years" | **Calendar years: a meeting in `current year − 2` or later counts.** In 2026, a 2024 meeting counts and any 2023 meeting does not. The year is the kickoff's and today's in `Europe/Helsinki`, as every date on the site | Miikka, 2026-09-29 (Q11), matching the Q6 example: "no later matches than 2023" hides the group for the whole of 2023. |
 | S14 | Signed out, the history heading | **None.** S12 applies signed out too: a signed-out reader sees the page exactly as today | Miikka, 2026-09-29 (Q12), resolving Q9's wording against S12's rule. One rule for every page with a single group; signed-out readers see no change from this feature. |
+| S15 | The latest match's date | **`dd.mm.yyyy`, from the shared kickoff date formatter** — `21.09.2026` | Miikka, 2026-09-29, asked at the start of implementation: the draft wrote `21.9.2026`, but every other date on the site, the `Kohtaamiset` list below included, is padded by the one formatter in `match-detail.ts`. |
 
 ## UX / UI (Finnish strings)
 
@@ -77,7 +78,7 @@ Signed in, on `/kotimaa`, `/ulkomaat` and `/maajoukkueet`, with a meeting in
      - `V V T H V` — five letters, oldest first, each linking to
        `…/ottelu/:id` with the same `title` the standings `Vire` column gives it
      - `2,2 pistettä ottelua kohden` — one decimal, decimal comma
-     - `Viimeisin ottelu 21.9.2026`
+     - `Viimeisin ottelu 21.09.2026` — the site's own date format (S15)
 2. **`Keskinäinen historia`** — group heading (`h2`)
    - `Yhteenveto`, `Tulokset`, `Maalit kilpailuittain`, `Kohtaamiset` — now `h3`,
      content unchanged.
@@ -95,7 +96,7 @@ Reused strings:
 | `Kirjaudu sisään nähdäksesi analyysit ja trendit.` | Signed out — where it is today, and only there (S11) |
 
 New strings: `Nykyinen vire`, `Keskinäinen historia`,
-`{ppg} pistettä ottelua kohden`, `Viimeisin ottelu {d.M.yyyy}`.
+`{ppg} pistettä ottelua kohden`, `Viimeisin ottelu {dd.mm.yyyy}`.
 
 ## API & Data
 
@@ -190,4 +191,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-**None.** Q1–Q12 were answered in chat on 2026-09-29 and are recorded as S3–S14.
+**None.** Q1–Q12 were answered in chat on 2026-09-29 and are recorded as S3–S14;
+the date format asked at the start of implementation is S15.
