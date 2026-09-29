@@ -1,7 +1,7 @@
 # 050 — Table volatility: how much a league's table moves after mid-season
 
-> **Status: draft, 2026-09-29. Open questions Q1–Q11 below are unanswered — not
-> ready for the go.** Written for #342, the last of the competition-level
+> **Status: Q1–Q10 answered in chat on 2026-09-29; Q11 (the strings) is open —
+> not ready for the go.** Written for #342, the last of the competition-level
 > analytics after specs/048 (#341) and specs/049 (#339, #340). It joins the
 > competition page's `Analyysit` section that specs/048 creates.
 
@@ -21,8 +21,8 @@ team, and summarising the difference per competition.
 
 ### In scope
 
-- One panel on a competition's standings page, in `Analyysit` (specs/048 S4) —
-  which group depends on Q1.
+- One panel on a competition's standings page, in `Analyysit`'s `Kausi kaudelta`
+  group (specs/048 S4), after `Maaleja ottelua kohden` (S5).
 - Completed seasons only (S3).
 - Both providers, each competition within its own source (S2).
 
@@ -31,9 +31,11 @@ team, and summarising the difference per competition.
 - Any single team's movement on the team page — `Sijoitus kierroksittain`
   (specs/030) already shows it round by round.
 - A list of the season's biggest risers and fallers — a later feature if wanted
-  (Q10 asks whether it belongs here after all).
+  (S14).
 - Anything about the season in progress (S3).
 - Goals per game (specs/048), home advantage and draws (specs/049).
+- The Champions League (S10).
+- Comparing competitions with each other (S5).
 
 ## Settled decisions
 
@@ -43,42 +45,40 @@ team, and summarising the difference per competition.
 | S2 | Providers | **Each competition within its own registry**, never a figure mixing football-data and TASO seasons | specs/026, specs/027, specs/048 S2. |
 | S3 | Which seasons | **Completed seasons only** | "Final position" does not exist before a season ends. The season in progress is not a point, a row or a part of any average here. |
 | S4 | No provider request | **Stored data only** | specs/048 S9: production is backfilled, and a completed season never refreshes (`needsRefresh`). |
+| S5 | Shape | **A line over this competition's completed seasons, one point per season, in `Kausi kaudelta`** after `Maaleja ottelua kohden` | Miikka, 2026-09-29 (Q1). "Is this league getting less predictable?" is answered within one competition, where league size rarely changes between seasons, so the raw measure (S6) stays fair. Comparing 10-team with 20-team tables would need a normalised measure. |
+| S6 | The measure | **Mean absolute change: the average over the season's teams of \|final position − mid-season position\|**, in places, e.g. `2,1` | Miikka, 2026-09-29 (Q2). Needs no explanation, and a reader can check it from two standings tables. Rank correlation was set aside as uncheckable by eye. |
+| S7 | Mid-season | **After round ⌈R / 2⌉**, R counting every round a team plays in the league season, the continuation after a split included — Veikkausliiga's 22 + 5 → after round 14 | Miikka, 2026-09-29 (Q3). "Halfway through" as a reader means it; it lands inside the regular season in every league here, where specs/030 has a per-round table. The same idea as specs/038 S9. |
+| S8 | Final position after a split | **The combined position**, as specs/030 rule B | Miikka, 2026-09-29 (Q4). The final table a reader knows is the combined one. |
+| S9 | Seasons without per-round tables | **No point for that season**; a line under the chart says how many were left out | Miikka, 2026-09-29 (Q5). specs/030 rule C: no per-round table, so no mid-season position. |
+| S10 | Which competitions | **specs/048 S5's leagues without the Champions League** — football-data `PL`, `ELC`, `FL1`, `BL1`, `SA`, `DED`, `PPL`, `PD`, `BSA`; TASO `VL`, `M1L`, `M1`, `M2`, `NL`, `N1`, `P21SM`, `P211`, `P18SM`, `T18SM`. Kakkonen's parallel pools (specs/030 rule E) each count as their own table | Miikka, 2026-09-29 (Q6). The Champions League's group stage (2023/24) and league phase with knockouts (from 2024/25) leave most teams without a final position. No panel on its page. |
+| S11 | Too few seasons | **The line needs two completed seasons with a point**; fewer, a message in place of the chart (wording Q11) | Miikka, 2026-09-29 (Q7). As specs/048 S10. football-data's leagues have three completed seasons today. |
+| S12 | A team in only one of the two tables | **Counted over the teams in both tables only**; the text alternative states each season's team count | Miikka, 2026-09-29 (Q8). Within one season the teams are fixed — promotion and relegation happen between seasons — so this is only a mid-season withdrawal or annulled results, which Miikka notes is rare. One such case should not erase a season. |
+| S13 | The selected season | **Its point is marked**; a selected season in progress has no point, so nothing is marked | Miikka, 2026-09-29 (Q9). As specs/048 S11. |
+| S14 | Risers and fallers | **Not shown**; the figure only | Miikka, 2026-09-29 (Q10). A second feature on the panel; a later one if wanted. |
 
 ## Open questions
 
-Each carries a recommendation; none is decided until answered in chat.
-
 | # | Question | Options | Recommendation |
 |---|---|---|---|
-| Q1 | **Shape: across seasons, or across competitions?** | (a) A line over this competition's completed seasons, one point per season — in `Kausi kaudelta`, beside specs/048's goals per game. (b) A table of every competition's figure over a window, this one highlighted — in `Kilpailut rinnakkain`, beside specs/049. (c) Both | **(a).** "Is this league getting less predictable?" is answered within one competition, where league size rarely changes between seasons — so the raw measure (Q2) stays fair. Comparing competitions (b) means comparing 10-team and 20-team tables, which needs a normalised measure a reader has to have explained. |
-| Q2 | **The measure** | (a) **Mean absolute change**: the average over the season's teams of \|final position − mid-season position\|, e.g. `2,1 sijaa`. (b) The same, **divided by the number of teams**, as a share of the table. (c) **Rank correlation** between the two tables (Spearman), 1 = unchanged | **(a)** under Q1 (a): "teams moved 2,1 places on average" needs no explanation. Under Q1 (b), (b) instead — (a) would rank every 20-team league as more volatile than every 12-team one for size alone. (c) is the textbook measure, but a reader cannot check it by eye. |
-| Q3 | **Which point is "mid-season"** | (a) After the round that completes **half the season's rounds**, rounded up — `⌈R / 2⌉`, R counting every round a team plays, the continuation after a split included (Veikkausliiga's 22 + 5 → after round 14). (b) Half of the **regular season** only (Veikkausliiga → round 11). (c) After the first half of the calendar — the summer break, or the winter break for autumn–spring leagues | **(a).** "Halfway through the season" as a reader means it, and it lands inside the regular season in every league here, where specs/030 has a per-round table. specs/038 S9's "same share of the season completed" is the same idea. |
-| Q4 | **Final position after a split** | (a) The **combined** position — a championship-group team above every relegation-group team, as specs/030 rule B combines them. (b) The position within the team's own group | **(a).** The final table a reader knows is the combined one; (b) would say a team finishing 1st of the relegation group moved from 9th to 1st. |
-| Q5 | **Seasons where the table cannot be computed** — specs/030 rule C: some TASO seasons have no per-round table (the standings page shows no round selector), mostly old ones | (a) That season has no point, and the too-few rule (Q7) applies to what is left. (b) Use the final table for both and skip only the mid-season read — not possible, since the mid-season position *is* a per-round table | **(a),** with a line under the chart naming how many seasons had to be left out — to word under Q11. |
-| Q6 | **Which competitions** | (a) specs/048 S5's leagues **without the Champions League**: its 2023/24 edition had eight groups and knockouts, and from 2024/25 a 36-team league phase of eight rounds followed by knockouts — no "final position" for most teams. (b) The same list as specs/048, Champions League included | **(a).** Kakkonen's parallel pools (specs/030 rule E) are in: each pool is its own table, and a pool's teams count like any others. |
-| Q7 | **Too few seasons** | (a) A line needs two completed seasons with a point, as specs/048 S10, with its own message — proposed `Taulukon vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.` (b) A higher minimum | **(a).** football-data's leagues have three completed seasons today (2023/24–2025/26; `BSA` 2023–2025), TASO's up to eleven. |
-| Q8 | **A team in one of the two tables but not the other** — a team withdrawing mid-season, or results annulled | (a) Counted over the teams present in both tables only. (b) The season has no point | **(a).** One withdrawal should not erase a season; the team count behind each point is stated in the text alternative. |
-| Q9 | **The page's selected season** | (a) Its point marked, as specs/048 S11. (b) Not marked | **(a)** for consistency with specs/048 — and where the selected season is the one in progress (S3), nothing is marked. |
-| Q10 | **The teams behind the number** | (a) The figure only. (b) Also the season's biggest riser and faller in the text alternative, e.g. `suurin nousu: HJK 7. → 1.` | **(a)** for this spec; (b) is a nice line but a second feature on the panel. Stated here so it is a choice, not an omission. |
-| Q11 | **The strings** | Proposed: panel `Taulukon vaihtelu`; axes `Kausi` and `Sijoja keskimäärin`; text-alternative row `Kausi 2024: joukkueiden sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (12 joukkuetta).`; under the chart `Kauden puoliväli on kierroksen 14 jälkeen.`-style line naming the round per season, or a general one: `Puoliväli: kun puolet kauden kierroksista on pelattu.`; seasons left out: `1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea.`; failure `Taulukon vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen.` | Confirm or correct. |
+| Q11 | **The strings.** Miikka, 2026-09-29: *"is this about position? heading maybe Sijoituksen vaihtelu and y-axis Sijoitus keskimäärin"*. Yes — it is how much teams' **positions** change. The heading fits; the y-axis wording is the catch: the value is a number of places *moved*, not a position, and `Sijoitus keskimäärin` reads as "average position" — a reader would take `2,1` as "2nd place on average" | Heading: `Sijoituksen vaihtelu` (Miikka's) or `Sijoitusten vaihtelu` (plural — many teams' positions). Y-axis: (a) `Sijoitusmuutos keskimäärin`; (b) `Muutos, sijaa`; (c) `Sijoitus keskimäärin` as proposed | Heading **`Sijoitusten vaihtelu`**, y-axis **(a) `Sijoitusmuutos keskimäärin`**. The rest, reworded to match: text-alternative row `Kausi 2024: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (12 joukkuetta).`; under the chart `Puoliväli: kun puolet kauden kierroksista on pelattu.`; seasons left out `1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea.`; too few `Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.`; failure `Sijoitusten vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen.` |
 
 ## UX / UI (Finnish strings)
 
-**Pending Q1, Q9, Q11.** Under the recommendations, signed in, on the standings
-page of a competition Q6 names:
+Strings pending Q11 (recommended wording shown). Signed in, on the standings
+page of a competition S10 names:
 
 1. `Analyysit`
 2. `Kausi kaudelta` — specs/048's group
    - `Maaleja ottelua kohden` — specs/048
-   - **`Taulukon vaihtelu`** — new panel
+   - **`Sijoitusten vaihtelu`** — new panel
      - A line chart (`LineChart`, specs/030), one point per completed season
-       with a computable table (Q5), oldest left; the selected season marked
-       (Q9)
-     - Axes `Kausi` and `Sijoja keskimäärin`, from 0; values to one decimal with
+       with a computable table (S9), oldest left; the selected season marked
+       (S13)
+     - Axes `Kausi` and `Sijoitusmuutos keskimäärin`, from 0; values to one decimal with
        a decimal comma
-     - A text alternative, one row per season, with the team count (Q8)
-     - Under the chart: what "mid-season" means (Q3), and any seasons left out
-       (Q5)
+     - A text alternative, one row per season, with the team count (S12)
+     - Under the chart: what "mid-season" means (S7), and any seasons left out
+       (S9)
 3. `Kilpailut rinnakkain` — specs/049's group, unchanged
 
 Signed out: the one `Analyysit` prompt (specs/048 S4).
@@ -100,15 +100,18 @@ figure never changes, so if one is needed it has no invalidation problem.
 
 ## Edge Cases
 
-Only those that do not depend on an open question.
-
 | Case | Behaviour |
 |---|---|
 | The season in progress | No point (S3) |
 | A season whose stored matches are incomplete | Computed from what is stored, as the standings page would show it — no correction |
 | A points deduction | Counted as the standings page counts it (S1, specs/030 D) |
 | A match with no round (`matchday === null`) | In no per-round table, as specs/003 — so not in the mid-season table; in the final table as the standings page counts it |
-| A read fails | The failure message (Q11); the rest of the page renders |
+| A read fails | The failure message; the rest of the page renders |
+| A season without per-round tables | No point; counted in the left-out line (S9) |
+| Fewer than two seasons with a point | The too-few message in place of the chart (S11) |
+| A team withdraws mid-season | Counted over the teams in both tables (S12) |
+| The selected season is in progress | No point, nothing marked (S3, S13) |
+| The Champions League's page | No panel (S10) |
 | Signed out | No figure in the HTML (specs/048 S4) |
 
 ## Performance & Limits
@@ -126,10 +129,9 @@ No new environment variable or secret. Behind `canSeeAnalytics()`.
 
 ## Acceptance Criteria
 
-Drafted against the recommendations; revised once the open questions are answered.
-
-- [ ] Signed in, the standings page of every competition Q6 names shows
-      `Taulukon vaihtelu` in `Kausi kaudelta`, after `Maaleja ottelua kohden`
+- [ ] Signed in, the standings page of every competition S10 names shows
+      `Sijoitusten vaihtelu` in `Kausi kaudelta`, after `Maaleja ottelua kohden`;
+      the Champions League's page has no such panel
 - [ ] One point per completed season; the season in progress has none
 - [ ] Each point is the mean over the season's teams of |final − mid-season
       position|, both positions exactly those the standings page shows for
@@ -139,6 +141,9 @@ Drafted against the recommendations; revised once the open questions are answere
 - [ ] A season without per-round tables has no point, and the page says how
       many were left out
 - [ ] Fewer than two points: the Finnish too-few message in place of the chart
+- [ ] The selected season's point is marked
+- [ ] A team in only one of the two tables is left out of that season's mean,
+      and each season's team count is in the text alternative
 - [ ] Signed out, no figure in the HTML
 - [ ] No provider request is made
 - [ ] Correct in light and dark, and legible at 375 px
