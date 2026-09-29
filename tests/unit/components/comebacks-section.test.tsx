@@ -4,14 +4,15 @@ import {
   COMEBACKS_ERROR_MESSAGE,
   COMEBACKS_HEADING,
   comebacksPanel,
+  coverageNote,
   DREW_LABEL,
+  enoughHalfTimeKnown,
   LED_DREW_LABEL,
   LED_LABEL,
   LED_LOST_LABEL,
   matchCount,
   missingText,
   NO_DEFICIT_MESSAGE,
-  NO_HALF_TIME_MESSAGE,
   NO_LEAD_MESSAGE,
   TRAILED_LABEL,
   WON_LABEL,
@@ -136,8 +137,8 @@ describe("comebacksPanel", () => {
     expect(screen.getByText(NO_DEFICIT_MESSAGE)).toBeInTheDocument();
     expect(screen.getByText(NO_LEAD_MESSAGE)).toBeInTheDocument();
     expect(figures(container)).toEqual([]);
-    // Not the season-wide message: these matches are known, just level.
-    expect(screen.queryByText(NO_HALF_TIME_MESSAGE)).toBeNull();
+    // Not the coverage note: these matches are known, just level.
+    expect(screen.queryByText(/Puoliaikatulos on tiedossa/)).toBeNull();
   });
 
   it("still shows the figures when some matches have no half-time score", () => {
@@ -168,9 +169,9 @@ describe("comebacksPanel", () => {
     expect(screen.queryByText(/Puoliaikatulos puuttuu/)).toBeNull();
   });
 
-  it("says the season has no half-time scores instead of showing zeroes", () => {
+  it("says how few half-time scores are known instead of showing zeroes", () => {
     // Zeroes would read as "never trailed", which is a claim the data does not
-    // support: an old football-data season, or one not backfilled yet.
+    // support: an old football-data season, or one stored before the columns.
     const container = renderPanel({
       status: "ok",
       trailed: NONE,
@@ -179,12 +180,49 @@ describe("comebacksPanel", () => {
       known: 0,
     });
 
-    expect(screen.getByText(NO_HALF_TIME_MESSAGE)).toBeInTheDocument();
-    expect(NO_HALF_TIME_MESSAGE).toBe("Puoliaikatuloksia ei ole tälle kaudelle.");
+    expect(
+      screen.getByText(
+        "Puoliaikatulos on tiedossa vain 0 ottelusta, kun otteluita on 30. Kääntyneitä otteluita ei lasketa."
+      )
+    ).toBeInTheDocument();
     expect(figures(container)).toEqual([]);
     expect(screen.queryByText(NO_DEFICIT_MESSAGE)).toBeNull();
     expect(screen.queryByText(NO_LEAD_MESSAGE)).toBeNull();
     expect(screen.queryByText(/Puoliaikatulos puuttuu/)).toBeNull();
+  });
+
+  it("shows the note, not the figures, below 40 % known (specs/046)", () => {
+    // Huuhkajat on production: about 8 of 84 matches with a half-time score.
+    const container = renderPanel({ ...series, known: 8, missing: 76 });
+
+    expect(screen.getByRole("heading", { level: 4, name: COMEBACKS_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(coverageNote(8, 76))).toBeInTheDocument();
+    expect(figures(container)).toEqual([]);
+    expect(screen.queryByText(/Puoliaikatulos puuttuu/)).toBeNull();
+  });
+
+  it("shows the figures at exactly 40 %: the rule is below it", () => {
+    // 6 of 15.
+    const container = renderPanel({ ...series, known: 6, missing: 9 });
+
+    expect(figures(container)).toHaveLength(6);
+    expect(screen.getByText("Puoliaikatulos puuttuu 9 ottelusta.")).toBeInTheDocument();
+    expect(screen.queryByText(/Puoliaikatulos on tiedossa/)).toBeNull();
+  });
+
+  it("says not yet, rather than the note, before any match is played (S6)", () => {
+    const container = renderPanel({
+      status: "ok",
+      trailed: NONE,
+      led: NONE,
+      missing: 0,
+      known: 0,
+    });
+
+    expect(screen.getByText(NO_DEFICIT_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(NO_LEAD_MESSAGE)).toBeInTheDocument();
+    expect(figures(container)).toEqual([]);
+    expect(screen.queryByText(/Puoliaikatulos on tiedossa/)).toBeNull();
   });
 
   it("shows the error message instead of the figures", () => {
@@ -202,5 +240,30 @@ describe("comebacksPanel", () => {
     const container = renderPanel({ status: "unavailable" });
 
     expect(container.textContent).toBe("");
+  });
+});
+
+describe("enoughHalfTimeKnown (specs/046, S1)", () => {
+  it.each([
+    [6, 9, true, "exactly 40 %"],
+    [2, 3, true, "exactly 40 %, small"],
+    [5, 8, false, "38 %"],
+    [8, 76, false, "Huuhkajat, about 10 %"],
+    [1, 83, false, "Helmarit, one match"],
+    [0, 30, false, "none known"],
+    [30, 0, true, "all known"],
+    [0, 0, true, "no match played yet (S6)"],
+  ])("%i known, %i missing: %s (%s)", (known, missing, expected) => {
+    expect(enoughHalfTimeKnown(known, missing)).toBe(expected);
+  });
+});
+
+describe("coverageNote (specs/046, S5)", () => {
+  it("states the sample, with no case ending on either numeral", () => {
+    expect(coverageNote(8, 76)).toBe(
+      "Puoliaikatulos on tiedossa vain 8 ottelusta, kun otteluita on 84. Kääntyneitä otteluita ei lasketa."
+    );
+    // `3:sta` but `4:stä`: a total with a case ending would be wrong for some.
+    expect(coverageNote(1, 2)).not.toMatch(/\d+:st/);
   });
 });
