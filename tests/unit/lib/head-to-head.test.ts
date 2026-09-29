@@ -17,6 +17,7 @@ import {
   headToHeadRecord,
   headToHeadWindow,
   headToHeadWindowSentence,
+  isCurrentRivalry,
   type Meeting,
   meetingsHref,
   meetingsLink,
@@ -682,5 +683,28 @@ describe("meetingsHref and spansCalendarYears", () => {
     expect(spansCalendarYears(FOREIGN)).toBe(true);
     expect(spansCalendarYears(NATIONAL_TEAMS)).toBe(false);
     expect(spansCalendarYears(DOMESTIC)).toBe(false);
+  });
+});
+
+describe("isCurrentRivalry (specs/047, S8, S13)", () => {
+  // Midday on 29 September 2026: `current year − 2` is 2024.
+  const TODAY = new Date("2026-09-29T12:00:00Z");
+
+  it("counts a meeting from 1 January of current year − 2, in Helsinki", () => {
+    // 00:30 on 1 January 2024 in Helsinki — still 2023 in UTC.
+    expect(isCurrentRivalry(new Date("2023-12-31T22:30:00Z"), TODAY)).toBe(true);
+  });
+
+  it("does not count 31 December of current year − 3, in Helsinki", () => {
+    // 23:30 on 31 December 2023 in Helsinki.
+    expect(isCurrentRivalry(new Date("2023-12-31T21:30:00Z"), TODAY)).toBe(false);
+  });
+
+  it("counts this year's meetings, and reads today in Helsinki too", () => {
+    expect(isCurrentRivalry(new Date("2026-05-01T12:00:00Z"), TODAY)).toBe(true);
+    // 00:30 on 1 January 2027 in Helsinki is 2027, so 2024 falls out.
+    expect(
+      isCurrentRivalry(new Date("2024-06-01T12:00:00Z"), new Date("2026-12-31T22:30:00Z"))
+    ).toBe(false);
   });
 });

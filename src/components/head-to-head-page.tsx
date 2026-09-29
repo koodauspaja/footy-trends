@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import { formatDecimal } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
-import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
+import { FORM_ERROR_MESSAGE, TOO_FEW_MESSAGE } from "@/components/form-section";
+import {
+  type MatchListRow,
+  MatchListTable,
+  matchDateFormatter,
+} from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
@@ -16,6 +22,7 @@ import {
   headToHeadRecord,
   headToHeadWindow,
   headToHeadWindowSentence,
+  isCurrentRivalry,
   SCORE_GRID_CAP,
   type ScoreAverage,
   type ScoreGrid,
@@ -28,8 +35,10 @@ import {
   type FootballDataMatchRow,
   getCompetitionAverages,
   getHeadToHeadHistory,
+  getTeamForm,
   type HeadToHeadResult,
   type TasoMatchRow,
+  type TeamForm,
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
 import {
@@ -56,6 +65,9 @@ const AVERAGES_HEADING = "Maalit kilpailuittain";
 const AVERAGES_NOTE =
   "Kotijoukkueen maalit ensin. Kilpailun keskiarvo lasketaan niiden kausien otteluista, joina joukkueet kohtasivat siinä.";
 export const AVERAGES_ERROR_MESSAGE = "Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
+/** The two groups of specs/047, shown only together (S4, S12). */
+export const FORM_GROUP_HEADING = "Nykyinen vire";
+export const HISTORY_GROUP_HEADING = "Keskinäinen historia";
 
 /** What a route file supplies to make this page its own. */
 export type HeadToHeadPageOptions = {
@@ -100,6 +112,8 @@ export function homeLine(
 type View = {
   /** The id the URL names first, which the grid is read from (specs/044, S5). */
   firstId: number;
+  /** The id the URL names second, whose form is the second block (specs/047). */
+  secondId: number;
   first: string;
   second: string;
   /**
@@ -146,6 +160,7 @@ function namesFrom(
 async function buildView(
   history: Extract<HeadToHeadResult, { status: "ok" }>,
   first: number,
+  second: number,
   options: HeadToHeadPageOptions
 ): Promise<View | null> {
   const windowSentence = headToHeadWindowSentence(
@@ -166,6 +181,7 @@ async function buildView(
     return {
       ...names,
       firstId: first,
+      secondId: second,
       record,
       rows: labelled,
       analysed: labelled.map((row) => ({
@@ -194,6 +210,7 @@ async function buildView(
   return {
     ...names,
     firstId: first,
+    secondId: second,
     record,
     rows: labelled,
     analysed: labelled.map((row) => ({
@@ -205,6 +222,28 @@ async function buildView(
     })),
     windowSentence,
   };
+}
+
+/**
+ * A section's heading level: `h2` on the page as specs/042 and 044 laid it out,
+ * `h3` once the two groups of specs/047 wrap the sections (S4, S12).
+ */
+type Level = 2 | 3;
+
+function SectionHeading({
+  level,
+  id,
+  children,
+}: Readonly<{ level: Level; id: string; children: React.ReactNode }>) {
+  return level === 2 ? (
+    <h2 className="mb-2 font-semibold text-xl" id={id}>
+      {children}
+    </h2>
+  ) : (
+    <h3 className="mb-2 font-semibold text-lg" id={id}>
+      {children}
+    </h3>
+  );
 }
 
 /** `2–1`, the first team's goals first (specs/044, S5). */
@@ -273,13 +312,17 @@ function ScoreCell({ count, largest }: Readonly<{ count: number; largest: number
 }
 
 /** The `Tulokset` section (specs/044, #337): the grid, and its sentence where it has one. */
-function ScoresSection({ view, grid }: Readonly<{ view: View; grid: ScoreGrid }>) {
+function ScoresSection({
+  view,
+  grid,
+  level,
+}: Readonly<{ view: View; grid: ScoreGrid; level: Level }>) {
   const sentence = mostCommonSentence(grid);
   return (
     <section aria-labelledby="h2h-scores" className="mb-8">
-      <h2 className="mb-2 font-semibold text-xl" id="h2h-scores">
+      <SectionHeading id="h2h-scores" level={level}>
         {SCORES_HEADING}
-      </h2>
+      </SectionHeading>
       {sentence === null ? null : <p className="mb-3">{sentence}</p>}
       <div className="overflow-x-auto">
         <table className="border-collapse text-sm tabular-nums">
@@ -354,12 +397,12 @@ type Averages = { status: "ok"; rows: AveragesRow[] } | { status: "error" };
  * seasons they met in it (S3, S4, S7). A failed read keeps the heading and says
  * so (S10), so it never looks like there was nothing to compare.
  */
-function AveragesSection({ averages }: Readonly<{ averages: Averages }>) {
+function AveragesSection({ averages, level }: Readonly<{ averages: Averages; level: Level }>) {
   return (
     <section aria-labelledby="h2h-averages" className="mb-8">
-      <h2 className="mb-2 font-semibold text-xl" id="h2h-averages">
+      <SectionHeading id="h2h-averages" level={level}>
         {AVERAGES_HEADING}
-      </h2>
+      </SectionHeading>
       {averages.status === "error" ? (
         <p>{AVERAGES_ERROR_MESSAGE}</p>
       ) : (
@@ -392,20 +435,47 @@ async function loadAverages(view: View): Promise<Averages> {
  */
 async function loadAnalysis(
   view: View,
-  source: HeadToHeadPageOptions["source"]
-): Promise<{ grid: ScoreGrid; averages: Averages | null } | null> {
+  source: HeadToHeadPageOptions["source"],
+  today: Date
+): Promise<{
+  grid: ScoreGrid;
+  averages: Averages | null;
+  form: { first: TeamForm; second: TeamForm } | null;
+} | null> {
   if (!(await canSeeAnalytics())) return null;
-  const withAverages = !(source.kind === "taso" && source.bucket === "national");
-  return {
-    grid: scoreGrid(view.analysed, view.firstId),
-    averages: withAverages ? await loadAverages(view) : null,
-  };
+  const isTasoNational = source.kind === "taso" && source.bucket === "national";
+  const [averages, form] = await Promise.all([
+    isTasoNational ? null : loadAverages(view),
+    isTasoNational ? null : loadForm(view, source, today),
+  ]);
+  return { grid: scoreGrid(view.analysed, view.firstId), averages, form };
+}
+
+/**
+ * Both teams' current form (specs/047), or `null` for a rivalry no longer
+ * played — with no read made at all (S8, S13). The TASO national-team routes
+ * never reach this (S10): Finland has no id stable across categories there.
+ */
+async function loadForm(
+  view: View,
+  source: HeadToHeadPageOptions["source"],
+  today: Date
+): Promise<{ first: TeamForm; second: TeamForm } | null> {
+  const latestMeeting = new Date(Math.max(...view.analysed.map((m) => m.kickoffAt.getTime())));
+  if (!isCurrentRivalry(latestMeeting, today)) return null;
+
+  const [first, second] = await Promise.all([
+    getTeamForm(source, view.firstId),
+    getTeamForm(source, view.secondId),
+  ]);
+  return { first, second };
 }
 
 function MatchupAnalysis({
   view,
   analysis,
-}: Readonly<{ view: View; analysis: Awaited<ReturnType<typeof loadAnalysis>> }>) {
+  level,
+}: Readonly<{ view: View; analysis: Awaited<ReturnType<typeof loadAnalysis>>; level: Level }>) {
   if (analysis === null) {
     return (
       <div className="mb-8">
@@ -415,24 +485,93 @@ function MatchupAnalysis({
   }
   return (
     <>
-      <ScoresSection grid={analysis.grid} view={view} />
-      {analysis.averages === null ? null : <AveragesSection averages={analysis.averages} />}
+      <ScoresSection grid={analysis.grid} level={level} view={view} />
+      {analysis.averages === null ? null : (
+        <AveragesSection averages={analysis.averages} level={level} />
+      )}
     </>
   );
 }
 
 /** The `Yhteenveto` section: the record, the goals and each ground (specs/042, S9). */
-function Summary({ view }: Readonly<{ view: View }>) {
+function Summary({ view, level }: Readonly<{ view: View; level: Level }>) {
   return (
     <section aria-labelledby="h2h-summary" className="mb-8">
-      <h2 className="mb-2 font-semibold text-xl" id="h2h-summary">
+      <SectionHeading id="h2h-summary" level={level}>
         {SUMMARY_HEADING}
-      </h2>
+      </SectionHeading>
       <p className="text-muted text-sm">{playedLine(view.record)}</p>
       <p className="mt-1 font-medium text-lg">{recordLine(view.record, view.first, view.second)}</p>
       <p className="mt-1">{goalsLine(view.record)}</p>
       <p className="mt-3 text-sm">{homeLine(view.first, view.record.firstAtHome)}</p>
       <p className="text-sm">{homeLine(view.second, view.record.secondAtHome)}</p>
+    </section>
+  );
+}
+
+/** `2,2 pistettä ottelua kohden`: one decimal, a decimal comma (specs/047, S7). */
+export function pointsLine(pointsPerMatch: number): string {
+  return `${formatDecimal(pointsPerMatch)} pistettä ottelua kohden`;
+}
+
+/** `Viimeisin ottelu 21.09.2026`, in the site's own date format (specs/047, S15). */
+export function latestLine(latest: Date): string {
+  return `Viimeisin ottelu ${matchDateFormatter.format(latest)}`;
+}
+
+/**
+ * One team's block under `Nykyinen vire` (specs/047, S7): its last five
+ * results as the standings `Vire` spells them, oldest first, each linking to
+ * its match; points per match; and when the newest was played. A team with
+ * fewer than five, or whose read failed, says so — the other block is its own.
+ */
+function FormBlock({
+  id,
+  name,
+  form,
+  basePath,
+}: Readonly<{ id: string; name: string; form: TeamForm; basePath: string }>) {
+  return (
+    <section aria-labelledby={id} className="mb-6">
+      <h3 className="mb-2 font-semibold text-lg" id={id}>
+        {name}
+      </h3>
+      {form.status === "error" ? <p>{FORM_ERROR_MESSAGE}</p> : null}
+      {form.status === "too-few" ? <p>{TOO_FEW_MESSAGE}</p> : null}
+      {form.status === "ok" ? (
+        <>
+          <p className="flex gap-2 font-medium">
+            {form.entries.map((entry) => (
+              <Link
+                className="hover:underline"
+                href={`${basePath}/ottelu/${entry.match.providerMatchId}`}
+                key={entry.match.providerMatchId}
+                title={entry.label}
+              >
+                {entry.result}
+              </Link>
+            ))}
+          </p>
+          <p className="mt-1">{pointsLine(form.pointsPerMatch)}</p>
+          <p className="text-muted text-sm">{latestLine(form.latest)}</p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/** A group heading over sections, as `Analyysit`'s groups are on the team page (specs/047, S4). */
+function Group({
+  id,
+  heading,
+  children,
+}: Readonly<{ id: string; heading: string; children: React.ReactNode }>) {
+  return (
+    <section aria-labelledby={id} className="mb-10">
+      <h2 className="mb-4 font-semibold text-2xl" id={id}>
+        {heading}
+      </h2>
+      {children}
     </section>
   );
 }
@@ -463,15 +602,20 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
   }
 
   const { view } = resolved;
-  const analysis = await loadAnalysis(view, options.source);
-  return (
-    <PageShell heading={`${HEADING}: ${view.first} – ${view.second}`}>
-      <Summary view={view} />
-      <MatchupAnalysis analysis={analysis} view={view} />
+  const analysis = await loadAnalysis(view, options.source, new Date());
+  // The groups appear only together, and only with the form (S12): signed out,
+  // a rivalry no longer played, and the TASO national-team routes all leave
+  // the page exactly as specs/044 made it.
+  const form = analysis?.form ?? null;
+  const level: Level = form === null ? 2 : 3;
+  const history = (
+    <>
+      <Summary level={level} view={view} />
+      <MatchupAnalysis analysis={analysis} level={level} view={view} />
       <section aria-labelledby="h2h-meetings">
-        <h2 className="mb-2 font-semibold text-xl" id="h2h-meetings">
+        <SectionHeading id="h2h-meetings" level={level}>
           {MEETINGS_HEADING}
-        </h2>
+        </SectionHeading>
         <p className="mb-4 text-muted text-sm">{view.windowSentence}</p>
         <MatchListTable
           fourthColumn={{ header: COMPETITION_COLUMN, render: (match) => match.label }}
@@ -480,6 +624,34 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
           teamHref={null}
         />
       </section>
+    </>
+  );
+
+  return (
+    <PageShell heading={`${HEADING}: ${view.first} – ${view.second}`}>
+      {form === null ? (
+        history
+      ) : (
+        <>
+          <Group heading={FORM_GROUP_HEADING} id="h2h-form">
+            <FormBlock
+              basePath={options.basePath}
+              form={form.first}
+              id="h2h-form-first"
+              name={view.first}
+            />
+            <FormBlock
+              basePath={options.basePath}
+              form={form.second}
+              id="h2h-form-second"
+              name={view.second}
+            />
+          </Group>
+          <Group heading={HISTORY_GROUP_HEADING} id="h2h-history">
+            {history}
+          </Group>
+        </>
+      )}
     </PageShell>
   );
 }
@@ -504,7 +676,7 @@ async function resolve(options: HeadToHeadPageOptions) {
       : ({ status: "not_found" } as const);
   }
 
-  const view = await buildView(history, first, options);
+  const view = await buildView(history, first, second, options);
   return view === null ? ({ status: "not_found" } as const) : { status: "ok" as const, view };
 }
 

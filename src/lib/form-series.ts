@@ -11,6 +11,8 @@
  * Pure: the services decide which matches count, and pass them in.
  */
 
+import { type FormResult, formResultLabel, resultFor } from "./standings";
+
 /** Matches in a window — the `Vire` column's five (specs/031, Q1). */
 export const FORM_WINDOW = 5;
 
@@ -92,4 +94,41 @@ function pointsFrom(match: ResultMatch, teamId: number): number {
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
+}
+
+/** One result in a team's latest form: the match, its letter and the letter's title. */
+export type FormEntry<T extends ResultMatch> = { match: T; result: FormResult; label: string };
+
+/**
+ * A team's form **now**, for the head-to-head page (specs/047): its last
+ * `FORM_WINDOW` matches, oldest first as the `Vire` column reads, their points
+ * per match, and when the newest was played.
+ */
+export type LatestForm<T extends ResultMatch> =
+  | { status: "ok"; entries: Array<FormEntry<T>>; pointsPerMatch: number; latest: Date }
+  /** Fewer than `FORM_WINDOW` stored matches: no full window (specs/047, S9). */
+  | { status: "too-few" };
+
+/**
+ * The team's latest form over the matches given, with the same points rule as
+ * `formSeries` — so it equals that series' last point over the same matches,
+ * by construction rather than by a second formula (specs/047, S2).
+ */
+export function latestForm<T extends ResultMatch>(
+  finished: readonly T[],
+  teamId: number
+): LatestForm<T> {
+  const window = teamMatchesInOrder(finished, teamId).slice(-FORM_WINDOW);
+  if (window.length < FORM_WINDOW) return { status: "too-few" };
+
+  return {
+    status: "ok",
+    entries: window.map((match) => {
+      const result = resultFor(...goalsFor(match, teamId));
+      return { match, result, label: formResultLabel(result) };
+    }),
+    pointsPerMatch: sum(window.map((match) => pointsFrom(match, teamId))) / FORM_WINDOW,
+    // The window is in kickoff order, so this is its last match's kickoff.
+    latest: new Date(Math.max(...window.map((match) => match.kickoffAt.getTime()))),
+  };
 }

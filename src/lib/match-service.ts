@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { type CompetitionRegion, competitionsInRegion } from "./competitions";
+import { FORM_WINDOW, type LatestForm, latestForm } from "./form-series";
 import {
   type CompetitionScope,
   HEAD_TO_HEAD_LIMIT,
@@ -230,45 +231,86 @@ async function tasoHistory(
 const FINISHED_STATUS = "FINISHED";
 
 /**
- * Every finished meeting of one club with both scores stored, newest first —
- * `footballDataHistory` and `tasoHistory` without the second team (specs/045,
- * S4). The same scope, status and score predicates, so an opponent's meetings
- * here are exactly the head-to-head page's for that pair.
+ * One club's finished matches with both scores stored, in its source's scope —
+ * `footballDataHistory` and `tasoHistory`'s predicates without the second team
+ * (specs/045, S4). Shared by the full history and the latest five (specs/047,
+ * S5), so an opponent's meetings and a team's current form count the same
+ * matches.
  */
+function footballDataTeamMatches(region: CompetitionRegion, team: number) {
+  const codes = competitionsInRegion(region).map((competition) => competition.code);
+  return and(
+    or(eq(matches.homeTeamProviderId, team), eq(matches.awayTeamProviderId, team)),
+    eq(matches.status, FINISHED_STATUS),
+    isNotNull(matches.homeGoals),
+    isNotNull(matches.awayGoals),
+    inArray(matches.competitionCode, codes)
+  );
+}
+
+function tasoTeamMatches(bucket: "domestic" | "national", team: number) {
+  return and(
+    or(eq(tasoMatches.homeTeamProviderId, team), eq(tasoMatches.awayTeamProviderId, team)),
+    eq(tasoMatches.status, FINISHED_STATUS),
+    isNotNull(tasoMatches.homeGoals),
+    isNotNull(tasoMatches.awayGoals),
+    tasoBucketPredicate(bucket)
+  );
+}
+
+/** Every such match of one club, newest first (specs/045). */
 async function teamHistory(
   source: MatchSource,
   team: number
 ): Promise<Array<FootballDataMatchRow | TasoMatchRow>> {
-  if (source.kind === "football-data") {
-    const codes = competitionsInRegion(source.region).map((competition) => competition.code);
-    return db
-      .select()
-      .from(matches)
-      .where(
-        and(
-          or(eq(matches.homeTeamProviderId, team), eq(matches.awayTeamProviderId, team)),
-          eq(matches.status, FINISHED_STATUS),
-          isNotNull(matches.homeGoals),
-          isNotNull(matches.awayGoals),
-          inArray(matches.competitionCode, codes)
-        )
-      )
-      .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId));
-  }
+  return source.kind === "football-data"
+    ? db
+        .select()
+        .from(matches)
+        .where(footballDataTeamMatches(source.region, team))
+        .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
+    : db
+        .select()
+        .from(tasoMatches)
+        .where(tasoTeamMatches(source.bucket, team))
+        .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
+}
 
-  return db
-    .select()
-    .from(tasoMatches)
-    .where(
-      and(
-        or(eq(tasoMatches.homeTeamProviderId, team), eq(tasoMatches.awayTeamProviderId, team)),
-        eq(tasoMatches.status, FINISHED_STATUS),
-        isNotNull(tasoMatches.homeGoals),
-        isNotNull(tasoMatches.awayGoals),
-        tasoBucketPredicate(source.bucket)
-      )
-    )
-    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
+/** The club's `FORM_WINDOW` most recent such matches, newest first (specs/047, S5). */
+async function latestTeamMatches(
+  source: MatchSource,
+  team: number
+): Promise<Array<FootballDataMatchRow | TasoMatchRow>> {
+  return source.kind === "football-data"
+    ? db
+        .select()
+        .from(matches)
+        .where(footballDataTeamMatches(source.region, team))
+        .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId))
+        .limit(FORM_WINDOW)
+    : db
+        .select()
+        .from(tasoMatches)
+        .where(tasoTeamMatches(source.bucket, team))
+        .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+        .limit(FORM_WINDOW);
+}
+
+/**
+ * A team's current form for the head-to-head page (specs/047), or `error` —
+ * a failed read is its own case, never "too few matches".
+ */
+export type TeamForm =
+  | LatestForm<(FootballDataMatchRow | TasoMatchRow) & { homeGoals: number; awayGoals: number }>
+  | { status: "error" };
+
+export async function getTeamForm(source: MatchSource, team: number): Promise<TeamForm> {
+  try {
+    return latestForm(toFinishedMatches(await latestTeamMatches(source, team)), team);
+  } catch (error) {
+    logger.error({ err: error, team }, "Unable to read the team's latest matches");
+    return { status: "error" };
+  }
 }
 
 /**

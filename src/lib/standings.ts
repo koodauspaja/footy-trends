@@ -74,8 +74,16 @@ const resultLabels: Record<FormResult, string> = {
   H: "Häviö",
 };
 
+/**
+ * A `Vire` letter's title — `Voitto`, `Tasapeli`, `Häviö` — exported so the
+ * head-to-head page's form (specs/047) spells a result as the table does.
+ */
+export function formResultLabel(result: FormResult): string {
+  return resultLabels[result];
+}
+
 /** One side's result, from its own goals. Called twice per match, with the arguments swapped. */
-function resultFor(goalsFor: number, goalsAgainst: number): FormResult {
+export function resultFor(goalsFor: number, goalsAgainst: number): FormResult {
   if (goalsFor > goalsAgainst) return "V";
   if (goalsFor < goalsAgainst) return "H";
   return "T";
@@ -189,7 +197,7 @@ export function selectTeamMatches<
 }
 
 function applyResult(team: TeamTotals, result: FormResult, matchId: number, kickoffAt: Date): void {
-  team.results.push({ matchId, kickoffAt, result, label: resultLabels[result] });
+  team.results.push({ matchId, kickoffAt, result, label: formResultLabel(result) });
   if (result === "V") {
     team.won += 1;
     team.points += 3;

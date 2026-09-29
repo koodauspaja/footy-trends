@@ -108,11 +108,15 @@ test.describe("Head-to-head analysis", () => {
     test.beforeEach(async ({ page }) => {
       await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
       await page.goto(INTER_OULU);
-      await page.getByRole("heading", { level: 2, name: "Tulokset" }).waitFor();
+      // Under `Keskinäinen historia` since specs/047: FC Inter and AC Oulu
+      // met in 2026, so the page carries the form group and the history's
+      // sections are `h3`.
+      await page.getByRole("heading", { level: 3, name: "Tulokset" }).waitFor();
     });
 
     test("reads Yhteenveto, Tulokset, Maalit kilpailuittain, Kohtaamiset", async ({ page }) => {
-      await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      const history = page.getByRole("region", { name: "Keskinäinen historia" });
+      await expect(history.getByRole("heading", { level: 3 })).toHaveText([
         "Yhteenveto",
         "Tulokset",
         "Maalit kilpailuittain",
@@ -153,5 +157,45 @@ test.describe("Head-to-head analysis", () => {
 
     await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 2 })).toHaveText(["Yhteenveto", "Kohtaamiset"]);
+  });
+});
+
+/**
+ * The rivalry (specs/047): both teams' current form above their shared
+ * history, on a pair still playing each other — FC Inter and AC Oulu met in
+ * 2026.
+ */
+test.describe("The rivalry, signed in", () => {
+  const INTER_OULU = "/kotimaa/kohtaamiset/60987/60493";
+
+  test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+    await page.goto(INTER_OULU);
+    await page.getByRole("heading", { level: 2, name: "Nykyinen vire" }).waitFor();
+  });
+
+  test("reads Nykyinen vire, then Keskinäinen historia", async ({ page }) => {
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      "Nykyinen vire",
+      "Keskinäinen historia",
+    ]);
+  });
+
+  test("gives each team its block, first team first, with five linked results", async ({
+    page,
+  }) => {
+    const form = page.getByRole("region", { name: "Nykyinen vire" });
+    await expect(form.getByRole("heading", { level: 3 })).toHaveText(["FC Inter", "AC Oulu"]);
+
+    const inter = form.getByRole("region", { name: "FC Inter" });
+    const results = inter.getByRole("link");
+    await expect(results).toHaveCount(5);
+    await expect(results.first()).toHaveText(/^[VTH]$/);
+    await expect(inter.getByText(/^\d,\d pistettä ottelua kohden$/)).toBeVisible();
+    await expect(inter.getByText(/^Viimeisin ottelu \d{2}\.\d{2}\.\d{4}$/)).toBeVisible();
+
+    // A result is a match: following it opens that match's page.
+    await results.first().click();
+    await expect(page).toHaveURL(/\/kotimaa\/ottelu\/\d+$/);
   });
 });
