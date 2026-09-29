@@ -33,7 +33,23 @@ export type DomesticCompetition = {
    * See specs/015-finnish-cups.md.
    */
   format?: "league" | "cup";
+  /**
+   * How a cup is played, and so how its season page is laid out.
+   *
+   * - `knockout` (omitted) — rounds from the first match, every group a round.
+   *   Suomen Cup, men's and women's, exactly as specs/015 renders them.
+   * - `groups-and-playoff` — round-robin groups, then the top two of each
+   *   into semi-finals and a final. Its groups render as tables and its
+   *   playoff as a bracket below them. See specs/043-liigacup.md.
+   *
+   * Declared rather than inferred from a season's data, so no shape rule can
+   * reach a knockout cup: MSC 2021's 4-team groups look exactly like
+   * round-robins.
+   */
+  cupFormat?: CupFormat;
 };
+
+export type CupFormat = "knockout" | "groups-and-playoff";
 
 /** The season umbrella every competition belongs to unless it says otherwise. */
 const SEASON_UMBRELLA_PREFIX = "spljp";
@@ -133,6 +149,24 @@ export const DOMESTIC_COMPETITIONS: DomesticCompetition[] = [
     categories: [{ fromSeason: EARLIEST_TASO_SEASON, categoryId: "NSC" }],
     format: "cup",
   },
+  // Its own competition rather than a category in the umbrella, like
+  // Ykkösliigacup below, and published under a different category id in its
+  // first season. 2023 onward only: TASO also holds a 2015 Liigacup inside the
+  // spljp15 umbrella, but 2016-2022 exist under neither scheme, and that one
+  // isolated season was left out on purpose (specs/043-liigacup.md). Probed
+  // live 2026-09-28: Liigacup15 to Liigacup22 and Liigacup27 return no
+  // categories.
+  {
+    code: "LC",
+    name: "Liigacup",
+    categories: [
+      { fromSeason: 2024, categoryId: "LC" },
+      { fromSeason: 2023, categoryId: "LC2023" },
+    ],
+    competitionIdPrefix: "Liigacup",
+    format: "cup",
+    cupFormat: "groups-and-playoff",
+  },
   // Its own competition rather than a category in the umbrella, and reachable
   // only from 2024 — M1LCUP22, M1LCUP23 and M1LCUP27 all return zero
   // categories.
@@ -142,6 +176,7 @@ export const DOMESTIC_COMPETITIONS: DomesticCompetition[] = [
     categories: [{ fromSeason: 2024, categoryId: "M1LCUP" }],
     competitionIdPrefix: "M1LCUP",
     format: "cup",
+    cupFormat: "groups-and-playoff",
   },
 ];
 
@@ -253,6 +288,17 @@ export function competitionIdForSeason(code: string, seasonId: number): string {
  */
 export function isDomesticCup(code: string): boolean {
   return findCompetition(code)?.format === "cup";
+}
+
+/**
+ * How a cup is played. `knockout` for every cup that does not say otherwise,
+ * and for an unknown code or a league — the rendering that has always existed,
+ * so a bad `kilpailu` value cannot route into the newer one.
+ */
+export function cupFormatFor(code: string): CupFormat {
+  const competition = findCompetition(code);
+  if (competition?.format !== "cup") return "knockout";
+  return competition.cupFormat ?? "knockout";
 }
 
 export type DomesticCompetitionParamResult =

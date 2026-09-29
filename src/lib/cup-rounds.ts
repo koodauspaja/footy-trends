@@ -111,6 +111,89 @@ export type CupKnockoutGroup = {
   matches: CupKnockoutMatch[];
 };
 
+/** The two teams of a match — all a structural check needs. */
+type Pairing = { homeTeamProviderId: number; awayTeamProviderId: number };
+
+function teamsIn(matches: readonly Pairing[]): Set<number> {
+  return new Set(matches.flatMap((match) => [match.homeTeamProviderId, match.awayTeamProviderId]));
+}
+
+function pairKey(left: number, right: number): string {
+  return left < right ? `${left}-${right}` : `${right}-${left}`;
+}
+
+/**
+ * Whether a cup group is a round-robin — at least three teams, and every pair
+ * of them with a match in the group, played or scheduled.
+ *
+ * Asked only of a `groups-and-playoff` cup (specs/043-liigacup.md), where it is
+ * what tells `Lohko A` from `1-4`. Points cannot: TASO's `getCategory` sends
+ * them for knockout groups too, which is why #272 stopped trusting them.
+ *
+ * Counted from the matches, not `getCategory`'s rows, which are one per
+ * bracket slot for a knockout. Three teams is the floor because a lone final is
+ * trivially "every pair met".
+ */
+export function isRoundRobin(matches: readonly Pairing[]): boolean {
+  const teams = [...teamsIn(matches)];
+  if (teams.length < 3) return false;
+
+  const met = new Set(
+    matches.map((match) => pairKey(match.homeTeamProviderId, match.awayTeamProviderId))
+  );
+  return teams.every((team, index) =>
+    teams.slice(index + 1).every((other) => met.has(pairKey(team, other)))
+  );
+}
+
+/** The team TASO says went through, or `null` while that is not yet known. */
+function advancingTeam(match: CupKnockoutMatch): number | null {
+  if (match.winner === "home") return match.homeTeamProviderId;
+  if (match.winner === "away") return match.awayTeamProviderId;
+  return null;
+}
+
+const SEMI_FINALS = "Välierät";
+const FINAL = "Loppuottelu";
+
+/**
+ * A knockout group that holds semi-finals and final together, split into those
+ * two rounds; any other group comes back whole.
+ *
+ * Liigacup publishes its whole playoff as one group, `1-4` — A1 v B2, B1 v A2,
+ * then the winners (specs/043-liigacup.md). `selectBracketRounds` needs the
+ * final as its own 2-team group, so without this the playoff is never drawn.
+ *
+ * Qualifies on structure alone: four teams, three matches, and the last to kick
+ * off is between the winners of the other two and has a winner of its own. A
+ * final still to be decided leaves the group whole, listed rather than drawn
+ * (specs/043's edge cases) — and so does a third-place match, whose teams are
+ * the two semi-final losers.
+ *
+ * Called only for a `groups-and-playoff` cup; Suomen Cup's rounds are
+ * separate groups already and never pass through here.
+ */
+export function splitCombinedKnockout(group: CupKnockoutGroup): CupKnockoutGroup[] {
+  if (group.matches.length !== 3 || teamsIn(group.matches).size !== 4) return [group];
+
+  const [first, second, last] = [...group.matches].sort(
+    (left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime()
+  ) as [CupKnockoutMatch, CupKnockoutMatch, CupKnockoutMatch];
+
+  const semiWinners = new Set([advancingTeam(first), advancingTeam(second)]);
+  const isDecidedFinal =
+    !semiWinners.has(null) &&
+    semiWinners.has(last.homeTeamProviderId) &&
+    semiWinners.has(last.awayTeamProviderId) &&
+    advancingTeam(last) !== null;
+  if (!isDecidedFinal) return [group];
+
+  return [
+    { groupId: group.groupId, groupName: SEMI_FINALS, matches: [first, second] },
+    { groupId: group.groupId, groupName: FINAL, matches: [last] },
+  ];
+}
+
 /**
  * A Finnish cup's knockout rounds as a drawn bracket, or `[]` when the season
  * has none.
@@ -127,16 +210,37 @@ export type CupKnockoutGroup = {
  * rather than silent.
  */
 export function buildCupBracket(knockoutGroups: CupKnockoutGroup[]): BracketRound[] {
+  return bracketFrom(chooseRounds(knockoutGroups));
+}
+
+/**
+ * A `groups-and-playoff` cup's playoff (specs/043-liigacup.md): its combined
+ * semi-final-and-final group split into rounds, then drawn as any cup's is.
+ *
+ * Also says which groups the tree drew, because this layout — Champions
+ * League's — lists only the knockout groups the tree does not show. A group is
+ * shown once, as a tree or as a list, never both.
+ */
+export function buildPlayoffBracket(knockoutGroups: CupKnockoutGroup[]): {
+  rounds: BracketRound[];
+  drawnGroupIds: Set<number>;
+} {
+  const chosen = chooseRounds(knockoutGroups.flatMap(splitCombinedKnockout));
+  return {
+    rounds: bracketFrom(chosen),
+    drawnGroupIds: new Set(chosen.map((round) => round.groupId)),
+  };
+}
+
+function chooseRounds(knockoutGroups: CupKnockoutGroup[]): CupKnockoutGroup[] {
   // The candidates carry their own matches, so the chosen rounds come back
   // with them and there is no lookup that could miss.
-  const chosen = selectBracketRounds(
-    knockoutGroups.map((group) => ({
-      ...group,
-      teamCount: new Set(
-        group.matches.flatMap((match) => [match.homeTeamProviderId, match.awayTeamProviderId])
-      ).size,
-    }))
+  return selectBracketRounds(
+    knockoutGroups.map((group) => ({ ...group, teamCount: teamsIn(group.matches).size }))
   );
+}
+
+function bracketFrom(chosen: CupKnockoutGroup[]): BracketRound[] {
   if (chosen.length === 0) return [];
 
   const stages = chosen.map((round) => normaliseRoundName(round.groupName));

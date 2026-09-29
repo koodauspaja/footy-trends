@@ -4,6 +4,33 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
+/**
+ * The Finnish prefix each head-to-head route is reached by, and the directory
+ * behind it (specs/042).
+ *
+ * A table rather than five near-identical entries below: every one of them
+ * differs only in this pair, and the rewrite they produce is the same shape —
+ * which is what a reader has to check five times otherwise, and what Sonar
+ * counted as duplication.
+ *
+ * **Five, because every match page builds its link from its own prefix.** The
+ * two national-team routes have theirs, so without them the link on Finland's
+ * match pages would lead nowhere.
+ */
+const HEAD_TO_HEAD_PREFIXES = [
+  ["/kotimaa", "/domestic"],
+  ["/ulkomaat", "/foreign"],
+  ["/maajoukkueet", "/national-teams"],
+  ["/maajoukkueet/huuhkajat", "/national-teams/mens-team"],
+  ["/maajoukkueet/helmarit", "/national-teams/womens-team"],
+] as const;
+
+/** Each prefix's `kohtaamiset` route, which names two teams rather than one match. */
+const headToHeadRewrites = HEAD_TO_HEAD_PREFIXES.map(([prefix, directory]) => ({
+  source: `${prefix}/kohtaamiset/:a/:b`,
+  destination: `${directory}/head-to-head/:a/:b`,
+}));
+
 const nextConfig: NextConfig = {
   // Public URLs are Finnish; the App Router folders are English, per
   // CLAUDE.md's split. These rewrites are the only place the two meet — the
@@ -53,6 +80,7 @@ const nextConfig: NextConfig = {
         source: "/maajoukkueet/helmarit/ottelu/:id",
         destination: "/national-teams/womens-team/match/:id",
       },
+      ...headToHeadRewrites,
     ];
   },
 

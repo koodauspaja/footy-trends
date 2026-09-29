@@ -10,7 +10,12 @@ import {
   isDomesticCup,
 } from "@/lib/domestic-competitions";
 import { getSeasonContext } from "@/lib/football-data";
-import { headToHeadWindow, headToHeadWindowSentence } from "@/lib/head-to-head";
+import {
+  headToHeadWindow,
+  headToHeadWindowSentence,
+  type MeetingsLink,
+  meetingsLink,
+} from "@/lib/head-to-head";
 import { logger } from "@/lib/logger";
 import {
   declaredWinnerSide,
@@ -23,29 +28,34 @@ import {
 import {
   type FootballDataMatchRow,
   getMatchPageData,
-  type HeadToHeadResult,
+  type PreviousMeetings,
   type StoredMatch,
   type TasoMatchRow,
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
 import {
-  competitionLabel,
-  MENS_TEAM,
-  NATIONAL_TEAM_ACTIVE_YEAR,
-  type NationalTeam,
-  WOMENS_TEAM,
-} from "@/lib/national-team";
+  type CategoryNames,
+  COMPETITION_COLUMN,
+  categoryNameLoader,
+  labelFootballDataRows,
+  labelTasoRows,
+  resolveNationalCompetitionName,
+} from "@/lib/meeting-labels";
+import type { NationalTeam } from "@/lib/national-team";
 import { isStoredInteger } from "@/lib/provider-ids";
 import { formatSeasonLabel } from "@/lib/seasons";
-import { getSeasonCategoryNameMap } from "@/lib/taso-standings-service";
 
 const MATCH_HEADING = "Ottelu";
 const NOT_FOUND_MESSAGE = "Ottelua ei löytynyt.";
 const ERROR_MESSAGE = "Ottelun lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const HEAD_TO_HEAD_HEADING = "Aiemmat kohtaamiset";
-const COMPETITION_COLUMN = "Kilpailu";
 const HEAD_TO_HEAD_EMPTY = "Aiempia kohtaamisia ei löytynyt.";
 const HEAD_TO_HEAD_ERROR = "Aiempien kohtaamisten lataaminen epäonnistui.";
+/** `Kaikki kohtaamiset (24)` — the count is the argument for following it (specs/042, S10). */
+export function allMeetingsLabel(count: number): string {
+  return `Kaikki kohtaamiset (${count})`;
+}
+
 const HEAD_TO_HEAD_UNAVAILABLE =
   "Aiempia kohtaamisia ei voida näyttää, koska toista joukkuetta ei tunnisteta.";
 
@@ -83,6 +93,8 @@ type MatchView = {
   headToHeadHeader: string;
   /** Each row carries its own fourth-column label — a competition, or a series. */
   headToHeadRows: Array<MatchListRow & { label: string }>;
+  /** Where the full history lives and how big it is, or `null` when there is none. */
+  allMeetings: MeetingsLink | null;
   title: string;
 };
 
@@ -100,84 +112,6 @@ async function resolveSpansCalendarYears(competitionCode: string): Promise<boole
     logger.error({ err: error, competitionCode }, "Unable to resolve the season label");
     return null;
   }
-}
-
-/**
- * TASO's category names for one provider bucket, or `null` if it cannot be
- * asked.
- *
- * The two season arguments decide the cache TTL, and only that: a bucket at or
- * above the active year is treated as still changing and cached for fifteen
- * minutes, an older one as settled and cached for a year. So the bucket's own
- * season goes first and `NATIONAL_TEAM_ACTIVE_YEAR` second — passing the active
- * year twice makes every bucket look current, which is the fifteen-minute
- * re-fetch this is meant to avoid.
- */
-async function loadCategoryNames(
-  competitionCode: string,
-  seasonId: number
-): Promise<Record<string, string> | null> {
-  try {
-    return await getSeasonCategoryNameMap(competitionCode, seasonId, NATIONAL_TEAM_ACTIVE_YEAR);
-  } catch (error) {
-    logger.error({ err: error, competitionId: competitionCode }, "Unable to read TASO categories");
-    return null;
-  }
-}
-
-/**
- * A category name as a competition label, with the team suffix stripped.
- *
- * The route names a team, but a hand-typed id can point at the other one's
- * category — and stripping the wrong suffix would leave "… Huuhkajat" on the
- * Helmarit page. The suffix the name actually carries wins.
- */
-function labelFromCategoryName(team: NationalTeam, categoryName: string): string {
-  const owner = [MENS_TEAM, WOMENS_TEAM].find((candidate) =>
-    categoryName.endsWith(candidate.categorySuffix)
-  );
-  return competitionLabel(owner ?? team, categoryName);
-}
-
-/**
- * A per-render memo over `loadCategoryNames`, keyed by bucket.
- *
- * `getCached` does not deduplicate in-flight misses, so on a cold cache every
- * caller sees the miss and fetches the same map. One page asks about the match
- * it is displaying and about up to five previous meetings, which at 1.28
- * buckets per list are usually the same one or two.
- */
-type CategoryNames = (
-  competitionCode: string,
-  seasonId: number
-) => Promise<Record<string, string> | null>;
-
-function categoryNameLoader(): CategoryNames {
-  const byBucket = new Map<string, Promise<Record<string, string> | null>>();
-  // Keyed by bucket alone: a bucket has one season, so the season only ever
-  // repeats what the key already says.
-  return (competitionCode, seasonId) => {
-    const pending = byBucket.get(competitionCode);
-    if (pending !== undefined) return pending;
-    const started = loadCategoryNames(competitionCode, seasonId);
-    byBucket.set(competitionCode, started);
-    return started;
-  };
-}
-
-/**
- * The competition a single national-team match belonged to, normalised: TASO's
- * category name with the team suffix stripped, so `UEFA Nations League
- * Huuhkajat` reads as `UEFA Nations League`. `null` when the bucket's category
- * map has no entry for the row, or could not be read at all.
- */
-async function resolveNationalCompetitionName(
-  team: NationalTeam,
-  match: TasoMatchRow,
-  names: CategoryNames
-): Promise<string | null> {
-  const categoryName = (await names(match.competitionCode, match.seasonId))?.[match.categoryId];
-  return categoryName === undefined ? null : labelFromCategoryName(team, categoryName);
 }
 
 /**
@@ -211,14 +145,39 @@ function linkableTeamHref(
   return isPlaceholderTeam(teamProviderId, teamName) ? null : build(teamProviderId);
 }
 
-function headToHeadRowsOf(result: HeadToHeadResult): Array<FootballDataMatchRow | TasoMatchRow> {
+function headToHeadRowsOf(result: PreviousMeetings): Array<FootballDataMatchRow | TasoMatchRow> {
   return result.status === "ok" ? result.matches : [];
+}
+
+/**
+ * Where the pair's full history lives, and how many meetings it holds.
+ *
+ * `null` for a placeholder team, which has no identity to pair — the same
+ * reason the block above says `HEAD_TO_HEAD_UNAVAILABLE` rather than showing an
+ * empty list — for a history that could not be read, and when the pair has no
+ * stored meeting at all, since a link to an empty page is worse than no link.
+ *
+ * The count is the length of the history the previous meetings were taken
+ * from — the same read the full page performs — so the number on the link is
+ * the number of rows behind it (specs/042, S10).
+ */
+function allMeetingsLink(
+  match: FootballDataMatchRow | TasoMatchRow,
+  headToHead: PreviousMeetings,
+  options: MatchPageOptions
+): MeetingsLink | null {
+  return meetingsLink(
+    options.basePath,
+    match.homeTeamProviderId,
+    match.awayTeamProviderId,
+    headToHead.status === "ok" ? headToHead.total : null
+  );
 }
 
 /** The football-data half of the view: `/ulkomaat` and `/maajoukkueet`'s WC and EC. */
 async function footballDataView(
   match: FootballDataMatchRow,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   const spans = await resolveSpansCalendarYears(match.competitionCode);
@@ -254,10 +213,8 @@ async function footballDataView(
     // same season as `2026/27` two lines below it.
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, spans ?? false)),
     headToHeadHeader: COMPETITION_COLUMN,
-    headToHeadRows: localisedRows.map((row) => ({
-      ...row,
-      label: getCompetitionName(row.competitionCode),
-    })),
+    headToHeadRows: labelFootballDataRows(localisedRows),
+    allMeetings: allMeetingsLink(match, headToHead, options),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}, ${competitionName} ${seasonLabel}`,
   };
 }
@@ -280,53 +237,10 @@ function tasoCompetitionName(
   return domesticCode === null ? null : getDomesticCompetitionName(domesticCode);
 }
 
-/**
- * The previous meetings, each labelled with the competition it was played in.
- *
- * The head-to-head deliberately spans competitions, so this column is the only
- * signal for which one a meeting belonged to — and TASO's `group_name` names a
- * stage instead: `5. Kierros` leaves a cup tie looking like a league round, and
- * on the national-team side it can be `2024`, `Slovakia` or `Heinäkuu`. See
- * #251.
- *
- * Two different lookups behind one column, as elsewhere on this page: a
- * domestic row's category maps to a competition in our own registry, while a
- * national-team row's name lives only in TASO's category map — cached, and
- * already read for the displayed match. A national-team list touches 1.28 of
- * those maps on average and three at most, measured across all 104 stored pairs
- * on 2026-09-02.
- *
- * The group name stays as the fallback for a row nothing can name: a category
- * the picker does not claim, or a map that could not be read.
- */
-async function labelTasoHeadToHead(
-  team: NationalTeam | undefined,
-  rows: TasoMatchRow[],
-  names: CategoryNames
-): Promise<Array<TasoMatchRow & { label: string }>> {
-  if (team === undefined) {
-    return rows.map((row) => {
-      const code = competitionCodeForCategory(row.categoryId);
-      return { ...row, label: code === null ? row.groupName : getDomesticCompetitionName(code) };
-    });
-  }
-
-  return Promise.all(
-    rows.map(async (row) => {
-      const categoryName = (await names(row.competitionCode, row.seasonId))?.[row.categoryId];
-      return {
-        ...row,
-        label:
-          categoryName === undefined ? row.groupName : labelFromCategoryName(team, categoryName),
-      };
-    })
-  );
-}
-
 /** The TASO half: `/kotimaa`, and the two national-team routes. */
 async function tasoView(
   match: TasoMatchRow,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   const national = options.nationalTeam;
@@ -339,7 +253,7 @@ async function tasoView(
   // usually sit in the same bucket, and asking twice would fetch it twice.
   const categoryNames = categoryNameLoader();
   const competitionName = await tasoCompetitionName(national, domesticCode, match, categoryNames);
-  const labelledRows = await labelTasoHeadToHead(national, localisedRows, categoryNames);
+  const labelledRows = await labelTasoRows(national, localisedRows, categoryNames);
   const season = national === undefined ? match.seasonId : match.kickoffAt.getUTCFullYear();
 
   const teamHref = teamHrefBuilder(options.teamBasePath, domesticCode, match.seasonId);
@@ -364,6 +278,7 @@ async function tasoView(
     windowSentence: headToHeadWindowSentence(headToHeadWindow(options.source, false)),
     headToHeadHeader: COMPETITION_COLUMN,
     headToHeadRows: labelledRows,
+    allMeetings: allMeetingsLink(match, headToHead, options),
     title: `${localised.homeTeamName} – ${localised.awayTeamName}${
       competitionName === null ? "" : `, ${competitionName} ${season}`
     }`,
@@ -372,7 +287,7 @@ async function tasoView(
 
 function buildView(
   stored: StoredMatch,
-  headToHead: HeadToHeadResult,
+  headToHead: PreviousMeetings,
   options: MatchPageOptions
 ): Promise<MatchView> {
   return stored.source === "football-data"
@@ -432,6 +347,18 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
           matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
           fourthColumn={{ header: view.headToHeadHeader, render: (match) => match.label }}
         />
+      )}
+      {/*
+        Offered whenever there is a history to open, including when this block
+        already shows all of it: the full page carries a record, goals and a
+        ground split that this list does not (specs/042, S9).
+      */}
+      {view.allMeetings !== null && (
+        <p className="mt-4">
+          <Link className="text-sm hover:underline" href={view.allMeetings.href}>
+            {allMeetingsLabel(view.allMeetings.count)}
+          </Link>
+        </p>
       )}
     </section>
   );

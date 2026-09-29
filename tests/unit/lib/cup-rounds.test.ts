@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCupBracket,
+  buildPlayoffBracket,
+  type CupKnockoutGroup,
+  type CupKnockoutMatch,
   type CupRoundGroup,
+  isRoundRobin,
   normaliseRoundName,
   selectBracketRounds,
+  splitCombinedKnockout,
 } from "@/lib/cup-rounds";
 
 /** Builds a season's knockout groups in TASO's own order. */
@@ -312,5 +317,175 @@ describe("buildCupBracket", () => {
     ]);
 
     expect(rounds[0]?.ties[0]?.winnerTeamProviderId).toBeNull();
+  });
+});
+
+/** A played or scheduled playoff match, `day` of March 2026. */
+function playoffMatch(
+  home: number,
+  away: number,
+  score: [number, number] | null,
+  winner: CupKnockoutMatch["winner"],
+  day: number
+): CupKnockoutMatch {
+  return {
+    providerMatchId: home * 1000 + away,
+    status: score === null ? "SCHEDULED" : "FINISHED",
+    kickoffAt: new Date(`2026-03-${String(day).padStart(2, "0")}T15:00:00Z`),
+    homeTeamProviderId: home,
+    homeTeamName: `Team ${home}`,
+    awayTeamProviderId: away,
+    awayTeamName: `Team ${away}`,
+    homeGoals: score?.[0] ?? null,
+    awayGoals: score?.[1] ?? null,
+    winner,
+  };
+}
+
+/** Every pairing of `teams` once — a single round-robin. */
+function roundRobin(teams: number[]) {
+  return teams.flatMap((team, index) =>
+    teams.slice(index + 1).map((other) => ({
+      homeTeamProviderId: team,
+      awayTeamProviderId: other,
+    }))
+  );
+}
+
+/**
+ * Liigacup's `1-4` group: A1 (1) v B2 (4) and B1 (3) v A2 (2) in the
+ * semi-finals, then the winners. Listed out of kickoff order on purpose.
+ */
+function liigacupPlayoff(
+  final: CupKnockoutMatch = playoffMatch(1, 3, [2, 1], "home", 22)
+): CupKnockoutGroup {
+  return {
+    groupId: 3,
+    groupName: "1-4",
+    matches: [
+      final,
+      // A1 away at B2 and winning, so an away winner is followed too.
+      playoffMatch(4, 1, [0, 1], "away", 15),
+      playoffMatch(3, 2, [1, 1], "home", 15),
+    ],
+  };
+}
+
+describe("isRoundRobin", () => {
+  it("recognises a six-team group where every pair meets once", () => {
+    const group = roundRobin([1, 2, 3, 4, 5, 6]);
+
+    expect(group).toHaveLength(15);
+    expect(isRoundRobin(group)).toBe(true);
+  });
+
+  it("does not take a semi-final-and-final group for a round-robin", () => {
+    expect(isRoundRobin(liigacupPlayoff().matches)).toBe(false);
+  });
+
+  it("does not take a lone final for one, though every pair has met", () => {
+    expect(isRoundRobin(roundRobin([1, 2]))).toBe(false);
+  });
+
+  it("does not take a knockout round for one", () => {
+    expect(
+      isRoundRobin([
+        { homeTeamProviderId: 1, awayTeamProviderId: 2 },
+        { homeTeamProviderId: 3, awayTeamProviderId: 4 },
+      ])
+    ).toBe(false);
+  });
+
+  it("waits for every fixture: one pairing missing is not a round-robin", () => {
+    expect(isRoundRobin(roundRobin([1, 2, 3, 4, 5, 6]).slice(1))).toBe(false);
+  });
+
+  it("counts a pairing whichever side is at home", () => {
+    expect(
+      isRoundRobin([
+        { homeTeamProviderId: 1, awayTeamProviderId: 2 },
+        { homeTeamProviderId: 3, awayTeamProviderId: 2 },
+        { homeTeamProviderId: 3, awayTeamProviderId: 1 },
+      ])
+    ).toBe(true);
+  });
+});
+
+describe("splitCombinedKnockout", () => {
+  it("splits a played 1-4 group into its semi-finals and final", () => {
+    const [semiFinals, final] = splitCombinedKnockout(liigacupPlayoff());
+
+    expect(semiFinals?.groupName).toBe("Välierät");
+    expect(semiFinals?.matches.map((match) => match.providerMatchId)).toEqual([4001, 3002]);
+    expect(final?.groupName).toBe("Loppuottelu");
+    expect(final?.matches.map((match) => match.providerMatchId)).toEqual([1003]);
+    expect(semiFinals?.groupId).toBe(3);
+    expect(final?.groupId).toBe(3);
+  });
+
+  it("follows a level semi-final's declared winner into the final", () => {
+    // 3 v 2 finished 1-1 and TASO says 3 went through, so 1 v 3 is the final.
+    expect(splitCombinedKnockout(liigacupPlayoff())).toHaveLength(2);
+  });
+
+  it("leaves the group whole while the final is undecided", () => {
+    const group = liigacupPlayoff(playoffMatch(1, 3, null, null, 22));
+
+    expect(splitCombinedKnockout(group)).toEqual([group]);
+  });
+
+  it("leaves a third-place match whole — its teams lost their semi-finals", () => {
+    const group = liigacupPlayoff(playoffMatch(4, 2, [1, 0], "home", 22));
+
+    expect(splitCombinedKnockout(group)).toEqual([group]);
+  });
+
+  it("leaves any group of another shape whole", () => {
+    const twoMatches = { ...liigacupPlayoff(), matches: liigacupPlayoff().matches.slice(1) };
+    const fourMatches = {
+      ...liigacupPlayoff(),
+      matches: [...liigacupPlayoff().matches, playoffMatch(4, 2, [0, 0], "home", 22)],
+    };
+
+    expect(splitCombinedKnockout(twoMatches)).toEqual([twoMatches]);
+    expect(splitCombinedKnockout(fourMatches)).toEqual([fourMatches]);
+  });
+
+  it("leaves three matches between more than four teams whole", () => {
+    const group: CupKnockoutGroup = {
+      groupId: 1,
+      groupName: "Kierros 1",
+      matches: [
+        playoffMatch(1, 2, [1, 0], "home", 1),
+        playoffMatch(3, 4, [1, 0], "home", 1),
+        playoffMatch(5, 6, [1, 0], "home", 2),
+      ],
+    };
+
+    expect(splitCombinedKnockout(group)).toEqual([group]);
+  });
+});
+
+describe("buildPlayoffBracket", () => {
+  it("draws Liigacup's playoff as semi-finals feeding a final", () => {
+    const { rounds, drawnGroupIds } = buildPlayoffBracket([liigacupPlayoff()]);
+
+    expect(rounds.map((round) => round.stage)).toEqual(["Välierät", "Loppuottelu"]);
+    expect(rounds.map((round) => round.ties.length)).toEqual([2, 1]);
+    expect(rounds.at(-1)?.ties[0]?.winnerTeamProviderId).toBe(1);
+    expect([...drawnGroupIds]).toEqual([3]);
+  });
+
+  it("draws nothing, and claims no group, until the final is decided", () => {
+    const { rounds, drawnGroupIds } = buildPlayoffBracket([
+      liigacupPlayoff(playoffMatch(1, 3, null, null, 22)),
+    ]);
+
+    expect(rounds).toEqual([]);
+    expect(drawnGroupIds.size).toBe(0);
+  });
+
+  it("draws nothing for a season with no knockout groups", () => {
+    expect(buildPlayoffBracket([]).rounds).toEqual([]);
   });
 });

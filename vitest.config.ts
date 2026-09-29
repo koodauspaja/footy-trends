@@ -96,6 +96,14 @@ export default defineConfig({
           include: ["tests/integration/**/*.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
           /**
+           * Refuses to run against anything but a test database (#479).
+           * `npx vitest run --project integration` skips `with-test-db.ts` and
+           * so reads `.env`'s development database — which once wrote fixture
+           * rows into a developer's own data. A note said not to; this makes it
+           * impossible.
+           */
+          globalSetup: ["./tests/support/integration-database-guard.ts"],
+          /**
            * **One file at a time**, because they share one database (#467).
            *
            * `team-search.test.ts` clears a whole range of `providerMatchId` in

@@ -569,6 +569,177 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
+  describe("a cup of groups then a playoff (specs/043)", () => {
+    /**
+     * A three-team round-robin in group 1, played over rounds 1-3 as TASO
+     * numbers a group stage, and a semi-finals-and-final group 2.
+     */
+    function groupsThenPlayoff(categoryId: string) {
+      const at = (providerMatchId: number, groupId: number, home: number, away: number) =>
+        match({
+          providerMatchId,
+          categoryId,
+          groupId,
+          groupName: groupId === 1 ? "Lohko A" : "1-4",
+          matchday: groupId === 1 ? providerMatchId : null,
+          homeTeamProviderId: home,
+          awayTeamProviderId: away,
+        });
+      // Every home side wins 2-1, so the round-robin ends 6, 3 and 0.
+      const tablePoints = new Map([
+        [1, 6],
+        [2, 3],
+        [3, 0],
+      ]);
+      mockStoredMatches(
+        [
+          at(1, 1, 1, 2),
+          at(2, 1, 1, 3),
+          at(3, 1, 2, 3),
+          at(4, 2, 1, 4),
+          at(5, 2, 3, 5),
+          at(6, 2, 1, 3),
+        ],
+        // TASO sends points for both groups, which is why they cannot decide.
+        [1, 2, 3].flatMap((teamProviderId) => [
+          groupTeam({
+            categoryId,
+            groupId: 1,
+            teamProviderId,
+            points: tablePoints.get(teamProviderId) ?? null,
+          }),
+          groupTeam({ categoryId, groupId: 2, teamProviderId, points: 3 }),
+        ])
+      );
+    }
+
+    async function kinds(categoryId: string) {
+      groupsThenPlayoff(categoryId);
+      const result = await getSeasonStandings(
+        categoryId,
+        COMPETITION_ID,
+        PAST_SEASON,
+        ACTIVE_SEASON,
+        undefined
+      );
+      return result.status === "ok" ? result.groups.map((group) => group.kind) : [];
+    }
+
+    // `LC2023` is no competition code, so asking `isDomesticCup` of the category
+    // id would have classified Liigacup 2023 as a league. Ykkösliigacup lost its
+    // tables in #272.
+    it.each([
+      ["Liigacup", "LC"],
+      ["Liigacup 2023, published as LC2023", "LC2023"],
+      ["Ykkösliigacup", "M1LCUP"],
+    ])("tables %s's round-robin group and lists its playoff", async (_name, categoryId) => {
+      const [group, playoff] = await kinds(categoryId);
+
+      expect(group).not.toBe("match-list");
+      expect(playoff).toBe("match-list");
+    });
+
+    it("leaves Suomen Cup a list, even where a group is shaped like a round-robin", async () => {
+      // MSC 2021's 4-team groups: the reason the format is declared, not inferred.
+      expect(await kinds("MSC")).toEqual(["match-list", "match-list"]);
+    });
+
+    describe("a tie on points", () => {
+      /**
+       * Three teams level on 3, round in a circle: 1 beats 2, 2 beats 3, and 3
+       * beats 1 by 4-0. Goal difference ranks them 3, 2, 1; TASO says 1, 2, 3,
+       * as it did Liigacup 2023's KuPS over FC Haka on their meeting.
+       */
+      function levelOnPoints(categoryId: string, standings: (number | null)[] = [1, 2, 3]) {
+        const nameOf = (teamProviderId: number) =>
+          ["HJK", "KuPS", "FC Haka"][teamProviderId - 1] ?? "";
+        const game = (
+          providerMatchId: number,
+          home: number,
+          away: number,
+          score: [number, number]
+        ) =>
+          match({
+            providerMatchId,
+            categoryId,
+            groupName: "Lohko B",
+            matchday: providerMatchId,
+            homeTeamProviderId: home,
+            homeTeamName: nameOf(home),
+            awayTeamProviderId: away,
+            awayTeamName: nameOf(away),
+            homeGoals: score[0],
+            awayGoals: score[1],
+          });
+        mockStoredMatches(
+          [game(1, 1, 2, [1, 0]), game(2, 2, 3, [1, 0]), game(3, 3, 1, [4, 0])],
+          [1, 2, 3].map((teamProviderId) =>
+            groupTeam({
+              categoryId,
+              teamProviderId,
+              teamName: nameOf(teamProviderId),
+              points: 3,
+              currentStanding: standings[teamProviderId - 1] ?? null,
+            })
+          )
+        );
+      }
+
+      async function order(categoryId: string) {
+        const result = await getSeasonStandings(
+          categoryId,
+          COMPETITION_ID,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          undefined
+        );
+        const group = result.status === "ok" ? result.groups[0] : undefined;
+        return group?.kind === "own-calculated"
+          ? group.standings.map((team) => [team.position, team.teamProviderId])
+          : [];
+      }
+
+      it("ranks a Liigacup group in TASO's order, not by goal difference", async () => {
+        levelOnPoints("LC");
+
+        expect(await order("LC")).toEqual([
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ]);
+      });
+
+      it("keeps its own order when TASO left a team unranked", async () => {
+        // TASO's numbers cannot place a team they do not name.
+        levelOnPoints("LC", [1, null, 3]);
+
+        expect(await order("LC")).toEqual([
+          [1, 3],
+          [2, 2],
+          [3, 1],
+        ]);
+      });
+
+      it("leaves a league's tie to goal difference", async () => {
+        levelOnPoints(CATEGORY_ID);
+
+        expect(await order(CATEGORY_ID)).toEqual([
+          [1, 3],
+          [2, 2],
+          [3, 1],
+        ]);
+      });
+    });
+
+    it("offers no round selector, though the cup now has a table", async () => {
+      groupsThenPlayoff("LC");
+
+      await expect(
+        listSeasonRounds("LC", COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON)
+      ).resolves.toEqual([]);
+    });
+  });
+
   it("still gives a league group its table when points are reported", async () => {
     // The other side of the same rule: the cup check must not swallow leagues,
     // which is the failure mode of fixing this in `keepsATable` instead.
@@ -2014,6 +2185,23 @@ describe("resolveTasoSeasonContext", () => {
     await expect(resolveTasoSeasonContext("VL")).resolves.toMatchObject({ defaultSeason: 2027 });
   });
 
+  it.each([
+    ["LC", "Liigacup27"],
+    ["M1LCUP", "M1LCUP27"],
+  ])("probes %s's current season under its own id, %s", async (code, competitionId) => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    // Only the competition's own id has the season; the umbrella has nothing.
+    getSeasonMatchesMock.mockImplementation(async (asked: string) =>
+      asked === competitionId
+        ? [match({ seasonId: 2027, status: "SCHEDULED", homeGoals: null, awayGoals: null })]
+        : []
+    );
+    mockInsert();
+
+    await expect(resolveTasoSeasonContext(code)).resolves.toMatchObject({ defaultSeason: 2027 });
+  });
+
   it("falls back to the newest stored season when discovery fails", async () => {
     getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
     mockDb(2025, [match({ seasonId: 2025 })]);
@@ -2890,6 +3078,28 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       expect(comparison.status).toBe("ok");
       expect(comparison.status === "ok" && comparison.seasons).toBe(1);
       expect(comparison.status === "ok" && comparison.competitions).toEqual(["Miesten Suomen Cup"]);
+    });
+
+    it("reads a cup published as its own competition from that competition", async () => {
+      // Liigacup is `Liigacup{YY}`, not a category in `spljp{YY}` — asking the
+      // umbrella for it finds nothing, and the comparison has no baseline.
+      mockStoredMatches([], []);
+      getSeasonGroupsMock.mockResolvedValue([]);
+      getSeasonMatchesMock.mockResolvedValue([]);
+
+      for (const seasonId of [2024, 2023]) {
+        await getTeamSeasonComparison("LC", 1, seasonId, ACTIVE_SEASON, [
+          { competitionCode: "LC", seasonId, matches: 5 },
+        ]);
+      }
+
+      expect(getSeasonMatchesMock).toHaveBeenCalledWith("Liigacup24", "LC", 2024);
+      expect(getSeasonMatchesMock).toHaveBeenCalledWith("Liigacup23", "LC2023", 2023);
+      expect(getSeasonMatchesMock).not.toHaveBeenCalledWith(
+        "spljp24",
+        expect.anything(),
+        expect.anything()
+      );
     });
 
     it("shows no Sijoitus row at all on a cup", async () => {

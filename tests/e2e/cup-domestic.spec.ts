@@ -31,12 +31,26 @@ async function openCupSeason(page: Page) {
 }
 
 test.describe("Finnish cups", () => {
-  test("lists the three cups in the competition picker", async ({ page }) => {
+  test("lists the four cups in the competition picker", async ({ page }) => {
     await page.goto("/kotimaa");
 
-    for (const name of ["Miesten Suomen Cup", "Naisten Suomen Cup", "Ykkösliigacup"]) {
-      await expect(page.getByRole("link", { name })).toBeVisible();
+    const cups = ["Miesten Suomen Cup", "Naisten Suomen Cup", "Liigacup", "Ykkösliigacup"];
+    // Exact: without it "Liigacup" also matches "Ykkösliigacup".
+    for (const name of cups) {
+      await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
     }
+    // In the registry's order: Liigacup between the Suomen Cups and Ykkösliigacup.
+    const codes = await page
+      .locator('a[href^="/kotimaa/sarjataulukko?kilpailu="]')
+      .evaluateAll((links) =>
+        links.map((link) => new URL((link as HTMLAnchorElement).href).searchParams.get("kilpailu"))
+      );
+    expect(codes.filter((code) => ["MSC", "NSC", "LC", "M1LCUP"].includes(code ?? ""))).toEqual([
+      "MSC",
+      "NSC",
+      "LC",
+      "M1LCUP",
+    ]);
   });
 
   test("renders every round of Miesten Suomen Cup 2025, bracket first", async ({ page }) => {
@@ -72,15 +86,81 @@ test.describe("Finnish cups", () => {
     await expect(page.getByRole("heading", { level: 3, name: "Pikkufinaali" })).toHaveCount(0);
   });
 
-  test("renders Ykkösliigacup's groups as tables and its placement group as matches", async ({
-    page,
-  }) => {
+  test("renders Ykkösliigacup's groups as tables, its playoff below them", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M1LCUP&kausi=2026");
 
-    await expect(page.getByRole("heading", { level: 2, name: "Lohko A" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "Lohko B" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "1-4" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pudotuspelit" })).toHaveCount(0);
+    // Tables, not merely headings: this test only checked headings before, and
+    // so passed through the whole time #272 had turned these tables into lists.
+    for (const name of ["Lohko A", "Lohko B"]) {
+      const section = page.locator("section").filter({
+        has: page.getByRole("heading", { level: 2, name, exact: true }),
+      });
+      await expect(section.getByRole("table")).toBeVisible();
+    }
+    // specs/043 draws `1-4` only if it is two semi-finals and their winners'
+    // final, and lists it otherwise. TASO's 2026 season has that shape (checked
+    // 2026-09-29: KTP and KäPa won the semi-finals and met in the final), so it
+    // is drawn, and not listed as well.
+    await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Loppuottelu", exact: true })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "1-4" })).toHaveCount(0);
+  });
+
+  test("renders Liigacup's groups as tables and its playoff as a bracket", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC&kausi=2026");
+
+    const headings = page.getByRole("heading", { level: 2 });
+    await expect(headings).toHaveText(["Lohko A", "Lohko B", "Pudotuspelit"]);
+    for (const name of ["Lohko A", "Lohko B"]) {
+      const section = page.locator("section").filter({
+        has: page.getByRole("heading", { level: 2, name, exact: true }),
+      });
+      await expect(section.getByRole("table")).toBeVisible();
+    }
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Loppuottelu", exact: true })
+    ).toBeVisible();
+    // The playoff group is the tree, so it is not listed as well.
+    await expect(page.getByRole("heading", { name: "1-4" })).toHaveCount(0);
+  });
+
+  test("renders Liigacup 2023, published under LC2023, the same way", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC&kausi=2023");
+
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      "Lohko A",
+      "Lohko B",
+      "Pudotuspelit",
+    ]);
+  });
+
+  test("breaks a tie on points as Liigacup did, not by goal difference", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC&kausi=2023");
+
+    // KuPS and FC Haka both finished on 7; Haka had the better goal difference,
+    // KuPS won their meeting 1-0 and went through to the semi-final. TASO ranks
+    // KuPS second, and so does the table.
+    const groupB = page.locator("section").filter({
+      has: page.getByRole("heading", { level: 2, name: "Lohko B", exact: true }),
+    });
+    const rows = groupB.getByRole("row");
+    await expect(rows.nth(2)).toContainText("KuPS");
+    await expect(rows.nth(3)).toContainText("FC Haka");
+  });
+
+  test("offers only the seasons Liigacup has since 2023", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC");
+
+    const years = await page.getByLabel("Kausi").locator("option").allTextContents();
+    expect(years).toEqual(["2026", "2025", "2024", "2023"]);
   });
 
   test("offers only the seasons Ykkösliigacup actually has", async ({ page }) => {

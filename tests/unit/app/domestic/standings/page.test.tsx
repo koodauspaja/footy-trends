@@ -582,4 +582,97 @@ describe("Domestic standings page, cup competitions", () => {
 
     expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
   });
+
+  it("keeps Suomen Cup's layout for a season that had a group stage (specs/043)", async () => {
+    // MSC 2018: groups, then knockout rounds. Still bracket first and every
+    // group a collapsible round — the Liigacup layout never reaches it.
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [
+        knockoutGroup(1, "Lohko A", [
+          cupMatch(10, [1, "HJK Klubi 04"], [2, "HJK"], [0, 4], "away", 1),
+        ]),
+        ...closingRounds,
+      ],
+    });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2018" });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings[0]).toBe("Pudotuspelit");
+    expect(headings).toContain("Lohko A");
+    expect(document.querySelectorAll("details")).toHaveLength(4);
+  });
+
+  describe("a cup of groups then a playoff (specs/043)", () => {
+    /** Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the winners. */
+    function liigacupSeason(final = cupMatch(33, [1, "HJK"], [3, "KuPS"], [2, 1], "home", 22)) {
+      return [
+        { ...ownCalculatedGroup, groupId: 1, groupName: "Lohko A" },
+        { ...ownCalculatedGroup, groupId: 2, groupName: "Lohko B" },
+        knockoutGroup(3, "1-4", [
+          cupMatch(31, [1, "HJK"], [4, "SJK"], [1, 0], "home", 15),
+          cupMatch(32, [3, "KuPS"], [2, "Ilves"], [1, 1], "home", 15),
+          final,
+        ]),
+      ];
+    }
+
+    it("puts the group tables first and Pudotuspelit below them", async () => {
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+
+      await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+      const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+      expect(headings).toEqual(["Lohko A", "Lohko B", "Pudotuspelit"]);
+      expect(screen.getAllByRole("table").length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("draws the semi-finals feeding the final, and does not list 1-4 as well", async () => {
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+
+      await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+      expect(screen.getByRole("heading", { name: "Välierät" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "1-4" })).not.toBeInTheDocument();
+      expect(document.querySelectorAll("details")).toHaveLength(0);
+    });
+
+    it("lists 1-4 under Pudotuspelit while its final is still to be played", async () => {
+      const unplayed = {
+        ...cupMatch(33, [1, "HJK"], [3, "KuPS"], [0, 0], "home", 22),
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+        winner: null,
+      };
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason(unplayed) });
+
+      await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+      expect(screen.getByRole("heading", { level: 3, name: "1-4" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Välierät" })).not.toBeInTheDocument();
+    });
+
+    it("lays Ykkösliigacup out the same way", async () => {
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+
+      await renderStandings({ kilpailu: "M1LCUP", kausi: "2026" });
+
+      const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+      expect(headings).toEqual(["Lohko A", "Lohko B", "Pudotuspelit"]);
+    });
+
+    it("shows no Pudotuspelit while the playoff has no matches yet", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        groups: liigacupSeason().slice(0, 2),
+      });
+
+      await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+      expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
+    });
+  });
 });

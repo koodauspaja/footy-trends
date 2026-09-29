@@ -8,8 +8,8 @@ import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
-import { buildCupBracket, normaliseRoundName } from "@/lib/cup-rounds";
-import { isDomesticCup } from "@/lib/domestic-competitions";
+import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
+import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
   type GroupStandingsResult,
@@ -140,6 +140,54 @@ function CupRoundSection({
   );
 }
 
+/**
+ * A `groups-and-playoff` cup's season — Liigacup, Ykkösliigacup — laid out as
+ * Champions League is (specs/043-liigacup.md): the group tables first, then
+ * `Pudotuspelit` below them.
+ *
+ * Under that heading, any knockout group the tree does not draw is listed
+ * first, then the tree. A drawn group is not listed as well, as in Champions
+ * League: for Liigacup the `1-4` group's three matches *are* the tree.
+ *
+ * Suomen Cup never comes here — it keeps specs/015's layout below.
+ */
+function GroupsAndPlayoff({
+  groups,
+  teamHref,
+}: Readonly<{
+  groups: GroupStandingsResult[];
+  teamHref: (teamProviderId: number) => string;
+}>) {
+  const tables = groups.filter((group) => group.kind !== "match-list");
+  const knockout = groups.flatMap((group) => (group.kind === "match-list" ? [group] : []));
+  const { rounds, drawnGroupIds } = buildPlayoffBracket(knockout);
+  const listed = knockout.filter((group) => !drawnGroupIds.has(group.groupId));
+
+  return (
+    <>
+      {tables.map((group) => (
+        <section className="mb-10" key={group.groupId}>
+          <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+          <GroupBody group={group} isCup teamHref={teamHref} />
+        </section>
+      ))}
+      {tables.length > 0 && <StandingsLegend />}
+      {(listed.length > 0 || rounds.length > 0) && (
+        <section className="mt-10 mb-10">
+          <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
+          {listed.map((group) => (
+            <section className="mb-8" key={group.groupId}>
+              <h3 className="mb-3 font-semibold text-lg">{displayGroupName(group.groupName)}</h3>
+              <GroupBody group={group} isCup teamHref={teamHref} />
+            </section>
+          ))}
+          {rounds.length > 0 && <BracketTree rounds={rounds} teamHref={teamHref} />}
+        </section>
+      )}
+    </>
+  );
+}
+
 export async function generateMetadata({
   searchParams,
 }: DomesticStandingsPageProps): Promise<Metadata> {
@@ -185,15 +233,17 @@ export default async function DomesticStandingsPage({
   );
 
   const isCup = isDomesticCup(competitionCode);
+  const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
-  // Above the rounds, not below them as Champions League does: a cup page has
-  // no standings table to lead with, so burying the bracket under as many as
-  // ten round lists — one of them 248 teams wide — would hide the most useful
-  // part of the page. Each drawn round still keeps its own list below.
+  // Above the rounds, not below them as Champions League does: a knockout cup
+  // page has no standings table to lead with, so burying the bracket under as
+  // many as ten round lists — one of them 248 teams wide — would hide the most
+  // useful part of the page. Each drawn round still keeps its own list below.
+  // A `groups-and-playoff` cup does have tables, and draws its own bracket.
   const bracket =
-    result.status === "ok"
+    result.status === "ok" && !isGroupsAndPlayoff
       ? buildCupBracket(
           result.groups.flatMap((group) =>
             group.kind === "match-list"
@@ -236,7 +286,11 @@ export default async function DomesticStandingsPage({
           <BracketTree rounds={bracket} teamHref={teamHref} />
         </section>
       )}
+      {result.status === "ok" && isGroupsAndPlayoff && (
+        <GroupsAndPlayoff groups={result.groups} teamHref={teamHref} />
+      )}
       {result.status === "ok" &&
+        !isGroupsAndPlayoff &&
         result.groups.map((group) =>
           isCup ? (
             <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
@@ -247,7 +301,7 @@ export default async function DomesticStandingsPage({
             </section>
           )
         )}
-      <StandingsLegend />
+      {!isGroupsAndPlayoff && <StandingsLegend />}
     </PageShell>
   );
 }

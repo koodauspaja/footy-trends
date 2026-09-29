@@ -33,9 +33,11 @@ import { FORM_HEADING } from "@/components/form-section";
 import { ROLLING_HEADING, TOTALS_HEADING } from "@/components/goals-section";
 import { HOME_AWAY_HEADING } from "@/components/home-away-section";
 import { POSITION_HEADING } from "@/components/league-position-section";
+import { OPPONENTS_GROUP_HEADING, OPPONENTS_HEADING } from "@/components/opponents-section";
 import { RECORDS_HEADING } from "@/components/streak-records-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
 import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
+import type { OpponentsSeries } from "@/lib/head-to-head";
 
 const position: PositionSeries = {
   status: "ok",
@@ -103,7 +105,11 @@ async function renderSection(
   loadComebacks = vi.fn(async (): Promise<ComebacksSeries> => comebacks),
   loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison),
   loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records),
-  axis = SEASON_AXIS
+  axis = SEASON_AXIS,
+  // Absent unless a test asks for it, as on a national team's page (specs/045,
+  // S5), so the #424 tests below keep asserting the three groups they were
+  // written for.
+  loadOpponents = vi.fn(async (): Promise<OpponentsSeries> => ({ status: "unavailable" }))
 ) {
   const view = await AnalyticsSection({
     axis,
@@ -116,6 +122,7 @@ async function renderSection(
     loadComebacks,
     loadComparison,
     loadRecords,
+    loadOpponents,
   });
   return {
     ...render(<div>{view}</div>),
@@ -126,6 +133,7 @@ async function renderSection(
     loadCleanSheets,
     loadStreaks,
     loadComebacks,
+    loadOpponents,
     view,
   };
 }
@@ -322,5 +330,69 @@ describe("AnalyticsSection, signed in", () => {
 
     expect(view).toBeNull();
     expect(screen.queryByRole("heading")).toBeNull();
+  });
+});
+
+describe("the Vastustajat group (specs/045, S6)", () => {
+  const opponents: OpponentsSeries = {
+    status: "ok",
+    rows: [
+      {
+        opponentProviderId: 2,
+        opponentName: "KuPS",
+        played: 4,
+        wins: 0,
+        draws: 1,
+        losses: 3,
+        pointsPerMatch: 0.25,
+        lastMet: new Date("2026-05-01T16:00:00Z"),
+        href: "/kotimaa/kohtaamiset/1/2",
+      },
+    ],
+    windowSentence: "Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.",
+  };
+  const withOpponents = () =>
+    renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      SEASON_AXIS,
+      vi.fn(async (): Promise<OpponentsSeries> => opponents)
+    );
+
+  it("comes fourth, after Muut kaudet, holding Vaikeimmat vastustajat", async () => {
+    await withOpponents();
+
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(groups).toEqual([
+      BY_MATCH_HEADING,
+      SEASON_AXIS.wholeHeading,
+      SEASON_AXIS.otherHeading,
+      OPPONENTS_GROUP_HEADING,
+    ]);
+    const group = screen.getByRole("region", { name: OPPONENTS_GROUP_HEADING });
+    expect(group).toContainElement(
+      screen.getByRole("heading", { level: 4, name: OPPONENTS_HEADING })
+    );
+  });
+
+  it("is absent where the panel is, on a national team's page", async () => {
+    await renderSection();
+
+    expect(screen.queryByRole("heading", { level: 3, name: OPPONENTS_GROUP_HEADING })).toBeNull();
+  });
+
+  it("is never loaded for a signed-out reader", async () => {
+    canSeeAnalytics.mockResolvedValue(false);
+    const { loadOpponents } = await withOpponents();
+
+    expect(loadOpponents).not.toHaveBeenCalled();
+    expect(screen.queryByText("KuPS")).toBeNull();
   });
 });

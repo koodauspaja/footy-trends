@@ -80,6 +80,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({
             providerMatchId: 4200001,
@@ -124,6 +125,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [row({ providerMatchId: 4200002, categoryId: "WCQ", groupName: "Lohko J" })],
       },
     });
@@ -142,6 +144,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
       match: { source: "taso", match: row() },
       headToHead: {
         status: "ok",
+        total: 24,
         matches: [
           row({ providerMatchId: 4200002, categoryId: "UNL" }),
           row({ providerMatchId: 4200003, categoryId: "WCQ" }),
@@ -233,7 +236,7 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
         source: "taso",
         match: row({ categoryId: "WUNL", homeTeamProviderId: 144367, awayTeamName: "Croatia" }),
       },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
   });
 
@@ -250,7 +253,7 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: row({ categoryId: "WCQ" }) },
-      headToHead: { status: "ok", matches: [] },
+      headToHead: { status: "ok", matches: [], total: 24 },
     });
     await renderWomensPage();
 

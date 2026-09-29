@@ -122,8 +122,9 @@ test.describe("Comebacks, signed in", () => {
     const count = (label: string) => Number(/^(\d+)/.exec(shown[label] ?? "")?.[1]);
 
     if (Object.keys(shown).length === 0) {
-      // Stored before the half-time columns existed, and not backfilled here.
-      await expect(panel).toContainText("Puoliaikatuloksia ei ole tälle kaudelle.");
+      // Stored before the half-time columns existed, and not backfilled here:
+      // too few known to show, so the coverage note instead (specs/046).
+      await expect(panel).toContainText(/Puoliaikatulos on tiedossa vain \d+ ottelusta/);
       return;
     }
     const trailed = count("Tappioasemassa puoliajalla");
@@ -133,15 +134,16 @@ test.describe("Comebacks, signed in", () => {
     expect(count("Valunut tasapeliksi") + count("Käännetty tappioksi")).toBeLessThanOrEqual(led);
   });
 
-  test("comes third to last in Analyysit", async ({ page }) => {
-    // `Tämä kausi verrattuna` (specs/038) and `Ennätykset` (specs/039) were
-    // both added after it; this was the last panel until then.
+  test("comes last in Kausi kokonaisuutena", async ({ page }) => {
+    // Placed within its #424 group, not counted from the end of Analyysit:
+    // every later panel moved the end, and this test with it (specs/038,
+    // specs/039, specs/045).
     await page.goto(FIXTURE_TEAM);
     const subheadings = page
-      .getByRole("region", { name: "Analyysit" })
+      .getByRole("region", { name: "Kausi kokonaisuutena", exact: true })
       .getByRole("heading", { level: 4 });
 
-    await expect(subheadings.nth((await subheadings.count()) - 3)).toHaveText(HEADING);
+    await expect(subheadings.last()).toHaveText(HEADING);
   });
 });
 

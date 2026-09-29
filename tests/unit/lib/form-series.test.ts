@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FORM_WINDOW, formSeries, type ResultMatch } from "@/lib/form-series";
+import { FORM_WINDOW, formSeries, latestForm, type ResultMatch } from "@/lib/form-series";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
 /**
@@ -132,5 +132,62 @@ describe("formSeries", () => {
 
     expect(row?.form).toHaveLength(FORM_WINDOW);
     expect(formOf(formSeries(season, 1)).at(-1)?.form).toBe(vire / FORM_WINDOW);
+  });
+});
+
+describe("latestForm (specs/047)", () => {
+  it("takes the team's last five, oldest first, from its own side", () => {
+    // Team 1's last five of the eight: D L W L... read from `season` above.
+    const form = latestForm(season, 1);
+
+    expect(form.status).toBe("ok");
+    if (form.status !== "ok") return;
+    expect(form.entries).toHaveLength(FORM_WINDOW);
+    expect(form.entries.map((entry) => entry.match.kickoffAt.getUTCDate())).toEqual(
+      [...form.entries].map((entry) => entry.match.kickoffAt.getUTCDate()).toSorted((a, b) => a - b)
+    );
+    expect(form.entries.map((entry) => [entry.result, entry.label])).toEqual(
+      form.entries.map((entry) => [
+        entry.result,
+        { V: "Voitto", T: "Tasapeli", H: "Häviö" }[entry.result],
+      ])
+    );
+  });
+
+  it("agrees with formSeries' last point over the same matches (S2)", () => {
+    const series = formSeries(season, 1);
+    const form = latestForm(season, 1);
+
+    expect(series.status === "ok" ? series.points.at(-1)?.form : null).toBe(
+      form.status === "ok" ? form.pointsPerMatch : undefined
+    );
+  });
+
+  it("reads each result from the team's side, home or away", () => {
+    // Team 1 lost 0-1 at home on the 6th and drew 2-2 away on the 7th.
+    const form = latestForm(season, 1);
+    const byDay = new Map(
+      form.status === "ok"
+        ? form.entries.map((entry) => [entry.match.kickoffAt.getUTCDate(), entry.result])
+        : []
+    );
+
+    expect(byDay.get(6)).toBe("H");
+    expect(byDay.get(7)).toBe("T");
+  });
+
+  it("dates the form by its newest match", () => {
+    const form = latestForm(season, 1);
+    const newest = Math.max(
+      ...season
+        .filter((match) => match.homeTeamProviderId === 1 || match.awayTeamProviderId === 1)
+        .map((match) => match.kickoffAt.getTime())
+    );
+
+    expect(form.status === "ok" ? form.latest.getTime() : 0).toBe(newest);
+  });
+
+  it("is too few below five matches (S9)", () => {
+    expect(latestForm(season.slice(0, 4), 1)).toEqual({ status: "too-few" });
   });
 });

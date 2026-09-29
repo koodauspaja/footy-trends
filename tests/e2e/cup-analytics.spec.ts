@@ -71,6 +71,36 @@ test.describe("Cup analytics, signed in", () => {
   });
 });
 
+test.describe("Liigacup team page, signed in (specs/043)", () => {
+  // FC Inter, Liigacup 2026's winner: a TASO cup published under its own
+  // competition id, `Liigacup26`, rather than inside the `spljp26` umbrella.
+  const INTER_LIIGACUP = "/kotimaa/joukkue/60987?kilpailu=LC&kausi=2026";
+
+  test.beforeEach(async ({ page }) => {
+    await signedIn(page);
+  });
+
+  test("renders its Analyysit as a cup team page", async ({ page }) => {
+    await page.goto(INTER_LIIGACUP);
+    await analytics(page).waitFor();
+    const panels = await analytics(page).getByRole("heading", { level: 4 }).allTextContents();
+
+    expect(panels).not.toContain(POSITION);
+    expect(panels).toContain("Vire otteluittain");
+  });
+
+  test("compares the season against the cup's own previous one", async ({ page }) => {
+    await page.goto(INTER_LIIGACUP);
+    const comparison = page.getByRole("region", { name: "Tämä kausi verrattuna" });
+    await comparison.waitFor();
+
+    // It asked `spljp25` for last season until specs/043, which holds no
+    // Liigacup, and so had nothing to compare.
+    await expect(comparison.locator("[data-part=row]")).not.toHaveCount(0);
+    await expect(comparison.locator("[data-part=row]", { hasText: "Sijoitus" })).toHaveCount(0);
+  });
+});
+
 test("sends no cup analytics value to a signed-out reader", async ({ page }) => {
   const response = await page.goto(ARSENAL_CUP);
   const html = (await response?.text()) ?? "";

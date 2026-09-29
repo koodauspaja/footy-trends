@@ -77,14 +77,15 @@ test.describe("Season comparison, signed in", () => {
     await expect(panel.getByText(/^Verrattuna [1-9]\d* muuhun kauteen: Valioliiga$/)).toBeVisible();
   });
 
-  test("comes second to last in Analyysit, before the records", async ({ page }) => {
-    // `Ennätykset` (specs/039) was added after it and owns the last position.
+  test("comes first in Muut kaudet, before the records", async ({ page }) => {
+    // Placed within its #424 group, not counted from the end of Analyysit,
+    // which a later group moves (specs/045).
     await page.goto(TEAM);
     const headings = page
-      .getByRole("region", { name: "Analyysit" })
+      .getByRole("region", { name: "Muut kaudet", exact: true })
       .getByRole("heading", { level: 4 });
 
-    await expect(headings.nth((await headings.count()) - 2)).toHaveText(HEADING);
+    await expect(headings.first()).toHaveText(HEADING);
   });
 });
 
