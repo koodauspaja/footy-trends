@@ -38,6 +38,7 @@ instead.
 | S3 | Which pages | **Every page the panel is on** | #473's own note: a cup run with no half-time data hits the same thing, and a club season stored before migration `0017` has none at all. One rule, stated about the data. |
 | S4 | The zero case | **Folded into the same note** | Today `known === 0` says `Puoliaikatuloksia ei ole tälle kaudelle.` — "for this season", which is wrong on the national-team pages, whose axis is a history, not a season (specs/041). One period-free note covers 0 % and every share below 40 %. |
 | S5 | The note's wording | **`Puoliaikatulos on tiedossa vain {known} ottelusta, kun otteluita on {total}. Kääntyneitä otteluita ei lasketa.`** | Miikka, 2026-09-29 (Q1), then reworded the same day: the first wording ended in `{total}:stä`, and that case ending follows how the number is read — `3:sta`, `8:sta`, `100:sta`, but `4:stä`, `84:stä` — so a fixed `:stä` would be wrong for many totals. The total now carries no case ending. `{known} ottelusta` is right for every count: the elative of `ottelu` is the same for one as for many, which `missingText` already relies on. |
+| S6 | A season with no played match yet | **The existing "not yet" lines**, not the note | Miikka, 2026-09-29, asked during implementation: the draft said such a season had no panel, but the TASO loader returns an `ok` series with 0 known and 0 missing, which showed `Puoliaikatuloksia ei ole tälle kaudelle.` until S4 removed it. With nothing to measure, the 40 % rule does not apply, and the two directions' `Ei vielä otteluita …` say what is true. |
 
 ## UX / UI (Finnish strings)
 
@@ -60,8 +61,8 @@ where the panel renders. No provider request, no cache.
 
 | Case | Behaviour |
 |---|---|
-| Exactly 40 % known | Figures shown: the rule is "below 40 %" |
-| No matches at all | Unchanged — no panel, as today (`unavailable`) |
+| Exactly 40 % known | Figures shown: the rule is "below 40 %". Compared in whole numbers (`known × 5 ≥ total × 2`), so the boundary is exact by construction |
+| No played match yet (0 known, 0 missing) | The threshold does not apply: the panel shows its existing `Ei vielä otteluita tappioasemasta.` and `Ei vielä otteluita johtoasemasta.` (S6) |
 | 0 % known | The note (S4), stating 0 of the total |
 | 100 % known | Unchanged, with no missing line |
 | A club season stored before migration `0017` | Below 40 % (usually 0 %): the note, until the season is refetched |
@@ -83,6 +84,8 @@ No change. Behind `canSeeAnalytics()` with the rest of `Analyysit`.
       where any is missing
 - [ ] 0 % known shows the same note; `Puoliaikatuloksia ei ole tälle kaudelle.`
       appears nowhere
+- [ ] A season with no played match yet shows the two `Ei vielä otteluita …`
+      lines, not the note (S6)
 - [ ] On production data, Huuhkajat and Helmarit show the note
 - [ ] A club season with full half-time data is unchanged
 - [ ] Correct in light and dark, and legible at 375 px
@@ -107,4 +110,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-**None.** Q1 was answered in chat on 2026-09-29 and is recorded as S5.
+**None.** Q1 was answered in chat on 2026-09-29 and is recorded as S5; the
+no-match case asked during implementation the same day is S6.

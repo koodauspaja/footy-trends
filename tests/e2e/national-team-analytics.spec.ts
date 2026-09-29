@@ -88,6 +88,28 @@ test.describe("National-team analytics, signed in", () => {
     expect(headings[0]).toBe("Analyysit");
     expect(headings.slice(1).every((heading) => /^\d{4}$/.test(heading))).toBe(true);
   });
+
+  for (const [team, path] of [
+    ["Huuhkajat", HUUHKAJAT],
+    ["Helmarit", HELMARIT],
+  ] as const) {
+    test(`says how few half-time scores ${team} has, instead of figures (specs/046)`, async ({
+      page,
+    }) => {
+      // TASO has a half-time score for few of these internationals — about 8 of
+      // 84 for Huuhkajat and one for Helmarit on production — so the panel
+      // shows its note and none of its six figures.
+      await page.goto(path);
+      const panel = analytics(page).getByRole("region", { name: "Kääntyneet ottelut" });
+      await panel.waitFor();
+
+      await expect(panel).toContainText(
+        /Puoliaikatulos on tiedossa vain \d+ ottelusta, kun otteluita on \d+\. Kääntyneitä otteluita ei lasketa\./
+      );
+      await expect(panel.locator("dl")).toHaveCount(0);
+      await expect(page.getByText("tälle kaudelle")).toHaveCount(0);
+    });
+  }
 });
 
 test("sends no national-team analytics value to a signed-out reader", async ({ page }) => {

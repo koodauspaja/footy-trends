@@ -122,8 +122,9 @@ test.describe("Comebacks, signed in", () => {
     const count = (label: string) => Number(/^(\d+)/.exec(shown[label] ?? "")?.[1]);
 
     if (Object.keys(shown).length === 0) {
-      // Stored before the half-time columns existed, and not backfilled here.
-      await expect(panel).toContainText("Puoliaikatuloksia ei ole tälle kaudelle.");
+      // Stored before the half-time columns existed, and not backfilled here:
+      // too few known to show, so the coverage note instead (specs/046).
+      await expect(panel).toContainText(/Puoliaikatulos on tiedossa vain \d+ ottelusta/);
       return;
     }
     const trailed = count("Tappioasemassa puoliajalla");
