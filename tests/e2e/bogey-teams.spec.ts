@@ -37,7 +37,11 @@ test.describe("Bogey teams, signed in", () => {
     const first = panel.locator("tbody tr").first();
     await first.waitFor();
 
-    const [played, wins, draws, losses] = (await first.locator("td").allTextContents()).map(Number);
+    // The four counts only: `P/O` is a decimal-comma rate this test does not
+    // compare, and `Number("0,9")` is NaN (Sourcery, on this pull request).
+    const [played, wins, draws, losses] = (await first.locator("td").allTextContents())
+      .slice(0, 4)
+      .map(Number);
     const opponent = (await first.getByRole("link").textContent()) ?? "";
     await first.getByRole("link").click();
     await page.getByRole("heading", { level: 1, name: /^Kohtaamiset: / }).waitFor();

@@ -5,6 +5,7 @@ import type { ComebacksSeries } from "@/lib/comebacks";
 import type { SeasonContext } from "@/lib/football-data";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
+import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
@@ -74,8 +75,17 @@ const analyticsSectionMock = vi.fn(
     loadComebacks: () => Promise<ComebacksSeries>;
     loadComparison: () => Promise<SeasonComparisonSeries>;
     loadRecords: () => Promise<StreakRecordsSeries>;
+    loadOpponents: () => Promise<OpponentsSeries>;
   }) => "analytics section placeholder"
 );
+const getWorstOpponentsMock = vi.fn(
+  async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
+);
+vi.mock("@/lib/match-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/match-service")>()),
+  getWorstOpponents: getWorstOpponentsMock,
+}));
+
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -793,6 +803,19 @@ describe("Team page league position (specs/030)", () => {
     await loadComebacks?.();
 
     expect(getTeamComebacksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+  });
+  it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;
+
+    await loadOpponents?.();
+
+    // Not the selected season or competition: the panel covers every one (S4).
+    expect(getWorstOpponentsMock).toHaveBeenCalledWith(
+      { kind: "football-data", region: "foreign" },
+      1,
+      "/ulkomaat"
+    );
   });
 
   it("asks for the season comparison with the club's stored seasons (specs/038)", async () => {
