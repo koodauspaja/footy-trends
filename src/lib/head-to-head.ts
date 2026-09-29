@@ -232,3 +232,197 @@ export function meetingsLink(
     ? null
     : { href: `${basePath}/kohtaamiset/${first}/${second}`, count: shown };
 }
+
+/**
+ * The score grid's last row and column: every score from this many up
+ * (specs/044). Six rows and six columns at most, which is what keeps the grid
+ * legible at 375 px; a 7–0 is counted against `5+`.
+ */
+export const SCORE_GRID_CAP = 5;
+
+/** A final score from the first team's side — the side `Yhteenveto` reads from (specs/044, S5). */
+export type Scoreline = { first: number; second: number };
+
+/**
+ * The `Tulokset` section (specs/044): every meeting's score, counted per cell.
+ *
+ * `rows` runs down the first team's goals and each row's `cells` across the
+ * second team's, `0` to `SCORE_GRID_CAP`, the last of each counting that many
+ * and more. Every cell names its own goals, so a renderer keys on the score
+ * rather than on a position. The most common scorelines are
+ * **uncapped** — the sentence names a real score, not a bucket — and empty when
+ * none occurred more than once, which is when the sentence says nothing the
+ * grid does not (S8).
+ */
+export type ScoreGrid = {
+  rows: Array<{ first: number; cells: Array<{ second: number; count: number }> }>;
+  /** The largest count in any cell, which the shading scales against. */
+  largest: number;
+  mostCommon: Scoreline[];
+  /** How often each of `mostCommon` occurred; 0 when `mostCommon` is empty. */
+  mostCommonCount: number;
+};
+
+function scorelineFor(meeting: Meeting, firstTeamProviderId: number): Scoreline {
+  return meeting.homeTeamProviderId === firstTeamProviderId
+    ? { first: meeting.homeGoals, second: meeting.awayGoals }
+    : { first: meeting.awayGoals, second: meeting.homeGoals };
+}
+
+/**
+ * The score grid over the meetings given, from the first team's side (S5).
+ *
+ * Pure and counting only what it is handed, as `headToHeadRecord` is: the
+ * service decides which meetings exist (specs/042, S2 and S3).
+ */
+export function scoreGrid(meetings: readonly Meeting[], firstTeamProviderId: number): ScoreGrid {
+  const cells = new Map<string, number>();
+  const byScoreline = new Map<string, { scoreline: Scoreline; count: number }>();
+
+  for (const meeting of meetings) {
+    const scoreline = scorelineFor(meeting, firstTeamProviderId);
+    const cell = `${Math.min(scoreline.first, SCORE_GRID_CAP)}-${Math.min(scoreline.second, SCORE_GRID_CAP)}`;
+    cells.set(cell, (cells.get(cell) ?? 0) + 1);
+
+    const key = `${scoreline.first}-${scoreline.second}`;
+    byScoreline.set(key, { scoreline, count: (byScoreline.get(key)?.count ?? 0) + 1 });
+  }
+
+  const axis = Array.from({ length: SCORE_GRID_CAP + 1 }, (_, goals) => goals);
+  const rows = axis.map((first) => ({
+    first,
+    cells: axis.map((second) => ({ second, count: cells.get(`${first}-${second}`) ?? 0 })),
+  }));
+  const tallies = [...byScoreline.values()];
+  const top = Math.max(0, ...tallies.map((tally) => tally.count));
+  // Once is not "most common": with every scoreline occurring once, naming
+  // them all says nothing the grid does not (S8) — one meeting included.
+  const mostCommon =
+    top > 1
+      ? tallies
+          .filter((tally) => tally.count === top)
+          .map((tally) => tally.scoreline)
+          .toSorted((left, right) => left.first - right.first || left.second - right.second)
+      : [];
+
+  return {
+    rows,
+    largest: Math.max(0, ...cells.values()),
+    mostCommon,
+    mostCommonCount: mostCommon.length > 0 ? top : 0,
+  };
+}
+
+/** An average score, home side first (specs/044, S3). */
+export type ScoreAverage = { home: number; away: number };
+
+/**
+ * Where a meeting was played, precisely enough to find that competition-season
+ * again — which is what the competition's average is taken over (S7).
+ *
+ * football-data names a season within a competition code. TASO's
+ * `competition_id` is itself a season (`spljp24`, `Liigacup24`) and its
+ * `category_id` the competition inside it, so the pair is the season.
+ */
+export type SeasonRef =
+  | { kind: "football-data"; competitionCode: string; seasonId: number }
+  | { kind: "taso"; competitionId: string; categoryId: string };
+
+/**
+ * A meeting as the averages read it: its score, the competition it belongs to,
+ * and the name `Kohtaamiset` gives that competition.
+ *
+ * `competitionKey` is the competition across seasons — Liigacup's `LC2023` and
+ * `LC` are one key — while `season` is this meeting's own competition-season.
+ */
+export type AnalysedMeeting = Meeting & {
+  competitionKey: string;
+  label: string;
+  season: SeasonRef;
+};
+
+/** The competition-seasons one competition's average is taken over (S7). */
+export type CompetitionScope =
+  | { kind: "football-data"; competitionCode: string; seasonIds: number[] }
+  | { kind: "taso"; seasons: Array<{ competitionId: string; categoryId: string }> };
+
+/** One row of `Maalit kilpailuittain`, before the competition's own average is known. */
+export type CompetitionGroup = {
+  key: string;
+  /** The newest meeting's name for it, as the list shows it. */
+  label: string;
+  played: number;
+  /** The pair's average score in these meetings. */
+  average: ScoreAverage;
+  scope: CompetitionScope;
+};
+
+function averageOf(meetings: readonly Meeting[]): ScoreAverage {
+  const total = meetings.reduce(
+    (sum, meeting) => ({ home: sum.home + meeting.homeGoals, away: sum.away + meeting.awayGoals }),
+    { home: 0, away: 0 }
+  );
+  return { home: total.home / meetings.length, away: total.away / meetings.length };
+}
+
+/**
+ * Every competition-season the meetings were played in, once each.
+ *
+ * A group is always within one provider — a head-to-head is (specs/042, S6) —
+ * so the first meeting's kind is every meeting's.
+ */
+function scopeOf(meetings: readonly AnalysedMeeting[]): CompetitionScope {
+  const footballData: Array<{ competitionCode: string; seasonId: number }> = [];
+  const taso = new Map<string, { competitionId: string; categoryId: string }>();
+  for (const { season } of meetings) {
+    if (season.kind === "football-data") {
+      footballData.push(season);
+    } else {
+      taso.set(`${season.competitionId}/${season.categoryId}`, {
+        competitionId: season.competitionId,
+        categoryId: season.categoryId,
+      });
+    }
+  }
+
+  const [first] = footballData;
+  return first === undefined
+    ? { kind: "taso", seasons: [...taso.values()] }
+    : {
+        kind: "football-data",
+        competitionCode: first.competitionCode,
+        seasonIds: [...new Set(footballData.map((season) => season.seasonId))].toSorted(
+          (left, right) => left - right
+        ),
+      };
+}
+
+/**
+ * The meetings split by competition, one group per competition and never one
+ * blended average (specs/044, S4) — most meetings first, then by name.
+ *
+ * The meetings arrive newest first, so each group's first meeting names it: a
+ * renamed competition shows once, under its current name.
+ */
+export function competitionGroups(meetings: readonly AnalysedMeeting[]): CompetitionGroup[] {
+  // Named when first seen, which is the newest meeting in it.
+  const byKey = new Map<string, { label: string; meetings: AnalysedMeeting[] }>();
+  for (const meeting of meetings) {
+    const group = byKey.get(meeting.competitionKey);
+    if (group === undefined) {
+      byKey.set(meeting.competitionKey, { label: meeting.label, meetings: [meeting] });
+    } else {
+      group.meetings.push(meeting);
+    }
+  }
+
+  return [...byKey.entries()]
+    .map(([key, group]) => ({
+      key,
+      label: group.label,
+      played: group.meetings.length,
+      average: averageOf(group.meetings),
+      scope: scopeOf(group.meetings),
+    }))
+    .toSorted((left, right) => right.played - left.played || left.label.localeCompare(right.label));
+}

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CompetitionScope } from "@/lib/head-to-head";
 import type { MatchSource } from "@/lib/match-source";
 import { warmModules } from "../../support/warm-module";
 
@@ -25,6 +26,12 @@ vi.mock("@/db", () => ({
              * five taken from it (specs/042) — ends at `.orderBy(...)`.
              */
             orderBy: () => Promise.resolve().then(() => selectMock(...args)),
+            /** The competition averages (specs/044) are awaited straight after `.where(...)`. */
+            // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
+            then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+              Promise.resolve()
+                .then(() => selectMock(...args))
+                .then(resolve, reject),
           };
           return builder;
         },
@@ -305,6 +312,75 @@ describe("getHeadToHeadHistory", () => {
     const { getHeadToHeadHistory } = await import("@/lib/match-service");
 
     expect(await getHeadToHeadHistory(DOMESTIC, 1, 2)).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalled();
+  });
+});
+
+describe("getCompetitionAverages (specs/044)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  const PL = {
+    key: "PL",
+    scope: { kind: "football-data", competitionCode: "PL", seasonIds: [2024] },
+  } satisfies { key: string; scope: CompetitionScope };
+  const LC = {
+    key: "LC",
+    scope: {
+      kind: "taso",
+      seasons: [
+        { competitionId: "Liigacup25", categoryId: "LC" },
+        { competitionId: "Liigacup23", categoryId: "LC2023" },
+      ],
+    },
+  } satisfies { key: string; scope: CompetitionScope };
+
+  it("attaches each competition's own average to its group, from either provider", async () => {
+    const { getCompetitionAverages } = await import("@/lib/match-service");
+    selectMock
+      .mockResolvedValueOnce([{ home: 1.6, away: 1.2 }])
+      .mockResolvedValueOnce([{ home: 2.25, away: 0.75 }]);
+
+    await expect(getCompetitionAverages([PL, LC])).resolves.toEqual({
+      status: "ok",
+      rows: [
+        { ...PL, competition: { home: 1.6, away: 1.2 } },
+        { ...LC, competition: { home: 2.25, away: 0.75 } },
+      ],
+    });
+    expect(selectMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a competition with no finished match as a failure, not as 0,0 – 0,0", async () => {
+    // The pair's own meetings are in every scope; an empty one means the two
+    // reads disagree about what counts.
+    const { getCompetitionAverages } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([{ home: null, away: null }]);
+
+    await expect(getCompetitionAverages([PL])).resolves.toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to read the competition averages"
+    );
+  });
+
+  it.each([
+    ["no row at all", []],
+    ["a row with only one side", [{ home: 1.5, away: null }]],
+  ])("treats %s as the same failure", async (_name, rows) => {
+    const { getCompetitionAverages } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce(rows);
+
+    await expect(getCompetitionAverages([LC])).resolves.toEqual({ status: "error" });
+  });
+
+  it("turns a database failure into its own case (S10)", async () => {
+    const { getCompetitionAverages } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getCompetitionAverages([PL])).resolves.toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalled();
   });
 });

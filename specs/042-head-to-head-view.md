@@ -44,7 +44,7 @@ one match, and a summary — which nothing computes today.
 | S1 | The way in | **A link on the match page**, under the existing `Aiemmat kohtaamiset` block | Miikka, 2026-09-28. Every pair that has ever met has a match page, so this reaches every pair that has a history to show — it is not the limitation it looks like. It needs no picker and no navigation entry, and it puts the link exactly where a reader is already asking the question. |
 | S2 | Which competitions | **All of them, in one history and one summary**, each row naming its own | Miikka, 2026-09-28. It is what the existing query already does — `head-to-head.ts` says the span is deliberate, so a World Cup page can list a European Championship meeting. specs/040 S1 separated competitions for per-season **rates**, where a six-match cup run folded into a 27-match league average describes neither; a count of meetings has no such problem. |
 | S3 | Which matches count | Finished, with both scores stored, excluding the match linked from | The existing query's rule, unchanged. A fixture with no result contributes nothing to a record. |
-| S11 | The page's shape | **`Yhteenveto` then `Kohtaamiset`**, two named sections | Miikka, 2026-09-28: *"i want that head-to-head page be clear"*. A summary block sitting on top of an unnamed list leaves a reader to work out what each part is; naming both says it. |
+| S11 | The page's shape | **`Yhteenveto` then `Kohtaamiset`**, two named sections | Miikka, 2026-09-28: *"i want that head-to-head page be clear"*. A summary block sitting on top of an unnamed list leaves a reader to work out what each part is; naming both says it. *Since specs/044, a signed-in reader also gets `Tulokset` and `Maalit kilpailuittain` between the two.* |
 | S12 | Meetings still to come | **Not shown.** This page is history | Miikka, 2026-09-28: *"it's ok not to have them for this history focused page"*. A fixture list and a record are different claims, and the match page a reader arrives from already carries the fixture they were looking at. Worth stating rather than leaving implicit, because S4 reads as if it were about the future and is not. |
 | S4 | The anchor | **Dropped.** The page shows every meeting, including ones after the linked match | The match page's query takes only meetings *before* its own kickoff, because it is context for that fixture. A history of the pair is not about one fixture, so the newest meeting belongs in it. |
 | S5 | The limit | **Dropped.** `HEAD_TO_HEAD_LIMIT` stays as the match page's five | `head-to-head.ts` already notes the data supports more. The limit is a choice about the match page, not about the data. |
@@ -131,7 +131,8 @@ nothing else.
 ## Security & secrets
 
 No new environment variable and no new secret. Public, like the match pages it
-is reached from: nothing here is behind `canSeeAnalytics()`.
+is reached from: nothing here is behind `canSeeAnalytics()`. *specs/044 added two
+sections that are (its S6); the record and the list stay public.*
 
 ## Acceptance criteria
 

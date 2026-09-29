@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray, isNotNull, like, notLike, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { type CompetitionRegion, competitionsInRegion } from "./competitions";
-import { HEAD_TO_HEAD_LIMIT } from "./head-to-head";
+import { type CompetitionScope, HEAD_TO_HEAD_LIMIT, type ScoreAverage } from "./head-to-head";
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
@@ -217,6 +217,94 @@ async function tasoHistory(
 }
 
 const FINISHED_STATUS = "FINISHED";
+
+/**
+ * Each group given, with its competition's average score attached, or why
+ * there is none (specs/044, S3, S7).
+ *
+ * The average travels on the group it belongs to rather than in a parallel
+ * list, so a caller cannot pair one competition's average with another's row.
+ * A failure is its own case rather than an empty list, so the page can say the
+ * averages could not be computed instead of showing no competitions (S10).
+ */
+export type CompetitionAverages<Group> =
+  | { status: "ok"; rows: Array<Group & { competition: ScoreAverage }> }
+  | { status: "error" };
+
+/**
+ * The average home and away score over every finished match with both scores
+ * in exactly the competition-seasons given — not the whole competition (S7).
+ *
+ * One aggregate per competition. The pair's own meetings are in every scope, so
+ * each scope has at least one match; an empty one means the meetings and this
+ * query disagree about what counts, and is reported as the failure it is rather
+ * than printed as `0,0 – 0,0`.
+ */
+export async function getCompetitionAverages<Group extends { scope: CompetitionScope }>(
+  groups: readonly Group[]
+): Promise<CompetitionAverages<Group>> {
+  try {
+    return {
+      status: "ok",
+      rows: await Promise.all(
+        groups.map(async (group) => ({ ...group, competition: await averageFor(group.scope) }))
+      ),
+    };
+  } catch (error) {
+    logger.error(
+      { err: error, scopes: groups.map((group) => group.scope) },
+      "Unable to read the competition averages"
+    );
+    return { status: "error" };
+  }
+}
+
+async function averageFor(scope: CompetitionScope): Promise<ScoreAverage> {
+  const [row] =
+    scope.kind === "football-data"
+      ? await db
+          .select({
+            home: sql<number | null>`avg(${matches.homeGoals})::float8`,
+            away: sql<number | null>`avg(${matches.awayGoals})::float8`,
+          })
+          .from(matches)
+          .where(
+            and(
+              eq(matches.competitionCode, scope.competitionCode),
+              inArray(matches.seasonId, scope.seasonIds),
+              eq(matches.status, FINISHED_STATUS),
+              isNotNull(matches.homeGoals),
+              isNotNull(matches.awayGoals)
+            )
+          )
+      : await db
+          .select({
+            home: sql<number | null>`avg(${tasoMatches.homeGoals})::float8`,
+            away: sql<number | null>`avg(${tasoMatches.awayGoals})::float8`,
+          })
+          .from(tasoMatches)
+          .where(
+            and(
+              or(
+                ...scope.seasons.map((season) =>
+                  and(
+                    eq(tasoMatches.competitionCode, season.competitionId),
+                    eq(tasoMatches.categoryId, season.categoryId)
+                  )
+                )
+              ),
+              eq(tasoMatches.status, FINISHED_STATUS),
+              isNotNull(tasoMatches.homeGoals),
+              isNotNull(tasoMatches.awayGoals)
+            )
+          );
+
+  // `undefined` for no row at all, `null` for an aggregate over no match.
+  const home = row?.home;
+  const away = row?.away;
+  if (home != null && away != null) return { home, away };
+  throw new Error("A competition the pair met in has no finished match");
+}
 
 /**
  * One match, its previous meetings and how many meetings the pair has in all,

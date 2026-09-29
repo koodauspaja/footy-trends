@@ -1,6 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FootballDataMatchRow, HeadToHeadResult, TasoMatchRow } from "@/lib/match-service";
+import type {
+  CompetitionAverages,
+  FootballDataMatchRow,
+  HeadToHeadResult,
+  TasoMatchRow,
+} from "@/lib/match-service";
 import { MENS_TEAM } from "@/lib/national-team";
 
 /**
@@ -8,14 +13,31 @@ import { MENS_TEAM } from "@/lib/national-team";
  * screen.
  *
  * The record's arithmetic is `head-to-head.test.ts`'s and the row labels are
- * `meeting-labels`', so what this file owns is the page — its two sections, the
+ * `meeting-labels`', so what this file owns is the page — its sections (two
+ * signed out, four signed in since specs/044), the
  * ids it resolves, and the cases where there is nothing to show.
  */
 
 const getHeadToHeadHistoryMock = vi.fn<() => Promise<HeadToHeadResult>>();
+const getCompetitionAveragesMock = vi.fn(
+  async <Group,>(groups: readonly Group[]): Promise<CompetitionAverages<Group>> => ({
+    status: "ok",
+    rows: groups.map((group) => ({ ...group, competition: { home: 1.6, away: 1.25 } })),
+  })
+);
+/** Signed out unless a test says otherwise, which is also what specs/042's tests assume. */
+const canSeeAnalyticsMock = vi.fn(async () => false);
 
 vi.mock("@/lib/match-service", () => ({
   getHeadToHeadHistory: getHeadToHeadHistoryMock,
+  getCompetitionAverages: getCompetitionAveragesMock,
+}));
+
+vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
+// The prompt's button and its sign-in flow are sign-in-prompt.test.tsx's. Here
+// it only has to show which message it was given.
+vi.mock("@/components/sign-in-prompt", () => ({
+  SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
 vi.mock("@/lib/taso-standings-service", () => ({
@@ -76,6 +98,13 @@ async function renderPage(a = String(HJK), b = String(KUPS)) {
 
 warmModules(() => import("@/components/head-to-head-page"));
 
+// Every test starts signed out, whatever the last one set: `clearAllMocks`
+// keeps implementations, so without this the specs/042 tests would inherit the
+// signed-in reader of whichever specs/044 test ran before them.
+beforeEach(() => {
+  canSeeAnalyticsMock.mockResolvedValue(false);
+});
+
 describe("the window sentence's label", () => {
   it("spans calendar years abroad, and does not for a tournament", async () => {
     // `2023/24` for a league played across a winter, `2026` for one played
@@ -134,7 +163,7 @@ describe("HeadToHeadPage", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Kohtaamiset: HJK – KuPS");
   });
 
-  it("reads Yhteenveto then Kohtaamiset, in that order", async () => {
+  it("reads Yhteenveto then Kohtaamiset, in that order, signed out", async () => {
     await renderPage();
 
     const sections = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
@@ -403,5 +432,259 @@ describe("HeadToHeadPage on a national team's own matches", () => {
 
     // The category map is mocked to `null` here, which is the unreadable case.
     expect(screen.getByText("C-liiga lohko 1")).toBeInTheDocument();
+  });
+});
+
+describe("the analysis sections (specs/044)", () => {
+  const SIGN_IN = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
+
+  /** HJK 2–1 KuPS twice (once at KuPS), and a 0–0: 2024 and 2025 Veikkausliiga. */
+  const MEETINGS = [
+    meeting({ providerMatchId: 1 }),
+    meeting({
+      providerMatchId: 2,
+      kickoffAt: new Date("2025-05-03T16:00:00Z"),
+      homeTeamProviderId: KUPS,
+      homeTeamName: "KuPS",
+      awayTeamProviderId: HJK,
+      awayTeamName: "HJK",
+      homeGoals: 1,
+      awayGoals: 2,
+    }),
+    meeting({
+      providerMatchId: 3,
+      competitionCode: "spljp24",
+      seasonId: 2024,
+      kickoffAt: new Date("2024-06-01T16:00:00Z"),
+      homeGoals: 0,
+      awayGoals: 0,
+    }),
+  ];
+
+  /** The competition-seasons the page asked averages for, one per group. */
+  function scopesAsked(): unknown[] {
+    const [groups] = getCompetitionAveragesMock.mock.calls[0] ?? [[]];
+    return (groups as ReadonlyArray<{ scope: unknown }>).map((group) => group.scope);
+  }
+
+  function headings(): Array<string | null> {
+    return screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getHeadToHeadHistoryMock.mockResolvedValue({ status: "ok", matches: MEETINGS });
+  });
+
+  it("reads Yhteenveto, Tulokset, Maalit kilpailuittain, Kohtaamiset when signed in", async () => {
+    await renderPage();
+
+    expect(headings()).toEqual(["Yhteenveto", "Tulokset", "Maalit kilpailuittain", "Kohtaamiset"]);
+  });
+
+  it("counts each meeting in its cell, from the first team's side", async () => {
+    await renderPage();
+
+    const grid = within(screen.getByRole("region", { name: "Tulokset" })).getByRole("table");
+    const rows = within(grid).getAllByRole("row");
+    // Header row, then one per HJK goal count: row 3 is HJK's 2, column 2 KuPS's 1.
+    const cellsOf = (row: number) => within(rows[row] as HTMLElement).getAllByRole("cell");
+    expect(cellsOf(3)[1]).toHaveTextContent("2");
+    expect(cellsOf(1)[0]).toHaveTextContent("1");
+    expect(cellsOf(2)[3]).toHaveTextContent("");
+    expect(within(grid).getByRole("columnheader", { name: "5+" })).toBeInTheDocument();
+    expect(within(grid).getByRole("columnheader", { name: "HJK ↓ / KuPS →" })).toBeInTheDocument();
+    expect(screen.getByText("Yleisin tulos 2–1, 2 kertaa.")).toBeInTheDocument();
+  });
+
+  it("transposes the grid when the URL names the teams the other way", async () => {
+    await renderPage(String(KUPS), String(HJK));
+
+    const grid = within(screen.getByRole("region", { name: "Tulokset" })).getByRole("table");
+    const rows = within(grid).getAllByRole("row");
+    expect(within(rows[2] as HTMLElement).getAllByRole("cell")[2]).toHaveTextContent("2");
+    expect(screen.getByText("Yleisin tulos 1–2, 2 kertaa.")).toBeInTheDocument();
+  });
+
+  it("compares each competition with its own average, over the seasons they met in it", async () => {
+    await renderPage();
+
+    expect(scopesAsked()).toEqual([
+      {
+        kind: "taso",
+        seasons: [
+          { competitionId: "spljp25", categoryId: "VL" },
+          { competitionId: "spljp24", categoryId: "VL" },
+        ],
+      },
+    ]);
+    const table = within(screen.getByRole("region", { name: "Maalit kilpailuittain" })).getByRole(
+      "table"
+    );
+    const row = within(table).getByRole("row", { name: /Veikkausliiga/ });
+    // Home sides scored 2, 1 and 0; away sides 1, 2 and 0.
+    expect(row).toHaveTextContent("3");
+    expect(row).toHaveTextContent("1,0 – 1,0");
+    expect(row).toHaveTextContent("1,6 – 1,3");
+  });
+
+  it("counts Liigacup 2023 and 2024 as one competition", async () => {
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        meeting({
+          providerMatchId: 7,
+          competitionCode: "Liigacup24",
+          categoryId: "LC",
+          seasonId: 2024,
+        }),
+        meeting({
+          providerMatchId: 8,
+          competitionCode: "Liigacup23",
+          categoryId: "LC2023",
+          seasonId: 2023,
+          kickoffAt: new Date("2023-02-01T16:00:00Z"),
+        }),
+      ],
+    });
+    await renderPage();
+
+    expect(scopesAsked()).toEqual([
+      {
+        kind: "taso",
+        seasons: [
+          { competitionId: "Liigacup24", categoryId: "LC" },
+          { competitionId: "Liigacup23", categoryId: "LC2023" },
+        ],
+      },
+    ]);
+    const averages = screen.getByRole("region", { name: "Maalit kilpailuittain" });
+    expect(within(averages).getByRole("row", { name: /Liigacup/ })).toHaveTextContent("2");
+  });
+
+  it("keeps a category the registry does not claim as its own competition", async () => {
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 9, categoryId: "XYZ", groupName: "Lohko 3" })],
+    });
+    await renderPage();
+
+    expect(scopesAsked()).toEqual([
+      { kind: "taso", seasons: [{ competitionId: "spljp25", categoryId: "XYZ" }] },
+    ]);
+  });
+
+  it("says the averages could not be computed, and still shows the grid (S10)", async () => {
+    getCompetitionAveragesMock.mockResolvedValueOnce({ status: "error" });
+    await renderPage();
+
+    const section = screen.getByRole("region", { name: "Maalit kilpailuittain" });
+    expect(
+      within(section).getByText("Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(within(section).queryByRole("table")).toBeNull();
+    expect(
+      within(screen.getByRole("region", { name: "Tulokset" })).getByRole("table")
+    ).toBeVisible();
+  });
+
+  it("has no sentence when every scoreline occurred once (S8)", async () => {
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1 })],
+    });
+    await renderPage();
+
+    expect(screen.queryByText(/Yleisi/)).toBeNull();
+  });
+
+  it("shades a cell by its count, with its count always printed", async () => {
+    await renderPage();
+
+    const grid = within(screen.getByRole("region", { name: "Tulokset" })).getByRole("table");
+    const levels = within(grid)
+      .getAllByRole("cell")
+      .map((cell) => [cell.textContent, cell.getAttribute("data-level")]);
+    expect(levels).toContainEqual(["2", "4"]);
+    expect(levels).toContainEqual(["1", "2"]);
+    expect(levels).toContainEqual(["", "0"]);
+  });
+
+  it("prints a dark cell's count in the background colour, so it stays legible", async () => {
+    await renderPage();
+
+    const cells = within(
+      within(screen.getByRole("region", { name: "Tulokset" })).getByRole("table")
+    ).getAllByRole("cell");
+    const byLevel = (level: string) =>
+      cells.find((cell) => cell.getAttribute("data-level") === level);
+    // The fullest cell, level 4, is dark; a level-2 cell is light enough for the usual text.
+    expect(byLevel("4")).toHaveClass("text-background");
+    expect(byLevel("2")).not.toHaveClass("text-background");
+  });
+
+  it("drops the averages on a TASO national-team route, keeping the grid (S9)", async () => {
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+    render(
+      await HeadToHeadPage({
+        source: { kind: "taso", bucket: "national" },
+        basePath: "/maajoukkueet/huuhkajat",
+        nationalTeam: MENS_TEAM,
+        params: Promise.resolve({ a: "1", b: "2" }),
+      })
+    );
+
+    expect(headings()).toEqual(["Yhteenveto", "Tulokset", "Kohtaamiset"]);
+    expect(getCompetitionAveragesMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the averages on football-data's national-team route, by competition code", async () => {
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        {
+          id: 500,
+          providerMatchId: 500,
+          competitionCode: "EC",
+          seasonId: 2024,
+          kickoffAt: new Date("2024-06-25T19:00:00Z"),
+          status: "FINISHED",
+          homeTeamProviderId: 10,
+          homeTeamName: "England",
+          awayTeamProviderId: 11,
+          awayTeamName: "Wales",
+          homeGoals: 2,
+          awayGoals: 0,
+        } as FootballDataMatchRow,
+      ],
+    });
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+    render(
+      await HeadToHeadPage({
+        source: { kind: "football-data", region: "national-teams" },
+        basePath: "/maajoukkueet",
+        params: Promise.resolve({ a: "10", b: "11" }),
+      })
+    );
+
+    expect(headings()).toContain("Maalit kilpailuittain");
+    expect(scopesAsked()).toEqual([
+      { kind: "football-data", competitionCode: "EC", seasonIds: [2024] },
+    ]);
+  });
+
+  it("signed out, shows one prompt and computes neither section (S6)", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(false);
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+    const { container } = render(
+      await HeadToHeadPage({ ...ROUTE, params: Promise.resolve({ a: "1", b: "2" }) })
+    );
+
+    expect(screen.getAllByText(SIGN_IN)).toHaveLength(1);
+    expect(headings()).toEqual(["Yhteenveto", "Kohtaamiset"]);
+    expect(getCompetitionAveragesMock).not.toHaveBeenCalled();
+    expect(container.innerHTML).not.toContain("Yleisin");
+    expect(container.innerHTML).not.toContain("data-level");
   });
 });

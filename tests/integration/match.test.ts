@@ -2,7 +2,11 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getHeadToHeadHistory, getMatchPageData } from "@/lib/match-service";
+import {
+  getCompetitionAverages,
+  getHeadToHeadHistory,
+  getMatchPageData,
+} from "@/lib/match-service";
 
 /**
  * The match page's two queries against a real Postgres — the lookup by provider
@@ -18,8 +22,10 @@ const OTHER = 991103;
 // Distinct from the standings suite's own fixtures, which share these tables.
 const SEASON = 991777;
 
-const TASO_IDS = [991001, 991002, 991003, 991004, 991005, 991006, 991007, 991008, 991009];
-const FD_IDS = [991001, 991002, 991003];
+const TASO_IDS = [
+  991001, 991002, 991003, 991004, 991005, 991006, 991007, 991008, 991009, 991010, 991011, 991012,
+];
+const FD_IDS = [991001, 991002, 991003, 991004];
 
 function tasoRow(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
   return {
@@ -349,5 +355,94 @@ describe("the head-to-head history", () => {
     expect(page.headToHead.matches.map((row) => row.providerMatchId)).toEqual([991001]);
     expect(page.headToHead.total).toBe(history.matches.length);
     expect(page.headToHead.total).toBe(3);
+  });
+});
+
+describe("the competition averages (specs/044)", () => {
+  it("averages exactly the football-data seasons given, finished matches only", async () => {
+    await db.insert(matches).values([
+      footballDataRow({ providerMatchId: 991001, homeGoals: 3, awayGoals: 1 }),
+      footballDataRow({ providerMatchId: 991002, homeGoals: 0, awayGoals: 0 }),
+      // Another season of the same competition: outside the scope (S7).
+      footballDataRow({
+        providerMatchId: 991003,
+        seasonId: SEASON + 1,
+        homeGoals: 9,
+        awayGoals: 9,
+      }),
+      // Unplayed: no score to average.
+      footballDataRow({
+        providerMatchId: 991004,
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+    ]);
+
+    const result = await getCompetitionAverages([
+      { scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] } },
+    ]);
+
+    expect(result).toEqual({
+      status: "ok",
+      rows: [
+        {
+          scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] },
+          competition: { home: 1.5, away: 0.5 },
+        },
+      ],
+    });
+  });
+
+  it("averages exactly the TASO competition-seasons given, across category ids", async () => {
+    await db.insert(tasoMatches).values([
+      tasoRow({
+        providerMatchId: 991010,
+        competitionCode: "Liigacup90",
+        categoryId: "LC",
+        homeGoals: 2,
+        awayGoals: 2,
+      }),
+      tasoRow({
+        providerMatchId: 991011,
+        competitionCode: "Liigacup89",
+        categoryId: "LC2023",
+        homeGoals: 0,
+        awayGoals: 1,
+      }),
+      // The same season, another competition inside it: outside the scope.
+      tasoRow({
+        providerMatchId: 991012,
+        competitionCode: "Liigacup90",
+        categoryId: "M1LCUP",
+        homeGoals: 7,
+        awayGoals: 7,
+      }),
+    ]);
+
+    const result = await getCompetitionAverages([
+      {
+        scope: {
+          kind: "taso",
+          seasons: [
+            { competitionId: "Liigacup90", categoryId: "LC" },
+            { competitionId: "Liigacup89", categoryId: "LC2023" },
+          ],
+        },
+      },
+    ]);
+
+    expect(result.status === "ok" ? result.rows[0]?.competition : null).toEqual({
+      home: 1,
+      away: 1.5,
+    });
+  });
+
+  it("fails rather than answer 0,0 – 0,0 for a scope with no finished match", async () => {
+    const result = await getCompetitionAverages([
+      { scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] } },
+    ]);
+
+    expect(result).toEqual({ status: "error" });
   });
 });
