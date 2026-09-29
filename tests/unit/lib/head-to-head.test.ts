@@ -657,6 +657,14 @@ describe("worstOpponents (specs/045)", () => {
     expect(row?.lastMet).toEqual(new Date(Date.UTC(2025, 0, 9)));
   });
 
+  it("never counts the club as its own opponent (Sourcery, on #478)", () => {
+    // A stored row naming the club on both sides would otherwise become a row
+    // linking to a head-to-head of the club against itself, which is not found.
+    const self = (day: number) => game(day, CLUB, CLUB, 0, 1);
+
+    expect(worstOpponents([self(1), self(2), self(3)], CLUB)).toEqual([]);
+  });
+
   it("never counts a bracket slot as an opponent", () => {
     const slot = (day: number) => ({ ...game(day, CLUB, 0, 0, 1), awayTeamName: "" });
 

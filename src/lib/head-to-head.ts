@@ -497,7 +497,8 @@ function opponentOf(meeting: NamedMeeting, teamProviderId: number) {
  * Pure, and counting only what it is handed, as `headToHeadRecord` is — the
  * read decides which meetings exist (S4). The meetings arrive newest first, so
  * an opponent is named as it was when last met. A bracket slot is never an
- * opponent: `hasPlaceholderTeam`'s rule, as the head-to-head applies it.
+ * opponent — `hasPlaceholderTeam`'s rule, as the head-to-head applies it — and
+ * neither is the club itself, which the head-to-head also refuses.
  */
 export function worstOpponents(
   meetings: readonly NamedMeeting[],
@@ -507,6 +508,9 @@ export function worstOpponents(
   for (const meeting of meetings) {
     if (hasPlaceholderTeam(meeting)) continue;
     const opponent = opponentOf(meeting, teamProviderId);
+    // A club is never its own opponent: a row naming it on both sides would
+    // link to a head-to-head that refuses a team against itself (specs/042).
+    if (opponent.id === teamProviderId) continue;
     const seen = byOpponent.get(opponent.id);
     if (seen === undefined) {
       byOpponent.set(opponent.id, { name: opponent.name, meetings: [meeting] });

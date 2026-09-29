@@ -2,12 +2,15 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
+import { headToHeadRecord } from "@/lib/head-to-head";
 import {
   getCompetitionAverages,
   getHeadToHeadHistory,
   getMatchPageData,
   getWorstOpponents,
+  type TasoMatchRow,
 } from "@/lib/match-service";
+import { toFinishedMatches } from "@/lib/standings";
 
 /**
  * The match page's two queries against a real Postgres — the lookup by provider
@@ -490,18 +493,37 @@ describe("a club's worst opponents (specs/045)", () => {
   });
 
   it("agrees with the head-to-head page for the same pair (S4)", async () => {
-    await db
-      .insert(tasoMatches)
-      .values([
-        tasoRow({ providerMatchId: 991013, homeGoals: 2, awayGoals: 2 }),
-        tasoRow({ providerMatchId: 991014, homeGoals: 0, awayGoals: 1 }),
-        tasoRow({ providerMatchId: 991015, homeGoals: 3, awayGoals: 1 }),
-      ]);
+    await db.insert(tasoMatches).values([
+      tasoRow({ providerMatchId: 991013, homeGoals: 2, awayGoals: 2 }),
+      tasoRow({ providerMatchId: 991014, homeGoals: 0, awayGoals: 1 }),
+      tasoRow({ providerMatchId: 991015, homeGoals: 3, awayGoals: 1 }),
+      // Away at AWAY, won 2-0: HOME's second win, read from the other side.
+      tasoRow({
+        providerMatchId: 991016,
+        homeTeamProviderId: AWAY,
+        homeTeamName: "Integration Lahti",
+        awayTeamProviderId: HOME,
+        awayTeamName: "Integration VPS",
+        homeGoals: 0,
+        awayGoals: 2,
+      }),
+    ]);
 
     const series = await getWorstOpponents({ kind: "taso", bucket: "domestic" }, HOME, "/kotimaa");
     const history = await getHeadToHeadHistory({ kind: "taso", bucket: "domestic" }, HOME, AWAY);
+    // The page's own record, from the page's own read — not just its length
+    // (Sourcery, on #478): a swapped side keeps the count and changes this.
+    const record =
+      history.status === "ok"
+        ? headToHeadRecord(toFinishedMatches(history.matches as TasoMatchRow[]), HOME)
+        : null;
+    const [row] = series.status === "ok" ? series.rows : [];
 
-    expect(history.status === "ok" ? history.matches.length : -1).toBe(3);
-    expect(series.status === "ok" ? series.rows[0]?.played : -1).toBe(3);
+    // Two wins, a draw and a loss from HOME's side: wins and losses differ, so
+    // a record read from the wrong side cannot match.
+    expect(record).toMatchObject({ played: 4, wins: 2, draws: 1, losses: 1 });
+    expect(row && [row.played, row.wins, row.draws, row.losses]).toEqual(
+      record && [record.played, record.wins, record.draws, record.losses]
+    );
   });
 });
