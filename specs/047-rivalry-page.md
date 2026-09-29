@@ -1,7 +1,7 @@
 # 047 — The rivalry: shared history beside both teams' current form
 
-> **Status: Q1–Q11 answered in chat on 2026-09-29. Q12, a conflict between two
-> of those answers, is open — not ready for the go.** Written for #355, the last of the
+> **Status: all questions (Q1–Q12) answered in chat on 2026-09-29, awaiting the
+> go.** Written for #355, the last of the
 > matchup features after specs/042, specs/044 and specs/045. The live prediction
 > #355 first named was split out as #480 on 2026-09-29 and is not part of this
 > spec.
@@ -63,14 +63,9 @@ regardless of season, and splitting the page into *now* and *history*.
 | S10 | Routes | **Not on `/maajoukkueet/huuhkajat` or `/maajoukkueet/helmarit`** | Miikka, 2026-09-29 (Q8). specs/045 S5: TASO has no stable id for Finland across categories, so "Finland's last five" is not one query. football-data's `/maajoukkueet` keeps it; S8 hides it there between tournaments where the pair has not met in three years. |
 
 | S11 | Signed out | **No `Nykyinen vire` group at all**; the one existing `Kirjaudu sisään nähdäksesi analyysit ja trendit.` stays where specs/044 S6 put it, in place of `Tulokset` and `Maalit kilpailuittain` | Miikka, 2026-09-29 (Q9). A group holding nothing but a prompt promises content and delivers a login wall; the existing prompt already covers "analyses and trends". |
-| S12 | When the groups appear | **Only together.** Both group headings are shown only when `Nykyinen vire` is; otherwise the page is exactly as today — no group headings, sections at `h2` | Miikka, 2026-09-29 (Q10, Q11). A single group is a heading over the whole page, saying nothing the page title does not. Covers the two TASO national-team routes (S10) and a rivalry S8 hides. Signed out: Q12 |
+| S12 | When the groups appear | **Only together.** Both group headings are shown only when `Nykyinen vire` is; otherwise the page is exactly as today — no group headings, sections at `h2` | Miikka, 2026-09-29 (Q10, Q11). A single group is a heading over the whole page, saying nothing the page title does not. Covers the two TASO national-team routes (S10), a rivalry S8 hides, and a signed-out reader (S14) |
 | S13 | "Within three years" | **Calendar years: a meeting in `current year − 2` or later counts.** In 2026, a 2024 meeting counts and any 2023 meeting does not. The year is the kickoff's and today's in `Europe/Helsinki`, as every date on the site | Miikka, 2026-09-29 (Q11), matching the Q6 example: "no later matches than 2023" hides the group for the whole of 2023. |
-
-## Open questions
-
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| Q12 | **Signed out, is there a `Keskinäinen historia` heading?** Two agreed answers disagree. Q9's recommendation said a signed-out page is "the specs/044 page plus one `Keskinäinen historia` heading"; Q10 and Q11's rule (S12) says a lone group gets no heading — and signed out, history is the only group | (a) No heading: S12 applies signed out too, and a signed-out page is exactly today's page. (b) The heading stays signed out, as Q9's wording said | **(a).** One rule for every page with a single group, and signed-out readers see no change from this feature at all. Q9's wording was written before Q10 and Q11 set the rule. |
+| S14 | Signed out, the history heading | **None.** S12 applies signed out too: a signed-out reader sees the page exactly as today | Miikka, 2026-09-29 (Q12), resolving Q9's wording against S12's rule. One rule for every page with a single group; signed-out readers see no change from this feature. |
 
 ## UX / UI (Finnish strings)
 
@@ -88,10 +83,9 @@ Signed in, on `/kotimaa`, `/ulkomaat` and `/maajoukkueet`, with a meeting in
    - `Yhteenveto`, `Tulokset`, `Maalit kilpailuittain`, `Kohtaamiset` — now `h3`,
      content unchanged.
 
-A rivalry S8 hides, and the two TASO national-team routes (S10), get the page as
-today: no group headings, the sections at `h2` (S12). Signed out, there is no
-`Nykyinen vire` (S11); whether `Keskinäinen historia` still heads the page is
-Q12.
+In every other case — signed out (S11, S14), a rivalry S8 hides, or the two TASO
+national-team routes (S10) — the page is as today: no group headings, the
+sections at `h2` (S12).
 
 Reused strings:
 
@@ -133,7 +127,7 @@ only when signed in and S8 holds.
 | One team's read fails | That team's block shows `Virettä ei voitu laskea. Yritä myöhemmin uudelleen.`; the other block and the history are unaffected |
 | A match decided on penalties | Its score after extra time, as `Kohtaamiset` shows it; a shoot-out is not a result (specs/044) |
 | A placeholder team | No page, as specs/042 S8 |
-| Signed out | No form value in the HTML and no `Nykyinen vire` (S6, S11); headings per Q12 |
+| Signed out | The page as today: no form value in the HTML, no `Nykyinen vire`, no group headings (S6, S11, S14) |
 | `/maajoukkueet/huuhkajat`, `/maajoukkueet/helmarit` | Unchanged: no `Nykyinen vire`, no group headings (S10, S12) |
 
 ## Performance & Limits
@@ -164,8 +158,8 @@ No new environment variable or secret.
       message; a failed read shows the error message; the other block is
       unaffected either way
 - [ ] Signed out, no form value is in the page's HTML, there is no
-      `Nykyinen vire`, and the one sign-in prompt is where specs/044 put it;
-      group headings per Q12
+      `Nykyinen vire` and no group heading, and the one sign-in prompt is where
+      specs/044 put it
 - [ ] `/maajoukkueet/huuhkajat` and `/maajoukkueet/helmarit` are unchanged:
       no `Nykyinen vire` and no group headings
 - [ ] No provider request is made
@@ -194,3 +188,7 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 - `src/components/head-to-head-page.tsx` — the groups and the form blocks
 - `src/components/standings-table.tsx` — only to extract the shared `Vire` letter
 - `decisions/047-rivalry-page.md`, by the implementing agent
+
+## Open Questions
+
+**None.** Q1–Q12 were answered in chat on 2026-09-29 and are recorded as S3–S14.
