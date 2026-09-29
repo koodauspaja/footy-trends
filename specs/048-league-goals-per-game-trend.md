@@ -59,6 +59,8 @@ section to put that in.
 | S12 | The strings | As proposed — see UX / UI | Miikka, 2026-09-29 (Q11). |
 | S13 | The y-axis | **Zoomed to the competition's own data**: from the nearest 0,5 below its lowest season to the nearest 0,5 above its highest, ticks labelled — e.g. `2,5`–`3,5` for the Premier League and La Liga, `2,0`–`3,5` for Veikkausliiga | Miikka, 2026-09-29 (Q10): *"whatever the actual data suggests, the epl, veikkausliiga and laliga at least"*. Measured on production: La Liga 2,62–3,04 over four seasons, Premier League 2,75–3,28 over four, Veikkausliiga 2,26–3,29 over twelve. From 0, La Liga's whole range fills 12 % of the chart and its 2025→2026 rise 10 % — a flat line in exactly the competitions named. The reader's question is whether goals are rising or falling, so the change is the content; a line, unlike a bar, does not need a zero baseline, and the labelled ticks say where it starts. |
 | S14 | A season with no point (S8) | **A sentence under the chart**: `Kausi 2026 näytetään, kun siitä on pelattu vähintään viisi ottelua.`, only when a season is left out | Miikka, 2026-09-29 (Q12). A reader who has just picked that season otherwise sees no mark and no reason. |
+| S15 | Where `(kesken)` shows | **On a second line under the season's x-axis tick** — the tick reads `2026`, `(kesken)` beneath it — and in the text alternative's row | Miikka, 2026-09-29, asked during implementation: S7 did not say where, and on Veikkausliiga's twelve seasons `2026 (kesken)` as one tick label would overlap its neighbours at 375 px. The chart's bottom margin grows for this chart only. |
+| S16 | Season labels on a phone | **Below `sm`, every other season labelled, counting back from the latest, when the labels would touch;** every season labelled from `sm` up. Every season is still a point, and in the text alternative. A last label or note wider than the chart's margin pulls the plot in, so it is never clipped | Miikka, 2026-09-29, asked during implementation: measured on Veikkausliiga's twelve seasons at 375 px, each label needs about 46 of the 46 units a season gets, and `(kesken)` under the last ran off the drawing. |
 
 ## UX / UI (Finnish strings)
 
@@ -70,7 +72,8 @@ Signed in, on the standings page of a competition S5 names, under the tables:
    - A line chart, `LineChart` from specs/030: one point per stored season with
      at least five finished matches (S8), oldest left
    - The selected season's point marked (S11); the season in progress labelled
-     `(kesken)` (S7)
+     `(kesken)` on a second line under its tick (S7, S15); on a phone, a long
+     line labels every other season (S16)
    - Axes `Kausi` and `Maaleja / ottelu`; values to one decimal with a decimal
      comma; y-axis zoomed to the competition's range, to the nearest 0,5 (S13)
    - Text alternative, one row per season:
@@ -183,4 +186,6 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 ## Open Questions
 
 **None.** Q1–Q12 were answered in chat on 2026-09-29 and are recorded as S1–S14;
-Q10 was settled from production's data as Miikka asked.
+Q10 was settled from production's data as Miikka asked. Where `(kesken)` shows
+was asked at the start of implementation and is S15; how a phone labels a long
+line was asked after measuring it, and is S16.

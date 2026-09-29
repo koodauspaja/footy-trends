@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CompetitionAnalyticsSection } from "@/components/competition-analytics";
 import { ContextNotices } from "@/components/context-notices";
 import { CupBracket } from "@/components/cup-bracket";
 import { CupStandingsControls } from "@/components/cup-standings-controls";
@@ -14,6 +15,7 @@ import { buildCupPhaseStandings } from "@/lib/cup-standings";
 import type { BasePageContext, CompetitionPageOptions } from "@/lib/page-context";
 import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
+import { formatSeasonLabel } from "@/lib/seasons";
 import { getCupSeason, getMaxMatchday, getStandings } from "@/lib/standings-service";
 
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
@@ -42,6 +44,22 @@ export async function standingsMetadata({
 }
 
 /**
+ * The page's `Analyysit` (specs/048), under the tables. `null` on a
+ * competition that has none — every cup and national-team competition but the
+ * Champions League.
+ */
+function analyticsFor(resolved: ResolvedContext) {
+  const { competitionCode, context, seasonId } = resolved;
+  return CompetitionAnalyticsSection({
+    kind: "football-data",
+    competitionCode,
+    selectedSeasonId: seasonId,
+    activeSeasonId: context.activeSeasonId,
+    seasonLabel: (season) => formatSeasonLabel(season, context.spansCalendarYears),
+  });
+}
+
+/**
  * A cup's standings: one table per group of the season's table-producing
  * phase, then the closing knockout rounds as a bracket. No round selector —
  * see `CupStandingsControls`.
@@ -61,6 +79,7 @@ async function renderCupStandings({
   const bracket = buildBracket(seasonMatches);
   const teamHref = (teamProviderId: number) =>
     `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
+  const analytics = await analyticsFor(resolved);
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
@@ -104,6 +123,7 @@ async function renderCupStandings({
           <CupBracket rounds={bracket} teamHref={teamHref} />
         </section>
       )}
+      {analytics}
     </PageShell>
   );
 }
@@ -128,6 +148,7 @@ async function renderLeagueStandings({
     activeSeasonId: context.activeSeasonId,
     ...(selectedRound !== undefined ? { round: selectedRound } : {}),
   });
+  const analytics = await analyticsFor(resolved);
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
@@ -164,6 +185,7 @@ async function renderLeagueStandings({
         />
       )}
       <StandingsLegend />
+      {analytics}
     </PageShell>
   );
 }

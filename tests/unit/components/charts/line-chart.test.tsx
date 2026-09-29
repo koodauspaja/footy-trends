@@ -8,6 +8,7 @@ import {
   LineLegend,
   type LineSeries,
   MARGIN,
+  PHONE_AXIS_UNITS,
   percentText,
   scale,
   ticksFor,
@@ -369,5 +370,166 @@ describe("LineChart axis text on a phone", () => {
     expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(
       digits * size * DIGIT_WIDTH
     );
+  });
+});
+
+/** A season chart, as specs/048 draws it: labelled ticks, a note, a ring. */
+function seasonChart(notes: Record<number, string> = { 2026: "(kesken)" }) {
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      formatXTick={(tick) => `${tick}/${String(tick + 1).slice(2)}`}
+      formatYTick={formatDecimal}
+      labelledBy="chart-heading"
+      series={[
+        {
+          name: "goals-per-game",
+          points: [
+            { x: 2024, y: 2.5 },
+            { x: 2025, y: 3, marked: true },
+            { x: 2026, y: 2.75 },
+          ],
+        },
+      ]}
+      title="Maaleja ottelua kohden"
+      xDomain={[2024, 2026]}
+      xLabel="Kausi"
+      xTickNote={(tick) => notes[tick]}
+      xTicks={[2024, 2025, 2026]}
+      yDomain={[2.5, 3]}
+      yLabel="Maaleja / ottelu"
+      yTicks={[2.5, 3]}
+    />
+  ).container;
+}
+
+describe("LineChart season axis (specs/048)", () => {
+  it("prints each tick as it is told to, and the number itself by default", () => {
+    const container = seasonChart();
+    const xTicks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
+    const yTicks = [...container.querySelectorAll("[data-part=y-axis] text")].slice(0, -1);
+
+    expect(xTicks.map((tick) => tick.firstChild?.textContent)).toEqual([
+      "2024/25",
+      "2025/26",
+      "2026/27",
+    ]);
+    expect(yTicks.map((tick) => tick.textContent)).toEqual(["2,5", "3,0"]);
+    // Every existing chart passes neither, and prints what it did before.
+    expect(chart(true).querySelector("[data-part=y-axis] text")?.textContent).toBe("1");
+  });
+
+  it("writes a note on a second line under its own tick only (S15)", () => {
+    const container = seasonChart();
+    const notes = container.querySelectorAll("[data-part=tick-note]");
+    const lastTick = [...container.querySelectorAll("[data-part=x-axis] text")].at(-2);
+
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.textContent).toBe("(kesken)");
+    expect(notes[0]?.parentElement).toBe(lastTick);
+    expect(notes[0]?.getAttribute("x")).toBe(lastTick?.getAttribute("x"));
+    expect(Number(notes[0]?.getAttribute("dy"))).toBeGreaterThan(0);
+  });
+
+  it("lifts the plot by the note's row, so the note sits where a tick would and clears the caption", () => {
+    const withNote = seasonChart();
+    const texts = [...withNote.querySelectorAll("[data-part=x-axis] text")];
+    const tick = Number(texts[0]?.getAttribute("y"));
+    const dy = Number(withNote.querySelector("[data-part=tick-note]")?.getAttribute("dy"));
+    const axis = Number(withNote.querySelector("[data-part=x-axis] line")?.getAttribute("y1"));
+
+    expect(axis).toBe(BOTTOM - dy);
+    // Where a chart without notes prints its tick row: already a line clear
+    // of the caption, which the test above holds.
+    expect(tick + dy).toBe(BOTTOM + 18);
+  });
+
+  it("keeps the full plot when no tick has a note", () => {
+    const container = seasonChart({});
+    const axis = container.querySelector("[data-part=x-axis] line");
+
+    expect(container.querySelector("[data-part=tick-note]")).toBeNull();
+    expect(Number(axis?.getAttribute("y1"))).toBe(BOTTOM);
+  });
+
+  it("rings a marked point, behind its dot and at its value (S11)", () => {
+    const container = seasonChart();
+    const rings = container.querySelectorAll("[data-part=points] [data-marked]");
+    const all = [...container.querySelectorAll("[data-part=points] circle")];
+    const ring = rings[0];
+
+    expect(rings).toHaveLength(1);
+    expect(all[0]).toBe(ring);
+    expect(ring?.getAttribute("class")).toBe("fill-none stroke-foreground");
+    const [first, , last] = circles(container).slice(1);
+    expect(Number(ring?.getAttribute("cx"))).toBe(((first?.cx ?? 0) + (last?.cx ?? 0)) / 2);
+    expect(Number(ring?.getAttribute("r"))).toBeGreaterThan(4);
+    // The dot is still drawn: the ring picks the season out, it does not replace it.
+    expect(
+      all.filter((circle) => circle.getAttribute("cx") === ring?.getAttribute("cx"))
+    ).toHaveLength(2);
+  });
+
+  it("ends the plot short of the axis by what a wide last label lacks, so it stays on the drawing", () => {
+    const container = seasonChart();
+    const note = container.querySelector("[data-part=tick-note]");
+    const noteWidth = "(kesken)".length * 0.6 * PHONE_AXIS_UNITS;
+    const lastX = Number(note?.getAttribute("x"));
+
+    expect(lastX + noteWidth / 2).toBeCloseTo(RIGHT + MARGIN.right);
+    // The axis itself still runs the full width.
+    expect(container.querySelector("[data-part=x-axis] line")?.getAttribute("x2")).toBe(
+      String(RIGHT)
+    );
+    // A chart whose last label fits the margin keeps its whole plot.
+    expect(circles(chart(true)).at(-1)?.cx).toBe(RIGHT);
+  });
+});
+
+/** Twelve seasons of a calendar-year league: too many labels for a phone. */
+function twelveSeasons(thin: boolean, from = 2015, count = 12) {
+  const seasons = Array.from({ length: count }, (_, index) => from + index);
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      labelledBy="chart-heading"
+      series={[{ name: "line", points: seasons.map((x) => ({ x, y: 3 })) }]}
+      thinXTicksOnPhone={thin}
+      title="Maaleja ottelua kohden"
+      xDomain={[from, from + count - 1]}
+      xLabel="Kausi"
+      xTickNote={(tick) => (tick === from + count - 1 ? "(kesken)" : undefined)}
+      xTicks={seasons}
+      yDomain={[2.5, 3.5]}
+      yLabel="Maaleja / ottelu"
+      yTicks={[2.5, 3, 3.5]}
+    />
+  ).container;
+}
+
+function phoneHiddenTicks(container: HTMLElement) {
+  return [...container.querySelectorAll("[data-part=x-axis] text")]
+    .filter((text) => text.getAttribute("class") === "max-sm:hidden")
+    .map((text) => text.firstChild?.textContent);
+}
+
+describe("LineChart season labels on a phone (specs/048, S16)", () => {
+  it("hides every other label below sm, counting back from the latest, when they would touch", () => {
+    expect(phoneHiddenTicks(twelveSeasons(true))).toEqual([
+      "2015",
+      "2017",
+      "2019",
+      "2021",
+      "2023",
+      "2025",
+    ]);
+  });
+
+  it("keeps every label when they fit", () => {
+    expect(phoneHiddenTicks(twelveSeasons(true, 2020, 4))).toEqual([]);
+  });
+
+  it("thins only a chart that asks for it", () => {
+    expect(phoneHiddenTicks(twelveSeasons(false))).toEqual([]);
   });
 });

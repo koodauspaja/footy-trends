@@ -22,6 +22,11 @@ export type ChartPoint = {
    * position chart, a round the team sat out (#413).
    */
   open?: boolean;
+  /**
+   * Ringed, to pick one point out of the line — the season a page is showing
+   * (specs/048, S11).
+   */
+  marked?: boolean;
 };
 
 /**
@@ -67,6 +72,30 @@ export const MARGIN = { top: 16, right: 16, bottom: 56, left: 72 } as const;
  * canvas (#441).
  */
 const AXIS_TEXT = "text-[19px] sm:text-xs";
+
+/** `AXIS_TEXT`'s size below `sm`, in units — the width a phone's labels need. */
+export const PHONE_AXIS_UNITS = 19;
+
+/** A glyph's width as a share of the font size — near enough for the UI font. */
+const GLYPH_WIDTH = 0.6;
+
+/** The least space between two x labels on a phone, in units. */
+const TICK_GAP = 8;
+
+/** How wide a label prints on a phone, the widest the axis text gets. */
+function phoneWidth(label: string): number {
+  return label.length * GLYPH_WIDTH * PHONE_AXIS_UNITS;
+}
+
+/** Whether any two neighbouring labels, centred at `x`, would touch on a phone. */
+function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolean {
+  let previousEnd = Number.NEGATIVE_INFINITY;
+  for (const label of labels) {
+    if (label.x - label.width / 2 < previousEnd + TICK_GAP) return true;
+    previousEnd = label.x + label.width / 2;
+  }
+  return false;
+}
 
 /**
  * `value` mapped from `domain` onto `range`, linearly.
@@ -123,6 +152,12 @@ export type LineSeries = {
 /** The dash pattern of a dashed series, shared with its legend sample. */
 const DASH = "6 4";
 
+/**
+ * The extra height a chart with tick notes reserves under its x-axis, so a
+ * second line under a tick clears the axis caption (specs/048, S15).
+ */
+const NOTE_ROW = 22;
+
 type LineChartProps = {
   /** The chart's own name, in a `<title>`: it travels with the SVG wherever it is shown. */
   title: string;
@@ -136,6 +171,20 @@ type LineChartProps = {
   yTicks: readonly number[];
   xLabel: string;
   yLabel: string;
+  /** How a tick prints; the number itself by default. */
+  formatXTick?: (tick: number) => string;
+  formatYTick?: (tick: number) => string;
+  /**
+   * A second line under an x tick, or nothing — `(kesken)` under the season in
+   * progress (specs/048, S15). A chart with any note grows its bottom margin.
+   */
+  xTickNote?: (tick: number) => string | undefined;
+  /**
+   * When the x labels would touch on a phone, label every other tick there,
+   * counting back from the last — so the latest season and its note always
+   * show — and every tick from `sm` up (specs/048, S16).
+   */
+  thinXTicksOnPhone?: boolean;
   /** The element that names the chart — its heading. */
   labelledBy: string;
   /** The element that lists its values as text. */
@@ -152,16 +201,37 @@ export function LineChart({
   yTicks,
   xLabel,
   yLabel,
+  formatXTick = String,
+  formatYTick = String,
+  xTickNote,
+  thinXTicksOnPhone = false,
   labelledBy,
   describedBy,
 }: Readonly<LineChartProps>) {
+  const ticks = xTicks.map((value) => {
+    const label = formatXTick(value);
+    const note = xTickNote?.(value);
+    return { value, label, note, labelWidth: phoneWidth(label), noteWidth: phoneWidth(note ?? "") };
+  });
+  const hasNotes = ticks.some((tick) => tick.note !== undefined);
   const left = MARGIN.left;
   const right = CHART.width - MARGIN.right;
   const top = MARGIN.top;
-  const bottom = CHART.height - MARGIN.bottom;
+  const bottom = CHART.height - MARGIN.bottom - (hasNotes ? NOTE_ROW : 0);
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
+  // The last tick is centred on the plot's end, so a label or note wider than
+  // twice the margin would run off the drawing: the plot ends short of the
+  // axis by what it lacks. Every chart before specs/048 needs none.
+  const overhang = ticks
+    .slice(-1)
+    .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - MARGIN.right);
+  const plotRight = right - Math.max(0, ...overhang);
 
-  const toX = (value: number) => scale(value, xDomain, [left, right]);
+  const toX = (value: number) => scale(value, xDomain, [left, plotRight]);
+  const crowded =
+    thinXTicksOnPhone &&
+    crowdedOnPhone(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })));
+  const phoneHidden = (index: number) => crowded && (ticks.length - 1 - index) % 2 === 1;
   const toY = (value: number) => scale(value, yDomain, yRange);
 
   return (
@@ -182,7 +252,7 @@ export function LineChart({
       <g className={`fill-muted ${AXIS_TEXT}`} data-part="y-axis">
         {yTicks.map((tick) => (
           <text dominantBaseline="middle" key={tick} textAnchor="end" x={left - 8} y={toY(tick)}>
-            {tick}
+            {formatYTick(tick)}
           </text>
         ))}
         <text
@@ -197,9 +267,20 @@ export function LineChart({
 
       <g className={`fill-muted ${AXIS_TEXT}`} data-part="x-axis">
         <line className="stroke-border" x1={left} x2={right} y1={bottom} y2={bottom} />
-        {xTicks.map((tick) => (
-          <text key={tick} textAnchor="middle" x={toX(tick)} y={bottom + 18}>
-            {tick}
+        {ticks.map((tick, index) => (
+          <text
+            className={phoneHidden(index) ? "max-sm:hidden" : undefined}
+            key={tick.value}
+            textAnchor="middle"
+            x={toX(tick.value)}
+            y={bottom + 18}
+          >
+            {tick.label}
+            {tick.note === undefined ? null : (
+              <tspan data-part="tick-note" dy={NOTE_ROW} x={toX(tick.value)}>
+                {tick.note}
+              </tspan>
+            )}
           </text>
         ))}
         <text textAnchor="middle" x={(left + right) / 2} y={CHART.height - 6}>
@@ -223,6 +304,19 @@ export function LineChart({
             strokeWidth={2}
           />
           <g data-part="points">
+            {line.points
+              .filter((point) => point.marked)
+              .map((point) => (
+                <circle
+                  className="fill-none stroke-foreground"
+                  cx={toX(point.x)}
+                  cy={toY(point.y)}
+                  data-marked=""
+                  key={`marked-${point.x}`}
+                  r={7}
+                  strokeWidth={1.5}
+                />
+              ))}
             {line.points.map((point) =>
               point.open ? (
                 // Filled with the page's background, so the line does not show

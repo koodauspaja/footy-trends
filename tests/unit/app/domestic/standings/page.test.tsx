@@ -44,6 +44,25 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+/**
+ * The competition's Analyysit (specs/048) stands in here with a marker: its
+ * panel, its gate and which competitions have it are
+ * `competition-analytics.test.tsx`'s. What this file owns is the page's side —
+ * what it asks the section for, and where the section sits.
+ */
+const competitionAnalyticsMock = vi.fn(
+  async (_props: {
+    kind: string;
+    competitionCode: string;
+    selectedSeasonId: number;
+    activeSeasonId: number;
+    seasonLabel: (seasonId: number) => string;
+  }) => <p>competition analytics placeholder</p>
+);
+vi.mock("@/components/competition-analytics", () => ({
+  CompetitionAnalyticsSection: competitionAnalyticsMock,
+}));
+
 function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTasoMatch {
   return {
     providerMatchId: 1,
@@ -126,6 +145,32 @@ describe("Domestic standings page", () => {
     expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, undefined);
     expect(screen.getByText("HJK")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
+  });
+
+  it("asks for the competition's Analyysit, a season named by its year (specs/048)", async () => {
+    await renderStandings({ kilpailu: "VL", kausi: "2025" });
+
+    expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
+    const props = competitionAnalyticsMock.mock.calls[0]?.[0];
+    expect(props).toMatchObject({
+      kind: "taso",
+      competitionCode: "VL",
+      selectedSeasonId: 2025,
+      activeSeasonId: 2026,
+    });
+    expect(props?.seasonLabel(2025)).toBe("2025");
+  });
+
+  it("places the Analyysit under the tables and their legend (specs/048)", async () => {
+    await renderStandings();
+
+    const section = screen.getByText("competition analytics placeholder");
+    expect(screen.getByRole("table").compareDocumentPosition(section)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(screen.getByText(/^O = ottelut/).compareDocumentPosition(section)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it("resolves a valid kausi param to its own competition_id", async () => {
