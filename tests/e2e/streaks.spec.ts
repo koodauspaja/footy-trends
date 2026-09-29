@@ -102,13 +102,13 @@ test.describe("Streaks, signed in", () => {
       "Pisin tappioputki",
       "Pisin voitoton putki",
     ]);
-    // `Kääntyneet ottelut` (specs/036, specs/037) comes after it, then
-    // `Tämä kausi verrattuna` (specs/038) and `Ennätykset` (specs/039); each
-    // owns its own assertion.
+    // Second in its #424 group, between `Koti- ja vierastilastot` and
+    // `Kääntyneet ottelut` — placed within the group rather than counted from
+    // the end of Analyysit, which every later panel moves (specs/045).
     const subheadings = page
-      .getByRole("region", { name: "Analyysit" })
+      .getByRole("region", { name: "Kausi kokonaisuutena", exact: true })
       .getByRole("heading", { level: 4 });
-    await expect(subheadings.nth((await subheadings.count()) - 4)).toHaveText(HEADING);
+    await expect(subheadings.nth(1)).toHaveText(HEADING);
   });
 
   test("shows a Finnish league's streaks too", async ({ page }) => {

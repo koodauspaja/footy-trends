@@ -45,6 +45,15 @@ finds the same numbers on the other side.
   now includes one — `IN_PLAY`, with a score — and asserts it is not counted.
 - **The same season in every season**: e2e compares the rows on the current
   season and on 2022.
+- **Twelve existing e2e tests broke, and were fixed at the cause.** Five placed
+  a panel by counting from the end of `Analyysit` ("comes third to last"), so
+  every new panel moved them — their own comments record each earlier time. They
+  now place a panel inside its #424 group (`Ennätykset` last in `Muut kaudet`,
+  and so on), which a new group cannot move; swapping two panels in `Muut kaudet`
+  still fails two of them. Two list the whole order on purpose and gained
+  `Vaikeimmat vastustajat` at the end. Six fold tests took `page.getByRole("table")`
+  to mean the match list, which stopped being true when `Analyysit` gained a
+  table; they now read the first fold's table.
 
 ## A mistake of mine during the mutation run
 
