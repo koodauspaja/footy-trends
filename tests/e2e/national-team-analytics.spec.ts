@@ -93,20 +93,45 @@ test.describe("National-team analytics, signed in", () => {
     ["Huuhkajat", HUUHKAJAT],
     ["Helmarit", HELMARIT],
   ] as const) {
-    test(`says how few half-time scores ${team} has, instead of figures (specs/046)`, async ({
+    test(`shows ${team}'s comebacks as the note or the figures, never both (specs/046)`, async ({
       page,
     }) => {
-      // TASO has a half-time score for few of these internationals — about 8 of
-      // 84 for Huuhkajat and one for Helmarit on production — so the panel
-      // shows its note and none of its six figures.
+      // Which one depends on how many half-time scores TASO holds for these
+      // internationals, and that is not this test's to know: a database
+      // stored before migration 0017 has none, one freshly synced has most
+      // (#485). The 40 % rule itself is pinned by the unit tests; what this
+      // proves end to end is that the page shows one outcome of it, whole.
       await page.goto(path);
       const panel = analytics(page).getByRole("region", { name: "Kääntyneet ottelut" });
       await panel.waitFor();
 
-      await expect(panel).toContainText(
-        /Puoliaikatulos on tiedossa vain \d+ ottelusta, kun otteluita on \d+\. Kääntyneitä otteluita ei lasketa\./
+      const note = await panel
+        .getByText(
+          /^Puoliaikatulos on tiedossa vain \d+ ottelusta, kun otteluita on \d+\. Kääntyneitä otteluita ei lasketa\.$/
+        )
+        .count();
+      // The figures branch shows each direction exactly once: its total, or
+      // the line saying it has no match yet. Named rather than counted, so an
+      // empty or stray list cannot pass for the figures.
+      const directions = [
+        [/^Tappioasemassa puoliajalla\d+ ottelua?$/, "Ei vielä otteluita tappioasemasta."],
+        [/^Johdossa puoliajalla\d+ ottelua?$/, "Ei vielä otteluita johtoasemasta."],
+      ] as const;
+      const shown = await Promise.all(
+        directions.map(async ([total, none]) => {
+          const totals = await panel.locator("dl > div").filter({ hasText: total }).count();
+          const empties = await panel.getByText(none, { exact: true }).count();
+          return totals + empties;
+        })
       );
-      await expect(panel.locator("dl")).toHaveCount(0);
+
+      if (note > 0) {
+        // The note replaces the figures entirely (specs/046, S2).
+        expect(note).toBe(1);
+        expect(shown).toEqual([0, 0]);
+      } else {
+        expect(shown).toEqual([1, 1]);
+      }
       await expect(page.getByText("tälle kaudelle")).toHaveCount(0);
     });
   }
