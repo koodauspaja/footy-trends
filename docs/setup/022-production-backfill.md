@@ -164,7 +164,7 @@ One line per competition-season, to stdout:
   PL 2026: 380 matches
   PL 2025: 380 matches
 ...
-=== TASO: 13 competitions ===
+=== TASO: 14 competitions ===
   VL 2026: 245 matches, 12 group rows
 ```
 
