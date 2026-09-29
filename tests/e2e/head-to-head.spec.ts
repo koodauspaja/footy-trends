@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
  * The full head-to-head, end to end (specs/042).
@@ -87,5 +88,70 @@ test.describe("Head-to-head", () => {
     await page.goto("/kotimaa/kohtaamiset/60987/60987");
 
     await expect(page.getByText("Kohtaamisia ei löytynyt.")).toBeVisible();
+  });
+});
+
+/**
+ * The two analysis sections (specs/044), on a pair with meetings in more than
+ * one competition: FC Inter and AC Oulu have met in Veikkausliiga and in
+ * Liigacup. Signed in the way league-position.spec.ts explains.
+ */
+test.describe("Head-to-head analysis", () => {
+  const INTER_OULU = "/kotimaa/kohtaamiset/60987/60493";
+
+  /** The rows of the meeting list, not of the grid or the averages table. */
+  function meetingRows(page: Page) {
+    return page.getByRole("region", { name: "Kohtaamiset" }).locator("tbody tr");
+  }
+
+  test.describe("signed in", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+      await page.goto(INTER_OULU);
+      await page.getByRole("heading", { level: 2, name: "Tulokset" }).waitFor();
+    });
+
+    test("reads Yhteenveto, Tulokset, Maalit kilpailuittain, Kohtaamiset", async ({ page }) => {
+      await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+        "Yhteenveto",
+        "Tulokset",
+        "Maalit kilpailuittain",
+        "Kohtaamiset",
+      ]);
+    });
+
+    test("counts every listed meeting exactly once in the grid", async ({ page }) => {
+      const cells = await page
+        .getByRole("region", { name: "Tulokset" })
+        .getByRole("cell")
+        .allTextContents();
+      const counted = cells.reduce((sum, cell) => sum + Number(cell || 0), 0);
+
+      expect(counted).toBeGreaterThan(1);
+      await expect(meetingRows(page)).toHaveCount(counted);
+    });
+
+    test("splits the meetings by competition, each with both averages", async ({ page }) => {
+      const table = page.getByRole("region", { name: "Maalit kilpailuittain" }).getByRole("table");
+      const rows = table.locator("tbody tr");
+      // Veikkausliiga and Liigacup, never one blended row (S4).
+      expect(await rows.count()).toBeGreaterThanOrEqual(2);
+      await expect(table).toContainText("Liigacup");
+
+      const played = await rows.locator("td:nth-child(2)").allTextContents();
+      const total = played.reduce((sum, count) => sum + Number(count), 0);
+      await expect(meetingRows(page)).toHaveCount(total);
+
+      const averages = await rows.locator("td:nth-child(3), td:nth-child(4)").allTextContents();
+      expect(averages.every((text) => /^\d+,\d – \d+,\d$/.test(text.trim()))).toBe(true);
+    });
+  });
+
+  test("signed out, shows one prompt in place of both sections", async ({ page }) => {
+    await page.goto(INTER_OULU);
+    await page.getByRole("heading", { level: 2, name: "Kohtaamiset" }).waitFor();
+
+    await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText(["Yhteenveto", "Kohtaamiset"]);
   });
 });

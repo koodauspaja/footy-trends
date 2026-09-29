@@ -1,16 +1,31 @@
 import type { Metadata } from "next";
+import { SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
+import { formatDecimal } from "@/components/charts/line-chart";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
+import { SignInPrompt } from "@/components/sign-in-prompt";
+import { canSeeAnalytics } from "@/lib/analytics-access";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
+import { competitionCodeForCategory } from "@/lib/domestic-competitions";
 import {
+  type AnalysedMeeting,
+  type CompetitionGroup,
+  competitionGroups,
   type HeadToHeadRecord,
   headToHeadRecord,
   headToHeadWindow,
   headToHeadWindowSentence,
+  SCORE_GRID_CAP,
+  type ScoreAverage,
+  type ScoreGrid,
+  type Scoreline,
+  scoreGrid,
 } from "@/lib/head-to-head";
 import { PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
+  getCompetitionAverages,
   getHeadToHeadHistory,
   type HeadToHeadResult,
   type TasoMatchRow,
@@ -35,6 +50,11 @@ const ERROR_MESSAGE = "Kohtaamisten lataaminen epäonnistui. Yritä myöhemmin u
 const DRAWS_LABEL = "tasan";
 const GOALS_LABEL = "Maalit";
 const HOME_SUFFIX = "kotona";
+const SCORES_HEADING = "Tulokset";
+const AVERAGES_HEADING = "Maalit kilpailuittain";
+const AVERAGES_NOTE =
+  "Kotijoukkueen maalit ensin. Kilpailun keskiarvo lasketaan niiden kausien otteluista, joina joukkueet kohtasivat siinä.";
+export const AVERAGES_ERROR_MESSAGE = "Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
 
 /** What a route file supplies to make this page its own. */
 export type HeadToHeadPageOptions = {
@@ -77,6 +97,8 @@ export function homeLine(
 }
 
 type View = {
+  /** The id the URL names first, which the grid is read from (specs/044, S5). */
+  firstId: number;
   first: string;
   second: string;
   /**
@@ -86,6 +108,8 @@ type View = {
    */
   record: HeadToHeadRecord;
   rows: Array<Labelled<MatchListRow>>;
+  /** The same meetings as `rows`, as the two analysis sections read them (specs/044). */
+  analysed: AnalysedMeeting[];
   windowSentence: string;
 };
 
@@ -153,7 +177,23 @@ async function buildView(
     const record = headToHeadRecord(toFinishedMatches(localised), first);
     if (names === null || record === null) return null;
 
-    return { ...names, record, rows: labelFootballDataRows(localised), windowSentence };
+    const labelled = toFinishedMatches(labelFootballDataRows(localised));
+    return {
+      ...names,
+      firstId: first,
+      record,
+      rows: labelled,
+      analysed: labelled.map((row) => ({
+        ...row,
+        competitionKey: row.competitionCode,
+        season: {
+          kind: "football-data",
+          competitionCode: row.competitionCode,
+          seasonId: row.seasonId,
+        },
+      })),
+      windowSentence,
+    };
   }
 
   const rows = history.matches as TasoMatchRow[];
@@ -163,12 +203,237 @@ async function buildView(
   const record = headToHeadRecord(toFinishedMatches(localised), first);
   if (names === null || record === null) return null;
 
+  const labelled = toFinishedMatches(
+    await labelTasoRows(national, localised, categoryNameLoader())
+  );
   return {
     ...names,
+    firstId: first,
     record,
-    rows: await labelTasoRows(national, localised, categoryNameLoader()),
+    rows: labelled,
+    analysed: labelled.map((row) => ({
+      ...row,
+      // The competition across seasons, so Liigacup's `LC2023` and `LC` are
+      // one row (specs/043); a category the registry does not claim is its own.
+      competitionKey: competitionCodeForCategory(row.categoryId) ?? row.categoryId,
+      season: { kind: "taso", competitionId: row.competitionCode, categoryId: row.categoryId },
+    })),
     windowSentence,
   };
+}
+
+/** `2–1`, the first team's goals first (specs/044, S5). */
+function scorelineText(scoreline: Scoreline): string {
+  return `${scoreline.first}–${scoreline.second}`;
+}
+
+/** `0–0, 1–1 ja 2–1`: Finnish lists join their last item with `ja`. Only ever given two or more. */
+function listText(items: readonly string[]): string {
+  return `${items.slice(0, -1).join(", ")} ja ${items.at(-1)}`;
+}
+
+/**
+ * The sentence over the grid, or `null` when there is nothing to say: with
+ * every scoreline occurring once there is no most common one (specs/044, S8).
+ *
+ * Always `kertaa`, never `kerran` — a count of one is exactly that case.
+ * `kumpikin` for two scorelines and `kukin` for more, as Finnish counts them.
+ */
+export function mostCommonSentence(grid: ScoreGrid): string | null {
+  const [only, ...rest] = grid.mostCommon;
+  if (only === undefined) return null;
+  const count = `${grid.mostCommonCount} kertaa`;
+  if (rest.length === 0) return `Yleisin tulos ${scorelineText(only)}, ${count}.`;
+  const each = rest.length === 1 ? "kumpikin" : "kukin";
+  return `Yleisimmät tulokset ${listText(grid.mostCommon.map(scorelineText))}, ${each} ${count}.`;
+}
+
+/** An axis label: the number of goals, or `5+` for the capped last row and column. */
+export function goalsLabel(goals: number): string {
+  return goals === SCORE_GRID_CAP ? `${SCORE_GRID_CAP}+` : String(goals);
+}
+
+/** How many shading steps a filled cell can take, light to dark. */
+const SHADE_STEPS = [18, 38, 62, 85] as const;
+
+/**
+ * How dark a cell is: 0 for an empty one, else 1–4 by its share of the fullest
+ * cell — one hue, light to dark, mixed from the theme's own foreground and
+ * background so it is right in dark mode too. The count is printed in every
+ * filled cell, so the shading is never the only way to read it.
+ */
+export function shadeLevel(count: number, largest: number): number {
+  if (count === 0) return 0;
+  return Math.ceil((count / largest) * SHADE_STEPS.length);
+}
+
+function ScoreCell({ count, largest }: Readonly<{ count: number; largest: number }>) {
+  const level = shadeLevel(count, largest);
+  const mix = SHADE_STEPS[level - 1];
+  return (
+    <td
+      className={`h-9 w-10 border border-border-subtle text-center ${level >= 3 ? "text-background" : ""}`}
+      data-level={level}
+      style={
+        mix === undefined
+          ? undefined
+          : {
+              backgroundColor: `color-mix(in oklab, var(--color-foreground) ${mix}%, var(--color-background))`,
+            }
+      }
+    >
+      {count === 0 ? "" : count}
+    </td>
+  );
+}
+
+/** The `Tulokset` section (specs/044, #337): the grid, and its sentence where it has one. */
+function ScoresSection({ view, grid }: Readonly<{ view: View; grid: ScoreGrid }>) {
+  const sentence = mostCommonSentence(grid);
+  return (
+    <section aria-labelledby="h2h-scores" className="mb-8">
+      <h2 className="mb-2 font-semibold text-xl" id="h2h-scores">
+        {SCORES_HEADING}
+      </h2>
+      {sentence === null ? null : <p className="mb-3">{sentence}</p>}
+      <div className="overflow-x-auto">
+        <table className="border-collapse text-sm tabular-nums">
+          <thead>
+            <tr>
+              <th className="p-2 text-left font-normal text-muted text-xs" scope="col">
+                {`${view.first} ↓ / ${view.second} →`}
+              </th>
+              {grid.rows.map((row) => (
+                <th className="w-10 p-2 text-center font-medium" key={row.first} scope="col">
+                  {goalsLabel(row.first)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.rows.map((row) => (
+              <tr key={row.first}>
+                <th className="p-2 text-right font-medium" scope="row">
+                  {goalsLabel(row.first)}
+                </th>
+                {row.cells.map((cell) => (
+                  <ScoreCell count={cell.count} key={cell.second} largest={grid.largest} />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** `2,1 – 1,4`, home first, one decimal with a decimal comma (specs/044). */
+export function averageText(average: ScoreAverage): string {
+  return `${formatDecimal(average.home)} – ${formatDecimal(average.away)}`;
+}
+
+type AveragesRow = CompetitionGroup & { competition: ScoreAverage };
+
+const AVERAGES_COLUMNS: ReadonlyArray<DataTableColumn<AveragesRow>> = [
+  {
+    key: "competition",
+    header: "Kilpailu",
+    width: "flex",
+    render: (row) => row.label,
+    rowHeader: true,
+  },
+  { key: "played", header: "Ottelut", width: 72, align: "right", render: (row) => row.played },
+  {
+    key: "meetings",
+    header: "Kohtaamisissa",
+    width: 128,
+    align: "right",
+    render: (row) => averageText(row.average),
+  },
+  {
+    key: "competitionAverage",
+    header: "Kilpailussa",
+    width: 112,
+    align: "right",
+    render: (row) => averageText(row.competition),
+  },
+];
+
+/** What the averages section has to show: its rows, or that they could not be read (S10). */
+type Averages = { status: "ok"; rows: AveragesRow[] } | { status: "error" };
+
+/**
+ * The `Maalit kilpailuittain` section (specs/044, #338): one row per
+ * competition the pair met in, against that competition's own average in the
+ * seasons they met in it (S3, S4, S7). A failed read keeps the heading and says
+ * so (S10), so it never looks like there was nothing to compare.
+ */
+function AveragesSection({ averages }: Readonly<{ averages: Averages }>) {
+  return (
+    <section aria-labelledby="h2h-averages" className="mb-8">
+      <h2 className="mb-2 font-semibold text-xl" id="h2h-averages">
+        {AVERAGES_HEADING}
+      </h2>
+      {averages.status === "error" ? (
+        <p>{AVERAGES_ERROR_MESSAGE}</p>
+      ) : (
+        <>
+          <DataTable columns={AVERAGES_COLUMNS} rowKey={(row) => row.key} rows={averages.rows} />
+          <p className="mt-2 text-muted text-sm">{AVERAGES_NOTE}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+async function loadAverages(view: View): Promise<Averages> {
+  return getCompetitionAverages(competitionGroups(view.analysed));
+}
+
+/**
+ * Both analysis sections' data, or `null` for a signed-out reader (specs/044,
+ * S6).
+ *
+ * **The gate comes first**, as it does for `Analyysit`: a signed-out request
+ * computes neither section, so its page carries no count or average from them.
+ * The TASO national-team routes have no averages (S9) — a category there holds
+ * only Finland's group of a competition, so its "average" would not be the
+ * competition's.
+ *
+ * Loaded here and rendered by plain components, as `AnalyticsSection` is
+ * awaited rather than nested: an async component inside JSX is not something
+ * every renderer can draw.
+ */
+async function loadAnalysis(
+  view: View,
+  source: HeadToHeadPageOptions["source"]
+): Promise<{ grid: ScoreGrid; averages: Averages | null } | null> {
+  if (!(await canSeeAnalytics())) return null;
+  const withAverages = !(source.kind === "taso" && source.bucket === "national");
+  return {
+    grid: scoreGrid(view.analysed, view.firstId),
+    averages: withAverages ? await loadAverages(view) : null,
+  };
+}
+
+function MatchupAnalysis({
+  view,
+  analysis,
+}: Readonly<{ view: View; analysis: Awaited<ReturnType<typeof loadAnalysis>> }>) {
+  if (analysis === null) {
+    return (
+      <div className="mb-8">
+        <SignInPrompt message={SIGNED_OUT_MESSAGE} />
+      </div>
+    );
+  }
+  return (
+    <>
+      <ScoresSection grid={analysis.grid} view={view} />
+      {analysis.averages === null ? null : <AveragesSection averages={analysis.averages} />}
+    </>
+  );
 }
 
 /** The `Yhteenveto` section: the record, the goals and each ground (specs/042, S9). */
@@ -213,9 +478,11 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
   }
 
   const { view } = resolved;
+  const analysis = await loadAnalysis(view, options.source);
   return (
     <PageShell heading={`${HEADING}: ${view.first} – ${view.second}`}>
       <Summary view={view} />
+      <MatchupAnalysis analysis={analysis} view={view} />
       <section aria-labelledby="h2h-meetings">
         <h2 className="mb-2 font-semibold text-xl" id="h2h-meetings">
           {MEETINGS_HEADING}

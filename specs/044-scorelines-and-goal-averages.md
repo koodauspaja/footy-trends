@@ -51,6 +51,7 @@ else; the comparison needs one new figure per competition: its average score.
 | S7 | Which matches make a competition's average | **Only the seasons in which this pair met in that competition** | Miikka, 2026-09-29 (Q2). Scoring levels drift, so a 2016 meeting compared with 2026's average would compare two eras. A competition-season the pair met in is also one we have stored, so the average never rests on a season no one has browsed. |
 | S8 | Every scoreline occurred once | **No sentence; the grid alone** | Miikka, 2026-09-29 (Q3). "Most common" among ties of 1 names every result and says nothing. |
 | S9 | The TASO national-team routes | **No `Maalit kilpailuittain` on `/maajoukkueet/huuhkajat` and `/maajoukkueet/helmarit`**; the grid stays | Miikka, 2026-09-29 (Q4). A TASO national category holds Finland's matches and only some others — `ECQ` has 41 stored, 21 of them Finland's — so its "competition average" is Finland's group's, not the competition's. football-data's World Cup and Euro, under `/maajoukkueet`, store whole tournaments, and keep the section. |
+| S10 | The average query fails | **The section's heading, and `Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.`** in place of the table | Miikka, 2026-09-29, asked during implementation: the spec named no failure state. The convention every analytics panel follows (`Putkia ei voitu laskea. Yritä myöhemmin uudelleen.`), so a failure never looks like "nothing to compare". |
 
 ## UX / UI (Finnish strings)
 
@@ -71,8 +72,8 @@ Signed out, sections 2 and 3 are replaced by one line (S6):
 | Element | Content |
 |---|---|
 | Heading | `Tulokset` |
-| The sentence above the grid | `Yleisin tulos 1–1, 6 kertaa.` — the first team's score first. `kerran` for one: `Yleisin tulos 2–1, 1 kerran.` |
-| A tie for most common | `Yleisimmät tulokset 1–1 ja 2–1, kumpikin 5 kertaa.` — three or more: `1–1, 2–1 ja 0–0` |
+| The sentence above the grid | `Yleisin tulos 1–1, 6 kertaa.` — the first team's score first. Always `kertaa`: a count of one is S8's case, which has no sentence |
+| A tie for most common | `Yleisimmät tulokset 1–1 ja 2–1, kumpikin 5 kertaa.` — three or more: `Yleisimmät tulokset 0–0, 1–1 ja 2–1, kukin 3 kertaa.` (`kumpikin` is "each of two", `kukin` "each of several"). In order of the first team's goals, then the second's |
 | Every scoreline once | No sentence (S8) |
 | The grid | An HTML table. Rows are the first team's goals, `0`–`4` and `5+`; columns are the second team's, the same. Each cell prints its count, and is shaded by it: empty cells blank, the most common darkest. The top-left corner names both axes: `HJK ↓ / KuPS →` |
 | The diagonal | Draws. No special marking beyond the shading — the reader can see it |
@@ -125,13 +126,14 @@ columns of our own tables.
 
 | Case | Behaviour |
 |---|---|
-| The pair has met once | The grid has one filled cell; `Yleisin tulos 2–1, 1 kerran.` The averages table has one row of one meeting |
+| The pair has met once | The grid has one filled cell and no sentence (S8: its one scoreline occurred once). The averages table has one row of one meeting |
 | Every meeting ended differently | No sentence, the grid alone (S8) |
 | A score of 5 or more for either side | Counted in that side's `5+` row or column |
 | The URL gives the teams in the other order | The grid transposes; the averages table is unchanged, since home and away do not depend on the URL |
 | A meeting at a neutral venue | Home and away as the provider stored them (specs/042) |
 | A competition-season whose stored matches are only this pair's | Its average is theirs, and shown. Only possible where TASO stores a category partly, which is why S9 drops the section on the national-team routes |
 | The pair met in one competition in 2016 and 2024 | Its average is over 2016 and 2024 only, not the seasons between (S7) |
+| The competition-average query fails | `Maalit kilpailuittain` keeps its heading and shows `Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.` in place of the table (S10). The grid is unaffected: it reads only the meetings already loaded |
 | Signed out | One sign-in line in place of both sections; neither is computed, and the HTML carries no count or average from them (S6) |
 | A TASO national-team route | `Tulokset` shown, `Maalit kilpailuittain` absent (S9) |
 | A competition renamed between seasons | One row, under its current name |
@@ -173,6 +175,9 @@ No new environment variable or secret. Both new sections are behind
       finished matches in exactly the seasons the pair met in it — Liigacup
       2023 and 2024 counted as one competition
 - [ ] Averages print to one decimal with a decimal comma
+- [ ] When the average query fails, `Maalit kilpailuittain` says
+      `Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.`, and the grid
+      is still shown *(added 2026-09-29, S10)*
 - [ ] No provider request is made
 - [ ] Correct in light and dark, and legible at 375 px
 - [ ] Every user-facing string added is Finnish
@@ -183,7 +188,7 @@ No new environment variable or secret. Both new sections are behind
 |---|---|
 | `tests/unit/lib/head-to-head.test.ts` | Scoreline counts from the first team's side; the swap transposes; `5+` bucketing on both axes; the most common, and a tie for it; grouping by competition, with each group's average home and away score |
 | `tests/unit/lib/match-service.test.ts` (or the file the query lands in) | The competition average counts only finished matches with both scores, and only in the seasons given; a TASO competition spanning two category ids is one average |
-| `tests/unit/components/head-to-head-page.test.tsx` | The four sections in order; signed out, one prompt and no value from either section; no averages section on the TASO national-team routes; the sentence's `kerran` / `kertaa`, its tie form, and its absence when every scoreline is unique; the decimal comma; the averages table's rows |
+| `tests/unit/components/head-to-head-page.test.tsx` | The four sections in order; signed out, one prompt and no value from either section; no averages section on the TASO national-team routes; the sentence's tie form, and its absence when every scoreline is unique — one meeting included; the averages' error message; the decimal comma; the averages table's rows |
 | `tests/integration/head-to-head.test.ts` | The average query against the real schema |
 | `tests/e2e/head-to-head.spec.ts` | Signed in, on a real pair: the grid's counts add up to the rows listed; the averages table appears with a row per competition. Signed out: the prompt, and no grid |
 
@@ -199,4 +204,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-**None.** Q1–Q4 were answered in chat on 2026-09-29 and are recorded as S6–S9.
+**None.** Q1–Q4 were answered in chat on 2026-09-29 and are recorded as S6–S9;
+the failure state asked during implementation the same day is S10.
