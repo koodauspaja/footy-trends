@@ -9,6 +9,7 @@
  */
 
 import { competitionsInRegion, earliestSeasonFor } from "./competitions";
+import { hasPlaceholderTeam } from "./match-detail";
 import type { MatchSource } from "./match-source";
 import { EARLIEST_NATIONAL_TEAM_YEAR } from "./national-team";
 import { formatSeasonLabel, resolveEarliestSeason } from "./seasons";
@@ -228,9 +229,15 @@ export function meetingsLink(
   count: number | null
 ): MeetingsLink | null {
   const shown = meetingsLinkCount(count);
-  return shown === null
-    ? null
-    : { href: `${basePath}/kohtaamiset/${first}/${second}`, count: shown };
+  return shown === null ? null : { href: meetingsHref(basePath, first, second), count: shown };
+}
+
+/**
+ * The head-to-head page for a pair, under a route's own prefix — the one place
+ * its URL is spelled, for the match page's link and specs/045's rows alike.
+ */
+export function meetingsHref(basePath: string, first: number, second: number): string {
+  return `${basePath}/kohtaamiset/${first}/${second}`;
 }
 
 /**
@@ -426,3 +433,123 @@ export function competitionGroups(meetings: readonly AnalysedMeeting[]): Competi
     }))
     .toSorted((left, right) => right.played - left.played || left.label.localeCompare(right.label));
 }
+
+/**
+ * Whether this region's seasons cross a calendar year, for the window sentence.
+ *
+ * **Decided from the region, not asked of the provider.** specs/042 promises
+ * the head-to-head page makes no provider request, and its first version called
+ * `getSeasonContext` — which hangs a test runner with no API key and, worse,
+ * made the promise false. The flag only shapes a label (`2023/24` against
+ * `2026`), and that distinction is exactly region-shaped: the foreign
+ * competitions are leagues played across a winter, the national-team ones are
+ * tournaments played inside one summer. TASO ignores the flag entirely —
+ * `headToHeadWindow` answers with a year or a bare season there.
+ *
+ * Here rather than in the page since specs/045, whose panel states the same
+ * window: one rule, not two copies of it.
+ */
+export function spansCalendarYears(source: MatchSource): boolean {
+  return source.kind === "football-data" && source.region === "foreign";
+}
+
+/** An opponent counts once the club has met it this many times (specs/045, S2). */
+export const BOGEY_MINIMUM_MEETINGS = 3;
+
+/** How many opponents the panel names (specs/045, S3). */
+export const BOGEY_ROWS = 3;
+
+/** A meeting with both teams' names, which is what an opponent is named from. */
+export type NamedMeeting = Meeting & { homeTeamName: string; awayTeamName: string };
+
+/**
+ * One opponent's record against the club, from the **club's** side
+ * (specs/045).
+ *
+ * The win–draw–loss and the meetings are `headToHeadRecord`'s own, over exactly
+ * the meetings the head-to-head page lists for the pair — so a row and the page
+ * it links to cannot disagree (S4).
+ */
+export type OpponentRecord = {
+  opponentProviderId: number;
+  opponentName: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  /** 3 for a win and 1 for a draw, over `played` (S1). */
+  pointsPerMatch: number;
+  /** The latest kickoff between them, the second tie-break (S7). */
+  lastMet: Date;
+};
+
+function opponentOf(meeting: NamedMeeting, teamProviderId: number) {
+  return meeting.homeTeamProviderId === teamProviderId
+    ? { id: meeting.awayTeamProviderId, name: meeting.awayTeamName }
+    : { id: meeting.homeTeamProviderId, name: meeting.homeTeamName };
+}
+
+/**
+ * The club's worst opponents: at least `BOGEY_MINIMUM_MEETINGS` meetings, fewest
+ * points per match first; ties by more meetings, then by the most recent
+ * meeting (S1, S2, S3, S7). At most `BOGEY_ROWS`.
+ *
+ * Pure, and counting only what it is handed, as `headToHeadRecord` is — the
+ * read decides which meetings exist (S4). The meetings arrive newest first, so
+ * an opponent is named as it was when last met. A bracket slot is never an
+ * opponent: `hasPlaceholderTeam`'s rule, as the head-to-head applies it.
+ */
+export function worstOpponents(
+  meetings: readonly NamedMeeting[],
+  teamProviderId: number
+): OpponentRecord[] {
+  const byOpponent = new Map<number, { name: string; meetings: NamedMeeting[] }>();
+  for (const meeting of meetings) {
+    if (hasPlaceholderTeam(meeting)) continue;
+    const opponent = opponentOf(meeting, teamProviderId);
+    const seen = byOpponent.get(opponent.id);
+    if (seen === undefined) {
+      byOpponent.set(opponent.id, { name: opponent.name, meetings: [meeting] });
+    } else {
+      seen.meetings.push(meeting);
+    }
+  }
+
+  return [...byOpponent.entries()]
+    .filter(([, opponent]) => opponent.meetings.length >= BOGEY_MINIMUM_MEETINGS)
+    .map(([id, opponent]) => {
+      // Never null: the filter above leaves only opponents with meetings.
+      const record = headToHeadRecord(opponent.meetings, teamProviderId) as HeadToHeadRecord;
+      return {
+        opponentProviderId: id,
+        opponentName: opponent.name,
+        played: record.played,
+        wins: record.wins,
+        draws: record.draws,
+        losses: record.losses,
+        pointsPerMatch: (3 * record.wins + record.draws) / record.played,
+        lastMet: new Date(Math.max(...opponent.meetings.map((m) => m.kickoffAt.getTime()))),
+      };
+    })
+    .toSorted(
+      (left, right) =>
+        left.pointsPerMatch - right.pointsPerMatch ||
+        right.played - left.played ||
+        right.lastMet.getTime() - left.lastMet.getTime()
+    )
+    .slice(0, BOGEY_ROWS);
+}
+
+/**
+ * The `Vaikeimmat vastustajat` panel (specs/045): its rows, each with the link
+ * to its head-to-head, and the window sentence the rows are true within.
+ */
+export type OpponentsSeries =
+  | {
+      status: "ok";
+      rows: Array<OpponentRecord & { href: string }>;
+      windowSentence: string;
+    }
+  /** A page the panel is not on: a national team's (S5). */
+  | { status: "unavailable" }
+  | { status: "error" };

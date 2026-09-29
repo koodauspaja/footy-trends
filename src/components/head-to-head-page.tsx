@@ -21,6 +21,7 @@ import {
   type ScoreGrid,
   type Scoreline,
   scoreGrid,
+  spansCalendarYears,
 } from "@/lib/head-to-head";
 import { PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
@@ -112,22 +113,6 @@ type View = {
   analysed: AnalysedMeeting[];
   windowSentence: string;
 };
-
-/**
- * Whether this region's seasons cross a calendar year, for the window sentence.
- *
- * **Decided from the region, not asked of the provider.** specs/042 promises
- * this page makes no provider request, and the first version called
- * `getSeasonContext` — which hangs a test runner with no API key and, worse,
- * made the promise false. The flag only shapes a label (`2023/24` against
- * `2026`), and that distinction is exactly region-shaped: the foreign
- * competitions are leagues played across a winter, the national-team ones are
- * tournaments played inside one summer. TASO ignores the flag entirely —
- * `headToHeadWindow` answers with a year or a bare season there.
- */
-function spansCalendarYears(source: MatchSource): boolean {
-  return source.kind === "football-data" && source.region === "foreign";
-}
 
 /**
  * The name each team goes by, read off the meetings themselves.

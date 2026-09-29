@@ -29,7 +29,9 @@ the team page's first panel about opponents rather than periods.
 ### Out of scope
 
 - The opposite list — the opponents a club does best against (S3).
-- The national-team pages (Huuhkajat, Helmarit) (S5).
+- The national-team pages (S5): Huuhkajat and Helmarit, and football-data's
+  `/maajoukkueet/joukkue/…` pages for World Cup and Euro countries — countries,
+  not clubs.
 - Anything on the head-to-head page itself; specs/044 is that page's analysis.
 - Opponents met only in a season we have not stored. The window sentence's
   point (specs/042 S7) applies: this is our data, not the club's whole history.
@@ -59,6 +61,10 @@ Under `Analyysit`, a new group after `Muut kaudet` (S6):
 | No opponent qualifies | `Yhtäkään vastustajaa ei ole kohdattu vähintään 3 kertaa.` in place of the table |
 | A failed read | `Vastustajia ei voitu laskea. Yritä myöhemmin uudelleen.` — the panel convention |
 
+The table is the panel's own compact one rather than `DataTable`: `DataTable`'s
+240 px floor for the name column would put `P/O` — the figure the rows are
+ranked by — off a 375 px screen. Added during implementation.
+
 `O`, `V`, `T` and `H` are the standings table's own headers, with its own
 titles (`Ottelut`, `Voitot`, `Tasapelit`, `Häviöt`), so they need no key. `P/O`,
 titled `Pisteitä ottelua kohden`, is points per match to one decimal with a
@@ -75,7 +81,7 @@ fewer rows.
 |---|---|
 | Every finished meeting of the club, with both scores, in the meetings S4 names | **New read**, the same predicates as `getHeadToHeadHistory` without the second team |
 | Per opponent: meetings, W–D–L, points per match | **New**, pure, beside `headToHeadRecord` in `head-to-head.ts` — the record per opponent is exactly the head-to-head page's `Yhteenveto` |
-| The link | `meetingsLink` from specs/042, unchanged |
+| The link | `meetingsHref`, extracted from specs/042's `meetingsLink` so both spell the head-to-head URL in one place |
 
 **The record in a row is the head-to-head page's record** for the same pair —
 same meetings, same arithmetic — so following the link never shows different

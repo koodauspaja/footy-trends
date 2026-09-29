@@ -384,3 +384,88 @@ describe("getCompetitionAverages (specs/044)", () => {
     expect(loggerErrorMock).toHaveBeenCalled();
   });
 });
+
+describe("getWorstOpponents (specs/045)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  const CLUB = 60901;
+  const KUPS = 60969;
+
+  /** Three meetings with one opponent, the club losing each: enough to count (S2). */
+  function lostThree() {
+    return [1, 2, 3].map((n) =>
+      tasoRow({
+        providerMatchId: n,
+        kickoffAt: new Date(Date.UTC(2026, 4, 10 - n)),
+        homeTeamProviderId: CLUB,
+        homeTeamName: "VPS",
+        awayTeamProviderId: KUPS,
+        awayTeamName: "KuPS",
+        homeGoals: 0,
+        awayGoals: 1,
+      })
+    );
+  }
+
+  it.each([
+    ["a TASO national-team page", NATIONAL],
+    ["a football-data national-team page", { kind: "football-data", region: "national-teams" }],
+  ] as const)("has no panel on %s, and asks nothing (S5)", async (_name, source) => {
+    const { getWorstOpponents } = await import("@/lib/match-service");
+
+    await expect(getWorstOpponents(source, CLUB, "/maajoukkueet")).resolves.toEqual({
+      status: "unavailable",
+    });
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it("names a club's worst opponents, each linking to its head-to-head", async () => {
+    const { getWorstOpponents } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce(lostThree());
+
+    const series = await getWorstOpponents(DOMESTIC, CLUB, "/kotimaa");
+
+    expect(series).toMatchObject({
+      status: "ok",
+      rows: [
+        {
+          opponentProviderId: KUPS,
+          opponentName: "KuPS",
+          played: 3,
+          losses: 3,
+          pointsPerMatch: 0,
+          href: `/kotimaa/kohtaamiset/${CLUB}/${KUPS}`,
+        },
+      ],
+      windowSentence: "Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.",
+    });
+  });
+
+  it("reads football-data's clubs too, stating that source's window", async () => {
+    const { getWorstOpponents } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]);
+
+    const series = await getWorstOpponents(FOREIGN, CLUB, "/ulkomaat");
+
+    expect(series).toMatchObject({ status: "ok", rows: [] });
+    expect(series.status === "ok" ? series.windowSentence : "").toMatch(
+      /^Perustuu kaudesta \d{4}\/\d{2} alkaen/
+    );
+  });
+
+  it("turns a failed read into its own case, not an empty list", async () => {
+    const { getWorstOpponents } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getWorstOpponents(DOMESTIC, CLUB, "/kotimaa")).resolves.toEqual({
+      status: "error",
+    });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), team: CLUB }),
+      "Unable to read the club's opponents"
+    );
+  });
+});
