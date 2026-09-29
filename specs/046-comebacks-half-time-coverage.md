@@ -1,4 +1,4 @@
-# 046 — Kääntyneet ottelut only where the half-time score is known
+# 046 — Comebacks and blown leads only where the half-time score is known
 
 > **Status: agreed in chat on 2026-09-29; #473 moved to Ready the same day.** Written for #473.
 

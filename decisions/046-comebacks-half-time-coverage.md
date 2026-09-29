@@ -1,4 +1,4 @@
-# 046 — Kääntyneet ottelut only where the half-time score is known: decisions
+# 046 — Comebacks and blown leads only where the half-time score is known: decisions
 
 Implementation notes for `specs/046-comebacks-half-time-coverage.md` (#473).
 
