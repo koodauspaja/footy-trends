@@ -127,9 +127,10 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
  * holding goals per game, then `Kilpailut rinnakkain`, holding home advantage
  * and draws (specs/049, S12). #342 joins them.
  *
- * **The rules are the team page's** (S4): no section at all on a competition
- * S5 does not name; the gate is asked before anything is read, so a signed-out
- * page carries no value; one prompt, not one per panel.
+ * **Its sign-in rules are the ones the team page's `Analyysit` follows**
+ * (specs/048, S4): no section at all on a competition S5 does not name; the
+ * gate is asked before anything is read, so a signed-out page carries no
+ * value; one prompt, not one per panel.
  *
  * Awaited by the pages rather than rendered, as `AnalyticsSection` is: an
  * async component nested in JSX is not something every renderer can draw.
