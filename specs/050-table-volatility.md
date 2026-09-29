@@ -1,7 +1,7 @@
 # 050 — Table volatility: how much a league's table moves after mid-season
 
-> **Status: Q1–Q10 answered in chat on 2026-09-29; Q11 (the strings) is open —
-> not ready for the go.** Written for #342, the last of the competition-level
+> **Status: all questions (Q1–Q11) answered in chat on 2026-09-29, awaiting the
+> go.** Written for #342, the last of the competition-level
 > analytics after specs/048 (#341) and specs/049 (#339, #340). It joins the
 > competition page's `Analyysit` section that specs/048 creates.
 
@@ -55,16 +55,11 @@ team, and summarising the difference per competition.
 | S12 | A team in only one of the two tables | **Counted over the teams in both tables only**; the text alternative states each season's team count | Miikka, 2026-09-29 (Q8). Within one season the teams are fixed — promotion and relegation happen between seasons — so this is only a mid-season withdrawal or annulled results, which Miikka notes is rare. One such case should not erase a season. |
 | S13 | The selected season | **Its point is marked**; a selected season in progress has no point, so nothing is marked | Miikka, 2026-09-29 (Q9). As specs/048 S11. |
 | S14 | Risers and fallers | **Not shown**; the figure only | Miikka, 2026-09-29 (Q10). A second feature on the panel; a later one if wanted. |
-
-## Open questions
-
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| Q11 | **The strings.** Miikka, 2026-09-29: *"is this about position? heading maybe Sijoituksen vaihtelu and y-axis Sijoitus keskimäärin"*. Yes — it is how much teams' **positions** change. The heading fits; the y-axis wording is the catch: the value is a number of places *moved*, not a position, and `Sijoitus keskimäärin` reads as "average position" — a reader would take `2,1` as "2nd place on average" | Heading: `Sijoituksen vaihtelu` (Miikka's) or `Sijoitusten vaihtelu` (plural — many teams' positions). Y-axis: (a) `Sijoitusmuutos keskimäärin`; (b) `Muutos, sijaa`; (c) `Sijoitus keskimäärin` as proposed | Heading **`Sijoitusten vaihtelu`**, y-axis **(a) `Sijoitusmuutos keskimäärin`**. The rest, reworded to match: text-alternative row `Kausi 2024: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (12 joukkuetta).`; under the chart `Puoliväli: kun puolet kauden kierroksista on pelattu.`; seasons left out `1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea.`; too few `Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.`; failure `Sijoitusten vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen.` |
+| S15 | The strings | **Panel `Sijoitusten vaihtelu`; axes `Kausi` and `Sijoitusmuutos keskimäärin`**; text-alternative row `Kausi 2024: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (12 joukkuetta).`; under the chart `Puoliväli: kun puolet kauden kierroksista on pelattu.`; seasons left out `1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea.`; too few `Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.`; failure `Sijoitusten vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen.` | Miikka, 2026-09-29 (Q11): *"is this about position?"* — it is, how much positions change — and *"sijoitusmuutos is better for y-axis"*: the value is places moved, which `Sijoitus keskimäärin` would read as an average position. Heading plural, since it is every team's position. |
 
 ## UX / UI (Finnish strings)
 
-Strings pending Q11 (recommended wording shown). Signed in, on the standings
+Strings as S15. Signed in, on the standings
 page of a competition S10 names:
 
 1. `Analyysit`
@@ -167,3 +162,8 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 - A new pure module for the measure, reusing `position-series.ts`' rules
 - The competition-page `Analyysit` component from specs/048 — the panel
 - `decisions/050-table-volatility.md`, by the implementing agent
+
+## Open Questions
+
+**None.** Q1–Q11 were answered in chat on 2026-09-29 and are recorded as S5–S15.
+The per-season read cost is measured at the start of implementation (Performance).
