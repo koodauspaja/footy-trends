@@ -3,11 +3,22 @@ import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { type CompetitionRegion, competitionsInRegion } from "./competitions";
-import { type CompetitionScope, HEAD_TO_HEAD_LIMIT, type ScoreAverage } from "./head-to-head";
+import {
+  type CompetitionScope,
+  HEAD_TO_HEAD_LIMIT,
+  headToHeadWindow,
+  headToHeadWindowSentence,
+  meetingsHref,
+  type OpponentsSeries,
+  type ScoreAverage,
+  spansCalendarYears,
+  worstOpponents,
+} from "./head-to-head";
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
 import { isStoredInteger } from "./provider-ids";
+import { toFinishedMatches } from "./standings";
 
 export type FootballDataMatchRow = typeof matches.$inferSelect;
 export type TasoMatchRow = typeof tasoMatches.$inferSelect;
@@ -217,6 +228,87 @@ async function tasoHistory(
 }
 
 const FINISHED_STATUS = "FINISHED";
+
+/**
+ * Every finished meeting of one club with both scores stored, newest first —
+ * `footballDataHistory` and `tasoHistory` without the second team (specs/045,
+ * S4). The same scope, status and score predicates, so an opponent's meetings
+ * here are exactly the head-to-head page's for that pair.
+ */
+async function teamHistory(
+  source: MatchSource,
+  team: number
+): Promise<Array<FootballDataMatchRow | TasoMatchRow>> {
+  if (source.kind === "football-data") {
+    const codes = competitionsInRegion(source.region).map((competition) => competition.code);
+    return db
+      .select()
+      .from(matches)
+      .where(
+        and(
+          or(eq(matches.homeTeamProviderId, team), eq(matches.awayTeamProviderId, team)),
+          eq(matches.status, FINISHED_STATUS),
+          isNotNull(matches.homeGoals),
+          isNotNull(matches.awayGoals),
+          inArray(matches.competitionCode, codes)
+        )
+      )
+      .orderBy(desc(matches.kickoffAt), desc(matches.providerMatchId));
+  }
+
+  return db
+    .select()
+    .from(tasoMatches)
+    .where(
+      and(
+        or(eq(tasoMatches.homeTeamProviderId, team), eq(tasoMatches.awayTeamProviderId, team)),
+        eq(tasoMatches.status, FINISHED_STATUS),
+        isNotNull(tasoMatches.homeGoals),
+        isNotNull(tasoMatches.awayGoals),
+        tasoBucketPredicate(source.bucket)
+      )
+    )
+    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
+}
+
+/**
+ * The `Vaikeimmat vastustajat` panel's series for one club (specs/045).
+ *
+ * `basePath` is the club's own route prefix, which the head-to-head links are
+ * built on (specs/042, S10's `meetingsLink`). National teams have no panel
+ * (S5): TASO has no id stable across categories for Finland or its opponents,
+ * and football-data's national teams are countries, not clubs.
+ */
+export async function getWorstOpponents(
+  source: MatchSource,
+  team: number,
+  basePath: string
+): Promise<OpponentsSeries> {
+  const isNational =
+    source.kind === "taso" ? source.bucket === "national" : source.region === "national-teams";
+  if (isNational) return { status: "unavailable" };
+
+  try {
+    const history = await teamHistory(source, team);
+    // `toFinishedMatches` narrows the two goal columns the query already
+    // filtered on, as the head-to-head page does — a filter that removes
+    // nothing here, and the type learning that it would not.
+    const rows = worstOpponents(toFinishedMatches(history), team);
+    return {
+      status: "ok",
+      rows: rows.map((row) => ({
+        ...row,
+        href: meetingsHref(basePath, team, row.opponentProviderId),
+      })),
+      windowSentence: headToHeadWindowSentence(
+        headToHeadWindow(source, spansCalendarYears(source))
+      ),
+    };
+  } catch (error) {
+    logger.error({ err: error, team }, "Unable to read the club's opponents");
+    return { status: "error" };
+  }
+}
 
 /**
  * Each group given, with its competition's average score attached, or why

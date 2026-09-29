@@ -16,6 +16,7 @@ import {
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
 import {
   type BasePageContext,
@@ -337,6 +338,11 @@ export async function CompetitionTeamPage({
             getTeamStreaks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
           loadComebacks: () =>
             getTeamComebacks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          // Every competition in the region and every stored season, whatever
+          // season is shown (specs/045, S4). `unavailable` on a national team's
+          // page, which is a country rather than a club (S5).
+          loadOpponents: () =>
+            getWorstOpponents({ kind: "football-data", region }, teamProviderId, basePath),
         })
       : null;
 

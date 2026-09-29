@@ -104,6 +104,7 @@ test.describe("Goals charts, signed in", () => {
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",
       "Ennätykset",
+      "Vaikeimmat vastustajat",
     ]);
   });
 });

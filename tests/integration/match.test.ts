@@ -2,11 +2,15 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
+import { headToHeadRecord } from "@/lib/head-to-head";
 import {
   getCompetitionAverages,
   getHeadToHeadHistory,
   getMatchPageData,
+  getWorstOpponents,
+  type TasoMatchRow,
 } from "@/lib/match-service";
+import { toFinishedMatches } from "@/lib/standings";
 
 /**
  * The match page's two queries against a real Postgres — the lookup by provider
@@ -24,6 +28,7 @@ const SEASON = 991777;
 
 const TASO_IDS = [
   991001, 991002, 991003, 991004, 991005, 991006, 991007, 991008, 991009, 991010, 991011, 991012,
+  991013, 991014, 991015, 991016, 991017,
 ];
 const FD_IDS = [991001, 991002, 991003, 991004];
 
@@ -444,5 +449,81 @@ describe("the competition averages (specs/044)", () => {
     ]);
 
     expect(result).toEqual({ status: "error" });
+  });
+});
+
+describe("a club's worst opponents (specs/045)", () => {
+  it("reads both orientations, finished matches only, inside the club's own bucket", async () => {
+    await db.insert(tasoMatches).values([
+      // Three losses to AWAY, two at home and one away: one opponent, 0 points.
+      tasoRow({ providerMatchId: 991013, homeGoals: 0, awayGoals: 1 }),
+      tasoRow({ providerMatchId: 991014, homeGoals: 1, awayGoals: 2 }),
+      tasoRow({
+        providerMatchId: 991015,
+        homeTeamProviderId: AWAY,
+        homeTeamName: "Integration Lahti",
+        awayTeamProviderId: HOME,
+        awayTeamName: "Integration VPS",
+        homeGoals: 3,
+        awayGoals: 0,
+      }),
+      // In progress, with a score so far: not a result yet, so not a fourth
+      // meeting. The status is what excludes it — the score filter would not.
+      tasoRow({ providerMatchId: 991016, status: "IN_PLAY", homeGoals: 0, awayGoals: 5 }),
+      // The national bucket shares the table: never a domestic club's opponent.
+      tasoRow({ providerMatchId: 991017, competitionCode: "maajp90", homeGoals: 0, awayGoals: 9 }),
+    ]);
+
+    const series = await getWorstOpponents({ kind: "taso", bucket: "domestic" }, HOME, "/kotimaa");
+
+    expect(series).toMatchObject({
+      status: "ok",
+      rows: [
+        {
+          opponentProviderId: AWAY,
+          played: 3,
+          wins: 0,
+          draws: 0,
+          losses: 3,
+          pointsPerMatch: 0,
+          href: `/kotimaa/kohtaamiset/${HOME}/${AWAY}`,
+        },
+      ],
+    });
+  });
+
+  it("agrees with the head-to-head page for the same pair (S4)", async () => {
+    await db.insert(tasoMatches).values([
+      tasoRow({ providerMatchId: 991013, homeGoals: 2, awayGoals: 2 }),
+      tasoRow({ providerMatchId: 991014, homeGoals: 0, awayGoals: 1 }),
+      tasoRow({ providerMatchId: 991015, homeGoals: 3, awayGoals: 1 }),
+      // Away at AWAY, won 2-0: HOME's second win, read from the other side.
+      tasoRow({
+        providerMatchId: 991016,
+        homeTeamProviderId: AWAY,
+        homeTeamName: "Integration Lahti",
+        awayTeamProviderId: HOME,
+        awayTeamName: "Integration VPS",
+        homeGoals: 0,
+        awayGoals: 2,
+      }),
+    ]);
+
+    const series = await getWorstOpponents({ kind: "taso", bucket: "domestic" }, HOME, "/kotimaa");
+    const history = await getHeadToHeadHistory({ kind: "taso", bucket: "domestic" }, HOME, AWAY);
+    // The page's own record, from the page's own read — not just its length
+    // (Sourcery, on #478): a swapped side keeps the count and changes this.
+    const record =
+      history.status === "ok"
+        ? headToHeadRecord(toFinishedMatches(history.matches as TasoMatchRow[]), HOME)
+        : null;
+    const [row] = series.status === "ok" ? series.rows : [];
+
+    // Two wins, a draw and a loss from HOME's side: wins and losses differ, so
+    // a record read from the wrong side cannot match.
+    expect(record).toMatchObject({ played: 4, wins: 2, draws: 1, losses: 1 });
+    expect(row && [row.played, row.wins, row.draws, row.losses]).toEqual(
+      record && [record.played, record.wins, record.draws, record.losses]
+    );
   });
 });

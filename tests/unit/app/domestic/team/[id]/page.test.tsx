@@ -5,6 +5,7 @@ import type { ComebacksSeries } from "@/lib/comebacks";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
+import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
@@ -62,8 +63,17 @@ const analyticsSectionMock = vi.fn(
     loadComebacks: () => Promise<ComebacksSeries>;
     loadComparison: () => Promise<SeasonComparisonSeries>;
     loadRecords: () => Promise<StreakRecordsSeries>;
+    loadOpponents: () => Promise<OpponentsSeries>;
   }) => "analytics section placeholder"
 );
+const getWorstOpponentsMock = vi.fn(
+  async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
+);
+vi.mock("@/lib/match-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/match-service")>()),
+  getWorstOpponents: getWorstOpponentsMock,
+}));
+
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -744,6 +754,19 @@ describe("Domestic team page league position (specs/030)", () => {
       1,
       2025,
       2026
+    );
+  });
+  it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;
+
+    await loadOpponents?.();
+
+    // Not the selected season or competition: the panel covers every one (S4).
+    expect(getWorstOpponentsMock).toHaveBeenCalledWith(
+      { kind: "taso", bucket: "domestic" },
+      1,
+      "/kotimaa"
     );
   });
 

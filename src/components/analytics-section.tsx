@@ -5,6 +5,7 @@ import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
+import { OPPONENTS_GROUP_HEADING, opponentsPanel } from "@/components/opponents-section";
 import { seasonComparisonPanel } from "@/components/season-comparison-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { streakRecordsPanel } from "@/components/streak-records-section";
@@ -16,6 +17,7 @@ import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
+import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
@@ -62,6 +64,7 @@ export async function AnalyticsSection({
   loadComebacks,
   loadComparison,
   loadRecords,
+  loadOpponents,
 }: Readonly<{
   /**
    * What a period is on this page, and so every string that names one. Required
@@ -78,6 +81,8 @@ export async function AnalyticsSection({
   loadComebacks: () => Promise<ComebacksSeries>;
   loadComparison: () => Promise<SeasonComparisonSeries>;
   loadRecords: () => Promise<StreakRecordsSeries>;
+  /** `unavailable` on a national team's page, which has no such panel (specs/045, S5). */
+  loadOpponents: () => Promise<OpponentsSeries>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -87,18 +92,29 @@ export async function AnalyticsSection({
     );
   }
 
-  const [position, form, goals, homeAway, cleanSheets, streaks, comebacks, comparison, records] =
-    await Promise.all([
-      loadPosition(),
-      loadForm(),
-      loadGoals(),
-      loadHomeAway(),
-      loadCleanSheets(),
-      loadStreaks(),
-      loadComebacks(),
-      loadComparison(),
-      loadRecords(),
-    ]);
+  const [
+    position,
+    form,
+    goals,
+    homeAway,
+    cleanSheets,
+    streaks,
+    comebacks,
+    comparison,
+    records,
+    opponents,
+  ] = await Promise.all([
+    loadPosition(),
+    loadForm(),
+    loadGoals(),
+    loadHomeAway(),
+    loadCleanSheets(),
+    loadStreaks(),
+    loadComebacks(),
+    loadComparison(),
+    loadRecords(),
+    loadOpponents(),
+  ]);
   const panels = {
     position: positionPanel(position),
     form: formPanel(form),
@@ -110,6 +126,7 @@ export async function AnalyticsSection({
     comebacks: comebacksPanel(comebacks),
     comparison: seasonComparisonPanel(comparison, axis),
     records: streakRecordsPanel(records, axis),
+    opponents: opponentsPanel(opponents),
   };
 
   /**
@@ -148,6 +165,13 @@ export async function AnalyticsSection({
       heading: axis.otherHeading,
       id: "analytics-other-seasons",
       panels: { comparison: panels.comparison, records: panels.records },
+    },
+    {
+      // specs/045, S6: the first group since #424, because "who do we
+      // struggle against" is a question none of the three periods asks.
+      heading: OPPONENTS_GROUP_HEADING,
+      id: "analytics-opponents",
+      panels: { opponents: panels.opponents },
     },
   ];
   // A group with nothing in it shows no heading: a cup season has no position

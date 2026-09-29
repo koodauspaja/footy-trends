@@ -16,6 +16,7 @@ import {
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
 import {
   getTeamCleanSheetSeries,
@@ -288,6 +289,10 @@ export default async function DomesticTeamPage({
               seasonId,
               currentSeason
             ),
+          // Every competition in /kotimaa and every stored season, whatever
+          // season is shown (specs/045, S4).
+          loadOpponents: () =>
+            getWorstOpponents({ kind: "taso", bucket: "domestic" }, teamProviderId, "/kotimaa"),
         })
       : null;
 

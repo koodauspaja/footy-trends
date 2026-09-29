@@ -18,12 +18,16 @@ import {
   headToHeadWindow,
   headToHeadWindowSentence,
   type Meeting,
+  meetingsHref,
   meetingsLink,
   meetingsLinkCount,
+  type NamedMeeting,
   SCORE_GRID_CAP,
   type ScoreGrid,
   type SideRecord,
   scoreGrid,
+  spansCalendarYears,
+  worstOpponents,
 } from "@/lib/head-to-head";
 import type { MatchSource } from "@/lib/match-source";
 
@@ -544,5 +548,139 @@ describe("competitionGroups (specs/044, #338)", () => {
         { competitionId: "Liigacup23", categoryId: "LC2023" },
       ],
     });
+  });
+});
+
+describe("worstOpponents (specs/045)", () => {
+  const CLUB = 1;
+  const NAMES: Record<number, string> = {
+    1: "HJK",
+    2: "KuPS",
+    3: "Ilves",
+    4: "SJK",
+    5: "VPS",
+    6: "Inter",
+  };
+
+  /** A meeting on `day` of 2025, named from the home side as a row stores it. */
+  function game(
+    day: number,
+    home: number,
+    away: number,
+    homeGoals: number,
+    awayGoals: number
+  ): NamedMeeting {
+    return {
+      kickoffAt: new Date(Date.UTC(2025, 0, day)),
+      homeTeamProviderId: home,
+      homeTeamName: NAMES[home] ?? "",
+      awayTeamProviderId: away,
+      awayTeamName: NAMES[away] ?? "",
+      homeGoals,
+      awayGoals,
+    };
+  }
+
+  /** `count` meetings against `opponent`, all ending `clubGoals`–`theirGoals` at home. */
+  function series(
+    opponent: number,
+    count: number,
+    clubGoals: number,
+    theirGoals: number,
+    from = 1
+  ) {
+    return Array.from({ length: count }, (_, i) =>
+      game(from + i, CLUB, opponent, clubGoals, theirGoals)
+    );
+  }
+
+  const ids = (meetings: NamedMeeting[]) =>
+    worstOpponents(meetings, CLUB).map((row) => row.opponentProviderId);
+
+  it("reads each record from the club's side, wherever it was played", () => {
+    // HJK lose 0-1 at home and 2-0 away at KuPS, and draw 1-1: 0 wins, 1 draw, 2 losses.
+    const [row] = worstOpponents(
+      [game(3, CLUB, 2, 0, 1), game(2, 2, CLUB, 2, 0), game(1, CLUB, 2, 1, 1)],
+      CLUB
+    );
+
+    expect(row).toMatchObject({
+      opponentProviderId: 2,
+      opponentName: "KuPS",
+      played: 3,
+      wins: 0,
+      draws: 1,
+      losses: 2,
+    });
+    expect(row?.pointsPerMatch).toBeCloseTo(1 / 3);
+  });
+
+  it("agrees with the head-to-head record for the same pair (S4)", () => {
+    const meetings = [game(5, 2, CLUB, 3, 3), game(4, CLUB, 2, 2, 0), game(1, CLUB, 2, 0, 4)];
+    const [row] = worstOpponents(meetings, CLUB);
+    const record = headToHeadRecord(meetings, CLUB);
+
+    expect(row && [row.played, row.wins, row.draws, row.losses]).toEqual(
+      record && [record.played, record.wins, record.draws, record.losses]
+    );
+  });
+
+  it("counts an opponent only from its third meeting (S2)", () => {
+    expect(ids([...series(2, 2, 0, 5), ...series(3, 3, 1, 1, 10)])).toEqual([3]);
+  });
+
+  it("ranks by points per match, worst first, and keeps three (S1, S3)", () => {
+    const meetings = [
+      ...series(2, 3, 2, 0, 1), // 3,0
+      ...series(3, 3, 0, 1, 10), // 0,0
+      ...series(4, 3, 1, 1, 20), // 1,0
+      ...series(5, 3, 0, 2, 30), // 0,0, more recent than 3
+      ...series(6, 3, 3, 1, 40), // 3,0
+    ];
+
+    expect(ids(meetings)).toEqual([5, 3, 4]);
+  });
+
+  it("breaks a tie by more meetings first (S7)", () => {
+    expect(ids([...series(2, 3, 0, 1, 20), ...series(3, 4, 0, 1, 1)])).toEqual([3, 2]);
+  });
+
+  it("then by the most recent meeting (S7)", () => {
+    expect(ids([...series(2, 3, 0, 1, 1), ...series(3, 3, 0, 1, 20)])).toEqual([3, 2]);
+  });
+
+  it("names an opponent as it was when last met, the newest meeting coming first", () => {
+    const renamed = { ...game(9, CLUB, 2, 0, 1), awayTeamName: "KuPS Kuopio" };
+    const [row] = worstOpponents([renamed, ...series(2, 2, 0, 1)], CLUB);
+
+    expect(row?.opponentName).toBe("KuPS Kuopio");
+    expect(row?.lastMet).toEqual(new Date(Date.UTC(2025, 0, 9)));
+  });
+
+  it("never counts the club as its own opponent (Sourcery, on #478)", () => {
+    // A stored row naming the club on both sides would otherwise become a row
+    // linking to a head-to-head of the club against itself, which is not found.
+    const self = (day: number) => game(day, CLUB, CLUB, 0, 1);
+
+    expect(worstOpponents([self(1), self(2), self(3)], CLUB)).toEqual([]);
+  });
+
+  it("never counts a bracket slot as an opponent", () => {
+    const slot = (day: number) => ({ ...game(day, CLUB, 0, 0, 1), awayTeamName: "" });
+
+    expect(worstOpponents([slot(1), slot(2), slot(3)], CLUB)).toEqual([]);
+  });
+});
+
+describe("meetingsHref and spansCalendarYears", () => {
+  it("spells the head-to-head URL under a route's own prefix, in the order given", () => {
+    expect(meetingsHref("/kotimaa", 1, 2)).toBe("/kotimaa/kohtaamiset/1/2");
+    expect(meetingsLink("/kotimaa", 1, 2, 4)?.href).toBe(meetingsHref("/kotimaa", 1, 2));
+  });
+
+  it("spans calendar years abroad only", () => {
+    expect(spansCalendarYears(FOREIGN)).toBe(true);
+    expect(spansCalendarYears(NATIONAL_TEAMS)).toBe(false);
+    expect(spansCalendarYears(DOMESTIC)).toBe(false);
   });
 });

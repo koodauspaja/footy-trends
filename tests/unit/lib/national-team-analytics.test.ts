@@ -204,6 +204,10 @@ describe("nationalTeamAnalytics", () => {
     expect(await nationalTeamAnalytics(given).loadPosition()).toEqual({ status: "unavailable" });
   });
 
+  it("has no opponents panel: Finland and its opponents have no id stable across categories (specs/045, S5)", async () => {
+    expect(await nationalTeamAnalytics(given).loadOpponents()).toEqual({ status: "unavailable" });
+  });
+
   it("reads Finland on both sides of the fixture, across every year", async () => {
     const result = await nationalTeamAnalytics(given).loadHomeAway();
 

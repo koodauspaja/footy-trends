@@ -11,6 +11,15 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
+/**
+ * The match list's own table. Analyysit has tables of its own since specs/045
+ * (`Vaikeimmat vastustajat`), so "the table on the page" no longer means this
+ * one; the match list is the first fold.
+ */
+function matchTable(page: Page) {
+  return page.locator("details").first().getByRole("table");
+}
+
 function summary(page: Page, heading: string) {
   return page.locator("summary", { has: page.getByRole("heading", { name: heading, level: 2 }) });
 }
@@ -36,20 +45,20 @@ for (const [provider, path] of [
 
       await expect(summary(page, "Ottelut")).toHaveText(`▸Ottelut(${rows} ottelua)`);
       await expect(page.locator("details[open]")).toHaveCount(2);
-      await expect(page.getByRole("table")).toBeVisible();
+      await expect(matchTable(page)).toBeVisible();
       await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeVisible();
     });
 
     test("fold each part away and back, independently", async ({ page }) => {
       await summary(page, "Ottelut").click();
-      await expect(page.getByRole("table")).toBeHidden();
+      await expect(matchTable(page)).toBeHidden();
       await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeVisible();
 
       await summary(page, "Analyysit").click();
       await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeHidden();
 
       await summary(page, "Ottelut").click();
-      await expect(page.getByRole("table")).toBeVisible();
+      await expect(matchTable(page)).toBeVisible();
       await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeHidden();
     });
 
@@ -57,7 +66,7 @@ for (const [provider, path] of [
       await summary(page, "Ottelut").focus();
       await page.keyboard.press("Enter");
 
-      await expect(page.getByRole("table")).toBeHidden();
+      await expect(matchTable(page)).toBeHidden();
     });
   });
 }
