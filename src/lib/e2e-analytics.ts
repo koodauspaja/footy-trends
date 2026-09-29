@@ -1,12 +1,15 @@
 /**
  * The end-to-end override for the analytics sign-in gate — its names and the
- * rule for when it may apply, in a module that imports nothing.
+ * rule for when it may apply, in a module that imports nothing but the equally
+ * import-free rule for what a test database is (#479).
  *
  * Separate from `analytics-access.ts` so the Playwright suite can import the
  * header name without pulling Next's request APIs and the auth client into a
  * test runner that has neither. One spelling, shared by the server that reads
  * the header and the tests that send it.
  */
+
+import { namesTestDatabase } from "./test-database-name";
 
 /** The request header an end-to-end test sends to be treated as signed in. */
 export const E2E_ANALYTICS_HEADER = "x-e2e-analytics";
@@ -38,15 +41,4 @@ export const E2E_ANALYTICS_FLAG = "E2E_ANALYTICS_OVERRIDE";
  */
 export function e2eOverrideAllowed(env: NodeJS.Dict<string>): boolean {
   return env[E2E_ANALYTICS_FLAG] === "1" && namesTestDatabase(env.DATABASE_URL);
-}
-
-function namesTestDatabase(url: string | undefined): boolean {
-  if (url === undefined) return false;
-
-  try {
-    return decodeURIComponent(new URL(url).pathname.replace(/^\//, "")).endsWith("_test");
-  } catch {
-    // Unparseable is not a test database; the override stays off.
-    return false;
-  }
 }
