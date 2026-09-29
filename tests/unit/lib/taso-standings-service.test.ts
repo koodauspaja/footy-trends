@@ -644,6 +644,93 @@ describe("getSeasonStandings", () => {
       expect(await kinds("MSC")).toEqual(["match-list", "match-list"]);
     });
 
+    describe("a tie on points", () => {
+      /**
+       * Three teams level on 3, round in a circle: 1 beats 2, 2 beats 3, and 3
+       * beats 1 by 4-0. Goal difference ranks them 3, 2, 1; TASO says 1, 2, 3,
+       * as it did Liigacup 2023's KuPS over FC Haka on their meeting.
+       */
+      function levelOnPoints(categoryId: string, standings: (number | null)[] = [1, 2, 3]) {
+        const nameOf = (teamProviderId: number) =>
+          ["HJK", "KuPS", "FC Haka"][teamProviderId - 1] ?? "";
+        const game = (
+          providerMatchId: number,
+          home: number,
+          away: number,
+          score: [number, number]
+        ) =>
+          match({
+            providerMatchId,
+            categoryId,
+            groupName: "Lohko B",
+            matchday: providerMatchId,
+            homeTeamProviderId: home,
+            homeTeamName: nameOf(home),
+            awayTeamProviderId: away,
+            awayTeamName: nameOf(away),
+            homeGoals: score[0],
+            awayGoals: score[1],
+          });
+        mockStoredMatches(
+          [game(1, 1, 2, [1, 0]), game(2, 2, 3, [1, 0]), game(3, 3, 1, [4, 0])],
+          [1, 2, 3].map((teamProviderId) =>
+            groupTeam({
+              categoryId,
+              teamProviderId,
+              teamName: nameOf(teamProviderId),
+              points: 3,
+              currentStanding: standings[teamProviderId - 1] ?? null,
+            })
+          )
+        );
+      }
+
+      async function order(categoryId: string) {
+        const result = await getSeasonStandings(
+          categoryId,
+          COMPETITION_ID,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          undefined
+        );
+        const group = result.status === "ok" ? result.groups[0] : undefined;
+        return group?.kind === "own-calculated"
+          ? group.standings.map((team) => [team.position, team.teamProviderId])
+          : [];
+      }
+
+      it("ranks a Liigacup group in TASO's order, not by goal difference", async () => {
+        levelOnPoints("LC");
+
+        expect(await order("LC")).toEqual([
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ]);
+      });
+
+      it("keeps its own order when TASO left a team unranked", async () => {
+        // TASO's numbers cannot place a team they do not name.
+        levelOnPoints("LC", [1, null, 3]);
+
+        expect(await order("LC")).toEqual([
+          [1, 3],
+          [2, 2],
+          [3, 1],
+        ]);
+      });
+
+      it("leaves a league's tie to goal difference", async () => {
+        levelOnPoints(CATEGORY_ID);
+
+        expect(await order(CATEGORY_ID)).toEqual([
+          [1, 3],
+          [2, 2],
+          [3, 1],
+        ]);
+      });
+    });
+
     it("offers no round selector, though the cup now has a table", async () => {
       groupsThenPlayoff("LC");
 

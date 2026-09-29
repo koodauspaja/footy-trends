@@ -142,6 +142,20 @@ test.describe("Finnish cups", () => {
     ]);
   });
 
+  test("breaks a tie on points as Liigacup did, not by goal difference", async ({ page }) => {
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC&kausi=2023");
+
+    // KuPS and FC Haka both finished on 7; Haka had the better goal difference,
+    // KuPS won their meeting 1-0 and went through to the semi-final. TASO ranks
+    // KuPS second, and so does the table.
+    const groupB = page.locator("section").filter({
+      has: page.getByRole("heading", { level: 2, name: "Lohko B", exact: true }),
+    });
+    const rows = groupB.getByRole("row");
+    await expect(rows.nth(2)).toContainText("KuPS");
+    await expect(rows.nth(3)).toContainText("FC Haka");
+  });
+
   test("offers only the seasons Liigacup has since 2023", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=LC");
 

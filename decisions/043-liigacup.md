@@ -24,6 +24,7 @@ through a rule their data could happen to satisfy.
 | Drawn *and* listed? | Drawn only | Champions League's layout, as agreed: a drawn group is not repeated as a list. `buildPlayoffBracket` returns the drawn group ids so the page can list only the rest. MSC keeps listing its drawn rounds, per specs/015. |
 | The round selector | `listSeasonRounds` returns none for a cup | Liigacup's groups are now own-calculated tables, which would otherwise put a `Kierros` selector on a cup page — specs/015 says a cup has none. MSC and NSC had no tabled group, so they already got none. |
 | The season comparison | `competitionIdForSeason`, not `competitionIdFromSeason` | `readTasoSeason` built the umbrella id, so it asked `spljp26` for `LC` and found nothing — the `Muut kaudet` comparison had no baseline. Already true of Ykkösliigacup; found reading the code for the team page's acceptance criterion. Same answer for every umbrella competition. |
+| A tie on points in a group | TASO's published order, for a `groups-and-playoff` cup's table only, when TASO ranked every team | Found against live data: Liigacup 2023's `Lohko B` showed FC Haka second on goal difference, while KuPS — level on 7, and 1–0 winners of their meeting — went through, as TASO's own standing says. Chosen in chat over applying it to every table: of 98 stored groups TASO ranks, this is the only rendered one where the orders really differ (Veikkausliiga 2022's `Eurolopputurnaus` differs only by a gap in TASO's numbering), so leagues gain nothing and keep the spec's "unchanged". Applied to the full season only; a position describes the group as it stands. |
 | The backfill | Unchanged | It walks `DOMESTIC_COMPETITIONS` through `competitionIdForSeason`, `categoryIdForSeason` and `earliestSeasonFor`, so the registry entry is all it needs. `docs/setup/022`'s sample output now counts 14 competitions. |
 
 ## What the tests prove, and how
@@ -62,6 +63,9 @@ these open; they were run locally on 2026-09-29.
   2026, shows cup `Analyysit` and a season comparison with rows; both are now
   e2e cases, and the comparison one fails if it asks `spljp{YY}` again.
   FC Inter v AC Oulu lists both of their Liigacup meetings.
+- **Liigacup 2023's `Lohko B` table was wrong**, the one defect the live data
+  found in the implementation: see the tie-on-points decision above. Now an
+  e2e case, which fails with the old order.
 - **Integration** passes, 160 tests.
 - **The backfill**, into a scratch database: Liigacup 2023–2026 stored as
   `Liigacup23`/`LC2023` and `Liigacup24`–`26`/`LC`, 33 matches each, no

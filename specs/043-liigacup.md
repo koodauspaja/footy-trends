@@ -198,6 +198,15 @@ Teams are counted from the group's matches, not `getCategory`'s rows, which are
 per slot for a knockout (the reason specs/015 already gives). Leagues are
 untouched: they still go through `keepsATable` as today.
 
+**Such a table is ranked in TASO's order**, where TASO has ranked every team in
+it. Our own order breaks a tie on points by goal difference, and Liigacup
+breaks it by the tied teams' meeting: 2023's `Lohko B` has KuPS and FC Haka
+level on 7, Haka ahead on goal difference, KuPS through on their 1–0 — so our
+order put the wrong team second, above the semi-final it did not play. Numbers
+stay our own; only the order follows TASO's `current_standing` (else
+`final_group_standing`). Added 2026-09-29, after the table was seen against
+live data.
+
 ### Splitting a combined knockout group
 
 specs/015's walk needs the final as its own 2-team group. `1-4` has none, so in
@@ -232,6 +241,10 @@ data already loaded.
   yet makes a group look like a knockout. Liigacup and Ykkösliigacup publish
   the whole round-robin up front (15 fixtures, all present); were one not to,
   it would render a match list until its fixtures appear, and then a table.
+- **Two teams level on points in a group** — ranked as TASO ranked them, by
+  their meeting rather than goal difference. With any team unranked by TASO,
+  the table keeps its own order: TASO's numbers cannot place a team they do
+  not name. A league's tie is untouched.
 - **A level semi-final or final** — decided by TASO's `winner`, labelled
   `declared`, no `(rp)` (specs/015).
 - **A third-place match in a `1-4`-shaped group** — last match between the
@@ -268,6 +281,8 @@ data already loaded.
       B1 v A2.
 - [ ] `1-4` does not appear as a separate list when it is drawn.
 - [ ] Liigacup 2023, read from `LC2023`, renders exactly as 2026 does.
+- [ ] A group table ranks teams level on points as TASO does: Liigacup 2023's
+      `Lohko B` has KuPS second and FC Haka third. *(Added 2026-09-29.)*
 - [ ] Ykkösliigacup 2026 shows `Lohko A`/`Lohko B` as tables, and its `1-4` as
       a `Välierät` → `Loppuottelu` tree below them — if its matches have the
       semi-final + final shape; if they do not, as a list under

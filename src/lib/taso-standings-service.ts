@@ -2124,6 +2124,9 @@ function buildGroup(
     undefined
   );
 
+  // Only a groups-and-playoff cup's round-robin group gets this far as a cup.
+  const standings = isCupCategory(categoryId) ? inPublishedOrder(fullSeason, teamRows) : fullSeason;
+
   // Nothing to check ourselves against. Own-calculate rather than fall back to
   // numbers we do not have: every adjustment is zero here, which is already
   // correct for the majority of groups that have none, and a stale-but-real
@@ -2133,7 +2136,7 @@ function buildGroup(
       kind: "own-calculated",
       groupId,
       groupName,
-      standings: fullSeason,
+      standings,
     };
   }
 
@@ -2161,8 +2164,38 @@ function buildGroup(
     kind: "own-calculated",
     groupId,
     groupName,
-    standings: fullSeason,
+    standings,
   };
+}
+
+/**
+ * A cup group's table in the order TASO published, where it ranked every team.
+ *
+ * Our own order breaks a tie on points by goal difference; Liigacup breaks it
+ * by the tied teams' meeting. Liigacup 2023's `Lohko B` has KuPS and FC Haka
+ * level on 7 — Haka ahead on goal difference, KuPS on their 1–0 — and KuPS
+ * went through, so ranking by goal difference drew a table that contradicted
+ * the semi-final beneath it. TASO's position is the one the competition used.
+ *
+ * All or nothing: with any team unranked, TASO's numbers cannot place it, and
+ * the table keeps its own order. Numbers only are kept, so a gap in TASO's
+ * numbering cannot put two teams at one position. Applied to the full season
+ * only — a position describes the group as it stands, not partway through.
+ * See specs/043-liigacup.md.
+ */
+function inPublishedOrder(standings: TeamStanding[], teamRows: StoredGroupTeam[]): TeamStanding[] {
+  const published = new Map(
+    teamRows.map((row) => [row.teamProviderId, publishedPosition(row)] as const)
+  );
+  const ranked = standings.flatMap((team) => {
+    const position = published.get(team.teamProviderId) ?? null;
+    return position === null ? [] : [{ team, position }];
+  });
+  if (ranked.length < standings.length) return standings;
+
+  return ranked
+    .sort((left, right) => left.position - right.position)
+    .map(({ team }, index) => ({ ...team, position: index + 1 }));
 }
 
 /** Every match for the season, across every group, sorted by kickoff time. */
