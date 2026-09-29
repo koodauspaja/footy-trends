@@ -625,24 +625,15 @@ describe("getSeasonStandings", () => {
       return result.status === "ok" ? result.groups.map((group) => group.kind) : [];
     }
 
-    it("tables Liigacup's round-robin group and lists its playoff", async () => {
-      const [group, playoff] = await kinds("LC");
-
-      expect(group).not.toBe("match-list");
-      expect(playoff).toBe("match-list");
-    });
-
-    it("treats Liigacup 2023, published as LC2023, as the same cup", async () => {
-      // `LC2023` is no competition code, so asking `isDomesticCup` of the
-      // category id would have classified 2023 as a league.
-      const [group, playoff] = await kinds("LC2023");
-
-      expect(group).not.toBe("match-list");
-      expect(playoff).toBe("match-list");
-    });
-
-    it("gives Ykkösliigacup back the tables it lost in #272", async () => {
-      const [group, playoff] = await kinds("M1LCUP");
+    // `LC2023` is no competition code, so asking `isDomesticCup` of the category
+    // id would have classified Liigacup 2023 as a league. Ykkösliigacup lost its
+    // tables in #272.
+    it.each([
+      ["Liigacup", "LC"],
+      ["Liigacup 2023, published as LC2023", "LC2023"],
+      ["Ykkösliigacup", "M1LCUP"],
+    ])("tables %s's round-robin group and lists its playoff", async (_name, categoryId) => {
+      const [group, playoff] = await kinds(categoryId);
 
       expect(group).not.toBe("match-list");
       expect(playoff).toBe("match-list");

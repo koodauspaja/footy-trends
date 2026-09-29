@@ -34,9 +34,23 @@ test.describe("Finnish cups", () => {
   test("lists the four cups in the competition picker", async ({ page }) => {
     await page.goto("/kotimaa");
 
-    for (const name of ["Miesten Suomen Cup", "Naisten Suomen Cup", "Liigacup", "Ykkösliigacup"]) {
-      await expect(page.getByRole("link", { name })).toBeVisible();
+    const cups = ["Miesten Suomen Cup", "Naisten Suomen Cup", "Liigacup", "Ykkösliigacup"];
+    // Exact: without it "Liigacup" also matches "Ykkösliigacup".
+    for (const name of cups) {
+      await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
     }
+    // In the registry's order: Liigacup between the Suomen Cups and Ykkösliigacup.
+    const codes = await page
+      .locator('a[href^="/kotimaa/sarjataulukko?kilpailu="]')
+      .evaluateAll((links) =>
+        links.map((link) => new URL((link as HTMLAnchorElement).href).searchParams.get("kilpailu"))
+      );
+    expect(codes.filter((code) => ["MSC", "NSC", "LC", "M1LCUP"].includes(code ?? ""))).toEqual([
+      "MSC",
+      "NSC",
+      "LC",
+      "M1LCUP",
+    ]);
   });
 
   test("renders every round of Miesten Suomen Cup 2025, bracket first", async ({ page }) => {
@@ -83,10 +97,18 @@ test.describe("Finnish cups", () => {
       });
       await expect(section.getByRole("table")).toBeVisible();
     }
-    // Drawn as a tree if its matches are semi-finals and a final, listed if not
-    // (specs/043) — under Pudotuspelit either way.
+    // specs/043 draws `1-4` only if it is two semi-finals and their winners'
+    // final, and lists it otherwise. TASO's 2026 season has that shape (checked
+    // 2026-09-29: KTP and KäPa won the semi-finals and met in the final), so it
+    // is drawn, and not listed as well.
     await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "1-4" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Loppuottelu", exact: true })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "1-4" })).toHaveCount(0);
   });
 
   test("renders Liigacup's groups as tables and its playoff as a bracket", async ({ page }) => {

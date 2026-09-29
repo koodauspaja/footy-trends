@@ -601,7 +601,7 @@ describe("Domestic standings page, cup competitions", () => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings[0]).toBe("Pudotuspelit");
     expect(headings).toContain("Lohko A");
-    expect(document.querySelectorAll("details").length).toBe(4);
+    expect(document.querySelectorAll("details")).toHaveLength(4);
   });
 
   describe("a cup of groups then a playoff (specs/043)", () => {
