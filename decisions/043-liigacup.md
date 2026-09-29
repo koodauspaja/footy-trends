@@ -42,17 +42,31 @@ through a rule their data could happen to satisfy.
   selector to offer. It numbers its group stage now, as TASO does.
 - **MSC and NSC tests are unedited**, and pass.
 
-## Not verified here
+## Verified against live data
 
-- **End-to-end.** `tests/e2e/cup-domestic.spec.ts` has Liigacup cases and a
-  tightened Ykkösliigacup one that asserts tables rather than headings, but the
-  suite needs a live `TASO_API_KEY` and a local Postgres, and this environment
-  has neither — TASO is outside its network policy. Not run.
-- **Integration and the backfill.** Same reason.
-- **Ykkösliigacup's `1-4` shape.** Most likely semi-finals and a final, as
-  Liigacup's is — said in chat, not verified. If it is not, the split leaves it
-  whole and it is listed under `Pudotuspelit`; the page is correct either way,
-  and the issue says which it turned out to be.
+The implementing session had no database and no route to TASO, so it left
+these open; they were run locally on 2026-09-29.
+
+- **End-to-end.** The whole suite passes, 300 tests. It found one defect in
+  the new cases: the picker test asked for the link named `Liigacup`, which
+  Playwright matches as a substring, so it also found `Ykkösliigacup` and failed
+  strict mode. It names links exactly now, and checks their order.
+- **Ykkösliigacup's `1-4` shape** is Liigacup's: two semi-finals and their
+  winners' final in `M1LCUP26`, so it is drawn, and its e2e case now asserts
+  the tree rather than allowing a list while also forbidding one.
+- **MSC and NSC are unchanged**, and so are leagues. MSC 2025, MSC 2018,
+  NSC 2020, Veikkausliiga 2025 and Ykkösliiga 2025 were served from `main` and
+  from this branch against the same database, and their headings, tables,
+  rows, folds, selectors and full page text are identical.
+- **The team page and head-to-head.** FC Inter's page, reached from Liigacup
+  2026, shows cup `Analyysit` and a season comparison with rows; both are now
+  e2e cases, and the comparison one fails if it asks `spljp{YY}` again.
+  FC Inter v AC Oulu lists both of their Liigacup meetings.
+- **Integration** passes, 160 tests.
+- **The backfill**, into a scratch database: Liigacup 2023–2026 stored as
+  `Liigacup23`/`LC2023` and `Liigacup24`–`26`/`LC`, 33 matches each, no
+  failures. A re-run skipped 2023–2025 and fetched 2026 again, which is
+  what it does for every competition's current season.
 
 ## Left open, deliberately
 

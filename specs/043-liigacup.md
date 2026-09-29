@@ -155,6 +155,10 @@ it draws Ykkösliigacup's `1-4` only if its matches actually have that shape, an
 leaves it a list otherwise. The implementation checks the stored matches before
 calling its acceptance criterion done, rather than assuming.
 
+**Verified 2026-09-29:** it is. TASO's `M1LCUP26` `1-4` is SJK Akatemia v KTP
+and Jippo v KäPa, then KäPa v KTP — two semi-finals and their winners' final —
+so it is drawn.
+
 ### Cup classification must key on the competition
 
 `buildGroup` (`src/lib/taso-standings-service.ts`) asks
