@@ -1,7 +1,7 @@
 # 047 — The rivalry: shared history beside both teams' current form
 
-> **Status: all questions (Q1–Q12) answered in chat on 2026-09-29, awaiting the
-> go.** Written for #355, the last of the
+> **Status: all questions (Q1–Q12) answered in chat on 2026-09-29; #355 updated
+> from this spec the same day, awaiting approval to start.** Written for #355, the last of the
 > matchup features after specs/042, specs/044 and specs/045. The live prediction
 > #355 first named was split out as #480 on 2026-09-29 and is not part of this
 > spec.
