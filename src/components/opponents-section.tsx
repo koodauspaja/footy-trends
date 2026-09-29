@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal } from "@/components/charts/line-chart";
+import { RowLink } from "@/components/row-link";
 import {
   BOGEY_MINIMUM_MEETINGS,
   type OpponentRecord,
@@ -67,9 +67,9 @@ function OpponentsTable({ rows }: Readonly<{ rows: readonly Row[] }>) {
         {rows.map((row) => (
           <tr className="border-border-subtle border-b" key={row.opponentProviderId}>
             <th className="py-2 pr-2 font-medium" scope="row">
-              <Link className="hover:underline" href={row.href}>
+              <RowLink className="hover:underline" href={row.href}>
                 {row.opponentName}
-              </Link>
+              </RowLink>
             </th>
             {NUMBERS.map((column) => (
               <td className="px-1 py-2 text-right" key={column.header}>
