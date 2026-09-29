@@ -14,9 +14,10 @@ import type { MatchSource } from "./match-source";
  * The competitions whose standings page carries the section (S5): the leagues
  * of both providers and the Champions League. The domestic cups and the
  * national teams are out by choice, the World Cup and the Euro because each has
- * one stored edition and a line needs two (S10).
+ * one stored edition and a line needs two (S10). specs/049 compares exactly
+ * these (S6).
  */
-const COMPETITIONS: Record<MatchSource["kind"], ReadonlySet<string>> = {
+export const COMPETITIONS: Record<MatchSource["kind"], ReadonlySet<string>> = {
   "football-data": new Set(["PL", "ELC", "FL1", "BL1", "SA", "DED", "PPL", "PD", "BSA", "CL"]),
   taso: new Set(["VL", "M1L", "M1", "M2", "NL", "N1", "P21SM", "P211", "P18SM", "T18SM"]),
 };

@@ -14,7 +14,9 @@ test.describe("Privacy policy", () => {
     await expect(page).toHaveURL(/\/tietosuoja$/);
     await expect(page.getByRole("heading", { name: "Tietosuojaseloste", level: 1 })).toBeVisible();
     // Signed out, and still the whole page — no prompt, no empty state.
-    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Mitä tietoja tallennetaan" })).toBeVisible();
   });
 

@@ -8,6 +8,7 @@ import {
   getGoalsPerGame,
   getHeadToHeadHistory,
   getMatchPageData,
+  getOutcomeShares,
   getTeamForm,
   getWorstOpponents,
   type TasoMatchRow,
@@ -737,5 +738,125 @@ describe("a competition's goals per game (specs/048)", () => {
       ],
       leftOut: [SEASON + 2],
     });
+  });
+});
+
+describe("the competitions' home advantage (specs/049)", () => {
+  /**
+   * The read spans every compared competition, which other suites' fixtures
+   * share, so each test measures what its own rows add: counts before and
+   * after, in seasons nothing else stores.
+   */
+  async function countsOf(kind: "football-data" | "taso", code: string) {
+    const result = await getOutcomeShares();
+    if (result.status !== "ok") throw new Error("the read failed");
+    const row = result.rows.find((candidate) => candidate.kind === kind && candidate.code === code);
+    const count = (share: number) => Math.round(((row?.matches ?? 0) * share) / 100);
+    return {
+      matches: row?.matches ?? 0,
+      home: count(row?.homeShare ?? 0),
+      draws: count(row?.drawShare ?? 0),
+      away: count(row?.awayShare ?? 0),
+      spanningYears: result.spanningYears,
+    };
+  }
+
+  const kickoff = (year: number) => new Date(`${year}-02-01T15:00:00Z`);
+
+  it("counts a shoot-out as a draw, a playoff as a match, and only completed seasons", async () => {
+    const before = await countsOf("football-data", "DED");
+    let id = 991001;
+    const row = (overrides: Partial<typeof matches.$inferInsert>) =>
+      footballDataRow({ providerMatchId: id++, competitionCode: "DED", ...overrides });
+
+    await db.insert(matches).values([
+      // 2030, played into 2031: a home win, an away win, and a playoff tie
+      // settled on penalties — stored as 5–4, really 1–1 (S3).
+      row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 2, awayGoals: 0 }),
+      row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 0, awayGoals: 1 }),
+      row({
+        seasonId: 2030,
+        kickoffAt: kickoff(2031),
+        stage: "PLAYOFFS",
+        homeGoals: 5,
+        awayGoals: 4,
+        penaltiesHome: 4,
+        penaltiesAway: 3,
+      }),
+      // Awarded with a score, never played to a result: not finished (S3).
+      row({
+        seasonId: 2030,
+        kickoffAt: kickoff(2031),
+        status: "AWARDED",
+        homeGoals: 3,
+        awayGoals: 0,
+      }),
+      // Unplayed with no score, and a finished match missing one: neither counts.
+      row({
+        seasonId: 2030,
+        kickoffAt: kickoff(2031),
+        status: "POSTPONED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+      row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 3, awayGoals: null }),
+      // 2031 still has a match to play: none of it counts (S19).
+      row({ seasonId: 2031, kickoffAt: kickoff(2032), homeGoals: 4, awayGoals: 0 }),
+      row({
+        seasonId: 2031,
+        kickoffAt: kickoff(2032),
+        status: "TIMED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+    ]);
+
+    const after = await countsOf("football-data", "DED");
+    expect({
+      matches: after.matches - before.matches,
+      home: after.home - before.home,
+      draws: after.draws - before.draws,
+      away: after.away - before.away,
+    }).toEqual({ matches: 3, home: 1, draws: 1, away: 1 });
+    // Played across two years, so named as `2030/31`.
+    expect(after.spanningYears?.last).toBe(2030);
+  });
+
+  it("files a TASO season under its own competition, over its own pair only", async () => {
+    const before = await countsOf("taso", "VL");
+    let id = 991001;
+    const row = (overrides: Partial<typeof tasoMatches.$inferInsert>) =>
+      tasoRow({
+        providerMatchId: id++,
+        seasonId: 2030,
+        competitionCode: "spljp30",
+        categoryId: "VL",
+        kickoffAt: kickoff(2030),
+        ...overrides,
+      });
+
+    await db.insert(tasoMatches).values([
+      row({ homeGoals: 1, awayGoals: 1 }),
+      row({ homeGoals: 2, awayGoals: 1 }),
+      // Being played: a score so far, not a result — and it holds 2031 open.
+      row({
+        seasonId: 2031,
+        competitionCode: "spljp31",
+        status: "Live",
+        homeGoals: 1,
+        awayGoals: 0,
+      }),
+      row({ seasonId: 2031, competitionCode: "spljp31", homeGoals: 3, awayGoals: 0 }),
+      // The same category under another competition that season: not VL's.
+      row({ competitionCode: "Liigacup30", homeGoals: 0, awayGoals: 5 }),
+    ]);
+
+    const after = await countsOf("taso", "VL");
+    expect({
+      matches: after.matches - before.matches,
+      home: after.home - before.home,
+      draws: after.draws - before.draws,
+      away: after.away - before.away,
+    }).toEqual({ matches: 2, home: 1, draws: 1, away: 0 });
   });
 });

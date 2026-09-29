@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
@@ -9,7 +9,12 @@ import {
   competitionIdForSeason,
 } from "./domestic-competitions";
 import { FORM_WINDOW, type LatestForm, latestForm } from "./form-series";
-import { type GoalsPerGameSeries, goalsPerGameSeries, type SeasonGoals } from "./goals-per-game";
+import {
+  COMPETITIONS,
+  type GoalsPerGameSeries,
+  goalsPerGameSeries,
+  type SeasonGoals,
+} from "./goals-per-game";
 import {
   type CompetitionScope,
   HEAD_TO_HEAD_LIMIT,
@@ -24,7 +29,14 @@ import {
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
+import {
+  LEFT_TO_PLAY,
+  type OutcomeShares,
+  outcomeShares,
+  type SeasonOutcomes,
+} from "./outcome-shares";
 import { isStoredInteger } from "./provider-ids";
+import { resolveEarliestSeason } from "./seasons";
 import { toFinishedMatches } from "./standings";
 
 export type FootballDataMatchRow = typeof matches.$inferSelect;
@@ -308,6 +320,103 @@ async function tasoSeasonGoals(code: string): Promise<SeasonGoals[]> {
         row.categoryId === categoryIdForSeason(code, row.seasonId)
     )
     .map(({ seasonId, matches: count, goals }) => ({ seasonId, matches: count, goals }));
+}
+
+/**
+ * Every compared competition's home wins, draws and away wins (specs/049), or
+ * `error` when either provider's read fails — never a partial table, which
+ * could rank a competition against only some of the others (S15).
+ *
+ * One aggregate per provider over the competitions specs/048 S5 names, from
+ * the football-data plan floor on (S8). Which seasons are completed is decided
+ * from the same rows (S19), so no provider is asked for a current season.
+ */
+export async function getOutcomeShares(): Promise<OutcomeShares> {
+  const floor = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
+  try {
+    const [footballData, taso] = await Promise.all([
+      footballDataSeasonOutcomes(floor),
+      tasoSeasonOutcomes(floor),
+    ]);
+    return outcomeShares([...footballData, ...taso], floor);
+  } catch (error) {
+    logger.error({ err: error }, "Unable to read the competitions' home advantage");
+    return { status: "error" };
+  }
+}
+
+/** The four counts `SeasonOutcomes` needs, from a side's goals and the match's status. */
+function outcomeCounts(
+  status: typeof matches.status | typeof tasoMatches.status,
+  home: ReturnType<typeof sql>,
+  away: ReturnType<typeof sql>
+) {
+  const finished = sql`${status} = ${FINISHED_STATUS} and ${home} is not null and ${away} is not null`;
+  return {
+    matches: sql<number>`count(*) filter (where ${finished})::int`,
+    homeWins: sql<number>`count(*) filter (where ${finished} and ${home} > ${away})::int`,
+    draws: sql<number>`count(*) filter (where ${finished} and ${home} = ${away})::int`,
+    awayWins: sql<number>`count(*) filter (where ${finished} and ${home} < ${away})::int`,
+    leftToPlay: sql<number>`count(*) filter (where ${inArray(status, [...LEFT_TO_PLAY])})::int`,
+  };
+}
+
+async function footballDataSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
+  // The stored score includes a shoot-out, which is not part of the result
+  // (S3): Liverpool "1–5" PSG was 0–1 with penalties 1–4.
+  const home = sql`${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0)`;
+  const away = sql`${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0)`;
+  const rows = await db
+    .select({
+      code: matches.competitionCode,
+      seasonId: matches.seasonId,
+      ...outcomeCounts(matches.status, home, away),
+      // A `2024/25` season has matches in the year after its own.
+      spansCalendarYears: sql<boolean>`bool_or(extract(year from ${matches.kickoffAt}) > ${matches.seasonId})`,
+    })
+    .from(matches)
+    .where(
+      and(
+        inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+        gte(matches.seasonId, floor)
+      )
+    )
+    .groupBy(matches.competitionCode, matches.seasonId);
+  return rows.map((row) => ({ ...row, kind: "football-data" }));
+}
+
+async function tasoSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
+  const codes = [...COMPETITIONS.taso];
+  const home = sql`${tasoMatches.homeGoals}`;
+  const away = sql`${tasoMatches.awayGoals}`;
+  const rows = await db
+    .select({
+      seasonId: tasoMatches.seasonId,
+      competitionId: tasoMatches.competitionCode,
+      categoryId: tasoMatches.categoryId,
+      ...outcomeCounts(tasoMatches.status, home, away),
+    })
+    .from(tasoMatches)
+    .where(
+      and(
+        inArray(tasoMatches.categoryId, codes.flatMap(categoryIdsFor)),
+        gte(tasoMatches.seasonId, floor)
+      )
+    )
+    .groupBy(tasoMatches.seasonId, tasoMatches.competitionCode, tasoMatches.categoryId);
+
+  // Each row belongs to the competition whose registry names its exact
+  // `(competition_id, category_id)` pair for that season, as specs/048 reads.
+  return rows.flatMap(({ competitionId, categoryId, ...counts }) => {
+    const code = codes.find(
+      (candidate) =>
+        competitionIdForSeason(candidate, counts.seasonId) === competitionId &&
+        categoryIdForSeason(candidate, counts.seasonId) === categoryId
+    );
+    return code === undefined
+      ? []
+      : [{ ...counts, kind: "taso" as const, code, spansCalendarYears: false }];
+  });
 }
 
 /**

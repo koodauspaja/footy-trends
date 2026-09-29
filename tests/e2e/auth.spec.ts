@@ -30,7 +30,9 @@ test.describe("Sign-in control", () => {
 
       // On the prerendered pages this also proves the control hydrates: it is
       // absent from the static HTML and appears only once the session resolves.
-      await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+      await expect(
+        page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+      ).toBeVisible();
       await expect(page.getByRole("button", { name: "Kirjaudu ulos" })).toHaveCount(0);
     });
   }
@@ -45,7 +47,7 @@ test.describe("Sign-in control", () => {
     });
 
     await page.goto("/ulkomaat");
-    await page.getByRole("button", { name: "Kirjaudu sisään" }).click();
+    await page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" }).click();
 
     await expect.poll(() => googleUrl).not.toBeNull();
     // `poll` above has already established this is set; the assertion narrows
@@ -150,7 +152,9 @@ test.describe("Narrow viewports", () => {
   test("keeps the breadcrumb and sign-in on screen when signed out", async ({ page }) => {
     await page.goto("/maajoukkueet/sarjataulukko");
 
-    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "Maajoukkueet" })).toBeVisible();
   });
 });
@@ -188,7 +192,7 @@ test.describe("A spent sign-in error", () => {
     });
 
     await page.goto(path);
-    await page.getByRole("button", { name: "Kirjaudu sisään" }).click();
+    await page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" }).click();
     await expect.poll(() => body).not.toBeUndefined();
 
     return body?.callbackURL;
