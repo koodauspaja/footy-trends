@@ -23,3 +23,8 @@ happened to hold (#304). A separate database removes both by construction rather
 than by remembering.
 
 Override the derivation with `TEST_DATABASE_URL` where it is wrong.
+
+**Running Vitest on this directory directly is refused** (#479): it would read
+`.env`'s development `DATABASE_URL`. The suite's `globalSetup` stops the run
+unless the database name ends in `_test` or equals an explicit
+`TEST_DATABASE_URL`.
