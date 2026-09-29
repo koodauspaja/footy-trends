@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RowLink } from "@/components/row-link";
 import {
   type BracketLeg,
   type BracketRound,
@@ -66,12 +66,12 @@ function TeamName({
   teamHref: TeamHref;
 }>) {
   return (
-    <Link
+    <RowLink
       className={`hover:underline${isWinner ? " font-semibold" : ""}`}
       href={teamHref(teamProviderId)}
     >
       {teamName}
-    </Link>
+    </RowLink>
   );
 }
 

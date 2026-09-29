@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import { formatDecimal } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
@@ -10,6 +9,7 @@ import {
   matchDateFormatter,
 } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
+import { RowLink } from "@/components/row-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
@@ -542,14 +542,14 @@ function FormBlock({
         <>
           <p className="flex gap-2 font-medium">
             {form.entries.map((entry) => (
-              <Link
+              <RowLink
                 className="hover:underline"
                 href={`${basePath}/ottelu/${entry.match.providerMatchId}`}
                 key={entry.match.providerMatchId}
                 title={entry.label}
               >
                 {entry.result}
-              </Link>
+              </RowLink>
             ))}
           </p>
           <p className="mt-1">{pointsLine(form.pointsPerMatch)}</p>

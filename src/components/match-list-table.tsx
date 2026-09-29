@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
+import { RowLink } from "@/components/row-link";
 import { formatMatchResult } from "@/lib/standings";
 
 export const matchDateFormatter = new Intl.DateTimeFormat("fi-FI", {
@@ -67,9 +67,9 @@ export function MatchListTable<T extends MatchListRow>({
       width: COLUMN_WIDTHS.date,
       render: (match) =>
         matchHref ? (
-          <Link className="hover:underline" href={matchHref(match)}>
+          <RowLink className="hover:underline" href={matchHref(match)}>
             {matchDateFormatter.format(match.kickoffAt)}
-          </Link>
+          </RowLink>
         ) : (
           matchDateFormatter.format(match.kickoffAt)
         ),
@@ -81,13 +81,13 @@ export function MatchListTable<T extends MatchListRow>({
       render: (match) =>
         teamHref ? (
           <>
-            <Link className="hover:underline" href={teamHref(match.homeTeamProviderId)}>
+            <RowLink className="hover:underline" href={teamHref(match.homeTeamProviderId)}>
               {match.homeTeamName}
-            </Link>
+            </RowLink>
             {" – "}
-            <Link className="hover:underline" href={teamHref(match.awayTeamProviderId)}>
+            <RowLink className="hover:underline" href={teamHref(match.awayTeamProviderId)}>
               {match.awayTeamName}
-            </Link>
+            </RowLink>
           </>
         ) : (
           `${match.homeTeamName} – ${match.awayTeamName}`

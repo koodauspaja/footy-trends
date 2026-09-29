@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 import { FavouriteToggle } from "@/components/favourite-toggle";
+import { RowLink } from "@/components/row-link";
 import type { FavouriteSource } from "@/lib/favourite-keys";
 
 const statColumns = [
@@ -90,9 +90,9 @@ export function StandingsTable({
           row.teamName
         ) : (
           <span className="flex items-center gap-1">
-            <Link className="hover:underline" href={teamHref(row.teamProviderId)}>
+            <RowLink className="hover:underline" href={teamHref(row.teamProviderId)}>
               {row.teamName}
-            </Link>
+            </RowLink>
             {/* No id, no star: the same rule as the link above it, since a
                 pass-through group's row is not a team anyone can follow. */}
             {favouriteSource !== undefined && (
