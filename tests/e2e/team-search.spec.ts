@@ -24,7 +24,9 @@ test.describe("Team search", () => {
     // exactly the one they saw before this feature existed.
     await page.goto("/");
 
-    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+    ).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Murupolku" })).toBeVisible();
   });
 

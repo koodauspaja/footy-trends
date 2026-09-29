@@ -33,7 +33,9 @@ test.describe("Favourites, signed out", () => {
     // The stars are client-rendered, so "none yet" is true of any page before
     // it hydrates. Waiting for the signed-out header proves the session
     // resolved and this assertion is about the answer rather than the timing.
-    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+    ).toBeVisible();
 
     await expect(page.getByRole("button", { name: /^Lisää suosikkeihin/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Poista suosikeista/ })).toHaveCount(0);
@@ -41,7 +43,9 @@ test.describe("Favourites, signed out", () => {
 
   test("offers no star in the region picker", async ({ page }) => {
     await page.goto("/kotimaa");
-    await expect(page.getByRole("button", { name: "Kirjaudu sisään" })).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: "Kirjaudu sisään" })
+    ).toBeVisible();
 
     await expect(page.getByRole("button", { name: /suosik/i })).toHaveCount(0);
   });
