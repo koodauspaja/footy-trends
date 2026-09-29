@@ -39,7 +39,6 @@ import { calculateStandings, selectTeamMatches, type TeamStanding } from "./stan
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
 import {
-  competitionIdFromSeason,
   EARLIEST_TASO_SEASON,
   getCurrentSeason,
   getSeasonCategoryNames,
@@ -531,7 +530,10 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
     try {
       const { matches } = await getSyncedSeasonMatches(
         categoryIdForSeason(competitionCode, currentSeason),
-        competitionIdFromSeason(currentSeason),
+        // The competition's own id: Liigacup and Ykkösliigacup publish outside
+        // the `spljpNN` umbrella, so probing that would find their current
+        // season empty and default the page to an older one.
+        competitionIdForSeason(competitionCode, currentSeason),
         currentSeason,
         currentSeason
       );

@@ -2185,6 +2185,23 @@ describe("resolveTasoSeasonContext", () => {
     await expect(resolveTasoSeasonContext("VL")).resolves.toMatchObject({ defaultSeason: 2027 });
   });
 
+  it.each([
+    ["LC", "Liigacup27"],
+    ["M1LCUP", "M1LCUP27"],
+  ])("probes %s's current season under its own id, %s", async (code, competitionId) => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    // Only the competition's own id has the season; the umbrella has nothing.
+    getSeasonMatchesMock.mockImplementation(async (asked: string) =>
+      asked === competitionId
+        ? [match({ seasonId: 2027, status: "SCHEDULED", homeGoals: null, awayGoals: null })]
+        : []
+    );
+    mockInsert();
+
+    await expect(resolveTasoSeasonContext(code)).resolves.toMatchObject({ defaultSeason: 2027 });
+  });
+
   it("falls back to the newest stored season when discovery fails", async () => {
     getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
     mockDb(2025, [match({ seasonId: 2025 })]);
