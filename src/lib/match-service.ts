@@ -299,9 +299,10 @@ async function averageFor(scope: CompetitionScope): Promise<ScoreAverage> {
             )
           );
 
-  if (row !== undefined && row.home !== null && row.away !== null) {
-    return { home: row.home, away: row.away };
-  }
+  // `undefined` for no row at all, `null` for an aggregate over no match.
+  const home = row?.home;
+  const away = row?.away;
+  if (home != null && away != null) return { home, away };
   throw new Error("A competition the pair met in has no finished match");
 }
 
