@@ -93,20 +93,31 @@ test.describe("National-team analytics, signed in", () => {
     ["Huuhkajat", HUUHKAJAT],
     ["Helmarit", HELMARIT],
   ] as const) {
-    test(`says how few half-time scores ${team} has, instead of figures (specs/046)`, async ({
+    test(`shows ${team}'s comebacks as the note or the figures, never both (specs/046)`, async ({
       page,
     }) => {
-      // TASO has a half-time score for few of these internationals — about 8 of
-      // 84 for Huuhkajat and one for Helmarit on production — so the panel
-      // shows its note and none of its six figures.
+      // Which one depends on how many half-time scores TASO holds for these
+      // internationals, and that is not this test's to know: a database
+      // stored before migration 0017 has none, one freshly synced has most
+      // (#485). The 40 % rule itself is pinned by the unit tests; what this
+      // proves end to end is that the page shows one outcome of it, whole.
       await page.goto(path);
       const panel = analytics(page).getByRole("region", { name: "Kääntyneet ottelut" });
       await panel.waitFor();
 
-      await expect(panel).toContainText(
-        /Puoliaikatulos on tiedossa vain \d+ ottelusta, kun otteluita on \d+\. Kääntyneitä otteluita ei lasketa\./
-      );
-      await expect(panel.locator("dl")).toHaveCount(0);
+      const note = await panel
+        .getByText(
+          /^Puoliaikatulos on tiedossa vain \d+ ottelusta, kun otteluita on \d+\. Kääntyneitä otteluita ei lasketa\.$/
+        )
+        .count();
+      // The figures branch: its figure lists, or its "not yet" lines where a
+      // direction has no match.
+      const figures =
+        (await panel.locator("dl").count()) +
+        (await panel.getByText(/^Ei vielä otteluita/).count());
+
+      expect([note > 0, figures > 0]).toContainEqual(true);
+      expect(note > 0 && figures > 0).toBe(false);
       await expect(page.getByText("tälle kaudelle")).toHaveCount(0);
     });
   }

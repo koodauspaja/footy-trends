@@ -53,17 +53,21 @@ test.describe("Bogey teams, signed in", () => {
   });
 
   test("shows the same opponents whichever season the page shows", async ({ page }) => {
-    await page.goto(INTER);
-    const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
-    await panel.waitFor();
-    const now = await panel.locator("tbody tr").allTextContents();
+    // Opening a season stores it, and the panel reads every stored season —
+    // so on a fresh database the first read can see fewer meetings than a
+    // read made after 2022 was opened (#485). Both seasons are stored first,
+    // then compared: the panel's rule is "the same for the same data".
+    const rows = async (url: string) => {
+      await page.goto(url);
+      const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
+      await panel.waitFor();
+      return panel.locator("tbody tr").allTextContents();
+    };
+    const THEN = `${INTER}?kilpailu=VL&kausi=2022`;
+    await rows(THEN);
 
-    await page.goto(`${INTER}?kilpailu=VL&kausi=2022`);
-    await page.getByRole("region", { name: "Vaikeimmat vastustajat" }).waitFor();
-    const then = await page
-      .getByRole("region", { name: "Vaikeimmat vastustajat" })
-      .locator("tbody tr")
-      .allTextContents();
+    const now = await rows(INTER);
+    const then = await rows(THEN);
 
     expect(then).toEqual(now);
   });
