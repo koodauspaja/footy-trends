@@ -115,3 +115,54 @@ describe("MatchListTable match links", () => {
     expect(three).toEqual([`${COLUMN_WIDTHS.date}px`, "flex", `${COLUMN_WIDTHS.score}px`]);
   });
 });
+
+describe("MatchListTable scores (#498)", () => {
+  /** Manchester City – Real Madrid, 17.04.2024, as football-data stores it. */
+  const shootout: MatchListRow = {
+    providerMatchId: 438512,
+    kickoffAt: new Date("2024-04-17T19:00:00Z"),
+    homeTeamProviderId: 65,
+    homeTeamName: "Manchester City FC",
+    awayTeamProviderId: 86,
+    awayTeamName: "Real Madrid CF",
+    homeGoals: 4,
+    awayGoals: 5,
+    regularTimeHome: 1,
+    regularTimeAway: 1,
+    extraTimeHome: 0,
+    extraTimeAway: 0,
+    penaltiesHome: 3,
+    penaltiesAway: 4,
+  };
+
+  function result(match: MatchListRow) {
+    render(<MatchListTable matches={[match]} teamHref={null} />);
+    return screen.getAllByRole("cell")[2]?.textContent;
+  }
+
+  it("prints a shoot-out as the match page does, not its stored total", () => {
+    expect(result(shootout)).toBe("1–1 (rp 3–4)");
+  });
+
+  it("says when extra time decided a match", () => {
+    expect(
+      result({
+        ...shootout,
+        homeGoals: 2,
+        awayGoals: 1,
+        extraTimeHome: 1,
+        extraTimeAway: 0,
+        penaltiesHome: null,
+        penaltiesAway: null,
+      })
+    ).toBe("2–1 (ja)");
+  });
+
+  it("prints a TASO row, which has no breakdown, as it is stored", () => {
+    expect(result(rows[0] as MatchListRow)).toBe("2–1");
+  });
+
+  it("prints an unplayed match as a dash", () => {
+    expect(result({ ...(rows[0] as MatchListRow), homeGoals: null, awayGoals: null })).toBe("–");
+  });
+});
