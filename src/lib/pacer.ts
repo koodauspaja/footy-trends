@@ -43,8 +43,10 @@ const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Spaces one provider's requests, independently of the other's. The clock and
- * the sleep are parameters so a test can run it without waiting.
+ * Spaces one provider's requests, independently of the other's. Safe to call
+ * concurrently: each call waits its turn behind the previous one, so requests
+ * started together are still spaced out. The clock and the sleep are
+ * parameters so a test can run it without waiting.
  */
 export function createPacer(
   perMinute: number,
@@ -52,10 +54,15 @@ export function createPacer(
 ): Paced {
   const interval = intervalForRatePerMinute(perMinute);
   let lastAt: number | null = null;
+  let queue: Promise<void> = Promise.resolve();
   return async function paced<T>(work: () => Promise<T>): Promise<T> {
-    const wait = delayBefore(lastAt, now(), interval);
-    if (wait > 0) await sleep(wait);
-    lastAt = now();
+    const turn = queue.then(async () => {
+      const wait = delayBefore(lastAt, now(), interval);
+      if (wait > 0) await sleep(wait);
+      lastAt = now();
+    });
+    queue = turn;
+    await turn;
     return work();
   };
 }

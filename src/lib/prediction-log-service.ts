@@ -10,7 +10,7 @@ import { matches, predictions, tasoMatches } from "@/db/schema";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
 import { COMPETITIONS } from "./goals-per-game";
-import { HOME_BASELINE_MODEL, type HomeBaseline } from "./home-baseline";
+import { HOME_BASELINE_MODEL } from "./home-baseline";
 import { logger } from "./logger";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
@@ -144,29 +144,45 @@ async function refresh(target: RefreshTarget, paced: Record<MatchSource["kind"],
   await synchronizeTasoMatches(fetched);
 }
 
-/** Upserts rows, one per match, model and kind (S3). */
+function batches<T>(rows: readonly T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(rows.length / size) }, (_, index) =>
+    rows.slice(index * size, (index + 1) * size)
+  );
+}
+
+/** Upserts rows, one per match, model and kind (S3). The batches are disjoint. */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
-  for (let start = 0; start < rows.length; start += WRITE_BATCH) {
-    await db
-      .insert(predictions)
-      .values(rows.slice(start, start + WRITE_BATCH))
-      .onConflictDoUpdate({
-        target: [
-          predictions.source,
-          predictions.providerMatchId,
-          predictions.model,
-          predictions.kind,
-        ],
-        set: {
-          competitionCode: sql`excluded.competition_code`,
-          homeProbability: sql`excluded.home_probability`,
-          drawProbability: sql`excluded.draw_probability`,
-          awayProbability: sql`excluded.away_probability`,
-          predictedAt: sql`excluded.predicted_at`,
-          kickoffAt: sql`excluded.kickoff_at`,
-        },
-      });
-  }
+  await Promise.all(
+    batches(rows, WRITE_BATCH).map((batch) =>
+      db
+        .insert(predictions)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: [
+            predictions.source,
+            predictions.providerMatchId,
+            predictions.model,
+            predictions.kind,
+          ],
+          set: {
+            competitionCode: sql`excluded.competition_code`,
+            homeProbability: sql`excluded.home_probability`,
+            drawProbability: sql`excluded.draw_probability`,
+            awayProbability: sql`excluded.away_probability`,
+            predictedAt: sql`excluded.predicted_at`,
+            kickoffAt: sql`excluded.kickoff_at`,
+          },
+        })
+    )
+  );
+}
+
+/** The run's pacers: football-data at 9 a minute, TASO at 60. */
+function defaultPacers(): Record<MatchSource["kind"], Paced> {
+  return {
+    "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
+    taso: createPacer(TASO_PER_MINUTE),
+  };
 }
 
 export type PredictionRunReport = {
@@ -189,34 +205,44 @@ export type PredictionRunReport = {
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
-  paced: Record<MatchSource["kind"], Paced> = {
-    "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
-    taso: createPacer(TASO_PER_MINUTE),
-  }
+  paced: Record<MatchSource["kind"], Paced> | undefined = undefined
 ): Promise<PredictionRunReport> {
-  const failures: string[] = [];
+  const pacers = paced ?? defaultPacers();
   const startedAt = clock();
   const targets = refreshTargets(await readCandidates(startedAt), startedAt);
 
-  let refreshed = 0;
-  for (const target of targets) {
-    try {
-      await refresh(target, paced);
-      refreshed += 1;
-    } catch (error) {
-      logger.error({ err: error, ...target }, "Unable to refresh a competition for predictions");
-      failures.push(`refresh ${target.source} ${target.code} ${target.seasonId}`);
-    }
-  }
+  // Started together; each provider's pacer still spaces its own requests.
+  const refreshes = await Promise.all(
+    targets.map(async (target) => {
+      try {
+        await refresh(target, pacers);
+        return null;
+      } catch (error) {
+        logger.error({ err: error, ...target }, "Unable to refresh a competition for predictions");
+        return `refresh ${target.source} ${target.code} ${target.seasonId}`;
+      }
+    })
+  );
+  const refreshFailures = refreshes.filter((failure) => failure !== null);
+  const failures = [...refreshFailures];
 
   // Read again: the refresh may have moved a kickoff or finished a match (S4, S5).
   const candidates = await readCandidates(startedAt);
-  const baselines = new Map<string, HomeBaseline>();
-  for (const candidate of candidates.filter((match) => isLoggable(match, startedAt))) {
-    const key = `${candidate.source}:${candidate.code}`;
-    if (baselines.has(key)) continue;
-    const baseline = await getHomeBaseline(candidate.source, candidate.code);
-    baselines.set(key, baseline);
+  const keyOf = (candidate: LogCandidate) => `${candidate.source}:${candidate.code}`;
+  const competitions = new Map(
+    candidates
+      .filter((candidate) => isLoggable(candidate, startedAt))
+      .map((candidate) => [keyOf(candidate), candidate] as const)
+  );
+  const baselines = new Map(
+    await Promise.all(
+      [...competitions].map(
+        async ([key, candidate]) =>
+          [key, await getHomeBaseline(candidate.source, candidate.code)] as const
+      )
+    )
+  );
+  for (const [key, baseline] of baselines) {
     if (baseline.status === "error") failures.push(`baseline ${key}`);
   }
 
@@ -224,7 +250,7 @@ export async function runPredictionLog(
   const rows = candidates
     .filter((candidate) => isLoggable(candidate, writtenAt))
     .flatMap((candidate) => {
-      const baseline = baselines.get(`${candidate.source}:${candidate.code}`);
+      const baseline = baselines.get(keyOf(candidate));
       const row =
         baseline === undefined
           ? null
@@ -233,7 +259,7 @@ export async function runPredictionLog(
     });
 
   await writePredictions(rows);
-  return { refreshed, logged: rows.length, failures };
+  return { refreshed: targets.length - refreshFailures.length, logged: rows.length, failures };
 }
 
 /** Every stored finished match of the compared competitions, its score after extra time. */

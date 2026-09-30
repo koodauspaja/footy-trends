@@ -62,6 +62,22 @@ describe("createPacer", () => {
     expect(fake.waits).toEqual([intervalForRatePerMinute(FOOTBALL_DATA_PER_MINUTE) - 1_000]);
   });
 
+  it("spaces requests started at the same time, one interval apart", async () => {
+    const fake = clock();
+    const paced = createPacer(60, fake);
+    const startedAt: number[] = [];
+
+    await Promise.all(
+      [1, 2, 3].map(() =>
+        paced(async () => {
+          startedAt.push(fake.now());
+        })
+      )
+    );
+
+    expect(startedAt).toEqual([0, 1_000, 2_000]);
+  });
+
   it("does not wait when the interval has already passed", async () => {
     const fake = clock();
     const paced = createPacer(60, fake);

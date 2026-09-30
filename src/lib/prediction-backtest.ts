@@ -88,7 +88,7 @@ export function backtestRows(
           kickoffAt: match.kickoffAt,
         });
       }
-      tally = together.reduce(add, tally);
+      tally = together.reduce((sum, match) => add(sum, match), tally);
       index += together.length;
     }
   }
