@@ -1,8 +1,9 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CHART,
   type ChartPoint,
+  captionLines,
   formatDecimal,
   LineChart,
   LineLegend,
@@ -531,5 +532,75 @@ describe("LineChart season labels on a phone (specs/048, S16)", () => {
 
   it("thins only a chart that asks for it", () => {
     expect(phoneHiddenTicks(twelveSeasons(false))).toEqual([]);
+  });
+});
+
+describe("captionLines (specs/050)", () => {
+  it("keeps a caption that fits the plot's height at a phone's font on one line", () => {
+    expect(captionLines("Maaleja / ottelu", 248)).toEqual(["Maaleja / ottelu"]);
+  });
+
+  it("breaks one that does not at the space nearest its middle", () => {
+    expect(captionLines("Sijoitusmuutos keskimäärin", 248)).toEqual([
+      "Sijoitusmuutos",
+      "keskimäärin",
+    ]);
+    expect(captionLines("Yksi kaksi kolme neljä viisi kuusi", 248)).toEqual([
+      "Yksi kaksi kolme",
+      "neljä viisi kuusi",
+    ]);
+  });
+
+  it("prints both halves of a caption that breaks into two equal lines", () => {
+    // A duplicate React key — the first version keyed each line by its text —
+    // is reported through console.error, and may drop a line on a later render.
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { container } = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 1 }] }]}
+        title="Kaksi"
+        xDomain={[1, 2]}
+        xLabel="Kausi"
+        xTicks={[1, 2]}
+        yDomain={[0, 2]}
+        yLabel="Sijoitusmuutoskeskiarvo Sijoitusmuutoskeskiarvo"
+        yTicks={[0, 1, 2]}
+      />
+    );
+
+    expect(
+      [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")].map(
+        (line) => line.textContent
+      )
+    ).toEqual(["Sijoitusmuutoskeskiarvo", "Sijoitusmuutoskeskiarvo"]);
+    expect(error.mock.calls.flat().join(" ")).not.toContain("same key");
+    error.mockRestore();
+  });
+
+  it("leaves a caption with no space whole", () => {
+    expect(captionLines("Sijoitusmuutoskeskimäärin", 100)).toEqual(["Sijoitusmuutoskeskimäärin"]);
+  });
+
+  it("prints a broken caption as two lines, the second towards the plot", () => {
+    const { container } = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 1 }] }]}
+        title="Sijoitusten vaihtelu"
+        xDomain={[1, 2]}
+        xLabel="Kausi"
+        xTicks={[1, 2]}
+        yDomain={[0, 2]}
+        yLabel="Sijoitusmuutos keskimäärin"
+        yTicks={[0, 1, 2]}
+      />
+    );
+    const lines = [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")];
+
+    expect(lines.map((line) => line.textContent)).toEqual(["Sijoitusmuutos", "keskimäärin"]);
+    expect(lines.map((line) => line.getAttribute("dy"))).toEqual([null, "1.2em"]);
   });
 });

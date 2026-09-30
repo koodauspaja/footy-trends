@@ -2,15 +2,20 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
+import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
-const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares } = vi.hoisted(() => ({
-  canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
-  getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
-  getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
-}));
+const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares, getTableVolatility } = vi.hoisted(
+  () => ({
+    canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
+    getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
+    getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
+    getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
+  })
+);
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
 vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
+vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
 // The prompt's sign-in flow is sign-in-prompt.test.tsx's; here it only has to
 // show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
@@ -27,13 +32,19 @@ import {
   HOME_ADVANTAGE_HEADING,
   IN_PROGRESS_NOTE,
   leftOutSentence,
+  MID_SEASON_NOTE,
   NO_OWN_MATCHES_MESSAGE,
   ROUNDING_NOTE,
   SEASON_BY_SEASON_HEADING,
   SIDE_BY_SIDE_HEADING,
   STORED_SEASONS_NOTE,
   seasonSentence,
+  seasonsLeftOutSentence,
   TOO_FEW_SEASONS_MESSAGE,
+  VOLATILITY_ERROR_MESSAGE,
+  VOLATILITY_HEADING,
+  VOLATILITY_TOO_FEW_MESSAGE,
+  volatilitySentence,
   windowSentence,
 } from "@/components/competition-analytics";
 
@@ -83,6 +94,18 @@ const shares: OutcomeShares = {
   spanningYears: { first: 2023, last: 2025 },
 };
 
+const volatility: TableVolatilitySeries = {
+  status: "ok",
+  points: [
+    { seasonId: 2022, change: 1.55, teams: 20 },
+    { seasonId: 2023, change: 2.1, teams: 20 },
+    { seasonId: 2024, change: 1.8, teams: 19 },
+  ],
+  yDomain: [0, 3],
+  yTicks: [0, 1, 2, 3],
+  leftOut: 0,
+};
+
 const seasonLabel = (season: number) => `${season}/${String(season + 1).slice(2)}`;
 
 async function renderSection({
@@ -111,6 +134,8 @@ beforeEach(() => {
   canSeeAnalytics.mockResolvedValue(true);
   getGoalsPerGame.mockResolvedValue(series);
   getOutcomeShares.mockResolvedValue(shares);
+  getTableVolatility.mockReset();
+  getTableVolatility.mockResolvedValue(volatility);
 });
 
 describe("the strings the spec agreed", () => {
@@ -131,6 +156,11 @@ describe("the strings the spec agreed", () => {
 });
 
 describe("CompetitionAnalyticsSection, signed in", () => {
+  /** Goals per game's own panel: the section holds another chart since specs/050. */
+  function goalsPanel() {
+    return screen.getByRole("region", { name: GOALS_PER_GAME_HEADING });
+  }
+
   it("puts the panel under Analyysit and Kausi kaudelta, in that order", async () => {
     await renderSection();
 
@@ -141,6 +171,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       ["H2", ANALYTICS_HEADING],
       ["H3", SEASON_BY_SEASON_HEADING],
       ["H4", GOALS_PER_GAME_HEADING],
+      ["H4", VOLATILITY_HEADING],
       ["H3", SIDE_BY_SIDE_HEADING],
       ["H4", HOME_ADVANTAGE_HEADING],
     ]);
@@ -153,7 +184,8 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   });
 
   it("draws one point per season, the page's own season ringed (S11)", async () => {
-    const { container } = await renderSection();
+    await renderSection();
+    const container = goalsPanel();
     const points = container.querySelectorAll("[data-part=points] circle:not([data-marked])");
     const rings = container.querySelectorAll("[data-marked]");
 
@@ -163,13 +195,15 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   });
 
   it("rings nothing when the page shows a season the line does not draw", async () => {
-    const { container } = await renderSection({ selectedSeasonId: 2022 });
+    await renderSection({ selectedSeasonId: 2022 });
+    const container = goalsPanel();
 
     expect(container.querySelector("[data-marked]")).toBeNull();
   });
 
   it("labels seasons as the page does, and notes the one in progress under its tick (S15)", async () => {
-    const { container } = await renderSection();
+    await renderSection();
+    const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
     const notes = container.querySelectorAll("[data-part=tick-note]");
 
@@ -194,14 +228,16 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       })),
       leftOut: [],
     });
-    const { container } = await renderSection({ kind: "taso", competitionCode: "VL" });
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+    const container = goalsPanel();
     const hidden = container.querySelectorAll("[data-part=x-axis] text.max-sm\\:hidden");
 
     expect(hidden).toHaveLength(6);
   });
 
   it("prints the y-axis the Finnish way, from the series' own zoom (S13)", async () => {
-    const { container } = await renderSection();
+    await renderSection();
+    const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=y-axis] text")].slice(0, -1);
 
     expect(ticks.map((tick) => tick.textContent)).toEqual(["2,5", "3,0", "3,5"]);
@@ -209,8 +245,8 @@ describe("CompetitionAnalyticsSection, signed in", () => {
 
   it("gives the chart a text alternative, one sentence per season", async () => {
     await renderSection();
-    const chart = screen.getByRole("img");
-    const text = screen.getByRole("list");
+    const chart = within(goalsPanel()).getByRole("img");
+    const text = within(goalsPanel()).getByRole("list");
 
     expect(chart).toHaveAccessibleName(GOALS_PER_GAME_HEADING);
     expect(chart.getAttribute("aria-describedby")).toBe(text.id);
@@ -239,7 +275,8 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     "says so for %s, under the same headings and without a chart",
     async (_name, result, message) => {
       getGoalsPerGame.mockResolvedValue(result);
-      const { container } = await renderSection();
+      await renderSection();
+      const container = goalsPanel();
 
       expect(screen.getByText(message)).toBeInTheDocument();
       expect(
@@ -266,6 +303,7 @@ describe("CompetitionAnalyticsSection, signed out (S4)", () => {
     expect(container.querySelector("table")).toBeNull();
     expect(getGoalsPerGame).not.toHaveBeenCalled();
     expect(getOutcomeShares).not.toHaveBeenCalled();
+    expect(getTableVolatility).not.toHaveBeenCalled();
   });
 });
 
@@ -284,6 +322,7 @@ describe("CompetitionAnalyticsSection where the spec has none (S5)", () => {
       expect(canSeeAnalytics).not.toHaveBeenCalled();
       expect(getGoalsPerGame).not.toHaveBeenCalled();
       expect(getOutcomeShares).not.toHaveBeenCalled();
+      expect(getTableVolatility).not.toHaveBeenCalled();
     }
   );
 });
@@ -408,5 +447,113 @@ describe("Kotietu ja tasapelit", () => {
     expect(panel().queryByRole("table")).toBeNull();
     expect(panel().queryByText(ROUNDING_NOTE)).toBeNull();
     expect(container.querySelector("svg")).not.toBeNull();
+  });
+});
+
+describe("the table-movement strings (specs/050)", () => {
+  it("uses the agreed Finnish", () => {
+    expect(VOLATILITY_HEADING).toBe("Sijoitusten vaihtelu");
+    expect(MID_SEASON_NOTE).toBe("Puoliväli: kun puolet kauden kierroksista on pelattu.");
+    expect(VOLATILITY_TOO_FEW_MESSAGE).toBe(
+      "Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta."
+    );
+    expect(VOLATILITY_ERROR_MESSAGE).toBe(
+      "Sijoitusten vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen."
+    );
+    expect(volatilitySentence({ seasonId: 2024, change: 2.1, teams: 12 }, "2024")).toBe(
+      "Kausi 2024: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (12 joukkuetta)."
+    );
+  });
+
+  it("counts the seasons left out in the singular and the plural (S15)", () => {
+    expect(seasonsLeftOutSentence(1)).toBe(
+      "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
+    );
+    expect(seasonsLeftOutSentence(2)).toBe(
+      "2 kautta puuttuu, koska niiden kierroskohtaisia taulukoita ei voida laskea."
+    );
+  });
+});
+
+describe("Sijoitusten vaihtelu", () => {
+  function panel() {
+    return within(screen.getByRole("region", { name: VOLATILITY_HEADING }));
+  }
+
+  it("asks for the competition's own seasons, with the season in progress", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+
+    expect(getTableVolatility).toHaveBeenCalledWith("taso", "VL", 2025);
+  });
+
+  it("draws one point per season from 0, the page's own ringed (S5, S13)", async () => {
+    await renderSection({ selectedSeasonId: 2023 });
+    const chart = panel().getByRole("img");
+    const points = chart.querySelectorAll("[data-part=points] circle:not([data-marked])");
+    const ring = chart.querySelector("[data-marked]");
+    const yTicks = [...chart.querySelectorAll("[data-part=y-axis] text")]
+      .slice(0, -1)
+      .map((tick) => tick.textContent);
+
+    expect(points).toHaveLength(3);
+    expect(ring?.getAttribute("cx")).toBe(points[1]?.getAttribute("cx"));
+    expect(yTicks).toEqual(["0", "1", "2", "3"]);
+  });
+
+  it("rings nothing when the page shows a season with no point", async () => {
+    await renderSection({ selectedSeasonId: 2025 });
+
+    expect(panel().getByRole("img").querySelector("[data-marked]")).toBeNull();
+  });
+
+  it("gives the chart a text alternative, one sentence per season with its team count (S12)", async () => {
+    await renderSection();
+    const chart = panel().getByRole("img");
+    const text = panel().getByRole("list");
+
+    expect(chart.getAttribute("aria-describedby")).toBe(text.id);
+    expect(
+      within(text)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual([
+      "Kausi 2022/23: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 1,6 sijaa (20 joukkuetta).",
+      "Kausi 2023/24: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 2,1 sijaa (20 joukkuetta).",
+      "Kausi 2024/25: sijoitus muuttui kauden puolivälistä loppuun keskimäärin 1,8 sijaa (19 joukkuetta).",
+    ]);
+  });
+
+  it("says what mid-season means, and nothing about left-out seasons when none is", async () => {
+    await renderSection();
+
+    expect(panel().getByText(MID_SEASON_NOTE)).toBeInTheDocument();
+    expect(panel().queryByText(/puuttuu/)).toBeNull();
+  });
+
+  it("counts the seasons left out under the chart (S9)", async () => {
+    getTableVolatility.mockResolvedValue({ ...volatility, leftOut: 2 } as TableVolatilitySeries);
+    await renderSection();
+
+    expect(panel().getByText(seasonsLeftOutSentence(2))).toBeInTheDocument();
+  });
+
+  it.each([
+    ["too few seasons", { status: "too-few" }, VOLATILITY_TOO_FEW_MESSAGE],
+    ["a failed read", { status: "error" }, VOLATILITY_ERROR_MESSAGE],
+  ] as const)("says so for %s, without a chart", async (_name, result, message) => {
+    getTableVolatility.mockResolvedValue(result);
+    await renderSection();
+
+    expect(panel().getByText(message)).toBeInTheDocument();
+    expect(panel().queryByRole("img")).toBeNull();
+    expect(panel().queryByText(MID_SEASON_NOTE)).toBeNull();
+  });
+
+  it("has no panel on the Champions League, whose later rounds leave no final table (S10)", async () => {
+    await renderSection({ competitionCode: "CL" });
+
+    expect(screen.queryByRole("region", { name: VOLATILITY_HEADING })).toBeNull();
+    expect(screen.getByRole("region", { name: GOALS_PER_GAME_HEADING })).toBeInTheDocument();
+    expect(getTableVolatility).not.toHaveBeenCalled();
   });
 });
