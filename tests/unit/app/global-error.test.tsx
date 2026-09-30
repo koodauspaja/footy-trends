@@ -37,10 +37,15 @@ describe("GlobalError", () => {
     // console, so the warning showed only in CI's log.
     const consoleError = vi.spyOn(console, "error");
 
-    renderDocument(failure);
+    // Restored in `finally`: a failing assertion would otherwise leave the spy
+    // on `console.error` for every later test in the file.
+    try {
+      renderDocument(failure);
 
-    expect(consoleError).not.toHaveBeenCalled();
-    consoleError.mockRestore();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("renders Next's generic error page rather than nothing", () => {
