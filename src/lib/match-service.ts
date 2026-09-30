@@ -249,6 +249,18 @@ async function tasoHistory(
 const FINISHED_STATUS = "FINISHED";
 
 /**
+ * A football-data match's goals after extra time, each side's.
+ *
+ * The stored score is the provider's `fullTime`, which **includes** a penalty
+ * shoot-out: Liverpool "1–5" PSG (Champions League, 2024/25) was 0–1 with
+ * penalties 1–4. A shoot-out is neither goals (specs/044, specs/048) nor the
+ * result (specs/049, S3), so every aggregate here subtracts it where stored.
+ * TASO's score never includes one. See #492.
+ */
+const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0))`;
+const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0))`;
+
+/**
  * A competition's goals per game in each stored season, for its standings page
  * (specs/048), or `error` — a failed read is its own case, never "too few".
  *
@@ -279,7 +291,7 @@ async function footballDataSeasonGoals(code: string): Promise<SeasonGoals[]> {
     .select({
       seasonId: matches.seasonId,
       matches: sql<number>`count(*)::int`,
-      goals: sql<number>`sum(${matches.homeGoals} + ${matches.awayGoals})::int`,
+      goals: sql<number>`sum(${FOOTBALL_DATA_HOME_GOALS} + ${FOOTBALL_DATA_AWAY_GOALS})::int`,
     })
     .from(matches)
     .where(
@@ -362,10 +374,8 @@ function outcomeCounts(
 }
 
 async function footballDataSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
-  // The stored score includes a shoot-out, which is not part of the result
-  // (S3): Liverpool "1–5" PSG was 0–1 with penalties 1–4.
-  const home = sql`${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0)`;
-  const away = sql`${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0)`;
+  const home = FOOTBALL_DATA_HOME_GOALS;
+  const away = FOOTBALL_DATA_AWAY_GOALS;
   const rows = await db
     .select({
       code: matches.competitionCode,
@@ -587,8 +597,8 @@ async function averageFor(scope: CompetitionScope): Promise<ScoreAverage> {
     scope.kind === "football-data"
       ? await db
           .select({
-            home: sql<number | null>`avg(${matches.homeGoals})::float8`,
-            away: sql<number | null>`avg(${matches.awayGoals})::float8`,
+            home: sql<number | null>`avg(${FOOTBALL_DATA_HOME_GOALS})::float8`,
+            away: sql<number | null>`avg(${FOOTBALL_DATA_AWAY_GOALS})::float8`,
           })
           .from(matches)
           .where(
