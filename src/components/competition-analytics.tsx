@@ -18,6 +18,12 @@ import {
   type SeasonRange,
 } from "@/lib/outcome-shares";
 import { formatSeasonLabel } from "@/lib/seasons";
+import {
+  hasTableVolatility,
+  type TableVolatilitySeries,
+  type VolatilityPoint,
+} from "@/lib/table-volatility";
+import { getTableVolatility } from "@/lib/table-volatility-service";
 
 /** The strings agreed in specs/048, each where the spec places it. */
 export const SEASON_BY_SEASON_HEADING = "Kausi kaudelta";
@@ -28,6 +34,12 @@ export const GOALS_PER_GAME_ERROR_MESSAGE =
   "Maalikeskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const STORED_SEASONS_NOTE = "Perustuu tallennettuihin kausiin.";
 export const IN_PROGRESS_NOTE = "(kesken)";
+export const VOLATILITY_HEADING = "Sijoitusten vaihtelu";
+export const VOLATILITY_TOO_FEW_MESSAGE =
+  "Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.";
+export const VOLATILITY_ERROR_MESSAGE =
+  "Sijoitusten vaihtelua ei voitu laskea. Yritä myöhemmin uudelleen.";
+export const MID_SEASON_NOTE = "Puoliväli: kun puolet kauden kierroksista on pelattu.";
 export const SIDE_BY_SIDE_HEADING = "Kilpailut rinnakkain";
 export const HOME_ADVANTAGE_HEADING = "Kotietu ja tasapelit";
 export const HOME_ADVANTAGE_ERROR_MESSAGE = "Kotietua ei voitu laskea. Yritä myöhemmin uudelleen.";
@@ -38,6 +50,7 @@ export const ROUNDING_NOTE =
 const SECTION_ID = "competition-analytics";
 const GROUP_ID = "competition-analytics-by-season";
 const PANEL_ID = "goals-per-game";
+const VOLATILITY_ID = "table-volatility";
 const SIDE_BY_SIDE_ID = "competition-analytics-side-by-side";
 const HOME_ADVANTAGE_ID = "home-advantage";
 
@@ -53,6 +66,18 @@ export function leftOutSentence(label: string): string {
 export function seasonSentence(point: GoalsPerGamePoint, label: string): string {
   const season = point.inProgress ? `${label} ${IN_PROGRESS_NOTE}` : label;
   return `Kausi ${season}: ${formatDecimal(point.perGame)} maalia ottelua kohden, ${point.matches} ottelua.`;
+}
+
+/** One row of the movement chart's text alternative (specs/050, S15). */
+export function volatilitySentence(point: VolatilityPoint, label: string): string {
+  return `Kausi ${label}: sijoitus muuttui kauden puolivälistä loppuun keskimäärin ${formatDecimal(point.change)} sijaa (${point.teams} joukkuetta).`;
+}
+
+/** The completed seasons with no point, counted (specs/050, S9, S15). */
+export function seasonsLeftOutSentence(count: number): string {
+  return count === 1
+    ? "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
+    : `${count} kautta puuttuu, koska niiden kierroskohtaisia taulukoita ei voida laskea.`;
 }
 
 /** `Kotietu` as printed: signed, with a real minus (specs/049, S5). */
@@ -124,8 +149,8 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 
 /**
  * The competition standings page's `Analyysit` (specs/048): `Kausi kaudelta`,
- * holding goals per game, then `Kilpailut rinnakkain`, holding home advantage
- * and draws (specs/049, S12). #342 joins them.
+ * holding goals per game and, on a league, table movement (specs/050), then
+ * `Kilpailut rinnakkain`, holding home advantage and draws (specs/049, S12).
  *
  * **Its sign-in rules are the ones the team page's `Analyysit` follows**
  * (specs/048, S4): no section at all on a competition S5 does not name; the
@@ -158,8 +183,11 @@ export async function CompetitionAnalyticsSection({
     );
   }
 
-  const [series, shares] = await Promise.all([
+  const [series, volatility, shares] = await Promise.all([
     getGoalsPerGame(kind, competitionCode, activeSeasonId),
+    hasTableVolatility(kind, competitionCode)
+      ? getTableVolatility(kind, competitionCode, activeSeasonId)
+      : null,
     getOutcomeShares(),
   ]);
   return (
@@ -172,6 +200,15 @@ export async function CompetitionAnalyticsSection({
             seasonLabel={seasonLabel}
           />
         </ChartPanel>
+        {volatility === null ? null : (
+          <ChartPanel heading={VOLATILITY_HEADING} headingId={VOLATILITY_ID}>
+            <VolatilityBody
+              seasonLabel={seasonLabel}
+              selectedSeasonId={selectedSeasonId}
+              series={volatility}
+            />
+          </ChartPanel>
+        )}
       </Group>
       <Group heading={SIDE_BY_SIDE_HEADING} id={SIDE_BY_SIDE_ID}>
         <ChartPanel heading={HOME_ADVANTAGE_HEADING} headingId={HOME_ADVANTAGE_ID}>
@@ -292,6 +329,64 @@ function GoalsPerGameBody({
         </p>
       ))}
       <p className="mt-2 text-muted text-sm">{STORED_SEASONS_NOTE}</p>
+    </div>
+  );
+}
+
+/**
+ * How far the table moved after mid-season in each completed season (specs/050):
+ * a line from 0, the page's own season ringed when it has a point (S13), what
+ * mid-season means, and how many seasons have none (S9).
+ */
+function VolatilityBody({
+  series,
+  selectedSeasonId,
+  seasonLabel,
+}: Readonly<{
+  series: TableVolatilitySeries;
+  selectedSeasonId: number;
+  seasonLabel: SeasonLabel;
+}>) {
+  if (series.status === "error") return <p>{VOLATILITY_ERROR_MESSAGE}</p>;
+  if (series.status === "too-few") return <p>{VOLATILITY_TOO_FEW_MESSAGE}</p>;
+
+  const textId = `${VOLATILITY_ID}-text`;
+  // An `ok` series has at least two points (S11), so both ends exist.
+  const seasons = series.points.map((point) => point.seasonId);
+  return (
+    <div>
+      <LineChart
+        describedBy={textId}
+        formatXTick={seasonLabel}
+        labelledBy={VOLATILITY_ID}
+        series={[
+          {
+            name: "table-volatility",
+            points: series.points.map((point) => ({
+              x: point.seasonId,
+              y: point.change,
+              marked: point.seasonId === selectedSeasonId,
+            })),
+          },
+        ]}
+        thinXTicksOnPhone
+        title={VOLATILITY_HEADING}
+        xDomain={[Math.min(...seasons), Math.max(...seasons)]}
+        xLabel="Kausi"
+        xTicks={seasons}
+        yDomain={series.yDomain}
+        yLabel="Sijoitusmuutos keskimäärin"
+        yTicks={series.yTicks}
+      />
+      <ol className="sr-only" id={textId}>
+        {series.points.map((point) => (
+          <li key={point.seasonId}>{volatilitySentence(point, seasonLabel(point.seasonId))}</li>
+        ))}
+      </ol>
+      <p className="mt-2 text-muted text-sm">{MID_SEASON_NOTE}</p>
+      {series.leftOut === 0 ? null : (
+        <p className="mt-2 text-muted text-sm">{seasonsLeftOutSentence(series.leftOut)}</p>
+      )}
     </div>
   );
 }

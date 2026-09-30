@@ -7,6 +7,7 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getTasoSeasonMovements,
   getTeamCleanSheetSeries,
   getTeamComebacks,
   getTeamFormSeries,
@@ -2922,6 +2923,227 @@ describe("getTeamPositionSeries", () => {
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
     expect(getSeasonGroupsMock).not.toHaveBeenCalled();
     expect(getCachedMock).not.toHaveBeenCalled();
+  });
+
+  describe("a season's table movement (specs/050)", () => {
+    /** The split fixture, filed under the season its competition id names. */
+    const inSeason = <T extends { seasonId: number }>(rows: T[], seasonId = 2025) =>
+      rows.map((row) => ({ ...row, seasonId }));
+
+    async function movementsFor(matches: unknown[], rows: unknown[], code = LEAGUE, active = 2026) {
+      mockStoredMatches(matches, rows);
+      return getTasoSeasonMovements(code, active);
+    }
+
+    /**
+     * The season's figure recomputed from what the standings page shows: the
+     * regular season's table after `halfway`, and the split groups' final
+     * tables with the lower one below both teams of the upper one.
+     */
+    async function fromStandingsPage(
+      matches: ReturnType<typeof game>[],
+      rows: unknown[],
+      halfway: number
+    ) {
+      const positions = async (round: number | undefined) => {
+        mockStoredMatches(matches, rows);
+        const standings = await getSeasonStandings(
+          LEAGUE,
+          SPLIT_SEASON,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          round
+        );
+        return standings.groups;
+      };
+      const midGroups = await positions(halfway);
+      const mid = new Map(
+        midGroups
+          .filter((group) => group.groupId === 1 && group.kind === "own-calculated")
+          .flatMap((group) => (group.kind === "own-calculated" ? group.standings : []))
+          .map((team) => [team.teamProviderId, team.position])
+      );
+      const finalGroups = await positions(undefined);
+      const final = new Map(
+        finalGroups.flatMap((group) =>
+          group.kind === "own-calculated" && group.groupId !== 1
+            ? group.standings.map(
+                (team) =>
+                  [
+                    team.teamProviderId,
+                    // The lower group sits below both teams of the upper one.
+                    team.position + (group.groupId === 3 ? 2 : 0),
+                  ] as const
+              )
+            : []
+        )
+      );
+      return [1, 2, 3, 4].reduce(
+        (sum, team) =>
+          sum + Math.abs((final.get(team) ?? Number.NaN) - (mid.get(team) ?? Number.NaN)),
+        0
+      );
+    }
+
+    it("sets every team's position after round ⌈R / 2⌉ against its combined final one (S1, S7, S8)", async () => {
+      // Three regular rounds and one after the split: R = 4, halfway is round 2.
+      // Team 3 wins the lower group, so it ends 3rd only by counting the upper
+      // group's two teams above it.
+      const matches = splitSeason(SPLIT_SEASON).map((row) =>
+        row.groupId === 3 ? { ...row, homeGoals: 0, awayGoals: 2 } : row
+      );
+      const rows = verifiedRows(matches, SPLIT_SEASON);
+      const expected = await fromStandingsPage(matches, rows, 2);
+
+      const [season] = await movementsFor(inSeason(matches), inSeason(rows));
+
+      expect(season).toEqual({ seasonId: 2025, movement: { total: expected, teams: 4 } });
+      // Halfway 1, 3, 2, 4 → final 1, 2, 3, 4.
+      expect(expected).toBe(2);
+    });
+
+    it("counts the continuation's rounds, renumbered, in R (S7)", async () => {
+      // A second round after the split, which TASO numbers 2 in each split group
+      // and the standings page renumbers 5: R = 5, halfway is round 3.
+      const matches = [
+        ...splitSeason(SPLIT_SEASON),
+        game(SPLIT_SEASON, 2, 2, 1, 2, [1, 1]),
+        game(SPLIT_SEASON, 3, 2, 3, 4, [1, 1]),
+      ];
+      const rows = verifiedRows(matches, SPLIT_SEASON);
+      const expected = await fromStandingsPage(matches, rows, 3);
+
+      const [season] = await movementsFor(inSeason(matches), inSeason(rows));
+
+      expect(season?.movement).toEqual({ total: expected, teams: 4 });
+      // After round 2 it would have been 4.
+      expect(expected).toBe(2);
+    });
+
+    it("measures a league that never splits in its one table, as the standings page shows it", async () => {
+      // Three rounds: halfway is round 2.
+      const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+      const rows = verifiedRows(matches, SPLIT_SEASON);
+      const table = async (round: number | undefined) => {
+        mockStoredMatches(matches, rows);
+        const { groups } = await getSeasonStandings(
+          LEAGUE,
+          SPLIT_SEASON,
+          PAST_SEASON,
+          ACTIVE_SEASON,
+          round
+        );
+        const group = groups[0];
+        return new Map(
+          (group?.kind === "own-calculated" ? group.standings : []).map((team) => [
+            team.teamProviderId,
+            team.position,
+          ])
+        );
+      };
+      const [mid, final] = [await table(2), await table(undefined)];
+      const expected = [1, 2, 3, 4].reduce(
+        (sum, team) =>
+          sum + Math.abs((final.get(team) ?? Number.NaN) - (mid.get(team) ?? Number.NaN)),
+        0
+      );
+
+      const [season] = await movementsFor(inSeason(matches), inSeason(rows));
+
+      expect(season?.movement).toEqual({ total: expected, teams: 4 });
+      // Teams 2 and 3 swap places in round 3.
+      expect(expected).toBe(2);
+    });
+
+    it("has no figure when the continuation does not reconcile, or the regular season has no table (S9)", async () => {
+      const matches = splitSeason(SPLIT_SEASON);
+      const unreconciled = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+        row.groupId === 3 ? { ...row, points: (row.points ?? 0) + 5 } : row
+      );
+      const passThrough = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+        row.groupId === 1 ? { ...row, points: (row.points ?? 0) + 1 } : row
+      );
+
+      expect(await movementsFor(inSeason(matches), inSeason(unreconciled))).toEqual([
+        { seasonId: 2025, movement: null },
+      ]);
+      expect(await movementsFor(inSeason(matches), inSeason(passThrough))).toEqual([
+        { seasonId: 2025, movement: null },
+      ]);
+    });
+
+    it("has no figure for a season without a numbered round", async () => {
+      const matches = splitSeason(SPLIT_SEASON)
+        .filter((row) => row.groupId === 1)
+        .map((row) => ({ ...row, matchday: null }));
+
+      expect(
+        await movementsFor(inSeason(matches), inSeason(verifiedRows(matches, SPLIT_SEASON)))
+      ).toEqual([{ seasonId: 2025, movement: null }]);
+    });
+
+    it("adds Kakkonen's pools into one season, each team measured in its own pool (S10)", async () => {
+      const KAKKONEN = "M2";
+      const POOLS_SEASON = "spljp26";
+      const parents = new Map([
+        [4, 1],
+        [7, 1],
+        [5, 2],
+        [8, 2],
+      ]);
+      const matches = [
+        ...splitSeason(POOLS_SEASON, { regular: 1, upper: 4, lower: 7 }),
+        ...splitSeason(POOLS_SEASON, { regular: 2, upper: 5, lower: 8, teams: [11, 12, 13, 14] }),
+      ].map((row) => ({ ...row, categoryId: KAKKONEN }));
+      const rows = [1, 2, 4, 5, 7, 8].flatMap((groupId) =>
+        rowsFor(matches, POOLS_SEASON, groupId, parents.get(groupId) ?? null).map((row) => ({
+          ...row,
+          categoryId: KAKKONEN,
+        }))
+      );
+      const onePool = matches.filter((row) => [1, 4, 7].includes(row.groupId));
+      const onePoolRows = rows.filter((row) => [1, 4, 7].includes(row.groupId));
+
+      const [both] = await movementsFor(
+        inSeason(matches, 2026),
+        inSeason(rows, 2026),
+        KAKKONEN,
+        2027
+      );
+      const [pool] = await movementsFor(
+        inSeason(onePool, 2026),
+        inSeason(onePoolRows, 2026),
+        KAKKONEN,
+        2027
+      );
+
+      // The two pools are the same fixture, so each moves as much as the other.
+      expect(both?.movement).toEqual({
+        total: (pool?.movement?.total ?? Number.NaN) * 2,
+        teams: 8,
+      });
+    });
+
+    it("keeps each season to its own competition and category, and asks TASO nothing (S4)", async () => {
+      const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
+      const rows = verifiedRows(matches, SPLIT_SEASON);
+      const cup = matches.map((row) => ({
+        ...row,
+        providerMatchId: row.providerMatchId + 50_000,
+        competitionCode: "Liigacup25",
+      }));
+
+      const seasons = await movementsFor(
+        [...inSeason(matches), ...inSeason(cup), ...inSeason(matches, 2024)],
+        inSeason(rows)
+      );
+
+      // 2024's rows sit under 2025's competition id: nobody's.
+      expect(seasons.map((season) => season.seasonId)).toEqual([2025]);
+      expect(seasons[0]?.movement?.teams).toBe(4);
+      expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+      expect(getSeasonGroupsMock).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -87,6 +87,22 @@ function phoneWidth(label: string): number {
   return label.length * GLYPH_WIDTH * PHONE_AXIS_UNITS;
 }
 
+/**
+ * The y-axis caption as the lines it prints on: one, unless it is longer than
+ * the plot is tall at a phone's font, when it breaks at the space nearest its
+ * middle — `Sijoitusmuutos keskimäärin` (specs/050) ran off both ends of the
+ * drawing at 375 px. A caption with no space stays whole.
+ */
+export function captionLines(label: string, plotHeight: number): string[] {
+  if (phoneWidth(label) <= plotHeight) return [label];
+  const middle = label.length / 2;
+  const breakAt = [...label]
+    .map((character, index) => (character === " " ? index : -1))
+    .filter((index) => index !== -1)
+    .sort((left, right) => Math.abs(left - middle) - Math.abs(right - middle))[0];
+  return breakAt === undefined ? [label] : [label.slice(0, breakAt), label.slice(breakAt + 1)];
+}
+
 /** Whether any two neighbouring labels, centred at `x`, would touch on a phone. */
 function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolean {
   let previousEnd = Number.NEGATIVE_INFINITY;
@@ -261,7 +277,12 @@ export function LineChart({
           x={0}
           y={0}
         >
-          {yLabel}
+          {captionLines(yLabel, bottom - top).map((line, index) => (
+            // Rotated, a positive `dy` moves the next line towards the plot.
+            <tspan dy={index === 0 ? 0 : "1.2em"} key={line} x={0}>
+              {line}
+            </tspan>
+          ))}
         </text>
       </g>
 

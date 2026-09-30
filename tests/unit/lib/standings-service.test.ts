@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedProviderMatch } from "@/lib/football-data";
+import { toFinishedMatches } from "@/lib/standings";
 import {
   getCupSeason,
   getMaxMatchday,
   getRoundMatches,
+  getSeasonMovements,
   getStandings,
   getTeamCleanSheetSeries,
   getTeamComebacks,
@@ -17,6 +19,7 @@ import {
   getTeamStreaks,
   synchronizeMatches,
 } from "@/lib/standings-service";
+import { singleTableMovement } from "@/lib/table-volatility";
 import { warmModules } from "../../support/warm-module";
 
 const {
@@ -2151,5 +2154,54 @@ describe("getTeamSeasonComparison", () => {
       expect.objectContaining({ competitionCode: COMPETITION_CODE }),
       "Unable to compare the season with the club's others"
     );
+  });
+});
+
+describe("getSeasonMovements (specs/050)", () => {
+  /** A round-robin of three teams over `rounds` rounds, one match a round. */
+  function season(seasonId: number, results: Array<[number, number, number, [number, number]]>) {
+    return results.map(([matchday, home, away, [homeGoals, awayGoals]]) =>
+      storedMatch({
+        providerMatchId: seasonId * 100 + matchday,
+        seasonId,
+        matchday,
+        homeTeamProviderId: home,
+        homeTeamName: `Team ${home}`,
+        awayTeamProviderId: away,
+        awayTeamName: `Team ${away}`,
+        homeGoals,
+        awayGoals,
+        updatedAt: new Date("2025-06-01T00:00:00Z"),
+      })
+    );
+  }
+
+  it("measures each stored season from its own rows, and asks no provider (S1, S4)", async () => {
+    const first = season(2023, [
+      [1, 1, 2, [1, 0]],
+      [2, 2, 3, [1, 0]],
+      [3, 3, 1, [2, 0]],
+      [4, 2, 1, [3, 0]],
+    ]);
+    const second = season(2024, [
+      [1, 1, 2, [0, 0]],
+      [2, 3, 1, [1, 0]],
+    ]);
+    mockStoredMatches([...second, ...first]);
+
+    const movements = await getSeasonMovements(COMPETITION_CODE, ACTIVE_SEASON);
+
+    expect(movements).toEqual([
+      { seasonId: 2024, movement: singleTableMovement(toFinishedMatches(second), second) },
+      { seasonId: 2023, movement: singleTableMovement(toFinishedMatches(first), first) },
+    ]);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+  });
+
+  it("has no season at all when nothing is stored, rather than asking the provider", async () => {
+    mockStoredMatches([]);
+
+    await expect(getSeasonMovements(COMPETITION_CODE, ACTIVE_SEASON)).resolves.toEqual([]);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
   });
 });
