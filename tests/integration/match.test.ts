@@ -370,7 +370,15 @@ describe("the competition averages (specs/044)", () => {
   it("averages exactly the football-data seasons given, finished matches only", async () => {
     await db.insert(matches).values([
       footballDataRow({ providerMatchId: 991001, homeGoals: 3, awayGoals: 1 }),
-      footballDataRow({ providerMatchId: 991002, homeGoals: 0, awayGoals: 0 }),
+      // A 0–0 settled on penalties, stored with the shoot-out in it (#492):
+      // its goals are 0–0.
+      footballDataRow({
+        providerMatchId: 991002,
+        homeGoals: 3,
+        awayGoals: 4,
+        penaltiesHome: 3,
+        penaltiesAway: 4,
+      }),
       // Another season of the same competition: outside the scope (S7).
       footballDataRow({
         providerMatchId: 991003,
@@ -631,8 +639,12 @@ describe("a competition's goals per game (specs/048)", () => {
         providerMatchId: 991006,
         competitionCode: FD_CODE,
         stage: "PLAYOFFS",
-        homeGoals: 0,
-        awayGoals: 0,
+        // 0–0 settled on penalties, stored with the shoot-out in it: no goals
+        // (#492).
+        homeGoals: 4,
+        awayGoals: 3,
+        penaltiesHome: 4,
+        penaltiesAway: 3,
       }),
       ...fiveOf(
         (id) =>
