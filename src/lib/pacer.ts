@@ -12,7 +12,7 @@ export const FOOTBALL_DATA_PER_MINUTE = 9;
 
 /**
  * TASO publishes no limit, so there is no maximum to take a percentage of;
- * one a second is well under what /kotimaa page views already ask of it.
+ * one a second is well under what the domestic pages' views already ask of it.
  */
 export const TASO_PER_MINUTE = 60;
 

@@ -182,16 +182,21 @@ export type PredictionRunReport = {
  * A competition that fails to refresh is still logged from what is stored,
  * and one whose baseline fails is skipped; either is reported, so the run
  * exits non-zero while the others are logged. A failed write fails the run.
+ *
+ * The clock is read again just before writing: pacing the refreshes can take
+ * minutes, and a match that kicked off in the meantime must not be written
+ * after its kickoff (S5).
  */
 export async function runPredictionLog(
-  now: Date = new Date(),
+  clock: () => Date = () => new Date(),
   paced: Record<MatchSource["kind"], Paced> = {
     "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
     taso: createPacer(TASO_PER_MINUTE),
   }
 ): Promise<PredictionRunReport> {
   const failures: string[] = [];
-  const targets = refreshTargets(await readCandidates(now), now);
+  const startedAt = clock();
+  const targets = refreshTargets(await readCandidates(startedAt), startedAt);
 
   let refreshed = 0;
   for (const target of targets) {
@@ -205,20 +210,27 @@ export async function runPredictionLog(
   }
 
   // Read again: the refresh may have moved a kickoff or finished a match (S4, S5).
-  const loggable = (await readCandidates(now)).filter((candidate) => isLoggable(candidate, now));
+  const candidates = await readCandidates(startedAt);
   const baselines = new Map<string, HomeBaseline>();
-  const rows: PredictionRow[] = [];
-  for (const candidate of loggable) {
+  for (const candidate of candidates.filter((match) => isLoggable(match, startedAt))) {
     const key = `${candidate.source}:${candidate.code}`;
-    let baseline = baselines.get(key);
-    if (baseline === undefined) {
-      baseline = await getHomeBaseline(candidate.source, candidate.code);
-      baselines.set(key, baseline);
-      if (baseline.status === "error") failures.push(`baseline ${key}`);
-    }
-    const row = liveRow(candidate, baseline, HOME_BASELINE_MODEL, now);
-    if (row !== null) rows.push(row);
+    if (baselines.has(key)) continue;
+    const baseline = await getHomeBaseline(candidate.source, candidate.code);
+    baselines.set(key, baseline);
+    if (baseline.status === "error") failures.push(`baseline ${key}`);
   }
+
+  const writtenAt = clock();
+  const rows = candidates
+    .filter((candidate) => isLoggable(candidate, writtenAt))
+    .flatMap((candidate) => {
+      const baseline = baselines.get(`${candidate.source}:${candidate.code}`);
+      const row =
+        baseline === undefined
+          ? null
+          : liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt);
+      return row === null ? [] : [row];
+    });
 
   await writePredictions(rows);
   return { refreshed, logged: rows.length, failures };

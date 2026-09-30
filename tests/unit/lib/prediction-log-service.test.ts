@@ -122,7 +122,7 @@ describe("runPredictionLog (specs/052)", () => {
   it("refreshes each provider's competition through its paced, cached fetch and stores it", async () => {
     stored([footballDataRow()], [tasoRow()]);
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(immediate["football-data"]).toHaveBeenCalledTimes(1);
     expect(immediate.taso).toHaveBeenCalledTimes(1);
@@ -139,7 +139,7 @@ describe("runPredictionLog (specs/052)", () => {
       [tasoRow()]
     );
 
-    await runPredictionLog(NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
 
     expect(written()).toEqual([
       expect.objectContaining({ source: "football-data", providerMatchId: 1, kind: "live" }),
@@ -164,7 +164,7 @@ describe("runPredictionLog (specs/052)", () => {
       []
     );
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).toHaveBeenCalledTimes(1);
     expect(report).toEqual({ refreshed: 1, logged: 0, failures: [] });
@@ -176,7 +176,7 @@ describe("runPredictionLog (specs/052)", () => {
       []
     );
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).not.toHaveBeenCalled();
     expect(report).toEqual({ refreshed: 0, logged: 0, failures: [] });
@@ -188,7 +188,7 @@ describe("runPredictionLog (specs/052)", () => {
       [tasoRow({ competitionId: "Liigacup26", categoryId: "VL" }), tasoRow({ categoryId: "MSC" })]
     );
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getTasoSeasonMatches).not.toHaveBeenCalled();
     expect(report.logged).toBe(0);
@@ -198,7 +198,7 @@ describe("runPredictionLog (specs/052)", () => {
     stored([footballDataRow()], [tasoRow()]);
     mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.synchronizeTasoMatches).toHaveBeenCalled();
     expect(report).toEqual({
@@ -218,7 +218,7 @@ describe("runPredictionLog (specs/052)", () => {
       source === "taso" ? ({ status: "error" } as const) : baseline
     );
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(report.failures).toEqual(["baseline taso:VL"]);
     expect(written()).toEqual([expect.objectContaining({ source: "football-data" })]);
@@ -228,7 +228,7 @@ describe("runPredictionLog (specs/052)", () => {
     stored([footballDataRow()], []);
     mocks.getHomeBaseline.mockResolvedValue({ status: "empty" });
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(report).toEqual({ refreshed: 1, logged: 0, failures: [] });
   });
@@ -241,16 +241,34 @@ describe("runPredictionLog (specs/052)", () => {
       .mockResolvedValueOnce([footballDataRow({ status: "POSTPONED" })])
       .mockResolvedValueOnce([]);
 
-    const report = await runPredictionLog(NOW, immediate);
+    const report = await runPredictionLog(() => NOW, immediate);
 
     expect(report).toEqual({ refreshed: 1, logged: 0, failures: [] });
+  });
+
+  it("skips a match that kicked off while the run was refreshing, and stamps the write time (S5)", async () => {
+    stored(
+      [
+        footballDataRow({ kickoffAt: at(1) }),
+        footballDataRow({ providerMatchId: 3, kickoffAt: at(5) }),
+      ],
+      []
+    );
+    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(at(2));
+
+    const report = await runPredictionLog(clock, immediate);
+
+    expect(report.logged).toBe(1);
+    expect(written()).toEqual([
+      expect.objectContaining({ providerMatchId: 3, predictedAt: at(2) }),
+    ]);
   });
 
   it("fails the run when the write fails", async () => {
     stored([footballDataRow()], []);
     mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
 
-    await expect(runPredictionLog(NOW, immediate)).rejects.toThrow("connection reset");
+    await expect(runPredictionLog(() => NOW, immediate)).rejects.toThrow("connection reset");
   });
 });
 

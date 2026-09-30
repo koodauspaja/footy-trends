@@ -91,11 +91,37 @@ function rowsFor(id: number, kind: "live" | "backtest") {
 }
 
 describe("the hourly run (specs/052)", () => {
+  /**
+   * One finished match in each competition, well before the run and outside
+   * its 24-hour result window, so the baseline has history to predict from
+   * whatever else the database holds. CI's starts empty; a run with no
+   * history rightly writes nothing (specs/051 S9).
+   */
+  beforeEach(async () => {
+    await db.insert(matches).values(
+      footballDataRow({
+        providerMatchId: IDS[10] as number,
+        kickoffAt: at(-100),
+        status: "FINISHED",
+        homeGoals: 1,
+        awayGoals: 0,
+      })
+    );
+    await db.insert(tasoMatches).values(
+      tasoRow({
+        providerMatchId: IDS[11] as number,
+        competitionCode: "spljp98",
+        seasonId: 2098,
+        kickoffAt: at(-100),
+      })
+    );
+  });
+
   it("keeps one live row per match and model, overwritten by each run before kickoff", async () => {
     await db.insert(matches).values(footballDataRow());
 
-    await runPredictionLog(NOW, immediate);
-    await runPredictionLog(new Date(NOW.getTime() + HOUR), immediate);
+    await runPredictionLog(() => NOW, immediate);
+    await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
 
     const rows = await rowsFor(IDS[0] as number, "live");
     expect(rows).toHaveLength(1);
@@ -115,13 +141,13 @@ describe("the hourly run (specs/052)", () => {
 
   it("moves a rescheduled match's row to its new kickoff (S4)", async () => {
     await db.insert(matches).values(footballDataRow());
-    await runPredictionLog(NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
 
     await db
       .update(matches)
       .set({ kickoffAt: at(30) })
       .where(eq(matches.providerMatchId, IDS[0] as number));
-    await runPredictionLog(NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
 
     const rows = await rowsFor(IDS[0] as number, "live");
     expect(rows).toHaveLength(1);
@@ -131,7 +157,7 @@ describe("the hourly run (specs/052)", () => {
   it("writes nothing for a passed kickoff, even one still marked scheduled (S5)", async () => {
     await db.insert(matches).values(footballDataRow({ kickoffAt: at(-1), status: "SCHEDULED" }));
 
-    await runPredictionLog(NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
 
     expect(await rowsFor(IDS[0] as number, "live")).toHaveLength(0);
   });
@@ -148,7 +174,7 @@ describe("the hourly run (specs/052)", () => {
       })
     );
 
-    await runPredictionLog(NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
 
     expect(await rowsFor(IDS[6] as number, "live")).toEqual([
       expect.objectContaining({ source: "taso", competitionCode: "VL" }),
