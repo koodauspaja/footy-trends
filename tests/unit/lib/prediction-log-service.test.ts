@@ -264,6 +264,27 @@ describe("runPredictionLog (specs/052)", () => {
     ]);
   });
 
+  it("leaves a match that entered the window during the run to the next run", async () => {
+    // At the start 49 hours ahead, outside the window; inside it by the write.
+    stored([footballDataRow({ kickoffAt: at(49) })], []);
+    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(at(2));
+
+    const report = await runPredictionLog(clock, immediate);
+
+    expect(report.logged).toBe(0);
+    expect(mocks.getHomeBaseline).not.toHaveBeenCalled();
+  });
+
+  it("uses the real clock and its own pacers when given none", async () => {
+    const soon = new Date(Date.now() + 5 * HOUR);
+    stored([footballDataRow({ kickoffAt: soon })], []);
+
+    const report = await runPredictionLog();
+
+    expect(report).toEqual({ refreshed: 1, logged: 1, failures: [] });
+    expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+  });
+
   it("fails the run when the write fails", async () => {
     stored([footballDataRow()], []);
     mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
