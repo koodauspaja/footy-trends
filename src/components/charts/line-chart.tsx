@@ -248,6 +248,7 @@ export function LineChart({
     thinXTicksOnPhone &&
     crowdedOnPhone(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })));
   const phoneHidden = (index: number) => crowded && (ticks.length - 1 - index) % 2 === 1;
+  const caption = captionLines(yLabel, bottom - top);
   const toY = (value: number) => scale(value, yDomain, yRange);
 
   return (
@@ -277,12 +278,13 @@ export function LineChart({
           x={0}
           y={0}
         >
-          {captionLines(yLabel, bottom - top).map((line, index) => (
+          <tspan x={0}>{caption[0]}</tspan>
+          {caption[1] === undefined ? null : (
             // Rotated, a positive `dy` moves the next line towards the plot.
-            <tspan dy={index === 0 ? 0 : "1.2em"} key={line} x={0}>
-              {line}
+            <tspan dy="1.2em" x={0}>
+              {caption[1]}
             </tspan>
-          ))}
+          )}
         </text>
       </g>
 

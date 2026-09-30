@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CHART,
   type ChartPoint,
@@ -551,6 +551,34 @@ describe("captionLines (specs/050)", () => {
     ]);
   });
 
+  it("prints both halves of a caption that breaks into two equal lines", () => {
+    // A duplicate React key — the first version keyed each line by its text —
+    // is reported through console.error, and may drop a line on a later render.
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { container } = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 1 }] }]}
+        title="Kaksi"
+        xDomain={[1, 2]}
+        xLabel="Kausi"
+        xTicks={[1, 2]}
+        yDomain={[0, 2]}
+        yLabel="Sijoitusmuutoskeskiarvo Sijoitusmuutoskeskiarvo"
+        yTicks={[0, 1, 2]}
+      />
+    );
+
+    expect(
+      [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")].map(
+        (line) => line.textContent
+      )
+    ).toEqual(["Sijoitusmuutoskeskiarvo", "Sijoitusmuutoskeskiarvo"]);
+    expect(error.mock.calls.flat().join(" ")).not.toContain("same key");
+    error.mockRestore();
+  });
+
   it("leaves a caption with no space whole", () => {
     expect(captionLines("Sijoitusmuutoskeskimäärin", 100)).toEqual(["Sijoitusmuutoskeskimäärin"]);
   });
@@ -573,6 +601,6 @@ describe("captionLines (specs/050)", () => {
     const lines = [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")];
 
     expect(lines.map((line) => line.textContent)).toEqual(["Sijoitusmuutos", "keskimäärin"]);
-    expect(lines.map((line) => line.getAttribute("dy"))).toEqual(["0", "1.2em"]);
+    expect(lines.map((line) => line.getAttribute("dy"))).toEqual([null, "1.2em"]);
   });
 });
