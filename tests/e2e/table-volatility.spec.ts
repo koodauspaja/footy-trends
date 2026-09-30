@@ -54,6 +54,19 @@ test.describe("Table movement, signed in", () => {
   });
 
   test("equals the standings page's own tables at halfway and at the end", async ({ page }) => {
+    // Opening a season stores it, and the panel reads every stored completed
+    // season — so on a fresh database, as `release.yml` starts from, there may
+    // be none to read yet (#501, the class #485 fixed). Every season the page
+    // offers is opened first, so the line has its points.
+    await page.goto(PL);
+    const seasons = await page
+      .getByLabel("Kausi")
+      .locator("option")
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    for (const season of seasons) {
+      await page.goto(`${PL}&kausi=${season}`);
+    }
+
     await page.goto(PL);
     await panel(page).waitFor();
     const sentence = (await panel(page).getByRole("listitem").first().textContent()) ?? "";
