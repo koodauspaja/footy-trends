@@ -259,8 +259,8 @@ const FINISHED_STATUS = "FINISHED";
  * result (specs/049, S3), so every aggregate here subtracts it where stored.
  * TASO's score never includes one. See #492.
  */
-const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0))`;
-const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0))`;
+export const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0))`;
+export const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0))`;
 
 /**
  * A competition's goals per game in each stored season, for its standings page

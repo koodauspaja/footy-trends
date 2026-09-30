@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
+  doublePrecision,
   index,
   integer,
   pgTable,
@@ -574,3 +575,44 @@ export const refreshRuns = pgTable("refresh_runs", {
   runBy: text("run_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Every prediction a model made, set against the match's result only when a
+ * calibration feature reads it (specs/052). The result is never copied in: it
+ * is read from `matches` or `taso_matches`, so a corrected score (#492)
+ * corrects every figure built on it.
+ *
+ * One `live` row per match per model — the last prediction before kickoff,
+ * overwritten until then (S3) — and one `backtest` row, what the model would
+ * have said from the matches before it (S2, S14).
+ */
+export const predictions = pgTable(
+  "predictions",
+  {
+    id: serial("id").primaryKey(),
+    /** `"football-data"` or `"taso"`: the two id spaces never meet (specs/026). */
+    source: text("source").notNull(),
+    providerMatchId: integer("provider_match_id").notNull(),
+    /** The competition as specs/051 files the match, so #353 needs no second lookup. */
+    competitionCode: text("competition_code").notNull(),
+    /** `home-baseline-v1`; a rule change is a new name (specs/051, S10). */
+    model: text("model").notNull(),
+    /** `"live"` or `"backtest"` (S2). */
+    kind: text("kind").notNull(),
+    /** 0–1, unrounded. */
+    homeProbability: doublePrecision("home_probability").notNull(),
+    drawProbability: doublePrecision("draw_probability").notNull(),
+    awayProbability: doublePrecision("away_probability").notNull(),
+    predictedAt: timestamp("predicted_at", { withTimezone: true }).notNull(),
+    /** The kickoff the prediction was made against; it follows a rescheduled match (S4). */
+    kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("predictions_identity_idx").on(
+      table.source,
+      table.providerMatchId,
+      table.model,
+      table.kind
+    ),
+  ]
+);

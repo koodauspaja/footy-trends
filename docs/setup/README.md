@@ -28,6 +28,7 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 021 | [021-production-environment.md](021-production-environment.md) | Production Railway environment, separate from staging, deploying from `release` |
 | 022 | [022-production-backfill.md](022-production-backfill.md) | Fill production with the full competition history, once, at the providers' rate limits |
 | 023 | [023-admin-access.md](023-admin-access.md) | Make the first admin, once per environment; everything after that is done in the app |
+| 024 | [024-predictions-cron.md](024-predictions-cron.md) | The hourly predictions run as a production-only Railway cron service, and the backtest per environment |
 
 ## After setup
 
