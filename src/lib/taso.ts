@@ -406,11 +406,6 @@ export async function getSeasonMatches(
  */
 export const EARLIEST_TASO_SEASON = 2015;
 
-/** A season's `competition_id` in the domestic `spljpNN` scheme. */
-export function competitionIdFromSeason(seasonId: number): string {
-  return `spljp${String(seasonId % 100).padStart(2, "0")}`;
-}
-
 // --- Competitions (season discovery) -----------------------------------
 
 export type TasoCompetition = {

@@ -435,8 +435,8 @@ describe("previewRefresh", () => {
 
     vi.clearAllMocks();
     // Ykkösliigacup is its own competition rather than a category inside the
-    // season umbrella. `competitionIdFromSeason` would answer `spljp26` and
-    // write rows the cup page never reads.
+    // season umbrella. The umbrella alone would answer `spljp26` and write
+    // rows the cup page never reads.
     await previewRefresh({ source: "taso", code: "M1LCUP" }, 2026);
     expect(taso.getSeasonMatches).toHaveBeenCalledWith("M1LCUP26", "M1LCUP", 2026);
   });
