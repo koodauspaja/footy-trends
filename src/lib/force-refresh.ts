@@ -212,9 +212,9 @@ async function clearCaches(keys: string[]): Promise<boolean> {
 async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promise<Snapshot> {
   if (choice.source === "taso") {
     // Derived exactly as `domestic-page-context.ts` derives them, so the rows
-    // compared are the rows the page reads. `competitionIdFromSeason` from
-    // taso.ts would answer the season umbrella for Ykkösliigacup and quietly
-    // compare against rows no page ever shows.
+    // compared are the rows the page reads. The bare season umbrella would be
+    // `spljp26` for Ykkösliigacup too, and quietly compare against rows no
+    // page ever shows.
     const competitionId = competitionIdForSeason(choice.code, seasonId);
     const categoryId = categoryIdForSeason(choice.code, seasonId);
     const [providerMatches, groups] = await Promise.all([
