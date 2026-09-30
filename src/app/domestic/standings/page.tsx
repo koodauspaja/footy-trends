@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CompetitionAnalyticsSection } from "@/components/competition-analytics";
 import { BracketTree } from "@/components/cup-bracket";
 import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
@@ -232,6 +233,15 @@ export default async function DomesticStandingsPage({
     selectedRound
   );
 
+  // specs/048: under the tables, on the leagues it names; `null` elsewhere.
+  const analytics = await CompetitionAnalyticsSection({
+    kind: "taso",
+    competitionCode,
+    selectedSeasonId: seasonId,
+    activeSeasonId: currentSeason,
+    seasonLabel: String,
+  });
+
   const isCup = isDomesticCup(competitionCode);
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";
   const teamHref = (teamProviderId: number) =>
@@ -302,6 +312,7 @@ export default async function DomesticStandingsPage({
           )
         )}
       {!isGroupsAndPlayoff && <StandingsLegend />}
+      {analytics}
     </PageShell>
   );
 }

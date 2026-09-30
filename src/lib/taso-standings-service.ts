@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
@@ -26,6 +26,7 @@ import {
   type PositionPoint,
   type PositionSeries,
   positionsAfterEachRound,
+  type RankedRow,
   teamsInGroupsAbove,
 } from "./position-series";
 import {
@@ -38,6 +39,12 @@ import {
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
+import {
+  type Movement,
+  midSeasonRound,
+  movementBetween,
+  type SeasonMovement,
+} from "./table-volatility";
 import {
   EARLIEST_TASO_SEASON,
   getCurrentSeason,
@@ -1904,18 +1911,7 @@ function positionSeriesFrom(
   competitionId: string,
   teamId: number
 ): PositionSeries {
-  const tableGroups = groups.filter((group) => group.kind !== "match-list");
-
-  // The team's table groups in the order they were played: the regular season
-  // first, then its continuation.
-  const teamGroups = tableGroups
-    .filter((group) => teamIdsInGroup(seasonMatches, group.groupId).has(teamId))
-    .sort((left, right) => firstRoundOf(seasonMatches, left) - firstRoundOf(seasonMatches, right));
-
-  const regular = teamGroups[0];
-  if (regular?.kind !== "own-calculated") return { status: "unavailable" };
-
-  const tableAfter = (groupId: number) => (round: number | undefined) =>
+  const tableAfter: TableAfter = (groupId) => (round) =>
     ownCalculatedStandings(
       seasonMatches,
       groupTeamsFor(teamRows, groupId),
@@ -1924,6 +1920,17 @@ function positionSeriesFrom(
       groupId,
       round
     );
+  const path = leaguePath(
+    seasonMatches,
+    groups.filter((group) => group.kind !== "match-list"),
+    categoryId,
+    competitionId,
+    teamId,
+    tableAfter
+  );
+  if (path === null) return { status: "unavailable" };
+  const { regular } = path;
+
   // Grouped before `toFinishedMatches`, whose result type no longer carries the
   // group — so "finished" keeps the one definition the standings page uses.
   const finishedIn = (groupId: number) =>
@@ -1941,27 +1948,10 @@ function positionSeriesFrom(
   );
   const teamCount = teamIdsInGroup(seasonMatches, regular.groupId).size;
 
-  const continuation = teamGroups[1];
-  if (continuation === undefined) return seriesOf(regularPoints, teamCount, false);
+  if (path.continuation === undefined) return seriesOf(regularPoints, teamCount, false);
+  if (!path.combinable) return seriesOf(regularPoints, teamCount, true);
 
-  const combinable =
-    continuation.kind === "own-calculated" &&
-    parentGroupId(categoryId, competitionId, continuation.groupId) === regular.groupId;
-  if (!combinable) return seriesOf(regularPoints, teamCount, true);
-
-  const continuationGroups = tableGroups
-    .filter((group) => parentGroupId(categoryId, competitionId, group.groupId) === regular.groupId)
-    .map((group) => teamIdsInGroup(seasonMatches, group.groupId));
-  const regularSeasonOrder = tableAfter(regular.groupId)(undefined).map(
-    (row) => row.teamProviderId
-  );
-  const offset = teamsInGroupsAbove(
-    teamIdsInGroup(seasonMatches, continuation.groupId),
-    continuationGroups,
-    regularSeasonOrder
-  );
-
-  const continuationFinished = finishedIn(continuation.groupId);
+  const continuationFinished = finishedIn(path.continuation.groupId);
   const lastContinuation = lastRoundPlayedBy(continuationFinished, teamId);
 
   if (lastContinuation === null) {
@@ -1982,11 +1972,221 @@ function positionSeriesFrom(
     continuationFinished,
     lastContinuation,
     teamId,
-    tableAfter(continuation.groupId),
-    offset
+    tableAfter(path.continuation.groupId),
+    path.offset
   );
 
   return seriesOf([...regularPoints, ...continuationPoints], teamCount, false);
+}
+
+type TableGroup = Pick<GroupStandingsResult, "kind" | "groupId">;
+
+/** A group's own-calculated table after a round, or at the end with `undefined`. */
+type TableAfter = (groupId: number) => (round: number | undefined) => TeamStanding[];
+
+/**
+ * Where one team's league season runs, by specs/030's rules: its regular-season
+ * group, and the continuation after a split — combined with the regular season
+ * only when it is a verified carry-over of it, with `offset` the teams in the
+ * groups ranked above (rule B). `null` when the regular season has no
+ * per-round table at all (rule C).
+ *
+ * **Shared by the team page's position chart and the competition page's table
+ * movement** (specs/050, S1), so the two cannot place a team differently.
+ */
+type LeaguePath =
+  | { regular: TableGroup; continuation: undefined }
+  | { regular: TableGroup; continuation: TableGroup; combinable: false }
+  | { regular: TableGroup; continuation: TableGroup; combinable: true; offset: number };
+
+function leaguePath(
+  seasonMatches: MatchRow[],
+  tableGroups: readonly TableGroup[],
+  categoryId: string,
+  competitionId: string,
+  teamId: number,
+  tableAfter: TableAfter
+): LeaguePath | null {
+  // The team's table groups in the order they were played: the regular season
+  // first, then its continuation.
+  const teamGroups = tableGroups
+    .filter((group) => teamIdsInGroup(seasonMatches, group.groupId).has(teamId))
+    .sort((left, right) => firstRoundOf(seasonMatches, left) - firstRoundOf(seasonMatches, right));
+
+  const regular = teamGroups[0];
+  if (regular?.kind !== "own-calculated") return null;
+
+  const continuation = teamGroups[1];
+  if (continuation === undefined) return { regular, continuation };
+
+  const combinable =
+    continuation.kind === "own-calculated" &&
+    parentGroupId(categoryId, competitionId, continuation.groupId) === regular.groupId;
+  if (!combinable) return { regular, continuation, combinable: false };
+
+  const continuationGroups = tableGroups
+    .filter((group) => parentGroupId(categoryId, competitionId, group.groupId) === regular.groupId)
+    .map((group) => teamIdsInGroup(seasonMatches, group.groupId));
+  const regularSeasonOrder = tableAfter(regular.groupId)(undefined).map(
+    (row) => row.teamProviderId
+  );
+  const offset = teamsInGroupsAbove(
+    teamIdsInGroup(seasonMatches, continuation.groupId),
+    continuationGroups,
+    regularSeasonOrder
+  );
+  return { regular, continuation, combinable: true, offset };
+}
+
+/**
+ * One completed season's table movement (specs/050): every team's position
+ * after round ⌈R / 2⌉ of its league season against its final one, R counting
+ * the continuation's rounds too (S7), the final one combined after a split
+ * (S8). Each team is measured in its own pool, so Kakkonen's pools add up to
+ * one season (S10).
+ *
+ * `null` when the season has no per-round table to equal (S9): a regular
+ * season TASO's numbers stand for, a continuation that does not reconcile, or
+ * no numbered round.
+ */
+export function seasonMovementFrom(
+  seasonMatches: MatchRow[],
+  teamRows: StoredGroupTeam[],
+  categoryId: string,
+  competitionId: string
+): Movement | null {
+  const tableGroups = groupIdsIn(seasonMatches)
+    .sort((left, right) => left - right)
+    .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId))
+    .filter((group) => group.kind !== "match-list");
+
+  // Every team asks for the same few tables, so each is calculated once.
+  const tables = new Map<string, TeamStanding[]>();
+  const tableAfter: TableAfter = (groupId) => (round) => {
+    const key = `${groupId}:${round}`;
+    const table =
+      tables.get(key) ??
+      ownCalculatedStandings(
+        seasonMatches,
+        groupTeamsFor(teamRows, groupId),
+        categoryId,
+        competitionId,
+        groupId,
+        round
+      );
+    tables.set(key, table);
+    return table;
+  };
+
+  const teams = new Set(
+    tableGroups.flatMap((group) => [...teamIdsInGroup(seasonMatches, group.groupId)])
+  );
+  const midSeason: RankedRow[] = [];
+  const final: RankedRow[] = [];
+  for (const teamId of teams) {
+    const path = leaguePath(
+      seasonMatches,
+      tableGroups,
+      categoryId,
+      competitionId,
+      teamId,
+      tableAfter
+    );
+    if (path === null) return null;
+
+    const groupIds = new Set([path.regular.groupId, path.continuation?.groupId]);
+    const rounds = seasonMatches.flatMap((match) =>
+      groupIds.has(match.groupId) && match.matchday !== null ? [match.matchday] : []
+    );
+    if (rounds.length === 0) return null;
+
+    const round = midSeasonRound(Math.max(...rounds));
+    const endsIn = finalTableOf(path, tableAfter);
+    if (endsIn === null) return null;
+    midSeason.push(...rowOf(tableAfter(path.regular.groupId)(round), teamId, 0));
+    final.push(...rowOf(endsIn.table, teamId, endsIn.offset));
+  }
+  return movementBetween(midSeason, final);
+}
+
+/** The table a team's season ends in, and the places above it — `null` when it cannot be combined. */
+function finalTableOf(
+  path: LeaguePath,
+  tableAfter: TableAfter
+): { table: TeamStanding[]; offset: number } | null {
+  if (path.continuation === undefined) {
+    return { table: tableAfter(path.regular.groupId)(undefined), offset: 0 };
+  }
+  return path.combinable
+    ? { table: tableAfter(path.continuation.groupId)(undefined), offset: path.offset }
+    : null;
+}
+
+/** This team's row as a ranked row, or none when the table lacks it (S12). */
+function rowOf(table: readonly TeamStanding[], teamId: number, offset: number): RankedRow[] {
+  return table
+    .filter((row) => row.teamProviderId === teamId)
+    .map((row) => ({ teamProviderId: teamId, position: row.position + offset }));
+}
+
+/**
+ * Each completed season's table movement in one domestic competition, for its
+ * standings page's `Sijoitusten vaihtelu` (specs/050).
+ *
+ * **Stored rows only** (S4): one read of every season before the season in
+ * progress (S3), across the category ids the registry has published the
+ * competition under, each season kept to its own `(competition_id,
+ * category_id)` pair — never `getSyncedSeasonMatches`, which asks TASO for a
+ * season with nothing stored. The rounds are renumbered as the standings page's
+ * are, so every table is the page's own.
+ */
+export async function getTasoSeasonMovements(
+  code: string,
+  activeSeasonId: number
+): Promise<SeasonMovement[]> {
+  const categoryIds = categoryIdsFor(code);
+  const [storedMatches, storedTeams] = await Promise.all([
+    db
+      .select()
+      .from(tasoMatches)
+      .where(
+        and(inArray(tasoMatches.categoryId, categoryIds), lt(tasoMatches.seasonId, activeSeasonId))
+      )
+      .orderBy(desc(tasoMatches.updatedAt)),
+    db
+      .select()
+      .from(tasoGroupTeams)
+      .where(
+        and(
+          inArray(tasoGroupTeams.categoryId, categoryIds),
+          lt(tasoGroupTeams.seasonId, activeSeasonId)
+        )
+      )
+      .orderBy(desc(tasoGroupTeams.updatedAt)),
+  ]);
+
+  return [...new Set(storedMatches.map((match) => match.seasonId))].flatMap((seasonId) => {
+    const categoryId = categoryIdForSeason(code, seasonId);
+    const competitionId = competitionIdForSeason(code, seasonId);
+    const own = (row: { seasonId: number; categoryId: string; competitionCode: string }) =>
+      row.seasonId === seasonId &&
+      row.categoryId === categoryId &&
+      row.competitionCode === competitionId;
+    const seasonMatches = storedMatches.filter(own);
+    if (seasonMatches.length === 0) return [];
+
+    return [
+      {
+        seasonId,
+        movement: seasonMovementFrom(
+          withContinuedRoundNumbering(seasonMatches, categoryId, competitionId),
+          storedTeams.filter(own),
+          categoryId,
+          competitionId
+        ),
+      },
+    ];
+  });
 }
 
 /** Where a group's rounds begin, so the regular season sorts before its continuation. */

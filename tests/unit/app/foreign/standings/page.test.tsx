@@ -40,6 +40,25 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+/**
+ * The competition's Analyysit (specs/048) stands in here with a marker: its
+ * panel, its gate and which competitions have it are
+ * `competition-analytics.test.tsx`'s. What this file owns is the page's side —
+ * what it asks the section for, and where the section sits.
+ */
+const competitionAnalyticsMock = vi.fn(
+  async (_props: {
+    kind: string;
+    competitionCode: string;
+    selectedSeasonId: number;
+    activeSeasonId: number;
+    seasonLabel: (seasonId: number) => string;
+  }) => <p>competition analytics placeholder</p>
+);
+vi.mock("@/components/competition-analytics", () => ({
+  CompetitionAnalyticsSection: competitionAnalyticsMock,
+}));
+
 const seasonContext: SeasonContext = {
   activeSeasonId: 2025,
   selectableSeasons: [
@@ -95,6 +114,31 @@ describe("Standings page", () => {
     // The default fixtures are all Premier League, which never takes the cup
     // path; the cup tests override this.
     getCupSeasonMock.mockResolvedValue({ status: "empty" });
+  });
+
+  it("asks for the competition's Analyysit, labelling seasons as its selector does (specs/048)", async () => {
+    await renderStandings({ kilpailu: "PL", kausi: "2024" });
+
+    expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
+    const props = competitionAnalyticsMock.mock.calls[0]?.[0];
+    expect(props).toMatchObject({
+      kind: "football-data",
+      competitionCode: "PL",
+      selectedSeasonId: 2024,
+      activeSeasonId: 2025,
+    });
+    expect(props?.seasonLabel(2024)).toBe("2024/25");
+  });
+
+  it("places the Analyysit under the table and its legend (specs/048)", async () => {
+    await renderStandings();
+
+    const legend = screen.getByText(/^O = ottelut/);
+    const section = screen.getByText("competition analytics placeholder");
+    expect(screen.getByRole("table").compareDocumentPosition(section)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(legend.compareDocumentPosition(section)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("shows the Finnish heading, column labels, and calculated standings", async () => {
@@ -555,6 +599,36 @@ describe("Standings page, cup competitions", () => {
     expect(screen.getByRole("heading", { name: "Lohko A" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Lohko B" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Liigavaihe" })).not.toBeInTheDocument();
+  });
+
+  it("asks for the Champions League's Analyysit and places it under the tables (specs/048)", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({
+          id: 1,
+          stage: "LEAGUE_STAGE",
+          home: [1, "Arsenal FC"],
+          away: [2, "Inter"],
+          score: [2, 0],
+        }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL", kausi: "2023" });
+
+    const props = competitionAnalyticsMock.mock.calls[0]?.[0];
+    expect(props).toMatchObject({
+      kind: "football-data",
+      competitionCode: "CL",
+      selectedSeasonId: 2023,
+      activeSeasonId: 2025,
+    });
+    expect(props?.seasonLabel(2023)).toBe("2023/24");
+    const section = screen.getByText("competition analytics placeholder");
+    expect(screen.getByRole("table").compareDocumentPosition(section)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it("shows no round selector on a cup page", async () => {

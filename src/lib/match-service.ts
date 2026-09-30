@@ -1,9 +1,20 @@
-import { and, desc, eq, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { type CompetitionRegion, competitionsInRegion } from "./competitions";
+import {
+  categoryIdForSeason,
+  categoryIdsFor,
+  competitionIdForSeason,
+} from "./domestic-competitions";
 import { FORM_WINDOW, type LatestForm, latestForm } from "./form-series";
+import {
+  COMPETITIONS,
+  type GoalsPerGameSeries,
+  goalsPerGameSeries,
+  type SeasonGoals,
+} from "./goals-per-game";
 import {
   type CompetitionScope,
   HEAD_TO_HEAD_LIMIT,
@@ -18,7 +29,14 @@ import {
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
+import {
+  LEFT_TO_PLAY,
+  type OutcomeShares,
+  outcomeShares,
+  type SeasonOutcomes,
+} from "./outcome-shares";
 import { isStoredInteger } from "./provider-ids";
+import { resolveEarliestSeason } from "./seasons";
 import { toFinishedMatches } from "./standings";
 
 export type FootballDataMatchRow = typeof matches.$inferSelect;
@@ -231,6 +249,187 @@ async function tasoHistory(
 const FINISHED_STATUS = "FINISHED";
 
 /**
+ * A football-data match's goals after extra time, each side's.
+ *
+ * The stored score is the provider's `fullTime`, which **includes** a penalty
+ * shoot-out: Liverpool "1–5" PSG (Champions League, 2024/25) was 0–1 with
+ * penalties 1–4. A shoot-out is neither goals (specs/044, specs/048) nor the
+ * result (specs/049, S3), so every aggregate here subtracts it where stored.
+ * TASO's score never includes one. See #492.
+ */
+const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0))`;
+const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0))`;
+
+/**
+ * A competition's goals per game in each stored season, for its standings page
+ * (specs/048), or `error` — a failed read is its own case, never "too few".
+ *
+ * One aggregate per competition: every finished match with both scores, every
+ * stage (S1, S6). A TASO competition is read over every category id the
+ * registry has published it under, and each season keeps only the
+ * `(competition_id, category_id)` pair the registry names for it — so a
+ * competition renamed or re-coded between seasons is one line (S2), and a
+ * category reused by another competition in another season is not counted.
+ */
+export async function getGoalsPerGame(
+  kind: MatchSource["kind"],
+  code: string,
+  activeSeasonId: number
+): Promise<GoalsPerGameSeries> {
+  try {
+    const seasons =
+      kind === "football-data" ? await footballDataSeasonGoals(code) : await tasoSeasonGoals(code);
+    return goalsPerGameSeries(seasons, activeSeasonId);
+  } catch (error) {
+    logger.error({ err: error, code }, "Unable to read the competition's goals per game");
+    return { status: "error" };
+  }
+}
+
+async function footballDataSeasonGoals(code: string): Promise<SeasonGoals[]> {
+  return db
+    .select({
+      seasonId: matches.seasonId,
+      matches: sql<number>`count(*)::int`,
+      goals: sql<number>`sum(${FOOTBALL_DATA_HOME_GOALS} + ${FOOTBALL_DATA_AWAY_GOALS})::int`,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.competitionCode, code),
+        eq(matches.status, FINISHED_STATUS),
+        isNotNull(matches.homeGoals),
+        isNotNull(matches.awayGoals)
+      )
+    )
+    .groupBy(matches.seasonId);
+}
+
+async function tasoSeasonGoals(code: string): Promise<SeasonGoals[]> {
+  const rows = await db
+    .select({
+      seasonId: tasoMatches.seasonId,
+      competitionId: tasoMatches.competitionCode,
+      categoryId: tasoMatches.categoryId,
+      matches: sql<number>`count(*)::int`,
+      goals: sql<number>`sum(${tasoMatches.homeGoals} + ${tasoMatches.awayGoals})::int`,
+    })
+    .from(tasoMatches)
+    .where(
+      and(
+        inArray(tasoMatches.categoryId, categoryIdsFor(code)),
+        eq(tasoMatches.status, FINISHED_STATUS),
+        isNotNull(tasoMatches.homeGoals),
+        isNotNull(tasoMatches.awayGoals)
+      )
+    )
+    .groupBy(tasoMatches.seasonId, tasoMatches.competitionCode, tasoMatches.categoryId);
+
+  return rows
+    .filter(
+      (row) =>
+        row.competitionId === competitionIdForSeason(code, row.seasonId) &&
+        row.categoryId === categoryIdForSeason(code, row.seasonId)
+    )
+    .map(({ seasonId, matches: count, goals }) => ({ seasonId, matches: count, goals }));
+}
+
+/**
+ * Every compared competition's home wins, draws and away wins (specs/049), or
+ * `error` when either provider's read fails — never a partial table, which
+ * could rank a competition against only some of the others (S15).
+ *
+ * One aggregate per provider over the competitions specs/048 S5 names, from
+ * the football-data plan floor on (S8). Which seasons are completed is decided
+ * from the same rows (S19), so no provider is asked for a current season.
+ */
+export async function getOutcomeShares(): Promise<OutcomeShares> {
+  const floor = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
+  try {
+    const [footballData, taso] = await Promise.all([
+      footballDataSeasonOutcomes(floor),
+      tasoSeasonOutcomes(floor),
+    ]);
+    return outcomeShares([...footballData, ...taso], floor);
+  } catch (error) {
+    logger.error({ err: error }, "Unable to read the competitions' home advantage");
+    return { status: "error" };
+  }
+}
+
+/** The four counts `SeasonOutcomes` needs, from a side's goals and the match's status. */
+function outcomeCounts(
+  status: typeof matches.status | typeof tasoMatches.status,
+  home: ReturnType<typeof sql>,
+  away: ReturnType<typeof sql>
+) {
+  const finished = sql`${status} = ${FINISHED_STATUS} and ${home} is not null and ${away} is not null`;
+  return {
+    matches: sql<number>`count(*) filter (where ${finished})::int`,
+    homeWins: sql<number>`count(*) filter (where ${finished} and ${home} > ${away})::int`,
+    draws: sql<number>`count(*) filter (where ${finished} and ${home} = ${away})::int`,
+    awayWins: sql<number>`count(*) filter (where ${finished} and ${home} < ${away})::int`,
+    leftToPlay: sql<number>`count(*) filter (where ${inArray(status, [...LEFT_TO_PLAY])})::int`,
+  };
+}
+
+async function footballDataSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
+  const home = FOOTBALL_DATA_HOME_GOALS;
+  const away = FOOTBALL_DATA_AWAY_GOALS;
+  const rows = await db
+    .select({
+      code: matches.competitionCode,
+      seasonId: matches.seasonId,
+      ...outcomeCounts(matches.status, home, away),
+      // A `2024/25` season has matches in the year after its own.
+      spansCalendarYears: sql<boolean>`bool_or(extract(year from ${matches.kickoffAt}) > ${matches.seasonId})`,
+    })
+    .from(matches)
+    .where(
+      and(
+        inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+        gte(matches.seasonId, floor)
+      )
+    )
+    .groupBy(matches.competitionCode, matches.seasonId);
+  return rows.map((row) => ({ ...row, kind: "football-data" }));
+}
+
+async function tasoSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
+  const codes = [...COMPETITIONS.taso];
+  const home = sql`${tasoMatches.homeGoals}`;
+  const away = sql`${tasoMatches.awayGoals}`;
+  const rows = await db
+    .select({
+      seasonId: tasoMatches.seasonId,
+      competitionId: tasoMatches.competitionCode,
+      categoryId: tasoMatches.categoryId,
+      ...outcomeCounts(tasoMatches.status, home, away),
+    })
+    .from(tasoMatches)
+    .where(
+      and(
+        inArray(tasoMatches.categoryId, codes.flatMap(categoryIdsFor)),
+        gte(tasoMatches.seasonId, floor)
+      )
+    )
+    .groupBy(tasoMatches.seasonId, tasoMatches.competitionCode, tasoMatches.categoryId);
+
+  // Each row belongs to the competition whose registry names its exact
+  // `(competition_id, category_id)` pair for that season, as specs/048 reads.
+  return rows.flatMap(({ competitionId, categoryId, ...counts }) => {
+    const code = codes.find(
+      (candidate) =>
+        competitionIdForSeason(candidate, counts.seasonId) === competitionId &&
+        categoryIdForSeason(candidate, counts.seasonId) === categoryId
+    );
+    return code === undefined
+      ? []
+      : [{ ...counts, kind: "taso" as const, code, spansCalendarYears: false }];
+  });
+}
+
+/**
  * One club's finished matches with both scores stored, in its source's scope —
  * `footballDataHistory` and `tasoHistory`'s predicates without the second team
  * (specs/045, S4). Shared by the full history and the latest five (specs/047,
@@ -398,8 +597,8 @@ async function averageFor(scope: CompetitionScope): Promise<ScoreAverage> {
     scope.kind === "football-data"
       ? await db
           .select({
-            home: sql<number | null>`avg(${matches.homeGoals})::float8`,
-            away: sql<number | null>`avg(${matches.awayGoals})::float8`,
+            home: sql<number | null>`avg(${FOOTBALL_DATA_HOME_GOALS})::float8`,
+            away: sql<number | null>`avg(${FOOTBALL_DATA_AWAY_GOALS})::float8`,
           })
           .from(matches)
           .where(

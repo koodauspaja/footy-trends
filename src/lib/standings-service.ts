@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
@@ -28,6 +28,7 @@ import {
 } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import { type StreaksSeries, streaksOf } from "./streaks";
+import { type SeasonMovement, singleTableMovement } from "./table-volatility";
 import type { TeamSeason } from "./team-seasons";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
@@ -688,6 +689,32 @@ export function needsRefresh(
   if (seasonId < activeSeasonId) return false;
 
   return Date.now() - newestUpdate.getTime() >= refreshIntervalSeconds * 1000;
+}
+
+/**
+ * Each completed season's table movement in one foreign competition, for its
+ * standings page's `Sijoitusten vaihtelu` (specs/050).
+ *
+ * **Stored rows only** (S4): one read of every season before the season in
+ * progress (S3), never `getSyncedSeasonMatches`, which asks the provider for a
+ * season with nothing stored. Each season's tables are then the standings
+ * page's own, through `singleTableMovement` (S1).
+ */
+export async function getSeasonMovements(
+  competitionCode: string,
+  activeSeasonId: number
+): Promise<SeasonMovement[]> {
+  const stored = await db
+    .select()
+    .from(matches)
+    .where(and(eq(matches.competitionCode, competitionCode), lt(matches.seasonId, activeSeasonId)))
+    .orderBy(desc(matches.updatedAt));
+
+  const seasons = Map.groupBy(stored, (match) => match.seasonId);
+  return [...seasons].map(([seasonId, seasonMatches]) => ({
+    seasonId,
+    movement: singleTableMovement(toFinishedMatches(seasonMatches), seasonMatches),
+  }));
 }
 
 function toResult(standings: TeamStanding[]): StandingsResult {

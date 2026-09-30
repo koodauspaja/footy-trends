@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
-import { formatMatchResult } from "@/lib/standings";
+import { RowLink } from "@/components/row-link";
+import { formatScore, type ScoreBreakdown } from "@/lib/match-detail";
 
 export const matchDateFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",
@@ -10,15 +10,17 @@ export const matchDateFormatter = new Intl.DateTimeFormat("fi-FI", {
   year: "numeric",
 });
 
-export type MatchListRow = {
+/**
+ * A listed match. The score breakdown is optional: football-data rows carry it,
+ * and a TASO row, which has none, prints its score as it is.
+ */
+export type MatchListRow = ScoreBreakdown & {
   providerMatchId: number;
   kickoffAt: Date;
   homeTeamProviderId: number;
   homeTeamName: string;
   awayTeamProviderId: number;
   awayTeamName: string;
-  homeGoals: number | null;
-  awayGoals: number | null;
 };
 
 type MatchListTableProps<T extends MatchListRow> = {
@@ -67,9 +69,9 @@ export function MatchListTable<T extends MatchListRow>({
       width: COLUMN_WIDTHS.date,
       render: (match) =>
         matchHref ? (
-          <Link className="hover:underline" href={matchHref(match)}>
+          <RowLink className="hover:underline" href={matchHref(match)}>
             {matchDateFormatter.format(match.kickoffAt)}
-          </Link>
+          </RowLink>
         ) : (
           matchDateFormatter.format(match.kickoffAt)
         ),
@@ -81,13 +83,13 @@ export function MatchListTable<T extends MatchListRow>({
       render: (match) =>
         teamHref ? (
           <>
-            <Link className="hover:underline" href={teamHref(match.homeTeamProviderId)}>
+            <RowLink className="hover:underline" href={teamHref(match.homeTeamProviderId)}>
               {match.homeTeamName}
-            </Link>
+            </RowLink>
             {" – "}
-            <Link className="hover:underline" href={teamHref(match.awayTeamProviderId)}>
+            <RowLink className="hover:underline" href={teamHref(match.awayTeamProviderId)}>
               {match.awayTeamName}
-            </Link>
+            </RowLink>
           </>
         ) : (
           `${match.homeTeamName} – ${match.awayTeamName}`
@@ -100,7 +102,12 @@ export function MatchListTable<T extends MatchListRow>({
       // Left, unlike the standings' numbers: `2–1` is a pair rather than a
       // magnitude, and right-aligning it would line up the away goals, which
       // means nothing.
-      render: (match) => formatMatchResult(match.homeGoals, match.awayGoals),
+      //
+      // The match page's own score: after extra time, a shoot-out stated as
+      // `(rp 3–4)` and extra time as `(ja)` — the stored score includes a
+      // shoot-out, which printed `4–5` for a 1–1 (#498). One match reads one
+      // way on every page.
+      render: (match) => formatScore(match),
     },
   ];
 

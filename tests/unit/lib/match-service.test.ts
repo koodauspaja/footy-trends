@@ -21,6 +21,8 @@ vi.mock("@/db", () => ({
         where: (...args: unknown[]) => {
           const builder = {
             limit: () => selectMock(...args),
+            /** Goals per game (specs/048) is one aggregate, ending at `.groupBy(...)`. */
+            groupBy: () => Promise.resolve().then(() => selectMock(...args)),
             /**
              * Every head-to-head read — the full history, and the match page's
              * five taken from it (specs/042) — ends at `.orderBy(...)`.
@@ -540,6 +542,121 @@ describe("getTeamForm (specs/047)", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), team: TEAM }),
       "Unable to read the team's latest matches"
+    );
+  });
+});
+
+describe("getGoalsPerGame (specs/048)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  it("turns a football-data competition's seasons into the line", async () => {
+    const { getGoalsPerGame } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2025, matches: 380, goals: 1140 },
+      { seasonId: 2024, matches: 380, goals: 1064 },
+    ]);
+
+    await expect(getGoalsPerGame("football-data", "PL", 2025)).resolves.toMatchObject({
+      status: "ok",
+      points: [
+        { seasonId: 2024, perGame: 2.8, inProgress: false },
+        { seasonId: 2025, perGame: 3, inProgress: true },
+      ],
+    });
+  });
+
+  it("keeps each TASO season's own competition and category only (S2)", async () => {
+    const { getGoalsPerGame } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      // Under-21 today, under-20 before 2026: one line across the rename.
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P21SM", matches: 10, goals: 30 },
+      { seasonId: 2025, competitionId: "spljp25", categoryId: "P20SM", matches: 10, goals: 25 },
+      // The old id stored in the new era, and a match under another umbrella:
+      // neither is the season's own competition.
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P20SM", matches: 10, goals: 90 },
+      { seasonId: 2025, competitionId: "Liigacup25", categoryId: "P20SM", matches: 10, goals: 90 },
+    ]);
+
+    await expect(getGoalsPerGame("taso", "P21SM", 2026)).resolves.toMatchObject({
+      status: "ok",
+      points: [
+        { seasonId: 2025, matches: 10, perGame: 2.5 },
+        { seasonId: 2026, matches: 10, perGame: 3 },
+      ],
+    });
+  });
+
+  it("turns a database failure into its own case, not too few (Edge Cases)", async () => {
+    const { getGoalsPerGame } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getGoalsPerGame("taso", "VL", 2026)).resolves.toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), code: "VL" }),
+      "Unable to read the competition's goals per game"
+    );
+  });
+});
+
+describe("getOutcomeShares (specs/049)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  const counts = { matches: 10, homeWins: 5, draws: 3, awayWins: 2, leftToPlay: 0 };
+
+  it("reads both providers into one table, each row under its own kind", async () => {
+    const { getOutcomeShares } = await import("@/lib/match-service");
+    selectMock
+      .mockResolvedValueOnce([{ code: "PL", seasonId: 2024, spansCalendarYears: true, ...counts }])
+      .mockResolvedValueOnce([
+        { seasonId: 2024, competitionId: "spljp24", categoryId: "VL", ...counts },
+      ]);
+
+    const result = await getOutcomeShares();
+
+    expect(result).toMatchObject({
+      status: "ok",
+      rows: [
+        { kind: "football-data", code: "PL" },
+        { kind: "taso", code: "VL" },
+      ],
+      calendarYears: { first: 2024, last: 2024 },
+      spanningYears: { first: 2024, last: 2024 },
+    });
+    expect(selectMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("files each TASO row under the competition whose season pair it is, and drops the rest", async () => {
+    const { getOutcomeShares } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      // Under-21 today, under-20 before 2026: one competition.
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P21SM", ...counts },
+      { seasonId: 2025, competitionId: "spljp25", categoryId: "P20SM", ...counts },
+      // The old id in the new era, and a cup under the same category: neither.
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P20SM", ...counts, matches: 90 },
+      { seasonId: 2025, competitionId: "Liigacup25", categoryId: "P20SM", ...counts, matches: 90 },
+    ]);
+
+    const result = await getOutcomeShares();
+
+    expect(result).toMatchObject({ status: "ok", rows: [{ code: "P21SM", matches: 20 }] });
+  });
+
+  it("fails as a whole when either read fails, never a partial table (S15)", async () => {
+    const { getOutcomeShares } = await import("@/lib/match-service");
+    selectMock
+      .mockResolvedValueOnce([{ code: "PL", seasonId: 2024, spansCalendarYears: true, ...counts }])
+      .mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getOutcomeShares()).resolves.toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to read the competitions' home advantage"
     );
   });
 });

@@ -58,6 +58,11 @@ export type DataTableProps<T> = {
   rows: readonly T[];
   columns: ReadonlyArray<DataTableColumn<T>>;
   rowKey: (row: T) => string | number;
+  /**
+   * The one row a page is about, shaded and marked `aria-current` — this
+   * competition among the others (specs/049, S4).
+   */
+  isCurrentRow?: (row: T) => boolean;
 };
 
 /** The floor: every fixed column, plus the least the flexible one may have. */
@@ -84,7 +89,12 @@ function alignClass(align: DataTableColumn<unknown>["align"]): string {
  * Below the floor the wrapper scrolls sideways. Nothing is hidden and nothing is
  * truncated: a long name wraps inside its column instead.
  */
-export function DataTable<T>({ rows, columns, rowKey }: Readonly<DataTableProps<T>>) {
+export function DataTable<T>({
+  rows,
+  columns,
+  rowKey,
+  isCurrentRow = () => false,
+}: Readonly<DataTableProps<T>>) {
   return (
     <div className="overflow-x-auto">
       <table
@@ -114,7 +124,11 @@ export function DataTable<T>({ rows, columns, rowKey }: Readonly<DataTableProps<
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr className="border-border-subtle border-b" key={rowKey(row)}>
+            <tr
+              aria-current={isCurrentRow(row) ? "true" : undefined}
+              className={`border-border-subtle border-b${isCurrentRow(row) ? " bg-surface font-semibold" : ""}`}
+              key={rowKey(row)}
+            >
               {columns.map((column) => {
                 const className =
                   `p-3 ${alignClass(column.align)} ${column.cellClassName ?? ""}`.trim();

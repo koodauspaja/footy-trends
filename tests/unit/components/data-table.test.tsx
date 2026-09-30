@@ -99,4 +99,29 @@ describe("DataTable", () => {
     expect(screen.getAllByRole("columnheader")).toHaveLength(2);
     expect(screen.queryByRole("cell")).not.toBeInTheDocument();
   });
+
+  it("marks the current row, and only it, for the eye and for a screen reader (specs/049)", () => {
+    render(
+      <DataTable
+        columns={columns}
+        isCurrentRow={(row) => row.id === 2}
+        rowKey={(row) => row.id}
+        rows={rows}
+      />
+    );
+    const [hjk, kups] = screen.getAllByRole("row").slice(1);
+
+    expect(kups).toHaveAttribute("aria-current", "true");
+    expect(kups).toHaveClass("bg-surface", "font-semibold");
+    expect(hjk).not.toHaveAttribute("aria-current");
+    expect(hjk).not.toHaveClass("bg-surface");
+  });
+
+  it("marks no row unless asked", () => {
+    render(<DataTable columns={columns} rowKey={(row) => row.id} rows={rows} />);
+
+    expect(screen.getAllByRole("row").filter((row) => row.hasAttribute("aria-current"))).toEqual(
+      []
+    );
+  });
 });
