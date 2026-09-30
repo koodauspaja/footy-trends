@@ -282,6 +282,31 @@ export function competitionIdForSeason(code: string, seasonId: number): string {
 }
 
 /**
+ * The competition among `codes` whose registry names exactly this
+ * `(competition_id, category_id)` pair for the season, or `null`.
+ *
+ * Stricter than `competitionCodeForCategory`: a category id alone does not
+ * decide it, since a cup can publish under a league's category (a `P20SM` row
+ * under `Liigacup25`) and a junior id can outlive its era. specs/049 files its
+ * counts by this, and specs/051 files an upcoming match by the same rule, so a
+ * match and the history it is predicted from are the same competition.
+ */
+export function competitionForSeasonPair(
+  codes: readonly string[],
+  competitionId: string,
+  categoryId: string,
+  seasonId: number
+): string | null {
+  return (
+    codes.find(
+      (code) =>
+        competitionIdForSeason(code, seasonId) === competitionId &&
+        categoryIdForSeason(code, seasonId) === categoryId
+    ) ?? null
+  );
+}
+
+/**
  * Whether a competition is a cup. An unknown code answers `false`: the league
  * rendering is the one that has always existed, so a bad `kilpailu` value
  * cannot route into the newer path.

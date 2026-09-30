@@ -660,3 +660,67 @@ describe("getOutcomeShares (specs/049)", () => {
     );
   });
 });
+
+describe("getHomeBaseline (specs/051)", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+    loggerErrorMock.mockReset();
+  });
+
+  const counts = { matches: 10, homeWins: 5, draws: 3, awayWins: 2, leftToPlay: 0 };
+
+  it("reads one football-data competition's seasons into one baseline", async () => {
+    const { getHomeBaseline } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { code: "PL", seasonId: 2023, spansCalendarYears: true, ...counts },
+      { code: "PL", seasonId: 2026, spansCalendarYears: true, ...counts, leftToPlay: 300 },
+    ]);
+
+    const result = await getHomeBaseline("football-data", "PL");
+
+    expect(result).toMatchObject({
+      status: "ok",
+      matches: 20,
+      seasons: { first: 2023, last: 2026 },
+      spansCalendarYears: true,
+    });
+    expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("files each TASO row by its season's pair, and drops the rest", async () => {
+    const { getHomeBaseline } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2015, competitionId: "spljp15", categoryId: "VL", ...counts },
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "VL", ...counts },
+      // Another season's umbrella: not this competition's row.
+      { seasonId: 2026, competitionId: "spljp25", categoryId: "VL", ...counts, matches: 90 },
+    ]);
+
+    const result = await getHomeBaseline("taso", "VL");
+
+    expect(result).toMatchObject({
+      status: "ok",
+      matches: 20,
+      seasons: { first: 2015, last: 2026 },
+      spansCalendarYears: false,
+    });
+  });
+
+  it("is empty when the competition has no finished match", async () => {
+    const { getHomeBaseline } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]);
+
+    await expect(getHomeBaseline("taso", "M1L")).resolves.toEqual({ status: "empty" });
+  });
+
+  it("fails as its own case, never as an empty history", async () => {
+    const { getHomeBaseline } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getHomeBaseline("football-data", "PL")).resolves.toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), kind: "football-data", code: "PL" }),
+      "Unable to read the home-win baseline"
+    );
+  });
+});
