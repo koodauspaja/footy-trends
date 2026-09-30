@@ -694,6 +694,8 @@ describe("getHomeBaseline (specs/051)", () => {
       { seasonId: 2026, competitionId: "spljp26", categoryId: "VL", ...counts },
       // Another season's umbrella: not this competition's row.
       { seasonId: 2026, competitionId: "spljp25", categoryId: "VL", ...counts, matches: 90 },
+      // Another compared competition: never part of this one's history.
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "M1", ...counts, matches: 90 },
     ]);
 
     const result = await getHomeBaseline("taso", "VL");

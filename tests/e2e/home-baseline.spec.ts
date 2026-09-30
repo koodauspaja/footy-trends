@@ -18,6 +18,7 @@ const HEADING = "Ennuste";
 const SEASON = 2099;
 const UPCOMING_ID = 999_051_001;
 const FINISHED_ID = 999_051_002;
+const CUP_ID = 999_051_003;
 const PATH = (id: number) => `/kotimaa/ottelu/${id}`;
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
@@ -29,11 +30,11 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   }
 }
 
-function fixture(id: number, status: string, goals: number | null) {
+function fixture(id: number, status: string, goals: number | null, categoryId = "VL") {
   return {
     taso_match_id: id,
     competition_id: `spljp${SEASON % 100}`,
-    category_id: "VL",
+    category_id: categoryId,
     season_id: SEASON,
     group_id: 1,
     group_name: "Runkosarja",
@@ -49,7 +50,7 @@ function fixture(id: number, status: string, goals: number | null) {
   };
 }
 
-const IDS = [UPCOMING_ID, FINISHED_ID];
+const IDS = [UPCOMING_ID, FINISHED_ID, CUP_ID];
 
 test.beforeAll(async () => {
   await withDatabase(async (sql) => {
@@ -57,6 +58,8 @@ test.beforeAll(async () => {
     await sql`insert into taso_matches ${sql([
       fixture(UPCOMING_ID, "SCHEDULED", null),
       fixture(FINISHED_ID, "FINISHED", 1),
+      // Suomen Cup: upcoming, but not a competition specs/049 compares (S5).
+      fixture(CUP_ID, "SCHEDULED", null, "MSC"),
     ])}`;
   });
 });
@@ -101,6 +104,15 @@ test.describe("Home-win baseline, signed in", () => {
 
   test("a finished match has no prediction", async ({ page }) => {
     await page.goto(PATH(FINISHED_ID));
+
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Aiemmat kohtaamiset" })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
+  });
+
+  test("an upcoming cup match has no prediction", async ({ page }) => {
+    await page.goto(PATH(CUP_ID));
 
     await expect(
       page.getByRole("heading", { level: 2, name: "Aiemmat kohtaamiset" })

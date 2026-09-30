@@ -51,7 +51,7 @@ match.
 | S3 | Which matches get the panel | **Upcoming only: status `SCHEDULED` or `TIMED`** | Miikka, 2026-09-30 (Q3). On a finished match it would read as a prediction made after the fact — backtesting, which is #349's to decide. |
 | S4 | Access | **Signed in only**, `canSeeAnalytics()` | Miikka, 2026-09-30 (Q4). As every other analytic. |
 | S5 | Which competitions | **specs/049 S6's set** — the leagues specs/048 S5 names and the Champions League, both providers | Miikka, 2026-09-30 (Q5). Cups and national teams play one-off or neutral-venue matches; national teams can join when more tournaments are stored. |
-| S6 | Placement | **`Ennuste`, between the match details and `Keskinäiset ottelut`**, no group heading | Miikka, 2026-09-30 (Q6). The match page has no `Analyysit` section yet; one panel does not need a group. |
+| S6 | Placement | **`Ennuste`, between the match details and `Aiemmat kohtaamiset`**, no group heading | Miikka, 2026-09-30 (Q6). The match page has no `Analyysit` section yet; one panel does not need a group. |
 | S7 | Display | **Three whole percentages as text**; no bar | Miikka, 2026-09-30 (Q7). A bar earns its place when there are two models to compare (#344). |
 | S8 | The same for every match | **Said outright in the explanation line** | Miikka, 2026-09-30 (Q8). Otherwise 45/26/29 on every Veikkausliiga fixture looks like a bug. |
 | S9 | No history | **The panel, with a line saying there is not enough history**, instead of no panel | Miikka, 2026-09-30 (Q9). |
@@ -62,7 +62,7 @@ match.
 ## UX / UI (Finnish strings)
 
 Signed in, on the match page of an upcoming match (S3) in a competition S5
-covers, after the match details and before `Keskinäiset ottelut` (S6):
+covers, after the match details and before `Aiemmat kohtaamiset` (S6):
 
 1. `Ennuste` — panel heading
    - `Kotivoitto 45 %` · `Tasapeli 26 %` · `Vierasvoitto 29 %` — whole
@@ -80,8 +80,9 @@ covers, after the match details and before `Keskinäiset ottelut` (S6):
 | `Kilpailusta ei ole vielä tallennettuja otteluita.` | No finished match stored (S9, S11) |
 | `Kirjaudu sisään nähdäksesi ennusteen.` | Signed out (S4) |
 
-The count is written with a space as the thousands separator, as elsewhere in
-the app's Finnish numbers.
+The count is written with a no-break space as the thousands separator, as
+Finnish writes it (`1 234`). No other count in the app uses one yet —
+specs/049's `Ottelut` column prints `1140` — so this is the first.
 
 ## API & Data
 
@@ -129,7 +130,7 @@ No new environment variable or secret. Behind `canSeeAnalytics()`.
 
 - [ ] Signed in, an upcoming (`SCHEDULED` or `TIMED`) match's page in a
       competition specs/049 S6 compares shows `Ennuste` between the match
-      details and `Keskinäiset ottelut`
+      details and `Aiemmat kohtaamiset`
 - [ ] The three percentages are the competition's home-win, draw and away-win
       shares over every stored finished match, the season in progress included
 - [ ] A drawn match settled on penalties counts as a draw — on football-data,
