@@ -20,13 +20,33 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * Mounted as the whole document, which is what it is: Next renders it in place
+ * of the root layout, `<html>` and all. Testing Library's default container is
+ * a `<div>`, and an `<html>` inside one makes React warn on every run (#503).
+ */
+function renderDocument(error: Error) {
+  return render(<GlobalError error={error} />, { container: document });
+}
+
 const failure = Object.assign(new Error("boom"), { digest: "abc123" });
 
 describe("GlobalError", () => {
-  it("renders Next's generic error page rather than nothing", () => {
-    const { container } = render(<GlobalError error={failure} />);
+  it("mounts without React reporting an error, <html> nesting included (#503)", () => {
+    // A spy rather than reading the output: local runs do not print a test's
+    // console, so the warning showed only in CI's log.
+    const consoleError = vi.spyOn(console, "error");
 
-    expect(container.textContent).toContain("Application error");
+    renderDocument(failure);
+
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("renders Next's generic error page rather than nothing", () => {
+    renderDocument(failure);
+
+    expect(document.documentElement.textContent).toContain("Application error");
   });
 
   it("shows no status code, which is what passing 0 asks for", () => {
@@ -35,23 +55,23 @@ describe("GlobalError", () => {
      * generic message. Next renders a numbered heading for any real code, so a
      * `500` here would mean the prop had started carrying something.
      */
-    const { container } = render(<GlobalError error={failure} />);
+    renderDocument(failure);
 
     // Next does render a heading — it carries the generic message — but no
     // number: `statusCode={404}` would put "404" in it.
     expect(screen.getByRole("heading").textContent).toContain("Application error");
-    expect(container.textContent).not.toMatch(/\b[45]\d\d\b/);
+    expect(document.documentElement.textContent).not.toMatch(/\b[45]\d\d\b/);
   });
 
   it("reports the failure to Sentry, digest and all", () => {
-    render(<GlobalError error={failure} />);
+    renderDocument(failure);
 
     expect(captureException).toHaveBeenCalledTimes(1);
     expect(captureException).toHaveBeenCalledWith(failure);
   });
 
   it("reports again when a different error arrives", () => {
-    const { rerender } = render(<GlobalError error={failure} />);
+    const { rerender } = renderDocument(failure);
     const second = new Error("another");
 
     rerender(<GlobalError error={second} />);
@@ -63,7 +83,7 @@ describe("GlobalError", () => {
   });
 
   it("does not report twice for the same error", () => {
-    const { rerender } = render(<GlobalError error={failure} />);
+    const { rerender } = renderDocument(failure);
 
     rerender(<GlobalError error={failure} />);
 
