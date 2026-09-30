@@ -6,6 +6,7 @@ import { type CompetitionRegion, competitionsInRegion } from "./competitions";
 import {
   categoryIdForSeason,
   categoryIdsFor,
+  competitionForSeasonPair,
   competitionIdForSeason,
 } from "./domestic-competitions";
 import { FORM_WINDOW, type LatestForm, latestForm } from "./form-series";
@@ -26,6 +27,7 @@ import {
   spansCalendarYears,
   worstOpponents,
 } from "./head-to-head";
+import { type HomeBaseline, homeBaseline } from "./home-baseline";
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
@@ -347,12 +349,37 @@ export async function getOutcomeShares(): Promise<OutcomeShares> {
   const floor = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
   try {
     const [footballData, taso] = await Promise.all([
-      footballDataSeasonOutcomes(floor),
-      tasoSeasonOutcomes(floor),
+      footballDataSeasonOutcomes([...COMPETITIONS["football-data"]], floor),
+      tasoSeasonOutcomes([...COMPETITIONS.taso], floor),
     ]);
     return outcomeShares([...footballData, ...taso], floor);
   } catch (error) {
     logger.error({ err: error }, "Unable to read the competitions' home advantage");
+    return { status: "error" };
+  }
+}
+
+/**
+ * One competition's home-win baseline (specs/051), or `error` when the read
+ * fails — never `empty`, which says the competition has no finished match.
+ *
+ * specs/049's per-season counts for this one competition, with **no season
+ * floor and no completed-season filter** (S2): every stored finished match,
+ * the season in progress's included. Its unplayed matches count nowhere, since
+ * only finished matches with both scores are counted.
+ */
+export async function getHomeBaseline(
+  kind: MatchSource["kind"],
+  code: string
+): Promise<HomeBaseline> {
+  try {
+    const seasons =
+      kind === "football-data"
+        ? await footballDataSeasonOutcomes([code], null)
+        : await tasoSeasonOutcomes([code], null);
+    return homeBaseline(seasons);
+  } catch (error) {
+    logger.error({ err: error, kind, code }, "Unable to read the home-win baseline");
     return { status: "error" };
   }
 }
@@ -373,7 +400,14 @@ function outcomeCounts(
   };
 }
 
-async function footballDataSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
+/**
+ * Each season's counts for `codes`, from `floor` on — or from the first stored
+ * season when `floor` is null (specs/051, S2).
+ */
+async function footballDataSeasonOutcomes(
+  codes: string[],
+  floor: number | null
+): Promise<SeasonOutcomes[]> {
   const home = FOOTBALL_DATA_HOME_GOALS;
   const away = FOOTBALL_DATA_AWAY_GOALS;
   const rows = await db
@@ -387,16 +421,18 @@ async function footballDataSeasonOutcomes(floor: number): Promise<SeasonOutcomes
     .from(matches)
     .where(
       and(
-        inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
-        gte(matches.seasonId, floor)
+        inArray(matches.competitionCode, codes),
+        floor === null ? undefined : gte(matches.seasonId, floor)
       )
     )
     .groupBy(matches.competitionCode, matches.seasonId);
   return rows.map((row) => ({ ...row, kind: "football-data" }));
 }
 
-async function tasoSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
-  const codes = [...COMPETITIONS.taso];
+async function tasoSeasonOutcomes(
+  codes: string[],
+  floor: number | null
+): Promise<SeasonOutcomes[]> {
   const home = sql`${tasoMatches.homeGoals}`;
   const away = sql`${tasoMatches.awayGoals}`;
   const rows = await db
@@ -410,7 +446,7 @@ async function tasoSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
     .where(
       and(
         inArray(tasoMatches.categoryId, codes.flatMap(categoryIdsFor)),
-        gte(tasoMatches.seasonId, floor)
+        floor === null ? undefined : gte(tasoMatches.seasonId, floor)
       )
     )
     .groupBy(tasoMatches.seasonId, tasoMatches.competitionCode, tasoMatches.categoryId);
@@ -418,12 +454,8 @@ async function tasoSeasonOutcomes(floor: number): Promise<SeasonOutcomes[]> {
   // Each row belongs to the competition whose registry names its exact
   // `(competition_id, category_id)` pair for that season, as specs/048 reads.
   return rows.flatMap(({ competitionId, categoryId, ...counts }) => {
-    const code = codes.find(
-      (candidate) =>
-        competitionIdForSeason(candidate, counts.seasonId) === competitionId &&
-        categoryIdForSeason(candidate, counts.seasonId) === categoryId
-    );
-    return code === undefined
+    const code = competitionForSeasonPair(codes, competitionId, categoryId, counts.seasonId);
+    return code === null
       ? []
       : [{ ...counts, kind: "taso" as const, code, spansCalendarYears: false }];
   });

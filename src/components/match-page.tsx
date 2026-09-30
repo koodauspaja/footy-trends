@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
+import { MatchPrediction } from "@/components/match-prediction";
 import { PageShell } from "@/components/page-shell";
 import { getCompetitionName } from "@/lib/competitions";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
@@ -386,6 +387,7 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
   }
 
   const { view, data } = resolved;
+  const prediction = await MatchPrediction({ stored: data.match });
 
   return (
     <PageShell heading={`${view.homeName} – ${view.awayName}`}>
@@ -402,6 +404,7 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
           {line}
         </p>
       ))}
+      {prediction}
       <div className="mt-10">
         {data.headToHead.status === "error" && <p>{HEAD_TO_HEAD_ERROR}</p>}
         {data.headToHead.status === "unavailable" && <p>{HEAD_TO_HEAD_UNAVAILABLE}</p>}

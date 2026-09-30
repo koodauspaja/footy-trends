@@ -3,6 +3,7 @@ import {
   categoryIdForSeason,
   categoryIdsFor,
   competitionCodeForCategory,
+  competitionForSeasonPair,
   competitionIdForSeason,
   cupFormatFor,
   DEFAULT_DOMESTIC_COMPETITION_CODE,
@@ -256,5 +257,26 @@ describe("cupFormatFor", () => {
   it("answers knockout for a league or an unknown code", () => {
     expect(cupFormatFor("VL")).toBe("knockout");
     expect(cupFormatFor("XX")).toBe("knockout");
+  });
+});
+
+describe("competitionForSeasonPair", () => {
+  const codes = ["VL", "P21SM", "LC"];
+
+  it("names the competition whose registry holds this exact pair for the season", () => {
+    expect(competitionForSeasonPair(codes, "spljp26", "VL", 2026)).toBe("VL");
+    expect(competitionForSeasonPair(codes, "spljp15", "VL", 2015)).toBe("VL");
+    expect(competitionForSeasonPair(codes, "spljp25", "P20SM", 2025)).toBe("P21SM");
+    expect(competitionForSeasonPair(codes, "Liigacup25", "LC", 2025)).toBe("LC");
+  });
+
+  it("answers null for a pair no listed competition holds that season", () => {
+    // The old junior id in the new era; a cup under a league's category.
+    expect(competitionForSeasonPair(codes, "spljp26", "P20SM", 2026)).toBeNull();
+    expect(competitionForSeasonPair(codes, "Liigacup25", "P20SM", 2025)).toBeNull();
+    // Another season's umbrella.
+    expect(competitionForSeasonPair(codes, "spljp25", "VL", 2026)).toBeNull();
+    // A competition that is not among the codes asked about.
+    expect(competitionForSeasonPair(codes, "spljp26", "M1", 2026)).toBeNull();
   });
 });
