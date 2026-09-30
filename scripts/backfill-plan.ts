@@ -28,27 +28,6 @@ export function tasoSeasonsFor(earliestSeason: number, currentSeason: number): n
 }
 
 /**
- * Milliseconds to wait before the next request so that requests are spaced at
- * least `minIntervalMs` apart. Zero when enough time has already passed —
- * database writes between requests are not free, and charging for time already
- * spent would make a 344-request run considerably longer than it needs to be.
- */
-export function delayBefore(
-  lastRequestAt: number | null,
-  now: number,
-  minIntervalMs: number
-): number {
-  if (lastRequestAt === null) return 0;
-  return Math.max(0, minIntervalMs - (now - lastRequestAt));
-}
-
-/** Requests per minute -> the gap to leave between them. */
-export function intervalForRatePerMinute(perMinute: number): number {
-  if (perMinute <= 0) throw new Error(`Rate must be positive, got ${perMinute}`);
-  return Math.ceil(60_000 / perMinute);
-}
-
-/**
  * The database name in a connection string, for display and for the reset
  * guard. Never returns anything from the credentials portion.
  */

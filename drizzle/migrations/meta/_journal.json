@@ -127,6 +127,13 @@
       "when": 1789940112843,
       "tag": "0017_add_half_time_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790801029756,
+      "tag": "0018_create_predictions",
+      "breakpoints": true
     }
   ]
 }

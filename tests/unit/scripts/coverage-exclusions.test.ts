@@ -96,6 +96,7 @@ describe("the coverage exclusion list", () => {
     "scripts/services-run.ts",
     "scripts/ensure-services.ts",
     "scripts/db-reset.ts",
+    "scripts/predictions.ts",
     // The tooling's own configuration.
     "drizzle.config.ts",
     "next.config.ts",

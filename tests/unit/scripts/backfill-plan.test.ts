@@ -3,10 +3,8 @@ import {
   authoriseReset,
   canSkip,
   databaseNameFrom,
-  delayBefore,
   describeError,
   describeTarget,
-  intervalForRatePerMinute,
   tasoSeasonsFor,
 } from "../../../scripts/backfill-plan";
 
@@ -23,34 +21,6 @@ describe("tasoSeasonsFor", () => {
     // Ykkösliiga did not exist before 2024; asking for seasons before a
     // competition's floor spends requests on seasons that never happened.
     expect(tasoSeasonsFor(2027, 2026)).toEqual([]);
-  });
-});
-
-describe("intervalForRatePerMinute", () => {
-  it("converts a rate into the gap between requests", () => {
-    expect(intervalForRatePerMinute(60)).toBe(1000);
-    expect(intervalForRatePerMinute(9)).toBe(6667);
-  });
-
-  it("rejects a rate that would divide by zero or run backwards", () => {
-    expect(() => intervalForRatePerMinute(0)).toThrow(/must be positive/);
-    expect(() => intervalForRatePerMinute(-1)).toThrow(/must be positive/);
-  });
-});
-
-describe("delayBefore", () => {
-  it("does not wait before the first request", () => {
-    expect(delayBefore(null, 1_000, 6667)).toBe(0);
-  });
-
-  it("waits only for the remainder of the interval", () => {
-    // Database writes happen between requests; charging for time already spent
-    // would make a 344-request run considerably longer than it needs to be.
-    expect(delayBefore(1_000, 3_000, 6667)).toBe(4667);
-  });
-
-  it("does not wait at all once the interval has already passed", () => {
-    expect(delayBefore(1_000, 9_000, 6667)).toBe(0);
   });
 });
 
