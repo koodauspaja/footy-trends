@@ -39,12 +39,50 @@ export function formatMatchResult(homeGoals: number | null, awayGoals: number | 
  * apply the same rule without importing the database.
  */
 export function toFinishedMatches<
-  T extends { status: string; homeGoals: number | null; awayGoals: number | null },
+  T extends {
+    status: string;
+    homeGoals: number | null;
+    awayGoals: number | null;
+    penaltiesHome?: number | null;
+    penaltiesAway?: number | null;
+  },
 >(matchList: T[]): Array<T & { homeGoals: number; awayGoals: number }> {
-  return matchList.filter(
-    (match): match is T & { homeGoals: number; awayGoals: number } =>
-      match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
-  );
+  return matchList
+    .filter(
+      (match): match is T & { homeGoals: number; awayGoals: number } =>
+        match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null
+    )
+    .map(withoutShootout);
+}
+
+/**
+ * A match's score after extra time (#495).
+ *
+ * football-data stores the provider's `fullTime`, which **includes** a penalty
+ * shoot-out: Liverpool "1–5" PSG (Champions League, 2024/25) was 0–1 with
+ * penalties 1–4. A shoot-out is neither goals nor the result (specs/044,
+ * specs/049 S3), so every analytic reading finished matches gets the score
+ * without it — the one place they all pass through. The stored value itself
+ * stays `fullTime` (see `football-data.ts`), and the match list and the bracket
+ * read the breakdown on their own. A TASO row has no shoot-out columns.
+ *
+ * Half a shoot-out is not one: both sides must be stored, as `formatScore` asks.
+ */
+function withoutShootout<
+  T extends {
+    homeGoals: number;
+    awayGoals: number;
+    penaltiesHome?: number | null;
+    penaltiesAway?: number | null;
+  },
+>(match: T): T {
+  const { penaltiesHome, penaltiesAway } = match;
+  if (penaltiesHome == null || penaltiesAway == null) return match;
+  return {
+    ...match,
+    homeGoals: match.homeGoals - penaltiesHome,
+    awayGoals: match.awayGoals - penaltiesAway,
+  };
 }
 
 export type FormResult = "V" | "T" | "H";

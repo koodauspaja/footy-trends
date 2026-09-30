@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
+import { headToHeadRecord } from "@/lib/head-to-head";
+import { calculateStandings, type NormalizedMatch, toFinishedMatches } from "@/lib/standings";
 
 const match = (overrides: Partial<NormalizedMatch>): NormalizedMatch => ({
   providerMatchId: 1,
@@ -162,5 +163,62 @@ describe("calculateStandings", () => {
       "Arsenal FC",
       "Chelsea FC",
     ]);
+  });
+});
+
+describe("toFinishedMatches and a penalty shoot-out (#495)", () => {
+  /**
+   * The Anfield leg as football-data stores it: `fullTime` 1–5, which is 0–1
+   * after extra time and a 1–4 shoot-out.
+   */
+  const stored = {
+    ...match({ homeTeamProviderId: 64, homeTeamName: "Liverpool FC", awayTeamProviderId: 524 }),
+    awayTeamName: "Paris Saint-Germain FC",
+    status: "FINISHED",
+    homeGoals: 1,
+    awayGoals: 5,
+    penaltiesHome: 1,
+    penaltiesAway: 4,
+  };
+
+  it("reads a match's score after extra time, without its shoot-out", () => {
+    expect(toFinishedMatches([stored])[0]).toMatchObject({ homeGoals: 0, awayGoals: 1 });
+  });
+
+  it("leaves a match without a shoot-out as it is stored", () => {
+    const plain = {
+      ...stored,
+      homeGoals: 2,
+      awayGoals: 1,
+      penaltiesHome: null,
+      penaltiesAway: null,
+    };
+
+    expect(toFinishedMatches([plain])[0]).toBe(plain);
+  });
+
+  it("does not treat half a shoot-out as one", () => {
+    const half = { ...stored, penaltiesAway: null };
+
+    expect(toFinishedMatches([half])[0]).toMatchObject({ homeGoals: 1, awayGoals: 5 });
+  });
+
+  it("leaves a TASO row, which has no shoot-out columns, as it is", () => {
+    const { penaltiesHome: _home, penaltiesAway: _away, ...taso } = stored;
+
+    expect(toFinishedMatches([taso])[0]).toBe(taso);
+  });
+
+  it("makes a tie level after extra time a draw in the head-to-head record, 1–1 not 5–4", () => {
+    // A 1–1 settled 4–3 on penalties, stored as 5–4.
+    const level = { ...stored, homeGoals: 5, awayGoals: 4, penaltiesHome: 4, penaltiesAway: 3 };
+
+    expect(headToHeadRecord(toFinishedMatches([level]), 64)).toMatchObject({
+      wins: 0,
+      draws: 1,
+      losses: 0,
+      goalsFor: 1,
+      goalsAgainst: 1,
+    });
   });
 });
