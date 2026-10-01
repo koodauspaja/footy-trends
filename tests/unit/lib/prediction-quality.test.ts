@@ -107,12 +107,22 @@ describe("rollingOf (S6)", () => {
     ]);
   });
 
-  it("thins to at most 400 points, keeping the last", () => {
-    const points = rollingOf(series(2000));
+  it("thins to at most 400 points, plus the last when the step skips it", () => {
+    // 1 802 windows, every fifth kept: the last (the 1 802nd) is off the step.
+    const points = rollingOf(series(2001));
 
-    expect(points.length).toBeLessThanOrEqual(ROLLING_POINTS + 1);
-    expect(points.at(-1)?.at).toBe(day(1999).getTime());
+    expect(points).toHaveLength(Math.ceil(1802 / 5) + 1);
+    expect(points.at(-1)?.at).toBe(day(2000).getTime());
+    expect(points.at(-2)?.at).toBe(day(1999).getTime());
     expect(points[0]?.at).toBe(day(199).getTime());
+  });
+
+  it("keeps every other window of 401, the step rounding up", () => {
+    // 600 matches are 401 windows: one each would be 401 points, over 400.
+    const points = rollingOf(series(600));
+
+    expect(points).toHaveLength(201);
+    expect(points.length).toBeLessThanOrEqual(ROLLING_POINTS);
   });
 });
 
@@ -132,6 +142,14 @@ describe("calibrationOf (S8)", () => {
 
     expect(bins[5]).toEqual({ from: 50, probabilities: 60, observed: 50 });
     expect(bins[2]).toEqual({ from: 20, probabilities: 120, observed: 25 });
+  });
+
+  it("shows a bin of exactly 50", () => {
+    const rows = Array.from({ length: 50 }, (_, index) =>
+      judged({ providerMatchId: index, home: 0.55, draw: 0.25, away: 0.2 })
+    );
+
+    expect(calibrationOf(rows)[5]).toEqual({ from: 50, probabilities: 50, observed: 100 });
   });
 
   it("leaves a bin under 50 off, and puts a probability of 1 in the last", () => {
@@ -195,6 +213,31 @@ describe("qualityReport", () => {
       ["a", 10],
       ["b", 10],
     ]);
+  });
+
+  it("orders by kickoff, and a shared kickoff by match id, whatever order the rows come in", () => {
+    // 201 matches at one kickoff, given newest id first; only match 0 is missed.
+    const rows = Array.from({ length: 201 }, (_, index) => 200 - index).flatMap((id) =>
+      pair(id, "home").map((row) => ({
+        ...row,
+        kickoffAt: day(0),
+        outcome: id === 0 ? ("draw" as const) : ("home" as const),
+      }))
+    );
+
+    const report = qualityReport(rows, ["a", "b"]);
+
+    if (report.status !== "ok") throw new Error("expected a report");
+    expect(report.rolling?.[0]?.points.map((point) => point.accuracy)).toEqual([
+      expect.closeTo(99.5, 12),
+      100,
+    ]);
+  });
+
+  it("reads the window's years by kickoff, not by the order given", () => {
+    const report = qualityReport([...pair(400, "home"), ...pair(1, "home")], ["a", "b"]);
+
+    expect(report).toMatchObject({ firstYear: 2024, lastYear: 2025 });
   });
 
   it("draws the rolling line once 200 matches are judged", () => {

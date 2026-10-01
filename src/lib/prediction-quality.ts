@@ -136,7 +136,7 @@ function byKickoff(left: JudgedPrediction, right: JudgedPrediction): number {
 
 /**
  * The share right over each run of 200 consecutive matches, by kickoff,
- * thinned to at most 400 points — always keeping the last (S6).
+ * thinned to every step-th window, at most 400, plus always the last (S6).
  */
 export function rollingOf(predictions: readonly JudgedPrediction[]): RollingPoint[] {
   if (predictions.length < ROLLING_WINDOW) return [];
