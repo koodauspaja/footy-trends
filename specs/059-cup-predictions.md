@@ -1,8 +1,7 @@
 # 059 — Predictions for cup competitions
 
-> **Status: Q1–Q9 answered in chat on 2026-10-01; the one string and two
-> edge-case rules (Q10) proposed. Strings may be fine-tuned during
-> implementation.** Written for #516, release 4 in the
+> **Status: all questions (Q1–Q10) answered in chat on 2026-10-01. Strings may
+> be fine-tuned during implementation.** Written for #516, release 4 in the
 > predictions plan. Filed on 2026-10-01 from specs/058 S2: a rivalry's next
 > meeting may be a cup tie, and no model predicts one.
 
@@ -44,6 +43,7 @@ cups are judged on `/ennusteet` (specs/054, specs/056).
 | S7 | `/ennusteet` | **Each cup its own row in `Kilpailuittain`; not in the provider-wide figures, and a line says so** | Miikka, 2026-10-01 (Q7). The leagues' figures do not shift when cups arrive. |
 | S8 | specs/058 | **A cup tie as the rivalry's next meeting is predicted, within S3** | Miikka, 2026-10-01 (Q8). Lifts specs/058 S2 and the cup half of S10. |
 | S9 | Backtest | **Re-run per environment after release** | Miikka, 2026-10-01 (Q9). specs/052 S10. |
+| S10 | The line, and two rules | **The `/ennusteet` line as drafted; "rated" means a stored finished match in a covered league or the Champions League, not another cup tie; a cup draw share of 0 or 1 is used as it is by the baseline and Elo, Poisson falling back to its plain grid** | Miikka, 2026-10-01 (S10): "those for q10 are good". |
 
 ## UX / UI (Finnish strings)
 
@@ -51,7 +51,7 @@ No new screen: a Suomen Cup tie's match page gets `Ennuste` as a league
 match does; specs/058's group predicts a cup meeting (S8).
 
 One line, under specs/056's `Kilpailuittain` when a cup row is listed (S7),
-**proposed, pending Q10**:
+(S10):
 `Suomen Cupit näytetään omina riveinään, eivätkä ne sisälly yllä oleviin kokonaislukuihin.`
 
 ## API & Data
@@ -78,7 +78,7 @@ One line, under specs/056's `Kilpailuittain` when a cup row is listed (S7),
 | A tie settled on penalties | A draw for every model's history (specs/049 S3) |
 | A final at a neutral ground | The listed home side at home (S6) |
 | A cup with no finished match yet | No prediction (S4) |
-| A cup's draw share of 0 or 1 | specs/055 S14: the plain Poisson grid; the baseline and Elo use it as it is (Q10) |
+| A cup's draw share of 0 or 1 | specs/055 S14: the plain Poisson grid; the baseline and Elo use it as it is (S10) |
 | A placeholder side (TASO's unresolved bracket slot) | No prediction, as specs/053 |
 | The rivalry page's next meeting a cup tie | Predicted within S3 (S8) |
 
@@ -121,11 +121,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q9 were answered in chat on 2026-10-01 and are recorded as S1–S9. Writing
-the rest raised one:
-
-10. **The `/ennusteet` line** in UX / UI, and two rules: "rated" means a
-    stored finished match in a covered **league** or the Champions League —
-    not another cup tie; and a cup whose draw share is 0 or 1 uses it as it
-    is for the baseline and Elo, and the plain grid for Poisson (specs/055
-    S14). *Proposal: as stated.*
+**None.** Q1–Q10 were answered in chat on 2026-10-01 and are recorded as
+S1–S10.
