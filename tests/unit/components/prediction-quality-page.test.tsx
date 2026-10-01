@@ -44,8 +44,6 @@ const report: Extract<QualityReport, { status: "ok" }> = {
   status: "ok",
   models: ["home-baseline-v1", "elo-v1"],
   matches: 1234,
-  firstSeason: 2016,
-  lastSeason: 2026,
   firstYear: 2016,
   lastYear: 2026,
   totals: [
@@ -94,6 +92,11 @@ describe("parseQualityParams (S3, S4)", () => {
       kind: "live",
     });
     expect(parseQualityParams({ alue: "mars", tyyppi: "huomenna" })).toEqual({
+      source: "taso",
+      kind: "backtest",
+    });
+    // Repeated, Next gives an array: not a value the page names, so the default.
+    expect(parseQualityParams({ alue: ["ulkomaat", "ulkomaat"], tyyppi: ["ennakkoon"] })).toEqual({
       source: "taso",
       kind: "backtest",
     });

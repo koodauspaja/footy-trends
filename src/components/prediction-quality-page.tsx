@@ -68,8 +68,11 @@ export function windowSentence(matches: number, firstYear: number, lastYear: num
 /** `0,601`: three decimals with a comma (S7). */
 const score = (value: number) => formatDecimal(value, 3);
 
-/** The page's parameters: `alue` and `tyyppi`, the defaults `kotimaa` and backtest (S3, S4). */
-export type QualityParams = { alue?: string; tyyppi?: string };
+/**
+ * The page's parameters, as Next gives them: `alue` and `tyyppi`, the defaults
+ * `kotimaa` and backtest (S3, S4). A repeated one is an array, and falls back.
+ */
+export type QualityParams = Record<string, string | string[] | undefined>;
 
 export function parseQualityParams(params: QualityParams): {
   source: MatchSource["kind"];
@@ -82,9 +85,9 @@ export function parseQualityParams(params: QualityParams): {
 }
 
 function hrefFor(source: MatchSource["kind"], kind: PredictionKind): string {
-  const alue = source === "taso" ? "kotimaa" : "ulkomaat";
-  const tyyppi = kind === "backtest" ? "jalkikateen" : "ennakkoon";
-  return `/ennusteet?alue=${alue}&tyyppi=${tyyppi}`;
+  const regionSlug = source === "taso" ? "kotimaa" : "ulkomaat";
+  const kindSlug = kind === "backtest" ? "jalkikateen" : "ennakkoon";
+  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}`;
 }
 
 function Switch({

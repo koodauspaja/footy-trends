@@ -124,8 +124,6 @@ describe("getPredictionQuality against Postgres (specs/054)", () => {
     expect(report).toMatchObject({
       status: "ok",
       matches: 2,
-      firstSeason: 2025,
-      lastSeason: 2025,
       totals: [
         { model: "home-baseline-v1", matches: 2, accuracy: 50, brier: 1 },
         { model: "elo-v1", matches: 2, accuracy: 50, brier: 1 },

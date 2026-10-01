@@ -193,8 +193,6 @@ describe("qualityReport", () => {
       status: "ok",
       models: ["a", "b"],
       matches: 2,
-      firstSeason: 2023,
-      lastSeason: 2024,
       firstYear: 2024,
       lastYear: 2025,
       rolling: null,
