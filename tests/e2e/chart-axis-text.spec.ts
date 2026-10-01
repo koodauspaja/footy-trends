@@ -41,16 +41,16 @@ test.describe("Line chart axis text", () => {
   test("is enlarged on a phone, on every axis of every chart", async ({ page }) => {
     const sizes = await axisSizes(page, 375);
 
-    // Five charts, both axes each: the position, form, rolling-goals,
-    // total-goals and clean-sheet panels.
-    expect(sizes).toHaveLength(10);
+    // Six charts, both axes each: the position, form, rolling-goals,
+    // total-goals, clean-sheet and Elo (specs/053) panels.
+    expect(sizes).toHaveLength(12);
     expect(sizes.every((size) => size === PHONE_UNITS)).toBe(true);
   });
 
   test("keeps its usual size from the sm breakpoint up", async ({ page }) => {
     const sizes = await axisSizes(page, 1280);
 
-    expect(sizes).toHaveLength(10);
+    expect(sizes).toHaveLength(12);
     expect(sizes.every((size) => size === DESKTOP_UNITS)).toBe(true);
   });
 });

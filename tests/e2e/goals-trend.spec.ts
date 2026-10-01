@@ -104,6 +104,7 @@ test.describe("Goals charts, signed in", () => {
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",
       "Ennätykset",
+      "Joukkueen vahvuus (Elo)",
       "Vaikeimmat vastustajat",
     ]);
   });
