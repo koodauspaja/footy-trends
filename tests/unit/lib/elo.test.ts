@@ -148,6 +148,18 @@ describe("replayElo", () => {
     ]);
   });
 
+  it("keeps both updates when one team is in two matches at one kickoff", () => {
+    const { ratings, history } = replayElo([played(1, 1, 2, 3, 0), played(1, 1, 2, 3, 0)]);
+    const delta = ELO_K * (1 - expectedHome(1500, 1500));
+
+    expect(ratings.get(1)?.rating).toBeCloseTo(1500 + 2 * delta, 12);
+    expect(ratings.get(2)?.rating).toBeCloseTo(1500 - 2 * delta, 12);
+    expect(history.get(1)?.map((point) => point.rating)).toEqual([
+      expect.closeTo(1500 + 2 * delta, 12),
+      expect.closeTo(1500 + 2 * delta, 12),
+    ]);
+  });
+
   it("regresses a team at its first match of a new season, before rating it", () => {
     const seen: number[] = [];
     const lastSeason = played(1, 1, 2, 5, 0);

@@ -257,7 +257,13 @@ export async function runPredictionLog(
   }
 
   // The run replays for itself, never from the pages' cache (specs/053 S17).
-  const ratings = eloRatingsBySource(await readFinished());
+  // A failed read costs the Elo rows only: the baseline's are still written,
+  // and no Elo row is ever made from ratings that were never read.
+  const ratings = await readFinished().then(eloRatingsBySource, (error: unknown) => {
+    logger.error({ err: error }, "Unable to read the Elo history for predictions");
+    failures.push("elo ratings");
+    return null;
+  });
 
   const writtenAt = clock();
   const rows = candidates
@@ -267,7 +273,9 @@ export async function runPredictionLog(
       if (baseline === undefined) return [];
       return [
         liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt),
-        eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
+        ratings === null
+          ? null
+          : eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
       ].filter((row) => row !== null);
     });
 

@@ -343,6 +343,26 @@ describe("runPredictionLog (specs/052)", () => {
     expect(written("elo-v1")).toEqual([]);
   });
 
+  it("still writes the baseline when the Elo history cannot be read, and reports it", async () => {
+    mocks.select
+      .mockResolvedValueOnce([footballDataRow()])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([footballDataRow()])
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockResolvedValueOnce([]);
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(1);
+    expect(written("elo-v1")).toEqual([]);
+    expect(report.failures).toEqual(["elo ratings"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to read the Elo history for predictions"
+    );
+  });
+
   it("fails the run when the write fails", async () => {
     stored([footballDataRow()], []);
     mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));

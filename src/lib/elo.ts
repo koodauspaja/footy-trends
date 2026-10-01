@@ -136,17 +136,35 @@ export function replayElo(
       return { match, home, away };
     });
 
+    // Every change at this kickoff is added up before any is applied, so a
+    // team in two of these matches (a stored duplicate) keeps both updates.
+    const moved = new Map<number, number>();
     for (const { match, home, away } of together) {
       const delta = ELO_K * (homeScore(match) - expectedHome(home, away));
-      record(match.homeTeam, home + delta, match);
-      record(match.awayTeam, away - delta, match);
+      moved.set(match.homeTeam, (moved.get(match.homeTeam) ?? home) + delta);
+      moved.set(match.awayTeam, (moved.get(match.awayTeam) ?? away) - delta);
+    }
+    for (const { match } of together) {
+      ratings.set(match.homeTeam, {
+        rating: moved.get(match.homeTeam) as number,
+        seasonId: match.seasonId,
+      });
+      ratings.set(match.awayTeam, {
+        rating: moved.get(match.awayTeam) as number,
+        seasonId: match.seasonId,
+      });
+    }
+    for (const { match } of together) {
+      for (const team of [match.homeTeam, match.awayTeam]) {
+        record(team, ratingFor(ratings, team, match.seasonId), match);
+      }
     }
     index = end;
   }
   return { ratings, history };
 
+  /** A team's rating after a match, in its history; the rating itself is already set. */
   function record(team: number, rating: number, match: EloMatch) {
-    ratings.set(team, { rating, seasonId: match.seasonId });
     const point = {
       providerMatchId: match.providerMatchId,
       kickoffAt: match.kickoffAt,
