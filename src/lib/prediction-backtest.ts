@@ -93,16 +93,17 @@ export function backtestRows(
 /**
  * One `elo-v1` backtest row per match the baseline backtest also predicts
  * (specs/053 S7, S15, S16): the ratings the match was played at, and the
- * draw share of the strictly earlier matches — the baseline backtest's own
- * draw probability, so the two models know exactly the same about draws.
- * A competition's first kickoff has no draw share and so no Elo row.
+ * draw share of the strictly earlier matches — read from `baseline`, the
+ * baseline backtest's rows, so the two models know exactly the same about
+ * draws. A competition's first kickoff has no baseline row and so no Elo row.
  */
-export function eloBacktestRows(finished: readonly FinishedMatch[], now: Date): PredictionRow[] {
+export function eloBacktestRows(
+  finished: readonly FinishedMatch[],
+  baseline: readonly PredictionRow[],
+  now: Date
+): PredictionRow[] {
   const drawShares = new Map(
-    backtestRows(finished, ELO_MODEL, now).map((row) => [
-      `${row.source}:${row.providerMatchId}`,
-      row.drawProbability,
-    ])
+    baseline.map((row) => [`${row.source}:${row.providerMatchId}`, row.drawProbability])
   );
   const rows: PredictionRow[] = [];
   for (const source of ["football-data", "taso"] as const) {

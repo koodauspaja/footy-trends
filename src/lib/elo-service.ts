@@ -68,7 +68,7 @@ export async function getTeamElo(
   team: number
 ): Promise<TeamEloSeries> {
   try {
-    const history = new Map((await snapshot(source)).history).get(team);
+    const history = (await snapshot(source)).history.find(([id]) => id === team)?.[1];
     if (history === undefined) return { status: "empty" };
     return {
       status: "ok",

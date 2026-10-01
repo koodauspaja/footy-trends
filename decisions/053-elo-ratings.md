@@ -25,15 +25,41 @@ something the spec did not.
 
 ## What the tests prove, and how
 
-- **Thirty mutations, all caught**: K, the home advantage and its sign,
-  the 400 scale, regressing within a season, no regression, a draw scored as a
-  loss, the away side moving the same way, the kickoff order, placeholders
-  rated, the draw not taken out; the Elo backtest without a draw share or with
-  providers mixed; the live row without its season, for a placeholder, or not
-  written at all; the cache's lifetime, reading both providers, an empty team
-  as `ok`; a same-kickoff update overwritten, an Elo read failure unreported or answered from 1500; the failure line hidden, the draw share not the baseline's, the
-  season ignored in the panel; dots drawn, the axis step, a season dropped
-  from the text alternative, the panel outside `Muut kaudet`.
+- **Every mutation below was caught**, one row each, so the count is the
+  table's length:
+
+  | # | Mutation |
+  |---|---|
+  | 1 | K changed |
+  | 2 | The home advantage changed |
+  | 3 | The home advantage's sign flipped |
+  | 4 | The 400 scale changed |
+  | 5 | Regressing within a season |
+  | 6 | No regression between seasons |
+  | 7 | A draw scored as a loss |
+  | 8 | The away side moving the same way as the home side |
+  | 9 | The kickoff order ignored |
+  | 10 | Placeholders rated |
+  | 11 | The draw not taken out |
+  | 12 | The Elo backtest without a draw share |
+  | 13 | Providers mixed |
+  | 14 | Written without its season |
+  | 15 | Written for a placeholder |
+  | 16 | Not written at all |
+  | 17 | Its lifetime changed |
+  | 18 | Reading both providers |
+  | 19 | An empty team answered as `ok` |
+  | 20 | A same-kickoff update overwritten |
+  | 21 | An Elo read failure unreported |
+  | 22 | An Elo read failure answered from 1500 |
+  | 23 | The failure line hidden |
+  | 24 | The draw share not the baseline's |
+  | 25 | The season ignored in the panel |
+  | 26 | Dots drawn |
+  | 27 | The axis step changed |
+  | 28 | A season dropped from the text alternative |
+  | 29 | The panel outside `Muut kaudet` |
+
 - **Two first survived**, both closed with a test: same-kickoff matches rated
   one after another (shown only by a duplicated pairing), and the live row
   ignoring the match's season (now a team regressed into a new season).

@@ -367,10 +367,8 @@ export async function readFinished(
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
-  const rows = [
-    ...backtestRows(finished, HOME_BASELINE_MODEL, now),
-    ...eloBacktestRows(finished, now),
-  ];
+  const baseline = backtestRows(finished, HOME_BASELINE_MODEL, now);
+  const rows = [...baseline, ...eloBacktestRows(finished, baseline, now)];
   await writePredictions(rows);
   return rows.length;
 }
