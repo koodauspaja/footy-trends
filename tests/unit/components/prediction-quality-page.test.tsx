@@ -288,15 +288,20 @@ describe("PredictionQualityPage (specs/054)", () => {
 
     const panel = screen.getByRole("region", { name: CALIBRATION_HEADING });
     expect(panel.querySelectorAll("[data-part=line]")).toHaveLength(3);
-    expect(within(panel).getByText("Täydellinen kalibrointi")).toBeInTheDocument();
+    const perfect = within(panel).getByText("Täydellinen kalibrointi");
+    expect(perfect.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("2 4");
     expect(within(panel).getByText(CALIBRATION_NOTE)).toBeInTheDocument();
     expect(within(panel).getByText(BINS_OMITTED_NOTE)).toBeInTheDocument();
-    const dashed = (model: string) =>
-      panel.querySelector(`[data-series="${model}"]`)?.hasAttribute("data-dashed");
-    expect([dashed("perfect"), dashed("home-baseline-v1"), dashed("elo-v1")]).toEqual([
-      true,
-      true,
-      false,
+    // Three styles: the diagonal dotted, the baseline dashed, Elo solid.
+    const style = (model: string) => {
+      const series = panel.querySelector(`[data-series="${model}"]`);
+      if (series?.hasAttribute("data-dotted")) return "dotted";
+      return series?.hasAttribute("data-dashed") ? "dashed" : "solid";
+    };
+    expect([style("perfect"), style("home-baseline-v1"), style("elo-v1")]).toEqual([
+      "dotted",
+      "dashed",
+      "solid",
     ]);
     // Each bin is drawn at its middle: the first at 5, right of the diagonal's start.
     const startX = (series: string) =>
