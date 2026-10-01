@@ -134,6 +134,20 @@ describe("replayElo", () => {
     ]);
   });
 
+  it("rates even the same pairing twice at one kickoff from the ratings before either", () => {
+    // Two different matches never share a team at one moment, so only a
+    // stored duplicate can show the rule: neither copy informs the other.
+    const seen: Array<[number, number]> = [];
+    replayElo([played(1, 1, 2, 3, 0), played(1, 1, 2, 3, 0)], (_match, home, away) => {
+      seen.push([home, away]);
+    });
+
+    expect(seen).toEqual([
+      [1500, 1500],
+      [1500, 1500],
+    ]);
+  });
+
   it("regresses a team at its first match of a new season, before rating it", () => {
     const seen: number[] = [];
     const lastSeason = played(1, 1, 2, 5, 0);
