@@ -131,7 +131,7 @@ describe(".railway/railway.ts (#521)", () => {
 
   // Falling back to staging's branch and variables would delete whatever a
   // third environment holds beyond staging's list.
-  it("refuses an environment it has no configuration for, before anything is planned", async () => {
+  it("refuses an environment it has no configuration for", async () => {
     await expect(resourcesFor("pr-123")).rejects.toThrow(
       '.railway/railway.ts has no configuration for environment "pr-123"'
     );
