@@ -64,7 +64,7 @@ whether "70 %" really comes true seven times in ten (calibration).
 - Two switches (links, as the site's other selectors): `Kotimaa` · `Ulkomaat`
   (S4), and `Jälkikäteen lasketut` · `Ennakkoon tehdyt` (S3); the default is
   `Kotimaa`, `Jälkikäteen lasketut`.
-- The window line, from the data: `{n} ottelua kausilta 2016–2026, joille molemmat mallit ovat antaneet ennusteen.` (`2023/24–2025/26` for spanning seasons, as specs/049 S18).
+- The window line, from the data: `{n} ottelua vuosilta 2016–2026, joille molemmat mallit ovat antaneet ennusteen.` (`vuodelta 2026` for one year). The years the matches were played, not seasons: football-data's Brasileirão plays calendar years, so a spanning label would misdescribe part of the pool.
 - Under the backtest: `Jälkikäteen lasketut ennusteet on laskettu kustakin ottelusta vain sitä ennen pelattujen otteluiden perusteella.`
 
 **`Osumatarkkuus`** (#350, S5, S6):
@@ -85,7 +85,7 @@ whether "70 %" really comes true seven times in ten (calibration).
 
 **`Kalibrointi`** (#351, S8):
 - A chart: x `Ennustettu todennäköisyys (%)`, y `Toteutunut osuus (%)`, the
-  diagonal dashed and labelled `Täydellinen kalibrointi`, a line per model.
+  diagonal dotted and labelled `Täydellinen kalibrointi`, a line per model (the baseline dashed, Elo solid: three lines, told apart by dash).
 - `Hyvin kalibroitu malli osuu lävistäjälle: sen 70 prosentin ennusteista noin 70 % toteutuu.`
 - When a bin is left off: `Väleistä, joissa on alle 50 ennustetta, ei piirretä pistettä.`
 
