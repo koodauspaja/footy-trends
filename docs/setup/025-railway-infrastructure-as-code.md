@@ -37,9 +37,10 @@ railway config plan
 
 Read the plan before applying. Stop if it:
 
-- deletes or creates anything, a variable included (one exception: a production
-  rebuilt from staging, docs/setup/021 Step 7)
+- deletes or creates anything, a variable included
+  (except as listed for a production rebuilt from staging: docs/setup/021 Step 7)
 - changes the service's source, repository, branch or `checkSuites` (production waits for CI)
+  (the same exception: 021 Step 7 expects `checkSuites` to turn on)
 - touches Postgres, Redis or the `predictions` service
 
 The only changes expected are settings that `railway.toml` used to supply.
