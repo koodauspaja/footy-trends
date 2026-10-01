@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EloPanelData } from "@/components/elo-section";
+import { ELO_HEADING, type EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
@@ -138,6 +138,7 @@ async function renderSection(
     loadStreaks,
     loadComebacks,
     loadOpponents,
+    loadElo,
     view,
   };
 }
@@ -398,5 +399,61 @@ describe("the Vastustajat group (specs/045, S6)", () => {
 
     expect(loadOpponents).not.toHaveBeenCalled();
     expect(screen.queryByText("KuPS")).toBeNull();
+  });
+});
+
+describe("Joukkueen vahvuus (Elo) (specs/053 S9)", () => {
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(true);
+  });
+
+  const withElo = () =>
+    renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      SEASON_AXIS,
+      undefined,
+      vi.fn(
+        async (): Promise<EloPanelData> => ({
+          series: {
+            status: "ok",
+            points: [
+              { seasonId: 2024, rating: 1510 },
+              { seasonId: 2025, rating: 1540 },
+            ],
+          },
+          seasonLabel: String,
+        })
+      )
+    );
+
+  it("sits in Muut kaudet, after the club's records", async () => {
+    await withElo();
+
+    const group = screen.getByRole("region", { name: SEASON_AXIS.otherHeading });
+    const panels = [...group.querySelectorAll("h4")].map((heading) => heading.textContent);
+    expect(panels.at(-1)).toBe(ELO_HEADING);
+    expect(panels).toContain(RECORDS_HEADING);
+  });
+
+  it("is absent where there is no Elo, a national team's page", async () => {
+    await renderSection();
+
+    expect(screen.queryByRole("heading", { level: 4, name: ELO_HEADING })).toBeNull();
+  });
+
+  it("is never loaded for a signed-out reader", async () => {
+    canSeeAnalytics.mockResolvedValue(false);
+    const { loadElo } = await withElo();
+
+    expect(loadElo).not.toHaveBeenCalled();
+    expect(screen.queryByText(ELO_HEADING)).toBeNull();
   });
 });

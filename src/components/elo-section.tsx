@@ -58,42 +58,47 @@ function Body({
   if (series.status === "empty") return <p>{ELO_EMPTY_MESSAGE}</p>;
 
   const textId = `${HEADING_ID}-text`;
-  // x is the match's place in the team's history; a season's first match ticks it.
-  const points = series.points.map((point, index) => ({ ...point, x: index + 1 }));
-  const seasonStarts = new Map<number, number>();
-  const seasonEnds = new Map<number, number>();
-  for (const point of points) {
-    if (!seasonStarts.has(point.seasonId)) seasonStarts.set(point.seasonId, point.x);
-    seasonEnds.set(point.seasonId, point.rating);
+  // x is the season, each match spread evenly across its own: a season's
+  // first match sits on its tick, and a gap in a club's covered seasons shows.
+  const bySeason = new Map<number, number[]>();
+  const lastRating = new Map<number, number>();
+  for (const point of series.points) {
+    const ratings = bySeason.get(point.seasonId);
+    if (ratings === undefined) bySeason.set(point.seasonId, [point.rating]);
+    else ratings.push(point.rating);
+    lastRating.set(point.seasonId, point.rating);
   }
-  const startsAt = new Map([...seasonStarts].map(([seasonId, x]) => [x, seasonId]));
-  const axis = eloAxis(points.map((point) => point.rating));
+  const seasons = [...bySeason.keys()];
+  const points = [...bySeason].flatMap(([seasonId, ratings]) =>
+    ratings.map((rating, index) => ({ x: seasonId + index / ratings.length, y: rating }))
+  );
+  const axis = eloAxis(series.points.map((point) => point.rating));
 
   return (
     <div>
       <LineChart
         describedBy={textId}
-        formatXTick={(tick) => seasonLabel(startsAt.get(tick) ?? 0)}
+        formatXTick={seasonLabel}
         formatYTick={String}
         labelledBy={HEADING_ID}
         series={[
           {
             name: "elo",
             dots: false,
-            points: points.map((point) => ({ x: point.x, y: point.rating })),
+            points,
           },
         ]}
         thinXTicksOnPhone
         title={ELO_HEADING}
-        xDomain={[1, Math.max(2, points.length)]}
+        xDomain={[Math.min(...seasons), Math.max(...seasons) + 1]}
         xLabel="Kausi"
-        xTicks={[...seasonStarts.values()]}
+        xTicks={seasons}
         yDomain={axis.domain}
         yLabel={Y_LABEL}
         yTicks={axis.ticks}
       />
       <ol className="sr-only" id={textId}>
-        {[...seasonEnds].map(([seasonId, rating]) => (
+        {[...lastRating].map(([seasonId, rating]) => (
           <li key={seasonId}>{eloSeasonSentence(seasonLabel(seasonId), rating)}</li>
         ))}
       </ol>

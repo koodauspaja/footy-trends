@@ -51,7 +51,11 @@ vi.mock("@/lib/match-service", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
 
-import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
+import {
+  readFinished,
+  runPredictionBacktest,
+  runPredictionLog,
+} from "@/lib/prediction-log-service";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
@@ -412,5 +416,42 @@ describe("runPredictionBacktest (specs/052, S10)", () => {
     expect(mocks.insertValues.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([
       1_000, 1_000, 1_000,
     ]);
+  });
+});
+
+describe("readFinished (specs/053)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.select.mockReset();
+  });
+
+  it("reads one provider when asked, and the other not at all", async () => {
+    mocks.select.mockResolvedValueOnce([
+      {
+        competitionId: "spljp25",
+        categoryId: "VL",
+        seasonId: 2025,
+        providerMatchId: 7,
+        kickoffAt: new Date("2025-05-01T15:00:00Z"),
+        homeTeam: 1,
+        awayTeam: 2,
+        homeGoals: 1,
+        awayGoals: 0,
+      },
+    ]);
+
+    const finished = await readFinished(new Set(["taso"]));
+
+    expect(mocks.select).toHaveBeenCalledTimes(1);
+    expect(finished).toEqual([
+      expect.objectContaining({ source: "taso", code: "VL", homeTeam: 1, seasonId: 2025 }),
+    ]);
+  });
+
+  it("reads football-data alone the same way", async () => {
+    mocks.select.mockResolvedValueOnce([]);
+
+    await expect(readFinished(new Set(["football-data"]))).resolves.toEqual([]);
+    expect(mocks.select).toHaveBeenCalledTimes(1);
   });
 });
