@@ -31,6 +31,7 @@ import {
   PREDICTION_ERROR_MESSAGE,
   PREDICTION_HEADING,
   PREDICTION_SIGNED_OUT_MESSAGE,
+  QUALITY_LINK,
 } from "@/components/match-prediction";
 
 const baseline: Extract<HomeBaseline, { status: "ok" }> = {
@@ -158,7 +159,10 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
       baselineSentence(baseline),
       eloSentence("HJK", 1500, "KuPS", 1560),
       ROUNDING_NOTE,
+      QUALITY_LINK,
     ]);
+    // specs/054 S13: the models' track record, from every `Ennuste`.
+    expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute("href", "/ennusteet");
     expect(getHomeBaseline).toHaveBeenCalledWith("taso", "VL");
   });
 

@@ -45,6 +45,11 @@ export const MODEL_LABELS: Record<string, string> = {
   [ELO_MODEL]: "Elo",
 };
 
+/** A model's name on the page; its id where none is known. */
+export function modelLabel(model: string): string {
+  return MODEL_LABELS[model] ?? model;
+}
+
 /** The baseline is the yardstick, drawn dashed; every other model solid. */
 const isDashed = (model: string) => model === HOME_BASELINE_MODEL;
 
@@ -103,10 +108,9 @@ function Switch({
 }
 
 function RollingChart({
-  models,
-  rolling,
-}: Readonly<{ models: string[]; rolling: RollingPoint[][] }>) {
-  const all = rolling.flat();
+  lines,
+}: Readonly<{ lines: ReadonlyArray<{ model: string; points: RollingPoint[] }> }>) {
+  const all = lines.flatMap((line) => line.points);
   const low = Math.floor(Math.min(...all.map((point) => point.accuracy)) / 10) * 10;
   const high = Math.ceil(Math.max(...all.map((point) => point.accuracy)) / 10) * 10;
   const first = Math.min(...all.map((point) => point.at));
@@ -116,56 +120,58 @@ function RollingChart({
   const yearTicks = Array.from({ length: lastYear - firstYear + 1 }, (_, index) =>
     Date.UTC(firstYear + index, 0, 1)
   ).filter((tick) => tick >= first && tick <= last);
-  const yTicks = Array.from({ length: (high - low) / 10 + 1 }, (_, index) => low + index * 10);
+  // Never a zero-height axis, even if every point is equal.
+  const top = Math.max(high, low + 10);
+  const yTicks = Array.from({ length: (top - low) / 10 + 1 }, (_, index) => low + index * 10);
   const textId = "quality-rolling-text";
   return (
     <div>
       <LineChart
         describedBy={textId}
         formatXTick={(tick) => String(new Date(tick).getUTCFullYear())}
-        formatYTick={(tick) => `${tick}`}
+        formatYTick={String}
         labelledBy="quality-accuracy"
-        series={models.map((model, index) => ({
-          name: model,
-          dashed: isDashed(model),
+        series={lines.map((line) => ({
+          name: line.model,
+          dashed: isDashed(line.model),
           dots: false,
-          points: (rolling[index] ?? []).map((point) => ({ x: point.at, y: point.accuracy })),
+          points: line.points.map((point) => ({ x: point.at, y: point.accuracy })),
         }))}
         thinXTicksOnPhone
         title={ACCURACY_HEADING}
         xDomain={[first, last]}
         xLabel="Vuosi"
         xTicks={yearTicks}
-        yDomain={[low, high === low ? low + 10 : high]}
+        yDomain={[low, top]}
         yLabel="Osuma-% (200 viimeisintä)"
         yTicks={yTicks}
       />
       <LineLegend
-        items={models.map((model) => ({
-          label: MODEL_LABELS[model] ?? model,
-          dashed: isDashed(model),
+        items={lines.map((line) => ({
+          label: modelLabel(line.model),
+          dashed: isDashed(line.model),
         }))}
       />
-      <p className="sr-only" id={textId}>
-        {models
-          .map((model, index) => {
-            const latest = rolling[index]?.at(-1);
-            return latest === undefined
-              ? ""
-              : `${MODEL_LABELS[model] ?? model}: ${percentText(latest.accuracy)}`;
-          })
-          .join(", ")}
-      </p>
+      <ul className="sr-only" id={textId}>
+        {lines.map((line) => (
+          <li key={line.model}>
+            {`${modelLabel(line.model)}: ${percentText((line.points[line.points.length - 1] as RollingPoint).accuracy)}`}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
 function CalibrationChart({
-  models,
-  calibration,
-}: Readonly<{ models: string[]; calibration: CalibrationBin[][] }>) {
+  lines,
+}: Readonly<{ lines: ReadonlyArray<{ model: string; bins: CalibrationBin[] }> }>) {
   const ticks = [0, 20, 40, 60, 80, 100];
   const textId = "quality-calibration-text";
+  const drawn = (bins: readonly CalibrationBin[]) =>
+    bins.flatMap((bin) =>
+      bin.observed === null ? [] : [{ from: bin.from, observed: bin.observed }]
+    );
   return (
     <div>
       <LineChart
@@ -181,12 +187,10 @@ function CalibrationChart({
               { x: 100, y: 100 },
             ],
           },
-          ...models.map((model, index) => ({
-            name: model,
-            dashed: isDashed(model),
-            points: (calibration[index] ?? []).flatMap((bin) =>
-              bin.observed === null ? [] : [{ x: bin.from + 5, y: bin.observed }]
-            ),
+          ...lines.map((line) => ({
+            name: line.model,
+            dashed: isDashed(line.model),
+            points: drawn(line.bins).map((bin) => ({ x: bin.from + 5, y: bin.observed })),
           })),
         ]}
         title={CALIBRATION_HEADING}
@@ -200,20 +204,15 @@ function CalibrationChart({
       <LineLegend
         items={[
           { label: PERFECT_LABEL, dashed: true },
-          ...models.map((model) => ({
-            label: MODEL_LABELS[model] ?? model,
-            dashed: isDashed(model),
-          })),
+          ...lines.map((line) => ({ label: modelLabel(line.model), dashed: isDashed(line.model) })),
         ]}
       />
       <ul className="sr-only" id={textId}>
-        {models.map((model, index) => (
-          <li key={model}>
-            {`${MODEL_LABELS[model] ?? model}: `}
-            {(calibration[index] ?? [])
-              .filter((bin) => bin.observed !== null)
-              .map((bin) => `${bin.from}–${bin.from + 10} %: ${percentText(bin.observed ?? 0)}`)
-              .join(", ")}
+        {lines.map((line) => (
+          <li key={line.model}>
+            {`${modelLabel(line.model)}: ${drawn(line.bins)
+              .map((bin) => `${bin.from}–${bin.from + 10} %: ${percentText(bin.observed)}`)
+              .join(", ")}`}
           </li>
         ))}
       </ul>
@@ -230,7 +229,6 @@ function Report({
   source: MatchSource["kind"];
   kind: PredictionKind;
 }>) {
-  const label = (model: string) => MODEL_LABELS[model] ?? model;
   return (
     <div>
       <p className="mt-4 text-muted text-sm">
@@ -241,13 +239,13 @@ function Report({
       <ChartPanel heading={ACCURACY_HEADING} headingId="quality-accuracy">
         <p className="mb-2">
           {report.totals
-            .map((total) => `${label(total.model)} ${percentText(total.accuracy)}`)
+            .map((total) => `${modelLabel(total.model)} ${percentText(total.accuracy)}`)
             .join(" · ")}
         </p>
         {report.rolling === null ? (
           <p>{tooFewSentence(report.matches)}</p>
         ) : (
-          <RollingChart models={report.models} rolling={report.rolling} />
+          <RollingChart lines={report.rolling} />
         )}
         <p className="mt-2 text-muted text-sm">{ACCURACY_NOTE}</p>
       </ChartPanel>
@@ -271,7 +269,7 @@ function Report({
             {report.totals.map((total) => (
               <tr className="border-border border-b" key={total.model}>
                 <th className="py-2 pr-4 text-left font-semibold" scope="row">
-                  {label(total.model)}
+                  {modelLabel(total.model)}
                 </th>
                 <td className="py-2 pl-4 text-right tabular-nums">{score(total.brier)}</td>
                 <td className="py-2 pl-4 text-right tabular-nums">{score(total.logLoss)}</td>
@@ -290,7 +288,7 @@ function Report({
               </th>
               {report.models.map((model) => (
                 <th className="py-2 pl-4 text-right font-medium" key={model} scope="col">
-                  {label(model)}
+                  {modelLabel(model)}
                 </th>
               ))}
             </tr>
@@ -317,7 +315,7 @@ function Report({
       </ChartPanel>
 
       <ChartPanel heading={CALIBRATION_HEADING} headingId="quality-calibration">
-        <CalibrationChart calibration={report.calibration} models={report.models} />
+        <CalibrationChart lines={report.calibration} />
         <p className="mt-2 text-muted text-sm">{CALIBRATION_NOTE}</p>
         {report.binsOmitted ? <p className="mt-1 text-muted text-sm">{BINS_OMITTED_NOTE}</p> : null}
       </ChartPanel>
