@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
@@ -109,7 +110,9 @@ async function renderSection(
   // Absent unless a test asks for it, as on a national team's page (specs/045,
   // S5), so the #424 tests below keep asserting the three groups they were
   // written for.
-  loadOpponents = vi.fn(async (): Promise<OpponentsSeries> => ({ status: "unavailable" }))
+  loadOpponents = vi.fn(async (): Promise<OpponentsSeries> => ({ status: "unavailable" })),
+  // Absent unless a test asks for it, for the same reason (specs/053 S9).
+  loadElo = vi.fn(async (): Promise<EloPanelData> => ({ series: { status: "unavailable" } }))
 ) {
   const view = await AnalyticsSection({
     axis,
@@ -123,6 +126,7 @@ async function renderSection(
     loadComparison,
     loadRecords,
     loadOpponents,
+    loadElo,
   });
   return {
     ...render(<div>{view}</div>),

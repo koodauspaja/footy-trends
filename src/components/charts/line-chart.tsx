@@ -163,6 +163,12 @@ export type LineSeries = {
   name: string;
   points: readonly ChartPoint[];
   dashed?: boolean;
+  /**
+   * `false` draws the line without a dot at every point — a team's rating
+   * after each of hundreds of matches (specs/053) would be a row of dots.
+   * Marked points are still ringed.
+   */
+  dots?: boolean;
 };
 
 /** The dash pattern of a dashed series, shared with its legend sample. */
@@ -340,7 +346,7 @@ export function LineChart({
                   strokeWidth={1.5}
                 />
               ))}
-            {line.points.map((point) =>
+            {(line.dots === false ? [] : line.points).map((point) =>
               point.open ? (
                 // Filled with the page's background, so the line does not show
                 // through the ring.

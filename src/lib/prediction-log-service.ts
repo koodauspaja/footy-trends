@@ -286,52 +286,59 @@ function eloRatingsBySource(
 
 /**
  * Every stored finished match of the compared competitions, its score after
- * extra time, with its teams and season. The backtests and the live Elo
- * ratings all read this one set (specs/052, specs/053).
+ * extra time, with its teams and season — of both providers unless told which.
+ * The backtests, the live Elo ratings and the pages' ratings all read this
+ * one set (specs/052, specs/053).
  */
-export async function readFinished(): Promise<FinishedMatch[]> {
+export async function readFinished(
+  sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
+): Promise<FinishedMatch[]> {
   const [footballData, taso] = await Promise.all([
-    db
-      .select({
-        code: matches.competitionCode,
-        seasonId: matches.seasonId,
-        providerMatchId: matches.providerMatchId,
-        kickoffAt: matches.kickoffAt,
-        homeTeam: matches.homeTeamProviderId,
-        awayTeam: matches.awayTeamProviderId,
-        homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
-        awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
-      })
-      .from(matches)
-      .where(
-        and(
-          inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
-          eq(matches.status, FINISHED_STATUS),
-          isNotNull(matches.homeGoals),
-          isNotNull(matches.awayGoals)
-        )
-      ),
-    db
-      .select({
-        competitionId: tasoMatches.competitionCode,
-        categoryId: tasoMatches.categoryId,
-        seasonId: tasoMatches.seasonId,
-        providerMatchId: tasoMatches.providerMatchId,
-        kickoffAt: tasoMatches.kickoffAt,
-        homeTeam: tasoMatches.homeTeamProviderId,
-        awayTeam: tasoMatches.awayTeamProviderId,
-        homeGoals: tasoMatches.homeGoals,
-        awayGoals: tasoMatches.awayGoals,
-      })
-      .from(tasoMatches)
-      .where(
-        and(
-          inArray(tasoMatches.categoryId, TASO_CODES.flatMap(categoryIdsFor)),
-          eq(tasoMatches.status, FINISHED_STATUS),
-          isNotNull(tasoMatches.homeGoals),
-          isNotNull(tasoMatches.awayGoals)
-        )
-      ),
+    !sources.has("football-data")
+      ? []
+      : db
+          .select({
+            code: matches.competitionCode,
+            seasonId: matches.seasonId,
+            providerMatchId: matches.providerMatchId,
+            kickoffAt: matches.kickoffAt,
+            homeTeam: matches.homeTeamProviderId,
+            awayTeam: matches.awayTeamProviderId,
+            homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
+            awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
+          })
+          .from(matches)
+          .where(
+            and(
+              inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+              eq(matches.status, FINISHED_STATUS),
+              isNotNull(matches.homeGoals),
+              isNotNull(matches.awayGoals)
+            )
+          ),
+    !sources.has("taso")
+      ? []
+      : db
+          .select({
+            competitionId: tasoMatches.competitionCode,
+            categoryId: tasoMatches.categoryId,
+            seasonId: tasoMatches.seasonId,
+            providerMatchId: tasoMatches.providerMatchId,
+            kickoffAt: tasoMatches.kickoffAt,
+            homeTeam: tasoMatches.homeTeamProviderId,
+            awayTeam: tasoMatches.awayTeamProviderId,
+            homeGoals: tasoMatches.homeGoals,
+            awayGoals: tasoMatches.awayGoals,
+          })
+          .from(tasoMatches)
+          .where(
+            and(
+              inArray(tasoMatches.categoryId, TASO_CODES.flatMap(categoryIdsFor)),
+              eq(tasoMatches.status, FINISHED_STATUS),
+              isNotNull(tasoMatches.homeGoals),
+              isNotNull(tasoMatches.awayGoals)
+            )
+          ),
   ]);
 
   return [

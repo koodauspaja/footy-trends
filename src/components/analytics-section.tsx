@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { cleanSheetsPanel } from "@/components/clean-sheets-section";
 import { comebacksPanel } from "@/components/comebacks-section";
+import { type EloPanelData, eloPanel } from "@/components/elo-section";
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
 import { homeAwayPanel } from "@/components/home-away-section";
@@ -65,6 +66,7 @@ export async function AnalyticsSection({
   loadComparison,
   loadRecords,
   loadOpponents,
+  loadElo,
 }: Readonly<{
   /**
    * What a period is on this page, and so every string that names one. Required
@@ -83,6 +85,8 @@ export async function AnalyticsSection({
   loadRecords: () => Promise<StreakRecordsSeries>;
   /** `unavailable` on a national team's page, which has no such panel (specs/045, S5). */
   loadOpponents: () => Promise<OpponentsSeries>;
+  /** A rating chart for a club; `unavailable` on a national team's page (specs/053 S5, S9). */
+  loadElo: () => Promise<EloPanelData>;
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
@@ -103,6 +107,7 @@ export async function AnalyticsSection({
     comparison,
     records,
     opponents,
+    elo,
   ] = await Promise.all([
     loadPosition(),
     loadForm(),
@@ -114,6 +119,7 @@ export async function AnalyticsSection({
     loadComparison(),
     loadRecords(),
     loadOpponents(),
+    loadElo(),
   ]);
   const panels = {
     position: positionPanel(position),
@@ -127,6 +133,7 @@ export async function AnalyticsSection({
     comparison: seasonComparisonPanel(comparison, axis),
     records: streakRecordsPanel(records, axis),
     opponents: opponentsPanel(opponents),
+    elo: eloPanel(elo),
   };
 
   /**
@@ -164,7 +171,8 @@ export async function AnalyticsSection({
     {
       heading: axis.otherHeading,
       id: "analytics-other-seasons",
-      panels: { comparison: panels.comparison, records: panels.records },
+      // specs/053 S9: a club's strength across every stored season.
+      panels: { comparison: panels.comparison, records: panels.records, elo: panels.elo },
     },
     {
       // specs/045, S6: the first group since #424, because "who do we
