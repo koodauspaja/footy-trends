@@ -110,6 +110,9 @@ export type QualityReport =
       matches: number;
       firstSeason: number;
       lastSeason: number;
+      /** The kickoff years the window spans, for the line that names it. */
+      firstYear: number;
+      lastYear: number;
       totals: ModelTotals[];
       /** Per model, or null when fewer than 200 matches are judged (S14). */
       rolling: RollingPoint[][] | null;
@@ -197,6 +200,8 @@ export function qualityReport(
     matches,
     firstSeason: Math.min(...seasonIds),
     lastSeason: Math.max(...seasonIds),
+    firstYear: (common[0] as JudgedPrediction).kickoffAt.getUTCFullYear(),
+    lastYear: (common.at(-1) as JudgedPrediction).kickoffAt.getUTCFullYear(),
     totals: perModel.map((own, index) => ({
       model: models[index] ?? "",
       matches: own.length,

@@ -16,6 +16,8 @@ const REGIONS = [
   // holds: the World Cup and the Euro are competitions between national teams,
   // and #166/#167 add Finland's own. See specs/016-world-cup-and-euro.md.
   { href: "/maajoukkueet", label: "Maajoukkueet", description: "Arvokisat ja maaottelut" },
+  // Not a region but the models' track record (specs/054 S1, S13).
+  { href: "/ennusteet", label: "Ennusteet", description: "Ennusteiden osuvuus" },
 ] as const;
 
 export default function Home() {

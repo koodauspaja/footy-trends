@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { percentText } from "@/components/charts/line-chart";
 import { ROUNDING_NOTE } from "@/components/competition-analytics";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
@@ -18,6 +19,8 @@ export const PREDICTION_SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi enn
 /** specs/053 S13. */
 export const BASELINE_ROW = "Perustaso";
 export const ELO_ROW = "Elo";
+/** specs/054 S13: the models' track record, from every `Ennuste`. */
+export const QUALITY_LINK = "Kuinka hyvin ennusteet ovat osuneet?";
 
 const SAME_FOR_EVERY_MATCH =
   "Ei huomioi joukkueita, joten ennuste on sama jokaiselle kilpailun ottelulle.";
@@ -165,6 +168,11 @@ function Body({
       )}
       {elo.status === "error" ? <p className="mt-2">{ELO_ERROR_MESSAGE}</p> : null}
       <p className="mt-2 text-muted text-sm">{ROUNDING_NOTE}</p>
+      <p className="mt-2 text-sm">
+        <Link className="hover:underline" href="/ennusteet">
+          {QUALITY_LINK}
+        </Link>
+      </p>
     </div>
   );
 }

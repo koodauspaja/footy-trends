@@ -51,6 +51,7 @@ const nextConfig: NextConfig = {
       { source: "/tietosuoja", destination: "/privacy" },
       // The terms of service, added in #303.
       { source: "/kayttoehdot", destination: "/terms" },
+      { source: "/ennusteet", destination: "/predictions" },
       { source: "/kotimaa", destination: "/domestic" },
       { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
       { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
