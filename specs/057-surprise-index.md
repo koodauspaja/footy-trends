@@ -1,7 +1,6 @@
 # 057 — Surprise index: the biggest upsets, by what Elo expected
 
-> **Status: Q1–Q10 answered in chat on 2026-10-01; the remaining strings and
-> two edge-case rules (Q11, Q12) proposed, awaiting confirmation.** Written for #354, release 3 in
+> **Status: all questions (Q1–Q12) answered in chat on 2026-10-01.** Written for #354, release 3 in
 > the predictions plan. It reads what Elo predicted before each match
 > (specs/053, logged by specs/052) and sets it against what happened.
 
@@ -40,6 +39,8 @@ finished match, how surprising that one was.
 | S8 | The season in progress | **Included, marked `(kesken)`** | Miikka, 2026-10-01 (Q8). As specs/048. |
 | S9 | Elo's run-in | **No list for a competition's first stored season, and a line saying why** | Miikka, 2026-10-01 (Q9). specs/053 S7. |
 | S10 | Access | **Signed in only** | Miikka, 2026-10-01 (Q10). |
+| S11 | The strings | **As in UX / UI** | Miikka, 2026-10-01 (Q11): "good as suggested"; the strings may be fine-tuned during implementation. |
+| S12 | Two rules | **No judged match: `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches list the earlier kickoff first** | Miikka, 2026-10-01 (S12). |
 
 ## UX / UI (Finnish strings)
 
@@ -60,10 +61,8 @@ finished match, how surprising that one was.
 | String | When |
 |---|---|
 | `Elo-ennusteita ei ole kilpailun ensimmäiseltä tallennetulta kaudelta: kaikki joukkueet aloittavat silloin samasta luvusta.` | The competition's first stored season (S9) |
-| `Kaudelta ei ole vielä pelattuja otteluita.` | No judged match in the season (Q12) |
+| `Kaudelta ei ole vielä pelattuja otteluita.` | No judged match in the season (S12) |
 | `Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.` | The read failed |
-
-**Proposed, pending Q11:** the strings above.
 
 ## API & Data
 
@@ -74,7 +73,7 @@ finished match, how surprising that one was.
 | Elo's prediction for each match | `predictions`, `model = elo-v1`, `kind = backtest` (S2) |
 | The result | The match's stored score, finished with both scores, the shoot-out subtracted (specs/049 S3) |
 | The surprise | The prediction's probability for the outcome that happened (S1) |
-| A competition-season's list | Its judged matches, ten with the smallest probability; ties the earlier kickoff first (Q12) |
+| A competition-season's list | Its judged matches, ten with the smallest probability; ties the earlier kickoff first (S12) |
 | A match's figure | Its own row; none if Elo has no row for it (S7) |
 | The first stored season | The competition's earliest season with a stored finished match (S9) |
 | Access | `canSeeAnalytics()` before anything is read (S10) |
@@ -86,9 +85,9 @@ finished match, how surprising that one was.
 | Case | Behaviour |
 |---|---|
 | A competition's first stored season | No list; the S9 line |
-| A season with no judged match yet | The no-matches line (Q12) |
+| A season with no judged match yet | The no-matches line (S12) |
 | A season with fewer than ten judged matches | All of them, still most surprising first |
-| Two matches equally surprising | The earlier kickoff first (Q12) |
+| Two matches equally surprising | The earlier kickoff first (S12) |
 | A match Elo has no row for (a placeholder side, before the backtest ran) | Not in the list; no line on its page |
 | A shoot-out | A draw (specs/049 S3) |
 | A cup or national-team match | Never listed, no line (Scope) |
@@ -136,11 +135,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q10 were answered in chat on 2026-10-01 and are recorded as S1–S10.
-Writing the rest raised two:
-
-11. **The strings** in UX / UI: the list's line, the explanation, the run-in,
-    no-matches and failure lines. *Proposal: as drafted.*
-12. **Two rules**: a season with no judged match shows
-    `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches
-    list the earlier kickoff first. *Proposal: as stated.*
+**None.** Q1–Q12 were answered in chat on 2026-10-01 and are recorded as
+S1–S12. The strings may still be fine-tuned during implementation.
