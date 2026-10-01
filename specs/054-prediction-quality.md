@@ -1,7 +1,6 @@
 # 054 — Prediction quality: how often the models are right, and how well calibrated
 
-> **Status: Q1–Q12 answered in chat on 2026-10-01; the Finnish strings and
-> three edge-case rules (Q13–Q15) proposed, awaiting confirmation.** Written for #350 (rolling
+> **Status: all questions (Q1–Q15) answered in chat on 2026-10-01.** Written for #350 (rolling
 > accuracy) and #351 (Brier score, log-loss and calibration), joined: both
 > judge the same logged predictions (specs/052) against the same results.
 > #352 (model against model) and #353 (per competition) are named in Q2 and
@@ -48,10 +47,12 @@ whether "70 %" really comes true seven times in ten (calibration).
 | S10 | Per competition | **Out of scope; #353 adds a filter later** | Miikka, 2026-10-01 (Q10). |
 | S11 | Computing | **Per request, cached in Redis 15 minutes; measured before review** | Miikka, 2026-10-01 (Q11). |
 | S12 | Access | **Signed in only** | Miikka, 2026-10-01 (Q12). |
+| S13 | The strings | **As in UX / UI**, with the home page's `Ennusteet` tile and the link from `Ennuste` | Miikka, 2026-10-01 (Q13): "all good". |
+| S14 | Too few matches | **None judged: one line instead of every figure. Under 200: totals, Brier and calibration shown, the rolling chart replaced by the count line** | Miikka, 2026-10-01 (S14). Live predictions will be in this state for weeks. |
+| S15 | The per-season table | **Every season with a judged match, its count shown** | Miikka, 2026-10-01 (S15). As specs/049 S10. |
+| S16 | #352's content | **Everything #352 asked — accuracy compared over time, both providers, two or more models — is covered by S2, S4 and S6**; a later model (#345) adds a line and a row | Miikka, 2026-10-01: "everything brainstormed into 352 will go in 350". |
 
 ## UX / UI (Finnish strings)
-
-**Proposed, pending Q13.**
 
 **Home page:** a fourth tile after the three regions — `Ennusteet`,
 `Ennusteiden osuvuus`. **Match page:** under `Ennuste`'s rounding line, a link
@@ -91,8 +92,8 @@ whether "70 %" really comes true seven times in ten (calibration).
 | String | When |
 |---|---|
 | `Ennusteiden osuvuutta ei voitu laskea. Yritä myöhemmin uudelleen.` | The read failed |
-| `Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.` | No judged match in the window (Q14) |
-| `Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua; nyt niitä on {n}.` | Fewer than 200 judged matches (Q14) |
+| `Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.` | No judged match in the window (S14) |
+| `Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua; nyt niitä on {n}.` | Fewer than 200 judged matches (S14) |
 | `Kirjaudu sisään nähdäksesi ennusteiden osuvuuden.` | Signed out (S12) |
 
 ## API & Data
@@ -121,10 +122,10 @@ whether "70 %" really comes true seven times in ten (calibration).
 | A shoot-out | A draw (specs/049 S3) |
 | A probability of 0 for what happened | Log-loss uses 0,001 (S7) |
 | Two outcomes sharing the highest probability | Home, then draw, counts as the pick (S5) |
-| No judged match yet (live predictions, early on) | The empty line instead of the figures (Q14) |
-| Fewer than 200 judged matches | The totals, Brier and calibration shown; the rolling chart replaced by the count line (Q14) |
+| No judged match yet (live predictions, early on) | The empty line instead of the figures (S14) |
+| Fewer than 200 judged matches | The totals, Brier and calibration shown; the rolling chart replaced by the count line (S14) |
 | A calibration bin under 50 probabilities | Not drawn, and the line under the chart says so (S8) |
-| A season with judged matches | A row in the per-season table, its count shown (Q15) |
+| A season with judged matches | A row in the per-season table, its count shown (S15) |
 | The read fails | The failure line; the rest of the site unaffected |
 | Signed out | The sign-in line; no figure in the HTML (S12) |
 
@@ -175,15 +176,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q12 were answered in chat on 2026-10-01 and are recorded as S1–S12.
-Writing the rest raised three, proposed here:
-
-13. **The Finnish strings** in UX / UI, the home page's `Ennusteet` tile and
-    the link from `Ennuste`. *Proposal: as drafted.*
-14. **Too few matches.** No judged match: one line instead of every figure.
-    Fewer than 200: the totals, Brier and calibration still shown, the
-    rolling chart replaced by a line giving the count. *Proposal: as stated —
-    live predictions will be in this state for weeks.*
-15. **The per-season table** lists every season with a judged match, with its
-    count, however few. *Proposal: as stated; the count shows what a row
-    rests on, as specs/049 S10.*
+**None.** Q1–Q15 were answered in chat on 2026-10-01 and are recorded as
+S1–S15; S16 records how #352 is covered.
