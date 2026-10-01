@@ -33,8 +33,8 @@ railway config plan
 
 Read the plan before applying. Stop if it:
 
-- deletes or creates anything
-- changes the service's source, repository or branch
+- deletes or creates anything, a variable included
+- changes the service's source, repository, branch or `checkSuites` (production waits for CI)
 - touches Postgres, Redis or the `predictions` service
 
 The only changes expected are settings that `railway.toml` used to supply.
@@ -64,6 +64,11 @@ The next release's deploy log shows the same two lines.
 ## Step 5 — After a change to `.railway/railway.ts`
 
 Merging the change does not apply it. Run Steps 2–4 again.
+
+## Step 6 — A new variable
+
+Add its name to `.railway/railway.ts` (`preserve()`, no value) before the next
+apply, or that apply deletes it.
 
 ---
 
