@@ -80,8 +80,11 @@ vi.mock("next/navigation", () => ({
  * ten panels and their charts on every test here. That took the first render
  * past the five second budget in a full run.
  */
+const analyticsSectionMock = vi.hoisted(() =>
+  vi.fn(async (_props: { loadElo: () => Promise<unknown> }) => <p>analytics section placeholder</p>)
+);
 vi.mock("@/components/analytics-section", () => ({
-  AnalyticsSection: async () => <p>analytics section placeholder</p>,
+  AnalyticsSection: analyticsSectionMock,
 }));
 
 const seasonContext: SeasonContext = {
@@ -226,6 +229,19 @@ describe("National-teams team page", () => {
     vi.resetModules();
     getSeasonContextMock.mockResolvedValue(seasonContext);
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: worldCupMatches.slice(0, 1) });
+  });
+
+  it("has no Elo panel: a national team is not rated (specs/053 S5)", async () => {
+    const { default: Page } = await import("@/app/national-teams/team/[id]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ id: "1" }),
+        searchParams: Promise.resolve({ kilpailu: "WC" }),
+      })
+    );
+    const loadElo = analyticsSectionMock.mock.calls.at(-1)?.[0].loadElo;
+
+    await expect(loadElo?.()).resolves.toEqual({ series: { status: "unavailable" } });
   });
 
   it("names the team in Finnish", async () => {

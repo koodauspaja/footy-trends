@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
+import type { TeamEloSeries } from "@/lib/elo-service";
 import type { SeasonContext } from "@/lib/football-data";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
@@ -76,8 +78,11 @@ const analyticsSectionMock = vi.fn(
     loadComparison: () => Promise<SeasonComparisonSeries>;
     loadRecords: () => Promise<StreakRecordsSeries>;
     loadOpponents: () => Promise<OpponentsSeries>;
+    loadElo: () => Promise<EloPanelData>;
   }) => "analytics section placeholder"
 );
+const getTeamEloMock = vi.fn(async (): Promise<TeamEloSeries> => ({ status: "empty" }));
+vi.mock("@/lib/elo-service", () => ({ getTeamElo: getTeamEloMock }));
 const getWorstOpponentsMock = vi.fn(
   async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
 );
@@ -816,6 +821,16 @@ describe("Team page league position (specs/030)", () => {
       1,
       "/ulkomaat"
     );
+  });
+
+  it("asks for the club's football-data Elo history, its seasons labelled as the page's (specs/053 S9)", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadElo = analyticsSectionMock.mock.calls[0]?.[0].loadElo;
+
+    const data = await loadElo?.();
+
+    expect(getTeamEloMock).toHaveBeenCalledWith("football-data", 1);
+    expect(data && "seasonLabel" in data ? data.seasonLabel(2024) : null).toBe("2024/25");
   });
 
   it("asks for the season comparison with the club's stored seasons (specs/038)", async () => {

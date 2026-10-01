@@ -14,6 +14,7 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
   getSeasonMatches: vi.fn(async () => []),
 }));
 
+import { expectedHome } from "@/lib/elo";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
 
 /**
@@ -83,11 +84,17 @@ async function clear() {
 beforeEach(clear);
 afterEach(clear);
 
-function rowsFor(id: number, kind: "live" | "backtest") {
+function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v1") {
   return db
     .select()
     .from(predictions)
-    .where(and(eq(predictions.providerMatchId, id), eq(predictions.kind, kind)));
+    .where(
+      and(
+        eq(predictions.providerMatchId, id),
+        eq(predictions.kind, kind),
+        eq(predictions.model, model)
+      )
+    );
 }
 
 describe("the hourly run (specs/052)", () => {
@@ -152,6 +159,19 @@ describe("the hourly run (specs/052)", () => {
     const rows = await rowsFor(IDS[0] as number, "live");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.kickoffAt).toEqual(at(30));
+  });
+
+  it("logs elo-v1 beside the baseline, one row each (specs/053)", async () => {
+    await db.insert(matches).values(footballDataRow());
+
+    await runPredictionLog(() => NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
+
+    const [elo] = await rowsFor(IDS[0] as number, "live", "elo-v1");
+    expect(await rowsFor(IDS[0] as number, "live", "elo-v1")).toHaveLength(1);
+    const total =
+      (elo?.homeProbability ?? 0) + (elo?.drawProbability ?? 0) + (elo?.awayProbability ?? 0);
+    expect(total).toBeCloseTo(1, 10);
   });
 
   it("writes nothing for a passed kickoff, even one still marked scheduled (S5)", async () => {
@@ -224,6 +244,26 @@ describe("the backtest (specs/052, S10, S14)", () => {
     ]);
     expect(await rowsFor(IDS[2] as number, "backtest")).toEqual([
       expect.objectContaining({ homeProbability: 0.5, drawProbability: 0.5, awayProbability: 0 }),
+    ]);
+
+    // elo-v1 (specs/053): the same two teams every time, so the ratings can be
+    // followed by hand. The draw is the baseline's: none, then a half.
+    const first = 20 * (1 - expectedHome(1500, 1500));
+    const [home1, away1] = [1500 + first, 1500 - first];
+    const second = 20 * (0.5 - expectedHome(home1, away1));
+    const [home2, away2] = [home1 + second, away1 - second];
+    expect(await rowsFor(IDS[0] as number, "backtest", "elo-v1")).toHaveLength(0);
+    expect(await rowsFor(IDS[1] as number, "backtest", "elo-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(expectedHome(home1, away1), 12),
+        drawProbability: 0,
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "elo-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(0.5 * expectedHome(home2, away2), 12),
+        drawProbability: 0.5,
+      }),
     ]);
   });
 

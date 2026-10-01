@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { threeWay } from "@/lib/elo";
 import type { HomeBaseline } from "@/lib/home-baseline";
 import {
   awaitsResult,
+  eloLiveRow,
   isLoggable,
   LOG_WINDOW_HOURS,
   type LogCandidate,
@@ -172,5 +174,45 @@ describe("liveRow", () => {
   it("writes nothing when the baseline has no percentages or failed", () => {
     expect(liveRow(candidate(), { status: "empty" }, "home-baseline-v1", NOW)).toBeNull();
     expect(liveRow(candidate(), { status: "error" }, "home-baseline-v1", NOW)).toBeNull();
+  });
+});
+
+describe("eloLiveRow (specs/053)", () => {
+  const baseline: HomeBaseline = {
+    status: "ok",
+    matches: 100,
+    homeShare: 45,
+    drawShare: 25,
+    awayShare: 30,
+    seasons: { first: 2023, last: 2026 },
+    spansCalendarYears: false,
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026 });
+
+  it("predicts from the ratings at the match's season, regressed into a new one (S3, S14)", () => {
+    const ratings = new Map([[11, { rating: 1650, seasonId: 2025 }]]);
+
+    const row = eloLiveRow(match, ratings, baseline, NOW);
+
+    // 1650 last season is 1600 this one; 22 has never played, so 1500.
+    const expected = threeWay(1600, 1500, 0.25);
+    expect(row).toEqual({
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      model: "elo-v1",
+      kind: "live",
+      homeProbability: expect.closeTo(expected.home, 12),
+      drawProbability: 0.25,
+      awayProbability: expect.closeTo(expected.away, 12),
+      predictedAt: NOW,
+      kickoffAt: at(10),
+    });
+  });
+
+  it("writes nothing without a draw share, or for a placeholder side (S16)", () => {
+    expect(eloLiveRow(match, new Map(), { status: "empty" }, NOW)).toBeNull();
+    expect(eloLiveRow(match, new Map(), { status: "error" }, NOW)).toBeNull();
+    expect(eloLiveRow({ ...match, homeTeam: 0 }, new Map(), baseline, NOW)).toBeNull();
   });
 });

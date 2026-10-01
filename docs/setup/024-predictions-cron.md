@@ -9,6 +9,10 @@ A Railway cron service that runs `npm run predictions -- log` hourly in
 Set up in the dashboard: Railway no longer lets a new service use
 `railway.toml` (config as code is deprecated, hard cutoff 2026-12-01).
 
+The job runs from source with tsx, so the service skips `next build`: the
+site's build needs the web service's sign-in secrets, which this service does
+not carry. `npm install` still runs.
+
 ---
 
 ## Step 1 — Create the service
@@ -21,6 +25,7 @@ Set up in the dashboard: Railway no longer lets a new service use
 
 | Setting | Value |
 |---|---|
+| Build → Custom Build Command | `echo "No build: the predictions job runs from source with tsx"` |
 | Deploy → Custom Start Command | `npm run predictions -- log` |
 | Deploy → Cron Schedule | `0 * * * *` (UTC) |
 | Deploy → Restart Policy | Never |

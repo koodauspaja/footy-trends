@@ -1,6 +1,5 @@
 {
   "name": "footy-trends",
-  "version": "0.1.0",
   "private": true,
   "scripts": {
     "admin:role": "tsx scripts/grant-admin.ts",

@@ -169,6 +169,8 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
     // Clubs only (specs/045, S5): TASO has no id stable across categories for
     // Finland or its opponents, so one country could split into several rows.
     loadOpponents: () => Promise.resolve({ status: "unavailable" as const }),
+    // Clubs only (specs/053 S5).
+    loadElo: () => Promise.resolve({ series: { status: "unavailable" as const } }),
     loadForm: () => Promise.resolve(formSeries(finished(), FINLAND_TEAM_ID)),
     loadGoals: () => Promise.resolve(goalsSeries(finished(), FINLAND_TEAM_ID)),
     loadHomeAway: () =>

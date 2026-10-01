@@ -6,6 +6,7 @@
  * the baselines and writes; everything it decides is decided here.
  */
 
+import { ELO_MODEL, predictElo, type TeamRating } from "./elo";
 import type { HomeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
 
@@ -31,6 +32,8 @@ export type RefreshTarget =
 /** One stored match of a compared competition, near enough to now to matter. */
 export type LogCandidate = RefreshTarget & {
   providerMatchId: number;
+  homeTeam: number;
+  awayTeam: number;
   kickoffAt: Date;
   status: string;
   /** Finished with both scores stored (specs/049, S3). */
@@ -119,6 +122,40 @@ export function liveRow(
     homeProbability: baseline.homeShare / 100,
     drawProbability: baseline.drawShare / 100,
     awayProbability: baseline.awayShare / 100,
+    predictedAt: now,
+    kickoffAt: candidate.kickoffAt,
+  };
+}
+
+/**
+ * The `elo-v1` live row for a match (specs/053): the current ratings, and the
+ * competition's draw share from its baseline (S4, S15) — or nothing without a
+ * draw share (S16) or with a placeholder side.
+ */
+export function eloLiveRow(
+  candidate: LogCandidate,
+  ratings: ReadonlyMap<number, TeamRating>,
+  baseline: HomeBaseline,
+  now: Date
+): PredictionRow | null {
+  if (baseline.status !== "ok") return null;
+  const elo = predictElo(
+    ratings,
+    candidate.homeTeam,
+    candidate.awayTeam,
+    candidate.seasonId,
+    baseline.drawShare / 100
+  );
+  if (elo === null) return null;
+  return {
+    source: candidate.source,
+    providerMatchId: candidate.providerMatchId,
+    competitionCode: candidate.code,
+    model: ELO_MODEL,
+    kind: "live",
+    homeProbability: elo.prediction.home,
+    drawProbability: elo.prediction.draw,
+    awayProbability: elo.prediction.away,
     predictedAt: now,
     kickoffAt: candidate.kickoffAt,
   };
