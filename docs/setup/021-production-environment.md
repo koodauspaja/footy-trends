@@ -6,9 +6,10 @@ database, its own cache, and its own credentials — and record the configuratio
 decisions that only start to matter once real users and real log volume are
 involved.
 
-This depends on `019-railway-config.md` being done: `railway.toml` is the
-source of truth for deploy behaviour, so production inherits it rather than
-needing its own dashboard configuration.
+This depends on `025-railway-infrastructure-as-code.md` being done:
+`.railway/railway.ts` is the source of truth for deploy behaviour, applied to
+production as to staging, rather than production needing its own dashboard
+configuration.
 
 This document covers **what production is configured as**. How code is promoted
 into it — release CI, tags, rollback — is a separate concern; see the *Deploy
@@ -41,7 +42,7 @@ Everything about the application is identical; only the surroundings differ.
 | PostgreSQL | its own | its own, separate |
 | Redis | its own | its own, separate |
 | Credentials | staging set | **its own, except the two provider API keys** |
-| Deploy config | `railway.toml` | the same `railway.toml` |
+| Deploy config | `.railway/railway.ts`, applied | the same file, applied |
 
 Sharing a **database** between the two is the failure this separation exists to
 prevent: a staging migration would otherwise take production with it.
@@ -116,7 +117,8 @@ happened — decide whether to keep or drop them before the first real deploy.
 2. Set the deploy trigger branch to `release`
 
 The branch is a dashboard setting per environment. It is **not** expressible in
-`railway.toml` — config-as-code covers build and deploy behaviour, not branch
+`.railway/railway.ts`: it declares no source, so the branch stays a dashboard
+setting. It covers build and deploy behaviour, not branch
 selection — so this step cannot be version-controlled and has to be verified by
 looking.
 
@@ -125,7 +127,7 @@ Then confirm the separation holds in both directions:
 - a push to `main` deploys **staging only**
 - a merge to `release` deploys **production only**
 
-Both statements assume the change touches a watched path. `railway.toml`'s
+Both statements assume the change touches a watched path. `.railway/railway.ts`'s
 `build.watchPatterns` covers `src/`, `public/`, `drizzle/`, the lockfile and a
 few config files — so documentation-, spec-, decision-, test- and
 `.github/`-only changes deploy **nothing**, by design. A docs-only merge to
@@ -496,10 +498,10 @@ visible; the baseline to compare them against would not.
 
 ---
 
-## Step 7 — Confirm `railway.toml` applies
+## Step 7 — Confirm `.railway/railway.ts` applies
 
-Production inherits the repo's `railway.toml` unchanged. Confirm on the
-deployment details page that these come from the file, not the dashboard:
+Production gets the same `.railway/railway.ts`, applied per 025. Confirm on the
+deployment details page that these are set:
 
 - `preDeployCommand = "npm run db:migrate"` — migrations run **before** the new
   container takes traffic
@@ -507,10 +509,9 @@ deployment details page that these come from the file, not the dashboard:
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
 - `restartPolicyType = "ON_FAILURE"`, max 3 retries
 
-If production ever needs a value staging does not, `railway.toml` supports
-per-environment overrides under an `environments.<name>` block, resolved
-environment-specific first, then base config, then dashboard settings. Prefer
-that over a dashboard edit, so the difference stays in version control.
+If production ever needs a value staging does not, branch on
+`ctx.isEnvironment("production")` in `.railway/railway.ts`. Prefer that over a
+dashboard edit, so the difference stays in version control.
 
 ### Migrations are forward-only
 
@@ -618,7 +619,7 @@ domains/DNS/TLS.
 Only deploy *behaviour* is recreated from the repo. The environment itself, the
 app service, the PostgreSQL and Redis instances, the trigger branch and every
 variable value are dashboard-managed prerequisites — steps 1 to 4 above cannot
-be replayed from `railway.toml`, which is why they are written out rather than
+be replayed from `.railway/railway.ts`, which is why they are written out rather than
 pointed at. Keep the variable values somewhere recoverable; nothing in this
 repository can reproduce them.
 
