@@ -92,7 +92,8 @@ describe("getPredictionQuality against Postgres (specs/054)", () => {
         penaltiesHome: 5,
         penaltiesAway: 4,
       }),
-      footballDataMatch(unfinished, { status: "TIMED", homeGoals: null, awayGoals: null }),
+      // In play with a score so far: not finished, so not judged.
+      footballDataMatch(unfinished, { status: "IN_PLAY", homeGoals: 0, awayGoals: 1 }),
       footballDataMatch(early, { seasonId: 2022 }),
       footballDataMatch(oneModel),
       footballDataMatch(otherModel),
