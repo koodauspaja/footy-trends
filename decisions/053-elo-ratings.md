@@ -42,13 +42,13 @@ something the spec did not.
   | 10 | Placeholders rated |
   | 11 | The draw not taken out |
   | 12 | The Elo backtest without a draw share |
-  | 13 | Providers mixed |
-  | 14 | Written without its season |
-  | 15 | Written for a placeholder |
-  | 16 | Not written at all |
-  | 17 | Its lifetime changed |
-  | 18 | Reading both providers |
-  | 19 | An empty team answered as `ok` |
+  | 13 | The Elo backtest with providers mixed |
+  | 14 | The live row without its season |
+  | 15 | The live row written for a placeholder |
+  | 16 | The live row not written at all |
+  | 17 | The cache's lifetime changed |
+  | 18 | The cache reading both providers |
+  | 19 | The cache answering an empty team as `ok` |
   | 20 | A same-kickoff update overwritten |
   | 21 | An Elo read failure unreported |
   | 22 | An Elo read failure answered from 1500 |
