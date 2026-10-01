@@ -122,6 +122,7 @@ No new environment variable or secret.
 - [ ] Expected goals follow S5; the grid covers 0–10 a side, its draw cells scaled by the competition's factor so its average draw probability equals the competition's draw share
 - [ ] The three outcomes sum the grid, and the most likely score is its largest cell
 - [ ] Everything a backtest prediction uses comes from strictly earlier matches
+- [ ] The backtest's `poisson-v1` figures on specs/054's measures are within rounding of #515's `dc-strengths` prototype (Brier 0.5624 TASO, 0.6003 football-data, on specs/054's window), or the difference is explained in the decision record
 - [ ] `poisson-v1` is logged beside the other two models, live and backtested
 - [ ] Signed in, `Ennuste` shows a `Poisson` row after `Elo`, and the line with expected goals and the most likely score
 - [ ] A failed replay keeps the other rows and shows the Finnish failure line; signed out, no probability is in the HTML
@@ -137,6 +138,7 @@ No new environment variable or secret.
 | `tests/unit/lib/prediction-*.test.ts` | `poisson-v1` live and backtest rows; strictly-earlier history |
 | `tests/unit/components/match-prediction.test.tsx` | The third row and the line; a failed replay; a placeholder |
 | `tests/integration/…` | The backtest's `poisson-v1` rows against Postgres, a shoot-out a draw |
+| By hand, before review | The backtest on staging, read-only, scored with specs/054's module and compared with #515's figures |
 | `tests/e2e/…` | The seeded upcoming match shows three rows and the Poisson line |
 
 Every new test is mutation-checked before review, per `skills/self-review.md`.
