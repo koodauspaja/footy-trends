@@ -83,7 +83,7 @@ test.describe("Home-win baseline, signed in", () => {
     await page.goto(PATH(UPCOMING_ID));
 
     await expect(panel(page).getByRole("columnheader")).toHaveText([
-      "",
+      "Malli",
       "Kotivoitto",
       "Tasapeli",
       "Vierasvoitto",

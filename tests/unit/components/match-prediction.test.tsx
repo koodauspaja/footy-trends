@@ -132,8 +132,9 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     await renderPanel();
 
     expect(screen.getByRole("heading", { level: 2, name: PREDICTION_HEADING })).toBeInTheDocument();
+    // The model column's heading is for screen readers only (decisions/053).
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      "",
+      "Malli",
       "Kotivoitto",
       "Tasapeli",
       "Vierasvoitto",

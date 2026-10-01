@@ -1,6 +1,5 @@
 import { percentText } from "@/components/charts/line-chart";
 import { ROUNDING_NOTE } from "@/components/competition-analytics";
-import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
@@ -63,30 +62,46 @@ export function eloSentence(
 /** One model's row: its name and three shares, 0–100. */
 type PredictionRow = { model: string; home: number; draw: number; away: number };
 
-const COLUMNS: ReadonlyArray<DataTableColumn<PredictionRow>> = [
-  { key: "model", header: "", width: "flex", render: (row) => row.model, rowHeader: true },
-  {
-    key: "home",
-    header: "Kotivoitto",
-    width: 104,
-    align: "right",
-    render: (row) => percentText(row.home),
-  },
-  {
-    key: "draw",
-    header: "Tasapeli",
-    width: 96,
-    align: "right",
-    render: (row) => percentText(row.draw),
-  },
-  {
-    key: "away",
-    header: "Vierasvoitto",
-    width: 112,
-    align: "right",
-    render: (row) => percentText(row.away),
-  },
-];
+/** The three outcomes' headings, in their order (specs/051, specs/053 S13). */
+const OUTCOMES = ["Kotivoitto", "Tasapeli", "Vierasvoitto"] as const;
+
+/**
+ * The predictions as a small table that sizes to its content: three outcome
+ * columns and two rows fit a phone, where `DataTable`'s 240px name column
+ * would push `Tasapeli` and `Vierasvoitto` off the screen.
+ */
+function PredictionTable({ rows }: Readonly<{ rows: readonly PredictionRow[] }>) {
+  return (
+    <table className="text-sm">
+      <thead>
+        <tr className="border-border border-b text-muted">
+          <th scope="col">
+            <span className="sr-only">Malli</span>
+          </th>
+          {OUTCOMES.map((outcome) => (
+            <th className="py-2 pl-4 text-right font-medium" key={outcome} scope="col">
+              {outcome}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr className="border-border border-b" key={row.model}>
+            <th className="py-2 pr-2 text-left font-semibold" scope="row">
+              {row.model}
+            </th>
+            {[row.home, row.draw, row.away].map((share, index) => (
+              <td className="py-2 pl-4 text-right tabular-nums" key={OUTCOMES[index]}>
+                {percentText(share)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 /** The two teams as the panel names them, and their ids. */
 type Sides = {
@@ -136,7 +151,7 @@ function Body({
 
   return (
     <div>
-      <DataTable columns={COLUMNS} rowKey={(row) => row.model} rows={rows} />
+      <PredictionTable rows={rows} />
       <p className="mt-2 text-muted text-sm">{baselineSentence(baseline)}</p>
       {prediction === null ? null : (
         <p className="mt-2 text-muted text-sm">
