@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { createRailwayContext, project } from "railway/iac";
 import { describe, expect, it } from "vitest";
-import program, { partial, WEB_SERVICE } from "../../.railway/railway";
+import program, { partial } from "../../.railway/railway";
 
 /**
  * `.railway/railway.ts` (#521). Railway's CLI ignores a key it does not know
@@ -10,7 +10,12 @@ import program, { partial, WEB_SERVICE } from "../../.railway/railway";
  * for each environment.
  */
 
-/** Every variable each environment's web service holds, by name; RAILWAY_* are Railway's own. */
+/**
+ * Every variable each environment's web service holds, by name; RAILWAY_* are
+ * Railway's own. Written out here rather than imported from the file, on
+ * purpose: this is the record of what Railway holds, so a change to the file's
+ * lists has to be made here too, deliberately.
+ */
 const SHARED = [
   "AXIOM_DATASET",
   "AXIOM_TOKEN",
@@ -49,7 +54,7 @@ async function resourcesFor(environmentName: string) {
 }
 
 const EXPECTED_WEB = {
-  address: `service.${WEB_SERVICE}`,
+  address: "service.footy-trends",
   type: "service",
   name: "footy-trends",
   build: {
@@ -124,6 +129,14 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).not.toHaveProperty("restartPolicyType");
   });
 
+  // Falling back to staging's branch and variables would delete whatever a
+  // third environment holds beyond staging's list.
+  it("refuses an environment it has no configuration for, before anything is planned", async () => {
+    await expect(resourcesFor("pr-123")).rejects.toThrow(
+      '.railway/railway.ts has no configuration for environment "pr-123"'
+    );
+  });
+
   it("names the project after Railway's own, falling back to footy-trends", async () => {
     const definition = await program(createRailwayContext({ environmentName: "staging" }), project);
 
@@ -131,6 +144,6 @@ describe(".railway/railway.ts (#521)", () => {
   });
 
   it("replaces railway.toml, which no longer exists", () => {
-    expect(existsSync("railway.toml")).toBe(false);
+    expect(existsSync(new URL("../../railway.toml", import.meta.url))).toBe(false);
   });
 });

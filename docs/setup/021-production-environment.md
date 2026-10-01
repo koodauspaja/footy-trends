@@ -116,11 +116,10 @@ happened — decide whether to keep or drop them before the first real deploy.
 1. Railway → `production` environment → app service → **Settings** → **Source**
 2. Set the deploy trigger branch to `release`
 
-The branch is a dashboard setting per environment. It is **not** expressible in
-`.railway/railway.ts`: it declares no source, so the branch stays a dashboard
-setting. It covers build and deploy behaviour, not branch
-selection — so this step cannot be version-controlled and has to be verified by
-looking.
+The branch is declared in `.railway/railway.ts` (`ENVIRONMENTS`: `main` for
+staging, `release` for production) and set by `railway config apply` (025); an
+apply overwrites a different value set here. Still verify it by looking: a
+wrong branch deploys the wrong code to production.
 
 Then confirm the separation holds in both directions:
 
@@ -507,7 +506,7 @@ deployment details page that these are set:
   container takes traffic
 - `healthcheckPath = "/api/health"`, `healthcheckTimeout = 60`
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
-- `restartPolicyType = "ON_FAILURE"`, max 3 retries
+- restart on failure, max 3 retries ("on failure" is Railway's default, so the file declares only the retries)
 
 If production ever needs a value staging does not, branch on
 `ctx.isEnvironment("production")` in `.railway/railway.ts`. Prefer that over a
@@ -616,10 +615,11 @@ domains/DNS/TLS.
 6. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
 
-Only deploy *behaviour* is recreated from the repo. The environment itself, the
-app service, the PostgreSQL and Redis instances, the trigger branch and every
-variable value are dashboard-managed prerequisites — steps 1 to 4 above cannot
-be replayed from `.railway/railway.ts`, which is why they are written out rather than
+From the repo, `.railway/railway.ts` recreates the web service's deploy
+behaviour, its source and trigger branch, and the *names* of its variables.
+The environment itself, the PostgreSQL and Redis instances and every variable
+*value* are dashboard-managed prerequisites — those parts of steps 1 to 4 above
+cannot be replayed from the file, which is why they are written out rather than
 pointed at. Keep the variable values somewhere recoverable; nothing in this
 repository can reproduce them.
 
