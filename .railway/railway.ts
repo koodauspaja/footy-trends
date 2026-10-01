@@ -109,7 +109,9 @@ export default defineRailway((ctx) => {
       // No traffic until this returns 200.
       healthcheckPath: "/api/health",
       healthcheckTimeout: 60,
-      restartPolicyType: "ON_FAILURE",
+      // Restart on failure, at most 3 times. "On failure" is Railway's default,
+      // which it stores as null, so declaring it would show as a change in
+      // every plan; only the retries, which are not the default, are declared.
       restartPolicyMaxRetries: 3,
       // Zero-downtime deploys: the old container stays up 15 s after the new
       // one is healthy, then drains connections for 10 s.

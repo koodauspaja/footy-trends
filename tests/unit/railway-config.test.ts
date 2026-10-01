@@ -68,7 +68,6 @@ const EXPECTED_WEB = {
     startCommand: "npm start",
     healthcheckPath: "/api/health",
     healthcheckTimeout: 60,
-    restartPolicyType: "ON_FAILURE",
     restartPolicyMaxRetries: 3,
     overlapSeconds: 15,
     drainingSeconds: 10,
@@ -116,6 +115,14 @@ describe(".railway/railway.ts (#521)", () => {
       for (const [, value] of variables) expect(value).toEqual({ type: "preserve" });
     }
   );
+
+  // Railway stores its default restart policy, "On Failure", as null: declared,
+  // it would plan as a change on every run (seen applying to staging).
+  it("leaves the restart policy to Railway's default, on failure", async () => {
+    const [web] = (await resourcesFor("staging")) as Array<{ deploy?: object }>;
+
+    expect(web?.deploy).not.toHaveProperty("restartPolicyType");
+  });
 
   it("names the project after Railway's own, falling back to footy-trends", async () => {
     const definition = await program(createRailwayContext({ environmentName: "staging" }), project);
