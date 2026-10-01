@@ -155,7 +155,7 @@ function RollingChart({
       <ul className="sr-only" id={textId}>
         {lines.map((line) => (
           <li key={line.model}>
-            {`${modelLabel(line.model)}: ${percentText((line.points[line.points.length - 1] as RollingPoint).accuracy)}`}
+            {`${modelLabel(line.model)}: ${percentText((line.points.at(-1) as RollingPoint).accuracy)}`}
           </li>
         ))}
       </ul>
