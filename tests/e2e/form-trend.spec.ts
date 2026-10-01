@@ -96,6 +96,7 @@ test.describe("Form chart, signed in", () => {
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",
       "Ennätykset",
+      "Joukkueen vahvuus (Elo)",
       "Vaikeimmat vastustajat",
     ]);
   });

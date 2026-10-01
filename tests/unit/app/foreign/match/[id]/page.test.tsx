@@ -15,6 +15,10 @@ vi.mock("@/lib/match-service", () => ({
   getHomeBaseline: getHomeBaselineMock,
 }));
 
+vi.mock("@/lib/elo-service", () => ({
+  getEloRatings: async () => ({ status: "ok", ratings: new Map() }),
+}));
+
 vi.mock("@/lib/analytics-access", () => ({
   canSeeAnalytics: canSeeAnalyticsMock,
 }));

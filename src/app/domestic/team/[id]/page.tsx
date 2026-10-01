@@ -16,6 +16,7 @@ import {
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { getTeamElo } from "@/lib/elo-service";
 import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
 import {
@@ -293,6 +294,11 @@ export default async function DomesticTeamPage({
           // season is shown (specs/045, S4).
           loadOpponents: () =>
             getWorstOpponents({ kind: "taso", bucket: "domestic" }, teamProviderId, "/kotimaa"),
+          // A club's strength across every stored season (specs/053 S9).
+          loadElo: async () => ({
+            series: await getTeamElo("taso", teamProviderId),
+            seasonLabel: String,
+          }),
         })
       : null;
 

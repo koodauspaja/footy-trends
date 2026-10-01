@@ -64,16 +64,21 @@ test.describe("Streak records, signed in", () => {
     await expect(region.locator("dt", { hasText: "Tämänhetkinen putki" })).toHaveCount(0);
   });
 
-  test("comes last in Muut kaudet", async ({ page }) => {
+  test("follows the season comparison in Muut kaudet, ahead of the Elo chart", async ({ page }) => {
     // Placed within its #424 group rather than counted from the end of
     // Analyysit: a later group (`Vastustajat`, specs/045) moves the end, and
-    // counting from it broke five tests at once.
+    // counting from it broke five tests at once. The Elo chart (specs/053 S9)
+    // now closes the group.
     await page.goto(TEAM);
     const headings = page
       .getByRole("region", { name: "Muut kaudet", exact: true })
       .getByRole("heading", { level: 4 });
 
-    await expect(headings.last()).toHaveText(HEADING);
+    await expect(headings).toHaveText([
+      "Tämä kausi verrattuna",
+      HEADING,
+      "Joukkueen vahvuus (Elo)",
+    ]);
   });
 });
 

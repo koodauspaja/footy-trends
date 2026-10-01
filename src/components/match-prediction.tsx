@@ -1,8 +1,12 @@
 import { percentText } from "@/components/charts/line-chart";
 import { ROUNDING_NOTE } from "@/components/competition-analytics";
+import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
+import { ELO_HOME_ADVANTAGE, predictElo } from "@/lib/elo";
+import { type EloRatings, getEloRatings } from "@/lib/elo-service";
 import { baselineCompetition, type HomeBaseline } from "@/lib/home-baseline";
+import { teamDisplayName } from "@/lib/match-detail";
 import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
 import { formatSeasonLabel } from "@/lib/seasons";
 
@@ -11,6 +15,10 @@ export const PREDICTION_HEADING = "Ennuste";
 export const PREDICTION_ERROR_MESSAGE = "Ennustetta ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const NO_HISTORY_MESSAGE = "Kilpailusta ei ole vielä tallennettuja otteluita.";
 export const PREDICTION_SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi ennusteen.";
+/** specs/053 S13. */
+export const BASELINE_ROW = "Perustaso";
+export const ELO_ROW = "Elo";
+
 const SAME_FOR_EVERY_MATCH =
   "Ei huomioi joukkueita, joten ennuste on sama jokaiselle kilpailun ottelulle.";
 
@@ -38,34 +46,133 @@ export function baselineSentence(baseline: Extract<HomeBaseline, { status: "ok" 
   return `Perustaso: ${results} ${period}. ${SAME_FOR_EVERY_MATCH}`;
 }
 
-function Outcome({ label, share }: Readonly<{ label: string; share: number }>) {
+/**
+ * The Elo line (specs/053 S13): both teams' ratings, rounded, then how the
+ * prediction is made from them.
+ */
+export function eloSentence(
+  homeName: string,
+  homeRating: number,
+  awayName: string,
+  awayRating: number
+): string {
+  return `Elo: ${homeName} ${Math.round(homeRating)}, ${awayName} ${Math.round(awayRating)}. Kotijoukkueelle lisätään ${ELO_HOME_ADVANTAGE} pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus.`;
+}
+
+/** One model's row: its name and three shares, 0–100. */
+type PredictionRow = { model: string; home: number; draw: number; away: number };
+
+/** The three outcomes' headings, in their order (specs/051, specs/053 S13). */
+const OUTCOMES = ["Kotivoitto", "Tasapeli", "Vierasvoitto"] as const;
+
+/**
+ * The predictions as a small table that sizes to its content: three outcome
+ * columns and two rows fit a phone, where `DataTable`'s 240px name column
+ * would push `Tasapeli` and `Vierasvoitto` off the screen.
+ */
+function PredictionTable({ rows }: Readonly<{ rows: readonly PredictionRow[] }>) {
   return (
-    <div>
-      <dt className="inline">{label}</dt>{" "}
-      <dd className="inline font-semibold">{percentText(share)}</dd>
-    </div>
+    <table className="text-sm">
+      <thead>
+        <tr className="border-border border-b text-muted">
+          <th scope="col">
+            <span className="sr-only">Malli</span>
+          </th>
+          {OUTCOMES.map((outcome) => (
+            <th className="py-2 pl-4 text-right font-medium" key={outcome} scope="col">
+              {outcome}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr className="border-border border-b" key={row.model}>
+            <th className="py-2 pr-2 text-left font-semibold" scope="row">
+              {row.model}
+            </th>
+            {[row.home, row.draw, row.away].map((share, index) => (
+              <td className="py-2 pl-4 text-right tabular-nums" key={OUTCOMES[index]}>
+                {percentText(share)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
-function Body({ baseline }: Readonly<{ baseline: HomeBaseline }>) {
+/** The two teams as the panel names them, and their ids. */
+type Sides = {
+  homeTeam: number;
+  awayTeam: number;
+  homeName: string;
+  awayName: string;
+  seasonId: number;
+};
+
+function Body({
+  baseline,
+  elo,
+  sides,
+}: Readonly<{ baseline: HomeBaseline; elo: EloRatings; sides: Sides }>) {
   if (baseline.status === "error") return <p>{PREDICTION_ERROR_MESSAGE}</p>;
   if (baseline.status === "empty") return <p>{NO_HISTORY_MESSAGE}</p>;
+
+  const rows: PredictionRow[] = [
+    {
+      model: BASELINE_ROW,
+      home: baseline.homeShare,
+      draw: baseline.drawShare,
+      away: baseline.awayShare,
+    },
+  ];
+  // No Elo row for a placeholder side; the baseline still stands (S16 needs
+  // the baseline's draw share, which this branch has).
+  const prediction =
+    elo.status === "ok"
+      ? predictElo(
+          elo.ratings,
+          sides.homeTeam,
+          sides.awayTeam,
+          sides.seasonId,
+          baseline.drawShare / 100
+        )
+      : null;
+  if (prediction !== null) {
+    rows.push({
+      model: ELO_ROW,
+      home: prediction.prediction.home * 100,
+      draw: prediction.prediction.draw * 100,
+      away: prediction.prediction.away * 100,
+    });
+  }
+
   return (
     <div>
-      <dl className="flex flex-wrap gap-x-6 gap-y-1">
-        <Outcome label="Kotivoitto" share={baseline.homeShare} />
-        <Outcome label="Tasapeli" share={baseline.drawShare} />
-        <Outcome label="Vierasvoitto" share={baseline.awayShare} />
-      </dl>
+      <PredictionTable rows={rows} />
       <p className="mt-2 text-muted text-sm">{baselineSentence(baseline)}</p>
+      {prediction === null ? null : (
+        <p className="mt-2 text-muted text-sm">
+          {eloSentence(
+            sides.homeName,
+            prediction.homeRating,
+            sides.awayName,
+            prediction.awayRating
+          )}
+        </p>
+      )}
+      {elo.status === "error" ? <p className="mt-2">{ELO_ERROR_MESSAGE}</p> : null}
       <p className="mt-2 text-muted text-sm">{ROUNDING_NOTE}</p>
     </div>
   );
 }
 
 /**
- * The match page's `Ennuste` (specs/051): the competition's home-win baseline,
- * on an upcoming match in a competition specs/049 compares, or nothing.
+ * The match page's `Ennuste` (specs/051): the competition's home-win baseline
+ * and, beside it, the Elo prediction from the two teams' ratings (specs/053
+ * S8), on an upcoming match in a competition specs/049 compares, or nothing.
  *
  * The analytics gate is asked before anything is read, so a signed-out page
  * carries no probability (S4). Awaited by the page rather than rendered, as
@@ -76,11 +183,22 @@ export async function MatchPrediction({ stored }: Readonly<{ stored: StoredMatch
   if (competition === null) return null;
 
   const signedIn = await canSeeAnalytics();
-  const body = signedIn ? (
-    <Body baseline={await getHomeBaseline(competition.kind, competition.code)} />
-  ) : (
-    <SignInPrompt message={PREDICTION_SIGNED_OUT_MESSAGE} />
-  );
+  let body: React.ReactNode = <SignInPrompt message={PREDICTION_SIGNED_OUT_MESSAGE} />;
+  if (signedIn) {
+    const [baseline, elo] = await Promise.all([
+      getHomeBaseline(competition.kind, competition.code),
+      getEloRatings(competition.kind),
+    ]);
+    const { match } = stored;
+    const sides = {
+      homeTeam: match.homeTeamProviderId,
+      awayTeam: match.awayTeamProviderId,
+      homeName: teamDisplayName(match.homeTeamProviderId, match.homeTeamName),
+      awayName: teamDisplayName(match.awayTeamProviderId, match.awayTeamName),
+      seasonId: match.seasonId,
+    };
+    body = <Body baseline={baseline} elo={elo} sides={sides} />;
+  }
 
   return (
     <section aria-labelledby={HEADING_ID} className="mt-10">

@@ -77,22 +77,36 @@ test.describe("Home-win baseline, signed in", () => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   });
 
-  test("an upcoming league match shows three whole percentages and what they rest on", async ({
+  test("an upcoming league match shows the baseline and Elo rows, and what each rests on", async ({
     page,
   }) => {
     await page.goto(PATH(UPCOMING_ID));
 
-    await expect(panel(page).getByRole("term")).toHaveText([
+    await expect(panel(page).getByRole("columnheader")).toHaveText([
+      "Malli",
       "Kotivoitto",
       "Tasapeli",
       "Vierasvoitto",
     ]);
-    const values = await panel(page).getByRole("definition").allTextContents();
-    expect(values).toHaveLength(3);
-    for (const value of values) expect(value).toMatch(/^\d{1,3} %$/);
+    // specs/053 S8, S13: the baseline first, then Elo, three whole percentages each.
+    const rows = panel(page).getByRole("row");
+    await expect(rows).toHaveCount(3);
+    for (const [index, model] of [
+      [1, "Perustaso"],
+      [2, "Elo"],
+    ] as const) {
+      const cells = await rows.nth(index).locator("th, td").allTextContents();
+      expect(cells[0]).toBe(model);
+      for (const value of cells.slice(1)) expect(value).toMatch(/^\d{1,3}\u00a0%$/);
+    }
     await expect(
       panel(page).getByText(
-        /^Perustaso: kilpailun [\d ]+ ottelun tulokset kausilta \d{4}–\d{4}\. Ei huomioi joukkueita, joten ennuste on sama jokaiselle kilpailun ottelulle\.$/
+        /^Perustaso: kilpailun [\d\u00a0]+ ottelun tulokset kausilta \d{4}–\d{4}\. Ei huomioi joukkueita, joten ennuste on sama jokaiselle kilpailun ottelulle\.$/
+      )
+    ).toBeVisible();
+    await expect(
+      panel(page).getByText(
+        /^Elo: E2E Koti \d{4}, E2E Vieras \d{4}\. Kotijoukkueelle lisätään 60 pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus\.$/
       )
     ).toBeVisible();
     // Between the match's details and its meetings (S6).
@@ -129,5 +143,6 @@ test.describe("Home-win baseline, signed out", () => {
     await expect(page.getByText("Kirjaudu sisään nähdäksesi ennusteen.")).toBeVisible();
     expect(html).not.toContain("Kotivoitto");
     expect(html).not.toContain("Perustaso");
+    expect(html).not.toContain("Elo:");
   });
 });

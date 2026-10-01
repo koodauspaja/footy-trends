@@ -8,6 +8,7 @@ import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
+import { replayElo, type TeamRating } from "./elo";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
 import { COMPETITIONS } from "./goals-per-game";
 import { HOME_BASELINE_MODEL } from "./home-baseline";
@@ -19,8 +20,9 @@ import {
 } from "./match-service";
 import type { MatchSource } from "./match-source";
 import { createPacer, FOOTBALL_DATA_PER_MINUTE, type Paced, TASO_PER_MINUTE } from "./pacer";
-import { backtestRows, type FinishedMatch } from "./prediction-backtest";
+import { backtestRows, eloBacktestRows, type FinishedMatch } from "./prediction-backtest";
 import {
+  eloLiveRow,
   isLoggable,
   LOG_WINDOW_HOURS,
   type LogCandidate,
@@ -52,6 +54,8 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
         code: matches.competitionCode,
         seasonId: matches.seasonId,
         providerMatchId: matches.providerMatchId,
+        homeTeam: matches.homeTeamProviderId,
+        awayTeam: matches.awayTeamProviderId,
         kickoffAt: matches.kickoffAt,
         status: matches.status,
         homeGoals: matches.homeGoals,
@@ -71,6 +75,8 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
         categoryId: tasoMatches.categoryId,
         seasonId: tasoMatches.seasonId,
         providerMatchId: tasoMatches.providerMatchId,
+        homeTeam: tasoMatches.homeTeamProviderId,
+        awayTeam: tasoMatches.awayTeamProviderId,
         kickoffAt: tasoMatches.kickoffAt,
         status: tasoMatches.status,
         homeGoals: tasoMatches.homeGoals,
@@ -95,6 +101,8 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
       code: row.code,
       seasonId: row.seasonId,
       providerMatchId: row.providerMatchId,
+      homeTeam: row.homeTeam,
+      awayTeam: row.awayTeam,
       kickoffAt: row.kickoffAt,
       status: row.status,
       hasResult: hasResult(row),
@@ -116,6 +124,8 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
               competitionId: row.competitionId,
               categoryId: row.categoryId,
               providerMatchId: row.providerMatchId,
+              homeTeam: row.homeTeam,
+              awayTeam: row.awayTeam,
               kickoffAt: row.kickoffAt,
               status: row.status,
               hasResult: hasResult(row),
@@ -246,61 +256,97 @@ export async function runPredictionLog(
     if (baseline.status === "error") failures.push(`baseline ${key}`);
   }
 
+  // The run replays for itself, never from the pages' cache (specs/053 S17).
+  // A failed read costs the Elo rows only: the baseline's are still written,
+  // and no Elo row is ever made from ratings that were never read.
+  const ratings = await readFinished().then(eloRatingsBySource, (error: unknown) => {
+    logger.error({ err: error }, "Unable to read the Elo history for predictions");
+    failures.push("elo ratings");
+    return null;
+  });
+
   const writtenAt = clock();
   const rows = candidates
     .filter((candidate) => isLoggable(candidate, writtenAt))
     .flatMap((candidate) => {
       const baseline = baselines.get(keyOf(candidate));
-      const row =
-        baseline === undefined
+      if (baseline === undefined) return [];
+      return [
+        liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt),
+        ratings === null
           ? null
-          : liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt);
-      return row === null ? [] : [row];
+          : eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
+      ].filter((row) => row !== null);
     });
 
   await writePredictions(rows);
   return { refreshed: targets.length - refreshFailures.length, logged: rows.length, failures };
 }
 
-/** Every stored finished match of the compared competitions, its score after extra time. */
-async function readFinished(): Promise<FinishedMatch[]> {
+/** Each provider's current Elo ratings, replayed apart: the id spaces never meet (specs/053 S1). */
+function eloRatingsBySource(
+  finished: readonly FinishedMatch[]
+): Record<MatchSource["kind"], ReadonlyMap<number, TeamRating>> {
+  const ratingsOf = (source: MatchSource["kind"]) =>
+    replayElo(finished.filter((match) => match.source === source)).ratings;
+  return { "football-data": ratingsOf("football-data"), taso: ratingsOf("taso") };
+}
+
+/**
+ * Every stored finished match of the compared competitions, its score after
+ * extra time, with its teams and season — of both providers unless told which.
+ * The backtests, the live Elo ratings and the pages' ratings all read this
+ * one set (specs/052, specs/053).
+ */
+export async function readFinished(
+  sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
+): Promise<FinishedMatch[]> {
   const [footballData, taso] = await Promise.all([
-    db
-      .select({
-        code: matches.competitionCode,
-        providerMatchId: matches.providerMatchId,
-        kickoffAt: matches.kickoffAt,
-        homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
-        awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
-      })
-      .from(matches)
-      .where(
-        and(
-          inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
-          eq(matches.status, FINISHED_STATUS),
-          isNotNull(matches.homeGoals),
-          isNotNull(matches.awayGoals)
-        )
-      ),
-    db
-      .select({
-        competitionId: tasoMatches.competitionCode,
-        categoryId: tasoMatches.categoryId,
-        seasonId: tasoMatches.seasonId,
-        providerMatchId: tasoMatches.providerMatchId,
-        kickoffAt: tasoMatches.kickoffAt,
-        homeGoals: tasoMatches.homeGoals,
-        awayGoals: tasoMatches.awayGoals,
-      })
-      .from(tasoMatches)
-      .where(
-        and(
-          inArray(tasoMatches.categoryId, TASO_CODES.flatMap(categoryIdsFor)),
-          eq(tasoMatches.status, FINISHED_STATUS),
-          isNotNull(tasoMatches.homeGoals),
-          isNotNull(tasoMatches.awayGoals)
-        )
-      ),
+    !sources.has("football-data")
+      ? []
+      : db
+          .select({
+            code: matches.competitionCode,
+            seasonId: matches.seasonId,
+            providerMatchId: matches.providerMatchId,
+            kickoffAt: matches.kickoffAt,
+            homeTeam: matches.homeTeamProviderId,
+            awayTeam: matches.awayTeamProviderId,
+            homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
+            awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
+          })
+          .from(matches)
+          .where(
+            and(
+              inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+              eq(matches.status, FINISHED_STATUS),
+              isNotNull(matches.homeGoals),
+              isNotNull(matches.awayGoals)
+            )
+          ),
+    !sources.has("taso")
+      ? []
+      : db
+          .select({
+            competitionId: tasoMatches.competitionCode,
+            categoryId: tasoMatches.categoryId,
+            seasonId: tasoMatches.seasonId,
+            providerMatchId: tasoMatches.providerMatchId,
+            kickoffAt: tasoMatches.kickoffAt,
+            homeTeam: tasoMatches.homeTeamProviderId,
+            awayTeam: tasoMatches.awayTeamProviderId,
+            homeGoals: tasoMatches.homeGoals,
+            awayGoals: tasoMatches.awayGoals,
+          })
+          .from(tasoMatches)
+          .where(
+            and(
+              inArray(tasoMatches.categoryId, TASO_CODES.flatMap(categoryIdsFor)),
+              eq(tasoMatches.status, FINISHED_STATUS),
+              isNotNull(tasoMatches.homeGoals),
+              isNotNull(tasoMatches.awayGoals)
+            )
+          ),
   ]);
 
   return [
@@ -310,7 +356,7 @@ async function readFinished(): Promise<FinishedMatch[]> {
       // Both scores are non-null by the query; the check narrows the type.
       return code === null || homeGoals === null || awayGoals === null
         ? []
-        : [{ source: "taso" as const, code, homeGoals, awayGoals, ...row }];
+        : [{ source: "taso" as const, code, seasonId, homeGoals, awayGoals, ...row }];
     }),
   ];
 }
@@ -320,7 +366,9 @@ async function readFinished(): Promise<FinishedMatch[]> {
  * history, written idempotently. Stored rows only — no provider request.
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
-  const rows = backtestRows(await readFinished(), HOME_BASELINE_MODEL, now);
+  const finished = await readFinished();
+  const baseline = backtestRows(finished, HOME_BASELINE_MODEL, now);
+  const rows = [...baseline, ...eloBacktestRows(finished, baseline, now)];
   await writePredictions(rows);
   return rows.length;
 }

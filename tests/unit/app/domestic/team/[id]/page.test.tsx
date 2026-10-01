@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
+import type { TeamEloSeries } from "@/lib/elo-service";
 import type { FormSeries } from "@/lib/form-series";
 import type { GoalsSeries } from "@/lib/goals-series";
 import type { OpponentsSeries } from "@/lib/head-to-head";
@@ -64,8 +66,11 @@ const analyticsSectionMock = vi.fn(
     loadComparison: () => Promise<SeasonComparisonSeries>;
     loadRecords: () => Promise<StreakRecordsSeries>;
     loadOpponents: () => Promise<OpponentsSeries>;
+    loadElo: () => Promise<EloPanelData>;
   }) => "analytics section placeholder"
 );
+const getTeamEloMock = vi.fn(async (): Promise<TeamEloSeries> => ({ status: "empty" }));
+vi.mock("@/lib/elo-service", () => ({ getTeamElo: getTeamEloMock }));
 const getWorstOpponentsMock = vi.fn(
   async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
 );
@@ -768,6 +773,16 @@ describe("Domestic team page league position (specs/030)", () => {
       1,
       "/kotimaa"
     );
+  });
+
+  it("asks for the club's TASO Elo history, its seasons labelled as calendar years (specs/053 S9)", async () => {
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    const loadElo = analyticsSectionMock.mock.calls[0]?.[0].loadElo;
+
+    const data = await loadElo?.();
+
+    expect(getTeamEloMock).toHaveBeenCalledWith("taso", 1);
+    expect(data && "seasonLabel" in data ? data.seasonLabel(2025) : null).toBe("2025");
   });
 
   it("offers the section for a cup, but never a league position (specs/040)", async () => {

@@ -5,12 +5,20 @@ const NOW = new Date("2026-10-03T12:00:00Z");
 const day = (n: number) => new Date(Date.UTC(2026, 3, n, 15));
 
 let nextId = 1;
-function played(n: number, home: number, away: number, overrides: Partial<FinishedMatch> = {}) {
+function played(
+  n: number,
+  home: number,
+  away: number,
+  overrides: Partial<FinishedMatch> = {}
+): FinishedMatch {
   return {
     source: "taso" as const,
     code: "VL",
+    seasonId: 2026,
     providerMatchId: nextId++,
     kickoffAt: day(n),
+    homeTeam: 1,
+    awayTeam: 2,
     homeGoals: home,
     awayGoals: away,
     ...overrides,

@@ -16,6 +16,7 @@ import {
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import { getTeamElo } from "@/lib/elo-service";
 import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
 import {
@@ -343,6 +344,15 @@ export async function CompetitionTeamPage({
           // page, which is a country rather than a club (S5).
           loadOpponents: () =>
             getWorstOpponents({ kind: "football-data", region }, teamProviderId, basePath),
+          // Clubs only: national teams have no Elo (specs/053 S5).
+          loadElo: async () =>
+            region === "national-teams"
+              ? { series: { status: "unavailable" as const } }
+              : {
+                  series: await getTeamElo("football-data", teamProviderId),
+                  seasonLabel: (year: number) =>
+                    formatSeasonLabel(year, context.spansCalendarYears),
+                },
         })
       : null;
 

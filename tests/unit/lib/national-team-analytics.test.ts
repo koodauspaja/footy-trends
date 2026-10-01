@@ -208,6 +208,12 @@ describe("nationalTeamAnalytics", () => {
     expect(await nationalTeamAnalytics(given).loadOpponents()).toEqual({ status: "unavailable" });
   });
 
+  it("has no Elo: national teams are not rated (specs/053 S5)", async () => {
+    expect(await nationalTeamAnalytics(given).loadElo()).toEqual({
+      series: { status: "unavailable" },
+    });
+  });
+
   it("reads Finland on both sides of the fixture, across every year", async () => {
     const result = await nationalTeamAnalytics(given).loadHomeAway();
 
