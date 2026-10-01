@@ -20,9 +20,13 @@ checkout: the CLI reads the local file.
 ## Step 1 — The CLI
 
 ```bash
-brew install railway
+brew install railway    # the CLI; tested with 5.62.1
 railway login
 ```
+
+The CLI is separate from the npm `railway` dev dependency: that package is the
+SDK the CLI evaluates `.railway/railway.ts` against, and it has no
+`railway config plan` of its own.
 
 ## Step 2 — Plan, staging first
 
