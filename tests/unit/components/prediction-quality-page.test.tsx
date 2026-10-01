@@ -156,6 +156,10 @@ describe("PredictionQualityPage (specs/054)", () => {
     await renderPage({ alue: "ulkomaat", tyyppi: "ennakkoon" });
 
     expect(getPredictionQuality).toHaveBeenCalledWith("football-data", "live");
+    expect(screen.getByRole("link", { name: "Kotimaa" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Jälkikäteen lasketut" })).not.toHaveAttribute(
+      "aria-current"
+    );
     expect(screen.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
       "href",
       "/ennusteet?alue=kotimaa&tyyppi=ennakkoon"
@@ -194,6 +198,33 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(panel.querySelector("#quality-rolling-text")?.textContent).toBe(
       "Perustaso: 47\u00a0%Elo: 52\u00a0%"
     );
+  });
+
+  it("draws the baseline dashed, the axes fitted to the line's tens and its whole years", async () => {
+    await renderPage();
+
+    const panel = screen.getByRole("region", { name: ACCURACY_HEADING });
+    const dashed = (model: string) =>
+      panel.querySelector(`[data-series="${model}"]`)?.hasAttribute("data-dashed");
+    expect([dashed("home-baseline-v1"), dashed("elo-v1")]).toEqual([true, false]);
+    const yTicks = [...panel.querySelectorAll("[data-part=y-axis] > text[dominant-baseline]")];
+    expect(yTicks.map((tick) => tick.textContent)).toEqual(["40", "50", "60"]);
+    // The line runs from June 2017 to June 2025: only the New Years inside it.
+    const xTicks = [...panel.querySelectorAll("[data-part=x-axis] > text")].slice(0, -1);
+    expect(xTicks.map((tick) => tick.textContent)).toEqual([
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025",
+    ]);
+    // The first point sits on the axis's start.
+    const axisStart = panel.querySelector("[data-part=x-axis] > line")?.getAttribute("x1");
+    const firstX = panel.querySelector("[data-part=line]")?.getAttribute("points")?.split(",")[0];
+    expect(firstX).toBe(axisStart);
   });
 
   it("keeps the axis open when every point is equal", async () => {
@@ -260,6 +291,25 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(within(panel).getByText("Täydellinen kalibrointi")).toBeInTheDocument();
     expect(within(panel).getByText(CALIBRATION_NOTE)).toBeInTheDocument();
     expect(within(panel).getByText(BINS_OMITTED_NOTE)).toBeInTheDocument();
+    const dashed = (model: string) =>
+      panel.querySelector(`[data-series="${model}"]`)?.hasAttribute("data-dashed");
+    expect([dashed("perfect"), dashed("home-baseline-v1"), dashed("elo-v1")]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    // Each bin is drawn at its middle: the first at 5, right of the diagonal's start.
+    const startX = (series: string) =>
+      Number(
+        panel
+          .querySelector(`[data-series="${series}"] [data-part=line]`)
+          ?.getAttribute("points")
+          ?.split(",")[0]
+      );
+    expect(startX("elo-v1")).toBeGreaterThan(startX("perfect"));
+    expect(panel.querySelector("#quality-calibration-text")?.firstChild?.textContent).toMatch(
+      /^Perustaso: 0–10\s%: 40\s%, 10–20\s%: 40\s%/
+    );
     // The omitted bin is neither drawn nor read out.
     expect(panel.querySelector("#quality-calibration-text")?.lastChild?.textContent).not.toContain(
       "90–100"
