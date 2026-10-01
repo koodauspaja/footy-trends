@@ -1,7 +1,6 @@
 # 056 — Prediction quality by competition: which model works where
 
-> **Status: Q1–Q8 answered in chat on 2026-10-01; the filtered page's strings
-> and three edge-case rules (Q9) proposed, awaiting confirmation.** Written for #353, release 3 in the
+> **Status: all questions (Q1–Q9) answered in chat on 2026-10-01.** Written for #353, release 3 in the
 > predictions plan. It extends specs/054's page, `/ennusteet`, which judges
 > the models over a whole provider at once (specs/054 S4, S10 left this
 > breakdown to #353).
@@ -42,6 +41,7 @@ best in this competition?"**
 | S6 | Few matches | **Every competition listed, its count shown** | Miikka, 2026-10-01 (Q6). As specs/049 S10. |
 | S7 | The filtered page | **specs/054 S14's minimums as they are** | Miikka, 2026-10-01 (Q7). |
 | S8 | Live predictions | **No special case** | Miikka, 2026-10-01 (Q8). |
+| S9 | The filtered page | **`Näytetään vain kilpailu {nimi}.`, the link `Kaikki kilpailut`, the filtered row marked current; equal Brier scores both bold; the provider switch drops the filter; an unknown or other-provider `kilpailu` shows the unfiltered page** | Miikka, 2026-10-01 (Q9): "the strings are ok — we can fine tune those during implementation still". |
 
 ## UX / UI (Finnish strings)
 
@@ -58,7 +58,7 @@ best in this competition?"**
 - Under the table: `Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi.`
 - A model with no judged match in a competition: `–`.
 
-**Filtered** (S1), **proposed, pending Q9**: under the page heading,
+**Filtered** (S1, S9): under the page heading,
 `Näytetään vain kilpailu Veikkausliiga.` and a link `Kaikki kilpailut`; the
 window line counts that competition's matches only. The `Kilpailuittain`
 table stays, the filtered competition's row marked as current.
@@ -124,12 +124,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q8 were answered in chat on 2026-10-01 and are recorded as S1–S8. Writing
-the rest raised one:
-
-9. **The filtered page's strings**: `Näytetään vain kilpailu {nimi}.`, the
-   link `Kaikki kilpailut`, and the filtered competition's row marked as
-   current in the table — and three edge-case rules in the table above:
-   equal Brier scores are both bold; the provider switch drops the filter;
-   an unknown or other-provider `kilpailu` shows the unfiltered page.
-   *Proposal: as drafted.*
+**None.** Q1–Q9 were answered in chat on 2026-10-01 and are recorded as
+S1–S9. The strings may still be fine-tuned during implementation.
