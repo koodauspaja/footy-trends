@@ -1,7 +1,6 @@
 # 055 — Poisson goal model: expected goals, every scoreline, and a fairer draw
 
-> **Status: Q1–Q12 answered in chat on 2026-10-01; the strings and three
-> edge-case rules (Q13–Q15) proposed, awaiting confirmation.** Written for #345 (Poisson goal
+> **Status: all questions (Q1–Q15) answered in chat on 2026-10-01.** Written for #345 (Poisson goal
 > model) and #348 (a draw-specific model), joined: the draw correction is a
 > part of the Poisson model, not a model of its own. Release 3 in the
 > predictions plan, after Elo (specs/053) and prediction quality
@@ -55,10 +54,13 @@ specs/054's page measures all three on the same matches.
 | S10 | Team page | **No panel** | Miikka, 2026-10-01 (Q10). |
 | S11 | Computing | **Replayed in memory, cached per provider 15 minutes; the hourly run and the backtest replay for themselves** | Miikka, 2026-10-01 (Q11). As specs/053 S11, S17. |
 | S12 | Backtest | **Strengths, averages and the draw factor all from strictly earlier matches** | Miikka, 2026-10-01 (Q12). specs/052 S14. |
+| S13 | The strings | **As in UX / UI**; a failed replay shows `Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.` under the table, the other rows kept | Miikka, 2026-10-01 (Q13): "suggestions are good". |
+| S14 | No draw factor | **A competition with no draws ever, or only draws, uses the plain Poisson grid** | Miikka, 2026-10-01 (S14). Possible only with very little history. |
+| S15 | A placeholder side | **No `Poisson` row**, as specs/053 | Miikka, 2026-10-01 (S15). |
 
 ## UX / UI (Finnish strings)
 
-**Proposed, pending Q13.** `Ennuste` (specs/051, specs/053) gains a row:
+`Ennuste` (specs/051, specs/053) gains a row:
 
 | | Kotivoitto | Tasapeli | Vierasvoitto |
 |---|---|---|---|
@@ -94,11 +96,11 @@ percentage.
 | A team with no covered match | Strengths 1.0, an average side (S4) |
 | A team with fewer than 20 | Shrunk by matches / 20 (S4) |
 | A competition with no finished match | No Poisson prediction, as the baseline gives none (specs/051 S9) |
-| A competition with no draw ever, or only draws | No draw factor can be found; the plain Poisson grid is used (Q14) |
+| A competition with no draw ever, or only draws | No draw factor can be found; the plain Poisson grid is used (S14) |
 | A shoot-out | A draw, its goals after extra time (specs/049 S3) |
-| A placeholder side | No Poisson row, as specs/053 (Q15) |
+| A placeholder side | No Poisson row, as specs/053 (S15) |
 | Matches at one kickoff | Each from strengths before any of them (S12) |
-| The replay fails | `Ennuste` keeps its other rows and shows a failure line (Q13) |
+| The replay fails | `Ennuste` keeps its other rows and shows the S13 failure line |
 | Signed out | No probability in the HTML (specs/051 S4) |
 
 ## Performance & Limits
@@ -145,16 +147,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q12 were answered in chat on 2026-10-01 and are recorded as S1–S12. #514
-(the scoreline grid) and #515 (whether Dixon–Coles earns a v2) were filed from
-them. Writing the rest raised three, proposed here:
-
-13. **The strings**: the `Poisson` row and its line as in UX / UI, and when the
-    replay fails, `Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.`
-    under the table, the other rows kept. *Proposal: as drafted.*
-14. **A competition with no draws ever, or only draws**, has no factor that
-    reaches its draw share. *Proposal: use the plain Poisson grid there, and
-    say so in the decision record — it can only happen with very little
-    history.*
-15. **A placeholder side**: no `Poisson` row, as Elo has none. *Proposal: as
-    stated.*
+**None.** Q1–Q15 were answered in chat on 2026-10-01 and are recorded as
+S1–S15. #514 and #515 were filed from them.
