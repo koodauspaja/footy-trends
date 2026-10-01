@@ -37,7 +37,8 @@ railway config plan
 
 Read the plan before applying. Stop if it:
 
-- deletes or creates anything, a variable included
+- deletes or creates anything, a variable included (one exception: a production
+  rebuilt from staging, docs/setup/021 Step 7)
 - changes the service's source, repository, branch or `checkSuites` (production waits for CI)
 - touches Postgres, Redis or the `predictions` service
 

@@ -113,14 +113,14 @@ happened — decide whether to keep or drop them before the first real deploy.
 
 ## Step 3 — Point production at the `release` branch
 
-The branch is declared in `.railway/railway.ts` (`ENVIRONMENTS`: `main` for
-staging, `release` for production) and set by `railway config apply` (025),
-which overwrites any other value set in the dashboard.
+1. Railway → `production` environment → app service → **Settings** → **Source**
+2. Set the deploy trigger branch to `release`
 
-1. Apply the file to production (025)
-2. Railway → `production` environment → app service → **Settings** → **Source**:
-   confirm the trigger branch shows `release`. Verify it by looking: a wrong
-   branch deploys the wrong code to production.
+Set by hand here, before anything else, because an environment duplicated from
+staging still points at `main`: a push to `main` would deploy into production.
+`.railway/railway.ts` declares the same value (`ENVIRONMENTS`: `release` for
+production), and Step 7's apply keeps it there; the file is not applied yet
+because the variables are not settled until Steps 4–6.
 
 Then confirm the separation holds in both directions:
 
@@ -500,8 +500,16 @@ visible; the baseline to compare them against would not.
 
 ## Step 7 — Confirm `.railway/railway.ts` applies
 
-Production gets the same `.railway/railway.ts`, applied per 025. Confirm on the
-deployment details page that these are set:
+Now that Steps 4–6 have settled the variables, apply `.railway/railway.ts` to
+production (025).
+
+On an environment duplicated from staging, the plan deletes staging's three
+sign-in variables — `AUTH_ALLOWED_EMAILS`, `AUTH_CLIENT_IP_HEADERS`,
+`AUTH_TRUSTED_PROXIES`. That is expected here: production has none of them
+(Step 4). Any other deletion, or a change to the source or branch: stop.
+
+Then confirm the trigger branch still shows `release`, and on the deployment
+details page that these are set:
 
 - `preDeployCommand = "npm run db:migrate"` — migrations run **before** the new
   container takes traffic
@@ -614,7 +622,9 @@ domains/DNS/TLS.
    and confirm the two database variables point at this environment's
    instances, not staging's (Step 4)
 5. Apply the Sentry and log-level values recorded in Steps 5 and 6
-6. Merge to `release` and verify the deploy, migrations and health check
+6. Apply `.railway/railway.ts`, expecting only staging's three sign-in
+   variables to be deleted (Step 7)
+7. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
 
 From the repo, `.railway/railway.ts` recreates the web service's deploy
