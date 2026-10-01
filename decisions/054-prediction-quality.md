@@ -50,34 +50,33 @@ implementation had to decide something the spec did not.
   | 19 | A season's count per row, not per match |
   | 20 | The omitted-bin note inverted |
   | 21 | The window's first year from the last match |
-  | 22 | The last season the first |
-  | 23 | Kind not filtered |
-  | 24 | football-data's season floor dropped |
-  | 25 | football-data's finished filter dropped |
-  | 26 | The shoot-out kept in the score |
-  | 27 | Provider not filtered |
-  | 28 | The baseline drawn solid and Elo dashed |
-  | 29 | The y axis from 0 |
-  | 30 | The y axis to 100 |
-  | 31 | A flat line's axis of zero height |
-  | 32 | Year ticks outside the line |
-  | 33 | The x axis from 0 |
-  | 34 | The text alternative reading the first point, not the latest |
-  | 35 | Calibration points at the bin's edge |
-  | 36 | The text alternative's bin ranges wrong |
-  | 37 | An omitted bin drawn |
-  | 38 | The backtest note on the live page |
-  | 39 | football-data's seasons labelled as calendar years |
-  | 40 | `Kotimaa` always current |
-  | 41 | `Jälkikäteen lasketut` always current |
-  | 42 | `Ennakkoon tehdyt` linking to the backtest |
-  | 43 | The rolling chart's caption changed |
-  | 44 | A dotted line drawn with the dash pattern |
-  | 45 | A dotted line drawn solid |
-  | 46 | A dotted series not marked `data-dotted` |
-  | 47 | A legend sample ignoring `dotted` |
-  | 48 | The diagonal's legend sample dashed |
-  | 49 | The diagonal drawn dashed |
+  | 22 | Kind not filtered |
+  | 23 | football-data's season floor dropped |
+  | 24 | football-data's finished filter dropped |
+  | 25 | The shoot-out kept in the score |
+  | 26 | Provider not filtered |
+  | 27 | The baseline drawn solid and Elo dashed |
+  | 28 | The y axis from 0 |
+  | 29 | The y axis to 100 |
+  | 30 | A flat line's axis of zero height |
+  | 31 | Year ticks outside the line |
+  | 32 | The x axis from 0 |
+  | 33 | The text alternative reading the first point, not the latest |
+  | 34 | Calibration points at the bin's edge |
+  | 35 | The text alternative's bin ranges wrong |
+  | 36 | An omitted bin drawn |
+  | 37 | The backtest note on the live page |
+  | 38 | football-data's seasons labelled as calendar years |
+  | 39 | `Kotimaa` always current |
+  | 40 | `Jälkikäteen lasketut` always current |
+  | 41 | `Ennakkoon tehdyt` linking to the backtest |
+  | 42 | The rolling chart's caption changed |
+  | 43 | A dotted line drawn with the dash pattern |
+  | 44 | A dotted line drawn solid |
+  | 45 | A dotted series not marked `data-dotted` |
+  | 46 | A legend sample ignoring `dotted` |
+  | 47 | The diagonal's legend sample dashed |
+  | 48 | The diagonal drawn dashed |
 
 - **Fourteen first survived**, all closed with a test: the two sort orders
   (every fixture was already in order), the last rolling point and both

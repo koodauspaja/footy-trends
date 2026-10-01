@@ -108,8 +108,6 @@ export type QualityReport =
       status: "ok";
       models: string[];
       matches: number;
-      firstSeason: number;
-      lastSeason: number;
       /** The kickoff years the window spans, for the line that names it. */
       firstYear: number;
       lastYear: number;
@@ -204,8 +202,6 @@ export function qualityReport(
     status: "ok",
     models: [...models],
     matches,
-    firstSeason: Math.min(...seasonIds),
-    lastSeason: Math.max(...seasonIds),
     firstYear: (common[0] as JudgedPrediction).kickoffAt.getUTCFullYear(),
     lastYear: (common.at(-1) as JudgedPrediction).kickoffAt.getUTCFullYear(),
     totals: perModel.map(({ model, rows }) => ({
