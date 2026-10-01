@@ -1,5 +1,8 @@
 # 019 — Railway config as code
 
+> **Superseded by [025](025-railway-infrastructure-as-code.md)** (#521): `railway.toml` is gone, and
+> `.railway/railway.ts` carries the same settings. Kept as the record of how it was set up.
+
 ## Goal
 Replace manually configured Railway settings with a `railway.toml` file committed
 to the repo. This makes build commands, start commands, health checks, and deploy
