@@ -180,7 +180,7 @@ function CalibrationChart({
         series={[
           {
             name: "perfect",
-            dashed: true,
+            dotted: true,
             dots: false,
             points: [
               { x: 0, y: 0 },
@@ -203,7 +203,7 @@ function CalibrationChart({
       />
       <LineLegend
         items={[
-          { label: PERFECT_LABEL, dashed: true },
+          { label: PERFECT_LABEL, dotted: true },
           ...lines.map((line) => ({ label: modelLabel(line.model), dashed: isDashed(line.model) })),
         ]}
       />
