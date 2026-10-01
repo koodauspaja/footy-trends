@@ -1,8 +1,8 @@
 # 060 — Elo variants: recent form, and each team's own home advantage
 
-> **Status: Q1–Q9 answered in chat on 2026-10-01; the two variants' names
-> (Q10) proposed. Strings may be fine-tuned during implementation. Built once
-> specs/054 has a few weeks of live predictions (S9).** Written for #346, release 4 in the
+> **Status: all questions (Q1–Q10) answered in chat on 2026-10-01. Strings may
+> be fine-tuned during implementation. Built once specs/054 has a few weeks of
+> live predictions (S9).** Written for #346, release 4 in the
 > predictions plan. Two variants of specs/053's Elo, filed together because
 > they change the same rating loop. The plan said they are worth having only
 > if specs/054's measurements show room for Elo to improve (Q9).
@@ -45,11 +45,12 @@ better than plain Elo.
 | S7 | Backtest | **Both, from strictly earlier matches, re-run per environment after release** | Miikka, 2026-10-01 (Q7). specs/052 S14. |
 | S8 | Constants | **Window 5, weight 20, home K 4, bounds 0–150, fixed in `-v1`** | Miikka, 2026-10-01 (Q8). |
 | S9 | When to build | **Spec now; build once specs/054 has a few weeks of live predictions** | Miikka, 2026-10-01 (Q9). #346 waits in Backlog until then. |
+| S10 | Names | **`Elo + vire` (`elo-form-v1`) and `Elo + kotietu` (`elo-home-v1`), after `Elo`** | Miikka, 2026-10-01 (Q10). |
 
 ## UX / UI (Finnish strings)
 
 Only on `/ennusteet` (S5, S6): the variants' names in its legends, tables and
-`Kilpailuittain` columns, **proposed, pending Q10**: `Elo + vire` for
+`Kilpailuittain` columns, (S10): `Elo + vire` for
 `elo-form-v1` and `Elo + kotietu` for `elo-home-v1`, after `Elo`.
 
 ## API & Data
@@ -113,8 +114,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q9 were answered in chat on 2026-10-01 and are recorded as S1–S9. Writing
-the rest raised one:
-
-10. **The variants' names** on `/ennusteet`: `Elo + vire` and `Elo + kotietu`.
-    *Proposal: as drafted.*
+**None.** Q1–Q10 were answered in chat on 2026-10-01 and are recorded as
+S1–S10.
