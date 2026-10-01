@@ -113,13 +113,14 @@ happened — decide whether to keep or drop them before the first real deploy.
 
 ## Step 3 — Point production at the `release` branch
 
-1. Railway → `production` environment → app service → **Settings** → **Source**
-2. Set the deploy trigger branch to `release`
-
 The branch is declared in `.railway/railway.ts` (`ENVIRONMENTS`: `main` for
-staging, `release` for production) and set by `railway config apply` (025); an
-apply overwrites a different value set here. Still verify it by looking: a
-wrong branch deploys the wrong code to production.
+staging, `release` for production) and set by `railway config apply` (025),
+which overwrites any other value set in the dashboard.
+
+1. Apply the file to production (025)
+2. Railway → `production` environment → app service → **Settings** → **Source**:
+   confirm the trigger branch shows `release`. Verify it by looking: a wrong
+   branch deploys the wrong code to production.
 
 Then confirm the separation holds in both directions:
 
@@ -508,9 +509,10 @@ deployment details page that these are set:
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
 - restart on failure, max 3 retries ("on failure" is Railway's default, so the file declares only the retries)
 
-If production ever needs a value staging does not, branch on
-`ctx.isEnvironment("production")` in `.railway/railway.ts`. Prefer that over a
-dashboard edit, so the difference stays in version control.
+If production ever needs a value staging does not, add it to production's
+entry in `ENVIRONMENTS` in `.railway/railway.ts`, as the branch, wait-for-CI
+and the variables already are. Prefer that over a dashboard edit, so the
+difference stays in version control.
 
 ### Migrations are forward-only
 
