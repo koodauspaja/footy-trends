@@ -20,6 +20,7 @@ import {
   getSeasonMatches as getFootballDataMatches,
   getSeasonContext,
 } from "../src/lib/football-data";
+import { createPacer, FOOTBALL_DATA_PER_MINUTE, TASO_PER_MINUTE } from "../src/lib/pacer";
 import { redis } from "../src/lib/redis";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "../src/lib/standings-service";
 import {
@@ -32,39 +33,13 @@ import {
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
 } from "../src/lib/taso-standings-service";
-import {
-  canSkip,
-  delayBefore,
-  describeError,
-  intervalForRatePerMinute,
-  tasoSeasonsFor,
-} from "./backfill-plan";
+import { canSkip, describeError, tasoSeasonsFor } from "./backfill-plan";
 
 function out(line = ""): void {
   process.stdout.write(`${line}\n`);
 }
 function err(line = ""): void {
   process.stderr.write(`${line}\n`);
-}
-
-// 90% of football-data.org's documented 10/minute (docs/setup/007). TASO
-// publishes no limit, so there is no maximum to take a percentage of; 1/second
-// is well under what /kotimaa page views already ask of it in normal use.
-const FOOTBALL_DATA_PER_MINUTE = 9;
-const TASO_PER_MINUTE = 60;
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Spaces one provider's requests, independently of the other's. */
-function pacer(perMinute: number) {
-  const interval = intervalForRatePerMinute(perMinute);
-  let lastAt: number | null = null;
-  return async function paced<T>(work: () => Promise<T>): Promise<T> {
-    const wait = delayBefore(lastAt, Date.now(), interval);
-    if (wait > 0) await sleep(wait);
-    lastAt = Date.now();
-    return work();
-  };
 }
 
 /** Rows already stored for one football-data competition-season. */
@@ -187,7 +162,7 @@ async function backfillTasoSeason(
   currentTasoSeason: number,
   refetch: boolean
 ): Promise<SeasonOutcome> {
-  // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`: most
+  // `competitionIdForSeason`, not the bare season umbrella: most
   // competitions sit under the season umbrella (`spljp26`), but one that
   // declares its own prefix does not (`M1LCUP26`). The generic one asks TASO
   // about a competition that does not exist there, and TASO answers with an
@@ -286,7 +261,7 @@ async function backfillTaso(
     const currentTasoSeason = Math.max(discovered, tasoEarliestSeasonFor(competition.code));
     const seasons = tasoSeasonsFor(tasoEarliestSeasonFor(competition.code), currentTasoSeason);
     for (const seasonId of seasons) {
-      // `competitionIdForSeason`, not taso.ts's `competitionIdFromSeason`:
+      // `competitionIdForSeason`, not the bare season umbrella:
       // most competitions sit under the season umbrella (`spljp26`), but one
       // that declares its own prefix does not (`M1LCUP26`). The generic one
       // asks TASO about a competition that does not exist there, and TASO
@@ -348,8 +323,8 @@ export async function backfill({
       out("Reset done.");
     }
 
-    const footballData = pacer(FOOTBALL_DATA_PER_MINUTE);
-    const taso = pacer(TASO_PER_MINUTE);
+    const footballData = createPacer(FOOTBALL_DATA_PER_MINUTE);
+    const taso = createPacer(TASO_PER_MINUTE);
 
     const foreign = await backfillFootballData(footballData, refetch);
     failures += foreign.failures;

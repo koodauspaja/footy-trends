@@ -1,14 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
+import type { HomeBaseline } from "@/lib/home-baseline";
 import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
+const getHomeBaselineMock = vi.fn<() => Promise<HomeBaseline>>();
+const canSeeAnalyticsMock = vi.fn<() => Promise<boolean>>();
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
+  getHomeBaseline: getHomeBaselineMock,
+}));
+
+vi.mock("@/lib/analytics-access", () => ({
+  canSeeAnalytics: canSeeAnalyticsMock,
 }));
 
 vi.mock("@/lib/football-data", () => ({
@@ -85,6 +93,41 @@ describe("/ulkomaat/ottelu/:id", () => {
         ],
       },
     });
+  });
+
+  it("puts an upcoming match's prediction after its details and before the meetings (specs/051, S6)", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getHomeBaselineMock.mockResolvedValue({
+      status: "ok",
+      matches: 1520,
+      homeShare: 44,
+      drawShare: 24,
+      awayShare: 32,
+      seasons: { first: 2023, last: 2026 },
+      spansCalendarYears: true,
+    });
+    const scheduled = row({ status: "TIMED", homeGoals: null, awayGoals: null });
+    getMatchPageDataMock.mockResolvedValue({
+      status: "ok",
+      match: { source: "football-data", match: scheduled },
+      headToHead: { status: "ok", total: 0, matches: [] },
+    });
+
+    await renderPage();
+
+    const details = screen.getByText("Kierros 26");
+    const prediction = screen.getByRole("heading", { name: "Ennuste" });
+    const meetings = screen.getByRole("heading", { name: "Aiemmat kohtaamiset" });
+    expect(details.compareDocumentPosition(prediction)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(prediction.compareDocumentPosition(meetings)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(getHomeBaselineMock).toHaveBeenCalledWith("football-data", "PL");
+  });
+
+  it("has no prediction on a finished match (specs/051, S3)", async () => {
+    await renderPage();
+
+    expect(screen.queryByRole("heading", { name: "Ennuste" })).not.toBeInTheDocument();
+    expect(getHomeBaselineMock).not.toHaveBeenCalled();
   });
 
   it("shows the competition and season, and the round", async () => {

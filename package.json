@@ -20,6 +20,7 @@
     "predb:push": "tsx scripts/ensure-services.ts",
     "predb:studio": "tsx scripts/ensure-services.ts",
     "predev": "tsx scripts/ensure-services.ts",
+    "predictions": "tsx scripts/predictions.ts",
     "prepare": "husky",
     "pretest:e2e": "tsx scripts/ensure-services.ts --test",
     "pretest:integration": "tsx scripts/ensure-services.ts --test",

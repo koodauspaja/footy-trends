@@ -555,28 +555,33 @@ describe("captionLines (specs/050)", () => {
     // A duplicate React key — the first version keyed each line by its text —
     // is reported through console.error, and may drop a line on a later render.
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const { container } = render(
-      <LineChart
-        describedBy="chart-text"
-        labelledBy="chart-heading"
-        series={[{ name: "line", points: [{ x: 1, y: 1 }] }]}
-        title="Kaksi"
-        xDomain={[1, 2]}
-        xLabel="Kausi"
-        xTicks={[1, 2]}
-        yDomain={[0, 2]}
-        yLabel="Sijoitusmuutoskeskiarvo Sijoitusmuutoskeskiarvo"
-        yTicks={[0, 1, 2]}
-      />
-    );
+    // Restored in `finally`: a failing assertion would otherwise leave
+    // console.error silenced for every later test in the file.
+    try {
+      const { container } = render(
+        <LineChart
+          describedBy="chart-text"
+          labelledBy="chart-heading"
+          series={[{ name: "line", points: [{ x: 1, y: 1 }] }]}
+          title="Kaksi"
+          xDomain={[1, 2]}
+          xLabel="Kausi"
+          xTicks={[1, 2]}
+          yDomain={[0, 2]}
+          yLabel="Sijoitusmuutoskeskiarvo Sijoitusmuutoskeskiarvo"
+          yTicks={[0, 1, 2]}
+        />
+      );
 
-    expect(
-      [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")].map(
-        (line) => line.textContent
-      )
-    ).toEqual(["Sijoitusmuutoskeskiarvo", "Sijoitusmuutoskeskiarvo"]);
-    expect(error.mock.calls.flat().join(" ")).not.toContain("same key");
-    error.mockRestore();
+      expect(
+        [...container.querySelectorAll("[data-part=y-axis] text:last-child tspan")].map(
+          (line) => line.textContent
+        )
+      ).toEqual(["Sijoitusmuutoskeskiarvo", "Sijoitusmuutoskeskiarvo"]);
+      expect(error.mock.calls.flat().join(" ")).not.toContain("same key");
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it("leaves a caption with no space whole", () => {
