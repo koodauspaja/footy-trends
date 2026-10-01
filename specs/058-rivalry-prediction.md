@@ -1,8 +1,7 @@
 # 058 — The next meeting of a rivalry, predicted
 
-> **Status: Q1–Q9 answered in chat on 2026-10-01; two edge-case rules (Q10)
-> proposed, awaiting confirmation. The strings may be fine-tuned during
-> implementation.** Written for #480, release 3 in the
+> **Status: all questions (Q1–Q10) answered in chat on 2026-10-01; the strings
+> may be fine-tuned during implementation.** Written for #480, release 3 in the
 > predictions plan; split out of #355, whose page (specs/047, the
 > head-to-head page `…/kohtaamiset/:a/:b`) shipped without a prediction
 > because no model existed yet.
@@ -45,6 +44,7 @@ specs/055) — with a link to how good those models have been (specs/054).
 | S7 | Access | **Signed in only; signed out the page is as today** | Miikka, 2026-10-01 (Q7). specs/047 S14. |
 | S8 | The track record | **`Kuinka hyvin ennusteet ovat osuneet?` linking to `/ennusteet` filtered to that competition** | Miikka, 2026-10-01 (Q8). specs/056. |
 | S9 | Release dependency | **Ships with whichever models are live; Poisson's row appears with specs/055** | Miikka, 2026-10-01 (Q9). |
+| S10 | Two rules from S1 and S2 | **A cup tie as the next meeting means no group, even with a later league meeting; a passed kickoff whose status lags is skipped for the following meeting** | Miikka, 2026-10-01 (S10): "ok". Until #516, when cups are predicted. |
 
 ## UX / UI (Finnish strings)
 
@@ -79,8 +79,8 @@ No new failure string: `Ennuste`'s own lines cover a failed read.
 | Case | Behaviour |
 |---|---|
 | No upcoming meeting stored | No group (S6) |
-| The next meeting is a cup tie | No group (S2), even if a later league meeting exists — the next meeting is the one predicted (Q10) |
-| The next meeting's kickoff has passed, status lagging | Not upcoming: the following one, if any (Q10) |
+| The next meeting is a cup tie | No group (S2), even if a later league meeting exists — the next meeting is the one predicted (S10) |
+| The next meeting's kickoff has passed, status lagging | Not upcoming: the following one, if any (S10) |
 | A placeholder side | No page at all (specs/042 S8) |
 | One model failing | `Ennuste`'s own failure line, the other rows kept |
 | Only the history group would show | The page exactly as today (S5) |
@@ -125,11 +125,5 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q9 were answered in chat on 2026-10-01 and are recorded as S1–S9. #516
-(predictions for cups) was filed from S2. Writing the rest raised one:
-
-10. **Two rules that follow from S1 and S2**: when the next meeting is a cup
-    tie there is no group, even if a league meeting comes after it — the
-    next meeting is the one predicted, never a later one; and a meeting whose
-    kickoff has passed but whose status still says scheduled is skipped for
-    the following one (as specs/052 S5). *Proposal: as stated.*
+**None.** Q1–Q10 were answered in chat on 2026-10-01 and are recorded as
+S1–S10. #516 (predictions for cups) was filed from S2.
