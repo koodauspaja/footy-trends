@@ -1,7 +1,7 @@
 # 061 — Season simulation: who is likely to win, go up, or go down
 
-> **Status: Q1–Q11 answered in chat on 2026-10-01; three rules (Q12) proposed.
-> Strings may be fine-tuned during implementation.** Written for #347, release 4 in the
+> **Status: all questions (Q1–Q12) answered in chat on 2026-10-01. Strings may
+> be fine-tuned during implementation.** Written for #347, release 4 in the
 > predictions plan — the heaviest of its pieces. It plays out the rest of a
 > season many times with Elo's predictions (specs/053) and counts where each
 > team finishes.
@@ -46,6 +46,7 @@ bottom, and its expected points.
 | S9 | Rounding | **Whole percentages, `< 1 %` below one, `0 %` only when impossible; points to one decimal** | Miikka, 2026-10-01 (Q9). |
 | S10 | Computing | **Per competition-season, Redis 15 minutes; measured before review, a stored result the fallback** | Miikka, 2026-10-01 (Q10). |
 | S11 | Access | **Signed in only** | Miikka, 2026-10-01 (Q11). |
+| S12 | Three rules | **A fixture postponed without a date is still simulated; Kakkonen's pools are each their own table; a run too slow for a page view is computed and stored by the hourly predictions run (specs/052)** | Miikka, 2026-10-01 (S12): "let's have those in the spec". |
 
 ## UX / UI (Finnish strings)
 
@@ -87,11 +88,11 @@ in specs/057's group `Tämä kausi` (S7):
 |---|---|
 | A finished season | No panel (Scope) |
 | The season in progress with no fixture left | The no-fixtures line |
-| A fixture postponed without a date | Still simulated: it is to be played (Q12) |
+| A fixture postponed without a date | Still simulated: it is to be played (S12) |
 | A placeholder side in a fixture | Not simulated; the decision record names it — it cannot occur in a league |
 | A split league before the split | To the end of the regular season; `Ylempään ryhmään` (S5) |
 | A split league after the split | Within each group's stored fixtures (S5) |
-| Kakkonen's pools | Each pool simulated as its own table (Q12) |
+| Kakkonen's pools | Each pool simulated as its own table (S12) |
 | A team mathematically out of a place | `0 %` there (S9) |
 | A team certain of a place | `100 %` |
 | Signed out | No figure in the HTML (S11) |
@@ -101,7 +102,7 @@ in specs/057's group `Tämä kausi` (S7):
 10 000 runs × up to ~200 remaining fixtures: about two million draws per
 competition-season, in memory. Measured before review (S10); if a page view
 cannot afford it, the result is computed by the hourly run and stored instead
-(Q12).
+(S12).
 
 ## Security & Secrets
 
@@ -138,12 +139,6 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-Q1–Q11 were answered in chat on 2026-10-01 and are recorded as S1–S11. #517
-(knockout simulation) and #518 (competition zones) were filed from S6 and S8.
-Writing the rest raised one:
-
-12. **Three rules**: a fixture postponed without a new date is still
-    simulated, as it is still to be played; Kakkonen's pools are each
-    simulated as their own table, as the standings page shows them; and if a
-    run is too slow for a page view, the hourly predictions run (specs/052)
-    computes and stores it instead. *Proposal: as stated.*
+**None.** Q1–Q12 were answered in chat on 2026-10-01 and are recorded as
+S1–S12. #517 (knockout simulation) and #518 (competition zones) were filed
+from S6 and S8.
