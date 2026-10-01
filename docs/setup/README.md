@@ -22,13 +22,14 @@ Complete them in order — each doc ends with a **Next** pointer to the followin
 | 016 | [016-redis-cache-setup.md](016-redis-cache-setup.md) | Redis on Railway and cache utility for API responses |
 | 017 | [017-sentry-setup.md](017-sentry-setup.md) | Sentry error monitoring for runtime exceptions |
 | 018 | [018-health-check.md](018-health-check.md) | Health check endpoint wired into Railway deploy |
-| 019 | [019-railway-config.md](019-railway-config.md) | Railway config as code via railway.toml |
+| 019 | [019-railway-config.md](019-railway-config.md) | Railway config as code via railway.toml — superseded by 025 |
 | 011 | [011-branch-protection.md](011-branch-protection.md) | Protect main branch and enforce status checks before merge |
 | 020 | [020-taso-api-key.md](020-taso-api-key.md) | Scrape the TASO API key and store it in Railway (Veikkausliiga data) |
 | 021 | [021-production-environment.md](021-production-environment.md) | Production Railway environment, separate from staging, deploying from `release` |
 | 022 | [022-production-backfill.md](022-production-backfill.md) | Fill production with the full competition history, once, at the providers' rate limits |
 | 023 | [023-admin-access.md](023-admin-access.md) | Make the first admin, once per environment; everything after that is done in the app |
 | 024 | [024-predictions-cron.md](024-predictions-cron.md) | The hourly predictions run as a production-only Railway cron service, and the backtest per environment |
+| 025 | [025-railway-infrastructure-as-code.md](025-railway-infrastructure-as-code.md) | The web service's Railway settings from `.railway/railway.ts`, applied per environment |
 
 ## After setup
 

@@ -60,7 +60,7 @@ Still on the app service:
 1. **Settings** → **Source** → confirm it is pointing at your `footy-trends` repo, main branch
 2. **Settings** → **Deploy** → confirm **Auto Deploy** is enabled for the main branch
 
-> Build and start commands will be set via `railway.toml` in `019-railway-config.md`.
+> Build and start commands are set in `.railway/railway.ts` (`025-railway-infrastructure-as-code.md`).
 > Leave them blank in the dashboard for now.
 
 ---
