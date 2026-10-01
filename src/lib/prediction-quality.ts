@@ -83,7 +83,7 @@ export type ModelTotals = {
 /** One point of the rolling line: the latest match's kickoff (epoch ms) and the share right, 0–100. */
 export type RollingPoint = { at: number; accuracy: number };
 
-/** At most this many points per line: a 640-unit chart shows no more (S6). */
+/** The thinned line keeps at most this many windows, plus the last: a 640-unit chart shows no more (S6). */
 export const ROLLING_POINTS = 400;
 
 export type SeasonBrier = {
