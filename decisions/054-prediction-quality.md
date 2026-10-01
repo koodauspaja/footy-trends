@@ -17,6 +17,7 @@ implementation had to decide something the spec did not.
 | The rolling line's points | Every step-th window, step `⌈windows / 400⌉`, plus always the last | Domestically there are about 15 000 windows; a 640-unit chart cannot show more than a few hundred, and a 30 KB cached report stays small. Keeping the last means the line ends on today's figure, so it can carry 401 points. |
 | The rolling line's dots | None (`dots: false`, as specs/053) | Hundreds of points; a dot each would be a band. |
 | The rolling chart's axes | x from the first point to the last, ticked at each New Year inside; y from the tens below the lowest to above the highest, never less than ten points high | Legible at 375 px; the year ticks thin on a phone as specs/048's charts do. |
+| Calibration's diagonal | A third line style, `dotted`, added to `LineSeries` and `LineLegend`; the baseline stays dashed, Elo solid | The charts tell lines apart by dash, never colour (specs/032 Q5), and calibration has three lines. The first version drew the diagonal dashed like the baseline, with identical legend samples, which the 375 px screenshot showed could not be read. The spec's "dashed" diagonal is drawn dotted; every existing chart is unchanged. |
 | Calibration's points | At each bin's middle (5, 15, …, 95), the diagonal from 0 to 100 | A point at the lower edge would sit left of the probabilities it stands for. |
 | The cache | `quality:v1:<provider>:<kind>`, 15 minutes, the report as it is | The report is plain numbers and strings, so it survives the JSON the cache helper stores; dates are carried as epoch milliseconds. |
 | `Ennuste`'s link | Under the rounding line, `Kuinka hyvin ennusteet ovat osuneet?` | S13. |
@@ -71,6 +72,12 @@ implementation had to decide something the spec did not.
   | 41 | `Jälkikäteen lasketut` always current |
   | 42 | `Ennakkoon tehdyt` linking to the backtest |
   | 43 | The rolling chart's caption changed |
+  | 44 | A dotted line drawn with the dash pattern |
+  | 45 | A dotted line drawn solid |
+  | 46 | A dotted series not marked `data-dotted` |
+  | 47 | A legend sample ignoring `dotted` |
+  | 48 | The diagonal's legend sample dashed |
+  | 49 | The diagonal drawn dashed |
 
 - **Fourteen first survived**, all closed with a test: the two sort orders
   (every fixture was already in order), the last rolling point and both
