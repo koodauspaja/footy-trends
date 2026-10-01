@@ -153,8 +153,8 @@ more once the Sentry configs read their settings from the environment.
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
-| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below |
-| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
+| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
 | `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -498,15 +498,20 @@ visible; the baseline to compare them against would not.
 
 ---
 
-## Step 7 — Confirm `.railway/railway.ts` applies
+## Step 7 — Apply `.railway/railway.ts` and confirm it took
 
 Now that Steps 4–6 have settled the variables, apply `.railway/railway.ts` to
 production (025).
 
-On an environment duplicated from staging, the plan deletes staging's three
-sign-in variables — `AUTH_ALLOWED_EMAILS`, `AUTH_CLIENT_IP_HEADERS`,
-`AUTH_TRUSTED_PROXIES`. That is expected here: production has none of them
-(Step 4). Any other deletion, or a change to the source or branch: stop.
+On an environment duplicated from staging, the plan shows two expected
+changes:
+
+- staging's three sign-in variables deleted — `AUTH_ALLOWED_EMAILS`,
+  `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` — because production holds
+  none of them today (Step 4);
+- `source.checkSuites` turning on: Wait for CI, the release gate (Step 8).
+
+Anything else — another deletion, or any other source or branch change: stop.
 
 Then confirm the trigger branch still shows `release`, and on the deployment
 details page that these are set:
@@ -623,7 +628,7 @@ domains/DNS/TLS.
    instances, not staging's (Step 4)
 5. Apply the Sentry and log-level values recorded in Steps 5 and 6
 6. Apply `.railway/railway.ts`, expecting only staging's three sign-in
-   variables to be deleted (Step 7)
+   variables deleted and Wait for CI turned on (Step 7)
 7. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
 
