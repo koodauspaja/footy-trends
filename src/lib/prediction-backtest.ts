@@ -3,26 +3,21 @@
  * every stored finished match, from the matches of its competition that kicked
  * off strictly before it.
  *
- * Pure: `prediction-backtest-service.ts` reads each competition's finished
- * matches and writes the rows; which rows, and from what, is decided here.
+ * Pure: `prediction-log-service.ts` reads every finished match and writes
+ * the rows; which rows, and from what, is decided here.
  */
 
+import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
 import { homeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
 import type { PredictionRow } from "./prediction-log";
 
 /**
  * One finished match, its score after extra time — a shoot-out already taken
- * out, as specs/049 S3 counts it.
+ * out, as specs/049 S3 counts it — with the two teams and the season, which
+ * Elo needs (specs/053).
  */
-export type FinishedMatch = {
-  source: MatchSource["kind"];
-  code: string;
-  providerMatchId: number;
-  kickoffAt: Date;
-  homeGoals: number;
-  awayGoals: number;
-};
+export type FinishedMatch = EloMatch;
 
 type Tally = { matches: number; homeWins: number; draws: number; awayWins: number };
 
@@ -91,6 +86,46 @@ export function backtestRows(
       tally = together.reduce((sum, match) => add(sum, match), tally);
       index += together.length;
     }
+  }
+  return rows;
+}
+
+/**
+ * One `elo-v1` backtest row per match the baseline backtest also predicts
+ * (specs/053 S7, S15, S16): the ratings the match was played at, and the
+ * draw share of the strictly earlier matches — the baseline backtest's own
+ * draw probability, so the two models know exactly the same about draws.
+ * A competition's first kickoff has no draw share and so no Elo row.
+ */
+export function eloBacktestRows(finished: readonly FinishedMatch[], now: Date): PredictionRow[] {
+  const drawShares = new Map(
+    backtestRows(finished, ELO_MODEL, now).map((row) => [
+      `${row.source}:${row.providerMatchId}`,
+      row.drawProbability,
+    ])
+  );
+  const rows: PredictionRow[] = [];
+  for (const source of ["football-data", "taso"] as const) {
+    replayElo(
+      finished.filter((match) => match.source === source),
+      (match, homeRating, awayRating) => {
+        const drawShare = drawShares.get(`${match.source}:${match.providerMatchId}`);
+        if (drawShare === undefined) return;
+        const prediction = threeWay(homeRating, awayRating, drawShare);
+        rows.push({
+          source: match.source,
+          providerMatchId: match.providerMatchId,
+          competitionCode: match.code,
+          model: ELO_MODEL,
+          kind: "backtest",
+          homeProbability: prediction.home,
+          drawProbability: prediction.draw,
+          awayProbability: prediction.away,
+          predictedAt: now,
+          kickoffAt: match.kickoffAt,
+        });
+      }
+    );
   }
   return rows;
 }
