@@ -34,6 +34,15 @@ describe("Home page (region picker)", () => {
     expect(ulkomaat).toHaveAttribute("href", "/ulkomaat");
   });
 
+  it("offers the models' track record as a fourth tile (specs/054 S1, S13)", () => {
+    render(<Home />);
+
+    const tile = screen.getByRole("link", { name: /Ennusteet/ });
+    expect(tile).toHaveAttribute("href", "/ennusteet");
+    expect(tile).toHaveTextContent("Ennusteiden osuvuus");
+    expect(screen.getAllByRole("link").at(-1)).toBe(tile);
+  });
+
   it("sets the browser tab title to match the heading", () => {
     expect(metadata.title).toBe("Valitse alue");
   });

@@ -115,10 +115,9 @@ export type QualityReport =
       lastYear: number;
       totals: ModelTotals[];
       /** Per model, or null when fewer than 200 matches are judged (S14). */
-      rolling: RollingPoint[][] | null;
+      rolling: Array<{ model: string; points: RollingPoint[] }> | null;
       seasons: SeasonBrier[];
-      /** Per model. */
-      calibration: CalibrationBin[][];
+      calibration: Array<{ model: string; bins: CalibrationBin[] }>;
       /** Whether any bin was left off, so the page says so (S8). */
       binsOmitted: boolean;
     };
@@ -146,8 +145,8 @@ export function rollingOf(predictions: readonly JudgedPrediction[]): RollingPoin
   const points: RollingPoint[] = [];
   let hits = 0;
   predictions.forEach((prediction, index) => {
-    hits += right[index] ?? 0;
-    if (index >= ROLLING_WINDOW) hits -= right[index - ROLLING_WINDOW] ?? 0;
+    hits += right[index] as number;
+    if (index >= ROLLING_WINDOW) hits -= right[index - ROLLING_WINDOW] as number;
     const end = index + 1;
     if (end < ROLLING_WINDOW) return;
     const isLast = end === predictions.length;
@@ -164,8 +163,10 @@ export function calibrationOf(predictions: readonly JudgedPrediction[]): Calibra
   for (const prediction of predictions) {
     for (const outcome of OUTCOMES) {
       // [0,10) … [90,100]: a probability of exactly 1 belongs to the last bin.
-      const bin = counts[Math.min(9, Math.floor(prediction[outcome] * 10))];
-      if (bin === undefined) continue;
+      const bin = counts[Math.min(9, Math.floor(prediction[outcome] * 10))] as {
+        count: number;
+        hits: number;
+      };
       bin.count += 1;
       if (prediction.outcome === outcome) bin.hits += 1;
     }
@@ -186,14 +187,19 @@ export function qualityReport(
   models: readonly string[]
 ): QualityReport {
   const common = commonMatches(predictions, models).toSorted(byKickoff);
-  const perModel = models.map((model) => common.filter((prediction) => prediction.model === model));
-  const matches = perModel[0]?.length ?? 0;
-  if (matches === 0) return { status: "empty" };
+  if (common.length === 0) return { status: "empty" };
 
+  // One row per match and model (the log's unique key), so a model's rows are
+  // the matches judged.
+  const perModel = models.map((model) => ({
+    model,
+    rows: common.filter((prediction) => prediction.model === model),
+  }));
+  const matches = common.length / models.length;
   const seasonIds = [...new Set(common.map((prediction) => prediction.seasonId))].toSorted(
     (left, right) => left - right
   );
-  const calibration = perModel.map(calibrationOf);
+  const calibration = perModel.map(({ model, rows }) => ({ model, bins: calibrationOf(rows) }));
   return {
     status: "ok",
     models: [...models],
@@ -202,25 +208,28 @@ export function qualityReport(
     lastSeason: Math.max(...seasonIds),
     firstYear: (common[0] as JudgedPrediction).kickoffAt.getUTCFullYear(),
     lastYear: (common.at(-1) as JudgedPrediction).kickoffAt.getUTCFullYear(),
-    totals: perModel.map((own, index) => ({
-      model: models[index] ?? "",
-      matches: own.length,
-      accuracy: mean(own.map((prediction) => (isRight(prediction) ? 100 : 0))),
-      brier: mean(own.map(brierOf)),
-      logLoss: mean(own.map(logLossOf)),
+    totals: perModel.map(({ model, rows }) => ({
+      model,
+      matches: rows.length,
+      accuracy: mean(rows.map((prediction) => (isRight(prediction) ? 100 : 0))),
+      brier: mean(rows.map(brierOf)),
+      logLoss: mean(rows.map(logLossOf)),
     })),
-    rolling: matches < ROLLING_WINDOW ? null : perModel.map(rollingOf),
+    rolling:
+      matches < ROLLING_WINDOW
+        ? null
+        : perModel.map(({ model, rows }) => ({ model, points: rollingOf(rows) })),
     seasons: seasonIds.map((seasonId) => {
-      const inSeason = perModel.map((own) =>
-        own.filter((prediction) => prediction.seasonId === seasonId)
-      );
+      const inSeason = common.filter((prediction) => prediction.seasonId === seasonId);
       return {
         seasonId,
-        matches: inSeason[0]?.length ?? 0,
-        brier: inSeason.map((own) => mean(own.map(brierOf))),
+        matches: inSeason.length / models.length,
+        brier: models.map((model) =>
+          mean(inSeason.filter((prediction) => prediction.model === model).map(brierOf))
+        ),
       };
     }),
     calibration,
-    binsOmitted: calibration.some((bins) => bins.some((bin) => bin.observed === null)),
+    binsOmitted: calibration.some(({ bins }) => bins.some((bin) => bin.observed === null)),
   };
 }
