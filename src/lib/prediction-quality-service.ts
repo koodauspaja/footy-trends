@@ -1,0 +1,136 @@
+/**
+ * The logged predictions with their results, for `/ennusteet` (specs/054).
+ * Every figure is computed by `prediction-quality.ts`; this reads, and caches.
+ */
+
+import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { matches, predictions, tasoMatches } from "@/db/schema";
+import { getCached } from "./cache";
+import { ELO_MODEL } from "./elo";
+import { HOME_BASELINE_MODEL } from "./home-baseline";
+import { logger } from "./logger";
+import { FOOTBALL_DATA_AWAY_GOALS, FOOTBALL_DATA_HOME_GOALS } from "./match-service";
+import type { MatchSource } from "./match-source";
+import {
+  type JudgedPrediction,
+  type Outcome,
+  type QualityReport,
+  qualityReport,
+} from "./prediction-quality";
+
+/** The models judged, in the order every figure lists them (S2). */
+export const QUALITY_MODELS = [HOME_BASELINE_MODEL, ELO_MODEL] as const;
+
+/**
+ * The first season judged (S4): domestically 2016, leaving Elo's cold 2015
+ * run-in out; football-data from 2023, its stored history's start.
+ */
+export const QUALITY_FIRST_SEASON: Record<MatchSource["kind"], number> = {
+  taso: 2016,
+  "football-data": 2023,
+};
+
+/** Which predictions a page shows (S3). */
+export type PredictionKind = "backtest" | "live";
+
+const FINISHED_STATUS = "FINISHED";
+const CACHE_TTL_SECONDS = 15 * 60;
+
+export type QualityResult = QualityReport | { status: "error" };
+
+function outcomeOf(home: number, away: number): Outcome {
+  if (home > away) return "home";
+  return home === away ? "draw" : "away";
+}
+
+type Row = {
+  model: string;
+  providerMatchId: number;
+  seasonId: number;
+  kickoffAt: Date;
+  home: number;
+  draw: number;
+  away: number;
+  homeGoals: number;
+  awayGoals: number;
+};
+
+/** One provider's judged predictions of one kind, inside the window (S4). */
+async function readJudged(source: MatchSource["kind"], kind: PredictionKind): Promise<Row[]> {
+  const logged = and(
+    eq(predictions.source, source),
+    eq(predictions.kind, kind),
+    inArray(predictions.model, [...QUALITY_MODELS])
+  );
+  const probabilities = {
+    model: predictions.model,
+    providerMatchId: predictions.providerMatchId,
+    home: predictions.homeProbability,
+    draw: predictions.drawProbability,
+    away: predictions.awayProbability,
+  };
+  if (source === "football-data") {
+    return db
+      .select({
+        ...probabilities,
+        seasonId: matches.seasonId,
+        kickoffAt: matches.kickoffAt,
+        // After extra time, the shoot-out taken out (specs/049 S3).
+        homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
+        awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
+      })
+      .from(predictions)
+      .innerJoin(matches, eq(matches.providerMatchId, predictions.providerMatchId))
+      .where(
+        and(
+          logged,
+          eq(matches.status, FINISHED_STATUS),
+          isNotNull(matches.homeGoals),
+          isNotNull(matches.awayGoals),
+          gte(matches.seasonId, QUALITY_FIRST_SEASON[source])
+        )
+      );
+  }
+  const rows = await db
+    .select({
+      ...probabilities,
+      seasonId: tasoMatches.seasonId,
+      kickoffAt: tasoMatches.kickoffAt,
+      homeGoals: tasoMatches.homeGoals,
+      awayGoals: tasoMatches.awayGoals,
+    })
+    .from(predictions)
+    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, predictions.providerMatchId))
+    .where(
+      and(
+        logged,
+        eq(tasoMatches.status, FINISHED_STATUS),
+        isNotNull(tasoMatches.homeGoals),
+        isNotNull(tasoMatches.awayGoals),
+        gte(tasoMatches.seasonId, QUALITY_FIRST_SEASON[source])
+      )
+    );
+  // Both scores are non-null by the query; the filter narrows the type.
+  return rows.flatMap(({ homeGoals, awayGoals, ...row }) =>
+    homeGoals === null || awayGoals === null ? [] : [{ ...row, homeGoals, awayGoals }]
+  );
+}
+
+/** One provider's and kind's report, cached 15 minutes (S11), or `error`. */
+export async function getPredictionQuality(
+  source: MatchSource["kind"],
+  kind: PredictionKind
+): Promise<QualityResult> {
+  try {
+    return await getCached(`quality:v1:${source}:${kind}`, CACHE_TTL_SECONDS, async () => {
+      const judged: JudgedPrediction[] = (await readJudged(source, kind)).map(
+        ({ homeGoals, awayGoals, ...row }) => ({ ...row, outcome: outcomeOf(homeGoals, awayGoals) })
+      );
+      return qualityReport(judged, QUALITY_MODELS);
+    });
+  } catch (error) {
+    logger.error({ err: error, source, kind }, "Unable to read the prediction quality");
+    return { status: "error" };
+  }
+}
