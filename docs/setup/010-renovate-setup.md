@@ -11,8 +11,8 @@ never silently fall behind.
 
 1. Go to https://github.com/apps/renovate
 2. Click **Install**
-3. Select the **koodauspaja** organisation
-4. Under **Repository access**, choose **Only select repositories** and pick `footy-trends`
+3. Select your organisation (this project: `koodauspaja`)
+4. Under **Repository access**, choose **Only select repositories** and pick yours
 5. Confirm the installation
 
 ---
@@ -58,7 +58,7 @@ usernames of 001.
 ---
 
 ## Done when
-- [ ] Renovate GitHub App installed on `footy-trends`
+- [ ] Renovate GitHub App installed on your repository
 - [ ] First Renovate dependency PR appears and CI runs on it
 
 ## Next
