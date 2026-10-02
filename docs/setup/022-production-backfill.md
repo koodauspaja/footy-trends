@@ -231,17 +231,20 @@ that season's group rows go. Matches are unaffected either way.
 ---
 
 ## Done when
-- [x] The first release has deployed, so the schema exists — `v1.0.0`
-- [x] The run reported the expected production host and database on its first line
-- [x] It finished with **0 failures** — 11.2 minutes
-- [x] `matches`, `taso_matches` and `taso_group_teams` all hold rows —
+
+Unticked for whoever follows this next. The figures and versions in the lines
+are from this project's own run.
+- [ ] The first release has deployed, so the schema exists — `v1.0.0`
+- [ ] The run reported the expected production host and database on its first line
+- [ ] It finished with **0 failures** — 11.2 minutes
+- [ ] `matches`, `taso_matches` and `taso_group_teams` all hold rows —
       13,857 / 20,378 / 8,180
-- [x] A standings page for an old season renders in production without fetching
+- [ ] A standings page for an old season renders in production without fetching
       match data — ~460ms on repeat requests. The first request to a given
       competition-season is ~6x slower, because TASO's category names live in a
       Redis cache a database backfill cannot fill; one slow request, once
-- [x] The production `DATABASE_URL` is not left behind in `.env`
+- [ ] The production `DATABASE_URL` is not left behind in `.env`
 
 ## Next
-→ Nothing scheduled. This is a one-time operation; the app keeps the current
-  season fresh on its own refresh interval.
+→ `023-admin-access.md`. The backfill itself is a one-time operation; the app
+  keeps the current season fresh on its own refresh interval.

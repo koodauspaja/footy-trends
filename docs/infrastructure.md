@@ -42,7 +42,8 @@ Project `footy-trends`, workspace `Koodauspaja's projects`. Read with
 
 **Redis is in San Francisco while everything that talks to it is in Europe.**
 Every cache read, cache write and sign-in rate-limit check crosses the
-Atlantic. Not chosen: `docs/setup/016` never set a region. Not yet fixed.
+Atlantic. Not chosen: the setup step set no region when Redis was created
+(`docs/setup/016` does now). Not yet fixed.
 
 ### The web service
 

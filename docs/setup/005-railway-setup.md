@@ -34,6 +34,8 @@ the first environment is `staging`, and `production` is created from it in 021.
 1. Web service → **Settings** → **Region** → an EU region. This project:
    `europe-west4`
 2. **Settings** → **Source** → your repository, branch `main`
+3. **Settings** → **Networking** → **Generate Domain**. This host is the
+   environment's URL; 014 needs it for the sign-in callback
 
 Build and start commands stay blank: `.railway/railway.ts` sets them (025).
 
@@ -48,7 +50,7 @@ Build and start commands stay blank: `.railway/railway.ts` sets them (025).
 ## Done when
 
 - [ ] The project has one environment, `staging`
-- [ ] The web service deploys from `main`, in an EU region
+- [ ] The web service deploys from `main`, in an EU region, and has a public domain
 - [ ] Postgres is in the same region, and `DATABASE_URL` references it
 
 ## Next

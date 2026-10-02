@@ -139,14 +139,15 @@ Enable the following:
    - `Integration tests`
    - `SonarCloud scan`
    - `Sourcery review`
+   - `Issue checkboxes`
 4. Save
 
-From this point on GitHub blocks a merge until all four checks — the two CI
+From this point on GitHub blocks a merge until all five checks — the three CI
 jobs, SonarCloud, and Sourcery — *satisfy* the requirement.
 
 Satisfy, not pass: GitHub accepts `success`, `skipped` and `neutral` alike.
 That distinction is the whole reason for the note below, because Sourcery
-reports exactly `skipped` when it declines a review. Only the two CI jobs and
+reports exactly `skipped` when it declines a review. Only the three CI jobs and
 SonarCloud are genuinely gated by this rule; Sourcery's real gate is the
 head-commit check in `skills/open-pr.md`, which requires a `success`
 conclusion before handoff.
@@ -174,9 +175,10 @@ conclusion before handoff.
 
 ## The `release` ruleset
 
-`release` is the branch production deploys from — see
-`021-production-environment.md`. It carries its own ruleset, and it differs
-from `main`'s in ways that are deliberate rather than oversights.
+`release` is the branch production deploys from. **Create this ruleset from
+`021-production-environment.md`, *Before you start***, once the branch exists;
+it is described here because it is `main`'s counterpart. It differs from
+`main`'s in ways that are deliberate rather than oversights.
 
 | Rule | `main` | `release` | Why they differ |
 |---|---|---|---|
@@ -294,9 +296,9 @@ enabled until a workflow has a `push` trigger for `release`.
 - [ ] Branch ruleset active on main
 - [ ] Direct push to main rejected
 - [ ] Required status checks added (after `013-ci-workflow.md`)
-- [ ] `release` ruleset active, with 1 required approval and merge commits only
-- [x] `release`'s required status checks added (after `release.yml` first reports)
-- [x] `release` does **not** require an up-to-date branch, for the reason above (#221)
+- [ ] `release` ruleset active, with 1 required approval and merge commits only (from 021)
+- [ ] `release`'s required status checks added (after `release.yml` first reports)
+- [ ] `release` does **not** require an up-to-date branch, for the reason above (#221)
 
 ## Next
 → Setup continues in `021-production-environment.md`, which stands up the

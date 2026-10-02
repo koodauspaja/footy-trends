@@ -17,7 +17,8 @@ to it:
 ```bash
 git clone https://github.com/koodauspaja/footy-trends.git
 cd footy-trends
-gh repo create <your-org>/<your-repo> --public --source . --push
+git remote rename origin source
+gh repo create <your-org>/<your-repo> --public --source . --remote origin --push
 ```
 
 Everything the later steps refer to arrives with the clone: the application,
