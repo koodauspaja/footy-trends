@@ -1,8 +1,17 @@
 # Footy Trends
 
-Footy Trends is a Next.js app for football trend analysis (Champions League and
-top 5 leagues) with a production-oriented setup: strict TypeScript, Drizzle,
-Postgres, Redis cache, CI, Sentry, and Railway infrastructure as code.
+A Finnish-language football trends site. Standings, matches, team pages and
+trend charts for three regions, and predictions for upcoming matches:
+
+| Region | Covers | Data from |
+|---|---|---|
+| `Kotimaa` | Finnish leagues and cups | Palloliitto's TASO |
+| `Ulkomaat` | the Champions League and European and other top leagues | football-data.org |
+| `Maajoukkueet` | tournaments, and Finland's national teams | both |
+
+Next.js, strict TypeScript, Drizzle on Postgres, a Redis cache, deployed on
+Railway. Every user-facing string is Finnish; code, comments and documents are
+English.
 
 ---
 
@@ -23,55 +32,29 @@ If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first
 
 ---
 
-## Project Overview
-
-### Current Capabilities
-
-- Next.js App Router baseline with strict TypeScript
-- Database access via Drizzle + Postgres
-- Redis cache utilities
-- Health endpoint at `/api/health` (database + redis checks)
-- Error monitoring via Sentry
-- Structured backend logging with Pino (Axiom transport when configured)
-- CI workflows for typecheck, lint, tests, and SonarCloud scan
-
----
-
 ## Architecture
 
-### High-Level Overview
+- **Frontend and backend:** Next.js App Router. Finnish URLs (`/kotimaa`,
+  `/ulkomaat/sarjataulukko`) are rewrites in `next.config.ts` onto English
+  route folders in `src/app`.
+- **Data:** provider responses are cached in Redis and finished matches stored
+  in Postgres; a page reads stored data and refreshes from the provider only
+  when it is missing or stale. No provider is called on every page load, and
+  no provider key reaches the browser.
+- **Analytics and predictions** are computed from stored matches. They are for
+  signed-in readers (Google sign-in through better-auth).
+- **Predictions** are logged hourly by a cron service and judged against the
+  results.
 
-- Frontend and backend: Next.js App Router
-- API layer: route handlers in `src/app/api`
-- Database: PostgreSQL with Drizzle ORM
-- Cache: Redis (`ioredis`)
-- Observability: Sentry + Pino with optional Axiom transport
-- Deployment: Railway with `.railway/railway.ts`
+### Key directories
 
-### Key Directories
-
-- `src/app` - pages, layouts, and route handlers
-- `src/app/api` - API endpoints
-- `src/db` - database client, schema, migrations runner
-- `src/lib` - shared utilities (cache, redis, logger)
-- `docs/setup` - step-by-step infrastructure setup docs
-
-### Competitions and standings
-
-The home page (`/`) is a competition picker; each competition's standings
-live at `/sarjataulukko?kilpailu={code}`. `src/lib/competitions.ts` lists
-the supported competitions — currently the 9 plain league-table
-competitions our football-data.org plan grants access to (Premier League
-and 8 others; cup/knockout competitions and other providers are out of
-scope, see `specs/006-other-competitions.md`).
-
-Standings resolve server-side per competition and season. The app reads
-calculated standings from Redis first, then normalized finished matches
-from PostgreSQL, and refreshes from football-data.org when local data is
-missing or older than `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS`. Provider
-responses use separate Redis TTLs, keyed per competition: one hour for
-competition metadata and 15 minutes for finished matches. The provider API
-key is never sent to the browser.
+- `src/app` — pages, layouts and route handlers
+- `src/lib` — data services, the cache, the models, shared utilities
+- `src/db` — the database client and schema; migrations in `drizzle/`
+- `specs/`, `decisions/` — what each feature is, and how it was built
+- `skills/` — the workflows `CLAUDE.md` refers to
+- `docs/infrastructure.md` — **how the running system is set up now**
+- `docs/setup/` — standing the infrastructure up from zero
 
 ### Test Layout
 
@@ -85,21 +68,12 @@ Tests are organized by test type, with unit tests mirroring the relevant
    application, run with `npm run test:e2e` (see `tests/e2e/README.md` for
    prerequisites)
 
-CI runs the unit test suite with coverage and the integration suite, the
-latter against Postgres/Redis service containers it provisions itself. The
-end-to-end suite has a separate command so it can be enabled with its
-required runtime setup without changing the CI workflow.
+`npm run verify` runs every stage the gate does, in order. On a pull request
+CI runs the unit and integration suites; the end-to-end suite runs locally
+(the pre-push hook asks for a fresh run) and in `release.yml`, against a
+production build, before anything reaches production.
 
-### Railway Deploy Config
-
-`.railway/railway.ts` controls, once applied to each environment
-(`docs/setup/025-railway-infrastructure-as-code.md`):
-
-- pre-deploy migration command
-- start command
-- health check path and timeout
-- restart policy
-- deploy watch patterns
+The project targets Node 24, and expects npm 12.1.0.
 
 ---
 
@@ -141,32 +115,19 @@ neither has a spec or a decision record.
 
 ## Repository Guidelines
 
-- Use branch names that describe intent (example: `chore/npm-ci-and-logging`)
-- Keep commits focused and imperative (example: `chore: pin npm in CI`)
-- Keep infrastructure setup docs in `docs/setup` as source of truth
-
----
-
-## Continuous Integration
-
-GitHub Actions workflows in `.github/workflows`:
-
-- `ci.yml`: typecheck, lint, unit test, integration test
-- `sonarcloud.yml`: test with coverage + SonarCloud scan
-
-Both workflows target Node 24, and the project expects npm 12.1.0.
+- Branches: `feature/NNN-short-name` (the spec's number), `chore/NNN-…` and
+  `bug/NNN-…` (the issue's number)
+- Conventional commit subjects (`feat:`, `fix:`, `chore:`, `docs:`): the
+  release version and notes are derived from them
+- A change to infrastructure updates `docs/infrastructure.md` in the same pull
+  request
 
 ---
 
 ## Documentation
 
 - Installing and running locally: `INSTALL.md`
-- Setup sequence: `docs/setup/README.md`
-- Key setup topics include database, Redis, Sentry, Axiom, CI, and Railway
-
----
-
-## Notes
-
-- This repository is still in foundational setup mode; many feature specs live
-	in `specs/` and are not implemented yet.
+- How the running system is set up, and its constraints: `docs/infrastructure.md`
+- Standing the infrastructure up from zero: `docs/setup/README.md`
+- How work is agreed, built and merged: `CLAUDE.md` and `skills/`
+- Releasing: `skills/release.md`
