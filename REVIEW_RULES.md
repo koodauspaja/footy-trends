@@ -56,7 +56,7 @@ Accessibility and localization
 Tooling and overrides
 - The following rules are enforced by the toolchain and need not be duplicated
   in Sourcery blocks: `noExplicitAny`, `noConsoleLog`, `a11y/useAltText`,
-  `a11y/noSvgWithoutTitle` (see `docs/setup/012-project-init.md`).
+  `a11y/noSvgWithoutTitle` (see `biome.json`).
 - Prefer the toolchain wherever it can express the rule. A review rule answers
   by judgement; save it for what no deterministic check can reach.
 
