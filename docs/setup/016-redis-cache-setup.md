@@ -11,8 +11,8 @@ of provider responses and the sign-in rate-limit counters.
 
 1. Railway → `staging` → **Create** → **Database** → **Redis**
 2. Its **Settings** → **Region** → **the same region as the web service**.
-   Railway does not choose it for you: this project's Redis was left in a US
-   region, an ocean away from everything that reads it
+   Railway does not choose it for you: this project's Redis ran in a US
+   region, an ocean away from everything that reads it, until it was moved
    (`docs/infrastructure.md`)
 3. Web service → **Variables** → `REDIS_URL` = `${{Redis.REDIS_URL}}`
 
