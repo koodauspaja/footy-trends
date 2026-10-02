@@ -37,13 +37,13 @@ Project `footy-trends`, workspace `Koodauspaja's projects`. Read with
 |---|---|---|---|---|
 | `footy-trends` (web) | both | this repository, the environment's branch | `europe-west4` | `.railway/railway.ts`, applied per environment (`docs/setup/025`) |
 | `Postgres` | both | image `postgres-ssl:18`, volume at `/var/lib/postgresql/data` | `europe-west4` | dashboard |
-| `Redis` | both | image `redis:8.2.9`, volume at `/data` | **`sfo`** | dashboard |
+| `Redis` | both | image `redis:8.2.9`, volume at `/data` | `europe-west4` | dashboard |
 | `predictions` (cron) | production | this repository, `release` | `europe-west4` | dashboard (`docs/setup/024`) |
 
-**Redis is in San Francisco while everything that talks to it is in Europe.**
-Every cache read, cache write and sign-in rate-limit check crosses the
-Atlantic. Not chosen: the setup step set no region when Redis was created
-(`docs/setup/016` does now). Not yet fixed.
+**Every service is in one region, and a new one must be put there by hand.**
+Railway does not choose it: Redis ran in `sfo` until 2026-10-02, an ocean from
+the app that reads it on every request, because the setup step set no region
+(`docs/setup/016` does now).
 
 ### The web service
 
