@@ -10,7 +10,7 @@ in the dashboard, and verify it works with a dummy PR.
 
 1. Go to https://sourcery.ai
 2. Sign in with GitHub
-3. Click **Add a repository** and select `footy-trends`
+3. Click **Add a repository** and select yours (this project: `footy-trends`)
 4. Sourcery will install itself as a GitHub App on the repo
 
 ---

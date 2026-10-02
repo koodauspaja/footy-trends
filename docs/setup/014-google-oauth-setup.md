@@ -10,7 +10,8 @@ Railway as environment variables, feeding the better-auth integration in
 
 ## Two projects, not one
 
-**There are two Google Cloud projects, and that is deliberate (#264).**
+**There are two Google Cloud projects, and that is deliberate (#264).** The
+names `footy-trends` and `footy-trends-prod` are this project's own.
 
 | | Project | Consent screen | Who can sign in |
 |---|---|---|---|
