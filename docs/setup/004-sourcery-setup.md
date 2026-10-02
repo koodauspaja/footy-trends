@@ -15,18 +15,11 @@ in the dashboard, and verify it works with a dummy PR.
 
 ---
 
-## Step 2 — Create `.sourcery.yaml`
+## Step 2 — `.sourcery.yaml`
 
-Create file: `.sourcery.yaml` in the repo root.
-
-```yaml
-rule_settings:
-  enable:
-    - default
-```
-
-That's all that goes here. Path restrictions and review rules are configured
-in the dashboard, not in this file.
+It arrives with the clone and only enables Sourcery's default rules. Path
+restrictions and review rules are configured in the dashboard, not in this
+file.
 
 ---
 
@@ -83,35 +76,10 @@ deliberately not Sourcery rules.
 
 ---
 
-## Step 4 — Commit the config file
+## Step 4 — Test with a pull request
 
-```bash
-git add .sourcery.yaml
-git commit -m "chore: add Sourcery config"
-git push origin main
-```
-
----
-
-## Step 5 — Test with a dummy PR
-
-Create a throwaway branch to confirm Sourcery fires and posts a review comment:
-
-```bash
-git checkout -b test/sourcery-check
-echo "// test file" > src/test-sourcery.ts
-git add src/test-sourcery.ts
-git commit -m "test: dummy file to trigger Sourcery review"
-git push origin test/sourcery-check
-```
-
-Open a PR from this branch to main on GitHub. Within a few minutes Sourcery
-should add a review comment. Confirm:
-
-- [ ] Comment appears on the PR
-- [ ] PR template loaded correctly
-
-Delete the branch and close the PR without merging once confirmed.
+Open a pull request with any small change to a file under `docs/`. Within a few
+minutes Sourcery posts a review. Close it without merging.
 
 ---
 
@@ -208,10 +176,9 @@ gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
 
 ## Done when
 - [ ] Sourcery installed on repo
-- [ ] `.sourcery.yaml` committed
 - [ ] Review rules added in the dashboard
 - [ ] Every rule's path patterns include the files that rule asks about
-- [ ] Dummy PR confirmed Sourcery fires
+- [ ] Sourcery reviewed a test pull request
 
 ## Next
-→ `005-railway-setup.md`
+→ `010-renovate-setup.md`
