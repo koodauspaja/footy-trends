@@ -17,7 +17,7 @@ import * as Sentry from "@sentry/nextjs";
  * without touching any other emitter, so a genuine listener leak elsewhere
  * still warns at Node's default. Measured in #129, silenced in #174; the probe
  * for re-measuring after a Next or Sentry upgrade is in
- * docs/setup/017-sentry-setup.md.
+ * decisions/174-max-listeners-warning.md.
  *
  * Node's limit is per emitter, not per event name, so this raises the
  * threshold for every event a `ServerResponse` emits — not only `close`. That

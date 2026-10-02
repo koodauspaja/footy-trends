@@ -43,6 +43,13 @@ See <https://support.google.com/cloud/answer/15549945> and
 
 ---
 
+**When to do which half.** The development project needs only the staging
+host, so do it now. The production project needs the production host and the
+published privacy and terms pages: come back for it from
+`021-production-environment.md`, Step 4.
+
+---
+
 ## Step 1 — Create the projects
 
 1. Go to https://console.cloud.google.com
@@ -132,6 +139,17 @@ project**.
 | `GOOGLE_CLIENT_SECRET` | dev project | dev project | **prod project** |
 | `BETTER_AUTH_SECRET` | any random string | its own | **its own** |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | `https://<staging host>` | `https://<production host>` |
+
+Staging also restricts who may sign in, since Google does not:
+
+| Name | Railway staging | Railway production |
+|---|---|---|
+| `AUTH_ALLOWED_EMAILS` | the addresses allowed in, comma-separated | not set: anyone may sign in |
+| `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` | present and empty | not set |
+
+The last two stay empty: the default is right behind Railway's edge
+(`decisions/309-client-ip-resolution.md`). They exist in staging because
+`.railway/railway.ts` lists them, and it lists every variable the service holds.
 
 Generate each secret with:
 
@@ -226,4 +244,4 @@ point is that the consent screen appears and names the right app.
       here*. Do not treat it as a fault to chase
 
 ## Next
-→ `015-database-setup.md`
+→ `009-axiom-logs.md`
