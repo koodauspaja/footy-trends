@@ -86,7 +86,7 @@
     "sharp@0.35.3": true,
     "@sentry/cli@2.58.6": true
   },
-  "packageManager": "npm@12.1.0",
+  "packageManager": "npm@12.2.0",
   "overrides": {
     "browserslist": "^4.28.7",
     "fast-uri": "^4.0.0",
