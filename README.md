@@ -153,7 +153,7 @@ GitHub Actions workflows in `.github/workflows`:
 - `ci.yml`: typecheck, lint, unit test, integration test
 - `sonarcloud.yml`: test with coverage + SonarCloud scan
 
-Both workflows target Node 24, and the project expects npm 12.1.0.
+Both workflows target Node 24, and the project expects npm 12.2.0.
 
 ---
 
