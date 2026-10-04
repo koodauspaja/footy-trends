@@ -198,7 +198,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | | Where | Constraints |
 |---|---|---|
 | Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs `NEXT_PUBLIC_` copies of each setting. A blank variable means unset, not zero |
-| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`) |
+| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). Logging is not yet a feature requirement, and some writes leave no record (#538) |
 | Health | `/api/health`; `?providers=1` also asks TASO | `?providers=1` is an uncached provider call: not for a short-interval monitor |
 
 ## Sign-in

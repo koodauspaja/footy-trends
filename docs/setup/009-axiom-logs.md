@@ -32,6 +32,10 @@ Web service → **Variables**, in `staging`:
 
 Locally, leave `AXIOM_TOKEN` empty: the app logs to the terminal.
 
+In Railway, with a token set, the app logs to Axiom **only**: Railway's log keeps
+what happens during a deploy (the build, the migrations, startup), and Axiom
+holds everything the app does. That split is deliberate.
+
 ## Step 4 — Verify, after the first deploy
 
 Open the dataset: a line appears for each request the app makes to a provider.
