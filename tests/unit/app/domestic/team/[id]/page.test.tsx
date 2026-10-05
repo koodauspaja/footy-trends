@@ -41,6 +41,8 @@ vi.mock("@/lib/favourite-actions", () => ({
 }));
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const loggerErrorMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
 /**
  * The matches the six result panels count. The panels themselves are
  * `team-panels.test.ts`'s; what this file owns is that the page asks for the
@@ -709,80 +711,51 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
-  it("asks for this team's form in the same TASO category and competition (specs/031)", async () => {
+  it("logs a failed read of the panels' matches with what it takes to find the team", async () => {
+    // A team's id alone is one club here and another at football-data.
+    const failure = new Error("database down");
+    getTeamPanelMatchesMock.mockRejectedValueOnce(failure);
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
 
-    await loadForm?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
+    expect(await analyticsSectionMock.mock.calls[0]?.[0].loadForm()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: failure,
+        teamProviderId: 1,
+        categoryId: categoryIdForSeason("VL", 2025),
+        competitionId: competitionIdForSeason("VL", 2025),
+        seasonId: 2025,
+      },
+      "Unable to read the matches a team's panels count"
     );
   });
 
-  it("asks for this team's goals in the same TASO category and competition (specs/032)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+  // One read behind all six: `teamPanelLoaders` builds them from the same
+  // matches (specs/031 to specs/036), so each asks for the same thing.
+  it.each([
+    "loadForm",
+    "loadGoals",
+    "loadHomeAway",
+    "loadCleanSheets",
+    "loadStreaks",
+    "loadComebacks",
+  ] as const)(
+    "reads this team's matches in the season's own TASO category and competition for %s",
+    async (loader) => {
+      await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
 
-    await loadGoals?.();
+      await analyticsSectionMock.mock.calls[0]?.[0][loader]();
 
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's home and away in the same TASO category and competition (specs/033)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
-
-    await loadHomeAway?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's clean sheets in the same TASO category and competition (specs/034)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadCleanSheets = analyticsSectionMock.mock.calls[0]?.[0].loadCleanSheets;
-
-    await loadCleanSheets?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's streaks in the same TASO category and competition (specs/035)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadStreaks = analyticsSectionMock.mock.calls[0]?.[0].loadStreaks;
-
-    await loadStreaks?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
+      expect(getTeamPanelMatchesMock).toHaveBeenCalledTimes(1);
+      expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
+        categoryIdForSeason("VL", 2025),
+        competitionIdForSeason("VL", 2025),
+        1,
+        2025,
+        2026
+      );
+    }
+  );
 
   it("asks for the season comparison by competition code, not by TASO category (specs/038)", async () => {
     // The comparison reads many seasons, and a category id belongs to one: the
@@ -844,20 +817,6 @@ describe("Domestic team page league position (specs/030)", () => {
     expect(label(2025)).toBe("2025");
   });
 
-  it("asks for this team's comebacks in the same TASO category and competition (specs/036)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
-
-    await loadComebacks?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
   it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;

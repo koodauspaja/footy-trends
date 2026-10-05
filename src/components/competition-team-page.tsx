@@ -176,7 +176,7 @@ async function resolveTeamPage({
               context.activeSeasonId
             ),
       // The six result panels, over one read of the season's matches.
-      ...teamPanelLoaders(teamProviderId, () =>
+      ...teamPanelLoaders({ teamProviderId, competitionCode, seasonId }, () =>
         getTeamPanelMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId)
       ),
       // Every competition in the region and every stored season, whatever

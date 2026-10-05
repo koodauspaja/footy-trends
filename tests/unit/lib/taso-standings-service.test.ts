@@ -36,7 +36,7 @@ function panels(
   seasonId: number,
   activeSeasonId: number
 ) {
-  return teamPanelLoaders(teamProviderId, () =>
+  return teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
     getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, activeSeasonId)
   );
 }

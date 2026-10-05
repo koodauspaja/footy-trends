@@ -820,59 +820,37 @@ describe("Team page league position (specs/030)", () => {
     expect(getTeamPositionSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
-  it("asks for this team's form in this competition and season (specs/031)", async () => {
+  it("logs a failed read of the panels' matches with what it takes to find the team", async () => {
+    // A team's id alone is one club here and another at TASO.
+    const failure = new Error("database down");
+    getTeamPanelMatchesMock.mockRejectedValueOnce(failure);
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
 
-    await loadForm?.();
+    expect(await analyticsSectionMock.mock.calls[0]?.[0].loadForm()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: failure, teamProviderId: 1, competitionCode: "PL", seasonId: 2024 },
+      "Unable to read the matches a team's panels count"
+    );
+  });
 
+  // One read behind all six: `teamPanelLoaders` builds them from the same
+  // matches (specs/031 to specs/036), so each asks for the same thing.
+  it.each([
+    "loadForm",
+    "loadGoals",
+    "loadHomeAway",
+    "loadCleanSheets",
+    "loadStreaks",
+    "loadComebacks",
+  ] as const)("reads this team's matches in this competition and season for %s", async (loader) => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+
+    await analyticsSectionMock.mock.calls[0]?.[0][loader]();
+
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledTimes(1);
     expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
-  it("asks for this team's goals in this competition and season (specs/032)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
-
-    await loadGoals?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's home and away in this competition and season (specs/033)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
-
-    await loadHomeAway?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's clean sheets in this competition and season (specs/034)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadCleanSheets = analyticsSectionMock.mock.calls[0]?.[0].loadCleanSheets;
-
-    await loadCleanSheets?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's streaks in this competition and season (specs/035)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadStreaks = analyticsSectionMock.mock.calls[0]?.[0].loadStreaks;
-
-    await loadStreaks?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's comebacks in this competition and season (specs/036)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
-
-    await loadComebacks?.();
-
-    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
   it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;

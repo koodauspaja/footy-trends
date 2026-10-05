@@ -39,7 +39,7 @@ import {
  * TASO, and nothing below knows which it was given.
  */
 export const TEAM_HEADING = "Joukkue";
-export const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
+const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 
 /** The panels a provider builds for itself. The page adds the axis and the outage guard. */
@@ -55,7 +55,7 @@ export type TeamAnalyticsLoaders = TeamPanelLoaders & {
 export type TeamPageView<M extends MatchListRow> = {
   status: "ok";
   teamProviderId: number;
-  /** The region's Finnish prefix, `/kotimaa`: every link on the page is under it. */
+  /** The region's Finnish prefix, e.g. `/kotimaa`: every link on the page is under it. */
   basePath: string;
   /** Which provider's id the favourite star stores (specs/026-favourites.md). */
   favouriteSource: FavouriteSource;
@@ -113,11 +113,13 @@ export async function resolveTeamIdentity(
   teamProviderId: number,
   firstMatch: Parameters<typeof nameForTeam>[0] | undefined
 ): Promise<{ name: TeamNameResult; seasons: TeamSeasonsResult }> {
-  const seasons = await getTeamSeasons(source, teamProviderId);
-  const name: TeamNameResult =
+  // Neither lookup needs the other, so they are asked together.
+  const [seasons, name] = await Promise.all([
+    getTeamSeasons(source, teamProviderId),
     firstMatch === undefined
-      ? await getTeamName(source, teamProviderId)
-      : { status: "ok", name: nameForTeam(firstMatch, teamProviderId) };
+      ? getTeamName(source, teamProviderId)
+      : ({ status: "ok", name: nameForTeam(firstMatch, teamProviderId) } satisfies TeamNameResult),
+  ]);
   return { name, seasons };
 }
 
@@ -205,9 +207,9 @@ export async function TeamPage<M extends MatchListRow>({
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
   /**
-   * Every competition, league or cup (specs/040): nine of the panels are
-   * computed from results, which a cup has, and the one that needs a table
-   * decides that in its own loader.
+   * Every competition, league or cup (specs/040): every panel but the position
+   * chart is computed from results, which a cup has, and that one decides in
+   * its own loader whether there is a table to rank in.
    *
    * Only for a team with matches this season — otherwise the page already says
    * why there is nothing to show.

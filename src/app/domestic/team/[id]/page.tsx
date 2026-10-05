@@ -156,7 +156,7 @@ async function resolveTeamPage({
               currentSeason
             ),
       // The six result panels, over one read of the season's matches.
-      ...teamPanelLoaders(teamProviderId, () =>
+      ...teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
         getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, currentSeason)
       ),
       // Every competition in /kotimaa and every stored season, whatever

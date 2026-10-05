@@ -48,26 +48,60 @@ export type TeamPanelLoaders = {
 };
 
 /**
+ * Whose panels these are: the team, and whatever else a failure's log line
+ * needs to find it.
+ *
+ * **The team's id alone does not say which team.** Each provider numbers its
+ * teams separately, so 57 is one club at football-data and another at TASO. A
+ * caller adds what places it: the competition and the season, as the deleted
+ * wrappers logged them.
+ */
+export type TeamPanelContext = { teamProviderId: number } & Readonly<
+  Record<string, string | number>
+>;
+
+/**
  * The six panels' loaders over one read of the team's matches.
  *
  * Thunks, so nothing is read or computed until a panel is asked for: the gate
  * in `AnalyticsSection` runs before any of them. The matches are read once
  * however many panels ask.
+ *
+ * **A read that fails is logged once, as a failed read.** Both providers' own
+ * loaders catch and log their failures, but nothing obliges the next caller
+ * to; without the catch here, one rejected read would surface as six panels
+ * each reporting that it could not be computed.
  */
 export function teamPanelLoaders(
-  teamProviderId: number,
+  context: TeamPanelContext,
   load: () => Promise<TeamPanelMatches>
 ): TeamPanelLoaders {
+  const { teamProviderId } = context;
   let read: Promise<TeamPanelMatches> | undefined;
+
+  // Through `then`, so a `load` that throws before returning a promise is
+  // caught as well as one whose promise rejects.
+  function matches(): Promise<TeamPanelMatches> {
+    read ??= Promise.resolve()
+      .then(load)
+      .catch((error: unknown) => {
+        logger.error(
+          { err: error, ...context },
+          "Unable to read the matches a team's panels count"
+        );
+        return { status: "error" as const };
+      });
+    return read;
+  }
 
   function panel<T>(name: string, build: (finished: HalfTimeMatch[]) => T) {
     return async (): Promise<T | { status: "unavailable" } | { status: "error" }> => {
+      const result = await matches();
+      if (result.status !== "ok") return { status: result.status };
       try {
-        read ??= load();
-        const matches = await read;
-        return matches.status === "ok" ? build(matches.finished) : { status: matches.status };
+        return build(result.finished);
       } catch (error) {
-        logger.error({ err: error, teamProviderId }, `Unable to compute the ${name}`);
+        logger.error({ err: error, ...context }, `Unable to compute the ${name}`);
         return { status: "error" };
       }
     };

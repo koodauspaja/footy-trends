@@ -18,6 +18,8 @@ const { teamPanelLoaders } = await import("@/lib/team-panels");
  * What is here is the builder's own contract.
  */
 const TEAM = 1;
+/** As a provider passes it: the team, and what places it. */
+const CONTEXT = { teamProviderId: TEAM, competitionCode: "PL", seasonId: 2025 };
 const LOADERS = [
   "loadForm",
   "loadGoals",
@@ -49,7 +51,7 @@ beforeEach(() => {
 
 describe("teamPanelLoaders", () => {
   it("builds each panel from the team's finished matches, by that panel's own function", async () => {
-    const panels = teamPanelLoaders(TEAM, async () => ({ status: "ok", finished: SEASON }));
+    const panels = teamPanelLoaders(CONTEXT, async () => ({ status: "ok", finished: SEASON }));
 
     expect(await panels.loadForm()).toEqual(formSeries(SEASON, TEAM));
     expect(await panels.loadGoals()).toEqual(goalsSeries(SEASON, TEAM));
@@ -64,7 +66,10 @@ describe("teamPanelLoaders", () => {
   });
 
   it("counts for the team it was given, not for whoever is in the list", async () => {
-    const panels = teamPanelLoaders(2, async () => ({ status: "ok", finished: SEASON }));
+    const panels = teamPanelLoaders({ teamProviderId: 2 }, async () => ({
+      status: "ok",
+      finished: SEASON,
+    }));
 
     expect(await panels.loadHomeAway()).toEqual({ status: "ok", ...homeAwayStats(SEASON, 2) });
     expect(await panels.loadHomeAway()).not.toEqual({
@@ -77,7 +82,7 @@ describe("teamPanelLoaders", () => {
     // Written out, not computed: these are the six answers the twelve deleted
     // wrappers returned for an empty season, and what each panel's empty state
     // is drawn from.
-    const panels = teamPanelLoaders(TEAM, async () => ({ status: "ok", finished: [] }));
+    const panels = teamPanelLoaders(CONTEXT, async () => ({ status: "ok", finished: [] }));
     const none = { matches: 0, won: 0, drawn: 0, lost: 0, scored: 0, conceded: 0 };
     const noOutcomes = { matches: 0, won: 0, drew: 0, lost: 0 };
 
@@ -102,7 +107,7 @@ describe("teamPanelLoaders", () => {
   it.each(["unavailable", "error"] as const)(
     "gives every panel %s when the matches are, which is not an empty season",
     async (status) => {
-      const panels = teamPanelLoaders(TEAM, async () => ({ status }));
+      const panels = teamPanelLoaders(CONTEXT, async () => ({ status }));
 
       for (const loader of LOADERS) {
         expect(await panels[loader](), loader).toEqual({ status });
@@ -113,7 +118,7 @@ describe("teamPanelLoaders", () => {
 
   it("reads nothing until a panel is asked for, and then once for all six", async () => {
     const load = vi.fn(async () => ({ status: "ok" as const, finished: SEASON }));
-    const panels = teamPanelLoaders(TEAM, load);
+    const panels = teamPanelLoaders(CONTEXT, load);
 
     // The gate in `AnalyticsSection` runs before any loader: a signed-out
     // request must cost nothing.
@@ -124,23 +129,39 @@ describe("teamPanelLoaders", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it("reports an error for the panel, and logs it, when the read throws", async () => {
-    const failure = new Error("database down");
-    const panels = teamPanelLoaders(TEAM, async () => {
-      throw failure;
-    });
+  it.each([
+    [
+      "rejects",
+      async (): Promise<never> => {
+        throw new Error("database down");
+      },
+    ],
+    [
+      "throws before it returns a promise",
+      (): Promise<never> => {
+        throw new Error("database down");
+      },
+    ],
+  ])("logs a read that %s once, as a failed read, however many panels ask", async (_name, load) => {
+    const panels = teamPanelLoaders(CONTEXT, load);
 
-    expect(await panels.loadGoals()).toEqual({ status: "error" });
+    for (const loader of LOADERS) {
+      expect(await panels[loader](), loader).toEqual({ status: "error" });
+    }
+    // One event for one failure, naming the read and not six computations,
+    // with what it takes to find the team: its id alone is one club at
+    // football-data and another at TASO.
+    expect(loggerErrorMock).toHaveBeenCalledTimes(1);
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      { err: failure, teamProviderId: TEAM },
-      "Unable to compute the goals series"
+      { err: expect.objectContaining({ message: "database down" }), ...CONTEXT },
+      "Unable to read the matches a team's panels count"
     );
   });
 
   it("names the panel it could not compute", async () => {
     // A match no panel can read: the failure is the builder's, not the read's.
     const broken = [null as unknown as HalfTimeMatch];
-    const panels = teamPanelLoaders(TEAM, async () => ({ status: "ok", finished: broken }));
+    const panels = teamPanelLoaders(CONTEXT, async () => ({ status: "ok", finished: broken }));
 
     const expected = {
       loadForm: "form series",
@@ -153,9 +174,11 @@ describe("teamPanelLoaders", () => {
     for (const loader of LOADERS) {
       expect(await panels[loader](), loader).toEqual({ status: "error" });
       expect(loggerErrorMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ teamProviderId: TEAM }),
+        { err: expect.any(Error), ...CONTEXT },
         `Unable to compute the ${expected[loader]}`
       );
     }
+    // One event per panel that failed, and none for the read, which succeeded.
+    expect(loggerErrorMock).toHaveBeenCalledTimes(LOADERS.length);
   });
 });

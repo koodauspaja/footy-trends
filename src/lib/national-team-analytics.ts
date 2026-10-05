@@ -165,8 +165,10 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
     // Clubs only (specs/053 S5).
     loadElo: () => Promise.resolve({ series: { status: "unavailable" as const } }),
     // The six result panels, over the whole history.
-    ...teamPanelLoaders(FINLAND_TEAM_ID, () =>
-      Promise.resolve({ status: "ok" as const, finished: finishedHistory(years) })
+    ...teamPanelLoaders(
+      // No competition or season to name: the panels cover the whole history.
+      { teamProviderId: FINLAND_TEAM_ID, competitionCode: NATIONAL_TEAM_PERIOD_CODE },
+      () => Promise.resolve({ status: "ok" as const, finished: finishedHistory(years) })
     ),
     // `selectedYear` is read here rather than above, so that a signed-out
     // request really does compute nothing: the gate in `AnalyticsSection` runs
