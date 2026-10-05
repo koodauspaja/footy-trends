@@ -163,6 +163,16 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1` whether TASO still answers | #113 |
 
+- **Every workflow's token is `contents: read`**, and a job widens only what it
+  needs: the issue-checkbox job reads issues and pull requests, the Sonar job
+  reads pull requests, the release's tag job writes contents.
+- **Every job has a timeout**, three to four times its longest recent run
+  (measured 2026-10-05).
+- **A pull request's newer run cancels its older one** in `ci.yml`,
+  `sonarcloud.yml` and `release.yml`. A push to `main` or `release` has a
+  concurrency group of its own per commit, so it is never cancelled or evicted
+  (#537).
+
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
 `TASO_API_KEY`. `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as

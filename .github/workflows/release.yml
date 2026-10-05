@@ -28,6 +28,10 @@ on:
       - release
   workflow_dispatch:
 
+# The token every job gets unless it asks for more (#537).
+permissions:
+  contents: read
+
 # Concurrency here protects the *gate*, not the provider — those turn out to be
 # incompatible goals with this mechanism, and the gate wins.
 #
@@ -53,6 +57,7 @@ jobs:
   unit:
     name: Release — typecheck, lint and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -86,6 +91,7 @@ jobs:
   integration:
     name: Release — integration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:18-alpine
@@ -247,6 +253,7 @@ jobs:
   tag:
     name: Release — tag and publish
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [unit, integration, e2e]
     if: github.event_name == 'push'
     permissions:
