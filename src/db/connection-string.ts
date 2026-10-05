@@ -11,6 +11,10 @@
  *
  * Empty counts as unset: `DATABASE_URL=` in an `.env` copied from the example
  * is the usual way to have neither.
+ *
+ * The message is for whoever reads the deploy log or the server's error log,
+ * so it is English, as logs are. No reader of the site sees it: a page whose
+ * query fails shows its own Finnish error state.
  */
 export const MISSING_DATABASE_URL =
   "DATABASE_URL is not set, or is empty. Set it to the database's connection string.";
