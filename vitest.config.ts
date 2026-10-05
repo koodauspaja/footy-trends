@@ -133,6 +133,20 @@ export default defineConfig({
       // `coverage-final.json` to find source files no test imports — the files
       // vitest cannot report as 0% because it never sees them at all.
       reporter: ["lcov", "text", "json"],
+      /**
+       * The run fails below 100% on any of the four.
+       *
+       * This repository holds its unit coverage at 100%, and until this
+       * nothing made it: `scripts/coverage-gaps.ts` fails on a source file no
+       * test imports and on a condition never taken, but an uncovered
+       * statement, function or line in a file some test does import passed.
+       * #536 found two table definitions that had only ever run as a side
+       * effect of another module's import; the summary read 99.97% and
+       * `npm run test:unit` exited 0.
+       *
+       * `tests/unit/coverage-thresholds.test.ts` fails if one is lowered.
+       */
+      thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
       // Everything under tests/ is test code or test data, neither of which
       // is a subject of coverage. Without this a JSON fixture is reported as a
       // permanently 0%-covered file, which both adds noise and drags the
