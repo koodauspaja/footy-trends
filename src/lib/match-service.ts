@@ -258,9 +258,15 @@ const FINISHED_STATUS = "FINISHED";
  * penalties 1–4. A shoot-out is neither goals (specs/044, specs/048) nor the
  * result (specs/049, S3), so every aggregate here subtracts it where stored.
  * TASO's score never includes one. See #492.
+ *
+ * **The same rule as `withoutShootout` in `standings.ts`, which the tables and
+ * the team panels read through: half a shoot-out is not one.** Each side is
+ * subtracted only when both are stored. Subtracting each on its own gave a
+ * match with one side stored a different score here than there (#528).
  */
-export const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - coalesce(${matches.penaltiesHome}, 0))`;
-export const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - coalesce(${matches.penaltiesAway}, 0))`;
+const SHOOTOUT_STORED = sql`(${matches.penaltiesHome} is not null and ${matches.penaltiesAway} is not null)`;
+export const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - case when ${SHOOTOUT_STORED} then ${matches.penaltiesHome} else 0 end)`;
+export const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - case when ${SHOOTOUT_STORED} then ${matches.penaltiesAway} else 0 end)`;
 
 /**
  * A competition's goals per game in each stored season, for its standings page
