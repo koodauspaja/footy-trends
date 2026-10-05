@@ -70,7 +70,7 @@ const EXPECTED_WEB = {
   },
   deploy: {
     preDeployCommand: ["npm run db:migrate"],
-    startCommand: "npm start",
+    startCommand: "node node_modules/next/dist/bin/next start",
     healthcheckPath: "/api/health",
     healthcheckTimeout: 60,
     restartPolicyMaxRetries: 3,

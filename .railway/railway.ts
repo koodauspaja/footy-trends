@@ -118,7 +118,12 @@ export default defineRailway((ctx) => {
     deploy: {
       // Migrations run in the new container before it takes traffic.
       preDeployCommand: ["npm run db:migrate"],
-      startCommand: "npm start",
+      // Not `npm start`: npm runs its script through `sh -c`, and on the image's
+      // dash the shell dies on Railway's SIGTERM while the server never receives
+      // it. Requests in flight were cut off and npm reported a failure, which
+      // listed every replaced deployment as CRASHED (#525). Started directly,
+      // Next closes the server and finishes pending requests first.
+      startCommand: "node node_modules/next/dist/bin/next start",
       // No traffic until this returns 200.
       healthcheckPath: "/api/health",
       healthcheckTimeout: 60,
