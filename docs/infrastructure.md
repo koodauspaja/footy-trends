@@ -53,7 +53,7 @@ pins each value.
 | Setting | Value |
 |---|---|
 | Before traffic | `npm run db:migrate` (migrations are forward-only: redeploying an older commit does not roll the schema back) |
-| Start | `npm start` |
+| Start | `node node_modules/next/dist/bin/next start`, not `npm start`: under npm the server never received Railway's SIGTERM (#525) |
 | Health check | `/api/health`, 60 s. It checks Postgres and Redis and reports the running commit |
 | Restart | on failure (Railway's default, deliberately not declared), at most 3 times |
 | Handover | 15 s overlap, then 10 s draining |
@@ -73,8 +73,10 @@ Constraints:
 - **A red release run leaves production on the previous version**, and Railway
   marks the deployment `SKIPPED`. Re-running the workflow does not restart the
   deploy; press **Redeploy** in Railway (#215).
-- **A replaced deployment shows `CRASHED` before `REMOVED`.** Noise from
-  `npm start` under SIGTERM, not a crash (#525).
+- **A replaced deployment goes from `SUCCESS` to `REMOVED`.** Its log ends
+  `sending signal SIGTERM to container`, `Stopping Container`, with no
+  `npm error`: Next closes the server and finishes pending requests. `CRASHED`
+  on a deployment now means a crash (#525).
 
 ### Variables of the web service
 
