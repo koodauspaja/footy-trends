@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
@@ -18,6 +18,26 @@ import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
+
+/**
+ * The favourite star in this tree reads the session through `useSession`, and
+ * the real client must not be loaded in a unit test (see
+ * `favourite-toggle.tsx`). Signed out unless a test signs in.
+ */
+const { session, toggleFavouriteTeamActionMock } = vi.hoisted(() => ({
+  session: { data: null as unknown },
+  toggleFavouriteTeamActionMock: vi.fn(async (_source: string, _teamProviderId: number) => ({
+    ok: true as const,
+    favorite: true,
+  })),
+}));
+vi.mock("@/lib/auth-client", () => ({
+  useSession: () => ({ data: session.data, refetch: vi.fn(async () => {}) }),
+}));
+vi.mock("@/lib/favourite-actions", () => ({
+  toggleFavouriteTeamAction: toggleFavouriteTeamActionMock,
+  toggleFavouriteCompetitionAction: vi.fn(),
+}));
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const getTeamPositionSeriesMock = vi.fn(
@@ -206,6 +226,7 @@ async function renderTeam(
  */
 beforeEach(() => {
   vi.clearAllMocks();
+  session.data = null;
   getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
   getTeamNameMock.mockResolvedValue({ status: "not_found" });
   getTeamContextMock.mockImplementation(defaultTeamContext);
@@ -574,6 +595,55 @@ describe("Domestic team page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
       title: "HJK – Veikkausliiga 2026",
     });
+  });
+});
+
+describe("Domestic team page favourite star (#526, specs/026-favourites.md)", () => {
+  it("offers a signed-in reader the star, which favourites this club as a TASO team", async () => {
+    session.data = { user: { id: "user-1" } };
+    await renderTeam("1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Lisää suosikkeihin: HJK" }));
+
+    await waitFor(() => expect(toggleFavouriteTeamActionMock).toHaveBeenCalledWith("taso", 1));
+  });
+
+  it("shows the star as set for a club the reader already follows", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["taso:1"] };
+    await renderTeam("1");
+
+    expect(
+      await screen.findByRole("button", { name: "Poista suosikeista: HJK" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not take football-data's club with the same id for this one", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["football-data:1"] };
+    await renderTeam("1");
+
+    expect(
+      await screen.findByRole("button", { name: "Lisää suosikkeihin: HJK" })
+    ).toBeInTheDocument();
+  });
+
+  it("offers no star to a signed-out reader", async () => {
+    await renderTeam("1");
+
+    expect(screen.getByRole("heading", { name: "HJK – Veikkausliiga 2026" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /suosik/i })).not.toBeInTheDocument();
+  });
+
+  it("offers no star when the club's name is unknown", async () => {
+    session.data = { user: { id: "user-1" } };
+    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [] });
+    await renderTeam("1");
+
+    expect(screen.getByRole("heading", { name: "Veikkausliiga" })).toBeInTheDocument();
+    // The heading's own effects have run by now, so "none" is the answer and
+    // not the moment before the star mounts.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /suosik/i })).not.toBeInTheDocument()
+    );
   });
 });
 
