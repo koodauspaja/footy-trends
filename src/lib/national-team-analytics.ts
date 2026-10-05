@@ -16,17 +16,12 @@
  * The loaders are thunks rather than values, so a signed-out request computes
  * nothing at all: `AnalyticsSection` checks the gate before calling any of them.
  */
-import { cleanSheetSeries } from "./clean-sheets";
-import { comebacksOf } from "./comebacks";
-import { formSeries } from "./form-series";
-import { goalsSeries } from "./goals-series";
-import { homeAwayStats } from "./home-away";
 import { FINLAND_TEAM_ID } from "./national-team";
 import type { NationalTeamMatch, NationalTeamYear } from "./national-team-service";
 import { comparisonFor, type SeasonReadResult, UNRANKED_MEASURES } from "./season-comparison";
 import { toFinishedMatches } from "./standings";
 import { recordsFor } from "./streak-records";
-import { streaksOf } from "./streaks";
+import { teamPanelLoaders } from "./team-panels";
 
 /**
  * The competition code the year keys carry.
@@ -160,8 +155,6 @@ export function readYear(
  * `AnalyticsSection` still decides whether any of this is computed at all.
  */
 export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
-  const finished = () => finishedHistory(years);
-
   return {
     // No table, ever, so the one panel that needs one is absent (specs/041, S1
     // of the panels, and the same shape specs/040 gave a cup).
@@ -171,18 +164,13 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
     loadOpponents: () => Promise.resolve({ status: "unavailable" as const }),
     // Clubs only (specs/053 S5).
     loadElo: () => Promise.resolve({ series: { status: "unavailable" as const } }),
-    loadForm: () => Promise.resolve(formSeries(finished(), FINLAND_TEAM_ID)),
-    loadGoals: () => Promise.resolve(goalsSeries(finished(), FINLAND_TEAM_ID)),
-    loadHomeAway: () =>
-      Promise.resolve({
-        status: "ok" as const,
-        ...homeAwayStats(finished(), FINLAND_TEAM_ID),
-      }),
-    loadCleanSheets: () => Promise.resolve(cleanSheetSeries(finished(), FINLAND_TEAM_ID)),
-    loadStreaks: () =>
-      Promise.resolve({ status: "ok" as const, ...streaksOf(finished(), FINLAND_TEAM_ID) }),
-    loadComebacks: () =>
-      Promise.resolve({ status: "ok" as const, ...comebacksOf(finished(), FINLAND_TEAM_ID) }),
+    // The six result panels, over the whole history.
+    ...teamPanelLoaders(
+      // No season to name: the panels cover the whole history. `MAA` marks
+      // the national team, as it does in the period keys.
+      { teamProviderId: FINLAND_TEAM_ID, competitionCode: NATIONAL_TEAM_PERIOD_CODE },
+      () => Promise.resolve({ status: "ok" as const, finished: finishedHistory(years) })
+    ),
     // `selectedYear` is read here rather than above, so that a signed-out
     // request really does compute nothing: the gate in `AnalyticsSection` runs
     // before any loader is called.

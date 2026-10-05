@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FINLAND_TEAM_ID } from "@/lib/national-team";
 import {
   finishedHistory,
@@ -11,6 +11,9 @@ import {
   yearSpan,
 } from "@/lib/national-team-analytics";
 import type { NationalTeamMatch, NationalTeamYear } from "@/lib/national-team-service";
+
+const loggerErrorMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
 
 /**
  * The analytics behind a national-team page (specs/041).
@@ -368,5 +371,24 @@ describe("nationalTeamAnalytics", () => {
     expect(result.records.wins).toEqual({ length: 3, from: "2025", to: "2026" });
     // Not the competitions met: how far back the records reach (specs/041, S12).
     expect(result.scope).toBe("2025–2026");
+  });
+
+  it("shows a panel's error, and logs whose it was, when its history cannot be read", async () => {
+    // A row no panel can read. Before the shared builder the throw escaped and
+    // took the whole page with it (#530).
+    const broken = [{ year: 2026, matches: [null as unknown as NationalTeamMatch] }];
+    const loaders = nationalTeamAnalytics(broken);
+
+    expect(await loaders.loadForm()).toEqual({ status: "error" });
+    expect(await loaders.loadStreaks()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: expect.any(Error),
+        teamProviderId: FINLAND_TEAM_ID,
+        competitionCode: NATIONAL_TEAM_PERIOD_CODE,
+      },
+      "Unable to read the matches a team's panels count"
+    );
   });
 });
