@@ -168,6 +168,11 @@ from a checkout of the commit that environment runs.
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
+- **`DATABASE_URL` is required, and nothing stands in for it.** Unset or
+  empty, the first query and `npm run db:migrate` fail with a line naming the
+  variable; neither falls back to `localhost` or the `PG*` variables, which is
+  what postgres.js does when handed nothing. The client is made on first use,
+  so `next build` needs no database (#536).
 - **Redis holds two things:** the cache (`getCached`, JSON, TTL per key) and
   better-auth's rate-limit counters (decisions/318). A Redis outage must not
   take sign-in down; that record says how it does not.

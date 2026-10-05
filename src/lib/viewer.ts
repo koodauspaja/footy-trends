@@ -71,11 +71,8 @@ export const getViewerPreferences = cache(async (): Promise<Preferences | null> 
     const session = await auth.api.getSession({ headers: requestHeaders });
     if (!session) return null;
 
-    // Deferred for the same reason as `auth` above, and it was the remaining
-    // hole in that claim: `preferences.ts` imports `@/db`, which constructs the
-    // Postgres client at module scope. A top-level import here made every
-    // importer of this module — which is every competition page — pay that on
-    // a signed-out request, and fail outright without `DATABASE_URL`.
+    // Deferred like `auth` above, so a signed-out request, which is every
+    // competition page's, loads neither it nor the database module behind it.
     const { getPreferencesFor } = await import("@/lib/preferences");
     return await getPreferencesFor(session.user.id);
   } catch (error) {
