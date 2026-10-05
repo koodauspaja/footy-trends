@@ -72,7 +72,7 @@ export type TeamPageView<M extends MatchListRow> = {
   seasons: TeamSeasonsResult;
   /** Above the standings link. Only TASO has one: its renamed-competition notice. */
   lead: ReactNode;
-  /** The notices for a `kilpailu` or `kausi` the URL got wrong. */
+  /** The notices for a competition or season the URL got wrong. */
   notices: ReactNode;
   /** How this provider words a season and a competition, and which it offers. */
   names: {

@@ -74,7 +74,8 @@ goals and a Veikkausliiga side with 30.
 
 **No new endpoint, no provider request, no new database read.** Both services
 already select this team's finished league matches in kickoff order for the
-form chart (`getTeamFormSeries`). These charts take the same matches, so the
+form chart (`getTeamPanelMatches`, which every panel of `teamPanelLoaders` in
+`src/lib/team-panels.ts` is computed from). These charts take the same matches, so the
 three charts cannot disagree about which matches count.
 
 **Rolling** (Q1, Q2): after the team's `n`-th match, from the fifth, the goals
