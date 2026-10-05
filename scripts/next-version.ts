@@ -354,7 +354,6 @@ function escapeTableCell(text: string): string {
   return text.replaceAll("|", String.raw`\|`);
 }
 
-/** Markdown release notes: a table per section, matching the v1.0.0 release. */
 /**
  * Labels that say what *kind* of work an issue is, rather than which part of
  * the app it touches.
@@ -426,6 +425,7 @@ export function issueRefsIn(decision: VersionDecision): number[] {
   return [...found];
 }
 
+/** Markdown release notes: a table per section, matching the v1.0.0 release. */
 export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, subjects: string[]): string => {
     if (subjects.length === 0) return "";

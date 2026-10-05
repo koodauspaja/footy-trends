@@ -11,11 +11,38 @@
 - **Features only:** every PR references its spec (`specs/NNN-feature-name.md`)
   and writes a decision record (`decisions/NNN-feature-name.md`), per
   `skills/open-pr.md`.
-- **Chores and bugs have neither**, by design. `skills/chore-workflow.md` and
-  `skills/bug-workflow.md` say so outright and forbid creating placeholder files
-  under `specs/` or `decisions/`; a bug writes a decision record only when the
-  fix involved a real tradeoff. Those two skills govern their own work types and
-  have their own numbered steps.
+- **Chores and bugs have no spec, and a decision record whenever they change
+  something meaningful**: `decisions/NNN-short-name.md`, numbered by the issue.
+  One with nothing to explain writes none, and neither creates placeholder files
+  under `specs/` or `decisions/`. `skills/chore-workflow.md` and
+  `skills/bug-workflow.md` govern their own work types and have their own
+  numbered steps.
+- **Decision records are added, not edited.** A later record says which earlier
+  one it overrides, and the earlier one stays as it was. The one addition an
+  existing record takes is a reason cut from a comment, under a dated heading
+  naming where it came from.
+- **A comment says what a thing is for**: one to three lines about the thing
+  itself, or a constraint the code cannot show. Then the decision records behind
+  it, the original feature's first and the later ones after it, oldest first:
+
+  ```ts
+  /**
+   * Turns a cup's knockout matches into ties, one row per pairing with the legs
+   * aggregated.
+   *
+   * decisions/014-champions-league.md
+   * decisions/015-finnish-cups.md
+   * decisions/531-comments-say-what-code-is-for.md
+   */
+  ```
+
+  History (how it used to work, which pull request found it, what a reviewer
+  said) goes in the record, never the comment, and no comment cites an issue or
+  pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
+  citation, on a cited record that does not exist, and on a doc comment stacked
+  on another. Comments not yet in this shape are trimmed file by file, by the
+  next pull request that touches the file or in batches of at most 150 000 diff
+  characters. `decisions/531-comments-say-what-code-is-for.md` has the reasons.
 - **What does not vary by work type are the gates.** Feature, chore or bug, the
   same three points belong to a human: agreeing the work, authorising the start,
   and merging. Steps 2, 4 and 7 of the Required workflow below state them for
@@ -173,13 +200,17 @@ does sits between them, never across one.
   order `docs/setup/README.md` gives; not a description of the current state).
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
-- Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.
+- **Why code is the way it is.** Before changing code, read the decision records
+  its comments link to, then search `decisions/` and `specs/` for its file and
+  function names, then its history (`git log -L`, `git log -S`). This is a normal
+  step of every change, not a fallback.
+- Chore workflow (no spec; a decision record when it changes something
+  meaningful): `skills/chore-workflow.md`.
 - The pass to run **before** requesting a review: `skills/self-review.md` — the
   defect classes measured from this repository's own review history, with the
   counter to each. `npm run review:findings` re-measures them, and the list
   changes when it does.
 - Release workflow (promoting `main` to `release`): `skills/release.md`.
-- Bug workflow (no new spec; reference the existing one it violates;
-  decision record only if the fix involved a real tradeoff):
-  `skills/bug-workflow.md`.
+- Bug workflow (no new spec; reference the existing one it violates; a
+  decision record when it changes something meaningful): `skills/bug-workflow.md`.
 - Review rules (also enforced by Sourcery): `REVIEW_RULES.md`.

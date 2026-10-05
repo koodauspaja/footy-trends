@@ -57,12 +57,6 @@ vi.mock("@/db", () => {
       }),
     }),
     /**
-     * `distinct on` is per side — one query for home, one for away — so the
-     * mock keys rows by side too. Anything less could not tell "found the team
-     * playing away" from "found nothing", which is half of what these tests
-     * are about.
-     */
-    /**
      * The Finland lookup from #325: one `selectDistinct(...).union(...)` over
      * both sides, asked only when a candidate exists. Rows come from
      * `state.nationalCategories`.
@@ -79,6 +73,12 @@ vi.mock("@/db", () => {
         },
       }),
     }),
+    /**
+     * `distinct on` is per side — one query for home, one for away — so the
+     * mock keys rows by side too. Anything less could not tell "found the team
+     * playing away" from "found nothing", which is half of what these tests
+     * are about.
+     */
     selectDistinctOn: (columns: { name: string }[]) => ({
       from: (table: unknown) => ({
         where: () => ({

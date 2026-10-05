@@ -434,8 +434,7 @@ const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 
 /**
  * The newest published Finnish football season, or `null` when TASO
- * publishes none this call can recognize. Callers decide how to fall back —
- * see `resolveCurrentTasoSeason`.
+ * publishes none this call can recognize. Callers decide how to fall back.
  */
 export async function getCurrentSeason(signal?: AbortSignal): Promise<number | null> {
   const response = await request<CompetitionsResponse>("/getCompetitions", signal);
@@ -498,7 +497,7 @@ export async function getSeasonCategoryNames(
  * Eurolopputurnaus isn't a points competition: TASO **omits** every stat
  * field except `matches_played` there rather than sending `null` for it,
  * so `=== null` alone never detects such a group. That absence is what
- * `isPlayoffGroup` keys on — see specs/010-playoff-group-match-list.md.
+ * `keepsATable` keys on — see specs/010-playoff-group-match-list.md.
  */
 export type TasoGroupTeam = {
   team_id?: string;

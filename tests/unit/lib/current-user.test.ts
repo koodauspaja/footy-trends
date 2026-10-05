@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Deliberately **not** mocking `@/lib/auth`: mocking it is what would hide the
  * failure. The real module has to be reachable and simply never constructed.
  */
+
 /**
  * Every test here imports a **real** module graph — that is the point of the
  * file, and mocking `@/lib/auth` is what would hide what it protects.

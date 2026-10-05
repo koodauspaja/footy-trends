@@ -51,12 +51,11 @@ function filterFrom(
 }
 
 /**
- * A football-data team's page, as `TeamPage` takes it: the competition, the
- * season context, the team and its name, on top of `resolveBasePageContext`.
+ * A football-data team's page as `TeamPage` takes it. Next calls it for the
+ * metadata and the page alike; the reads beneath are `cache()`d per request.
  *
- * Called once for the metadata and once for the page (Next.js invokes them
- * separately), but `getSeasonContext` and `getTeamMatches` are wrapped in
- * React's `cache()`, so the underlying fetches happen once per request.
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/020-context-free-team-page.md
  */
 async function resolveTeamPage({
   params,

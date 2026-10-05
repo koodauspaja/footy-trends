@@ -65,7 +65,14 @@ made it a string. A rule's path patterns claiming a scope its wording does not
 have, and the reverse. A count in prose — "all four blocks" — written before a
 fifth existed.
 
-**The counter.** Any commit that changes behaviour searches for the old
+**The counter.** First, less to go stale: a comment says what the code beside
+it is for in one to three lines, then links the decision records behind it, and
+the history goes in the record (`CLAUDE.md`,
+`decisions/531-comments-say-what-code-is-for.md`).
+`tests/unit/scripts/comment-rules.test.ts` fails on a doc comment stacked on
+another, which is how a comment ends up on the wrong function.
+
+Then, any commit that changes behaviour searches for the old
 behaviour's *words*, not only its code — the value, the type, the mechanism —
 across `specs/`, `decisions/`, comments and tests. A stale sentence is a
 contract someone will follow. Prefer a table row to a sentence for anything

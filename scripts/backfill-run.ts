@@ -143,7 +143,6 @@ async function backfillFootballData(
   return { failures, skipped };
 }
 
-/** The TASO half, with its own season discovery and its own refusal to guess. */
 /** What one competition-season did, for the counters the caller keeps. */
 type SeasonOutcome = "stored" | "skipped" | "failed";
 
@@ -208,6 +207,7 @@ async function backfillTasoSeason(
   }
 }
 
+/** The TASO half, with its own season discovery and its own refusal to guess. */
 async function backfillTaso(
   taso: <T>(work: () => Promise<T>) => Promise<T>,
   refetch: boolean

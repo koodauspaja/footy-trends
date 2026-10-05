@@ -71,6 +71,7 @@ test.describe("Settings, signed out", () => {
  * What follows is everything that genuinely can be driven end to end: the
  * signed-out page, the account menu, and the client-side start-page redirect.
  */
+
 /**
  * Reads the contrast of an element against what is actually painted behind it,
  * walking up for the first non-transparent background — the panel, not the
