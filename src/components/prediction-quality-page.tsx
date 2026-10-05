@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, LineLegend, percentText } from "@/components/charts/line-chart";
 import { PageShell } from "@/components/page-shell";
+import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_MODEL } from "@/lib/elo";
@@ -97,13 +97,13 @@ function Switch({
     <ul className="flex gap-4 text-sm">
       {options.map((option) => (
         <li key={option.label}>
-          <Link
+          <SameRouteLink
             aria-current={option.current ? "page" : undefined}
             className={option.current ? "font-semibold" : "text-muted hover:underline"}
             href={option.href}
           >
             {option.label}
-          </Link>
+          </SameRouteLink>
         </li>
       ))}
     </ul>
