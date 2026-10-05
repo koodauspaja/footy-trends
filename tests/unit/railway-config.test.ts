@@ -135,13 +135,13 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).toHaveProperty("sleepApplication", true);
   });
 
-  // `null`, which unsets it. Left out, a service keeps what it has, and a
-  // production duplicated from staging has it on; `false` plans as a change on
-  // every run, because Railway stores off as unset.
-  it("turns sleeping off in production, by declaring it unset", async () => {
+  // Left out, which an apply reads as "unset it": planned against a service
+  // that has it on, this file shows `true → null`. `false` would plan as a
+  // change on every run, because Railway stores off as unset.
+  it("turns sleeping off in production, by leaving it out", async () => {
     const [web] = (await resourcesFor("production")) as Array<{ deploy?: object }>;
 
-    expect(web?.deploy).toHaveProperty("sleepApplication", null);
+    expect(web?.deploy).not.toHaveProperty("sleepApplication");
   });
 
   // Falling back to staging's branch and variables would delete whatever a

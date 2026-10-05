@@ -140,11 +140,10 @@ export default defineRailway((ctx) => {
       // one is healthy, then drains connections for 10 s.
       overlapSeconds: 15,
       drainingSeconds: 10,
-      // Off is declared as `null`, not left out and not `false`. Left out, a
-      // service keeps whatever it has, and a production duplicated from staging
-      // has it on. Railway stores off as unset, so `false` plans as a change on
-      // every run; `null` plans as none, and as `true → null` where it is on.
-      sleepApplication: environment.sleepsWhenIdle ? true : null,
+      // Left out where it is off, which is how an apply turns it off: a plan
+      // for a service that has it on shows `true → null`. Not `false`, which
+      // plans as a change on every run, because Railway stores off as unset.
+      ...(environment.sleepsWhenIdle ? { sleepApplication: true } : {}),
     },
   });
 

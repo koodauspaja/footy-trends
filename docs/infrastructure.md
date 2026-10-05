@@ -59,7 +59,7 @@ pins each value.
 | Handover | 15 s overlap, then 10 s draining |
 | Redeploys on | `src/**`, `public/**`, `drizzle/**`, `package.json`, `package-lock.json`, `next.config.ts`, `tsconfig.json`. A docs-, spec-, test- or workflow-only push deploys nothing |
 | Wait for CI | production only |
-| Sleeps when idle | staging: on. Production: off, declared as `null` so an apply turns it off wherever it came from (`false` would plan as a change on every run: Railway stores off as unset). Staging needs the three settings under *Staging sleeps* to sleep at all |
+| Sleeps when idle | staging: on. Production: off, by being left out of the file, which an apply enforces (below). Staging needs the three settings under *Staging sleeps* to sleep at all |
 
 Constraints:
 
@@ -111,8 +111,11 @@ and `NODE_ENV`.
 Staging's web service is asleep unless someone is using it, which stops it
 being charged for memory it holds idle (#551). Railway puts a service to sleep
 5 to 10 minutes after its **last outbound packet**, and wakes it on the next
-request. Production never sleeps: `.railway/railway.ts` declares the switch
-unset there.
+request. Production never sleeps: `.railway/railway.ts` leaves the switch out
+there, and an apply unsets what the file leaves out. Measured on 2026-10-05:
+planned against a service that has it on, the file without it shows
+`deploy.sleepApplication (true → null)`. Declaring `false` instead plans as a
+change on every run, because Railway stores off as unset.
 
 **Four settings, all on staging, and it stays awake if any one is missing.**
 Each was found by reading the service's network flow log
