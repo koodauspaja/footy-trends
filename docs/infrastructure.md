@@ -132,6 +132,11 @@ Measured on 2026-10-05: asleep 10.5 minutes after the last packet; the first
 request after that answered 200 in 1.7 s, with no 502, and `/api/health` then
 reported the database and Redis reachable.
 
+A merge to `main` deploys to a sleeping staging as it does to a waking one.
+Seen the same day: the service was `SLEEPING` when #548 merged, and the
+deployment built, ran the migrations and passed the health check in 2 min 16 s,
+with nothing done in Railway.
+
 - **The two variables are values, and the file keeps them.** `.railway/railway.ts`
   declares both with `preserve()`, so an apply leaves the query strings alone. A
   staging rebuilt from zero needs them set again by hand.
