@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
+import { FavouriteToggle } from "@/components/favourite-toggle";
 import { MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
@@ -169,7 +170,7 @@ export default async function DomesticTeamPage({
     );
   }
 
-  const { context, teamProviderId, result, nameStatus, seasons } = resolved;
+  const { context, teamProviderId, result, teamName, nameStatus, seasons } = resolved;
   const {
     competitionCode,
     competitionParam,
@@ -180,6 +181,17 @@ export default async function DomesticTeamPage({
     seasonLabel,
     renamedTo,
   } = context;
+
+  /**
+   * The same star as the team pages under `/ulkomaat` and `/maajoukkueet`
+   * (specs/026-favourites.md), which this copy of the page was missing (#526).
+   * It names the club, not the heading, and nothing renders when the name is
+   * unknown: a star with nothing to say what it is following.
+   */
+  const favourite =
+    teamName === null ? null : (
+      <FavouriteToggle kind="team" name={teamName} source="taso" teamProviderId={teamProviderId} />
+    );
 
   const played = seasons.status === "ok" ? seasons.seasons : [];
   // Either lookup failing is an outage, and neither is a club that does not exist.
@@ -303,7 +315,7 @@ export default async function DomesticTeamPage({
       : null;
 
   return (
-    <PageShell heading={headingFor(resolved)}>
+    <PageShell heading={headingFor(resolved)} headingAction={favourite}>
       <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
@@ -26,8 +26,9 @@ import { warmModules } from "../../../../../support/warm-module";
  * happens to be running then. Signed out is what these tests already assumed;
  * this just says so without starting a timer (specs/026-favourites.md).
  */
+const { session } = vi.hoisted(() => ({ session: { data: null as unknown } }));
 vi.mock("@/lib/auth-client", () => ({
-  useSession: () => ({ data: null, refetch: vi.fn() }),
+  useSession: () => ({ data: session.data, refetch: vi.fn() }),
 }));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
@@ -727,6 +728,40 @@ describe("Team page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ id: "1" }) })).toEqual({
       title: "Arsenal FC – Valioliiga 2025/26",
     });
+  });
+});
+
+describe("Team page favourite star (specs/026-favourites.md)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getTeamMatchesMock.mockResolvedValue(okResult);
+  });
+  // Every other block in this file assumes a signed-out reader.
+  afterEach(() => {
+    session.data = null;
+  });
+
+  it("shows a signed-in reader the star, set for a football-data club they follow", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["football-data:1"] };
+    await renderTeamPage("1", { kausi: "2025" });
+
+    expect(
+      await screen.findByRole("button", { name: "Poista suosikeista: Arsenal FC" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not take TASO's club with the same id for this one", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["taso:1"] };
+    await renderTeamPage("1", { kausi: "2025" });
+
+    expect(
+      await screen.findByRole("button", { name: "Lisää suosikkeihin: Arsenal FC" })
+    ).toBeInTheDocument();
   });
 });
 
