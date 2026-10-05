@@ -602,6 +602,19 @@ describe("Team page", () => {
     }
   );
 
+  it("shows the same reduced page for a well-formed id no stored match has", async () => {
+    // The other way to "not found": the id is a number, and the lookup says no.
+    // Until #529 the malformed-id case above was the only test of this branch.
+    getTeamContextMock.mockResolvedValue({ status: "not_found" });
+    await renderTeamPage("424242");
+
+    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(getTeamContextMock).toHaveBeenCalledWith(expect.anything(), 424242);
+    expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+  });
+
   it("links back to the standings for the current competition and season", async () => {
     await renderTeamPage("1", { kilpailu: "BL1", kausi: "2024" });
 
