@@ -327,6 +327,19 @@ describe("Domestic team page", () => {
     );
   });
 
+  it("shows the reduced not-found page for a well-formed id no stored match has", async () => {
+    // The id is a number, and the lookup says no club has it under /kotimaa.
+    getTeamContextMock.mockResolvedValue({ status: "not_found" });
+
+    await renderTeam("424242");
+
+    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(getTeamContextMock).toHaveBeenCalledWith(expect.anything(), 424242);
+    expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+  });
+
   it("shows the error state rather than an unknown team when the lookup fails", async () => {
     getTeamContextMock.mockResolvedValue({ status: "error" });
 

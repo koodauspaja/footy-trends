@@ -1,25 +1,23 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
-import { FavouriteToggle } from "@/components/favourite-toggle";
-import { MatchListTable } from "@/components/match-list-table";
-import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
-import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
-import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
-import { SEASON_AXIS } from "@/lib/analytics-axis";
+import {
+  resolveTeamIdentity,
+  TEAM_HEADING,
+  TeamPage,
+  type TeamPageData,
+  teamPageMetadata,
+} from "@/components/team-page";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
-import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { getTeamElo } from "@/lib/elo-service";
 import { getWorstOpponents } from "@/lib/match-service";
-import { matchCountLabel } from "@/lib/national-team";
 import { parseWholeNumber } from "@/lib/provider-ids";
 import {
   getTeamMatches,
@@ -32,33 +30,18 @@ import {
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import { teamPanelLoaders } from "@/lib/team-panels";
-import {
-  getTeamName,
-  getTeamSeasons,
-  type TeamNameResult,
-  type TeamSeasonsResult,
-  teamSeasonsView,
-} from "@/lib/team-seasons";
 
 export const dynamic = "force-dynamic";
 
-const TEAM_HEADING = "Joukkue";
-const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
-const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
-
 const SOURCE: TeamPageSource = { kind: "taso", bucket: "domestic" };
+const BASE_PATH = "/kotimaa";
 
 type DomesticTeamPageProps = {
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function nameForTeam(
-  match: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string },
-  teamProviderId: number
-): string {
-  return match.homeTeamProviderId === teamProviderId ? match.homeTeamName : match.awayTeamName;
-}
+type TasoMatch = Extract<TeamMatchesResult, { status: "ok" }>["matches"][number];
 
 /** What the URL already said, and so what the team's own context must not contradict. */
 function filterFrom(params: Record<string, string | string[] | undefined>): TeamContextFilter {
@@ -70,106 +53,35 @@ function filterFrom(params: Record<string, string | string[] | undefined>): Team
   };
 }
 
-type ResolvedTeamPage =
-  /** No stored match anywhere in `/kotimaa` — not "none this season". */
-  | { status: "not_found" }
-  | { status: "error" }
-  | {
-      status: "ok";
-      context: DomesticPageContext;
-      teamProviderId: number;
-      result: TeamMatchesResult;
-      teamName: string | null;
-      /** Whether the name lookup itself failed, which is an outage like any other. */
-      nameStatus: TeamNameResult["status"];
-      /** Every competition and season this club has matches for. */
-      seasons: TeamSeasonsResult;
-    };
-
 /**
- * Everything both `generateMetadata` and the page need.
+ * A Finnish club's page, as the shared `TeamPage` takes it (#530). This file
+ * was a copy of that page until then; what is left here is what TASO does
+ * differently: its own context resolver, a season that is a plain year, the
+ * renamed-competition notice, the `Sarja` column, and loaders that take a
+ * category and a competition id where football-data takes a competition code.
  *
  * The team's own context is resolved *before* the season context, because it
  * decides which competition that context is fetched for. Both calls are
- * `cache()`d, so Next.js invoking the two entry points separately costs one of
- * each. See specs/020-context-free-team-page.md.
+ * `cache()`d, so Next.js invoking the metadata and the page separately costs
+ * one of each. See specs/020-context-free-team-page.md.
  */
-async function resolvePage(
-  id: string,
-  params: Record<string, string | string[] | undefined>
-): Promise<ResolvedTeamPage> {
+async function resolveTeamPage({
+  params,
+  searchParams,
+}: DomesticTeamPageProps): Promise<TeamPageData<TasoMatch>> {
+  const { id } = await params;
+  const query = (await searchParams) ?? {};
   const teamProviderId = parseWholeNumber(id);
   if (teamProviderId === null) return { status: "not_found" };
-  const defaults = await resolveTeamDefaults(SOURCE, teamProviderId, filterFrom(params));
-  if (defaults.status !== "ok") return defaults;
+  const defaults = await resolveTeamDefaults(SOURCE, teamProviderId, filterFrom(query));
+  if (defaults.status === "not_found") return defaults;
+  // No competition could be resolved, so the page is headed as a team page.
+  if (defaults.status === "error") return { status: "error", heading: TEAM_HEADING };
 
-  const context = await resolveDomesticPageContext(params, defaults.defaults);
-  const result = await getTeamMatches(
-    context.categoryId,
-    context.competitionId,
-    teamProviderId,
-    context.seasonId,
-    context.currentSeason
-  );
-  const [firstMatch] = result.status === "ok" ? result.matches : [];
-  const seasons = await getTeamSeasons(SOURCE, teamProviderId);
-  // The club's own name, asked for only when there is no match to read it off.
-  const name: TeamNameResult =
-    firstMatch === undefined
-      ? await getTeamName(SOURCE, teamProviderId)
-      : { status: "ok", name: nameForTeam(firstMatch, teamProviderId) };
-  const teamName = name.status === "ok" ? name.name : null;
-
-  return {
-    status: "ok",
-    context,
-    teamProviderId,
-    result,
-    teamName,
-    nameStatus: name.status,
-    seasons,
-  };
-}
-
-function headingFor(resolved: Extract<ResolvedTeamPage, { status: "ok" }>): string {
-  const { seasonCompetitionName, seasonLabel } = resolved.context;
-  return resolved.teamName !== null
-    ? `${resolved.teamName} – ${seasonCompetitionName} ${seasonLabel}`
-    : seasonCompetitionName;
-}
-
-export async function generateMetadata({
-  params,
-  searchParams,
-}: DomesticTeamPageProps): Promise<Metadata> {
-  const { id } = await params;
-  const resolved = await resolvePage(id, (await searchParams) ?? {});
-  if (resolved.status === "not_found") return { title: NOT_FOUND_MESSAGE };
-  if (resolved.status === "error") return { title: TEAM_HEADING };
-
-  return { title: headingFor(resolved) };
-}
-
-export default async function DomesticTeamPage({
-  params,
-  searchParams,
-}: Readonly<DomesticTeamPageProps>) {
-  const { id } = await params;
-  const resolved = await resolvePage(id, (await searchParams) ?? {});
-
-  // A team with no stored match has no competition to name, so the page offers
-  // neither a season selector nor a standings link: every season would fail
-  // identically, and the table would be one this team never played in.
-  if (resolved.status !== "ok") {
-    return (
-      <PageShell heading={TEAM_HEADING}>
-        <p>{resolved.status === "not_found" ? NOT_FOUND_MESSAGE : ERROR_MESSAGE}</p>
-      </PageShell>
-    );
-  }
-
-  const { context, teamProviderId, result, teamName, nameStatus, seasons } = resolved;
+  const context = await resolveDomesticPageContext(query, defaults.defaults);
   const {
+    categoryId,
+    competitionId,
     competitionCode,
     competitionParam,
     competitionName,
@@ -177,143 +89,92 @@ export default async function DomesticTeamPage({
     season,
     seasonId,
     seasonLabel,
-    renamedTo,
   } = context;
-
-  /**
-   * The same star as the team pages under `/ulkomaat` and `/maajoukkueet`
-   * (specs/026-favourites.md), which this copy of the page was missing (#526).
-   * It names the club, not the heading, and nothing renders when the name is
-   * unknown: a star with nothing to say what it is following.
-   */
-  const favourite =
-    teamName === null ? null : (
-      <FavouriteToggle kind="team" name={teamName} source="taso" teamProviderId={teamProviderId} />
-    );
-
-  const played = seasons.status === "ok" ? seasons.seasons : [];
-  // Either lookup failing is an outage, and neither is a club that does not exist.
-  const lookups = nameStatus === "error" ? "error" : seasons.status;
-
-  const { offeredSeasons, seasonCompetitions, sameSeason, newest } = teamSeasonsView(
-    played,
+  const result = await getTeamMatches(
+    categoryId,
+    competitionId,
+    teamProviderId,
     seasonId,
-    {
+    currentSeason
+  );
+  const [firstMatch] = result.status === "ok" ? result.matches : [];
+  const { name, seasons } = await resolveTeamIdentity(SOURCE, teamProviderId, firstMatch);
+
+  return {
+    status: "ok",
+    teamProviderId,
+    basePath: BASE_PATH,
+    favouriteSource: "taso",
+    competitionCode,
+    // The season's own name, which a renamed competition's older seasons keep.
+    headingCompetition: context.seasonCompetitionName,
+    seasonId,
+    seasonLabel,
+    result,
+    teamName: name.status === "ok" ? name.name : null,
+    nameStatus: name.status,
+    seasons,
+    lead: <RenamedNotice renamedTo={context.renamedTo} />,
+    notices: (
+      <ContextNotices resolved={{ competitionParam, competitionName, season, seasonLabel }} />
+    ),
+    names: {
       season: String,
       competition: getDomesticCompetitionName,
-      href: (code, year) => `/kotimaa/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
       selectable: (code, year) => year >= earliestSeasonFor(code) && year <= currentSeason,
-    }
-  );
-  // Everything the body needs, in one value: the two lookups' verdicts and
-  // where the club was instead.
-  const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
-
-  /**
-   * League competitions only (specs/030 and specs/031, Q2): Suomen Cup and the
-   * other cups have no league position and no league form. And only for a team
-   * with matches this season.
-   */
-  const analyticsSection =
-    result.status === "ok"
-      ? await AnalyticsSection({
-          // A club page's periods are seasons (specs/041, S13).
-          axis: SEASON_AXIS,
-          // A failed season lookup is `played = []`, which the comparison
-          // would read as "this club has no other seasons" and say so — a
-          // database failure dressed as a fact about the club. It reports the
-          // outage instead. `not_found` is not a failure: it means the club
-          // genuinely has no stored match under this route.
-          // The same season wording the selector above the panel uses, so a
-          // record names a season the way the rest of the page does.
-          loadRecords: () =>
-            seasons.status !== "error"
-              ? getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String)
-              : Promise.resolve({ status: "error" as const }),
-          loadComparison: () =>
-            seasons.status !== "error"
-              ? getTeamSeasonComparison(
-                  competitionCode,
-                  teamProviderId,
-                  seasonId,
-                  currentSeason,
-                  played
-                )
-              : Promise.resolve({ status: "error" as const }),
-          // A cup has no table to rank a position in, so the panel is absent
-          // rather than empty (specs/040, S2).
-          loadPosition: () =>
-            isDomesticCup(competitionCode)
-              ? Promise.resolve({ status: "unavailable" as const })
-              : getTeamPositionSeries(
-                  context.categoryId,
-                  context.competitionId,
-                  teamProviderId,
-                  seasonId,
-                  currentSeason
-                ),
-          // The six result panels, over one read of the season's matches.
-          ...teamPanelLoaders(teamProviderId, () =>
-            getTeamPanelMatches(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            )
-          ),
-          // Every competition in /kotimaa and every stored season, whatever
-          // season is shown (specs/045, S4).
-          loadOpponents: () =>
-            getWorstOpponents({ kind: "taso", bucket: "domestic" }, teamProviderId, "/kotimaa"),
-          // A club's strength across every stored season (specs/053 S9).
-          loadElo: async () => ({
-            series: await getTeamElo("taso", teamProviderId),
-            seasonLabel: String,
-          }),
-        })
-      : null;
-
-  return (
-    <PageShell heading={headingFor(resolved)} headingAction={favourite}>
-      <RenamedNotice renamedTo={renamedTo} />
-      <p className="mb-6">
-        <Link
-          className="text-sm hover:underline"
-          href={`/kotimaa/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Sarjataulukkoon
-        </Link>
-      </p>
-      <ContextNotices resolved={{ competitionParam, competitionName, season, seasonLabel }} />
+    },
+    controls: ({ offeredSeasons, seasonCompetitions }) => (
       <TasoSeasonOnlyControls
-        actionPath={`/kotimaa/joukkue/${teamProviderId}`}
+        actionPath={`${BASE_PATH}/joukkue/${teamProviderId}`}
         competitionCode={competitionCode}
         seasonCompetitions={seasonCompetitions}
         seasons={offeredSeasons}
         selectedSeasonId={seasonId}
       />
-      <TeamMatchesOutcome
-        outcome={outcome}
-        table={
-          result.status === "ok" ? (
-            <TeamPageFold
-              className="mt-4"
-              count={matchCountLabel(result.matches.length)}
-              heading={MATCHES_HEADING}
-              headingId="team-matches"
-            >
-              <MatchListTable
-                fourthColumn={{ header: "Sarja", render: (match) => match.groupName }}
-                matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
-                matches={result.matches}
-                teamHref={null}
-              />
-            </TeamPageFold>
-          ) : null
-        }
-      />
-      {analyticsSection}
-    </PageShell>
-  );
+    ),
+    fourthColumn: { header: "Sarja", render: (match) => match.groupName },
+    loaders: (played) => ({
+      // The same season wording the selector above the panel uses, so a
+      // record names a season the way the rest of the page does.
+      loadRecords: () =>
+        getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String),
+      // By competition code, not by TASO category: the comparison reads many
+      // seasons, and a category id belongs to one (specs/038).
+      loadComparison: () =>
+        getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
+      // A cup has no table to rank a position in, so the panel is absent
+      // rather than empty (specs/040, S2). League competitions only
+      // (specs/030 and specs/031, Q2).
+      loadPosition: () =>
+        isDomesticCup(competitionCode)
+          ? Promise.resolve({ status: "unavailable" as const })
+          : getTeamPositionSeries(
+              categoryId,
+              competitionId,
+              teamProviderId,
+              seasonId,
+              currentSeason
+            ),
+      // The six result panels, over one read of the season's matches.
+      ...teamPanelLoaders(teamProviderId, () =>
+        getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, currentSeason)
+      ),
+      // Every competition in /kotimaa and every stored season, whatever
+      // season is shown (specs/045, S4).
+      loadOpponents: () => getWorstOpponents(SOURCE, teamProviderId, BASE_PATH),
+      // A club's strength across every stored season (specs/053 S9).
+      loadElo: async () => ({
+        series: await getTeamElo("taso", teamProviderId),
+        seasonLabel: String,
+      }),
+    }),
+  };
+}
+
+export async function generateMetadata(props: DomesticTeamPageProps): Promise<Metadata> {
+  return teamPageMetadata(await resolveTeamPage(props));
+}
+
+export default async function DomesticTeamPage(props: Readonly<DomesticTeamPageProps>) {
+  return TeamPage({ data: await resolveTeamPage(props) });
 }
