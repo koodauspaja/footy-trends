@@ -25,10 +25,9 @@ export type TeamPageDefaults =
  * notice.
  */
 export function seasonCandidate(rawValue: string | string[] | undefined): number | undefined {
-  // Digits alone are not enough, which `parseWholeNumber` knows: a value past
-  // the column fails at bind time and surfaces as an error where a Finnish
-  // notice belongs. An unusable value is no filter at all, and the page's own
-  // validation still gives it that notice.
+  // `parseWholeNumber` refuses a value past the column as well as one that is
+  // not digits, so neither reaches a query. An unusable value is no filter at
+  // all, and the page's own validation still gives it its notice.
   return parseWholeNumber(rawValue) ?? undefined;
 }
 
