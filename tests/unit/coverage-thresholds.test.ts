@@ -2,12 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Unit coverage is held at 100%, and `vitest.config.ts`'s thresholds are what
- * fail a run below it. A threshold is one number in a configuration file, which
- * is easy to lower "for now" in a pull request that is about something else.
- *
- * Read as text rather than imported: the configuration loads `.env` and edits
- * the environment as it is evaluated, which a test has no business repeating.
+ * The thresholds that fail a unit run below 100% coverage. Read as text: the
+ * configuration loads `.env` and edits the environment when it is evaluated.
  */
 const CONFIGURATION = readFileSync("vitest.config.ts", "utf8");
 
