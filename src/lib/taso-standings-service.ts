@@ -29,6 +29,7 @@ import {
   type RankedRow,
   teamsInGroupsAbove,
 } from "./position-series";
+import { parseWholeNumber } from "./provider-ids";
 import {
   comparisonFor,
   RANKED_MEASURES,
@@ -2535,8 +2536,6 @@ export type TasoRoundParamResult =
   | { kind: "valid"; round: number }
   | { kind: "invalid" };
 
-const POSITIVE_INTEGER = /^\d+$/;
-
 /**
  * Validates the `kierros` query parameter against the actual round numbers
  * `listSelectableTasoRounds` returned — a membership check, not a 1..max
@@ -2548,8 +2547,8 @@ export function parseTasoRoundParam(
   availableRounds: number[]
 ): TasoRoundParamResult {
   if (rawValue === undefined || rawValue === "") return { kind: "absent" };
-  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
-
-  const round = Number(rawValue);
-  return availableRounds.includes(round) ? { kind: "valid", round } : { kind: "invalid" };
+  const round = parseWholeNumber(rawValue);
+  return round !== null && availableRounds.includes(round)
+    ? { kind: "valid", round }
+    : { kind: "invalid" };
 }

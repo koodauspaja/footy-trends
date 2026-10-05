@@ -1,4 +1,4 @@
-import { isStoredInteger } from "./provider-ids";
+import { parseWholeNumber } from "./provider-ids";
 import {
   getTeamContext,
   type TeamContext,
@@ -15,8 +15,6 @@ export type TeamPageDefaults =
   /** The team has no stored match under this route. Not "no matches this season". */
   { status: "not_found" } | { status: "error" } | { status: "ok"; defaults: TeamContext };
 
-const POSITIVE_INTEGER = /^\d+$/;
-
 /**
  * A `kausi` value that could be a season, before anything knows which seasons
  * are selectable.
@@ -27,14 +25,11 @@ const POSITIVE_INTEGER = /^\d+$/;
  * notice.
  */
 export function seasonCandidate(rawValue: string | string[] | undefined): number | undefined {
-  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return undefined;
-  const seasonId = Number(rawValue);
-  // Digits alone are not enough. Three hundred of them parse to `Infinity`, and
-  // anything past 2,147,483,647 does not fit the column — both fail at bind
-  // time and surface as an error where a Finnish notice belongs. An unusable
-  // value is no filter at all, and the page's own validation still gives it
-  // that notice.
-  return isStoredInteger(seasonId) ? seasonId : undefined;
+  // Digits alone are not enough, which `parseWholeNumber` knows: a value past
+  // the column fails at bind time and surfaces as an error where a Finnish
+  // notice belongs. An unusable value is no filter at all, and the page's own
+  // validation still gives it that notice.
+  return parseWholeNumber(rawValue) ?? undefined;
 }
 
 /**

@@ -20,6 +20,7 @@ import { type DomesticPageContext, resolveDomesticPageContext } from "@/lib/dome
 import { getTeamElo } from "@/lib/elo-service";
 import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import {
   getTeamCleanSheetSeries,
   getTeamComebacks,
@@ -101,7 +102,8 @@ async function resolvePage(
   id: string,
   params: Record<string, string | string[] | undefined>
 ): Promise<ResolvedTeamPage> {
-  const teamProviderId = Number(id);
+  const teamProviderId = parseWholeNumber(id);
+  if (teamProviderId === null) return { status: "not_found" };
   const defaults = await resolveTeamDefaults(SOURCE, teamProviderId, filterFrom(params));
   if (defaults.status !== "ok") return defaults;
 

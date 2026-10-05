@@ -24,6 +24,7 @@ import {
   type CompetitionPageOptions,
   resolveBasePageContext,
 } from "@/lib/page-context";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
   getTeamCleanSheetSeries,
@@ -105,7 +106,8 @@ async function resolvePageContext(
   params: Record<string, string | string[] | undefined>,
   region: CompetitionPageOptions["region"]
 ): Promise<PageContext> {
-  const teamProviderId = Number(id);
+  const teamProviderId = parseWholeNumber(id);
+  if (teamProviderId === null) return { status: "not_found" };
   // Resolved before the season context, because it decides which competition
   // that context is fetched for. See specs/020-context-free-team-page.md.
   const defaults = await resolveTeamDefaults(

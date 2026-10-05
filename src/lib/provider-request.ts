@@ -20,7 +20,9 @@ const DEFAULT_BACKOFF_SECONDS = 10;
 export function backoffSecondsFrom(headers: Headers): number {
   const candidates = [headers.get("retry-after"), headers.get("x-requestcounter-reset")];
   for (const raw of candidates) {
-    if (raw === null) continue;
+    // An empty header says nothing: `Number("")` is 0, which retried at once
+    // instead of waiting the default (#529).
+    if (raw === null || raw.trim() === "") continue;
     const seconds = Number(raw.trim());
     if (Number.isFinite(seconds) && seconds >= 0) {
       return Math.min(Math.ceil(seconds), MAX_BACKOFF_SECONDS);

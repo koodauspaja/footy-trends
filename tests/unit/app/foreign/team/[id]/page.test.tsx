@@ -578,17 +578,29 @@ describe("Team page", () => {
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
   });
 
-  it("shows the reduced not-found page for a non-numeric team id, and queries nothing", async () => {
-    await renderTeamPage("abc");
+  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  it.each([
+    ["a word", "abc"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])(
+    "shows the reduced not-found page for a team id that is %s, and queries nothing",
+    async (_name, id) => {
+      await renderTeamPage(id);
 
-    // The page used to name Valioliiga and offer its standings link to a team
-    // that does not exist. See specs/020-context-free-team-page.md.
-    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
-    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
-    expect(getTeamMatchesMock).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
-  });
+      // The page used to name Valioliiga and offer its standings link to a team
+      // that does not exist. See specs/020-context-free-team-page.md.
+      expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+      expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+      expect(getTeamMatchesMock).not.toHaveBeenCalled();
+      expect(getTeamContextMock).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+    }
+  );
 
   it("links back to the standings for the current competition and season", async () => {
     await renderTeamPage("1", { kilpailu: "BL1", kausi: "2024" });
