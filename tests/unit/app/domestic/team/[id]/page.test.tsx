@@ -251,6 +251,18 @@ describe("Domestic team page", () => {
     expect(screen.getByText("HJK – KuPS")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
+    // TASO's last column is the group, where football-data's is the round.
+    expect(screen.getByRole("columnheader", { name: "Sarja" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Kierros" })).not.toBeInTheDocument();
+  });
+
+  it("links each match's date to its match page under /kotimaa", async () => {
+    await renderTeam("1");
+
+    expect(screen.getByRole("link", { name: "01.04.2026" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/1"
+    );
   });
 
   it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
@@ -668,6 +680,10 @@ describe("Domestic team page competition naming", () => {
     await renderTeam("1", { kilpailu: "NL", kausi: "2016" });
 
     expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
+    // The heading carries the name the season was played under, not today's.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "HJK – Naisten Liiga 2016" })
+    ).toBeInTheDocument();
   });
 });
 

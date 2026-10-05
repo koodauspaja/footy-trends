@@ -253,6 +253,21 @@ describe("Team page", () => {
     expect(screen.getByText("Arsenal FC – Chelsea FC")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Liverpool FC – Arsenal FC")).toBeInTheDocument();
+    // football-data's last column is the round, where TASO's is the group.
+    expect(screen.getByRole("columnheader", { name: "Kierros" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Sarja" })).not.toBeInTheDocument();
+  });
+
+  it("links each match's date to its match page under the region's own prefix", async () => {
+    await renderTeamPage("1", { kausi: "2025" });
+
+    const hrefs = screen
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"))
+      .filter((href) => href?.includes("/ottelu/"));
+
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) expect(href).toMatch(/^\/ulkomaat\/ottelu\/\d+$/);
   });
 
   it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
@@ -650,6 +665,9 @@ describe("Team page", () => {
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    // The competition was resolved before the failure, so the page is headed
+    // with it; a failed team lookup has only "Joukkue" to offer.
+    expect(screen.getByRole("heading", { level: 1, name: "Valioliiga" })).toBeInTheDocument();
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
