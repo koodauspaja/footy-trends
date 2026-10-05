@@ -10,16 +10,19 @@ import { describe, expect, it } from "vitest";
  * pointed back at a feature spec. Nothing failed, so nobody noticed.
  */
 const SETUP = path.join(process.cwd(), "docs", "setup");
-const DOCUMENT = /\d{3}-[a-z0-9-]+\.md/;
+const INDEX = "README.md";
+/** A whole filename, so `backup001-old.md` is not taken for a document. */
+const DOCUMENT = /^\d{3}-[a-z0-9-]+\.md$/;
+/** A Next pointer names its document whole, in backticks. */
+const POINTER = /`(\d{3}-[a-z0-9-]+\.md)`/;
 
-const documents = readdirSync(SETUP)
-  .filter((file) => DOCUMENT.test(file))
-  .sort();
+const files = readdirSync(SETUP).sort();
+const documents = files.filter((file) => DOCUMENT.test(file));
 
 function nextOf(file: string): string | null {
   const text = readFileSync(path.join(SETUP, file), "utf8");
   const next = text.slice(text.lastIndexOf("## Next"));
-  return DOCUMENT.exec(next)?.[0] ?? null;
+  return POINTER.exec(next)?.[1] ?? null;
 }
 
 function chainFrom(first: string): string[] {
@@ -35,13 +38,17 @@ function chainFrom(first: string): string[] {
 }
 
 function indexOrder(): string[] {
-  const index = readFileSync(path.join(SETUP, "README.md"), "utf8");
+  const index = readFileSync(path.join(SETUP, INDEX), "utf8");
   return [...index.matchAll(/^\| \d+ \| \[(\d{3}-[a-z0-9-]+\.md)\]/gm)].map(
     (match) => match[1] as string
   );
 }
 
 describe("docs/setup (#524)", () => {
+  it("holds nothing but numbered documents and the index", () => {
+    expect(files.filter((file) => !DOCUMENT.test(file))).toEqual([INDEX]);
+  });
+
   it("has a Next section in every document", () => {
     for (const file of documents) {
       expect(readFileSync(path.join(SETUP, file), "utf8"), file).toContain("## Next");
