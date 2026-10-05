@@ -133,6 +133,9 @@ export default defineConfig({
       // `coverage-final.json` to find source files no test imports — the files
       // vitest cannot report as 0% because it never sees them at all.
       reporter: ["lcov", "text", "json"],
+      // The run fails below 100% on any of the four: nothing else catches an
+      // uncovered statement, function or line in a file some test imports.
+      thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
       // Everything under tests/ is test code or test data, neither of which
       // is a subject of coverage. Without this a JSON fixture is reported as a
       // permanently 0%-covered file, which both adds noise and drags the
