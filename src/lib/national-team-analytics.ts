@@ -166,7 +166,8 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
     loadElo: () => Promise.resolve({ series: { status: "unavailable" as const } }),
     // The six result panels, over the whole history.
     ...teamPanelLoaders(
-      // No competition or season to name: the panels cover the whole history.
+      // No season to name: the panels cover the whole history. `MAA` marks
+      // the national team, as it does in the period keys.
       { teamProviderId: FINLAND_TEAM_ID, competitionCode: NATIONAL_TEAM_PERIOD_CODE },
       () => Promise.resolve({ status: "ok" as const, finished: finishedHistory(years) })
     ),

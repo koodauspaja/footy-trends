@@ -158,6 +158,34 @@ describe("teamPanelLoaders", () => {
     );
   });
 
+  it("logs the error itself, whatever a caller's context is keyed by", async () => {
+    // The context takes any key, `err` included; the error is what a log line
+    // is for, so nothing a caller passes may take its place.
+    const failure = new Error("database down");
+    const context = { teamProviderId: TEAM, err: "a caller's own key" };
+    const unread = teamPanelLoaders(context, async () => {
+      throw failure;
+    });
+    const broken = teamPanelLoaders(context, async () => ({
+      status: "ok",
+      finished: [null as unknown as HalfTimeMatch],
+    }));
+
+    await unread.loadForm();
+    await broken.loadForm();
+
+    expect(loggerErrorMock).toHaveBeenNthCalledWith(
+      1,
+      { teamProviderId: TEAM, err: failure },
+      "Unable to read the matches a team's panels count"
+    );
+    expect(loggerErrorMock).toHaveBeenNthCalledWith(
+      2,
+      { teamProviderId: TEAM, err: expect.any(Error) },
+      "Unable to compute the form series"
+    );
+  });
+
   it("names the panel it could not compute", async () => {
     // A match no panel can read: the failure is the builder's, not the read's.
     const broken = [null as unknown as HalfTimeMatch];

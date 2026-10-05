@@ -86,7 +86,8 @@ export function teamPanelLoaders(
       .then(load)
       .catch((error: unknown) => {
         logger.error(
-          { err: error, ...context },
+          // The error last, so no key of the caller's can replace it.
+          { ...context, err: error },
           "Unable to read the matches a team's panels count"
         );
         return { status: "error" as const };
@@ -101,7 +102,7 @@ export function teamPanelLoaders(
       try {
         return build(result.finished);
       } catch (error) {
-        logger.error({ err: error, ...context }, `Unable to compute the ${name}`);
+        logger.error({ ...context, err: error }, `Unable to compute the ${name}`);
         return { status: "error" };
       }
     };
