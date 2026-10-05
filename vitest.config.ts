@@ -135,7 +135,6 @@ export default defineConfig({
       reporter: ["lcov", "text", "json"],
       // The run fails below 100% on any of the four: nothing else catches an
       // uncovered statement, function or line in a file some test imports.
-      // `tests/unit/coverage-thresholds.test.ts` fails if one is lowered.
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
       // Everything under tests/ is test code or test data, neither of which
       // is a subject of coverage. Without this a JSON fixture is reported as a
