@@ -97,11 +97,12 @@ describe("the migration runner without DATABASE_URL", () => {
 
       const result = await migrate(variables);
 
+      // First, because it is the one that matters most: not `localhost`, and
+      // not the `PGHOST` it was handed.
+      expect(connections).toBe(0);
       expect(result.stderr).toBe(`${MISSING_DATABASE_URL}\n`);
       expect(result.stdout).toBe("");
       expect(result.code).toBe(1);
-      // Not `localhost`, and not the `PGHOST` it was handed.
-      expect(connections).toBe(0);
     },
     30_000
   );
