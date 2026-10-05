@@ -27,20 +27,16 @@ import {
 import { parseWholeNumber } from "@/lib/provider-ids";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
+import { teamPanelLoaders } from "@/lib/team-panels";
 import {
   getTeamName,
   getTeamSeasons,
@@ -319,28 +315,10 @@ export async function CompetitionTeamPage({
                   seasonId,
                   context.activeSeasonId
                 ),
-          loadForm: () =>
-            getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadGoals: () =>
-            getTeamGoalsSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadHomeAway: () =>
-            getTeamHomeAwaySeries(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId
-            ),
-          loadCleanSheets: () =>
-            getTeamCleanSheetSeries(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId
-            ),
-          loadStreaks: () =>
-            getTeamStreaks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadComebacks: () =>
-            getTeamComebacks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
+          // The six result panels, over one read of the season's matches.
+          ...teamPanelLoaders(teamProviderId, () =>
+            getTeamPanelMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId)
+          ),
           // Every competition in the region and every stored season, whatever
           // season is shown (specs/045, S4). `unavailable` on a national team's
           // page, which is a country rather than a club (S5).

@@ -22,20 +22,16 @@ import { getWorstOpponents } from "@/lib/match-service";
 import { matchCountLabel } from "@/lib/national-team";
 import { parseWholeNumber } from "@/lib/provider-ids";
 import {
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
+import { teamPanelLoaders } from "@/lib/team-panels";
 import {
   getTeamName,
   getTeamSeasons,
@@ -256,54 +252,16 @@ export default async function DomesticTeamPage({
                   seasonId,
                   currentSeason
                 ),
-          loadForm: () =>
-            getTeamFormSeries(
+          // The six result panels, over one read of the season's matches.
+          ...teamPanelLoaders(teamProviderId, () =>
+            getTeamPanelMatches(
               context.categoryId,
               context.competitionId,
               teamProviderId,
               seasonId,
               currentSeason
-            ),
-          loadGoals: () =>
-            getTeamGoalsSeries(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
-          loadHomeAway: () =>
-            getTeamHomeAwaySeries(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
-          loadCleanSheets: () =>
-            getTeamCleanSheetSeries(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
-          loadStreaks: () =>
-            getTeamStreaks(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
-          loadComebacks: () =>
-            getTeamComebacks(
-              context.categoryId,
-              context.competitionId,
-              teamProviderId,
-              seasonId,
-              currentSeason
-            ),
+            )
+          ),
           // Every competition in /kotimaa and every stored season, whatever
           // season is shown (specs/045, S4).
           loadOpponents: () =>

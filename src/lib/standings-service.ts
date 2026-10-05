@@ -2,13 +2,8 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
-import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
-import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import { getCompetitionFormat, getCompetitionName, regionOfCompetition } from "./competitions";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
-import { type FormSeries, formSeries } from "./form-series";
-import { type GoalsSeries, goalsSeries } from "./goals-series";
-import { type HomeAwaySeries, homeAwayStats } from "./home-away";
 import { logger } from "./logger";
 import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
@@ -27,8 +22,8 @@ import {
   toFinishedMatches,
 } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
-import { type StreaksSeries, streaksOf } from "./streaks";
 import { type SeasonMovement, singleTableMovement } from "./table-volatility";
+import type { TeamPanelMatches } from "./team-panels";
 import type { TeamSeason } from "./team-seasons";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
@@ -220,20 +215,26 @@ export async function getTeamPositionSeries(
 }
 
 /**
- * This team's form after each match of a season, for the team page's chart
- * (specs/031).
+ * The finished matches this team's result panels count in a season: form,
+ * goals, home and away, clean sheets, streaks and comebacks (specs/031 to
+ * specs/037), built by `teamPanelLoaders`.
  *
  * The same cached season read as `getTeamMatches` and the position chart, so on
  * the team page it costs no read and no provider request of its own. Every
  * finished match of this league season counts, as it does in the standings
- * table's `Vire` column.
+ * table's `Vire` column; the panels pick this team's out of them, and the
+ * team's id is here for the log line a failure leaves.
+ *
+ * A season with nothing stored is an empty list, which every panel answers as
+ * "nothing played yet" — unless the refresh that would have filled it failed,
+ * which is an error and not an empty season.
  */
-export async function getTeamFormSeries(
+export async function getTeamPanelMatches(
   competitionCode: string,
   teamProviderId: number,
   seasonId: number,
   activeSeasonId: number
-): Promise<FormSeries> {
+): Promise<TeamPanelMatches> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
       competitionCode,
@@ -242,98 +243,11 @@ export async function getTeamFormSeries(
     );
     if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
 
-    return formSeries(toFinishedMatches(seasonMatches), teamProviderId);
+    return { status: "ok", finished: toFinishedMatches(seasonMatches) };
   } catch (error) {
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the form series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * This team's goals scored and conceded across a season, for the team page's
- * two goals charts (specs/032). The same cached season read, and exactly the
- * matches the form chart counts.
- */
-export async function getTeamGoalsSeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<GoalsSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return goalsSeries(toFinishedMatches(seasonMatches), teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the goals series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * This team's season split into home and away, for the team page's
- * `Koti- ja vierastilastot` panel (specs/033). The same cached season read, and
- * exactly the matches the form and goals charts count.
- */
-export async function getTeamHomeAwaySeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<HomeAwaySeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...homeAwayStats(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the home and away series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * How often this team kept a clean sheet, after each match of a season, for the
- * team page's `Nollapelit` chart (specs/034). The same cached season read, and
- * exactly the matches the other result charts count.
- */
-export async function getTeamCleanSheetSeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<CleanSheetSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return cleanSheetSeries(toFinishedMatches(seasonMatches), teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the clean-sheet series"
+      "Unable to read the matches a team's panels count"
     );
     return { status: "error" };
   }
@@ -479,65 +393,6 @@ async function readSeasonFor(
       teamCount: series.status === "ok" ? series.teamCount : 0,
     },
   };
-}
-
-/**
- * This team's streaks in a season, for the team page's `Putket` panel
- * (specs/035). The same cached season read, and exactly the matches the other
- * result panels count.
- */
-export async function getTeamStreaks(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<StreaksSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...streaksOf(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the streaks"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * What became of this team's matches after half-time — deficits rescued and
- * leads given away — for the team page's `Kääntyneet ottelut` panel
- * (specs/036, specs/037). The same cached season read, and exactly the matches
- * the other result panels count.
- */
-export async function getTeamComebacks(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<ComebacksSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...comebacksOf(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the comebacks"
-    );
-    return { status: "error" };
-  }
 }
 
 /**

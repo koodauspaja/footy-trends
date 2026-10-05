@@ -15,6 +15,7 @@ import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamPanelMatches } from "@/lib/team-panels";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
@@ -33,32 +34,22 @@ vi.mock("@/lib/auth-client", () => ({
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+/**
+ * The matches the six result panels count. The panels themselves are
+ * `team-panels.test.ts`'s; what this file owns is that the page asks for the
+ * right team's matches.
+ */
+const getTeamPanelMatchesMock = vi.fn(
+  async (..._args: unknown[]): Promise<TeamPanelMatches> => ({ status: "ok", finished: [] })
+);
 const getTeamPositionSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
-);
-const getTeamFormSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
-);
-const getTeamGoalsSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
-);
-const getTeamHomeAwaySeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
-);
-const getTeamCleanSheetSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<CleanSheetSeries> => ({ status: "unavailable" })
-);
-const getTeamStreaksMock = vi.fn(
-  async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
 const getTeamStreakRecordsMock = vi.fn(
   async (..._args: unknown[]): Promise<StreakRecordsSeries> => ({ status: "unavailable" })
 );
 const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
-);
-const getTeamComebacksMock = vi.fn(
-  async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
 
 /**
@@ -103,14 +94,9 @@ vi.mock("@/lib/football-data", () => ({
 
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
-  getTeamFormSeries: getTeamFormSeriesMock,
-  getTeamGoalsSeries: getTeamGoalsSeriesMock,
-  getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
-  getTeamStreaks: getTeamStreaksMock,
-  getTeamComebacks: getTeamComebacksMock,
+  getTeamPanelMatches: getTeamPanelMatchesMock,
   getTeamSeasonComparison: getTeamSeasonComparisonMock,
   getTeamStreakRecords: getTeamStreakRecordsMock,
-  getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
@@ -822,7 +808,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadForm?.();
 
-    expect(getTeamFormSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("asks for this team's goals in this competition and season (specs/032)", async () => {
@@ -831,7 +817,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadGoals?.();
 
-    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("asks for this team's home and away in this competition and season (specs/033)", async () => {
@@ -840,7 +826,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadHomeAway?.();
 
-    expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("asks for this team's clean sheets in this competition and season (specs/034)", async () => {
@@ -849,7 +835,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadCleanSheets?.();
 
-    expect(getTeamCleanSheetSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("asks for this team's streaks in this competition and season (specs/035)", async () => {
@@ -858,7 +844,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadStreaks?.();
 
-    expect(getTeamStreaksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
   it("asks for this team's comebacks in this competition and season (specs/036)", async () => {
@@ -867,7 +853,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadComebacks?.();
 
-    expect(getTeamComebacksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
   it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
