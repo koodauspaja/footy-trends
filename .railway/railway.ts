@@ -76,7 +76,8 @@ const ENVIRONMENTS = {
     branch: "release",
     // A red release.yml run leaves the previous version serving (skills/release.md).
     waitForCi: true,
-    // Production must not sleep.
+    // Production must not sleep. Declared, not left out, so an apply turns it
+    // off wherever it came from: a production duplicated from staging has it on.
     sleepsWhenIdle: false,
     // Only production tunes Sentry.
     variables: [
@@ -140,9 +141,7 @@ export default defineRailway((ctx) => {
       // one is healthy, then drains connections for 10 s.
       overlapSeconds: 15,
       drainingSeconds: 10,
-      // Declared only where it is on: left out, the setting stays at Railway's
-      // default, off, and plans as no change.
-      ...(environment.sleepsWhenIdle ? { sleepApplication: true } : {}),
+      sleepApplication: environment.sleepsWhenIdle,
     },
   });
 

@@ -59,7 +59,7 @@ pins each value.
 | Handover | 15 s overlap, then 10 s draining |
 | Redeploys on | `src/**`, `public/**`, `drizzle/**`, `package.json`, `package-lock.json`, `next.config.ts`, `tsconfig.json`. A docs-, spec-, test- or workflow-only push deploys nothing |
 | Wait for CI | production only |
-| Sleeps when idle | staging only (`sleepApplication`). It needs the three settings under *Staging sleeps* to happen at all |
+| Sleeps when idle | staging: on. Production: off, declared `false` so an apply turns it off wherever it came from. Staging needs the three settings under *Staging sleeps* to sleep at all |
 
 Constraints:
 
@@ -111,7 +111,8 @@ and `NODE_ENV`.
 Staging's web service is asleep unless someone is using it, which stops it
 being charged for memory it holds idle (#551). Railway puts a service to sleep
 5 to 10 minutes after its **last outbound packet**, and wakes it on the next
-request. Production never sleeps.
+request. Production never sleeps: `.railway/railway.ts` declares the switch
+`false` there.
 
 **Four settings, all on staging, and it stays awake if any one is missing.**
 Each was found by reading the service's network flow log
@@ -119,7 +120,7 @@ Each was found by reading the service's network flow log
 
 | Setting | Where | What it silences |
 |---|---|---|
-| `sleepApplication: true` | `.railway/railway.ts`, staging's entry | nothing: it is the switch |
+| `sleepApplication: true` | `.railway/railway.ts`, staging's entry (`sleepsWhenIdle`) | nothing: it is the switch |
 | `DATABASE_URL` is `${{Postgres.DATABASE_URL}}?idle_timeout=20` | the web service's variable, dashboard | `postgres` 3.4.9 keeps idle connections open and sends a TCP keepalive on each every 60 s (its defaults: `idle_timeout` none, `keep_alive` 60); with this it closes them after 20 idle seconds. `idle_timeout` is a documented option, and the library reads options from the address |
 | `REDIS_URL` is `${{Redis.REDIS_URL}}?keepAlive=off` | the web service's variable, dashboard | ioredis sends a keepalive every 30 s. It turns them on only when the option is a number, and a value from the address arrives as text. Read in the source of the pinned `ioredis` 6.0.0 (`built/Redis.js`, `typeof options.keepAlive === "number"`) and seen in the flow log, where the 30 s packets stopped; it is that version's behaviour, not a documented switch, and the option has no documented "off" |
 | `--tcp-keepalive 0` at the end of the start command | the `Redis` service, dashboard | the Redis server probes each client every 300 s, and the app's reply is an outbound packet |
@@ -132,10 +133,13 @@ reported the database and Redis reachable.
   declares both with `preserve()`, so an apply leaves the query strings alone. A
   staging rebuilt from zero needs them set again by hand.
 - **An upgrade of `ioredis` or `postgres` can undo it** (6.0.0 and 3.4.9 when
-  this was measured). `tests/unit/lib/staging-sleep-settings.test.ts` pins what
-  the two query strings rely on, so a Renovate bump that changes it fails
-  there. If staging stops sleeping anyway, the flow log shows which connection
-  is talking.
+  this was measured). Two tests pin what the query strings rely on, so a
+  Renovate bump that changes it fails: `tests/unit/lib/staging-sleep-settings.test.ts`
+  connects ioredis to a local listener and checks which keepalive it puts on
+  the socket, and `tests/integration/staging-sleep-settings.test.ts` checks
+  against the test database that postgres.js closes a connection idle past
+  its timeout and holds any other open with a 60 s keepalive. If staging stops
+  sleeping anyway, the flow log shows which connection is talking.
 - **A request wakes it**, from the internet or from another service in the
   project. Nothing scheduled runs on staging.
 

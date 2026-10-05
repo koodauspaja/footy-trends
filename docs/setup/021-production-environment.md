@@ -103,8 +103,9 @@ So:
 3. Nothing there (an empty environment rather than a duplicate) — **New** →
    **Database** → **PostgreSQL**, then the same for **Redis**
 
-**Production must not sleep, so take out what lets staging.** A duplicate
-copies three staging settings: set `DATABASE_URL` to
+**Production must not sleep, so take out what lets staging.** The switch
+itself is turned off by the apply in Step 7. A duplicate also copies three
+settings that are not in the file: set `DATABASE_URL` to
 `${{Postgres.DATABASE_URL}}` and `REDIS_URL` to `${{Redis.REDIS_URL}}`, with no
 query string, and remove ` --tcp-keepalive 0` from the Redis start command
 (`docs/infrastructure.md`, *Staging sleeps*).
@@ -515,14 +516,17 @@ visible; the baseline to compare them against would not.
 Now that Steps 4–6 have settled the variables, apply `.railway/railway.ts` to
 production (025).
 
-On an environment duplicated from staging, the plan shows two expected
+On an environment duplicated from staging, the plan shows three expected
 changes:
 
 - staging's three sign-in variables deleted — `AUTH_ALLOWED_EMAILS`,
   `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` — because production holds
   none of them today (Step 4);
 - `source.checkSuites` turning on: Wait for CI, the release gate (*Wait for CI
-  works, and recovery is manual*, below).
+  works, and recovery is manual*, below);
+- `deploy.sleepApplication` turning off: staging sleeps when idle, and
+  production must not. The file declares it `false` for production, so the
+  apply turns it off whatever the duplicate carried.
 
 Anything else — another deletion, or any other source or branch change: stop.
 
@@ -533,6 +537,7 @@ details page that these are set:
   container takes traffic
 - `healthcheckPath = "/api/health"`, `healthcheckTimeout = 60`
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
+- `sleepApplication = false` — production never sleeps
 - restart on failure, max 3 retries ("on failure" is Railway's default, so the file declares only the retries)
 
 If production ever needs a value staging does not, add it to production's

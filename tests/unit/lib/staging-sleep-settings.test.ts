@@ -1,34 +1,86 @@
+import { once } from "node:events";
+import { createServer, type Server, Socket } from "node:net";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
  * Staging sleeps when idle only because two query strings on its addresses
  * silence the clients' keepalives (docs/infrastructure.md, *Staging sleeps*).
- * Both rest on how the pinned libraries read an address, and Renovate upgrades
- * them unasked, so what the strings rely on is pinned here. Neither client
- * connects: ioredis is lazy, and postgres.js opens nothing until a query.
+ * Both rest on how the pinned libraries behave, and Renovate upgrades them
+ * unasked, so that behaviour is pinned here: what each reads from an address,
+ * and for Redis what it then does to the socket. What postgres.js does to a
+ * live connection needs a server, and is in
+ * `tests/integration/staging-sleep-settings.test.ts`.
  */
+let server: Server;
+let port = 0;
+const accepted: Socket[] = [];
+
+beforeAll(async () => {
+  // Something to connect to: it accepts, and never speaks.
+  server = createServer((socket) => {
+    accepted.push(socket);
+    socket.on("error", () => {});
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  port = typeof address === "object" && address !== null ? address.port : 0;
+});
+
+afterAll(async () => {
+  for (const socket of accepted) socket.destroy();
+  await new Promise((resolve) => server.close(resolve));
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/** Connects as the app does, and returns every keepalive setting put on a socket meanwhile. */
+async function keepAlivesSetBy(address: string): Promise<unknown[][]> {
+  const setKeepAlive = vi.spyOn(Socket.prototype, "setKeepAlive");
+  const client = new Redis(address, {
+    lazyConnect: true,
+    // The listener is no Redis: no ready check to wait for, and no reconnecting.
+    enableReadyCheck: false,
+    retryStrategy: () => null,
+  });
+
+  try {
+    // `connect()` itself never settles here, since nothing answers as Redis
+    // would. The socket being connected is all this is about.
+    client.connect().catch(() => {});
+    await once(client, "connect");
+    return [...setKeepAlive.mock.calls];
+  } finally {
+    client.disconnect();
+  }
+}
+
 describe("the address settings that let staging sleep (#551)", () => {
-  it("ioredis takes keepAlive from the address as text, which is what turns keepalives off", () => {
-    const plain = new Redis("redis://default:x@redis.example.com:6379", { lazyConnect: true });
+  it("ioredis puts a 30 s TCP keepalive on its connection by default", async () => {
+    expect(await keepAlivesSetBy(`redis://127.0.0.1:${port}`)).toEqual([[true, 30000]]);
+  });
+
+  it("ioredis puts no keepalive on a connection whose address says keepAlive=off", async () => {
+    expect(await keepAlivesSetBy(`redis://127.0.0.1:${port}?keepAlive=off`)).toEqual([]);
+  });
+
+  it("ioredis still reads the host and port beside that setting", () => {
     const quiet = new Redis("redis://default:x@redis.example.com:6379?keepAlive=off", {
       lazyConnect: true,
     });
 
     try {
-      // It enables TCP keepalive only for a number, and its default is one.
-      expect(plain.options.keepAlive).toBe(30000);
-      expect(typeof quiet.options.keepAlive).not.toBe("number");
-      // The rest of the address is read as before.
       expect(quiet.options).toMatchObject({ host: "redis.example.com", port: 6379 });
     } finally {
-      plain.disconnect();
       quiet.disconnect();
     }
   });
 
   it("postgres.js takes idle_timeout from the address, and keeps none without it", async () => {
+    // Neither opens a connection: postgres.js connects at its first query.
     const plain = postgres("postgres://user:x@db.example.com:5432/app");
     const quiet = postgres("postgres://user:x@db.example.com:5432/app?idle_timeout=20");
 

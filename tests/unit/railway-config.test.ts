@@ -135,11 +135,12 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).toHaveProperty("sleepApplication", true);
   });
 
-  // Not `false` either: an undeclared setting plans as no change in production.
-  it("never lets production sleep, and declares nothing about it there", async () => {
+  // Declared `false`, not left out: an undeclared setting keeps whatever the
+  // service already has, and a production duplicated from staging has it on.
+  it("turns sleeping off in production, explicitly", async () => {
     const [web] = (await resourcesFor("production")) as Array<{ deploy?: object }>;
 
-    expect(web?.deploy).not.toHaveProperty("sleepApplication");
+    expect(web?.deploy).toHaveProperty("sleepApplication", false);
   });
 
   // Falling back to staging's branch and variables would delete whatever a
