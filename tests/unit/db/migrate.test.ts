@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,8 +14,10 @@ import { MISSING_DATABASE_URL } from "@/db/connection-string";
  * The runner migrates as soon as it is loaded, so it is run as the process it
  * is. **It cannot reach a real database from here**, whatever it does:
  *
- * - it runs in an empty temporary directory, so it finds no `.env` to load a
- *   `DATABASE_URL` from, and no migrations to apply;
+ * - it runs in a temporary directory holding nothing but an empty migration
+ *   journal, so it finds no `.env` to load a `DATABASE_URL` from. The journal
+ *   is what makes the listener mean something: without one the runner returns
+ *   before its first query, and postgres.js connects only when it has one;
  * - its environment is built here from nothing but `PATH`, with every `PG*`
  *   variable pointing at a listener this file owns, which accepts a connection
  *   only to count it and hang up.
@@ -31,6 +33,12 @@ let directory = "";
 
 beforeAll(async () => {
   directory = mkdtempSync(path.join(tmpdir(), "migrate-test-"));
+  const journal = path.join(directory, "drizzle", "migrations", "meta");
+  mkdirSync(journal, { recursive: true });
+  writeFileSync(
+    path.join(journal, "_journal.json"),
+    JSON.stringify({ version: "7", dialect: "postgresql", entries: [] })
+  );
   listener = createServer((socket) => {
     connections += 1;
     socket.destroy();

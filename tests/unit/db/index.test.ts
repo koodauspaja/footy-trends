@@ -5,9 +5,14 @@ import { warmModules } from "../../support/warm-module";
 const end = vi.fn(() => Promise.resolve());
 const postgresMock = vi.fn((_url: string) => ({ end }));
 
-/** What drizzle hands back, as far as these tests need one: state, and a method that reads it. */
+/**
+ * What drizzle hands back, as far as these tests need one: state, a method
+ * that reads it, and `$client`, which the real one holds as its own property:
+ * postgres.js's `sql`, a function that carries properties of its own.
+ */
 class FakeDatabase {
   readonly dialect = "postgres";
+  readonly $client = Object.assign(() => "a query", { options: { max: 10 } });
   select() {
     return this.dialect;
   }
@@ -99,6 +104,25 @@ describe("the database client", () => {
     // `this`, so an unbound one would find none.
     const { select } = db;
     expect(select()).toBe("postgres");
+  });
+
+  it("leaves alone a function the client holds as its own, properties and all", async () => {
+    // A bound copy is a new function: `$client.options`, `.end` and `.unsafe`
+    // would all be gone from it.
+    const { db } = await load();
+
+    expect(db.$client.options).toEqual({ max: 10 });
+    expect(db.$client()).toBe("a query");
+    // The very function, not a copy of it. The client exists by now: the
+    // lines above are what made it.
+    const real: FakeDatabase = drizzleMock.mock.results[0]?.value;
+    expect(db.$client).toBe(real.$client);
+  });
+
+  it("hands back the real constructor, which is how drizzle knows its own", async () => {
+    const { db } = await load();
+
+    expect(db.constructor).toBe(FakeDatabase);
   });
 
   it("passes for the real client to code that asks what it is", async () => {
