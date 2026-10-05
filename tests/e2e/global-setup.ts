@@ -9,12 +9,9 @@ import {
   TEAM_ROWS,
 } from "./fixtures/veikkausliiga-2017";
 
-/**
- * Fails fast with a clear message when a provider API key is missing,
- * instead of letting every test time out waiting on pages that silently
- * render the generic error state. This suite runs against the real
- * football-data.org and TASO APIs, not mocks — see tests/e2e/README.md.
- */
+/** Names this fixture's seeding, so two of them serialise and nothing else does. */
+const FIXTURE_LOCK_KEY = 3_040_026;
+
 /**
  * Writes the seeded season from #304, replacing whatever is there for it.
  *
@@ -26,9 +23,6 @@ import {
  * Uses `postgres` directly rather than the app's `db`, so the setup pulls in no
  * application module and cannot be affected by one.
  */
-/** Names this fixture's seeding, so two of them serialise and nothing else does. */
-const FIXTURE_LOCK_KEY = 3_040_026;
-
 async function seedFixtureSeason(url: string): Promise<void> {
   const sql = postgres(url);
   try {
@@ -100,6 +94,12 @@ async function seedFixtureSeason(url: string): Promise<void> {
   }
 }
 
+/**
+ * Fails fast with a clear message when a provider API key is missing,
+ * instead of letting every test time out waiting on pages that silently
+ * render the generic error state. This suite runs against the real
+ * football-data.org and TASO APIs, not mocks — see tests/e2e/README.md.
+ */
 export default async function globalSetup() {
   if (existsSync(".env")) {
     process.loadEnvFile(".env");

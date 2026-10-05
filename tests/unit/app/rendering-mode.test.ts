@@ -159,15 +159,7 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
  * Helmarit (#167) is the same shape — paramless and data-backed — so this
  * guards the class rather than the one file.
  */
-/**
- * Whether a page imports request-scoped state.
- *
- * `headers()`, `cookies()` and `draftMode()` each opt a page out of
- * prerendering **by being called** — no `force-dynamic` export appears, so
- * checking for one misses this entirely. It is also the exact shape of the
- * failure that matters here: reading a session is how a page meant to be
- * readable signed out stops being prerendered.
- */
+
 /**
  * Every module a file pulls in — static and dynamic alike.
  *
@@ -289,6 +281,15 @@ function isServerActionModule(source: ts.SourceFile): boolean {
   );
 }
 
+/**
+ * Whether a page imports request-scoped state.
+ *
+ * `headers()`, `cookies()` and `draftMode()` each opt a page out of
+ * prerendering **by being called** — no `force-dynamic` export appears, so
+ * checking for one misses this entirely. It is also the exact shape of the
+ * failure that matters here: reading a session is how a page meant to be
+ * readable signed out stops being prerendered.
+ */
 function reachesRequestState(entry: string): string | null {
   const seen = new Set<string>();
   const queue = [entry];

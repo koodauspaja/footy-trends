@@ -290,20 +290,6 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"
  */
 export const COMPOSE_POSTGRES_PORT = 5432;
 
-/**
- * Whether this URL names **the Postgres this repository's compose file runs** —
- * not merely one on this machine.
- *
- * The host alone is not enough, which review caught on #402. A second local
- * Postgres on another port — Homebrew services, another project's containers —
- * passes a hostname check, and then both callers do the wrong thing: the
- * preflight starts compose containers that bind 5432 and cannot help whatever
- * is listening on 6543, and `db:reset` destroys this project's volume while the
- * URL it was pointed at is somewhere else entirely, reporting a fresh database
- * it never touched.
- *
- * Both questions are really this one question, so there is one function for it.
- */
 /** What a Postgres connection string may begin with. */
 const POSTGRES_SCHEMES = new Set(["postgres:", "postgresql:"]);
 
@@ -352,6 +338,20 @@ export function notPostgresMessage(url: string): string {
   ].join("\n");
 }
 
+/**
+ * Whether this URL names **the Postgres this repository's compose file runs** —
+ * not merely one on this machine.
+ *
+ * The host alone is not enough, which review caught on #402. A second local
+ * Postgres on another port — Homebrew services, another project's containers —
+ * passes a hostname check, and then both callers do the wrong thing: the
+ * preflight starts compose containers that bind 5432 and cannot help whatever
+ * is listening on 6543, and `db:reset` destroys this project's volume while the
+ * URL it was pointed at is somewhere else entirely, reporting a fresh database
+ * it never touched.
+ *
+ * Both questions are really this one question, so there is one function for it.
+ */
 export function runsOnComposeServer(url: string): boolean {
   const target = parseTarget(url);
   if (target === null) return false;

@@ -109,7 +109,8 @@ flowchart TD
 ```
 
 A chore follows `skills/chore-workflow.md` and a bug `skills/bug-workflow.md`;
-neither has a spec or a decision record.
+neither has a spec, and each writes a decision record when it changes something
+meaningful.
 
 ---
 

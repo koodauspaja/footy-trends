@@ -70,6 +70,11 @@ request leaves alone.
 - Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
+**Block 7** — path: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`
+```
+- A new or changed comment says what the code beside it is for, in one to three lines, or a constraint the code cannot show, followed by the paths of the decision records behind it. Flag a changed comment that narrates history (how the code used to work, which pull request or review found something, how a number was measured) or that describes something other than the code it sits on. That history belongs in a decision record under decisions/.
+```
+
 Each block's paths are chosen to cover every file its rules ask about.
 `REVIEW_RULES.md` records why each one is there, and which requirements are
 deliberately not Sourcery rules.

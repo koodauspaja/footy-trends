@@ -6,14 +6,11 @@ import { type AdminUser, type AdminWriteResult, pageCount, windowFor } from "@/l
 import { logger } from "@/lib/logger";
 
 /**
- * Reading and changing who uses the app, from specs/028-admin-tools-and-roles.md.
+ * Reading and changing who uses the app. Nothing here checks authorisation:
+ * every caller passes `requireAdmin()` first and hands in the acting admin's id.
  *
- * Separate from `admin-actions.ts` so the rules can be tested without a
- * `"use server"` boundary in the way — the same split `favourites.ts` and
- * `favourite-actions.ts` already use. **Nothing here checks authorisation**:
- * every caller must have passed `requireAdmin()` first, and the acting admin's
- * id is a parameter rather than something this reads, so it cannot be spoofed
- * by a caller that skipped the gate.
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/531-comments-say-what-code-is-for.md
  */
 
 export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
@@ -22,14 +19,10 @@ export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
 export type UserPage = { users: AdminUser[]; page: number; pages: number; total: number };
 
 /**
- * One page of users, newest first — because the question the list answers is
- * usually "who is new".
+ * One page of users, newest first. Counted before it is read, so a page past
+ * the last shows the last rather than an empty table.
  *
- * **Counted before it is read**, so the window can be clamped: asking for page
- * nine of four shows page four rather than an empty table with no explanation.
- * Two queries rather than one, which is the cost of not guessing how many pages
- * exist. This replaced a hard cap of 500, which bounded the render at the price
- * of making the oldest accounts unreachable.
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export async function listUsers(requestedPage: number): Promise<UserPage> {
   const [counted] = await db.select({ n: sql<number>`count(*)::int` }).from(user);
@@ -47,16 +40,14 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
       createdAt: user.createdAt,
     })
     .from(user)
-    // A second sort key, because `created_at` is not unique: two accounts made
-    // in the same millisecond could otherwise swap between pages and one of
-    // them be shown twice while the other never appears.
+    // `created_at` is not unique; without the id, two accounts made in the same
+    // millisecond could swap pages, one shown twice and the other never.
     .orderBy(desc(user.createdAt), desc(user.id))
     .limit(limit)
     .offset(offset);
 
-  // Narrowed rather than trusted: the column is `text`, and the first admin is
-  // made by hand in SQL, so an unrecognised value is possible. It renders as a
-  // reader, which is the direction that grants nothing.
+  // The column is `text` and the first admin is made by hand in SQL, so an
+  // unknown role is possible; it reads as the default, which grants nothing.
   return {
     users: rows.map((row) => ({
       ...row,
@@ -68,21 +59,15 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
   };
 }
 
-/**
- * Locks every current admin row for the duration of the write.
- *
- * The race this closes is two admins acting on each other at once: both would
- * count two admins, both would proceed, and the app would be left with none.
- * Locking the admin *set* rather than the target row makes the second
- * transaction wait and then re-count, so it sees one admin and refuses.
- *
- * A row becoming an admin concurrently is not blocked, and does not need to be:
- * it can only make the count larger, which is the direction that refuses less
- * often rather than more dangerously.
- */
-/** The transaction handle drizzle hands `db.transaction`, named as `favourites.ts` names it. */
+/** The transaction handle drizzle hands `db.transaction`. */
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * Runs `run` with every admin row locked, so two admins demoting each other at
+ * once cannot leave none: the second waits, re-counts and refuses.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 async function withAdminsLocked<T>(
   run: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
 ): Promise<T> {
@@ -93,14 +78,10 @@ async function withAdminsLocked<T>(
 }
 
 /**
- * The part both writes share: refuse self, lock the admin set, find the target,
- * and refuse if this would remove the last admin.
+ * What both writes share: refuse self, lock the admin set, find the target,
+ * and refuse to remove the last admin.
  *
- * Extracted because the two callers had it character for character — Sonar put
- * `admin-users.ts` at 18.1% duplicated lines — and because a guard written
- * twice is a guard that eventually differs. The caller supplies only what is
- * different: whether the change would remove an admin, and what to do once it
- * is allowed.
+ * decisions/531-comments-say-what-code-is-for.md
  */
 async function guardedWrite(
   actingAdminId: string,
@@ -135,12 +116,10 @@ async function guardedWrite(
 }
 
 /**
- * Promote or demote, refusing the two changes that would be mistakes.
+ * Promote or demote. Self is refused either way: demoting yourself locks you
+ * out, and promoting yourself means nothing.
  *
- * **Self is refused** for either direction. Demoting yourself is the one-click
- * lockout, and promoting yourself is meaningless since you are already an
- * admin — refusing both is one rule rather than two, and an admin who wants to
- * leave can be removed by another admin.
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export async function changeRole(
   actingAdminId: string,
@@ -166,16 +145,10 @@ export async function changeRole(
 }
 
 /**
- * Removes an account and everything it owns.
+ * Removes an account and everything it owns, its sessions included: every
+ * table referencing `user` cascades, so one `DELETE` is the whole of it.
  *
- * One `DELETE`, because every table referencing `user` declares `on delete
- * cascade` — session, account, preferences, avatar, favourite teams and
- * favourite competitions — and avatar bytes live in Postgres rather than on a
- * volume. A second code path would be a second thing to forget, which is what
- * `user_avatar`'s own comment says the cascade is for.
- *
- * Their sessions go with the row, so deletion signs them out as a consequence
- * rather than by a separate revocation. That is relied on deliberately.
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export async function deleteUser(
   actingAdminId: string,
