@@ -50,6 +50,11 @@
   `app/admin/page.tsx` in #370, `generate-migration.ts` in #376,
   `refresh-actions.ts` in #381. Server actions, route files and thin wrappers
   are the usual victims, because they feel too small to test.
+- **Unit coverage is 100%, and the thresholds that hold it there are not
+  lowered.** `vitest.config.ts` fails `npm run test:unit` below 100% of
+  statements, branches, functions or lines. An uncovered line gets a test, or
+  its file an exclusion with a reason in `sonar-project.properties`; a
+  threshold is never lowered or removed to get a change through.
 - **Every migration is named.** `npm run db:generate -- --name=<verb>_<what>`,
   with the verb one of `add`, `create`, `alter`, `drop`, `rename`, `backfill` —
   `--name=add_refresh_runs`, never the two random words `drizzle-kit` invents
