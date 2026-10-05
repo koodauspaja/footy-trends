@@ -82,6 +82,18 @@ test.describe("Domestic team match list (Veikkausliiga)", () => {
     await expect(page.getByRole("link", { name: "Sarjataulukkoon" })).toHaveCount(0);
   });
 
+  // `Number("0x10")` is 16 and `Number("1e3")` is 1000: each of these showed a
+  // real club's page until #529. 60987 is FC Inter, so its hexadecimal spelling
+  // is a club that exists.
+  for (const id of ["0xEE3B", "6.0987e4", "60987.0", "-60987"]) {
+    test(`a team id spelled ${id} is not a team`, async ({ page }) => {
+      await page.goto(`/kotimaa/joukkue/${id}`);
+
+      await expect(page.getByRole("heading", { level: 1, name: "Joukkue" })).toBeVisible();
+      await expect(page.locator("main").getByText("Joukkuetta ei löytynyt.")).toBeVisible();
+    });
+  }
+
   test("clicking a team name navigates to its team page, showing matches with a group name column", async ({
     page,
   }) => {

@@ -25,7 +25,19 @@ describe("resolveEarliestSeason", () => {
   });
 
   it("falls back to the default when unset, empty, or not a positive integer", () => {
-    for (const value of [undefined, "", "  ", "abc", "0", "-5", "2023.5", "2023abc"]) {
+    for (const value of [
+      undefined,
+      "",
+      "  ",
+      "abc",
+      "0",
+      "-5",
+      "2023.5",
+      "2023abc",
+      "0x7E8",
+      "2.024e3",
+      "2147483648",
+    ]) {
       expect(resolveEarliestSeason(value)).toBe(DEFAULT_EARLIEST_SEASON);
     }
   });
@@ -91,7 +103,18 @@ describe("parseSeasonParam", () => {
   });
 
   it("rejects empty, non-numeric, and malformed values", () => {
-    for (const value of ["", "  ", "abc", "2024.0", "2024abc", " 2024"]) {
+    // The last four are 2024 to `Number()`, which is a selectable season.
+    for (const value of [
+      "",
+      "  ",
+      "abc",
+      "2024.0",
+      "2024abc",
+      " 2024",
+      "0x7E8",
+      "2.024e3",
+      "-2024",
+    ]) {
       expect(parseSeasonParam(value, selectable)).toEqual({ kind: "invalid" });
     }
   });

@@ -228,11 +228,28 @@ describe("HeadToHeadPage", () => {
     expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
   });
 
-  it("is not found for an id that is not a stored integer", async () => {
-    await renderPage("abc", String(KUPS));
+  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  describe.each([
+    ["a word", "abc"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])("with an id that is %s", (_name, id) => {
+    it("is not found when it is the first team, before any query", async () => {
+      await renderPage(id, String(KUPS));
 
-    expect(screen.getByText("Kohtaamisia ei löytynyt.")).toBeInTheDocument();
-    expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Kohtaamisia ei löytynyt.")).toBeInTheDocument();
+      expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
+    });
+
+    it("is not found when it is the second team, before any query", async () => {
+      await renderPage(String(HJK), id);
+
+      expect(screen.getByText("Kohtaamisia ei löytynyt.")).toBeInTheDocument();
+      expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
+    });
   });
 
   it("is not found for the placeholder team's id, before any query", async () => {

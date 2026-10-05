@@ -280,8 +280,16 @@ describe("/kotimaa/ottelu/:id", () => {
     expect(screen.getByText("Ottelua ei löytynyt.")).toBeInTheDocument();
   });
 
-  it("shows the not-found state for a malformed id, without querying", async () => {
-    await renderPage("abc");
+  // `Number()` alone read the first two as matches 16 and 1000 (#529).
+  it.each([
+    ["a word", "abc"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])("shows the not-found state for an id that is %s, without querying", async (_name, id) => {
+    await renderPage(id);
 
     expect(getMatchPageDataMock).not.toHaveBeenCalled();
     expect(screen.getByText("Ottelua ei löytynyt.")).toBeInTheDocument();

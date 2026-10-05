@@ -481,17 +481,29 @@ describe("Domestic team page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the reduced not-found page for a non-numeric id, without calling getTeamMatches", async () => {
-    await renderTeam("not-a-number");
+  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  it.each([
+    ["a word", "not-a-number"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])(
+    "shows the reduced not-found page for an id that is %s, without asking for the team",
+    async (_name, id) => {
+      await renderTeam(id);
 
-    // No competition to name, so no season selector and no standings link: the
-    // page used to offer both for Veikkausliiga. See specs/020.
-    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
-    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(getTeamMatchesMock).not.toHaveBeenCalled();
-  });
+      // No competition to name, so no season selector and no standings link: the
+      // page used to offer both for Veikkausliiga. See specs/020.
+      expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+      expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      expect(getTeamMatchesMock).not.toHaveBeenCalled();
+      expect(getTeamContextMock).not.toHaveBeenCalled();
+    }
+  );
 
   it("shows the empty message when the season truly has no matches", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "empty" });

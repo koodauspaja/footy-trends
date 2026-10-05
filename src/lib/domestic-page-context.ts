@@ -9,6 +9,7 @@ import {
   getDomesticCompetitionName,
   parseDomesticCompetitionParam,
 } from "./domestic-competitions";
+import { parseWholeNumber } from "./provider-ids";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
 import { getSeasonCategoryName, resolveTasoSeasonContext } from "./taso-standings-service";
 import type { TeamContext } from "./team-context";
@@ -43,9 +44,9 @@ export function parseTasoSeasonParam(
   selectable: SeasonOption[]
 ): SeasonParamResult {
   if (rawValue === undefined) return { kind: "absent" };
-  if (typeof rawValue !== "string" || !/^\d+$/.test(rawValue)) return { kind: "invalid" };
+  const seasonId = parseWholeNumber(rawValue);
+  if (seasonId === null) return { kind: "invalid" };
 
-  const seasonId = Number(rawValue);
   return selectable.some((option) => option.seasonId === seasonId)
     ? { kind: "valid", seasonId }
     : { kind: "invalid" };

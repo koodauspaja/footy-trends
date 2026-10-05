@@ -42,7 +42,8 @@ describe("parseRoundParam", () => {
   });
 
   it("rejects non-numeric and malformed values", () => {
-    for (const value of ["abc", "5.0", "5abc", " 5"]) {
+    // The last three are 5 to `Number()`, a round within the range.
+    for (const value of ["abc", "5abc", "2147483648", "5.0", " 5", "0x5", "5e0"]) {
       expect(parseRoundParam(value, 10)).toEqual({ kind: "invalid" });
     }
   });

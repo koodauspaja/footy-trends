@@ -43,7 +43,7 @@ import {
   resolveNationalCompetitionName,
 } from "@/lib/meeting-labels";
 import type { NationalTeam } from "@/lib/national-team";
-import { isStoredInteger } from "@/lib/provider-ids";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import { formatSeasonLabel } from "@/lib/seasons";
 
 const MATCH_HEADING = "Ottelu";
@@ -303,8 +303,8 @@ function buildView(
  */
 async function resolve(options: MatchPageOptions) {
   const { id } = await options.params;
-  const providerMatchId = Number(id);
-  if (!isStoredInteger(providerMatchId)) return { status: "not_found" } as const;
+  const providerMatchId = parseWholeNumber(id);
+  if (providerMatchId === null) return { status: "not_found" } as const;
 
   const data = await getMatchPageData(options.source, providerMatchId);
   if (data.status !== "ok") return data;
