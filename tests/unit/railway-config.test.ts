@@ -129,6 +129,21 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).not.toHaveProperty("restartPolicyType");
   });
 
+  it("lets staging sleep when idle (#551)", async () => {
+    const [web] = (await resourcesFor("staging")) as Array<{ deploy?: object }>;
+
+    expect(web?.deploy).toHaveProperty("sleepApplication", true);
+  });
+
+  // Left out, which an apply reads as "unset it": planned against a service
+  // that has it on, this file shows `true → null`. `false` would plan as a
+  // change on every run, because Railway stores off as unset.
+  it("turns sleeping off in production, by leaving it out", async () => {
+    const [web] = (await resourcesFor("production")) as Array<{ deploy?: object }>;
+
+    expect(web?.deploy).not.toHaveProperty("sleepApplication");
+  });
+
   // Falling back to staging's branch and variables would delete whatever a
   // third environment holds beyond staging's list.
   it("refuses an environment it has no configuration for", async () => {
