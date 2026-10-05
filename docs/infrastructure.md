@@ -64,6 +64,11 @@ Constraints:
 
 - **Railway never reads `.railway/railway.ts` during a deploy.** A change takes
   effect only when applied, once per environment (`docs/setup/025`).
+- **A `railway.toml` on the deployed branch wins over the applied settings.**
+  Railway reads the file first while it exists (a deployment's metadata says
+  `configFile: /railway.toml`). `main` lost it in #523; `release` carries it
+  until the release after v1.13.0, so until then production deploys with that
+  file's values, `npm start` among them, whatever has been applied (#525).
 - **An apply removes whatever the file does not declare.** The service's source
   and every variable are declared for that reason. **A variable added in the
   dashboard must be added to the file before the next apply**, or that apply
