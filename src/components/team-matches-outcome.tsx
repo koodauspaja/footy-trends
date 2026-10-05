@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { SameRouteLink } from "@/components/same-route-link";
 
 /** One page the club does have matches on, and what to call it. */
 export type TeamSeasonLink = { label: string; href: string };
@@ -74,9 +74,9 @@ export function TeamMatchesOutcome({
           {sameSeason.map((link, index) => (
             <span key={link.href}>
               {index > 0 && ", "}
-              <Link className="hover:underline" href={link.href}>
+              <SameRouteLink className="hover:underline" href={link.href}>
                 {link.label}
-              </Link>
+              </SameRouteLink>
             </span>
           ))}
         </p>
@@ -84,9 +84,9 @@ export function TeamMatchesOutcome({
       {sameSeason.length === 0 && newest !== null && (
         <p className="mb-4">
           {"Joukkueen uusin kausi: "}
-          <Link className="hover:underline" href={newest.href}>
+          <SameRouteLink className="hover:underline" href={newest.href}>
             {newest.label}
-          </Link>
+          </SameRouteLink>
         </p>
       )}
     </>
