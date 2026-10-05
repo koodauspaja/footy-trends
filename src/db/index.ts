@@ -12,7 +12,7 @@ let database: Database | undefined;
  * The real client, made the first time the database is used.
  *
  * **Not when this module is imported** (#536). `next build` imports every
- * route, and `DATABASE_URL` is not there to read at build time; a check at
+ * route, and `DATABASE_URL` may not be there to read at build time; a check at
  * import would fail the build, and no check at all let postgres.js fall back to
  * `localhost` or `PGHOST` (see `connection-string.ts`). So the variable is
  * required at the first query, which is the first moment it is needed.
@@ -29,15 +29,19 @@ function connected(): Database {
  * The database. A stand-in that becomes the real client on first use, so every
  * caller keeps importing `db` as a value.
  *
- * A method is handed back bound to the real client, because drizzle's methods
- * read their own state from `this`. The prototype is the real one's as well:
- * drizzle recognises its own objects by their constructor.
+ * A method from the prototype is handed back bound to the real client, because
+ * drizzle's methods read their own state from `this`. Nothing else is bound: a
+ * function the client holds as its own property, as `$client` is, carries
+ * properties a bound copy would lose, and so does the constructor, which
+ * drizzle recognises its own objects by. The prototype is the real one's too.
  */
 export const db: Database = new Proxy({} as Database, {
   get(_target, property) {
     const real = connected();
     const value: unknown = Reflect.get(real, property, real);
-    return typeof value === "function" ? value.bind(real) : value;
+    const isMethod =
+      typeof value === "function" && property !== "constructor" && !Object.hasOwn(real, property);
+    return isMethod ? value.bind(real) : value;
   },
   has(_target, property) {
     return Reflect.has(connected(), property);
