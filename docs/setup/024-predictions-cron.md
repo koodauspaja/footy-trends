@@ -78,3 +78,9 @@ on #349 against the spec's estimate (about $0.11 a month).
 - [ ] A run shows in its Deployments tab each hour, exiting 0
 - [ ] The backtest has run in staging and production
 - [ ] The first week's usage is recorded on #349
+
+## Next
+
+→ Nothing: the setup is complete. `docs/infrastructure.md` describes what now
+  exists, and is the document to keep true from here on. `skills/release.md` is
+  how `main` reaches production.

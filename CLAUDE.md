@@ -159,8 +159,13 @@ does sits between them, never across one.
 
 ## Reference
 
-- Setup and infrastructure docs: `docs/setup/` (numbered, authoritative,
-  read in order — see `docs/setup/README.md`).
+- How the running system is set up **now**, and its constraints:
+  `docs/infrastructure.md`. Read it before deciding anything about hosting,
+  environments, variables, CI, the board or the review tools. **A change to
+  infrastructure updates it in the same pull request**, and a fact in it that
+  the live system contradicts is a bug to fix on sight.
+- Standing the infrastructure up from zero: `docs/setup/` (a procedure, in the
+  order `docs/setup/README.md` gives; not a description of the current state).
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
 - Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.

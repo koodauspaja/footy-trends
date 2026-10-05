@@ -139,17 +139,19 @@ Enable the following:
    - `Integration tests`
    - `SonarCloud scan`
    - `Sourcery review`
+   - `Issue checkboxes`
 4. Save
 
-From this point on GitHub blocks a merge until all four checks — the two CI
-jobs, SonarCloud, and Sourcery — *satisfy* the requirement.
+From this point on GitHub blocks a merge until all five checks *satisfy* the
+requirement: `ci.yml`'s three jobs (`Typecheck, lint and unit tests`,
+`Integration tests` and `Issue checkboxes`), SonarCloud, and Sourcery.
 
 Satisfy, not pass: GitHub accepts `success`, `skipped` and `neutral` alike.
 That distinction is the whole reason for the note below, because Sourcery
-reports exactly `skipped` when it declines a review. Only the two CI jobs and
-SonarCloud are genuinely gated by this rule; Sourcery's real gate is the
-head-commit check in `skills/open-pr.md`, which requires a `success`
-conclusion before handoff.
+reports exactly `skipped` when it declines a review. Only `ci.yml`'s three
+jobs, `Issue checkboxes` among them, and SonarCloud are genuinely gated by this
+rule; Sourcery's real gate is the head-commit check in `skills/open-pr.md`,
+which requires a `success` conclusion before handoff.
 
 > **A required check cannot enforce the Sourcery gate.** GitHub's own
 > documentation is explicit: *"Required status checks must have a
@@ -174,9 +176,10 @@ conclusion before handoff.
 
 ## The `release` ruleset
 
-`release` is the branch production deploys from — see
-`021-production-environment.md`. It carries its own ruleset, and it differs
-from `main`'s in ways that are deliberate rather than oversights.
+`release` is the branch production deploys from. **Create this ruleset from
+`021-production-environment.md`, *Before you start***, once the branch exists;
+it is described here because it is `main`'s counterpart. It differs from
+`main`'s in ways that are deliberate rather than oversights.
 
 | Rule | `main` | `release` | Why they differ |
 |---|---|---|---|
@@ -184,7 +187,7 @@ from `main`'s in ways that are deliberate rather than oversights.
 | `require_extra_approval_for_unattributed_changes` | on (inert) | **off** | Inert at 0 approvals. At 1 it demands a *second* approval, which two people cannot satisfy when one of them is the author. Left on, it would deadlock every release |
 | Merge methods | merge, squash, rebase | **merge only** | A merge commit preserves `main`'s SHAs on `release`, so the deployed commit's ancestry maps back to commits that exist on `main`. Squash and rebase mint new SHAs and break that mapping — and the mapping is the point of wanting a known version in production |
 | Linear history | required | **not required** | Follows from merge-commit-only. Requiring both would leave no legal way to merge |
-| Required status checks | four | **three** | The `Release — …` jobs from `release.yml`. Added once each had reported at least once, per the note below |
+| Required status checks | five | **three** | The `Release — …` jobs from `release.yml`. Added once each had reported at least once, per the note below |
 | Require branches to be up to date | **on** | **off** | See *Why `release` does not require an up-to-date branch* below. On `main` it earns its keep; on `release` it would block every release after the first |
 
 Restrict deletions and block force pushes are on for both.
@@ -294,9 +297,9 @@ enabled until a workflow has a `push` trigger for `release`.
 - [ ] Branch ruleset active on main
 - [ ] Direct push to main rejected
 - [ ] Required status checks added (after `013-ci-workflow.md`)
-- [ ] `release` ruleset active, with 1 required approval and merge commits only
-- [x] `release`'s required status checks added (after `release.yml` first reports)
-- [x] `release` does **not** require an up-to-date branch, for the reason above (#221)
+- [ ] `release` ruleset active, with 1 required approval and merge commits only (from 021)
+- [ ] `release`'s required status checks added (after `release.yml` first reports)
+- [ ] `release` does **not** require an up-to-date branch, for the reason above (#221)
 
 ## Next
 → Setup continues in `021-production-environment.md`, which stands up the

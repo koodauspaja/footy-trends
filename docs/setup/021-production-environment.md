@@ -19,12 +19,18 @@ source* section for the boundary and what is deliberately missing until then.
 
 ## Before you start
 
-Two things already exist and are assumed here:
+Staging exists, deploys from `main`, and works (005 to 018). Then:
 
-| | |
-|---|---|
-| **Staging environment** | Deploys from `main`. Working. |
-| **`release` branch** | Created from `main` and protected: PR required, 1 approving review, merge commits only, no force-push, no deletion. |
+1. Create the `release` branch from `main`:
+
+   ```bash
+   git fetch origin && git push origin origin/main:refs/heads/release
+   ```
+
+2. Protect it: the `release` ruleset in `011-branch-protection.md` — PR
+   required, 1 approving review, merge commits only, no force-push, no deletion.
+   Its required checks are added once `release.yml` has reported, after the
+   first release pull request.
 
 The single approving review is the release gate. GitHub does not let anyone
 approve their own pull request, so a promotion to `release` always takes both
@@ -149,12 +155,12 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
-| `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use, see `docs/setup/014-google-oauth-setup.md` |
+| `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use. Do 014's production half now: `docs/setup/014-google-oauth-setup.md` |
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
-| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
-| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below. If set, add it to production's `ENVIRONMENTS` entry first (025, *Later*), or the next apply deletes it |
+| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025, *Later*), or the next apply deletes it |
 | `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -509,7 +515,8 @@ changes:
 - staging's three sign-in variables deleted — `AUTH_ALLOWED_EMAILS`,
   `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` — because production holds
   none of them today (Step 4);
-- `source.checkSuites` turning on: Wait for CI, the release gate (Step 8).
+- `source.checkSuites` turning on: Wait for CI, the release gate (*Wait for CI
+  works, and recovery is manual*, below).
 
 Anything else — another deletion, or any other source or branch change: stop.
 
@@ -643,7 +650,10 @@ repository can reproduce them.
 ---
 
 ## Done when
-- [x] `production` environment exists, separate from staging
+
+Unticked for whoever follows this next. The figures and versions in the lines
+are from this project's own run.
+- [ ] `production` environment exists, separate from staging
 - [ ] It has exactly one PostgreSQL and one Redis, both this environment's own,
       and neither URL matches staging's
 - [ ] Its trigger branch is `release`; a push to `main` never reaches production
@@ -651,19 +661,20 @@ repository can reproduce them.
       inherited from the duplicated environment. Datastore and observability
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
-- [x] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
-- [x] All three Sentry configs — server, edge and client — read their settings
+- [ ] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
+- [ ] All three Sentry configs — server, edge and client — read their settings
       from the environment
-- [x] Session Replay is decided **and applied in code** — the integration is
+- [ ] Session Replay is decided **and applied in code** — the integration is
       removed, so it neither records nor ships its bundle
-- [x] The wizard's example routes are deleted rather than left reachable
-- [x] The six Sentry variables are set on the production service. Note the code
+- [ ] The wizard's example routes are deleted rather than left reachable
+- [ ] The six Sentry variables are set on the production service. Note the code
       defaults to the wizard's behaviour, so they take effect only once a release
       carries this change to `release` — setting them alone does not
-- [x] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
-- [x] A deploy runs migrations before taking traffic and passes its health check
-- [x] `/api/health` in production returns `status: "ok"` with `checks.database`
+- [ ] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
+- [ ] A deploy runs migrations before taking traffic and passes its health check
+- [ ] `/api/health` in production returns `status: "ok"` with `checks.database`
       and `checks.redis` both `"ok"`
 
 ## Next
-→ The release workflow — release CI, Wait for CI, version tagging and rollback.
+→ `022-production-backfill.md`. Promoting `main` to `release` from here on is
+  `skills/release.md`.
