@@ -129,6 +129,19 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).not.toHaveProperty("restartPolicyType");
   });
 
+  it("lets staging sleep when idle (#551)", async () => {
+    const [web] = (await resourcesFor("staging")) as Array<{ deploy?: object }>;
+
+    expect(web?.deploy).toHaveProperty("sleepApplication", true);
+  });
+
+  // Not `false` either: an undeclared setting plans as no change in production.
+  it("never lets production sleep, and declares nothing about it there", async () => {
+    const [web] = (await resourcesFor("production")) as Array<{ deploy?: object }>;
+
+    expect(web?.deploy).not.toHaveProperty("sleepApplication");
+  });
+
   // Falling back to staging's branch and variables would delete whatever a
   // third environment holds beyond staging's list.
   it("refuses an environment it has no configuration for", async () => {

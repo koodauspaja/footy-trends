@@ -66,6 +66,9 @@ const ENVIRONMENTS = {
   staging: {
     branch: "main",
     waitForCi: false,
+    // Idle almost all the time, and nothing depends on it staying warm: it
+    // sleeps after a quiet spell and wakes on the next request (#551).
+    sleepsWhenIdle: true,
     // Only staging restricts sign-in and sets the proxy headers it trusts.
     variables: ["AUTH_ALLOWED_EMAILS", "AUTH_CLIENT_IP_HEADERS", "AUTH_TRUSTED_PROXIES"],
   },
@@ -73,6 +76,8 @@ const ENVIRONMENTS = {
     branch: "release",
     // A red release.yml run leaves the previous version serving (skills/release.md).
     waitForCi: true,
+    // Production must not sleep.
+    sleepsWhenIdle: false,
     // Only production tunes Sentry.
     variables: [
       "NEXT_PUBLIC_SENTRY_ENABLE_LOGS",
@@ -135,6 +140,9 @@ export default defineRailway((ctx) => {
       // one is healthy, then drains connections for 10 s.
       overlapSeconds: 15,
       drainingSeconds: 10,
+      // Declared only where it is on: left out, the setting stays at Railway's
+      // default, off, and plans as no change.
+      ...(environment.sleepsWhenIdle ? { sleepApplication: true } : {}),
     },
   });
 
