@@ -6,9 +6,10 @@ database, its own cache, and its own credentials — and record the configuratio
 decisions that only start to matter once real users and real log volume are
 involved.
 
-This depends on `019-railway-config.md` being done: `railway.toml` is the
-source of truth for deploy behaviour, so production inherits it rather than
-needing its own dashboard configuration.
+This depends on `025-railway-infrastructure-as-code.md` being done:
+`.railway/railway.ts` is the source of truth for deploy behaviour, applied to
+production as to staging, rather than production needing its own dashboard
+configuration.
 
 This document covers **what production is configured as**. How code is promoted
 into it — release CI, tags, rollback — is a separate concern; see the *Deploy
@@ -41,7 +42,7 @@ Everything about the application is identical; only the surroundings differ.
 | PostgreSQL | its own | its own, separate |
 | Redis | its own | its own, separate |
 | Credentials | staging set | **its own, except the two provider API keys** |
-| Deploy config | `railway.toml` | the same `railway.toml` |
+| Deploy config | `.railway/railway.ts`, applied | the same file, applied |
 
 Sharing a **database** between the two is the failure this separation exists to
 prevent: a staging migration would otherwise take production with it.
@@ -115,17 +116,18 @@ happened — decide whether to keep or drop them before the first real deploy.
 1. Railway → `production` environment → app service → **Settings** → **Source**
 2. Set the deploy trigger branch to `release`
 
-The branch is a dashboard setting per environment. It is **not** expressible in
-`railway.toml` — config-as-code covers build and deploy behaviour, not branch
-selection — so this step cannot be version-controlled and has to be verified by
-looking.
+Set by hand here, before anything else, because an environment duplicated from
+staging still points at `main`: a push to `main` would deploy into production.
+`.railway/railway.ts` declares the same value (`ENVIRONMENTS`: `release` for
+production), and Step 7's apply keeps it there; the file is not applied yet
+because the variables are not settled until Steps 4–6.
 
 Then confirm the separation holds in both directions:
 
 - a push to `main` deploys **staging only**
 - a merge to `release` deploys **production only**
 
-Both statements assume the change touches a watched path. `railway.toml`'s
+Both statements assume the change touches a watched path. `.railway/railway.ts`'s
 `build.watchPatterns` covers `src/`, `public/`, `drizzle/`, the lockfile and a
 few config files — so documentation-, spec-, decision-, test- and
 `.github/`-only changes deploy **nothing**, by design. A docs-only merge to
@@ -151,8 +153,8 @@ more once the Sentry configs read their settings from the environment.
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
 | `BETTER_AUTH_URL` | manual | This environment's own URL — a wrong value sends Google's callback to the wrong host |
-| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below |
-| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for` |
+| `AUTH_CLIENT_IP_HEADERS` | optional | Leave unset. Defaults to `x-real-ip` — see *Rate limiting needs a client address* below. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
+| `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025 Step 6), or the next apply deletes it |
 | `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
 | `AXIOM_TOKEN` | manual | |
@@ -496,21 +498,34 @@ visible; the baseline to compare them against would not.
 
 ---
 
-## Step 7 — Confirm `railway.toml` applies
+## Step 7 — Apply `.railway/railway.ts` and confirm it took
 
-Production inherits the repo's `railway.toml` unchanged. Confirm on the
-deployment details page that these come from the file, not the dashboard:
+Now that Steps 4–6 have settled the variables, apply `.railway/railway.ts` to
+production (025).
+
+On an environment duplicated from staging, the plan shows two expected
+changes:
+
+- staging's three sign-in variables deleted — `AUTH_ALLOWED_EMAILS`,
+  `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` — because production holds
+  none of them today (Step 4);
+- `source.checkSuites` turning on: Wait for CI, the release gate (Step 8).
+
+Anything else — another deletion, or any other source or branch change: stop.
+
+Then confirm the trigger branch still shows `release`, and on the deployment
+details page that these are set:
 
 - `preDeployCommand = "npm run db:migrate"` — migrations run **before** the new
   container takes traffic
 - `healthcheckPath = "/api/health"`, `healthcheckTimeout = 60`
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
-- `restartPolicyType = "ON_FAILURE"`, max 3 retries
+- restart on failure, max 3 retries ("on failure" is Railway's default, so the file declares only the retries)
 
-If production ever needs a value staging does not, `railway.toml` supports
-per-environment overrides under an `environments.<name>` block, resolved
-environment-specific first, then base config, then dashboard settings. Prefer
-that over a dashboard edit, so the difference stays in version control.
+If production ever needs a value staging does not, add it to production's
+entry in `ENVIRONMENTS` in `.railway/railway.ts`, as the branch, wait-for-CI
+and the variables already are. Prefer that over a dashboard edit, so the
+difference stays in version control.
 
 ### Migrations are forward-only
 
@@ -612,13 +627,16 @@ domains/DNS/TLS.
    and confirm the two database variables point at this environment's
    instances, not staging's (Step 4)
 5. Apply the Sentry and log-level values recorded in Steps 5 and 6
-6. Merge to `release` and verify the deploy, migrations and health check
+6. Apply `.railway/railway.ts`, expecting only staging's three sign-in
+   variables deleted and Wait for CI turned on (Step 7)
+7. Merge to `release` and verify the deploy, migrations and health check
    (Step 8)
 
-Only deploy *behaviour* is recreated from the repo. The environment itself, the
-app service, the PostgreSQL and Redis instances, the trigger branch and every
-variable value are dashboard-managed prerequisites — steps 1 to 4 above cannot
-be replayed from `railway.toml`, which is why they are written out rather than
+From the repo, `.railway/railway.ts` recreates the web service's deploy
+behaviour, its source and trigger branch, and the *names* of its variables.
+The environment itself, the PostgreSQL and Redis instances and every variable
+*value* are dashboard-managed prerequisites — those parts of steps 1 to 4 above
+cannot be replayed from the file, which is why they are written out rather than
 pointed at. Keep the variable values somewhere recoverable; nothing in this
 repository can reproduce them.
 

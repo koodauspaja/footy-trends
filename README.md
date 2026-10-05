@@ -2,7 +2,7 @@
 
 Footy Trends is a Next.js app for football trend analysis (Champions League and
 top 5 leagues) with a production-oriented setup: strict TypeScript, Drizzle,
-Postgres, Redis cache, CI, Sentry, and Railway config as code.
+Postgres, Redis cache, CI, Sentry, and Railway infrastructure as code.
 
 ---
 
@@ -46,7 +46,7 @@ If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first
 - Database: PostgreSQL with Drizzle ORM
 - Cache: Redis (`ioredis`)
 - Observability: Sentry + Pino with optional Axiom transport
-- Deployment: Railway with `railway.toml`
+- Deployment: Railway with `.railway/railway.ts`
 
 ### Key Directories
 
@@ -92,7 +92,8 @@ required runtime setup without changing the CI workflow.
 
 ### Railway Deploy Config
 
-`railway.toml` controls:
+`.railway/railway.ts` controls, once applied to each environment
+(`docs/setup/025-railway-infrastructure-as-code.md`):
 
 - pre-deploy migration command
 - start command
