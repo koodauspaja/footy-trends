@@ -164,6 +164,11 @@ export type LineSeries = {
   points: readonly ChartPoint[];
   dashed?: boolean;
   /**
+   * A third style, for a reference line rather than data — calibration's
+   * diagonal beside two models' lines, one of them dashed (specs/054).
+   */
+  dotted?: boolean;
+  /**
    * `false` draws the line without a dot at every point — a team's rating
    * after each of hundreds of matches (specs/053) would be a row of dots.
    * Marked points are still ringed.
@@ -173,6 +178,14 @@ export type LineSeries = {
 
 /** The dash pattern of a dashed series, shared with its legend sample. */
 const DASH = "6 4";
+/** A dotted series' pattern, as short against its gaps as a dash is long. */
+const DOT = "2 4";
+
+/** A line's dash pattern, the same for the line and its legend sample. */
+function dashArray(style: Readonly<{ dashed?: boolean; dotted?: boolean }>): string | undefined {
+  if (style.dotted) return DOT;
+  return style.dashed ? DASH : undefined;
+}
 
 /**
  * The extra height a chart with tick notes reserves under its x-axis, so a
@@ -320,6 +333,7 @@ export function LineChart({
       {series.map((line) => (
         <g
           data-dashed={line.dashed ? "" : undefined}
+          data-dotted={line.dotted ? "" : undefined}
           data-part="series"
           data-series={line.name}
           key={line.name}
@@ -328,7 +342,7 @@ export function LineChart({
             className="fill-none stroke-foreground"
             data-part="line"
             points={line.points.map((point) => `${toX(point.x)},${toY(point.y)}`).join(" ")}
-            strokeDasharray={line.dashed ? DASH : undefined}
+            strokeDasharray={dashArray(line)}
             strokeLinejoin="round"
             strokeWidth={2}
           />
@@ -382,7 +396,9 @@ export function LineChart({
  */
 export function LineLegend({
   items,
-}: Readonly<{ items: ReadonlyArray<{ label: string; dashed?: boolean }> }>) {
+}: Readonly<{
+  items: ReadonlyArray<{ label: string; dashed?: boolean; dotted?: boolean }>;
+}>) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-muted text-sm">
       {items.map((item) => (
@@ -390,7 +406,7 @@ export function LineLegend({
           <svg aria-hidden="true" className="h-2 w-6" viewBox="0 0 24 8">
             <line
               className="stroke-foreground"
-              strokeDasharray={item.dashed ? DASH : undefined}
+              strokeDasharray={dashArray(item)}
               strokeWidth={2}
               x1={0}
               x2={24}
