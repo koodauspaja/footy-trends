@@ -19,10 +19,13 @@ const POINTER = /`(\d{3}-[a-z0-9-]+\.md)`/;
 const files = readdirSync(SETUP).sort();
 const documents = files.filter((file) => DOCUMENT.test(file));
 
-function nextOf(file: string): string | null {
-  const text = readFileSync(path.join(SETUP, file), "utf8");
+function nextIn(text: string): string | null {
   const next = text.slice(text.lastIndexOf("## Next"));
   return POINTER.exec(next)?.[1] ?? null;
+}
+
+function nextOf(file: string): string | null {
+  return nextIn(readFileSync(path.join(SETUP, file), "utf8"));
 }
 
 function chainFrom(first: string): string[] {
@@ -47,6 +50,21 @@ function indexOrder(): string[] {
 describe("docs/setup (#524)", () => {
   it("holds nothing but numbered documents and the index", () => {
     expect(files.filter((file) => !DOCUMENT.test(file))).toEqual([INDEX]);
+  });
+
+  it("takes only a whole numbered filename for a document", () => {
+    expect(DOCUMENT.test("001-github-repo-setup.md")).toBe(true);
+    expect(DOCUMENT.test("backup001-old.md")).toBe(false);
+    expect(DOCUMENT.test("001-old.md.bak")).toBe(false);
+  });
+
+  it("reads a Next pointer only from a whole backticked filename", () => {
+    expect(nextIn("## Next\n\n→ `002-github-project-board.md`")).toBe(
+      "002-github-project-board.md"
+    );
+    expect(nextIn("## Next\n\n→ `x002-github-project-board.md`")).toBeNull();
+    expect(nextIn("## Next\n\n→ see foo002-bar.md for more")).toBeNull();
+    expect(nextIn("`002-github-project-board.md`\n\n## Next\n\n→ Nothing")).toBeNull();
   });
 
   it("has a Next section in every document", () => {
