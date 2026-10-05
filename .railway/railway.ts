@@ -76,8 +76,7 @@ const ENVIRONMENTS = {
     branch: "release",
     // A red release.yml run leaves the previous version serving (skills/release.md).
     waitForCi: true,
-    // Production must not sleep. Declared, not left out, so an apply turns it
-    // off wherever it came from: a production duplicated from staging has it on.
+    // Production must not sleep.
     sleepsWhenIdle: false,
     // Only production tunes Sentry.
     variables: [
@@ -141,7 +140,11 @@ export default defineRailway((ctx) => {
       // one is healthy, then drains connections for 10 s.
       overlapSeconds: 15,
       drainingSeconds: 10,
-      sleepApplication: environment.sleepsWhenIdle,
+      // Off is declared as `null`, not left out and not `false`. Left out, a
+      // service keeps whatever it has, and a production duplicated from staging
+      // has it on. Railway stores off as unset, so `false` plans as a change on
+      // every run; `null` plans as none, and as `true → null` where it is on.
+      sleepApplication: environment.sleepsWhenIdle ? true : null,
     },
   });
 

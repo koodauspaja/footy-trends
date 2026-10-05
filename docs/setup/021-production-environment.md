@@ -524,9 +524,9 @@ changes:
   none of them today (Step 4);
 - `source.checkSuites` turning on: Wait for CI, the release gate (*Wait for CI
   works, and recovery is manual*, below);
-- `deploy.sleepApplication` turning off: staging sleeps when idle, and
-  production must not. The file declares it `false` for production, so the
-  apply turns it off whatever the duplicate carried.
+- `deploy.sleepApplication` going from `true` to unset: staging sleeps when
+  idle, and production must not. The file declares it unset for production,
+  so the apply turns it off whatever the duplicate carried.
 
 Anything else — another deletion, or any other source or branch change: stop.
 
@@ -537,7 +537,7 @@ details page that these are set:
   container takes traffic
 - `healthcheckPath = "/api/health"`, `healthcheckTimeout = 60`
 - `overlapSeconds = 15`, `drainingSeconds = 10` — zero-downtime handover
-- `sleepApplication = false` — production never sleeps
+- sleeping off (Railway shows it as off or unset) — production never sleeps
 - restart on failure, max 3 retries ("on failure" is Railway's default, so the file declares only the retries)
 
 If production ever needs a value staging does not, add it to production's
