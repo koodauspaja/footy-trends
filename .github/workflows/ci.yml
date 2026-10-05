@@ -12,6 +12,17 @@ on:
       - main
     types: [opened, synchronize, reopened]
 
+# The token every job gets unless it asks for more (#537).
+permissions:
+  contents: read
+
+# A pull request's newer run supersedes its older one. A push to `main` gets a
+# group of its own per commit, so it is never cancelled and never evicted from a
+# queue: the same shape, for the same reason, as release.yml.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Deliberately has no service containers. A unit test that reaches Postgres
   # or Redis must fail here, where the job name says what broke — not only in
@@ -20,6 +31,7 @@ jobs:
   unit:
     name: Typecheck, lint and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: |
       github.actor == vars.OWNER_USERNAME ||
       github.actor == vars.COLLABORATOR_USERNAME ||
@@ -69,6 +81,7 @@ jobs:
   integration:
     name: Integration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: |
       github.actor == vars.OWNER_USERNAME ||
       github.actor == vars.COLLABORATOR_USERNAME ||
@@ -165,6 +178,7 @@ jobs:
         github.actor == 'renovate[bot]'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read

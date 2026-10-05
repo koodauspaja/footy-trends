@@ -12,10 +12,26 @@ on:
       - main
     types: [opened, synchronize, reopened]
 
+# The token every job gets unless it asks for more (#537).
+permissions:
+  contents: read
+
+# A pull request's newer run supersedes its older one. A push to `main` gets a
+# group of its own per commit, so it is never cancelled and never evicted from a
+# queue: the same shape, for the same reason, as release.yml.
+concurrency:
+  group: sonarcloud-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   sonarcloud:
     name: SonarCloud scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # SonarQube Cloud reads the pull request to decorate it.
+      pull-requests: read
     if: |
       github.actor == vars.OWNER_USERNAME ||
       github.actor == vars.COLLABORATOR_USERNAME ||
