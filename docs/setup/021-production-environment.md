@@ -103,6 +103,12 @@ So:
 3. Nothing there (an empty environment rather than a duplicate) — **New** →
    **Database** → **PostgreSQL**, then the same for **Redis**
 
+**Production must not sleep, so take out what lets staging.** A duplicate
+copies three staging settings: set `DATABASE_URL` to
+`${{Postgres.DATABASE_URL}}` and `REDIS_URL` to `${{Redis.REDIS_URL}}`, with no
+query string, and remove ` --tcp-keepalive 0` from the Redis start command
+(`docs/infrastructure.md`, *Staging sleeps*).
+
 Then confirm `DATABASE_URL` and `REDIS_URL` resolve to *this* environment's
 instances. Railway injects them once each database is attached to the app
 service, but a duplicated environment can arrive with the variables already

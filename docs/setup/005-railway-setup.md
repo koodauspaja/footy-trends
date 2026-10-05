@@ -43,7 +43,9 @@ Build and start commands stay blank: `.railway/railway.ts` sets them (025).
 
 1. **Create** → **Database** → **PostgreSQL**
 2. Its **Settings** → **Region** → the same region as the web service
-3. Web service → **Variables** → `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
+3. Web service → **Variables** → `DATABASE_URL` =
+   `${{Postgres.DATABASE_URL}}?idle_timeout=20`. The query string lets staging
+   sleep when idle (`docs/infrastructure.md`, *Staging sleeps*)
 
 ---
 
@@ -51,7 +53,7 @@ Build and start commands stay blank: `.railway/railway.ts` sets them (025).
 
 - [ ] The project has one environment, `staging`
 - [ ] The web service deploys from `main`, in an EU region, and has a public domain
-- [ ] Postgres is in the same region, and `DATABASE_URL` references it
+- [ ] Postgres is in the same region, and `DATABASE_URL` references it, ending `?idle_timeout=20`
 
 ## Next
 

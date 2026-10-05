@@ -37,7 +37,7 @@ Project `footy-trends`, workspace `Koodauspaja's projects`. Read with
 |---|---|---|---|---|
 | `footy-trends` (web) | both | this repository, the environment's branch | `europe-west4` | `.railway/railway.ts`, applied per environment (`docs/setup/025`) |
 | `Postgres` | both | image `postgres-ssl:18`, volume at `/var/lib/postgresql/data` | `europe-west4` | dashboard |
-| `Redis` | both | image `redis:8.2.9`, volume at `/data` | `europe-west4` | dashboard |
+| `Redis` | both | image `redis:8.2.9`, volume at `/data` | `europe-west4` | dashboard. Staging's start command ends `--tcp-keepalive 0` (*Staging sleeps*) |
 | `predictions` (cron) | production | this repository, `release` | `europe-west4` | dashboard (`docs/setup/024`) |
 
 **Every service is in one region, and a new one must be put there by hand.**
@@ -59,6 +59,7 @@ pins each value.
 | Handover | 15 s overlap, then 10 s draining |
 | Redeploys on | `src/**`, `public/**`, `drizzle/**`, `package.json`, `package-lock.json`, `next.config.ts`, `tsconfig.json`. A docs-, spec-, test- or workflow-only push deploys nothing |
 | Wait for CI | production only |
+| Sleeps when idle | staging only (`sleepApplication`). It needs the three settings under *Staging sleeps* to happen at all |
 
 Constraints:
 
@@ -89,7 +90,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 
 | Variable | Staging | Production | Note |
 |---|---|---|---|
-| `DATABASE_URL`, `REDIS_URL` | set | set | references to that environment's own Postgres and Redis |
+| `DATABASE_URL`, `REDIS_URL` | set | set | references to that environment's own Postgres and Redis. Staging's each end in a query string, see *Staging sleeps* |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | set | set | per environment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | set | set | from that environment's Google project |
 | `FOOTBALL_DATA_API_KEY`, `TASO_API_KEY` | set | set | **the same key in both** |
@@ -104,6 +105,36 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
 provider keys, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
 and `NODE_ENV`.
+
+### Staging sleeps
+
+Staging's web service is asleep unless someone is using it, which stops it
+being charged for memory it holds idle (#551). Railway puts a service to sleep
+5 to 10 minutes after its **last outbound packet**, and wakes it on the next
+request. Production never sleeps.
+
+**Four settings, all on staging, and it stays awake if any one is missing.**
+Each was found by reading the service's network flow log
+(`railway logs -s footy-trends -e staging --network`):
+
+| Setting | Where | What it silences |
+|---|---|---|
+| `sleepApplication: true` | `.railway/railway.ts`, staging's entry | nothing: it is the switch |
+| `DATABASE_URL` is `${{Postgres.DATABASE_URL}}?idle_timeout=20` | the web service's variable, dashboard | postgres.js keeps idle connections open and sends a TCP keepalive on each every 60 s; with this it closes them after 20 idle seconds |
+| `REDIS_URL` is `${{Redis.REDIS_URL}}?keepAlive=off` | the web service's variable, dashboard | ioredis sends a keepalive every 30 s. It turns them on only when the option is a number, and a value from the address arrives as text; that is how ioredis 5 behaves, not a documented switch |
+| `--tcp-keepalive 0` at the end of the start command | the `Redis` service, dashboard | the Redis server probes each client every 300 s, and the app's reply is an outbound packet |
+
+Measured on 2026-10-05: asleep 10.5 minutes after the last packet; the first
+request after that answered 200 in 1.7 s, with no 502, and `/api/health` then
+reported the database and Redis reachable.
+
+- **The two variables are values, and the file keeps them.** `.railway/railway.ts`
+  declares both with `preserve()`, so an apply leaves the query strings alone. A
+  staging rebuilt from zero needs them set again by hand.
+- **Check after upgrading `ioredis` or `postgres`**: if staging stops sleeping,
+  the flow log shows which connection is talking.
+- **A request wakes it**, from the internet or from another service in the
+  project. Nothing scheduled runs on staging.
 
 ### The predictions cron
 
