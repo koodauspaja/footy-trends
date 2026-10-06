@@ -82,12 +82,9 @@ type MatchRow = NormalizedTasoMatch;
 
 /**
  * One carry-over: this group continues its parent's points, so both groups'
- * matches are fed to `calculateStandings`. Keyed by category, then season, then
- * group.
+ * matches are fed to `calculateStandings`.
  *
  * decisions/013-more-finnish-competitions.md
- * decisions/132-carry-over-config-validation.md
- * decisions/133-split-group-round-numbering.md
  */
 type CarryOverEntry = {
   parent: number;
@@ -99,6 +96,16 @@ type CarryOverEntry = {
   seeded: boolean;
 };
 
+/**
+ * Every carry-over, keyed by category, then season, then group. A test checks
+ * each entry against TASO's published standings.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/132-carry-over-config-validation.md
+ * decisions/133-split-group-round-numbering.md
+ * decisions/272-group-standings-endpoint.md
+ */
 const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverEntry>>> = {
   BTSM: {
     spljp15: { 3: { parent: 1, seeded: true }, 4: { parent: 2, seeded: true } },
@@ -109,9 +116,7 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
-    /**
-     * Group 3 carries a −3 `starting_points` deduction.
-     */
+    /** Group 3 carries a −3 `starting_points` deduction. */
     spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
   M1L: {
@@ -180,9 +185,7 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
     spljp23: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp24: { 2: { parent: 1, seeded: true }, 3: { parent: 1, seeded: true } },
     spljp25: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
-    /**
-     * `seeded: false` is measured for 2026, not carried over from 2025.
-     */
+    /** TASO reports `starting_points` 0 for both groups, with the parent already in `points`. */
     spljp26: { 2: { parent: 1, seeded: false }, 3: { parent: 1, seeded: false } },
   },
 };
@@ -226,6 +229,7 @@ function parentGroupId(categoryId: string, competitionId: string, groupId: numbe
  * does not reproduce its points. Nullable throughout, as TASO's rows are, so an
  * unreported stat renders as "–"; `form` is always empty.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/013-more-finnish-competitions.md
  */
 export type TasoTeamStanding = {
@@ -247,6 +251,7 @@ export type TasoTeamStanding = {
  * How a group renders: `own-calculated` (ours, with a round selector),
  * `pass-through` (TASO's numbers, without one) or `match-list` (no table).
  *
+ * decisions/009-veikkausliiga.md
  * decisions/010-playoff-group-match-list.md
  * decisions/013-more-finnish-competitions.md
  */
@@ -282,6 +287,7 @@ type FinishedMatchRow = MatchRow & { homeGoals: number; awayGoals: number };
 /**
  * The played matches, in the order they were given.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/036-halftime-comebacks.md
  */
 function toFinishedMatches(matchList: MatchRow[]): FinishedMatchRow[] {
@@ -344,6 +350,7 @@ export async function storedTasoSeasons(competitionCode: string): Promise<Set<nu
 /**
  * The newest season we hold for a competition, or `null` for none.
  *
+ * decisions/011-current-season-discovery.md
  * decisions/029-forced-season-refresh.md
  */
 async function newestStoredSeason(competitionCode: string): Promise<number | null> {
@@ -543,7 +550,7 @@ function roundRange(matchList: MatchRow[], groupId: number): { min: number; max:
 
 /**
  * Shifts a carry-over group's rounds to continue from its parent's last one,
- * where TASO restarted them at 1. Does nothing where they already continue.
+ * where they overlap the parent's. Does nothing where they already continue.
  *
  * decisions/133-split-group-round-numbering.md
  */
@@ -583,6 +590,7 @@ function withContinuedRoundNumbering(
  * The season's matches as every `/kotimaa` page reads them, rounds renumbered.
  * `cache()`d, so one request syncs a season at most once.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/133-split-group-round-numbering.md
  */
 const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
@@ -658,15 +666,15 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
  * in one transaction, so a failure leaves the previous snapshot in place.
  *
  * decisions/013-more-finnish-competitions.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/196-concurrent-group-syncs.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
   competitionId: string,
   seasonId: number,
   rows: NormalizedTasoGroupTeam[],
-  /**
-   * The transaction to join, when a caller has one.
-   */
+  /** The transaction to join, when a caller has one. Defaults to its own. */
   executor: Executor = db
 ): Promise<void> {
   // An empty snapshot is an answer too, and replaces what was stored.
@@ -719,6 +727,7 @@ export async function synchronizeGroupTeams(
  * TASO's own group standings, stored and refreshed on the same rule as matches.
  *
  * decisions/013-more-finnish-competitions.md
+ * decisions/272-group-standings-endpoint.md
  */
 const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
   categoryId: string,
@@ -759,9 +768,7 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
       )
       .orderBy(desc(tasoGroupTeams.updatedAt));
   } catch (error) {
-    /**
-     * An error, with `stored` to tell stale rows from none at all.
-     */
+    // An error, with `stored` to tell stale rows from none at all.
     logger.error(
       { err: error, categoryId, competitionId, seasonId, stored: stored.length },
       "TASO group refresh failed; falling back to stored group standings"
@@ -787,10 +794,8 @@ function reportUnconfiguredContinuations(
   for (const group of groups) {
     if (group.group_type !== "additional_group_stage") continue;
 
-    /**
-     * Validated as `normalizeGroupTeams` validates it, so the groups reported on
-     * are the groups stored.
-     */
+    // Validated as `normalizeGroupTeams` validates it, so the groups reported on
+    // are the groups stored.
     const groupId = parseProviderId(group.group_id);
     if (groupId === null) continue;
 
@@ -859,6 +864,7 @@ function publishedPosition(team: StoredGroupTeam): number | null {
  * A stored row as a pass-through row. `position` is its place in TASO's order,
  * not TASO's literal number, which can have a gap or an unranked row.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/013-more-finnish-competitions.md
  */
 function toPassThroughStanding(team: StoredGroupTeam, index: number): TasoTeamStanding {
@@ -1022,19 +1028,16 @@ function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTe
 
 /**
  * Whether a group keeps a table: at least one row has a real `points` number.
- * A knockout group has none, and TASO omits the field there, so `null` and
- * `undefined` both mean no.
+ * A knockout group has none; TASO omits the field, which is stored as null.
  *
  * decisions/010-playoff-group-match-list.md
+ * decisions/013-more-finnish-competitions.md
  */
 function keepsATable(teamRows: StoredGroupTeam[]): boolean {
   // No rows at all means TASO has no table for this group — either a knockout
   // bracket, or a qualifying match whose group exists with zero teams until it
   // is played. Three of the latter exist in 2026. Both render as matches.
   if (teamRows.length === 0) return false;
-  // A knockout group is not a points competition: TASO omits `points` for
-  // every team rather than sending zeroes. A league group always has a real
-  // number for every team.
   return teamRows.some((team) => team.points !== null);
 }
 
@@ -1233,9 +1236,9 @@ async function readTasoSeason(
   // Not an error: a season this club has no counted match in is empty.
   if (league.status !== "ok") return { status: "empty" };
 
-  // A **pass-through** season is different: its matches are league matches, its
-  // published table simply disagrees with ours, so it ranks nobody. It stays,
-  // with a null position, and its results count towards every rate.
+  // A pass-through season stays: its matches are league matches, and only its
+  // published table disagrees with ours, so it ranks nobody. Its position is
+  // null and its results count towards every rate.
   const series = positionSeriesFrom(
     classified.matches,
     classified.groups,
@@ -1414,8 +1417,7 @@ async function teamLeagueMatches(
   const tableGroupIds = new Set(
     classified.groups.filter((group) => group.kind !== "match-list").map((group) => group.groupId)
   );
-  // Grouped before `toFinishedMatches`, whose result type no longer carries the
-  // group.
+  // Only the matches of the groups that keep a table.
   const leagueMatches = classified.matches.filter(
     (match) =>
       tableGroupIds.has(match.groupId) &&
@@ -1460,8 +1462,7 @@ function positionSeriesFrom(
   if (path === null) return { status: "unavailable" };
   const { regular } = path;
 
-  // Grouped before `toFinishedMatches`, whose result type no longer carries the
-  // group — so "finished" keeps the one definition the standings page uses.
+  // "Finished" as the standings page defines it, one group at a time.
   const finishedIn = (groupId: number) =>
     toFinishedMatches(seasonMatches.filter((match) => match.groupId === groupId));
 
@@ -1484,10 +1485,8 @@ function positionSeriesFrom(
   const lastContinuation = lastRoundPlayedBy(continuationFinished, teamId);
 
   if (lastContinuation === null) {
-    /**
-     * True when the continuation was played only in matches with no round, where
-     * the line stops with a note. Not when it has simply not been played yet.
-     */
+    // True when the continuation was played only in matches with no round, where
+    // the line stops with a note. Not when it has simply not been played yet.
     const playedWithoutRound = continuationFinished.some(
       (match) => match.homeTeamProviderId === teamId || match.awayTeamProviderId === teamId
     );
@@ -1517,7 +1516,7 @@ type TableAfter = (groupId: number) => (round: number | undefined) => TeamStandi
 /**
  * Where one team's league season runs: its regular-season group, and the
  * continuation when it is a verified carry-over, with `offset` the teams ranked
- * above. `null` when the regular season has no per-round table.
+ * above.
  *
  * decisions/030-league-position-by-matchday.md
  * decisions/050-table-volatility.md
@@ -1527,6 +1526,13 @@ type LeaguePath =
   | { regular: TableGroup; continuation: TableGroup; combinable: false }
   | { regular: TableGroup; continuation: TableGroup; combinable: true; offset: number };
 
+/**
+ * One team's path through a classified season, or `null` when its regular
+ * season has no per-round table.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/050-table-volatility.md
+ */
 function leaguePath(
   seasonMatches: MatchRow[],
   tableGroups: readonly TableGroup[],
@@ -1785,6 +1791,8 @@ export async function getSeasonStandings(
  * reproduces TASO's points, and TASO's own numbers when it does not.
  *
  * decisions/013-more-finnish-competitions.md
+ * decisions/043-liigacup.md
+ * decisions/304-test-database.md
  */
 function buildGroup(
   seasonMatches: MatchRow[],
@@ -1796,10 +1804,8 @@ function buildGroup(
   const groupName = groupNameOf(seasonMatches, groupId);
   const teamRows = groupTeamsFor(allTeamRows, groupId);
 
-  /**
-   * A cup's groups are rounds, never tables, whatever points TASO reports. The
-   * exception is a round-robin group of a cup that has them.
-   */
+  // A cup's groups are rounds, never tables, whatever points TASO reports. The
+  // exception is a round-robin group of a cup that has them.
   if (isCupCategory(categoryId)) {
     const matches = selectGroupMatches(seasonMatches, groupId);
     const isTabledGroup = tablesRoundRobinGroups(categoryId) && isRoundRobin(matches);

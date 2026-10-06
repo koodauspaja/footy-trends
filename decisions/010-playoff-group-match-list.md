@@ -120,7 +120,7 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
 Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 
-- **The dateless row in `normalizeMatch`.** TASO returns one for every
+- **The dateless row in `normalizeTasoMatch`.** TASO returns one for every
   two-legged playoff final, holding the tie's aggregate score: confirmed to be
   exactly the sum of the two legs in 2019, 2022, 2023 and 2024. It carries
   `status: "Played"` and a real score like any other row. Skipping it also

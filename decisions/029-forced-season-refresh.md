@@ -485,7 +485,7 @@ Cut from `src/lib/force-refresh.ts` at `55a14fc` by #531.
 
 Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 
-- **`tasoMatchesCacheKey`, `tasoGroupsCacheKey`.** Exported because the forced
+- **`tasoMatchesCacheKey`, `tasoCategoryCacheKey`.** Exported because the forced
   refresh has to delete exactly these keys to reach TASO. Spelled out in two
   places, a changed key would silently stop the refresh clearing anything, and
   the refetch would answer out of the cache it meant to bypass.

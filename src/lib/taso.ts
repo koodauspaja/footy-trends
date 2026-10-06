@@ -16,21 +16,29 @@ const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
  * How long a season's match list stays cached: long enough that a page does not
  * re-ask, short enough that a live result is not stale for long.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/200-taso-read-cache.md
  */
 const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * The Redis keys the two season endpoints cache under. The season is inside
- * `competitionId` (`spljp26`, `M1LCUP26`), so they are per season.
+ * The Redis key one category's season of matches is cached under. `competitionId`
+ * (`spljp26`) is a whole season of Finnish football and `group_id`s collide
+ * across its categories, so a request scoped to a category passes both.
  *
+ * decisions/013-more-finnish-competitions.md
  * decisions/029-forced-season-refresh.md
  */
 export function tasoMatchesCacheKey(competitionId: string, categoryId: string): string {
   return `taso:matches:${competitionId}:${categoryId}`;
 }
 
+/**
+ * The Redis key one category's season of groups is cached under.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export function tasoCategoryCacheKey(competitionId: string, categoryId: string): string {
   return `taso:category:${competitionId}:${categoryId}`;
 }
@@ -51,16 +59,19 @@ const ORIGIN = "https://tulospalvelu.palloliitto.fi";
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-// `competition_id` (`spljp26`) is a whole season of Finnish football, and
-// `group_id`s collide across its categories, so every request passes
-// `category_id`.
-
 function apiKey(): string {
   const key = process.env.TASO_API_KEY;
   if (!key) throw new Error("TASO_API_KEY is not configured");
   return key;
 }
 
+/**
+ * One TASO request, with the headers its origin check wants and a bound on how
+ * long it waits.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/363-render-timeouts.md
+ */
 function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetchProviderJson<T>(
     "TASO",
@@ -85,10 +96,11 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
  * ones too, and an unplayed match's `fs_A`/`fs_B` is `""`, not `null` or `"0"`.
  *
  * decisions/009-veikkausliiga.md
+ * decisions/036-halftime-comebacks.md
  */
 export type TasoProviderMatch = {
   match_id?: string;
-  status?: string; // "Played" | "Fixture" | "Live", confirmed against live data
+  status?: string; // TASO's own word: see `normalizeStatus`
   winner?: string; // "Home" | "Away" | "Tie", absent until the match is played
   round_id?: string;
   group_id?: string;
@@ -114,6 +126,9 @@ type MatchesResponse = { matches?: TasoProviderMatch[] };
  * the group it belongs to.
  *
  * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/036-halftime-comebacks.md
  */
 export type NormalizedTasoMatch = {
   providerMatchId: number;
@@ -206,6 +221,7 @@ function parseKickoff(date: string, time: string, offset: string): Date | null {
  * TASO's status as the app's. A walkover (`Forfeited`) is `FINISHED`, as TASO
  * counts it; `Planned` is scheduled; an unknown status passes through verbatim.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/013-more-finnish-competitions.md
  */
 function normalizeStatus(status: string): string {
@@ -214,6 +230,14 @@ function normalizeStatus(status: string): string {
   return status;
 }
 
+/**
+ * One TASO match normalized for storage, or `null` for a row that cannot be
+ * stored: an unusable id, or no kickoff.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/284-provider-id-validation.md
+ */
 export function normalizeTasoMatch(
   match: TasoProviderMatch,
   competitionId: string,
@@ -235,10 +259,8 @@ export function normalizeTasoMatch(
   )
     return null;
 
-  /**
-   * The four ids the row is stored under. A row with an unusable one is skipped:
-   * it is worth less than the season.
-   */
+  // The four ids the row is stored under. A row with an unusable one is skipped:
+  // it is worth less than the season.
   const providerMatchId = parseProviderId(match.match_id);
   const groupId = parseProviderId(match.group_id);
   const homeTeamProviderId = parseProviderId(match.team_A_id);
@@ -302,7 +324,9 @@ export function normalizeTasoMatch(
  * Every match TASO has for one category's season, whatever its group or status.
  * `seasonId` is passed in, never derived from `competitionId`.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/017-huuhkajat.md
+ * decisions/200-taso-read-cache.md
  */
 export async function getSeasonMatches(
   competitionId: string,
@@ -329,6 +353,7 @@ export async function getSeasonMatches(
  * The oldest season the app offers. Configured: TASO lists only currently
  * published competitions, so it cannot say what seasons have existed.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/011-current-season-discovery.md
  */
 export const EARLIEST_TASO_SEASON = 2015;
@@ -428,6 +453,12 @@ export type TasoGroupTeam = {
   final_group_standing?: string | null;
 };
 
+/**
+ * One group as TASO sends it, with its teams' rows.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/281-missing-carry-over-entry.md
+ */
 export type TasoGroup = {
   group_id?: string;
   group_name?: string;
@@ -492,6 +523,7 @@ const INT4_MAX = 2_147_483_647;
  * One numeric field as TASO reported it, or `null` when it reported nothing
  * usable: a string is a decimal integer the column can hold, or it is nothing.
  *
+ * decisions/013-more-finnish-competitions.md
  * decisions/284-provider-id-validation.md
  */
 function optionalNumber(value: number | string | null | undefined): number | null {
@@ -565,6 +597,7 @@ export function normalizeGroupTeams(
  * Every group TASO returns for one category's season, with its own precomputed
  * standings. Read from `getCategory`: TASO refuses `getGroups`.
  *
+ * decisions/009-veikkausliiga.md
  * decisions/272-group-standings-endpoint.md
  */
 export async function getSeasonGroups(

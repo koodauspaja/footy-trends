@@ -7,7 +7,7 @@ from the comments of its code.
 
 Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 
-- **The ids in `normalizeMatch`.** All four columns are `integer NOT NULL`.
+- **The ids in `normalizeTasoMatch`.** All four columns are `integer NOT NULL`.
   `Number` alone let `""`, `"2abc"` and an over-long digit string through as
   0, NaN and a rounded value: the first two fail the insert for the whole
   season, and the third stores the match under a group or team that exists but
@@ -25,5 +25,5 @@ Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
   under something else: `"0x10"` read as group 16 is a real group's table with
   a foreign team in it. `Number("-0")` and `Number("")` are zero, which
   `Number.isInteger` accepts and no TASO entity has.
-- **The scores in `normalizeMatch`.** They read the same fields the same way,
+- **The scores in `normalizeTasoMatch`.** They read the same fields the same way,
   so a second copy of the rule only gave them their own `Number` traps.

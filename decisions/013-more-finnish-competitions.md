@@ -328,7 +328,7 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
 Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 
-- **The `category_id` on every request.** Confirmed live: Veikkausliiga, Miesten
+- **The `category_id` on a category-scoped request.** Confirmed live: Veikkausliiga, Miesten
   Kakkonen and Ykkönen each have their own `group_id: "1"` in `spljp26`.
   Omitting it silently mixes other categories' groups and matches in under
   colliding ids. A parameter, not a constant, since more than one category is
