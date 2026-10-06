@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+import path from "node:path";
 import pino, { type Logger, type LoggerOptions } from "pino";
 
 function createTransport() {
@@ -9,7 +11,9 @@ function createTransport() {
   }
 
   return pino.transport({
-    target: "@axiomhq/pino",
+    // An absolute path: pino cannot resolve a bare name from inside Next's bundle.
+    // decisions/574-pino-transport-target.md
+    target: createRequire(path.join(process.cwd(), "package.json")).resolve("@axiomhq/pino"),
     options: {
       dataset,
       token,
