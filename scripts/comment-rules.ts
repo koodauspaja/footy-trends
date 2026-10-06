@@ -45,7 +45,7 @@ export function listSourceFiles(root: string, directory = "."): string[] {
         ? [relative]
         : [];
     })
-    .sort();
+    .sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function scriptKind(file: string): ts.ScriptKind {
@@ -126,7 +126,8 @@ export function stackedDocComments(
   return comments.flatMap((comment, index) => {
     const previous = comments[index - 1];
     if (previous === undefined || !previous.doc || !comment.doc) return [];
-    if (!/^[ \t]*\n?[ \t]*$/.test(source.slice(previous.end, comment.start))) return [];
+    const between = source.slice(previous.end, comment.start);
+    if (between.trim() !== "" || between.split("\n").length > 2) return [];
     return [{ file, line: comment.line, text: comment.text.replace(/\n[\s\S]*/, "") }];
   });
 }
