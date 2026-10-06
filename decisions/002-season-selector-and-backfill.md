@@ -142,3 +142,10 @@ Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
   plan rejects with 403. Wrapped in React's `cache()` so a page's
   `generateMetadata` and its default export, which both resolve the same
   competition's context, do not hit Redis or the provider twice.
+
+Cut from `src/lib/seasons.ts` at `ef99862` by #531.
+
+- **`DEFAULT_EARLIEST_SEASON`.** The provider's `seasons[]` array advertises
+  every season back to 1888, but only the seasons inside the current API
+  plan return 200; the rest return 403. So the selectable range is bounded
+  by configuration and not by the provider's list.

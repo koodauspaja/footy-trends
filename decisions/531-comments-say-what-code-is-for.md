@@ -237,3 +237,33 @@ lines or fewer whose only fault is a bare citation in parentheses, `(S4)` or
 the record its last writer belongs to. 73 of this batch's comments went that
 way. Everything longer, and every citation that is part of a sentence, is
 still read and rewritten.
+
+## The ninth batch, 2026-10-06
+
+Forty files in full: in `src/lib`, `admin-role.ts`, `analytics-axis.ts`,
+`avatar-limits.ts`, `breadcrumb.ts`, `cup-standings.ts`, `e2e-analytics.ts`,
+`goals-series.ts`, `home-baseline.ts`, `pacer.ts`, `prediction-backtest.ts`,
+`prediction-log.ts`, `provider-ids.ts`, `refresh-actions.ts`, `regions.ts`,
+`return-path.ts`, `seasons.ts`, `sentry-config.ts`, `settings-actions.ts`,
+`streaks.ts`, `table-volatility.ts` and `test-database-name.ts`; in
+`src/components`, `admin-user-table.tsx`, `charts/goals-chart.tsx`,
+`charts/season-comparison-chart.tsx`, `competition-picker.tsx`,
+`competition-team-page.tsx`, `favourites-page.tsx`, `match-prediction.tsx`,
+`refresh-confirm.tsx`, `refresh-run-list.tsx`, `site-footer.tsx`,
+`start-redirect.tsx`, `streak-records-section.tsx`,
+`taso-season-only-controls.tsx` and `team-season-selector.tsx`; and
+`src/app/admin/data/page.tsx`, `src/app/api/avatar/me/route.ts`,
+`src/app/domestic/team/[id]/page.tsx`, `src/app/favorites/page.tsx` and
+`src/instrumentation.ts`. 56 743 characters of comment became 40 271.
+
+Four records are new: `302` (the privacy policy and the footer that reaches
+it), `303` (the terms of service and the providers' credit), `479` (the
+integration suite refuses a database that is not a test one) and `529` (one
+parser for whole numbers in URLs).
+
+The batch is twice the size of the earlier ones because its files are small: 89
+of its comments needed only a citation cut and a record path, and the local
+script wrote those. From the review of the eighth batch, each batch is also
+checked for a comment line over 100 columns, a code span split across lines, a
+record path on a comment it does not belong to, and a new record's issue kind
+against the issue's label.

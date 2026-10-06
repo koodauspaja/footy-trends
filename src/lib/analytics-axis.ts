@@ -1,17 +1,9 @@
 /**
- * What a period *is* on the page the `Analyysit` section sits on — and so every
- * Finnish string that names one (specs/041, S11 and S13).
+ * What a period is on the page the `Analyysit` section sits on, and so every
+ * Finnish string that names one: a season on a club page, a calendar year on a
+ * national-team page. One value per page.
  *
- * A club page's period is a season. A national-team page's is a calendar year:
- * it has no season at all, so its charts run across the whole history and only
- * `Muut vuodet` reads years as periods (specs/041, S3 and S4).
- *
- * **One value per page, not one flag per string.** The panels used to spell
- * `kausi` into their own headings, which is why this exists: a page that says
- * `Tämä vuosi verrattuna` under a group called `Muut kaudet` is worse than one
- * that says neither. Picking the axis picks every word at once, so a page cannot
- * disagree with itself — and the two constants below are the only two axes the
- * app has.
+ * decisions/041-national-team-analytics.md
  */
 
 export type AnalyticsAxis = {
@@ -19,19 +11,25 @@ export type AnalyticsAxis = {
   comparisonHeading: string;
   /** The filled column, in the chart's legend and in its text alternative. */
   selectedLabel: string;
-  /** `Verrattuna 11 muuhun kauteen: Veikkausliiga, Ykkönen` (specs/038). */
+  /** `Verrattuna 11 muuhun kauteen: Veikkausliiga, Ykkönen`. */
   baselineLine: (periods: number, names: readonly string[]) => string;
   /** Shown instead, when there is no other period to compare against. */
   noOthersMessage: string;
-  /** When a record was set: one period, or the two it ran between (specs/039, S8). */
+  /** When a record was set: one period, or the two it ran between. */
   recordSpan: (from: string, to: string) => string;
-  /** The group holding the panels that summarise the whole period (#424). */
+  /** The group holding the panels that summarise the whole period. */
   wholeHeading: string;
   /** The group holding the panels that look outside it. */
   otherHeading: string;
 };
 
-/** A club page: the period is a season, as specs/038 and specs/039 wrote it. */
+/**
+ * A club page: the period is a season.
+ *
+ * decisions/041-national-team-analytics.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ */
 export const SEASON_AXIS: AnalyticsAxis = {
   comparisonHeading: "Tämä kausi verrattuna",
   selectedLabel: "Tämä kausi",
@@ -46,7 +44,9 @@ export const SEASON_AXIS: AnalyticsAxis = {
 /**
  * A national-team page: the period is a calendar year, and the middle group
  * covers every match since 2018 rather than one of them — so it is named for
- * what it covers instead of for a period it does not have (specs/041, S13).
+ * what it covers instead of for a period it does not have.
+ *
+ * decisions/041-national-team-analytics.md
  */
 export const HISTORY_AXIS: AnalyticsAxis = {
   comparisonHeading: "Tämä vuosi verrattuna",

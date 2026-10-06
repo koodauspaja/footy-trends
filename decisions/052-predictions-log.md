@@ -73,3 +73,16 @@ Cut from `src/lib/prediction-log-service.ts` at `dc74e3e` by #531.
   read again just before writing: pacing the refreshes can take minutes, and
   a match that kicked off in the meantime must not be written after its
   kickoff.
+
+Cut from `src/lib/pacer.ts` at `ef99862` by #531.
+
+- **`delayBefore`.** Database writes between requests are not free, and
+  charging for time already spent would make a 344-request run considerably
+  longer than it needs to be.
+- **`createPacer`.** Requests started together are still spaced out. With
+  the clock and the sleep as parameters a test can run it without waiting.
+
+Cut from `src/lib/prediction-backtest.ts` at `ef99862` by #531.
+
+- **`backtestRows`.** Of two matches sharing a kickoff, neither is evidence
+  for the other. A competition's first kickoff has nothing before it.

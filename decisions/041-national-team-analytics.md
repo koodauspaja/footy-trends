@@ -182,3 +182,21 @@ Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
   a signed-out page must carry no computed value at all. The `incomplete`
   notice already says the history may be short, and a partial history is
   still a history: the same trade as on the list itself.
+
+Cut from `src/lib/analytics-axis.ts` at `ef99862` by #531.
+
+- **`AnalyticsAxis`.** A national-team page has no season at all, so its
+  charts run across the whole history and only `Muut vuodet` reads years as
+  periods. One value per page and not one flag per string: the panels spelled
+  `kausi` into their own headings, and a page that says
+  `Tämä vuosi verrattuna` under a group called `Muut kaudet` is worse than
+  one that says neither. Picking the axis picks every word at once, so a
+  page cannot disagree with itself, and the two constants are the only two
+  axes the app has.
+- **`SEASON_AXIS`.** Its strings are the ones the season comparison and the
+  record book were written with.
+
+Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #531.
+
+- **`BASELINE_LABEL`.** The filled column is `Tämä kausi` on a club page and
+  `Tämä vuosi` on a national-team one.

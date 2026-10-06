@@ -343,3 +343,31 @@ Cut from `src/lib/admin-user-view.ts` at `dc74e3e` by #531.
   names.
 - **`isAdminRole`.** `isAdmin(entry.role)` would invite being read as "is
   this entry an admin object".
+
+Cut from `src/lib/admin-role.ts` at `ef99862` by #531.
+
+- **`admin-role.ts`.** The exclusion is the same one at the top of
+  `favourite-keys.ts`, `regions.ts` and `avatar-limits.ts`, and load-bearing
+  for the same reason: the account menu decides whether to render the
+  `Ylläpito` link, and the account menu is in the browser bundle. Importing
+  `admin-guard.ts` there would pull the database in with it.
+- **`isAdmin`.** The value arrives from a database column typed `text` and
+  from session payloads the client cannot vouch for, so the check that it is
+  a role at all belongs in one place and not at each call site, where one of
+  them would eventually skip it. An unknown string, a different case, `null`,
+  `undefined`, a number: all not admin. The failure direction matters more
+  here than anywhere else in the app, so it is closed by construction and
+  not by enumerating what to reject.
+
+Cut from `src/components/admin-user-table.tsx` at `ef99862` by #531.
+
+- **`admin-user-table.tsx`.** A client component because every control is
+  interactive and a deletion asks first. The boundary is the one
+  `avatar-limits.ts` and `favourite-keys.ts` exist for: this is a browser
+  bundle.
+- **The empty user list.** An early return for the empty case dropped the
+  heading and the count. In practice an admin is reading the page, so there
+  is always at least one user; the branch exists because "the query answered
+  nothing" and "the table is empty" must not be the same rendering.
+- **An admin's own row.** Offering a button whose only outcome is a refusal
+  is a worse answer than not offering it.

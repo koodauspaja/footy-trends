@@ -648,3 +648,60 @@ Cut from `src/db/index.ts` at `dc74e3e` by #531.
 - **`Executor`.** Without the parameter a writer silently commits on its own
   connection while its caller believes it is inside a transaction, which is
   what `force-refresh.ts` believed, and did not have, until review said so.
+
+Cut from `src/app/admin/data/page.tsx` at `ef99862` by #531.
+
+- **The refusal on `/yllapito/data`.** A 403 says "this exists and you may
+  not have it", a fact a stranger has no use for. The 200 is a framework
+  limit and not a choice: `src/app/loading.tsx` puts every segment behind a
+  Suspense boundary, so Next commits the status line before `notFound()` is
+  caught. The body gives nothing away, and `requireAdmin()` refuses here
+  and, separately, inside all three actions.
+- **A failed read of the run log.** Saying nothing has ever been refreshed
+  is a claim we cannot make from a database error, and the page exists
+  partly so an admin can trust that list.
+
+Cut from `src/lib/refresh-actions.ts` at `ef99862` by #531.
+
+- **`refresh-actions.ts`.** A server action is a public network endpoint
+  whether or not anything renders a control for it, so neither the missing
+  link nor the page's not-found response keeps a caller out; only the gate
+  does. The same rule `admin-actions.ts` and `favourite-actions.ts` follow.
+  The competition arrives as the `<select>`'s own encoded value, a string
+  from the browser like any other: `decodeChoice` checks its shape and
+  `isKnownCompetition` checks it against the registries, and a value failing
+  either is refused before it reaches the engine.
+- **`applyRefreshAction`.** The hash only answers "is this still the thing
+  you were shown".
+- **Revalidating after an apply.** Without it the row just written stays
+  invisible until the admin reloads: an audit log that does not show the
+  thing that was audited. Revalidating for a refusal would re-render the
+  page to prove nothing changed.
+
+Cut from `src/components/refresh-confirm.tsx` at `ef99862` by #531.
+
+- **`refresh-confirm.tsx`.** A truncated provider answer is
+  indistinguishable from a season that genuinely lost fixtures: nothing in
+  the response separates them, so nothing in the code can. What separates
+  them is a person seeing `Poistuvia otteluita: 180` and declining. A number
+  is not enough to judge a deletion by, and deletion is the only
+  irreversible thing this tool does.
+- **The `<dialog>` in the confirmation.** The element carries the semantics
+  natively and behaves consistently across assistive technology, which the
+  role alone does not guarantee. A top-layer modal would need focus
+  management the inline form does not otherwise require.
+
+Cut from `src/components/refresh-run-list.tsx` at `ef99862` by #531.
+
+- **`refresh-run-list.tsx`.** None of it needs to reach the browser as
+  JavaScript. The questions it answers are asked months apart by someone who
+  cannot be expected to remember: when did we last refresh this, did it
+  work, and what did it move.
+- **`REASONS`.** A reason with no message would otherwise be an empty cell
+  in an audit log. `reasonFrom` in `refresh-runs.ts` has already rejected
+  anything outside the union.
+- **`Counts`.** `1 / 2 / 0` is compact enough to scan down a column and
+  meaningless read aloud. Visually hidden text and not `aria-label`: a bare
+  `<span>` has no role, and ARIA labelling is not supported on elements that
+  have none. `sr-only` is what `team-search.tsx` already uses for the same
+  job.

@@ -32,12 +32,20 @@ import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
 import { teamPanelLoaders } from "@/lib/team-panels";
 
-/** A team page's own `params`, on top of the shared region options. */
+/**
+ * A team page's own `params`, on top of the shared region options.
+ *
+ * decisions/016-world-cup-and-euro.md
+ */
 export type CompetitionTeamPageOptions = CompetitionPageOptions & {
   params: Promise<{ id: string }>;
 };
 
-/** What the URL already said, and so what the team's own context must not contradict. */
+/**
+ * What the URL already said, and so what the team's own context must not contradict.
+ *
+ * decisions/020-context-free-team-page.md
+ */
 function filterFrom(
   params: Record<string, string | string[] | undefined>,
   region: CompetitionPageOptions["region"]
@@ -56,6 +64,9 @@ function filterFrom(
  *
  * decisions/004-listing-matches-for-selected-team.md
  * decisions/020-context-free-team-page.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
  */
 async function resolveTeamPage({
   params,
@@ -69,7 +80,7 @@ async function resolveTeamPage({
   if (teamProviderId === null) return { status: "not_found" };
   const source = { kind: "football-data", region } as const;
   // Resolved before the season context, because it decides which competition
-  // that context is fetched for. See specs/020-context-free-team-page.md.
+  // that context is fetched for.
   const defaults = await resolveTeamDefaults(source, teamProviderId, filterFrom(query, region));
   if (defaults.status === "not_found") return defaults;
   if (defaults.status === "error") return { status: "error", heading: TEAM_HEADING };
@@ -162,9 +173,8 @@ async function resolveTeamPage({
           context.activeSeasonId,
           played
         ),
-      // A cup has no table to rank a position in, so the panel is absent
-      // rather than empty (specs/040, S2). Every other panel is computed
-      // from results, which a cup has.
+      // A cup has no table to rank a position in, so the panel is absent, not
+      // empty. Every other panel is computed from results, which a cup has.
       loadPosition: () =>
         getCompetitionFormat(competitionCode) === "cup"
           ? Promise.resolve({ status: "unavailable" as const })
@@ -178,11 +188,10 @@ async function resolveTeamPage({
       ...teamPanelLoaders({ teamProviderId, competitionCode, seasonId }, () =>
         getTeamPanelMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId)
       ),
-      // Every competition in the region and every stored season, whatever
-      // season is shown (specs/045, S4). `unavailable` on a national team's
-      // page, which is a country rather than a club (S5).
+      // Every competition in the region and every stored season, whatever season
+      // is shown. `unavailable` on a national team's page: a country, not a club.
       loadOpponents: () => getWorstOpponents(source, teamProviderId, basePath),
-      // Clubs only: national teams have no Elo (specs/053 S5).
+      // Clubs only: national teams have no Elo.
       loadElo: async () =>
         region === "national-teams"
           ? { series: { status: "unavailable" as const } }
@@ -199,8 +208,10 @@ export async function teamMetadata(options: CompetitionTeamPageOptions): Promise
 }
 
 /**
- * A team's page for one region — `/ulkomaat` or `/maajoukkueet`. One
- * implementation for both; see specs/016-world-cup-and-euro.md.
+ * A team's page for one region, `/ulkomaat` or `/maajoukkueet`. One
+ * implementation for both.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 export async function CompetitionTeamPage(options: Readonly<CompetitionTeamPageOptions>) {
   return TeamPage({ data: await resolveTeamPage(options) });

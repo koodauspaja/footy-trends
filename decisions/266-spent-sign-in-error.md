@@ -13,3 +13,12 @@ Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
 - **`clearError`.** Sign-out succeeds without navigating, so a notice left
   over from a failed one would stay on screen. The ordinary path adds no
   history entry.
+
+Cut from `src/lib/return-path.ts` at `ef99862` by #531.
+
+- **`returnPath` drops `error`.** Carrying the whole query string is what
+  returns the reader to `?kilpailu=`, `?kausi=` or `?vaihe=` where they left
+  off, but on `/?error=auth` it also made `callbackURL` point at the error
+  itself, so a successful sign-in landed the reader back on
+  `Kirjautuminen epäonnistui`, telling them the thing that had just worked
+  had failed. An error belongs to one attempt, not to the page.

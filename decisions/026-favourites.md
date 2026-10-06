@@ -403,3 +403,37 @@ Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
   `/maajoukkueet` shows football-data's World Cup standings and TASO's
   national-team pages, so the region does not decide the provider. A bracket
   or a pass-through group has rows that are not teams anyone can follow.
+
+Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
+
+- **`favouriteRegion`.** Separate from `region`, which is football-data's
+  notion. `extraEntries` holds Huuhkajat and Helmarit, which are teams and
+  not competitions.
+
+Cut from `src/components/favourites-page.tsx` at `ef99862` by #531.
+
+- **`favourites-page.tsx`.** The page is the one place that shows what a
+  favourite is and not only whether it is one.
+- **`TeamLabel`.** No stored matches means no name. A name without a page,
+  because its competitions have left the registry and no region can be said
+  to own it, is still worth showing: `Joukkuetta ei löytynyt.` would be
+  false about a team we just named.
+- **The refetch after a removal.** Without it, removing a team and then
+  following a client-side link to its page shows a filled star for a
+  favourite that no longer exists, until something else happens to refresh
+  the session.
+
+Cut from `src/app/favorites/page.tsx` at `ef99862` by #531.
+
+- **`/suosikit` is read on the server.** Everything it shows is server data,
+  and one render beats a client endpoint per section. Reading the session
+  hits the database, and an unhandled failure would render an error page
+  where the reader expected their list; calling that "signed out" would be a
+  claim we cannot make.
+- **The order of favourite competitions.** Insertion order would mean the
+  page rearranges itself as the reader adds favourites, and query order is
+  not even that stable. A code the registry has dropped still has a row and
+  still has to be removable.
+- **The order of favourite teams.** Alphabetical is what the feature
+  promises. A team without a name has no place in that order, and would
+  otherwise sort as "".

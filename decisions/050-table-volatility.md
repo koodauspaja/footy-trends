@@ -53,3 +53,16 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
 
 - **`captionLines`.** `Sijoitusmuutos keskimäärin` ran off both ends of the
   drawing at 375 px. A caption with no space stays whole.
+
+Cut from `src/lib/table-volatility.ts` at `ef99862` by #531.
+
+- **`table-volatility.ts`.** Every table comes from the calculation the
+  standings page uses for that round. The module decides which round is
+  mid-season, what a season's figure is, and which seasons make the line.
+- **`COMPETITIONS`.** The Champions League's later rounds leave most teams
+  without a final position.
+- **`movementBetween`.** A team in only one table, a withdrawal or annulled
+  results, must not erase the season's figure.
+- **`singleTableMovement`.** The final table takes the same arguments
+  `getStandings` passes. Without a numbered round there is no per-round
+  table.

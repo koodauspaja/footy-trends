@@ -187,3 +187,13 @@ Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
   wrong answer, and the panel's `Verrattuna {n} muuhun kauteen` line would
   state the wrong `n`. One orchestrator for both providers: written twice at
   first, it cost two branches no test could take.
+
+Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #531.
+
+- **`MEASURES`.** The scales are `Koti- ja vierastilastot`'s, so the same
+  measure is drawn the same length in both panels. A short bar is a high
+  finish, which is how `Päästetyt maalit` already reads on the page;
+  inverting only the position row would make one of the two rules wrong.
+- **`measureText`.** A `0` would read as a real zero. An average of other
+  seasons is a place no one finished in, which is why it keeps its decimal.
+  Without a table to put it in, a share is not a place.

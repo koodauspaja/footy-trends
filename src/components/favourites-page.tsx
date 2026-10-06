@@ -12,11 +12,10 @@ import type { FavouriteSource } from "@/lib/favourite-keys";
 import type { RegionSegment } from "@/lib/regions";
 
 /**
- * `/suosikit` for a signed-in reader, from specs/026-favourites.md.
+ * `/suosikit` for a signed-in reader. The lists arrive resolved from the
+ * server: names from stored matches, competitions checked against the registry.
  *
- * The lists arrive resolved from the server — names from stored matches,
- * competitions checked against the registry — because this page is the one
- * place that shows what a favourite *is* rather than only whether it is one.
+ * decisions/026-favourites.md
  */
 
 export type FavouriteTeamEntry = {
@@ -44,12 +43,10 @@ const REMOVE_CLASS =
   "rounded border border-border px-2 py-1 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * How one favourited team reads, in three cases rather than two.
+ * How one favourited team reads, in three cases: no name at all, a name
+ * without a page, or a link. Every row keeps its `Poista suosikeista`.
  *
- * No stored matches means no name at all. A name without a page — its
- * competitions have left the registry, so we cannot say which region owns it —
- * is still worth showing: `Joukkuetta ei löytynyt.` would be false about a team
- * we just named. Either way the row keeps its `Poista suosikeista`.
+ * decisions/026-favourites.md
  */
 function TeamLabel({ entry }: Readonly<{ entry: FavouriteTeamEntry }>) {
   if (entry.name === null) {
@@ -80,14 +77,8 @@ export function FavouritesPage({ teams, competitions }: Props) {
           // Hidden locally rather than by a reload: the row is gone as far as
           // the reader is concerned, and the server has already been told.
           setRemovedKeys((keys) => [...keys, key]);
-          /**
-           * And the session has to catch up, for the same reason the toggle
-           * refetches after a write: every star in the app reads its state from
-           * the session payload. Without this, removing a team here and then
-           * following a client-side link to its page shows a filled star for a
-           * favourite that no longer exists — until something else happens to
-           * refresh the session.
-           */
+          // The session has to catch up, as after the toggle's write: every star in
+          // the app reads its state from the session payload.
           await refetch();
         } else {
           setFailed(true);

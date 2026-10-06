@@ -115,3 +115,10 @@ Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
   a missing season could only make one too small and not wrong in kind, but
   the comparison beside it fails for the same reason, and one rule across
   both beats a defensible difference.
+
+Cut from `src/components/streak-records-section.tsx` at `ef99862` by #531.
+
+- **`seasonSpanText`.** Match 37 of a run spanning two seasons is not
+  something a reader can find. `Putket` keeps `Ottelut 5–9` for the season it
+  shows: the two panels answer different questions, so a different unit for
+  "when" is honest and not inconsistent.

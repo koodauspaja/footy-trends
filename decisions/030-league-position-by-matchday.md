@@ -149,3 +149,28 @@ Cut from `src/lib/position-series.ts` at `94397a8` by #531.
   records the order: the lower group's leader is 7th when the upper group has
   six teams, whatever the ids say. Group sizes come from the data: six is
   Veikkausliiga's current shape, not a constant.
+
+Cut from `src/lib/e2e-analytics.ts` at `ef99862` by #531.
+
+- **`e2e-analytics.ts`.** Separate from `analytics-access.ts` so the
+  Playwright suite can import the header name without pulling Next's request
+  APIs and the auth client into a test runner that has neither. One
+  spelling, shared by the server that reads the header and the tests that
+  send it.
+- **Why an override exists.** The e2e suite cannot complete a real Google
+  sign-in, and its session interception (`tests/e2e/session.ts`) reaches
+  only what the browser renders. The analytics gate runs on the server,
+  which sees no cookie. Miikka agreed to an override for the e2e suite on
+  2026-09-18.
+- **Why it cannot be triggered in production.** The flag is set only in
+  `playwright.config.ts`'s `webServer.env`, and production's database name
+  never ends in `_test`. Only then does the per-request header count, which
+  is what lets the same e2e server show a signed-out reader the prompt: a
+  test without the header is signed out.
+
+Cut from `src/lib/return-path.ts` at `ef99862` by #531.
+
+- **`return-path.ts`.** One definition because two drifted: the prompt sent
+  the bare pathname, which was harmless on `/asetukset` and `/suosikit` but
+  on a team page dropped `?kilpailu=` and `?kausi=`, so the reader signed in
+  from a chart and came back to a different competition and season.

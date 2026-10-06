@@ -1,14 +1,10 @@
 import type { RefreshFailureReason, RefreshRunView, RowCounts } from "@/lib/refresh-view";
 
 /**
- * What has been refreshed before, from specs/029-forced-season-refresh.md.
+ * What has been refreshed before. A server component: it renders data and
+ * offers no control.
  *
- * A server component: it renders data and offers no control, so none of it
- * needs to reach the browser as JavaScript.
- *
- * The questions it answers are asked months apart by someone who cannot be
- * expected to remember — when did we last refresh this, did it work, and what
- * did it move.
+ * decisions/029-forced-season-refresh.md
  */
 
 const SECTION = "Aiemmat päivitykset";
@@ -24,15 +20,18 @@ const SUCCEEDED = "Onnistui";
 const FAILED = "Epäonnistui";
 const DELETED_USER = "Poistettu käyttäjä";
 const EMPTY = "Ei aiempia päivityksiä.";
-/** Shown where a provider has no group standings at all. */
+/**
+ * Shown where a provider has no group standings at all.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 const NOT_APPLICABLE = "—";
 
 /**
  * Why a run failed, in the same words the form uses for the same refusal.
+ * Keyed by the union, so a reason with no message is a type error.
  *
- * Keyed by the union rather than by `string`, so a reason with no message is a
- * type error here rather than an empty cell in an audit log. `reasonFrom` in
- * `refresh-runs.ts` has already rejected anything outside it.
+ * decisions/029-forced-season-refresh.md
  */
 const REASONS: Record<RefreshFailureReason, string> = {
   input: "Pyyntö oli virheellinen.",
@@ -54,12 +53,10 @@ const timeFormatter = new Intl.DateTimeFormat("fi-FI", {
 });
 
 /**
- * `1 / 2 / 0` is compact enough to scan down a column, and meaningless read
- * aloud — hence the spelled-out version beside it.
+ * A run's counts, as `1 / 2 / 0` with a spelled-out version beside it in
+ * visually hidden text.
  *
- * Visually hidden text rather than `aria-label`: a bare `<span>` has no role,
- * and ARIA labelling is not supported on elements that have none. `sr-only` is
- * what `team-search.tsx` already uses for the same job.
+ * decisions/029-forced-season-refresh.md
  */
 function Counts({ counts }: Readonly<{ counts: RowCounts | null }>) {
   if (counts === null) {
@@ -128,9 +125,9 @@ export function RefreshRunList({ runs }: Props) {
                     <Counts counts={run.groupRows} />
                   </td>
                   <td className="py-2 pr-4">{run.deductionsChanged}</td>
-                  {/* Null once the account is gone: `run_by` is `on delete set
-                      null`, so the record outlives the person without naming
-                      them. */}
+                  {/* Null once the account is gone: `run_by` is
+                      `on delete set null`, so the record outlives the person
+                      without naming them. */}
                   <td className="py-2">{run.runByName ?? DELETED_USER}</td>
                 </tr>
               ))}

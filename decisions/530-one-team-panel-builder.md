@@ -56,3 +56,11 @@ Cut from `src/lib/team-panels.ts` at `dc74e3e` by #531.
   providers' own loaders catch and log their failures, but nothing obliges
   the next caller to; without the catch here, one rejected read would surface
   as six panels each reporting that it could not be computed.
+
+Cut from `src/app/domestic/team/[id]/page.tsx` at `ef99862` by #531.
+
+- **The Finnish club page.** The file was a copy of the shared page. What
+  is left is what TASO does differently: its own context resolver, a season
+  that is a plain year, the renamed-competition notice, the `Sarja` column,
+  and loaders that take a category and a competition id where football-data
+  takes a competition code.

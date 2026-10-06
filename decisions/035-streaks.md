@@ -46,3 +46,13 @@ oldest first, must end on the run the panel calls current.
   #426, the across-seasons placeholder.
 - **Streaks of clean sheets or of scoring** are a different measure; `Nollapelit`
   (#334) covers clean sheets as a share.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/streaks.ts` at `ef99862` by #531.
+
+- **`streaks.ts`.** The services pass the matches in, ordered by
+  `teamMatchesInOrder`, so "Ottelut 5–9" means the same five matches on the
+  charts and in the panel.
+- **`longestRun`.** Reporting the first of equal runs means the answer does
+  not move as the season goes on.

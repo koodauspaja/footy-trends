@@ -210,3 +210,19 @@ Cut from `src/components/team-matches-outcome.tsx` at `dc74e3e` by #531.
   `refreshFailed ? error : empty`, so `empty` stays true whether or not the
   club's other seasons could be read, and reporting an outage in its place
   would be less accurate, not more.
+
+Cut from `src/components/taso-season-only-controls.tsx` at `ef99862` by #531.
+
+- **`seasonCompetitions` on `TasoSeasonOnlyControls`.** The same field, for
+  the same reasons, as on `TeamSeasonSelector`: a club's seasons are spread
+  across tiers, and picking one should land on the page it actually played.
+
+Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
+
+- **`seasonCompetitions`.** Promotion and relegation mean a club's seasons
+  are spread across tiers, so picking a season on its Veikkausliiga page
+  should land on the Ykkösliiga page it actually played, not on an empty
+  one. On pages that are not a club's the competition never changes. A typed
+  URL still renders the competition it names, and the plain GET fallback
+  keeps carrying the current one, which lands on a page that explains
+  itself. The same field is on `TasoSeasonOnlyControls`.
