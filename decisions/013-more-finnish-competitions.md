@@ -323,3 +323,116 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
   `specs/013` found Kakkonen's three parallel origins, P21 Ykkönen 2026 without a
   group 1, and P20 Ykkönen 2024's ids 1, 2, 10, 11, 12. So every group with a
   table is calculated and checked against TASO's points (`reproducesTasoPoints`).
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **The `category_id` on every request.** Confirmed live: Veikkausliiga, Miesten
+  Kakkonen and Ykkönen each have their own `group_id: "1"` in `spljp26`.
+  Omitting it silently mixes other categories' groups and matches in under
+  colliding ids. A parameter, not a constant, since more than one category is
+  served.
+- **`normalizeStatus`.** A forfeited row carries the awarded result (3-0 in
+  every case observed) and the team's `matches_played` includes it. Mapping it
+  to anything but `FINISHED` drops it from the table while TASO's numbers
+  still count it, which is how three P20 Ykkönen groups failed to reconcile.
+  36 such matches exist across the competitions this feature covers.
+- **`getSeasonCategoryNames`.** `NL` is "Naisten Liiga" 2015-2019, "Kansallinen
+  Liiga" 2020-2024 and "Briotech Kansallinen Liiga" from 2025, and `M1`
+  alternates between "Ykkönen" and "Miesten Ykkönen". One call covers all 28
+  categories in a season.
+- **`NormalizedTasoGroupTeam`.** TASO uses `starting_points` for three things: a
+  carry-over seed, a points deduction, and a junior qualifying bonus.
+- **`normalizeGroupTeams`.** TASO returns a teamless group for a qualifying
+  match that has not been played yet.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`CarryOverEntry`, `CARRY_OVER_CONFIG`.** An entry is not what decides
+  whether a group can be calculated. Every group with a table is calculated
+  from its own matches plus any configured parent, and TASO's numbers are used
+  only when the result does not reconcile (`reproducesTasoPoints`). A group
+  with no entry is one with nothing to carry over: a season's first group, and
+  Kakkonen's three parallel pools alike.
+- **What earns an entry.** Only a group confirmed, by TASO's own
+  `starting_points` or a from-scratch cross-check, to continue its parent's
+  points. A missing one is therefore visible, not wrong: the group falls back
+  to TASO's numbers with a notice.
+- **A current season is configured as soon as its split groups exist and
+  reconcile,** not on a schedule: Kakkonen, Kansallinen Liiga and Kansallinen
+  Ykkönen had 2026 entries while Veikkausliiga 2026 was still a single
+  Runkosarja. Veikkausliiga 2020 is absent because that season never split.
+- **Keyed by category first.** `competition_id` alone is the season umbrella
+  every Finnish competition shares, so `spljp25: { 2: 1 }` would apply
+  Veikkausliiga's carry-over to every other competition's group 2.
+- **`CarryOverEntry.seeded`.** Only the points representation differs between
+  the conventions. `matches_played` includes the parent's matches either way
+  (Veikkausliiga 2022's Mestaruussarja reports 27, Runkosarja's 22 plus its
+  own 5), which is why the summed calculation is right for both and only the
+  adjustment needs the flag.
+- **`TasoTeamStanding`.** The earlier feature chose this path by shape (no
+  `CARRY_OVER_CONFIG` entry); it is chosen by result now. No Veikkausliiga
+  season reaches it, confirmed live across 2015-2026: every group reconciles
+  exactly. It is the landing place for a group we get wrong, a season that
+  splits before its entry is validated or the two P20 Ykkönen groups that
+  could not be explained, so such a group shows TASO's numbers and not a
+  silently miscalculated table. `form` is empty because there is no
+  match-by-match data behind TASO's numbers to derive it from.
+- **`storedTasoSeasons`.** A junior competition's rows are split across two or
+  three category ids, and asking about a single era would miss the rest: a
+  discovery failure would then fall back to the configured floor and not to
+  what is stored.
+- **`getSeasonCategoryName`.** Cached as the groups were: a completed season's
+  names never change, and the current season's are unlikely to. A name is
+  presentation, so a failure must not break the page.
+- **`dedupeByIdentity`.** An advancing team appears several times in a knockout
+  group. The rejected statement ("cannot affect row a second time") silently
+  cost Veikkausliiga 2019 and 2022 their entire stored group standings. Which
+  slot wins does not matter: such a group has no points and renders as a match
+  list.
+- **`synchronizeGroupTeams`.** Replaces, not merges: upserting alone would
+  leave any team TASO has since dropped, and a stale row is not inert. It
+  carries an obsolete `starting_points`, shows in a fallback table, and,
+  because `reproducesTasoPoints` requires every team TASO ranks to appear in
+  ours, would push the whole group onto the fallback path. No early return on
+  an empty snapshot: "this season has no group standings" is an answer, and
+  keeping the previous rows would leave every dropped team in place. A failed
+  request is what preserves the stored rows, in the caller's catch.
+- **`getSyncedGroupTeams`.** The first feature kept these in Redis, when only
+  the pass-through path needed them. Own-calculated standings depend on
+  `starting_points`, so a cold cache or an outage would silently change a
+  table's points: worse than a stale table.
+- **`toPassThroughStanding`.** The two agree whenever TASO ranks every team
+  1..n. Where they differ, a literal copy produces duplicates: two rows both
+  numbered 1 in the rendered table.
+- **`byStandingOrder`.** Ykkönen 2025's FC Jazz drops three places on a −3
+  deduction. Same keys as `calculateStandings`, so the two orderings cannot
+  drift apart.
+- **`adjustmentsFor`.** `starting_points` carries three things, confirmed across
+  262 groups and twelve seasons. A deduction (negative): Veikkausliiga 2016's
+  PK-35 Vantaa is −6, which is why the app showed it on 19 points against
+  TASO's 13. A qualifying bonus (positive 1–3), which every junior SM season
+  carries over from a qualifying series in another category, so there are no
+  matches to derive it from. A carry-over seed (large positive), where TASO
+  starts a split group on its parent's points. Only the first two are ours to
+  add: the seed is already counted, since a carry-over group is calculated
+  over its parent's matches too. Subtracting the parent-derived points, and
+  not ignoring the field, means a seeded group that also carries a deduction
+  would still resolve; none has been observed.
+- **`reproducesTasoPoints`.** It replaced the first feature's shape heuristic.
+  Compared over the full season because TASO's numbers are always the final
+  ones. Checked in both directions: a team we calculate that TASO does not
+  list is not a disagreement, since rosters and match data can be briefly out
+  of step. A team TASO ranks that we lack means our table is missing a row,
+  and comparing only the teams we have would call that a match.
+- **`buildGroup`.** The pass-through step is what keeps the guarantee that an
+  unvalidated group never renders silently wrong points, now that no shape
+  heuristic identifies one. A group with nothing to check against is
+  own-calculated: every adjustment is zero there, which is right for most
+  groups, and a stale but real table beats an empty one.
+- **`listSeasonRounds`.** Groups with no table are excluded, and not for looks:
+  Veikkausliiga 2022's Eurolopputurnausfinaali numbers its rounds from 0, so
+  including it would put a "Kierros 0" in the selector that filters nothing.
+  Own-calculated groups only: a pass-through group shows TASO's final numbers
+  whatever round is picked.

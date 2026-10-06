@@ -362,3 +362,40 @@ Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
 - **`TasoStandingsControls`.** There is no `Kilpailu` select because the
   competition is chosen on `/kotimaa` and `SeasonForm` carries it hidden, as
   for `MatchesControls` and `TeamSeasonSelector`.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`TasoProviderMatch`.** The all-strings shape was confirmed live against
+  `getMatches`, not assumed.
+- **`NormalizedTasoMatch`.** Structurally compatible with `NormalizedMatch` and
+  `RosterMatch` from `standings.ts`, so `calculateStandings` is reused as it
+  is. `groupId` and `groupName` are for per-group tables and the "which group"
+  label on the match list and team page.
+- **`parseKickoff`.** TASO reports the correct Europe/Helsinki offset per match
+  (`+0300` in summer, `+0200` in winter, confirmed live across the 2025 DST
+  boundary), so no timezone database is needed. The regexes only prove the
+  fields are shaped like a timestamp: `2026-99-99 25:00 +0099` matches all
+  three and `Date.UTC` would normalize it into a real but wrong instant, so
+  out-of-range components are rejected.
+- **`TasoGroupTeam`.** The mix of native numbers and strings was confirmed live:
+  an inconsistency with `getMatches`' all-strings convention, not a typo.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`needsRefresh`.** Mirrors `needsRefresh` in `standings-service.ts`. The
+  freshness threshold applies only to the season being played.
+- **`ownCalculatedStandings`.** The parent group is bigger than the child: all
+  12 Runkosarja teams, not the 6 that reached Mestaruussarja. Filtering the
+  matches and not the result would be wrong: a Mestaruussarja team's
+  Runkosarja points include matches against teams that went to Karsintasarja,
+  and dropping those would under-count it (KuPS 2025 would show 44 less those
+  matches, not its real 67). Renumbering matches TASO's own
+  `final_group_standing`, which is relative to the group: 1–6 in both split
+  groups, not offset to 7–12.
+- **`listSelectableTasoRounds`.** One continuous scale for the page's single
+  selector, not a per-group 1..max range. A continuation's rounds start above
+  1 (Mestaruussarja's begin at 23) because `round_id` is never re-indexed.
+- **`parseTasoRoundParam`.** A membership check, not a range check: TASO's
+  scale can start above 1 for a continuation-only group and may have gaps.

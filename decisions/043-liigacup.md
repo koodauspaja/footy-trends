@@ -79,3 +79,22 @@ decided and the final is scheduled between their winners, the tree is fully
 known; drawing it with the final unplayed is what specs/015 does for MSC. The
 spec chose to list the group until the final has a winner, and that is what is
 built. It is a one-condition change if that is preferred.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **The round-robin exception in `buildGroup`.** Liigacup's and Ykkösliigacup's
+  `Lohko A` and `Lohko B` are points competitions and are tabled like a
+  league's. Told apart by structure, since points are what proved unreliable.
+- **`inPublishedOrder`.** Our order breaks a tie on points by goal difference;
+  Liigacup breaks it by the tied teams' meeting. Liigacup 2023's `Lohko B` has
+  KuPS and FC Haka level on 7, Haka ahead on goal difference and KuPS on their
+  1–0, and KuPS went through, so our order drew a table that contradicted the
+  semi-final beneath it. All or nothing: with any team unranked, TASO's
+  numbers cannot place it. Only the numbers are kept, so a gap in TASO's
+  numbering cannot put two teams at one position. Full season only: a
+  position describes the group as it stands.
+- **`listSeasonRounds`, cups.** A cup page has no round selector, and tabled
+  groups do not change that: the rounds are one short group stage, and the
+  page's other half is a playoff no round filters.

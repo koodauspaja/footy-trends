@@ -480,3 +480,36 @@ Cut from `src/lib/force-refresh.ts` at `55a14fc` by #531.
   replacement could commit and a later delete fail (found in review).
   Serializable as in `scripts/grant-admin-run.ts`: a few runs a year cost
   nothing against overwriting someone's correction.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`tasoMatchesCacheKey`, `tasoGroupsCacheKey`.** Exported because the forced
+  refresh has to delete exactly these keys to reach TASO. Spelled out in two
+  places, a changed key would silently stop the refresh clearing anything, and
+  the refetch would answer out of the cache it meant to bypass.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`storedTasoSeasons`.** A season holds group standings without matches when
+  a competition's fixtures were never synced but its published table was, or
+  its matches were pruned. Reading only `taso_matches` made this the single
+  source of truth for "seasons we have" in name only.
+- **`newestStoredSeason`.** Derived from `storedTasoSeasons`, so "what do we
+  hold" is answered one way. It read `taso_matches` alone before, so a
+  competition held only as group standings looked unstored, and with discovery
+  unavailable its ceiling fell below its own data.
+- **`resolveTasoSeasonCeiling`.** Split out of `resolveTasoSeasonContext`, which
+  needs the same numbers and then probes by synchronizing the current season,
+  which writes. The forced refresh needs a range to validate against and must
+  not write before an admin has approved a diff. Extracted, not reimplemented:
+  two copies of the floor clamp would drift, and a drifted ceiling offers a
+  season the competition never had.
+- **The floor in `resolveTasoSeasonCeiling`.** Without it, a discovery failure
+  with nothing stored would put Ykkösliiga's ceiling at 2015, below its 2024
+  floor; `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+  so the selector would come back empty. Discovery is competition-agnostic but
+  the stored fallback is not, so the cache key is scoped to the competition.
+- **`synchronizeGroupTeams`' `executor`.** Defaults to opening its own
+  transaction, which is what every caller before the forced refresh did.

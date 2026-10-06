@@ -116,3 +116,15 @@ in `settings.spec.ts` and `executable.test.ts`, became plain `/*` comments.
 
 These moved comments still tell history and cite issues: they were moved word
 for word, not rewritten, and are trimmed with the batch their file belongs to.
+
+## The second batch, 2026-10-06
+
+`taso.ts` and `taso-standings-service.ts` in full: 292 comments became 161, and
+58 300 characters of comment became 25 500. Every doc comment on a declaration
+is one to three lines and lists its records, each file has a header comment, and
+neither cites a spec or an issue.
+
+The reasons went to 24 records by `git blame`. Seven are new, for bugs and
+chores that had none: `132`, `196`, `200`, `272`, `281`, `284` and `363`. Each
+entry names `a86c1cb`, the commit on `main` both files were cut from, so
+`git show a86c1cb:<path>` gives the original comment.

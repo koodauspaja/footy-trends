@@ -115,3 +115,32 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
 - **`classifySeasonGroups`.** `phase_number` is unreliable for ordering, hence
   `group_id`.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **The dateless row in `normalizeMatch`.** TASO returns one for every
+  two-legged playoff final, holding the tie's aggregate score: confirmed to be
+  exactly the sum of the two legs in 2019, 2022, 2023 and 2024. It carries
+  `status: "Played"` and a real score like any other row. Skipping it also
+  keeps one unusable row from taking down a whole season's sync.
+- **`TasoGroupTeam`.** Every field is optional and nullable because a knockout
+  group like Eurolopputurnaus is not a points competition: TASO omits every
+  stat field except `matches_played` there, where it could have sent `null`, so
+  `=== null` alone never detects such a group. That absence is what
+  `keepsATable` keys on.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`GroupStandingsResult`, `match-list`.** Two causes. A knockout group, where
+  TASO returns one row per bracket slot and not per team, so a table would
+  repeat an advancing team. And a group TASO returns with no teams at all,
+  which is how an unplayed qualifying match appears (three of them in 2026).
+- **`keepsATable`.** Confirmed live for all six knockout groups across seasons
+  2015–2026 (2019's EL-lopputurnaus and EL-finaali, 2022's Eurolopputurnaus and
+  its final, 2023's and 2024's Eurolopputurnaus), and for no league group in
+  any season. A positive test on TASO's own data and not "every group we
+  cannot own-calculate": that complement holds only while `CARRY_OVER_CONFIG`
+  is complete, and a season that split without its entry would render two
+  league groups as match lists.
