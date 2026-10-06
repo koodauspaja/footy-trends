@@ -233,3 +233,10 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
   the opening round can be 248 teams, nearly 30,000px tall on a phone.
   `<details>` lets a reader fold one away without any client-side state, and
   every round starts open so nothing is hidden by default.
+
+Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
+
+- **`BracketTree` exported.** The Finnish cups' page already lists every
+  round below, so it needs the drawing without `CupBracket`'s
+  listed-vs-drawn split, which keys on football-data stage names those rounds
+  do not have.

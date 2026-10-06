@@ -1,20 +1,9 @@
 /**
- * The six result panels of a team's `Analyysit` — form, goals, home and away,
- * clean sheets, streaks, comebacks — built from one list of the team's finished
- * matches (#530).
+ * The six result panels of a team's `Analyysit` (form, goals, home and away,
+ * clean sheets, streaks, comebacks), built from one list of the team's
+ * finished matches. A provider supplies only which matches count.
  *
- * Each provider's service used to carry six wrappers of its own, twelve
- * near-identical functions: load the team's matches, answer "no matches", call
- * a pure function, log a failure. What differs between providers is only
- * *which* matches count, so that is the one thing a provider supplies:
- * `getTeamPanelMatches` in `standings-service.ts` and in
- * `taso-standings-service.ts`, and the whole stored history for a national team
- * (`national-team-analytics.ts`).
- *
- * **An empty list needs no branch of its own.** Every pure function answers
- * one as the wrappers' "no matches" branches did: no form before the fifth
- * match, empty charts, zeroed figures. `tests/unit/lib/team-panels.test.ts`
- * holds them to it.
+ * decisions/530-one-team-panel-builder.md
  */
 import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
 import { type ComebacksSeries, comebacksOf, type HalfTimeMatch } from "./comebacks";
@@ -26,18 +15,22 @@ import { type StreaksSeries, streaksOf } from "./streaks";
 
 /**
  * The finished matches a team's panels count, or why there are none to count.
+ * `unavailable` is a team with no panels at all, not an empty season; `error`
+ * is a read that failed.
  *
- * `unavailable` is not an empty season: it is a team with no panels at all,
- * as a TASO team that played only in knockout groups has no league figures
- * (specs/031, Q2). `error` is a read that failed, which no panel may show as
- * "nothing played".
+ * decisions/031-rolling-form-trend.md
+ * decisions/530-one-team-panel-builder.md
  */
 export type TeamPanelMatches =
   | { status: "ok"; finished: HalfTimeMatch[] }
   | { status: "unavailable" }
   | { status: "error" };
 
-/** The six loaders, named as `AnalyticsSection` takes them. */
+/**
+ * The six loaders, named as `AnalyticsSection` takes them.
+ *
+ * decisions/530-one-team-panel-builder.md
+ */
 export type TeamPanelLoaders = {
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
@@ -49,28 +42,20 @@ export type TeamPanelLoaders = {
 
 /**
  * Whose panels these are: the team, and whatever else a failure's log line
- * needs to find it.
+ * needs to find it. The team's id alone does not say which team.
  *
- * **The team's id alone does not say which team.** Each provider numbers its
- * teams separately, so 57 is one club at football-data and another at TASO. A
- * caller adds what places it: the competition and the season, as the deleted
- * wrappers logged them.
+ * decisions/530-one-team-panel-builder.md
  */
 export type TeamPanelContext = { teamProviderId: number } & Readonly<
   Record<string, string | number>
 >;
 
 /**
- * The six panels' loaders over one read of the team's matches.
+ * The six panels' loaders over one read of the team's matches. Thunks, so
+ * nothing is read or computed until a panel is asked for. A read that fails is
+ * logged once, as a failed read.
  *
- * Thunks, so nothing is read or computed until a panel is asked for: the gate
- * in `AnalyticsSection` runs before any of them. The matches are read once
- * however many panels ask.
- *
- * **A read that fails is logged once, as a failed read.** Both providers' own
- * loaders catch and log their failures, but nothing obliges the next caller
- * to; without the catch here, one rejected read would surface as six panels
- * each reporting that it could not be computed.
+ * decisions/530-one-team-panel-builder.md
  */
 export function teamPanelLoaders(
   context: TeamPanelContext,

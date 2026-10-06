@@ -64,3 +64,8 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
 - **`LineSeries`.** A dash and not a colour, so the chart reads in both themes
   and without colour vision. `LineLegend` names each line with a sample of
   its style.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`teamMatchesInOrder`.** Shared with the goals charts, so "the team's
+  fifth match" is the same match on every chart.

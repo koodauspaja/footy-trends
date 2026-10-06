@@ -230,3 +230,20 @@ Cut from `src/lib/country-names.ts` at `ef7eb13` by #531.
   otherwise translate at render time.
 - **`localiseForRegion`.** Club names are proper nouns, so the region, not
   the competition, decides.
+
+Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
+
+- **`RoundTable`.** A single-leg round has no aggregate to speak of, the tie
+  is the match, and its per-leg column's one row would only repeat the date
+  already in the first column.
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **`CompetitionPageOptions`.** `/ulkomaat` and `/maajoukkueet` render the
+  same pages and differ only in the competitions they offer and the prefix on
+  their links, so the pages take both as arguments and do not exist twice.
+- **`showCompetitionSelect`.** `/ulkomaat`'s competitions are interchangeable
+  views of the same kind of thing, so switching between them mid-page is
+  useful. The World Cup and the European Championship are separate
+  tournaments reached from the region picker, and a dropdown between them
+  reads as if one were a variant of the other.

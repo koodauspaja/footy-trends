@@ -354,3 +354,24 @@ Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
   already makes, and if it measures heavy at the cap, this function fetches
   instead and no caller changes. A missing star is a smaller loss than a page
   that will not render.
+
+Cut from `src/lib/favourite-keys.ts` at `dc74e3e` by #531.
+
+- **`favourite-keys.ts`.** The exclusion is the same one at the top of
+  `regions.ts` and `avatar-limits.ts`, and it is load-bearing here: the
+  toggle renders on the region picker, which lives on the four pages
+  `tests/unit/app/rendering-mode.test.ts` keeps prerendered. Anything it
+  imports is in the browser bundle.
+- **`MAX_FAVOURITES_PER_KIND`.** Fifty is a judgement, not a measurement:
+  enough that nobody sensible meets it, small enough to bound both the
+  `/suosikit` query and the session payload the list rides on. It is one
+  constant so that measuring can change it.
+- **`isTeamProviderId`.** Shared and not repeated: `parseTeamKey` reads ids
+  out of the session and the server actions read them off the wire, and two
+  copies of the rule are how they drift.
+- **`teamKey`.** `"taso:60731"` is one `includes` against a list; a
+  `{ source, id }` object would be a `find` with two fields at every call
+  site, and the session payload would carry the key names on every entry.
+- **`parseTeamKey`.** The client cannot vouch for the payload, and a
+  malformed key must render nothing and not a link to a team that does not
+  exist.

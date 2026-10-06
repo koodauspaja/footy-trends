@@ -478,3 +478,8 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
 - **`GroupBody`.** A pass-through group's numbers are TASO's and not ours
   because the two disagreed. A group TASO lists with no teams at all also
   renders as its matches.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **The floor in `listSelectableTasoSeasons`.** Ykkösliiga did not exist
+  before 2024, and offering its 2015 would render an empty page.

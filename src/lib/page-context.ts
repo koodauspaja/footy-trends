@@ -13,12 +13,10 @@ import type { TeamContext } from "@/lib/team-context";
 import { getViewerPreferences } from "@/lib/viewer";
 
 /**
- * What a route file supplies to make a shared page one region's.
+ * What a route file supplies to make a shared page one region's: the
+ * competitions it offers and the prefix on its links.
  *
- * `/ulkomaat` and `/maajoukkueet` render the same pages and differ only in the
- * competitions they offer and the prefix on their links, so the pages take
- * both as arguments rather than existing twice. See
- * specs/016-world-cup-and-euro.md.
+ * decisions/016-world-cup-and-euro.md
  */
 export type CompetitionPageOptions = {
   searchParams?: Promise<Record<string, string | string[] | undefined>> | undefined;
@@ -26,15 +24,7 @@ export type CompetitionPageOptions = {
   region: CompetitionRegion;
   /** The Finnish URL prefix every link and form action on the page uses. */
   basePath: string;
-  /**
-   * Whether the page offers a `Kilpailu` select.
-   *
-   * `/ulkomaat`'s competitions are interchangeable views of the same kind of
-   * thing, so switching between them mid-page is useful. The World Cup and the
-   * European Championship are not: they are separate tournaments reached from
-   * the region picker, and a dropdown between them reads as if one were a
-   * variant of the other.
-   */
+  /** Whether the page offers a `Kilpailu` select. */
   showCompetitionSelect: boolean;
 };
 
@@ -62,31 +52,25 @@ async function resolveSeasonContext(competitionCode: string): Promise<SeasonCont
 
 /**
  * Resolves the competition and season context shared by every `kilpailu`/
- * `kausi`-keyed page's `generateMetadata` and page component. Called once
- * from each (Next.js invokes them separately), but `getSeasonContext` is
- * wrapped in React's `cache()`, so the underlying fetch only happens once
- * per request regardless.
+ * `kausi`-keyed page's `generateMetadata` and page component.
+ *
+ * decisions/007-back-navigation.md
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/020-context-free-team-page.md
+ * decisions/024-account-settings.md
  */
 export async function resolveBasePageContext(
   params: Record<string, string | string[] | undefined>,
   region: CompetitionRegion,
   /**
-   * What to use where the URL says nothing — a team's own newest stored
-   * context, on the pages that have one. Omitted everywhere else, which leaves
-   * the region's defaults exactly as they were. See
-   * specs/020-context-free-team-page.md.
+   * What to use where the URL says nothing: a team's own newest stored context,
+   * on the pages that have one. Omitted everywhere else.
    */
   defaults?: TeamContext
 ): Promise<BasePageContext> {
   const competitionParam = parseCompetitionParam(params.kilpailu, region);
-  /**
-   * Precedence, most specific first: the URL, then the team's own context on
-   * the pages that have one, then the reader's stored preference, then the
-   * region's hardcoded default. A signed-out reader stops at the last one, and
-   * an explicit `?kilpailu=` beats a preference — a shared link must render
-   * what it says (specs/012), and a stored default is a weaker statement than a
-   * typed URL. See specs/024-account-settings.md.
-   */
+  // Precedence, most specific first: the URL, the team's own context on the
+  // pages that have one, the reader's stored preference, the region's default.
   const explicit =
     competitionParam.kind === "valid" ? competitionParam.code : defaults?.competitionCode;
   const competitionCode =
@@ -107,10 +91,6 @@ export async function resolveBasePageContext(
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);
   // As in the domestic resolver: the team's own season stands in wherever
   // `kausi` does not decide, and an invalid one keeps its notice either way.
-  // Optional-chained on both sides, then `??` for the fallback. Reading
-  // `defaults.seasonId` directly inside the true branch does not typecheck —
-  // TypeScript does not narrow `defaults` from the comparison above — and
-  // spelling out `defaults !== undefined` trades that for a lint finding.
   const seasonFallback =
     (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
     context.activeSeasonId;

@@ -1,33 +1,42 @@
 /**
- * A team's form after each match of a season — the data behind the team page's
- * `Vire otteluittain` chart (specs/031).
+ * A team's form after each match of a season: the data behind the team page's
+ * `Vire otteluittain` chart. It is the standings table's `Vire`, plotted.
+ * Pure: the services pass the matches in.
  *
- * **Form is the standings table's `Vire`, plotted.** `calculateStandings` takes
- * a team's last five finished matches in kickoff order for that column; this
- * takes the same five after every match, so the last point is the column's own
- * value in points. Kickoff order, not round order, is what keeps TASO's
- * out-of-order round numbers (#413) out of it.
- *
- * Pure: the services decide which matches count, and pass them in.
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/047-rivalry-page.md
  */
 
 import { type FormResult, formResultLabel, resultFor } from "./standings";
 
-/** Matches in a window — the `Vire` column's five (specs/031, Q1). */
+/**
+ * Matches in a window: the `Vire` column's five.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export const FORM_WINDOW = 5;
 
-/** One point: form after the team's `match`-th match, in points per match. */
+/**
+ * One point: form after the team's `match`-th match, in points per match.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export type FormPoint = { match: number; form: number };
 
 export type FormSeries =
   | { status: "ok"; points: FormPoint[] }
-  /** Fewer than `FORM_WINDOW` finished matches: no full window yet (Q4). */
+  /** Fewer than `FORM_WINDOW` finished matches: no full window yet. */
   | { status: "too-few" }
-  /** No league table for this team's season, so no section (Q2). */
+  /** No league table for this team's season, so no section. */
   | { status: "unavailable" }
   | { status: "error" };
 
-/** Just what a result and its order need — both providers' finished rows satisfy it. */
+/**
+ * Just what a result and its order need: both providers' finished rows satisfy it.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export type ResultMatch = {
   providerMatchId: number;
   kickoffAt: Date;
@@ -38,13 +47,11 @@ export type ResultMatch = {
 };
 
 /**
- * Form after each of this team's finished matches, from the fifth on.
+ * Form after each of this team's finished matches, from the fifth on: each
+ * point is `(3 × wins + draws) / 5` over that match and the four before it.
+ * `finished` may hold every team's matches; only this team's count.
  *
- * `finished` may hold every team's matches; only this team's count. They are
- * ordered by kickoff, then by provider match id — one team never has two
- * matches at one kickoff, but a stable order costs nothing if the data ever
- * does. Each point is `(3 × wins + draws) / 5` over that match and the four
- * before it.
+ * decisions/031-rolling-form-trend.md
  */
 export function formSeries(finished: readonly ResultMatch[], teamId: number): FormSeries {
   const points = teamMatchesInOrder(finished, teamId).map((match) => pointsFrom(match, teamId));
@@ -62,8 +69,9 @@ export function formSeries(finished: readonly ResultMatch[], teamId: number): Fo
 
 /**
  * This team's matches, in the order every chart on the team page counts them:
- * kickoff, then provider match id. Shared with the goals charts (specs/032), so
- * "the team's fifth match" is the same match on every chart.
+ * kickoff, then provider match id.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function teamMatchesInOrder<T extends ResultMatch>(
   finished: readonly T[],
@@ -78,14 +86,22 @@ export function teamMatchesInOrder<T extends ResultMatch>(
     );
 }
 
-/** `[own goals, the other side's goals]`, from this team's side of the fixture. */
+/**
+ * `[own goals, the other side's goals]`, from this team's side of the fixture.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export function goalsFor(match: ResultMatch, teamId: number): [number, number] {
   return match.homeTeamProviderId === teamId
     ? [match.homeGoals, match.awayGoals]
     : [match.awayGoals, match.homeGoals];
 }
 
-/** This team's points from one match: 3 for a win, 1 for a draw, 0 for a loss. */
+/**
+ * This team's points from one match: 3 for a win, 1 for a draw, 0 for a loss.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 function pointsFrom(match: ResultMatch, teamId: number): number {
   const [own, other] = goalsFor(match, teamId);
   if (own > other) return 3;
@@ -96,23 +112,30 @@ function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
-/** One result in a team's latest form: the match, its letter and the letter's title. */
+/**
+ * One result in a team's latest form: the match, its letter and the letter's title.
+ *
+ * decisions/047-rivalry-page.md
+ */
 export type FormEntry<T extends ResultMatch> = { match: T; result: FormResult; label: string };
 
 /**
- * A team's form **now**, for the head-to-head page (specs/047): its last
- * `FORM_WINDOW` matches, oldest first as the `Vire` column reads, their points
- * per match, and when the newest was played.
+ * A team's form now, for the head-to-head page: its last `FORM_WINDOW`
+ * matches, oldest first as the `Vire` column reads, their points per match,
+ * and when the newest was played.
+ *
+ * decisions/047-rivalry-page.md
  */
 export type LatestForm<T extends ResultMatch> =
   | { status: "ok"; entries: Array<FormEntry<T>>; pointsPerMatch: number; latest: Date }
-  /** Fewer than `FORM_WINDOW` stored matches: no full window (specs/047, S9). */
+  /** Fewer than `FORM_WINDOW` stored matches: no full window. */
   | { status: "too-few" };
 
 /**
  * The team's latest form over the matches given, with the same points rule as
- * `formSeries` — so it equals that series' last point over the same matches,
- * by construction rather than by a second formula (specs/047, S2).
+ * `formSeries`, so it equals that series' last point over the same matches.
+ *
+ * decisions/047-rivalry-page.md
  */
 export function latestForm<T extends ResultMatch>(
   finished: readonly T[],

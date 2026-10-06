@@ -87,3 +87,15 @@ Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
 - **Panels, not charts.** Most are charts; `Putket` and `Kääntyneet ottelut`
   are lists of figures, which is why `AnalyticsSection` calls its parts
   panels.
+
+Cut from `src/lib/comebacks.ts` at `dc74e3e` by #531.
+
+- **`comebacks.ts`.** Two directions, one question: the deficits a team
+  rescued and the leads it gave away. They are counted together because they
+  come out of the same column and the same matches, so a match missing a
+  half-time score is missing from both. Neither provider guarantees one:
+  football-data refuses older seasons outright, and TASO omitted it for 1 of
+  Ykkönen 2025's 132 played matches. A missing score and a goalless first
+  half must not look the same, so the panel says how many it could not read.
+  Counted over exactly the matches the other result panels count; the
+  services pass them in.

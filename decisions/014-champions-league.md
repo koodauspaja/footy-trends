@@ -317,3 +317,12 @@ Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
   is defensive; the provider should never do this. It lives in `standings.ts`
   and not in `standings-service` so the cup phase tables can apply the same
   rule without importing the database.
+
+Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
+
+- **`formatLeg`.** `formatMatchResult` alone would print 0-1 for a shootout
+  leg and lose the fact that it went to penalties.
+- **The split in `CupBracket`.** A readability limit, not a preference.
+  `LAST_16` is eight ties across and `LAST_32` sixteen, which no tree
+  survives on a phone; from the quarter-finals the tree is three columns and
+  shows what a list cannot: who plays whom next.
