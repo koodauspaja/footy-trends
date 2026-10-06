@@ -49,3 +49,13 @@ page itself, for Arsenal 2024/25 and for KuPS across Veikkausliiga 2026's split.
   `Analyysit` and the prompt, and after signing in sees no section. This is
   #331's case, unchanged: the gate runs before the series are computed, so the
   signed-out page cannot know.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **`AnalyticsSection`'s gate.** One prompt and not one per panel, shown
+  before any loader is called, so a signed-out page is never computed from,
+  and never carries, any analytics value. A server component awaited by the
+  team pages and not rendered, the shape `CompetitionTeamPage` already uses.
+  A league season with no table shows no section.

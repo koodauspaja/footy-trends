@@ -42,7 +42,7 @@ export const BY_MATCH_HEADING = "Ottelu ottelulta";
 /**
  * About analytics as a whole, not one panel: signed-out readers see none of them.
  *
- * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
  */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
@@ -53,11 +53,11 @@ const HEADING_ID = "analytics";
  * first, and once: a signed-out request gets one sign-in prompt before any
  * loader is called. `null` when no panel applies.
  *
- * decisions/030-league-position-by-matchday.md
  * decisions/031-rolling-form-trend.md
- * decisions/035-streaks.md
+ * decisions/036-halftime-comebacks.md
  * decisions/041-national-team-analytics.md
  * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
  * decisions/424-analytics-panel-groups.md
  */
 export async function AnalyticsSection({
@@ -220,7 +220,7 @@ function PanelGroup({
 /**
  * Foldable, like the match list above it.
  *
- * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
  */
 function Section({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

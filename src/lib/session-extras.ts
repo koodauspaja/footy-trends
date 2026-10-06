@@ -39,7 +39,8 @@ export function defaultRegionOf(session: unknown): RegionSegment | null {
 
 /**
  * The picture to render: the reader's own, else whatever Google gave us, else
- * null for the name. The version is in the URL, not beside it.
+ * null for the name. The version is in the URL: the path is the same for every
+ * reader, so the token is all that keeps one reader's picture from another.
  *
  * decisions/025-custom-avatar.md
  */

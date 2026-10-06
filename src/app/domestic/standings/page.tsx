@@ -194,6 +194,7 @@ export async function generateMetadata({
  * decisions/009-veikkausliiga.md
  * decisions/015-finnish-cups.md
  * decisions/043-liigacup.md
+ * decisions/048-league-goals-per-game-trend.md
  */
 export default async function DomesticStandingsPage({
   searchParams,
@@ -231,7 +232,8 @@ export default async function DomesticStandingsPage({
     selectedRound
   );
 
-  // Under the tables, on the leagues it names; `null` elsewhere.
+  // Under the tables, on the leagues `CompetitionAnalyticsSection` covers;
+  // `null` elsewhere.
   const analytics = await CompetitionAnalyticsSection({
     kind: "taso",
     competitionCode,

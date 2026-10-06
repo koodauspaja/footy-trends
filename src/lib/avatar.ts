@@ -52,7 +52,8 @@ export async function saveAvatar(
   bytes: Buffer,
   contentType: string
 ): Promise<string> {
-  // A fresh random token per write, not a timestamp.
+  // A fresh random token per write, not a timestamp. One URL serves every
+  // reader, so a shared token would serve one reader's picture to another.
   const version = randomUUID();
   const updatedAt = new Date();
 
