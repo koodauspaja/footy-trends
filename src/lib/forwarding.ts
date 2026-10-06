@@ -1,23 +1,8 @@
 /**
- * The shape of a request's forwarding headers, from #309.
+ * The shape of a request's forwarding headers: counts, classifications and
+ * indices, never an address. `/api/health` reports it, and it is public.
  *
- * **Why a shape and not the addresses.** better-auth refuses to resolve a
- * client IP from `x-forwarded-for` unless the header holds exactly one entry or
- * `trustedProxies` says which hops to skip — so choosing the right
- * configuration needs to know *how many* hops arrive and what kind they are.
- * The addresses themselves would answer that too, and `/api/health` is public,
- * so this reports the shape instead: counts and classifications, never a
- * value.
- *
- * **Why it also compares the single-value headers.** The first round measured
- * two hops on Railway, both public, so there is no infrastructure hop to
- * recognise by its range and nothing to put in `trustedProxies` — and
- * `trustedProxies` takes literal addresses, which this deliberately never
- * reports. That leaves the single-value headers, which better-auth resolves
- * with no proxy list at all. Whether one can be trusted is decided by two
- * things: does it agree with a hop the edge itself wrote, and does a value sent
- * by the client survive to the app. Both are answered by an *index*, so this
- * still reports no address.
+ * decisions/309-client-ip-resolution.md
  */
 
 export type HopKind = "public" | "private" | "invalid";
@@ -25,30 +10,15 @@ export type HopKind = "public" | "private" | "invalid";
 /**
  * One single-value client-IP header, as far as it can be described without
  * quoting it.
+ *
+ * decisions/309-client-ip-resolution.md
  */
 export type CandidateShape = {
   /** Whether the value parses as one address. */
   valid: boolean;
   /**
-   * Which `x-forwarded-for` entries carry the same address. Empty for none.
-   *
-   * **Agreement is not provenance**, and reading it as such would trust a
-   * spoofable header: a client who sets this header to their own address agrees
-   * with the chain for the same reason the edge would. What settles it is the
-   * probe — send a **sentinel** the client could not otherwise be, an address
-   * from TEST-NET-1 (`192.0.2.0/24`) that is nobody's real source, and see what
-   * comes back:
-   *
-   * - **empty** — the sentinel survived to the application, so the client sets
-   *   this header and it must not be trusted.
-   * - **non-empty** — the sentinel was overwritten by something matching a hop
-   *   the edge wrote, so the edge sets this header, and the indices say which
-   *   hop it names. That is how the reader learns which end the client is at
-   *   without anything assuming leftmost.
-   *
-   * Every matching index, not the first: a chain may carry one address twice,
-   * and `indexOf` would answer `0` for `A, B, A` no matter which occurrence the
-   * platform meant.
+   * Every `x-forwarded-for` entry carrying the same address; empty for none.
+   * Agreement is not provenance: a sentinel sent as this header settles it.
    */
   matchesEntries: number[];
 };
@@ -59,8 +29,7 @@ export type ForwardingShape = {
   /** Each entry classified, in the order sent. */
   hops: HopKind[];
   /**
-   * The single-value headers that arrived, by name — absent ones are simply not
-   * listed, so `{}` means none did.
+   * The single-value headers that arrived, by name. `{}` means none did.
    */
   candidates: Record<string, CandidateShape>;
 };
@@ -68,11 +37,7 @@ export type ForwardingShape = {
 /**
  * The single-value headers worth asking about.
  *
- * Not just `x-real-ip`: the question is which header carries a trustworthy
- * client address, and answering it for one header at a time costs a deployment
- * per guess. Railway fronts applications with Envoy, hence
- * `x-envoy-external-address`; the two Cloudflare spellings are here because a
- * CDN in front of the platform is the other way this shape changes.
+ * decisions/309-client-ip-resolution.md
  */
 const CANDIDATE_HEADERS = [
   "x-real-ip",
@@ -84,18 +49,27 @@ const CANDIDATE_HEADERS = [
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /**
- * An IPv4 address wearing an IPv6 spelling — `::ffff:10.0.0.1` is the private
- * `10.0.0.1`, and calling it public would put a real proxy hop on the wrong side
- * of the decision this diagnostic exists to inform.
+ * An IPv4 address in an IPv6 spelling: `::ffff:10.0.0.1` is the private
+ * `10.0.0.1`.
+ *
+ * decisions/309-client-ip-resolution.md
  */
 const IPV4_IN_IPV6 = /^::(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/;
 
-/** An address parsed into the form both classifying and comparing need. */
+/**
+ * An address parsed into the form both classifying and comparing need.
+ *
+ * decisions/309-client-ip-resolution.md
+ */
 type Address =
   | { kind: "ipv4"; text: string; octets: number[] }
   | { kind: "ipv6"; text: string; groups: number[] };
 
-/** The four octets of a dotted quad, or null when it is not one. */
+/**
+ * The four octets of a dotted quad, or null when it is not one.
+ *
+ * decisions/309-client-ip-resolution.md
+ */
 function ipv4Octets(value: string): number[] | null {
   if (!IPV4.test(value)) return null;
   const octets = value.split(".").map(Number);
@@ -103,15 +77,10 @@ function ipv4Octets(value: string): number[] | null {
 }
 
 /**
- * An IPv6 address expanded to its eight 16-bit groups, or null when it is not
- * a valid address.
+ * An IPv6 address expanded to its eight 16-bit groups, or null when it is not a
+ * valid address. A dotted-decimal tail is allowed in the final position.
  *
- * Expanding rather than pattern-matching the text is what makes the
- * classification below correct: link-local is `fe80::/10`, which spans `fe80`
- * through `febf`, and a prefix test on the string reports `fe90::1` as public.
- *
- * A dotted-decimal tail is allowed in the final position, which is what makes
- * `2001:db8::192.0.2.1` a valid address rather than a malformed one.
+ * decisions/309-client-ip-resolution.md
  */
 function expandIpv6(value: string): number[] | null {
   const halves = value.split("::");
@@ -152,9 +121,7 @@ function expandIpv6(value: string): number[] | null {
 /**
  * One address in a canonical form, or null when the text is not an address.
  *
- * Canonical because the comparison is the point: the edge is free to write
- * `::ffff:203.0.113.5` in one header and `203.0.113.5` in another, and two
- * spellings of one address must not read as two different hops.
+ * decisions/309-client-ip-resolution.md
  */
 function parseAddress(value: string): Address | null {
   const text = value.trim().toLowerCase();
@@ -183,12 +150,8 @@ function parseAddress(value: string): Address | null {
   const groups = expandIpv6(text);
   if (groups === null) return null;
 
-  /**
-   * The same IPv4-mapped address, expanded rather than compressed —
-   * `0:0:0:0:0:ffff:cb00:7105` is `203.0.113.5`. The regex above only catches
-   * the `::ffff:` spelling with a dotted tail, and a proxy is free to emit
-   * either; classifying one as ordinary IPv6 would call a private hop public.
-   */
+  // The same IPv4-mapped address, expanded: `0:0:0:0:0:ffff:cb00:7105` is
+  // `203.0.113.5`.
   const isIpv4Mapped = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
   if (isIpv4Mapped) {
     const high = groups[6] as number;
@@ -205,11 +168,10 @@ function parseAddress(value: string): Address | null {
 }
 
 /**
- * Private, loopback, link-local and carrier-grade NAT ranges.
+ * Private, loopback, link-local and carrier-grade NAT ranges: a hop inside one
+ * is infrastructure, not a reader.
  *
- * These matter because a hop inside one of them is infrastructure rather than a
- * reader: a request from the public internet cannot have such a source address,
- * so those are the hops `trustedProxies` would skip.
+ * decisions/309-client-ip-resolution.md
  */
 function isPrivateIpv4(octets: number[]): boolean {
   const first = octets[0] as number;
@@ -246,7 +208,11 @@ function classify(entry: string): HopKind {
   return isPrivate ? "private" : "public";
 }
 
-/** Reads the forwarding headers without recording a single address. */
+/**
+ * Reads the forwarding headers without recording a single address.
+ *
+ * decisions/309-client-ip-resolution.md
+ */
 export function forwardingShape(headers: Headers): ForwardingShape {
   const forwardedFor = headers.get("x-forwarded-for");
   const entries =

@@ -18,3 +18,17 @@ Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
   into a redirect carrying `error=<code>`, and `auth-controls.tsx` renders
   the Finnish for it. The code is deliberately not the reason: see
   `sign-in-refusal.ts`.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **The allowlist notice in `auth-controls.tsx`.** Ours, not Google's: the
+  reader got through Google and this app turned them away. It names the
+  environment and not the address, so it reveals nothing about who is on the
+  list. An earlier comment said naming a cause would leak whether an account
+  was on Google's Testing-mode test-user list; that list never gated this
+  app, because Google enforces it only beyond `openid`, `email` and
+  `profile`.
+- **`getAll` in `SignInError`.** `errorCallbackURL` already carries
+  `?error=auth`, and better-auth's `appendQueryParams` concatenates its own
+  `error=<code>`, so the reader lands on `/?error=auth&error=<code>`. With
+  `get`, a named cause would have been silently unreachable.

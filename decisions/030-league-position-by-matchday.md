@@ -103,3 +103,19 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   but not yet played in: the line is the regular season so far, and nothing
   is missing. Played, but only in matches TASO gave no round: the standings
   page cannot show those per round either, so the line stops, with the note.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`line-chart.tsx`.** Hand-rolled and not a library, chosen on 2026-09-18:
+  SVG renders on the server with no client JavaScript, and a test can assert
+  what is drawn (the points, the scales, the direction), which a canvas would
+  not allow under this repository's coverage and mutation rules. Nothing in
+  it anticipates a chart that does not exist yet.
+- **`scale`.** A domain of one value (a season with a single round played, a
+  league of one team) puts everything in the middle of the range and does not
+  divide by zero.
+- **`ticksFor`.** Both ends are always ticks, so an axis always labels where
+  it starts and ends: a `count` below 2 is treated as 2. The step is a whole
+  number because both axes count things, rounds and places. The last regular
+  tick is dropped when it would crowd `max`, so the axis never prints 37 and
+  38 side by side.

@@ -532,3 +532,10 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   feature relies on cascade so that one `DELETE` removes everything a reader
   owns; a log of operations performed on the app is not something a reader
   owns, so this is not a hole in that.
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **`footballDataMatchesCacheKey`.** Exported for the same reason as its TASO
+  counterpart: the forced refresh deletes exactly this key to reach the
+  provider, and a key spelled out in two places would let a change silently
+  stop that.

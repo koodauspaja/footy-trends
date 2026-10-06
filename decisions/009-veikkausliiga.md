@@ -399,3 +399,9 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   1 (Mestaruussarja's begin at 23) because `round_id` is never re-indexed.
 - **`parseTasoRoundParam`.** A membership check, not a range check: TASO's
   scale can start above 1 for a continuation-only group and may have gaps.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DOMESTIC_COMPETITIONS`.** Separate from `SUPPORTED_COMPETITIONS` in
+  `competitions.ts`, the football-data list behind `/ulkomaat`: this list is
+  never added to that one.

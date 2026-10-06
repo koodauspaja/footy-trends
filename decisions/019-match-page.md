@@ -254,3 +254,25 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   purpose.
 - **`taso_matches_head_to_head_idx`.** On 20,604 stored rows it turns the
   pair lookup from a 3.16 ms sequential scan into a 0.13 ms bitmap scan.
+
+Cut from `src/lib/cup-stages.ts` at `a86c1cb` by #531.
+
+- **`REGULAR_SEASON`.** 13,184 stored rows across nine competitions carry it.
+  The competition and round already say everything a name for it would.
+
+Cut from `src/lib/national-team.ts` at `a86c1cb` by #531.
+
+- **`NationalTeam.basePath`.** These matches are TASO's while
+  `/maajoukkueet/ottelu/:id` is football-data's, so each team's rows need a
+  route that names their source.
+- **`EARLIEST_NATIONAL_TEAM_YEAR`.** Not a bucket's nominal year: `maajp18`
+  reports `season_id: 2021` while holding matches played in 2018 to 2021. It
+  is the year the match page's head-to-head states as the window it looked
+  in.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`competitionCodeForCategory`.** The inverse of `categoryIdsFor`, for a page
+  that starts from a stored row and not from a `kilpailu` value: the match
+  page builds a team link out of a match it has just read. `null` and not a
+  fallback: a category no competition claims has no team page to link to.

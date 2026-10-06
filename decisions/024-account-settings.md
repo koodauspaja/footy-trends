@@ -333,3 +333,26 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   type spanning them: `CompetitionRegion` covers `foreign` and
   `national-teams`, while Kotimaa's competitions come from TASO with their own
   default. The column names say which registry each value belongs to.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **The account menu in `AuthButtons`.** Three controls in the header row is
+  what overflowed a 320px viewport. A throw inside `clearError` only means the
+  URL was not rewritten and the notice stays put: worth swallowing, not worth
+  mislabelling as a failed sign-out.
+
+Cut from `src/components/settings-page.tsx` at `a86c1cb` by #531.
+
+- **`RegionOptions`.** `domestic-competitions.ts` reaches ioredis, which cannot
+  be bundled for the browser: see `src/lib/competition-preferences.ts`.
+- **The save handlers in `settings-page.tsx`.** The actions return
+  `{ ok: false }` for their own failures, but a dropped connection or a
+  server-action transport error never reaches their `try`; uncaught, the
+  reader gets a dead control and an unhandled rejection.
+- **The session refetch after a save.** The mounted `useSession()` store does
+  not know the start region just changed. Without the refetch the header's
+  `Etusivu` link and the front page keep acting on the previous value until a
+  full reload, so a reader who saves `Kotimaa` and clicks through would see
+  the setting do nothing. A rejected refetch must not escape the transition:
+  the save did succeed, and saying it takes effect on reload is more use than
+  a silent stale header.

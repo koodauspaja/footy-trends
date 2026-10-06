@@ -22,10 +22,10 @@ export type Device = {
 };
 
 /**
- * The per-region option lists and their `Oletus (…)` labels are built on the
- * server and passed in. This component may not import a competition registry:
- * `domestic-competitions.ts` reaches ioredis, which cannot be bundled for the
- * browser. See src/lib/competition-preferences.ts.
+ * The per-region option lists and their `Oletus (…)` labels, built on the
+ * server and passed in: this component may not import a competition registry.
+ *
+ * decisions/024-account-settings.md
  */
 export type RegionOptions = {
   region: RegionSegment;
@@ -61,6 +61,14 @@ const SELECT_CLASS = "rounded border border-border px-2 py-1 text-sm";
 const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
 
+/**
+ * The settings page: the start page and its competitions, the profile picture,
+ * the signed-in devices and account deletion.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/271-saved-value-in-settings-dropdowns.md
+ */
 export function SettingsPage({
   preferences,
   devices,
@@ -77,13 +85,8 @@ export function SettingsPage({
       <form
         action={(formData) => {
           startTransition(async () => {
-            /**
-             * The actions return `{ ok: false }` for their own failures, but
-             * the *invocation* can reject on its own — a dropped connection or
-             * a server-action transport error never reaches their `try`. Each
-             * call site below catches that too, otherwise the reader gets a
-             * dead control and an unhandled rejection.
-             */
+            // The invocation itself can reject, before the action's own `try`: each call
+            // site catches that too.
             let result: ActionResult;
             try {
               result = await saveSettings(formData);
@@ -93,20 +96,8 @@ export function SettingsPage({
             }
             setSaved(result.ok ? "ok" : "error");
 
-            /**
-             * The start region rides on the session payload (see the
-             * `customSession` plugin in src/lib/auth.ts), and the mounted
-             * `useSession()` store does not know it just changed. Without this
-             * refetch the header's `Etusivu` link and the front page keep
-             * acting on the previous value until a full reload — so a reader
-             * who saves `Kotimaa` and clicks through would see the setting do
-             * nothing.
-             *
-             * A rejected refetch must not escape the transition, and must not
-             * be reported as a successful save either: the save *did* succeed,
-             * but the setting will not take effect until the page is reloaded,
-             * and saying so is more use than a silent stale header.
-             */
+            // The start region rides on the session, so the session is refetched. A failed
+            // refetch is reported as saved but not yet in effect, never as a failed save.
             if (!result.ok) return;
             try {
               await refetch();
@@ -121,17 +112,8 @@ export function SettingsPage({
         <label className="mb-1 block text-sm" htmlFor="defaultRegion">
           Mistä sovellus aloittaa
         </label>
-        {/*
-          `key` is what makes an uncontrolled select follow the *stored* value.
-          `defaultValue` applies on mount and is ignored on every later render,
-          so after a save the server would send the new preferences back and the
-          dropdown would keep showing the old one (#271).
-
-          Keyed on the stored value rather than on the props object, which is
-          deliberate: a re-render that does not change what is stored leaves a
-          half-made choice alone, so picking a competition and then re-rendering
-          for any other reason does not silently undo it.
-        */}
+        {/* `key` makes the uncontrolled select follow the stored value: `defaultValue`
+            applies on mount only. */}
         <select
           className={SELECT_CLASS}
           defaultValue={preferences.defaultRegion ?? ""}
@@ -207,11 +189,10 @@ export function SettingsPage({
 }
 
 /**
- * Which picture the reader is on, in their own words.
+ * Which picture the reader is on, in their own words: the fallback chain read
+ * out loud.
  *
- * The three states are the fallback chain read out loud — the reader's own,
- * then Google's, then the name — so the sentence and the picture beside it
- * cannot disagree.
+ * decisions/025-custom-avatar.md
  */
 function pictureInUse(version: string | null, googleImage: string | null): string {
   if (version !== null) return "Käytössä oma kuvasi.";
@@ -219,7 +200,11 @@ function pictureInUse(version: string | null, googleImage: string | null): strin
   return "Ei kuvaa käytössä. Valikossa näkyy nimesi.";
 }
 
-/** The Finnish for each way an upload can be refused, from specs/025-custom-avatar.md. */
+/**
+ * The Finnish for each way an upload can be refused.
+ *
+ * decisions/025-custom-avatar.md
+ */
 const AVATAR_ERRORS = {
   missing: "Valitse ensin kuva.",
   "too-large": "Kuva on liian suuri. Enimmäiskoko on 8 Mt.",
@@ -231,25 +216,18 @@ const AVATAR_ERRORS = {
 type AvatarError = keyof typeof AVATAR_ERRORS;
 
 /**
- * The reader's own profile picture, from specs/025-custom-avatar.md.
+ * The reader's own profile picture. `version` is held in state, so an upload
+ * replaces the picture without a reload.
  *
- * `version` is what makes the preview update: the stored image is served with a
- * year-long `immutable` cache, which is only safe because a new upload changes
- * the URL. Holding it in state rather than reading the prop directly is what
- * lets an upload replace the picture without a reload.
+ * decisions/025-custom-avatar.md
  */
 function ProfilePicture({
   version,
   googleImage,
 }: Readonly<{ version: string | null; googleImage: string | null }>) {
   const [current, setCurrent] = useState<string | null>(version);
-  /**
-   * The chosen file in state rather than read off the form at submit time.
-   *
-   * The size check needs it before anything is sent, and a `<form action>`
-   * would hand the action a `FormData` built from the DOM — one more place for
-   * the file to be missing, and untestable outside a real browser.
-   */
+  // The chosen file in state, not read off the form at submit: the size check
+  // needs it before anything is sent.
   const [chosen, setChosen] = useState<File | null>(null);
   const [error, setError] = useState<AvatarError | null>(null);
   const [saved, setSaved] = useState<null | "saved" | "removed">(null);
@@ -306,13 +284,8 @@ function ProfilePicture({
               announce(null, "missing");
               return;
             }
-            /**
-             * Checked here as well as on the server, and not as validation —
-             * the server is the truth for what gets stored. It is so that the
-             * reader who picks a 20 MB file is told *which* rule they hit: past
-             * Next's configured body limit the action is rejected before it
-             * runs, and a rejection cannot carry a reason.
-             */
+            // Checked here too so the reader is told which rule they hit: past Next's body
+            // limit the action is rejected before it runs, with no reason.
             if (chosen.size > MAX_UPLOAD_BYTES) {
               announce(null, "too-large");
               return;
@@ -334,15 +307,8 @@ function ProfilePicture({
                   announce(null, outcome.reason);
                 }
               } catch {
-                /**
-                 * The invocation itself was rejected, and what a rejection
-                 * means is not knowable from here: a dropped connection, a
-                 * crashed server and Next's body limit all arrive the same
-                 * way, and in production the message is redacted. So it gets
-                 * the generic notice rather than a specific one that would be
-                 * wrong more often than right — the size case is already
-                 * caught above, before anything is sent.
-                 */
+                // A rejected invocation gets the generic notice: what it means is not
+                // knowable from here.
                 announce(null, "failed");
               }
             });

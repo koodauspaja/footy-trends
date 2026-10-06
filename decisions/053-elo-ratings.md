@@ -87,3 +87,14 @@ miss is one read per provider per 15 minutes — S11's no-table decision holds.
 Screenshots at 375px in light and dark, and 1280px, of both the panel and
 `Ennuste`; the first version of `Ennuste` failed at 375px and is described
 above.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
+
+- **`loadElo` for a national team.** Unavailable: the ratings are for clubs.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`LineSeries.dots`.** A team's rating after each of hundreds of matches
+  would be a row of dots.

@@ -140,3 +140,16 @@ and `528`. The checks the hand review of the second batch added were run before
 this one opened: the code cites every record a reason of its went to, each
 declaration cites the feature that first added it, every function an entry
 names exists, and no doc comment sits on a statement inside a function body.
+
+## The fourth batch, 2026-10-06
+
+Ten files in full: in `src/lib`, `cup-stages.ts`, `domestic-competitions.ts`,
+`football-data.ts`, `forwarding.ts`, `national-team.ts` and
+`national-team-analytics.ts`; in `src/components`, `auth-controls.tsx`,
+`head-to-head-page.tsx`, `settings-page.tsx` and `charts/line-chart.tsx`.
+58 450 characters of comment became 34 873.
+
+Three records are new, for two bugs and a chore that had none: `266`, `271` and
+`413`. One comment sat on the wrong declaration: the description of the
+competition list was on `DEFAULT_DOMESTIC_COMPETITION_CODE`, the constant above
+it, and moved onto `DOMESTIC_COMPETITIONS`.

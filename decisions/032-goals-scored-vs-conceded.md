@@ -56,3 +56,11 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 - **`teamLeagueMatches`.** Results are what TASO publishes, so an unverified
   table does not stop them as it stops a position; across a split they
   continue, as the table's `Vire` does.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`LineSeries`.** A dash and not a colour, so the chart reads in both themes
+  and without colour vision. `LineLegend` names each line with a sample of
+  its style.

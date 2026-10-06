@@ -177,3 +177,20 @@ Checked against the running app, not only tests:
 Unit tests: **780 passing, 100% statements, branches, functions and lines.**
 Integration 21. Eight new Playwright specs pass locally, alongside the existing
 `/ulkomaat` suite as the refactor's regression test.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/cup-stages.ts` at `a86c1cb` by #531.
+
+- **`isTwoLeggedRound`.** `matchday` cannot answer this. The Champions League
+  numbers its legs 1 and 2, the World Cup leaves knockout `matchday` null, and
+  the European Championship continues the group-stage counter: its
+  quarter-finals are matchday 5, neither a leg nor a round. Printing that
+  under `Osaottelu` claims a second leg that was never played.
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **`SeasonContext.spansCalendarYears`, `seasonSpansCalendarYears`.** A league
+  spans; a tournament played inside one summer does not, and labelling the
+  2026 World Cup "2026/27" would claim a season it never had. Spanning is
+  also what the app assumed before tournaments existed.

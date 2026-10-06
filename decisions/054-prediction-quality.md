@@ -109,3 +109,10 @@ in memory under a second model to time a report of full size:
 With `elo-v1` the rows read double, so a miss is roughly half a second from a
 laptop, less inside Railway; a hit parses in under a millisecond. One miss per
 provider and kind per 15 minutes — S11's no-table decision holds.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`LineSeries.dotted`.** Calibration's diagonal, beside two models' lines,
+  one of them dashed.

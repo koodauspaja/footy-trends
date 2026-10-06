@@ -56,3 +56,12 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
 - **`getHomeBaseline`.** Never `empty` on a failed read, which would say the
   competition has no finished match. Unplayed matches count nowhere, since
   only finished matches with both scores are counted.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`competitionForSeasonPair`.** Stricter than `competitionCodeForCategory`:
+  a category id alone does not decide it, since a cup can publish under a
+  league's category (a `P20SM` row under `Liigacup25`) and a junior id can
+  outlive its era. The outcome counts and an upcoming match are filed by the
+  same rule, so a match and the history it is predicted from are the same
+  competition.

@@ -100,3 +100,21 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
   meetings are in every scope, so each has at least one match; an empty one
   means the meetings and this query disagree about what counts, and is
   reported as that failure, not printed as `0,0 – 0,0`.
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`mostCommonSentence`.** With every scoreline occurring once there is no
+  most common one. `kerran` is never needed: a count of one is exactly that
+  case.
+- **`shadeLevel`.** One hue, light to dark, mixed from the theme's own
+  foreground and background, so it is right in dark mode too. The shading is
+  never the only way to read a cell.
+- **`AveragesSection`.** A failed read keeps the heading and says so, so it
+  never looks like there was nothing to compare.
+- **`loadAnalysis`.** A signed-out request computes neither section, so its
+  page carries no count or average from them. The TASO national-team routes
+  have no averages: a category there holds only Finland's group of a
+  competition, so its "average" would not be the competition's. Loaded here
+  and rendered by plain components, as `AnalyticsSection` is awaited and not
+  nested: an async component inside JSX is not something every renderer can
+  draw.

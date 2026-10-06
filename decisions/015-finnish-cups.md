@@ -206,3 +206,19 @@ Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
   the column heading. Selection picks at most one group per size, so two
   chosen rounds sharing a name is not reachable in practice; were it to
   happen the two would merge into one column, which is visible.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DomesticCompetition.competitionIdPrefix`.** Almost every Finnish
+  competition is a category within the umbrella. Ykkösliigacup is not: it is
+  its own competition, published as `M1LCUP{YY}`.
+- **`DomesticCompetition.format`.** Omitted means a league, so no existing
+  entry changed behaviour when cups were added.
+- **Where the cups sit in `DOMESTIC_COMPETITIONS`.** At the end, not in the
+  tier order.
+- **`competitionIdForSeason`.** The two-digit year is shared, so only the
+  prefix varies. The umbrella is what every competition used before
+  Ykkösliigacup existed, so a bad `kilpailu` value cannot reach a competition
+  id nothing validates.
+- **`isDomesticCup`.** The league rendering is the one that has always
+  existed, so a bad `kilpailu` value cannot route into the newer path.

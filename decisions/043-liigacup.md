@@ -117,3 +117,18 @@ Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
 - **`buildPlayoffBracket`.** It says which groups the tree drew because this
   layout, the Champions League's, lists only the knockout groups the tree
   does not show: a group is shown once, as a tree or as a list.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DomesticCompetition.cupFormat`.** `knockout`: rounds from the first match,
+  every group a round, as Suomen Cup is rendered. `groups-and-playoff`:
+  round-robin groups, then the top two of each into semi-finals and a final,
+  with the groups as tables and the playoff as a bracket below them. Declared
+  so that no shape rule can reach a knockout cup: MSC 2021's 4-team groups
+  look exactly like round-robins.
+- **Liigacup's entry.** 2023 onward only. TASO also holds a 2015 Liigacup
+  inside the `spljp15` umbrella, but 2016-2022 exist under neither scheme, and
+  that one isolated season was left out on purpose. Probed live 2026-09-28:
+  `Liigacup15` to `Liigacup22` and `Liigacup27` return no categories.
+- **`cupFormatFor`.** `knockout` is the rendering that has always existed, so
+  a bad `kilpailu` value cannot route into the newer one.

@@ -259,3 +259,43 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
 - **`regular_time_*`, `extra_time_*`, `penalties_*`.** `fullTime` includes the
   shoot-out and is therefore useless for aggregating a two-legged tie: see
   `ProviderMatch` in `football-data.ts`.
+
+Cut from `src/lib/cup-stages.ts` at `a86c1cb` by #531.
+
+- **`STAGE_NAMES`.** Finnish names a knockout round by fraction, a quarter of
+  a quarter-final, and not by transliterating "last 16". `LAST_32` and
+  `THIRD_PLACE` occur in no Champions League season but were named from the
+  start, because the World Cup has both and leaving them out would put a raw
+  `THIRD_PLACE` in front of a Finnish reader. The passthrough in
+  `getStageName` is the last resort for a stage no one has seen yet.
+- **`BRACKET_STAGES`.** `LAST_16` is eight ties across and `LAST_32` sixteen.
+- **`listKnockoutStages`.** Not a hardcoded list of stage names:
+  `listSeasonStages` derives the match list's `Vaihe` options from the
+  season's own matches, so a fixed list would let a stage the provider adds
+  appear in the dropdown and vanish from the standings page, which is how
+  `Pudotuspelikarsinta` came to be invisible in the first version.
+- **`getGroupName`.** A group is always a *lohko* whatever the provider calls
+  it. Unlike `getStageName` there is nothing to translate beyond the noun, so
+  no value reaches a heading without it: a raw provider token alone would be
+  a user-facing string that is not Finnish.
+- **`listSeasonStages`.** The provider's array order and the progression
+  coincide in every response checked, so relying on the provider buys nothing
+  and costs determinism: a reordered response would reshuffle the `Vaihe`
+  selector.
+- **`PhaseShape`.** The Champions League ran eight groups in 2023/24 and a
+  single 36-team league phase from 2024/25; the format changed twice in three
+  seasons. A hardcoded cutoff would need editing the next time, and be wrong
+  until someone noticed.
+- **`parseStageParam`.** An unvalidated value must never reach a cache key or
+  a query, the rule `parseCompetitionParam` and `parseSeasonParam` enforce.
+- **`resolveCurrentStage`.** The cup analogue of `resolveCurrentRound`, and
+  separate from it: a cup's `matchday` is a leg number, so the round logic
+  cannot be reused.
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **The score breakdown in `football-data.ts`.** `fullTime` includes a penalty
+  shoot-out: Liverpool "1-5" PSG (LAST_16, 2024/25) is really 0-1 with
+  penalties 1-4, which is why the breakdown is carried through and not
+  dropped. The provider omits it for every league match and any cup match
+  decided in normal time.
