@@ -483,3 +483,11 @@ Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
 
 - **The floor in `listSelectableTasoSeasons`.** Ykkösliiga did not exist
   before 2024, and offering its 2015 would render an empty page.
+
+Cut from `src/components/renamed-notice.tsx` at `48ebab4` by #531.
+
+- **`RenamedNotice`.** "Naisten Liiga 2016" with "nykyisin Briotech
+  Kansallinen Liiga" beneath it. Shared by all three `/kotimaa` pages and not
+  on the standings page alone: each heads with the season's own name, so
+  each owes the reader the same explanation. Rendering nothing lets a caller
+  pass `renamedTo` through unconditionally.

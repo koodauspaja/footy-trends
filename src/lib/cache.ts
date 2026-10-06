@@ -33,17 +33,10 @@ export async function getCached<T>(
 }
 
 /**
- * Drops a cached entry, reporting whether it actually happened.
+ * Drops a cached entry, reporting whether it happened. Never throws; the
+ * forced refresh stops on a `false`.
  *
- * The boolean matters to exactly one caller, and for a sharp reason: the forced
- * refresh in `force-refresh.ts` clears a provider's entry *in order to* reach
- * the provider. If the clear silently failed, the refetch would come back out
- * of Redis and an admin would be shown — and would apply — a diff built from
- * the stale data they were trying to correct. So a `false` stops that run
- * rather than being swallowed. See specs/029-forced-season-refresh.md.
- *
- * Still never throws: a failure to invalidate is not a reason to fail a request
- * that was only trying to be helpful.
+ * decisions/029-forced-season-refresh.md
  */
 export async function invalidateCache(key: string): Promise<boolean> {
   try {

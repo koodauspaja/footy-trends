@@ -9,13 +9,11 @@ import { WOMENS_TEAM } from "@/lib/national-team";
 export const dynamic = "force-dynamic";
 
 /**
- * `/maajoukkueet/helmarit/kohtaamiset/:a/:b` — Finland's own meetings, which
- * are TASO's rather than football-data's.
+ * `/maajoukkueet/helmarit/kohtaamiset/:a/:b`: Finland's own meetings, which are
+ * TASO's. Its own route because its match pages have their own prefix;
+ * `nationalTeam` is what names the competitions.
  *
- * Its own route because its match pages have their own prefix: the link on
- * `/maajoukkueet/helmarit/ottelu/:id` is built from that prefix, and without
- * this it would lead nowhere. `nationalTeam` is what names the competitions,
- * whose only source is TASO's category map. See specs/042.
+ * decisions/042-head-to-head-view.md
  */
 const ROUTE = {
   source: { kind: "taso", bucket: "national" },

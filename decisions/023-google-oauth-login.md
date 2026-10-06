@@ -361,3 +361,19 @@ Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
   (`Maajoukkueet`) and a long Google display name overflows a single
   non-wrapping row, pushing the sign-out control off-screen. The repo's
   instinct is to wrap a long name and not cut it, as `data-table.tsx` does.
+
+Cut from `src/lib/auth-client.ts` at `48ebab4` by #531.
+
+- **No `baseURL` on `authClient`.** The origin is correct in every
+  environment we run (localhost, a Railway preview, production) without a
+  build-time `NEXT_PUBLIC_` variable that would be inlined at build and
+  wrong the moment the host differs.
+
+Cut from `src/lib/auth-profile.ts` at `48ebab4` by #531.
+
+- **`auth-profile.ts`.** Its own module and not a closure inside `auth.ts`,
+  so it can be tested without constructing better-auth: `auth.ts` reads four
+  environment variables at import and throws without them, which is what the
+  CI unit job has none of. Google returns a name under the `profile` scope,
+  so the fallbacks guard a contract and not an expected path; a failed
+  insert there would show the reader only a generic error.

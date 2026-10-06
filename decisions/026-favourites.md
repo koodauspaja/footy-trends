@@ -437,3 +437,13 @@ Cut from `src/app/favorites/page.tsx` at `ef99862` by #531.
 - **The order of favourite teams.** Alphabetical is what the feature
   promises. A team without a name has no place in that order, and would
   otherwise sort as "".
+
+Cut from `src/lib/favourite-actions.ts` at `48ebab4` by #531.
+
+- **`ToggleResult`'s reason.** At the cap the reader must remove something,
+  and on a failure they should try again.
+- **`FAVOURITES_PATHS`.** CLAUDE.md's split, joined by the rewrite in
+  `next.config.ts`. The reader's URL is the one that matters; the folder
+  path is revalidated beside it because the extra call costs nothing and
+  this cannot be exercised end to end: the action needs a real session,
+  which the e2e suite cannot forge.

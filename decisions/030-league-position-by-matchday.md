@@ -174,3 +174,19 @@ Cut from `src/lib/return-path.ts` at `ef99862` by #531.
   the bare pathname, which was harmless on `/asetukset` and `/suosikit` but
   on a team page dropped `?kilpailu=` and `?kausi=`, so the reader signed in
   from a chart and came back to a different competition and season.
+
+Cut from `src/lib/analytics-access.ts` at `48ebab4` by #531.
+
+- **`canSeeAnalytics`.** Miikka, 2026-09-18: "all analytics are for signed
+  in users only". Decided on the server so a signed-out page carries no
+  analytics data at all; hiding it in the browser would publish it anyway.
+  Failing closed shows a reader the sign-in prompt, where failing open would
+  show analytics to someone who is not signed in. `e2e-analytics.ts` says
+  why the override cannot reach production.
+
+Cut from `src/components/charts/position-chart.tsx` at `48ebab4` by #531.
+
+- **`PositionChart`'s axis.** With the whole league on it a season reads the
+  same way as the table beside it, and two seasons of one league share a
+  scale. The list below the chart holds each round and position, for a
+  screen reader and for anyone who cannot read the line.

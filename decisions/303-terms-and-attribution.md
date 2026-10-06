@@ -14,3 +14,12 @@ Cut from `src/components/site-footer.tsx` at `ef99862` by #531.
   on `/maajoukkueet`, where the tournaments are football-data's and the
   Finnish teams' own match lists are Palloliitto's, and a single footer line
   cannot draw that boundary without getting it wrong, which it did twice.
+
+Cut from `src/app/terms/page.tsx` at `48ebab4` by #531.
+
+- **`/kayttoehdot`.** Google requires both documents reachable without
+  signing in before an OAuth consent screen can leave Testing. The page
+  claims no licence because football-data.org's free tier is a published
+  permission the app meets, while the TASO arrangement is an open question
+  recorded on #303. Asserting a permission that has not been established
+  would be worse than saying nothing.

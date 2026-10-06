@@ -7,12 +7,10 @@ type CompetitionSelectProps = {
 };
 
 /**
- * The `Kilpailu` label + `<select>`, plus the selected competition's flag.
- * Flags can't be shown per-option inside a native `<select>` — `<option>`
- * only renders text, not images — so the flag reflects whichever
- * competition is currently selected instead of appearing in the dropdown
- * list itself. The picker page (plain links, not a `<select>`) shows a
- * flag per competition without this constraint.
+ * The `Kilpailu` label and `<select>`, plus the selected competition's flag:
+ * an `<option>` renders only text, so the flag cannot sit in the list.
+ *
+ * decisions/006-other-competitions.md
  */
 export function CompetitionSelect({
   competitions,

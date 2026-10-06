@@ -6,9 +6,10 @@ import { getTasoSeasonMovements } from "./taso-standings-service";
 
 /**
  * A competition's table movement in each completed season, for its standings
- * page (specs/050), or `error` — a failed read is its own case, never "too few".
- * Each provider reads its own stored seasons; the line is the same rule for
- * both.
+ * page, or `error`: a failed read is its own case, never "too few". Each
+ * provider reads its own stored seasons.
+ *
+ * decisions/050-table-volatility.md
  */
 export async function getTableVolatility(
   kind: MatchSource["kind"],

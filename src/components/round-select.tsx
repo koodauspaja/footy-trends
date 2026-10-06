@@ -5,15 +5,11 @@ type RoundSelectProps = {
 };
 
 /**
- * The `Kierros` label + `<select>` only, for the season-wide match list. No
- * "Koko kausi" option here — unlike the home page's round selector, a round
- * is always required, since it's this page's chunking mechanism rather than
- * an optional filter.
+ * The `Kierros` label and `<select>` only, for the season-wide match list. No
+ * `Koko kausi` option: a round is always required. Controlled via `value`, as
+ * the round also changes through the page's ◀/▶ links.
  *
- * Controlled via `value`, not `defaultValue`: the round can also change
- * through the page's ◀/▶ links, which don't go through this select's own
- * `onChange` — an uncontrolled select would keep showing the round it was
- * first mounted with after one of those link clicks.
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export function RoundSelect({
   availableRounds,

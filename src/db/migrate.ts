@@ -15,12 +15,10 @@ if (existsSync(".env")) {
 const migrationJournalPath = "./drizzle/migrations/meta/_journal.json";
 
 /**
- * The connection string, or `null` after saying why there is none.
+ * The connection string, or `null` after saying why there is none: one line on
+ * stderr, before any client exists.
  *
- * Checked before any client exists (#536): handed nothing, postgres.js would
- * migrate `localhost` or whatever `PGHOST` names. One line on stderr and a
- * non-zero exit, where an uncaught error would bury the variable's name under
- * a stack trace in the deploy log.
+ * decisions/536-database-url-required.md
  */
 function connectionString(): string | null {
   try {

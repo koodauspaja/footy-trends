@@ -2,23 +2,39 @@ import { ChartPanel } from "@/components/charts/chart-panel";
 import { LineChart } from "@/components/charts/line-chart";
 import type { TeamEloSeries } from "@/lib/elo-service";
 
-/** The strings agreed in specs/053 (S9, S10, S13), each where the spec places it. */
+/**
+ * The panel's strings.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_HEADING = "Joukkueen vahvuus (Elo)";
 export const ELO_NOTE =
   "1500 on keskitasoinen joukkue. Luku nousee voitoista ja laskee tappioista sitä enemmän, mitä vahvempaa vastustajaa vastaan ottelu pelattiin.";
-/** Wherever Elo was needed and the replay failed: this panel, and `Ennuste`. */
+/**
+ * Wherever Elo was needed and the replay failed: this panel, and `Ennuste`.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_ERROR_MESSAGE = "Vahvuutta ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const ELO_EMPTY_MESSAGE = "Joukkueella ei ole tallennettuja otteluita näistä kilpailuista.";
 const Y_LABEL = "Elo-luku";
 
 const HEADING_ID = "team-elo";
 
-/** `unavailable` on a national team's page: no Elo there (specs/053 S5). */
+/**
+ * `unavailable` on a national team's page: no Elo there.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export type EloPanelData =
   | { series: TeamEloSeries; seasonLabel: (seasonId: number) => string }
   | { series: { status: "unavailable" } };
 
-/** One season's line in the text alternative: its last rating. */
+/**
+ * One season's line in the text alternative: its last rating.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export function eloSeasonSentence(seasonLabel: string, rating: number): string {
   return `${seasonLabel}: ${Math.round(rating)}`;
 }
@@ -26,6 +42,8 @@ export function eloSeasonSentence(seasonLabel: string, rating: number): string {
 /**
  * The y axis: whole fifties around the ratings, ticked every 50 — or every
  * 100 once the span passes 300, so a phone's axis stays legible.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function eloAxis(ratings: readonly number[]): { domain: [number, number]; ticks: number[] } {
   const low = Math.floor((Math.min(...ratings) - 10) / 50) * 50;
@@ -37,9 +55,11 @@ export function eloAxis(ratings: readonly number[]): { domain: [number, number];
 }
 
 /**
- * The team page's `Joukkueen vahvuus (Elo)` (specs/053 S9), or `null` where
+ * The team page's `Joukkueen vahvuus (Elo)`, or `null` where
  * there is none. A plain function, as the other panels, so the section can
  * tell an absent panel from a present one.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function eloPanel(data: EloPanelData) {
   if (!("seasonLabel" in data)) return null;

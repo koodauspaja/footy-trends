@@ -261,3 +261,16 @@ Cut from `src/lib/seasons.ts` at `ef99862` by #531.
   World Cup runs 2026-06-11 to 2026-07-19 and the Euro 2024-06-14 to
   2024-07-14, while Champions League runs 2025-09-16 to 2026-05-30.
   Labelling a World Cup "2026/27" claims a season it never had.
+
+Cut from `src/components/competition-matches-page.tsx` at `48ebab4` by #531.
+
+- **`fourthColumnFor`.** A single-leg knockout round's `matchday` is whatever
+  the provider happens to carry there: null for the World Cup and a
+  continued group counter for the European Championship. Either way it is
+  not a leg.
+
+Cut from `src/components/competition-standings-page.tsx` at `48ebab4` by #531.
+
+- **`CompetitionStandingsPage`.** One implementation and not two, because
+  the regions differ only in which competitions they offer and what their
+  links are prefixed with.

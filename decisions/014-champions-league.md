@@ -336,3 +336,32 @@ Cut from `src/lib/cup-standings.ts` at `ef99862` by #531.
   sorting makes the page deterministic if that ever stops being true. A
   team's knockout results cannot leak into the table it earned its place
   in.
+
+Cut from `src/components/context-notices.tsx` at `48ebab4` by #531.
+
+- **`ContextNotices`.** Both the standings and match-list pages branch into
+  a league shape and a cup shape, and all four render exactly these two
+  notices: four copies of the same block if it lives in the pages.
+
+Cut from `src/components/cup-matches-controls.tsx` at `48ebab4` by #531.
+
+- **`CupMatchesControls`.** The cup counterpart to `MatchesControls`, which
+  selects a round. Dropping `kierros` means switching between a league and a
+  cup cannot leave a stale round in the query string.
+- **The stage across a season change.** 2023/24 had a group stage and
+  2024/25 a league phase.
+
+Cut from `src/components/cup-standings-controls.tsx` at `48ebab4` by #531.
+
+- **`CupStandingsControls`.** A cup page has no round selector: its knockout
+  matchdays are leg numbers and not rounds, and the phase tables it shows
+  are always the phase's full table. `Vaihe` lives on the match list, so the
+  two controls never sit side by side answering the same question. Clearing
+  `kierros` means a round carried over from a league competition cannot
+  survive the switch into a cup.
+
+Cut from `src/components/stage-select.tsx` at `48ebab4` by #531.
+
+- **`StageSelect`.** `RoundSelect` cannot be reused: a cup's `matchday` is a
+  leg number (1 or 2, and 0 for a final), not a round, so there is no 1..n
+  range to list.

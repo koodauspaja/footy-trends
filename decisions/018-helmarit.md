@@ -182,3 +182,9 @@ Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
   years, which is not the same as the provider's season buckets; `maajp18`
   alone spans four of them. The two teams differ only in the category suffix
   that selects their matches and in what the page is called.
+
+Cut from `src/app/national-teams/page.tsx` at `48ebab4` by #531.
+
+- **The national teams' picker entries.** `SUPPORTED_COMPETITIONS` is
+  football-data's list and feeds `kilpailu` validation, unlike the two
+  tournaments beside them.

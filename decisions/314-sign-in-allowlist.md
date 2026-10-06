@@ -56,3 +56,14 @@ Cut from `src/lib/sign-in-allowlist.ts` at `dc74e3e` by #531.
   restriction and not a bouncer that only checks new faces. An account
   created before the list existed is refused on its next sign-in, and no
   `user` row is written for one that never got in.
+
+Cut from `src/lib/sign-in-refusal.ts` at `48ebab4` by #531.
+
+- **`sign-in-refusal.ts`.** Both halves need the code and they live on
+  opposite sides of the bundle boundary: `sign-in-allowlist.ts` reads the
+  environment on the server, and `auth-controls.tsx` is a client component
+  rendered on the four pages `tests/unit/app/rendering-mode.test.ts` keeps
+  prerendered. The same split `favourite-keys.ts` exists for. better-auth
+  puts the code in the URL; CLAUDE.md's rule is that UI strings are Finnish
+  and everything else is English, and a query parameter is not a UI
+  string.

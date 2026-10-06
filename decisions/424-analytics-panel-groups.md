@@ -14,3 +14,10 @@ Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
   which swapped the two against the order before: a running share plotted
   match by match and a season summary belong on opposite sides of that
   line.
+
+Cut from `src/components/charts/chart-panel.tsx` at `48ebab4` by #531.
+
+- **`ChartPanel`'s `h4`.** `Analyysit` is the `h2`, a group is the `h3`, and
+  a panel is below both. Every use of the component is a panel in a group, so
+  the level is fixed and not passed in by ten callers that would all pass the
+  same thing.

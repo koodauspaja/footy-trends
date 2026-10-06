@@ -1,20 +1,8 @@
 /**
- * The database's connection string, or an error that says what is missing
- * (#536).
+ * The database's connection string, or an error that says what is missing.
+ * There is no fallback, on purpose, and empty counts as unset.
  *
- * **There is no fallback, on purpose.** Handed nothing, postgres.js connects by
- * its own defaults: `localhost`, or whatever `PGHOST` and the other `PG*`
- * variables happen to hold. The app then starts and every query fails as an
- * error page; a migration is worse, because a stray `PGHOST` in someone's shell
- * decides which database it changes. An unset or empty variable is refused
- * here, by name, before any client exists to fall back with.
- *
- * Empty counts as unset: `DATABASE_URL=` in an `.env` copied from the example
- * is the usual way to have neither.
- *
- * The message is for whoever reads the deploy log or the server's error log,
- * so it is English, as logs are. No reader of the site sees it: a page whose
- * query fails shows its own Finnish error state.
+ * decisions/536-database-url-required.md
  */
 export const MISSING_DATABASE_URL =
   "DATABASE_URL is not set, or is empty. Set it to the database's connection string.";

@@ -371,3 +371,11 @@ Cut from `src/components/admin-user-table.tsx` at `ef99862` by #531.
   nothing" and "the table is empty" must not be the same rendering.
 - **An admin's own row.** Offering a button whose only outcome is a refusal
   is a worse answer than not offering it.
+
+Cut from `src/lib/admin-actions.ts` at `48ebab4` by #531.
+
+- **`admin-actions.ts`.** A server action is a public network endpoint
+  whether or not anything renders a control for it, so neither the missing
+  menu link nor the page's not-found answer keeps a caller out; only the
+  gate does. `favourite-actions.ts` follows the same rule about the acting
+  user's id.
