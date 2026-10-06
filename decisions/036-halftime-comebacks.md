@@ -81,3 +81,9 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   half-time score for 1 of 132 Ykkönen 2025 matches, and football-data
   refuses older seasons outright. "No half-time score" and "0–0 at the break"
   must stay distinguishable.
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **Panels, not charts.** Most are charts; `Putket` and `Kääntyneet ottelut`
+  are lists of figures, which is why `AnalyticsSection` calls its parts
+  panels.

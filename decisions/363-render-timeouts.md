@@ -36,3 +36,15 @@ Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
   tunable without moving each other. Eight seconds against TASO's ten because
   nothing here fans out the way the national-team page does. The wait after a
   429 stays governed by the response's own `Retry-After`.
+
+Cut from `src/lib/provider-request.ts` at `ef7eb13` by #531.
+
+- **`signal`.** An endpoint that hangs until a probe times out is worse than
+  one that reports a provider as unreachable.
+- **`attemptTimeoutMs`.** A provider that accepts the connection and then
+  stalls has to be cut off: an unbounded render let TASO hold 41 e2e specs
+  until Playwright's own 30 s fired. But a 429 is the one failure worth
+  waiting out, and that wait is up to `MAX_BACKOFF_SECONDS`. A timeout
+  spanning the whole call would abort every retry before it completed,
+  turning a recoverable rate limit into the "could not be loaded" page the
+  retry exists to prevent. So the bound applies to the request.

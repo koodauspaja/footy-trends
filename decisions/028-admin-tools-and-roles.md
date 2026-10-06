@@ -260,3 +260,23 @@ Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
   Anyone refused, a stranger or a demoted admin whose session still says
   otherwise, gets the generic not-found page with a 200 status, because Next
   cannot change a status a stream has already committed.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`role` in the session.** It costs nothing to carry: the query already
+  selects from `user`, so it is one more column on a row being read anyway.
+  Nothing decides access from it. A session is issued once, so the value can
+  be stale for as long as the session lives; that is tolerable for whether a
+  menu item renders and intolerable for whether a page opens, which is why
+  `requireAdmin()` reads the column from the database on every request.
+
+Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
+
+- **`isAdminSession`.** It reads a value the session was issued with, so it
+  is stale from the moment a role changes until that session is refreshed.
+  `requireAdmin()` reads the column from the database on every request and is
+  what refuses: a demoted admin following a link they can still see gets a
+  404, which is why hiding the link is a convenience and not a control.
+  `isAdmin` takes `unknown` and answers false for anything that is not
+  exactly the admin role, so an unusable payload renders no link and does not
+  throw.

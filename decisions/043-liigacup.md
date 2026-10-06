@@ -132,3 +132,13 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
   `Liigacup15` to `Liigacup22` and `Liigacup27` return no categories.
 - **`cupFormatFor`.** `knockout` is the rendering that has always existed, so
   a bad `kilpailu` value cannot route into the newer one.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`GroupsAndPlayoff`.** Laid out as Champions League is. A drawn group is
+  not listed as well: for Liigacup the `1-4` group's three matches are the
+  tree.
+- **The bracket's place on a knockout cup's page.** Such a page has no
+  standings table to lead with, so burying the bracket under as many as ten
+  round lists, one of them 248 teams wide, would hide the most useful part
+  of the page. Each drawn round still keeps its own list below.

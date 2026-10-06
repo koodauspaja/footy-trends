@@ -1,36 +1,28 @@
 /**
- * The app's bar chart: rows of horizontal bars, drawn as SVG on the server
- * (specs/033), beside `LineChart` and in the same way — no client JavaScript,
- * geometry in exported functions tested directly, theme tokens only.
+ * The app's bar chart: rows of horizontal bars, drawn as SVG on the server.
+ * Every row has its own scale, and bars in a row are told apart by fill, not
+ * colour.
  *
- * **Every row has its own scale**, because a row is a measure and measures do
- * not share units: points per match, goals per match, a percentage. Each bar
- * sits on a faint track the length of its row's scale, so the scale is visible,
- * and its value is printed just past the track, in one column for every bar —
- * easier to scan than text at each bar's own end, and never over the track's
- * faint fill — so the chart reads exactly without an axis.
- *
- * Bars in a row are told apart by fill, not colour: filled or outlined, both in
- * the foreground colour (specs/033, Q6), with `BarLegend` to name them.
+ * decisions/033-home-vs-away.md
  */
 
 /**
  * The drawing's width, in SVG user units; `viewBox` scales it to the page.
  *
- * Narrower than `LineChart`'s 640, and shown no wider than `max-w-md`: the
- * text here is most of the content, and it scales with the drawing. At 400
- * units a phone's width shows it at about 0,86× and a desktop at about 1,1×;
- * at 640 a phone would show it at about half size.
- *
- * `LineChart` reached the same end differently (#441): its text is the axis
- * rather than the content, so it kept its width and enlarges the font below
- * `sm`. Narrowing stays right here, where the labels are what the reader is
- * being shown.
+ * decisions/033-home-vs-away.md
  */
 const WIDTH = 400;
-/** Room at the right of the longest bar for its printed value, e.g. `100 %`. */
+/**
+ * Room at the right of the longest bar for its printed value, e.g. `100 %`.
+ *
+ * decisions/033-home-vs-away.md
+ */
 const VALUE_ROOM = 64;
-/** The length a bar at its row's full scale reaches. */
+/**
+ * The length a bar at its row's full scale reaches.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export const TRACK = WIDTH - VALUE_ROOM;
 
 const LABEL_HEIGHT = 20;
@@ -41,7 +33,7 @@ const ROW_GAP = 16;
 export type Bar = {
   /** What the bar is, unique within its row: its key, and `data-bar`. */
   name: string;
-  /** `null` draws no bar: nothing to measure yet (specs/033, Q7). */
+  /** `null` draws no bar: nothing to measure yet. */
   value: number | null;
   /** What is printed at the bar's end, and read out: the true value, formatted. */
   text: string;
@@ -56,17 +48,20 @@ export type BarRow = {
 };
 
 /**
- * A bar's length for `value` on a scale of `max`, over `track` units.
+ * A bar's length for `value` on a scale of `max`, over `track` units. Kept
+ * within the track; a negative value draws as nothing.
  *
- * Kept within the track: a value past the scale fills it and no more, and its
- * printed text still states the true number (specs/033, Q3). A negative value
- * cannot occur in these measures, but draws as nothing rather than backwards.
+ * decisions/033-home-vs-away.md
  */
 export function barLength(value: number, max: number, track = TRACK): number {
   return Math.min(Math.max(value / max, 0), 1) * track;
 }
 
-/** The height one row takes: its label, its bars, and the gap below. */
+/**
+ * The height one row takes: its label, its bars, and the gap below.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export function rowHeight(barCount: number): number {
   return LABEL_HEIGHT + barCount * BAR_HEIGHT + (barCount - 1) * BAR_GAP + ROW_GAP;
 }
@@ -121,10 +116,18 @@ export function BarChart({
   );
 }
 
-/** The width of an outlined bar's stroke. */
+/**
+ * The width of an outlined bar's stroke.
+ *
+ * decisions/033-home-vs-away.md
+ */
 const STROKE = 1.5;
 
-/** One bar: its track, its fill, and its value printed past the track. */
+/**
+ * One bar: its track, its fill, and its value printed past the track.
+ *
+ * decisions/033-home-vs-away.md
+ */
 function BarShape({ bar, max, y }: Readonly<{ bar: Bar; max: number; y: number }>) {
   const length = bar.value === null ? 0 : barLength(bar.value, max);
 
@@ -155,9 +158,10 @@ function BarShape({ bar, max, y }: Readonly<{ bar: Bar; max: number; y: number }
 }
 
 /**
- * A bar's fill, filled or outlined. An outline is drawn half inside the
- * rectangle, so an outlined bar is inset by half its stroke on every side to
- * stay within its track.
+ * A bar's fill, filled or outlined. An outlined bar is inset by half its
+ * stroke on every side, so the outline stays within its track.
+ *
+ * decisions/033-home-vs-away.md
  */
 function BarFill({
   length,
@@ -183,6 +187,8 @@ function BarFill({
 /**
  * Which bar is which, beneath the chart: a small sample of each bar's fill
  * beside its label.
+ *
+ * decisions/033-home-vs-away.md
  */
 export function BarLegend({
   items,

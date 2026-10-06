@@ -215,3 +215,18 @@ Cut from `src/lib/competitions.ts` at `94397a8` by #531.
   provider URL, a cache key or a query, the rule `parseSeasonParam` enforces.
   Scoped to a region, so `?kilpailu=PL` on `/maajoukkueet` is rejected and
   does not render a Premier League page under a national-teams heading.
+
+Cut from `src/lib/country-names.ts` at `ef7eb13` by #531.
+
+- **`FINNISH_COUNTRY_NAMES`.** World Cup 2026 and Euro 2024 are the full set
+  the app can reach through that provider.
+- **`toFinnishCountryName`.** Falling through and not guessing: a country
+  that qualifies later shows under its English name, which is wrong but
+  readable, where a mangled translation would be neither. Add it to the map.
+  Club names are proper nouns and are never translated: `Paris Saint-Germain`
+  stays as it is.
+- **`toFinnishTeamNames`.** Standings, the bracket, the match list and the
+  team page all read from the same translated rows, where each would
+  otherwise translate at render time.
+- **`localiseForRegion`.** Club names are proper nouns, so the region, not
+  the competition, decides.

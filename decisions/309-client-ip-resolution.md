@@ -196,3 +196,12 @@ Cut from `src/lib/forwarding.ts` at `a86c1cb` by #531.
   and two spellings of one address must not read as two hops.
 - **`isPrivateIpv4`.** A request from the public internet cannot have such a
   source address, so those are the hops `trustedProxies` would skip.
+
+Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
+
+- **`?forwarded` on the health endpoint.** A platform probe has no use for
+  it. It answers how many hops arrive in `x-forwarded-for`, which of them are
+  infrastructure, and which single-value header agrees with one the edge
+  wrote: better-auth refuses to resolve a client IP from a multi-hop header
+  unless `trustedProxies` says which to skip, and resolves a single-value
+  header with no proxy list at all.

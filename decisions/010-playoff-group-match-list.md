@@ -144,3 +144,8 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   cannot own-calculate": that complement holds only while `CARRY_OVER_CONFIG`
   is complete, and a season that split without its entry would render two
   league groups as match lists.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **Knockout groups in `GroupBody`.** TASO returns one row per bracket slot,
+  so an advancing team would repeat itself down the rows of a table.

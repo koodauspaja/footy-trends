@@ -72,3 +72,8 @@ Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
 - **The groups on the head-to-head page.** Signed out, a rivalry no longer
   played, and the TASO national-team routes all leave the page exactly as it
   was before the form was added.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`formResultLabel`.** Exported so the head-to-head page's form spells a
+  result as the table does.

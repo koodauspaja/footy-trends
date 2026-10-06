@@ -15,12 +15,10 @@ import type {
 } from "@/lib/refresh-view";
 
 /**
- * The forced season refresh, from specs/029-forced-season-refresh.md.
+ * The forced season refresh's form. A client component: it imports
+ * `refresh-view.ts`, never the engine, which reaches the database.
  *
- * A client component because every control is interactive and the apply asks
- * first. It imports `refresh-view.ts` rather than the engine: that reaches the
- * database and this is a browser bundle — the boundary `admin-user-view.ts` and
- * `favourite-keys.ts` exist for.
+ * decisions/029-forced-season-refresh.md
  */
 
 const COMPETITION_LABEL = "Sarja";
@@ -32,10 +30,18 @@ const LOADING_PREVIEW = "Haetaan…";
 const LOADING_SEASONS = "Ladataan…";
 const SEASONS_FAILED = "Kausien haku epäonnistui.";
 const NO_SEASONS = "Tälle sarjalle ei ole tallennettuja kausia.";
-/** A rejected request, as opposed to one that answered with a refusal. */
+/**
+ * A rejected request, as opposed to one that answered with a refusal.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 const REQUEST_FAILED = "Pyyntö epäonnistui. Yritä uudelleen.";
 
-/** Every refusal either action can report, in Finnish. */
+/**
+ * Every refusal either action can report, in Finnish.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 const REFUSALS: Record<RefreshFailureReason, string> = {
   input: "Tuntematon sarja tai kausi.",
   cache:
@@ -79,34 +85,16 @@ export function RefreshForm({ domestic, foreign }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  /**
-   * Which request is the current one.
-   *
-   * Bumped when a request starts **and** when the selection changes, so an
-   * answer for a competition or season nobody is looking at any more is
-   * dropped rather than shown. Without it a slow preview could put one
-   * competition's diff on screen while the buttons beneath it act on another —
-   * and the whole feature rests on the diff an admin sees being the one they
-   * approve.
-   */
+  // Which request is the current one. Bumped when a request starts and when the
+  // selection changes, so an answer for an abandoned selection is dropped.
   const requestId = useRef(0);
 
-  /**
-   * Invalidates whatever is in flight. Call on every change of selection.
-   *
-   * `useCallback` with no dependencies so the identity is stable: the effect
-   * below lists it, and a function rebuilt each render would restart that
-   * effect every render — refetching the season list continuously.
-   */
+  // Invalidates whatever is in flight. Stable, as the effect below lists it.
   const abandonInFlight = useCallback(() => {
     requestId.current += 1;
   }, []);
 
-  /**
-   * Loaded for the chosen competition only. There are ten foreign competitions
-   * and each needs its own provider call, so resolving them all on mount would
-   * turn a cold cache into ten requests against a rate-limited plan.
-   */
+  // Loaded for the chosen competition only: each needs its own provider call.
   useEffect(() => {
     if (competition === "") return;
 
@@ -143,29 +131,15 @@ export function RefreshForm({ domestic, foreign }: Props) {
     };
   }, [competition, abandonInFlight]);
 
-  /**
-   * Runs one action, ignoring its answer if the selection moved on, and
-   * turning a rejection into something an admin can read.
-   *
-   * A server action can reject rather than return a refusal — a dropped
-   * connection, an exception the engine did not convert — and `void action()`
-   * on its own would swallow that, leaving the form pending with no notice and
-   * no way forward.
-   */
+  // Runs one action, ignoring its answer if the selection moved on, and turning
+  // a rejection into a notice.
   const run = <T,>(request: () => Promise<T>, settle: (value: T) => void) => {
     abandonInFlight();
     const id = requestId.current;
     setNotice(null);
 
-    /**
-     * An **async** callback, not `void request()` inside a synchronous one.
-     *
-     * `startTransition` tracks only what its callback does before returning, so
-     * firing the request and returning immediately drops `pending` back to
-     * false while the server action is still running — leaving the button live
-     * and a second click able to start a duplicate refresh. Awaiting inside the
-     * transition keeps `pending` true until the answer lands.
-     */
+    // An async callback: `pending` stays true until the answer lands, so a second
+    // click cannot start a duplicate refresh.
     startTransition(async () => {
       try {
         const value = await request();
@@ -209,11 +183,8 @@ export function RefreshForm({ domestic, foreign }: Props) {
     );
   };
 
-  /**
-   * The season, once there is one to act on. Narrowed here rather than guarded
-   * inside each handler: a guard the disabled button makes unreachable is a
-   * branch no test can reach and no reader can justify.
-   */
+  // The season, once there is one to act on, narrowed here and not guarded in
+  // each handler.
   const chosenSeason = seasons === null ? null : season;
 
   return (

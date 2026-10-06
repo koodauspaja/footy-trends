@@ -405,3 +405,16 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
 - **`DOMESTIC_COMPETITIONS`.** Separate from `SUPPORTED_COMPETITIONS` in
   `competitions.ts`, the football-data list behind `/ulkomaat`: this list is
   never added to that one.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`formatMatchResult`.** The same formatting was duplicated across every
+  matches and team page, both football-data.org's and TASO's.
+- **`selectTeamMatches`.** Shared by every provider's `getTeamMatches`: the
+  same "find this team's games, oldest first" logic wherever the match list
+  came from.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`displayGroupName`.** `Runkosarja` was the era's name for the season's
+  only phase.

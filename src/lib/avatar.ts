@@ -5,36 +5,29 @@ import { userAvatar } from "@/db/schema";
 import { logger } from "@/lib/logger";
 
 /**
- * Reading and writing one reader's stored avatar, from
- * specs/025-custom-avatar.md.
+ * Reading and writing one reader's stored avatar. The bytes live in Postgres,
+ * so deleting the account deletes the image.
  *
- * Bytes live in Postgres rather than in object storage or on a volume: no new
- * vendor, no new secret, and deletion is a foreign-key cascade, so an account
- * cannot leave an orphaned image behind. That is what keeps
- * specs/024-account-settings.md's "irreversible and complete" promise true by
- * construction rather than by a reconciliation job.
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
  */
 
 export type StoredAvatar = { bytes: Buffer; contentType: string; version: string };
 
 /**
- * The database's size limit, and the share of it this table may take before
- * anyone is told.
+ * The database's size limit, and the share of it this table may take before a
+ * warning is logged. The threshold stops nothing.
  *
- * The arithmetic, measured while scoping: an avatar is at most ~21 kB, because
- * random noise is incompressible and no photograph encodes worse at the same
- * dimensions. With row overhead, call it 24 kB. So 800 MB is roughly 33 000
- * readers with custom pictures — against a whole database that is 21 MB today.
- *
- * The threshold is not there to stop anything. It is there so that the ratio
- * changing is noticed by somebody rather than by nobody, with the remaining
- * 90 % of the limit left to react in. The next step when it fires is a Railway
- * volume; the spec lists what has to be true for that to work.
+ * decisions/025-custom-avatar.md
  */
 const DATABASE_LIMIT_BYTES = 8 * 1024 * 1024 * 1024;
 const WARN_ABOVE_BYTES = DATABASE_LIMIT_BYTES / 10;
 
-/** The stored avatar for one reader, or null when they have none. */
+/**
+ * The stored avatar for one reader, or null when they have none.
+ *
+ * decisions/025-custom-avatar.md
+ */
 export async function getAvatar(userId: string): Promise<StoredAvatar | null> {
   const [row] = await db
     .select({
@@ -50,26 +43,18 @@ export async function getAvatar(userId: string): Promise<StoredAvatar | null> {
 }
 
 /**
- * Stores one reader's avatar, replacing whatever was there.
+ * Stores one reader's avatar, replacing whatever was there. Returns the new
+ * version, which is what the image URL carries.
  *
- * Returns the new version, which is what the image URL carries.
+ * decisions/025-custom-avatar.md
  */
 export async function saveAvatar(
   userId: string,
   bytes: Buffer,
   contentType: string
 ): Promise<string> {
-  /**
-   * A fresh random token per write, not a timestamp.
-   *
-   * `/api/avatar/me` is one URL for every reader, so this parameter is the only
-   * thing keeping one reader's cached image apart from another's — and the
-   * response is `private, immutable` for a year. Two readers whose avatars were
-   * saved in the same millisecond would have shared a URL, and a browser
-   * profile used by both would have served the first one's picture to the
-   * second. Randomness removes the collision rather than making it unlikely,
-   * and it also stops the URL disclosing when the picture was set.
-   */
+  // A fresh random token per write, not a timestamp. One URL serves every
+  // reader, so a shared token would serve one reader's picture to another.
   const version = randomUUID();
   const updatedAt = new Date();
 
@@ -88,31 +73,25 @@ export async function saveAvatar(
   return version;
 }
 
-/** Removes one reader's avatar. Removing one that does not exist is not an error. */
+/**
+ * Removes one reader's avatar. Removing one that does not exist is not an error.
+ *
+ * decisions/025-custom-avatar.md
+ */
 export async function deleteAvatar(userId: string): Promise<void> {
   await db.delete(userAvatar).where(eq(userAvatar.userId, userId));
 }
 
 /**
- * Says so, once, when the table has grown into a share of the database worth
- * knowing about.
+ * Warns in the log when the table has grown into a share of the database
+ * worth knowing about. Its own failure is logged, never thrown.
  *
- * Runs after a successful upload — a rare write, once per reader — so the cost
- * is one extra query on a path nobody is waiting on twice.
- *
- * **Its own failure is swallowed deliberately.** A diagnostic that can break
- * the thing it watches is worse than no diagnostic: the avatar is already
- * stored by the time this runs, and losing the warning costs a log line where
- * throwing would cost the reader their upload.
+ * decisions/025-custom-avatar.md
  */
 async function warnIfTableIsGrowing(): Promise<void> {
   try {
-    // The table name appears literally rather than as `${userAvatar}`:
-    // `pg_total_relation_size` takes a `regclass`, so it needs the name as a
-    // string either way, and having it in one form twice is clearer than in
-    // two forms once each. Counts come back as text because a bigint does not
-    // fit a JavaScript number by right — these values do, but the driver is not
-    // going to guess that.
+    // The table name is a literal because `pg_total_relation_size` takes a
+    // `regclass`. Counts come back as text: they are bigints.
     const rows = await db.execute<{ bytes: string; count: string }>(
       sql`select pg_total_relation_size('user_avatar')::text as bytes, count(*)::text as count from user_avatar`
     );

@@ -164,3 +164,25 @@ Cut from `src/components/match-page.tsx` at `94397a8` by #531.
 - **The link under the previous meetings.** Offered even when the block shows
   every meeting: the full page carries a record, goals and a ground split
   that the list does not.
+
+Cut from `src/lib/meeting-labels.ts` at `ef7eb13` by #531.
+
+- **`meeting-labels.ts`.** The head-to-head deliberately spans competitions,
+  so this column is the only signal for which one a meeting belonged to, and
+  TASO's `group_name` names a stage: `5. Kierros` leaves a cup tie looking
+  like a league round, and on the national-team side it can be `2024`,
+  `Slovakia` or `Heinäkuu`. The fallback covers a category the picker does
+  not claim, or a map that could not be read, and costs one line where an
+  error would cost the page. Extracted from `match-page.tsx` because the full
+  head-to-head page needs the same labels for the same rows: two copies would
+  be two answers to "which competition was that".
+- **`loadCategoryNames`.** A bucket at or above the active year is treated as
+  still changing and cached for fifteen minutes, an older one as settled and
+  cached for a year. Passing the active year twice makes every bucket look
+  current, which is the fifteen-minute re-fetch this is meant to avoid.
+- **`categoryNameLoader`.** `getCached` does not deduplicate in-flight
+  misses, so on a cold cache every caller sees the miss and fetches the same
+  map. A match page asks about the match it displays and up to five previous
+  meetings; a full history asks about every meeting.
+- **`labelFromCategoryName`.** A Helmarit row reached from a Huuhkajat match
+  must lose `Helmarit`, not `Huuhkajat`.

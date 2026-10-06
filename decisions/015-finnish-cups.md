@@ -222,3 +222,14 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
   id nothing validates.
 - **`isDomesticCup`.** The league rendering is the one that has always
   existed, so a bad `kilpailu` value cannot route into the newer path.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`normaliseRoundName` in `displayGroupName`.** Safe to apply to every
+  group, because a league group name is never one of the two cup names.
+- **The `Kierros` column.** In a cup it would repeat the same value down
+  every row.
+- **`CupRoundSection`.** A cup season stacks up to ten rounds on one page and
+  the opening round can be 248 teams, nearly 30,000px tall on a phone.
+  `<details>` lets a reader fold one away without any client-side state, and
+  every round starts open so nothing is hidden by default.

@@ -25,34 +25,41 @@ import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
-/** Over every analytics panel on the team page, and over the one sign-in prompt (specs/031, A). */
+/**
+ * Over every analytics panel on the team page, and over the one sign-in prompt.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export const ANALYTICS_HEADING = "Analyysit";
 /**
- * The first of the three group headings agreed on #424. The other two name a
- * period, so they come from the page's axis — see `SEASON_AXIS` and
- * `HISTORY_AXIS` (specs/041, S13).
+ * The first of the group headings. The others name a period, so they come
+ * from the page's axis: see `SEASON_AXIS` and `HISTORY_AXIS`.
+ *
+ * decisions/041-national-team-analytics.md
+ * decisions/424-analytics-panel-groups.md
  */
 export const BY_MATCH_HEADING = "Ottelu ottelulta";
-/** About analytics as a whole, not one panel: signed-out readers see none of them (specs/030, A). */
+/**
+ * About analytics as a whole, not one panel: signed-out readers see none of them.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
 const HEADING_ID = "analytics";
 
 /**
- * The team page's analytics: every panel under one heading (specs/031). Most
- * are charts; `Putket` (specs/035) and `Kääntyneet ottelut` (specs/036,
- * specs/037) are
- * lists of figures, which is why the parts are called panels here.
+ * The team page's analytics: every panel under one heading. The gate comes
+ * first, and once: a signed-out request gets one sign-in prompt before any
+ * loader is called. `null` when no panel applies.
  *
- * **The gate comes first, and once.** A signed-out request gets the heading and
- * one sign-in prompt — not one per panel (Q5) — before any loader is called, so
- * its page is never computed from, and carries, any analytics value at all.
- *
- * Signed in, the series load together and each renders its own panel. `null`
- * when none applies, so a league season with no table shows no section.
- *
- * A server component awaited by the team pages rather than rendered, the shape
- * `CompetitionTeamPage` already uses.
+ * decisions/031-rolling-form-trend.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/041-national-team-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/424-analytics-panel-groups.md
  */
 export async function AnalyticsSection({
   axis,
@@ -69,9 +76,8 @@ export async function AnalyticsSection({
   loadElo,
 }: Readonly<{
   /**
-   * What a period is on this page, and so every string that names one. Required
-   * rather than defaulted: a page that forgot it would quietly claim its panels
-   * were about a season (specs/041, S11 and S13).
+   * What a period is on this page, and so every string that names one. Required,
+   * not defaulted.
    */
   axis: AnalyticsAxis;
   loadPosition: () => Promise<PositionSeries>;
@@ -83,9 +89,9 @@ export async function AnalyticsSection({
   loadComebacks: () => Promise<ComebacksSeries>;
   loadComparison: () => Promise<SeasonComparisonSeries>;
   loadRecords: () => Promise<StreakRecordsSeries>;
-  /** `unavailable` on a national team's page, which has no such panel (specs/045, S5). */
+  /** `unavailable` on a national team's page, which has no such panel. */
   loadOpponents: () => Promise<OpponentsSeries>;
-  /** A rating chart for a club; `unavailable` on a national team's page (specs/053 S5, S9). */
+  /** A rating chart for a club; `unavailable` on a national team's page. */
   loadElo: () => Promise<EloPanelData>;
 }>) {
   if (!(await canSeeAnalytics())) {
@@ -136,19 +142,8 @@ export async function AnalyticsSection({
     elo: eloPanel(elo),
   };
 
-  /**
-   * The three groups agreed on #424, in the order the page shows them.
-   *
-   * They group by **the question a reader is asking**, not by the subject of
-   * the measure: `Tämä kausi verrattuna` and `Ennätykset` each cover position,
-   * points and goals at once, so a subject grouping would have needed a
-   * non-subject group anyway.
-   *
-   * `Nollapelit` sits in the first group and `Koti- ja vierastilastot` at the
-   * head of the second, which swaps the two against the order before this
-   * change: a running share plotted match by match and a season summary belong
-   * on opposite sides of that line.
-   */
+  // The groups, in the order the page shows them: by the question a reader is
+  // asking, not by the subject of the measure.
   const groups = [
     {
       heading: BY_MATCH_HEADING,
@@ -171,12 +166,12 @@ export async function AnalyticsSection({
     {
       heading: axis.otherHeading,
       id: "analytics-other-seasons",
-      // specs/053 S9: a club's strength across every stored season.
+      // A club's strength across every stored season.
       panels: { comparison: panels.comparison, records: panels.records, elo: panels.elo },
     },
     {
-      // specs/045, S6: the first group since #424, because "who do we
-      // struggle against" is a question none of the three periods asks.
+      // Its own group: "who do we struggle against" is a question none of the
+      // three periods asks.
       heading: OPPONENTS_GROUP_HEADING,
       id: "analytics-opponents",
       panels: { opponents: panels.opponents },
@@ -203,9 +198,10 @@ export async function AnalyticsSection({
 }
 
 /**
- * One group of panels under `Analyysit` (#424): a region named by its own
- * heading, so a screen reader can move between groups as it moves between
- * panels.
+ * One group of panels under `Analyysit`: a region named by its own heading, so
+ * a screen reader can move between groups as it moves between panels.
+ *
+ * decisions/424-analytics-panel-groups.md
  */
 function PanelGroup({
   heading,
@@ -222,7 +218,11 @@ function PanelGroup({
   );
 }
 
-/** Foldable, like the match list above it (#416). */
+/**
+ * Foldable, like the match list above it.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 function Section({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <TeamPageFold heading={ANALYTICS_HEADING} headingId={HEADING_ID}>
