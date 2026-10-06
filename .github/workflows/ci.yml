@@ -78,6 +78,46 @@ jobs:
       - name: Unit tests, shuffled
         run: npm run test:shuffle
 
+  # The build Railway runs, with the Axiom variables set so the logger creates
+  # its transport: decisions/574-pino-transport-target.md. Every value is a
+  # placeholder, and nothing here connects to a database, Redis or a provider.
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      github.actor == vars.OWNER_USERNAME ||
+      github.actor == vars.COLLABORATOR_USERNAME ||
+      github.actor == 'renovate[bot]'
+
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/none
+      REDIS_URL: redis://127.0.0.1:6379
+      BETTER_AUTH_SECRET: ci-not-a-real-secret-ci-not-a-real-secret
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-dummy-client-id
+      GOOGLE_CLIENT_SECRET: ci-dummy-client-secret
+      FOOTBALL_DATA_API_KEY: ci-dummy
+      TASO_API_KEY: ci-dummy
+      AXIOM_TOKEN: ci-placeholder
+      AXIOM_DATASET: ci-placeholder
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
   integration:
     name: Integration tests
     runs-on: ubuntu-latest
