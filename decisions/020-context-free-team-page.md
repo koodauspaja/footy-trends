@@ -210,3 +210,29 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
   publishes more categories than it lists, 28 in `spljp26` against the
   picker's 20, so a row can carry a category with no page behind it. Used to
   skip such a row when resolving a team's own context.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`defaults` in `resolveDomesticPageContext`.** Omitting it leaves the
+  region's defaults exactly as they were. When an invalid `kausi` falls back,
+  it is to the competition's default unless the resolved competition is the
+  team's own.
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **`defaults` in `resolveBasePageContext`.** Omitting it leaves the
+  region's defaults exactly as they were.
+
+Cut from `src/lib/team-context.ts` at `dc74e3e` by #531.
+
+- **`TeamContext`.** A bare team URL already resolved before this existed:
+  it meant "the region's default competition, in its default season", which
+  served 12 of 1,315 stored Finnish team ids and 20 of 315 football-data
+  ones. Everything else answered the team-not-found message on its own
+  address.
+- **`loadTeamContext`.** A route rebuilds the source and filter objects on
+  every render. `generateMetadata` and the page each ask for this once.
+- **The placeholder in `getTeamContext`.** `0` is TASO's unresolved bracket
+  slot and not a team; 22 stored rows carry it, and a page for it could only
+  ever be empty. An id the column cannot hold would otherwise fail at bind
+  time and reach the reader as an error and not a not-found.

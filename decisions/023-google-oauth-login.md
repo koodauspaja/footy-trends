@@ -354,3 +354,10 @@ Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
 - **`AuthControls`.** Without the boundary `useSearchParams` opts the whole
   route out of prerendering. The fallback is `null` and not a placeholder: on
   the four prerendered pages it is what ships in the static HTML.
+
+Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
+
+- **The header wraps.** A narrow viewport with the longest breadcrumb
+  (`Maajoukkueet`) and a long Google display name overflows a single
+  non-wrapping row, pushing the sign-out control off-screen. The repo's
+  instinct is to wrap a long name and not cut it, as `data-table.tsx` does.

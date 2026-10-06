@@ -1,7 +1,10 @@
 /**
- * The predictions log's I/O (specs/052): the hourly run and the backtest.
- * What either decides lives in `prediction-log.ts` and
- * `prediction-backtest.ts`; this reads, refreshes and writes.
+ * The predictions log's I/O: the hourly run and the backtest. What either
+ * decides lives in `prediction-log.ts` and `prediction-backtest.ts`; this
+ * reads, refreshes and writes.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -38,12 +41,20 @@ import { synchronizeMatches as synchronizeTasoMatches } from "./taso-standings-s
 
 const FINISHED_STATUS = "FINISHED";
 const HOUR_MS = 60 * 60 * 1000;
-/** Rows per insert: 11 columns each, well under Postgres's 65 535 parameters. */
+/**
+ * Rows per insert: 11 columns each, well under Postgres's 65 535 parameters.
+ *
+ * decisions/052-predictions-log.md
+ */
 const WRITE_BATCH = 1000;
 
 const TASO_CODES = [...COMPETITIONS.taso];
 
-/** Stored matches of the compared competitions kicking off inside either window. */
+/**
+ * Stored matches of the compared competitions kicking off inside either window.
+ *
+ * decisions/052-predictions-log.md
+ */
 async function readCandidates(now: Date): Promise<LogCandidate[]> {
   const from = new Date(now.getTime() - RESULT_WINDOW_HOURS * HOUR_MS);
   const to = new Date(now.getTime() + LOG_WINDOW_HOURS * HOUR_MS);
@@ -138,8 +149,9 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
 /**
  * Fetches a competition-season again and stores it, through each provider's
  * 15-minute response cache and the sync every page uses. Not through the
- * pages' own staleness check: football-data's is an hour by default, and an
- * hourly run gated by it would skip every other refresh.
+ * pages' own staleness check.
+ *
+ * decisions/052-predictions-log.md
  */
 async function refresh(target: RefreshTarget, paced: Record<MatchSource["kind"], Paced>) {
   if (target.source === "football-data") {
@@ -160,7 +172,11 @@ function batches<T>(rows: readonly T[], size: number): T[][] {
   );
 }
 
-/** Upserts rows, one per match, model and kind (S3). The batches are disjoint. */
+/**
+ * Upserts rows, one per match, model and kind. The batches are disjoint.
+ *
+ * decisions/052-predictions-log.md
+ */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
   await Promise.all(
     batches(rows, WRITE_BATCH).map((batch) =>
@@ -187,7 +203,11 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
   );
 }
 
-/** The run's pacers: football-data at 9 a minute, TASO at 60. */
+/**
+ * The run's pacers: football-data at 9 a minute, TASO at 60.
+ *
+ * decisions/052-predictions-log.md
+ */
 function defaultPacers(): Record<MatchSource["kind"], Paced> {
   return {
     "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
@@ -203,15 +223,12 @@ export type PredictionRunReport = {
 };
 
 /**
- * One hourly run (S1): refresh what needs it, then log every loggable match.
+ * One hourly run: refresh what needs it, then log every loggable match. A
+ * competition that fails to refresh is still logged from what is stored; one
+ * whose baseline fails is skipped. Both are reported.
  *
- * A competition that fails to refresh is still logged from what is stored,
- * and one whose baseline fails is skipped; either is reported, so the run
- * exits non-zero while the others are logged. A failed write fails the run.
- *
- * The clock is read again just before writing: pacing the refreshes can take
- * minutes, and a match that kicked off in the meantime must not be written
- * after its kickoff (S5).
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -236,7 +253,7 @@ export async function runPredictionLog(
   const refreshFailures = refreshes.filter((failure) => failure !== null);
   const failures = [...refreshFailures];
 
-  // Read again: the refresh may have moved a kickoff or finished a match (S4, S5).
+  // Read again: the refresh may have moved a kickoff or finished a match.
   const candidates = await readCandidates(startedAt);
   const keyOf = (candidate: LogCandidate) => `${candidate.source}:${candidate.code}`;
   const competitions = new Map(
@@ -256,15 +273,17 @@ export async function runPredictionLog(
     if (baseline.status === "error") failures.push(`baseline ${key}`);
   }
 
-  // The run replays for itself, never from the pages' cache (specs/053 S17).
-  // A failed read costs the Elo rows only: the baseline's are still written,
-  // and no Elo row is ever made from ratings that were never read.
+  // The run replays for itself, never from the pages' cache. A failed read costs
+  // the Elo rows only: the baseline's are still written, and no Elo row is ever
+  // made from ratings that were never read.
   const ratings = await readFinished().then(eloRatingsBySource, (error: unknown) => {
     logger.error({ err: error }, "Unable to read the Elo history for predictions");
     failures.push("elo ratings");
     return null;
   });
 
+  // Read again: pacing the refreshes can take minutes, and a match that kicked
+  // off in the meantime must not be written.
   const writtenAt = clock();
   const rows = candidates
     .filter((candidate) => isLoggable(candidate, writtenAt))
@@ -283,7 +302,11 @@ export async function runPredictionLog(
   return { refreshed: targets.length - refreshFailures.length, logged: rows.length, failures };
 }
 
-/** Each provider's current Elo ratings, replayed apart: the id spaces never meet (specs/053 S1). */
+/**
+ * Each provider's current Elo ratings, replayed apart: the id spaces never meet.
+ *
+ * decisions/053-elo-ratings.md
+ */
 function eloRatingsBySource(
   finished: readonly FinishedMatch[]
 ): Record<MatchSource["kind"], ReadonlyMap<number, TeamRating>> {
@@ -294,9 +317,11 @@ function eloRatingsBySource(
 
 /**
  * Every stored finished match of the compared competitions, its score after
- * extra time, with its teams and season — of both providers unless told which.
- * The backtests, the live Elo ratings and the pages' ratings all read this
- * one set (specs/052, specs/053).
+ * extra time, with its teams and season: of both providers unless told which.
+ * The backtests, the live Elo ratings and the pages' ratings all read it.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 export async function readFinished(
   sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
@@ -362,8 +387,10 @@ export async function readFinished(
 }
 
 /**
- * The backtest (S10): one `backtest` row for every stored finished match with
- * history, written idempotently. Stored rows only — no provider request.
+ * The backtest: one `backtest` row for every stored finished match with
+ * history, written idempotently. Stored rows only, no provider request.
+ *
+ * decisions/052-predictions-log.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();

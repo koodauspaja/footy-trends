@@ -98,3 +98,22 @@ failure names the columns that disagree. Its first run failed on widths of `0`:
 `page.goto` resolves before layout, and a table measured too early reports
 nothing — which compares equal to nothing else and fails as though the columns
 had drifted. It now waits for the first table to be visible before measuring.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/data-table.tsx` at `dc74e3e` by #531.
+
+- **`COLUMN_WIDTHS`.** Browser auto layout sizes each column from its own
+  table's rows, so three phases of one competition rendered one above the
+  other drifted apart: at 1280px on
+  `/kotimaa/sarjataulukko?kilpailu=VL&kausi=2019`, two match lists were 20,
+  47, 12 and 14 pixels apart column by column, and twelve World Cup group
+  tables spread their name column across 663–669px. The numbers keep the
+  standings' floor near the 760px it always had: 64 + 8×44 + 112 fixed, plus
+  a 240px minimum for the flexible column, is 768.
+- **`DataTable`.** `table-fixed` with a `<colgroup>` makes the widths
+  declarations and not suggestions: the browser stops measuring content, so
+  two tables with the same columns are identical whatever their rows say.
+  The flexible column absorbs the rest, so a wide screen still gives the team
+  name the room and the numbers stay grouped. A long name wraps inside its
+  column.

@@ -151,3 +151,11 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   from before its floor was configured, would default Ykkösliiga to a season
   it never had. Neither is the dropped "raise the ceiling to cover stored
   data" guard; both keep the fallback inside the range.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`parseTasoSeasonParam`.** A season that was invalid last year becomes
+  valid without a deploy.
+- **`resolveDomesticPageContext`.** Async because the season ceiling comes
+  from TASO and not from a constant. It is the `/kotimaa` analogue of
+  `resolveBasePageContext`.

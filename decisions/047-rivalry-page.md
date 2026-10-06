@@ -77,3 +77,8 @@ Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
 
 - **`formResultLabel`.** Exported so the head-to-head page's form spells a
   result as the table does.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`latestForm`.** It equals `formSeries`' last point by construction and
+  not by a second formula.

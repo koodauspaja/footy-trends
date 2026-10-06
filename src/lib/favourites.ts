@@ -19,7 +19,11 @@ import type { RegionSegment } from "@/lib/regions";
  * decisions/026-favourites.md
  */
 
-/** The transaction handle drizzle hands `db.transaction`. */
+/**
+ * The transaction handle drizzle hands `db.transaction`.
+ *
+ * decisions/026-favourites.md
+ */
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type Favourites = { teams: string[]; competitions: string[] };
@@ -159,7 +163,12 @@ export async function toggleFavouriteCompetition(
   });
 }
 
-/** Removing something that is not there is not an error — the list already says what it should. */
+/**
+ * Removing something that is not there is not an error: the list already says
+ * what it should.
+ *
+ * decisions/026-favourites.md
+ */
 export async function removeFavouriteTeam(
   userId: string,
   source: FavouriteSource,
@@ -207,7 +216,12 @@ export async function favouritesForSession(userId: string): Promise<Favourites> 
   }
 }
 
-/** One team's most recent appearance, from whichever side it played. */
+/**
+ * One team's most recent appearance, from whichever side it played.
+ *
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ */
 type TeamSide = {
   id: number;
   name: string;
@@ -313,7 +327,7 @@ function regionFor(
   bucket: string | null
 ): RegionSegment | null {
   if (source === "taso") {
-    /** Only the club game has a TASO team page; a national-team id gets no region. */
+    // Only the club game has a TASO team page; a national-team id gets no region.
     return bucket?.startsWith(TASO_NATIONAL_BUCKET_PREFIX) === true ? null : "kotimaa";
   }
   const registry = regionOfCompetition(competitionCode);
@@ -321,7 +335,13 @@ function regionFor(
   return registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
 }
 
-/** One favourite team, ready to render. */
+/**
+ * One favourite team, ready to render.
+ *
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
+ */
 export type FavouriteTeamView = {
   source: FavouriteSource;
   teamProviderId: number;
@@ -359,10 +379,8 @@ export async function resolveTeamNames(
   const footballDataIds = idsFor("football-data");
   const tasoIds = idsFor("taso");
 
-  /**
-   * Each team's most recent appearance, one row per team and side: `distinct on`
-   * keeps the current name, and needs a concrete column, hence four queries.
-   */
+  // Each team's most recent appearance, one row per team and side: `distinct on`
+  // keeps the current name, and needs a concrete column, hence four queries.
   const noSides = Promise.resolve([] as TeamSide[]);
   const [footballDataHome, footballDataAway, tasoHome, tasoAway] = await Promise.all([
     footballDataIds.length === 0
@@ -429,7 +447,7 @@ export async function resolveTeamNames(
           .orderBy(tasoMatches.awayTeamProviderId, desc(tasoMatches.kickoffAt)),
   ]);
 
-  /** The newer of a team's two sides: every club plays home and away. */
+  // The newer of a team's two sides: every club plays home and away.
   const newest = new Map<string, TeamSide>();
   const consider = (source: FavouriteSource, rows: TeamSide[]) => {
     for (const row of rows) {
@@ -443,11 +461,9 @@ export async function resolveTeamNames(
   consider("taso", tasoHome);
   consider("taso", tasoAway);
 
-  /**
-   * Finland is the only TASO national side with a page, and it has two of them.
-   * Matched on the **name**: `isFinlandMatch` does the same, because TASO gives
-   * it no team id that is stable across categories.
-   */
+  // Finland is the only TASO national side with a page, and it has two of them.
+  // Matched on the name, as `isFinlandMatch` does: TASO gives it no team id
+  // that is stable across categories.
   const finlandIds = teams
     .filter((team) => {
       if (team.source !== "taso") return false;

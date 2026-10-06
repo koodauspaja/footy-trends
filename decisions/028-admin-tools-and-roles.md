@@ -280,3 +280,27 @@ Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
   `isAdmin` takes `unknown` and answers false for anything that is not
   exactly the admin role, so an unusable payload renders no link and does not
   throw.
+
+Cut from `src/lib/admin-guard.ts` at `dc74e3e` by #531.
+
+- **`admin-guard.ts`.** The page, every server action and the forced refresh
+  built on top all go through it. One function so that it cannot be
+  half-applied: the reasoning behind `currentUserId`, which was written three
+  times identically before it was shared.
+- **`requireAdmin` reads the database.** A session is client-held and issued
+  once; a role copied into it would keep answering `admin` until that session
+  expired, so a demotion would not take effect until the demoted admin
+  happened to sign out. Reading the row costs one indexed lookup by primary
+  key and makes the answer current by construction.
+- **`requireAdmin` returns null.** The page answers a non-admin with the
+  not-found page, and a thrown error there would be a 500, which both tells a
+  stranger that something exists and reports our refusal as our failure.
+  Callers decide what refusal looks like. The refusal carries a 200 and not a
+  404, because a streamed response commits its status before `notFound()` is
+  caught; the spec records why that is accepted. Signed out and signed in
+  without the role are indistinguishable so that no caller can leak the
+  difference.
+- **`currentUserId` inside the `try`.** It reads the session through
+  better-auth, which queries Postgres, so it fails for exactly the reasons
+  the lookup does. Left outside, a session-read failure threw a 500 where the
+  contract is to refuse.

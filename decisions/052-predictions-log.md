@@ -61,3 +61,15 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   score corrects every figure built on it. The `live` row is the last
   prediction before kickoff, overwritten until then; the `backtest` row is
   what the model would have said from the matches before it.
+
+Cut from `src/lib/prediction-log-service.ts` at `dc74e3e` by #531.
+
+- **`refresh` in the predictions log.** football-data's page staleness check
+  is an hour by default, and an hourly run gated by it would skip every other
+  refresh.
+- **`runPredictionLog`.** A competition that fails to refresh is still
+  logged from what is stored, and one whose baseline fails is skipped; either
+  makes the run exit non-zero, and a failed write fails the run. The clock is
+  read again just before writing: pacing the refreshes can take minutes, and
+  a match that kicked off in the meantime must not be written after its
+  kickoff.

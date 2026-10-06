@@ -383,3 +383,76 @@ Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
 - **`getPreferencesFor`.** Next calls `generateMetadata` and the page
   component separately, and both resolve the same page context, so without
   `cache()` the same lookup would repeat.
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **Precedence in `resolveBasePageContext`.** A signed-out reader stops at
+  the region's default. An explicit `?kilpailu=` beats a preference: a shared
+  link must render what it says, and a stored default is a weaker statement
+  than a typed URL.
+- **`seasonFallback`.** Optional-chained on both sides, then `??`. Reading
+  `defaults.seasonId` directly inside the true branch does not typecheck,
+  because TypeScript does not narrow `defaults` from the comparison above,
+  and spelling out `defaults !== undefined` trades that for a lint finding.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`seasonFallback`.** The same comment, word for word, as in
+  `page-context.ts` above: optional-chained on both sides, then `??`, because
+  TypeScript does not narrow `defaults` from the comparison and
+  `defaults !== undefined` trades that for a lint finding.
+
+Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
+
+- **`Etusivu` and a start page.** Without the suppressing parameter the
+  crumb would return such a reader to the region they are already in and look
+  broken. No setting may make a page unreachable by clicking.
+
+Cut from `src/lib/user-agent.ts` at `dc74e3e` by #531.
+
+- **`user-agent.ts`.** It exists so someone can tell "my laptop" from "not my
+  laptop" when deciding whether to sign other devices out. It is not
+  analytics: a wrong guess costs nothing, while a parsing library would be a
+  supply-chain dependency bought for one line of a settings page. An earlier
+  version rendered `Chrome · macOS`, which put two English product names in a
+  Finnish UI to say what one already says. Agreed with Miikka: the browser
+  alone identifies a device well enough, and the cost, two Chrome sessions on
+  different machines reading alike, is accepted. The label is a Finnish
+  compound around the product name, `Chrome-selain` and not a bare `Chrome`:
+  the brand cannot be translated but the word around it can, and it matches
+  the `Tuntematon selain` of the fallback.
+- **`BROWSERS`.** Matching in this order is what stops every browser
+  reporting as Safari.
+- **`describeDevice`.** The row exists to be recognised at a glance, and 200
+  characters of `Mozilla/5.0 (…)` is not that. `user_agent` is nullable:
+  behind some proxies the header never arrives at all.
+- **`describeLastUsed`.** Computed in Europe/Helsinki like every other
+  user-facing date in the app (`match-list-table.tsx`, `match-detail.ts`,
+  `national-team.ts`). It runs on the server, so the alternative was not the
+  reader's timezone but Railway's, UTC, which for a Finnish reader gets
+  `tänään` and `eilen` wrong for the two or three hours after midnight.
+  "Yesterday" means the previous date, not 24 hours ago, so a session used at
+  23:50 does not still read `tänään` at 00:10.
+
+Cut from `src/lib/viewer.ts` at `dc74e3e` by #531.
+
+- **`hasSessionCookie`.** An unrelated cookie whose value happened to
+  contain the name would otherwise be read as an authenticated request,
+  constructing better-auth and querying preferences for a signed-out reader.
+  Both spellings count because the name is prefixed `__Secure-` over HTTPS,
+  which is every production request.
+- **`getViewerPreferences`.** The four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN` (`/`,
+  `/kotimaa`, `/ulkomaat`, `/maajoukkueet`) would lose their prerender by
+  reading headers, the constraint the sign-in was shaped around; the region
+  preference is applied in the browser for that reason. Signed-out readers
+  pay nothing: with no session cookie this returns before touching
+  better-auth or Postgres, and they are the overwhelming majority of traffic.
+  Preferences decide which competition a page opens on, and a database blip
+  must degrade that to the hardcoded default and not turn every standings
+  page into an error page.
+- **The deferred import of `auth.ts`.** A top-level import made dozens of
+  unrelated page tests fail in the CI unit job, which deliberately has no
+  environment at all. Deferring it past the cookie check also means a
+  signed-out request constructs neither the auth instance nor the database
+  client.

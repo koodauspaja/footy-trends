@@ -188,7 +188,11 @@ async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promi
   };
 }
 
-/** The group rows as the writer will actually store them. */
+/**
+ * The group rows as the writer will actually store them.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 function dedupedGroupTeams(snapshot: Extract<Snapshot, { source: "taso" }>) {
   return dedupeByIdentity(snapshot.groupTeams);
 }

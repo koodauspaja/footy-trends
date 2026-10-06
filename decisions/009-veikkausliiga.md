@@ -418,3 +418,9 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
 
 - **`displayGroupName`.** `Runkosarja` was the era's name for the season's
   only phase.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **Finnish seasons.** A Finnish season is a single calendar year, not a
+  year-spanning one like the foreign leagues, so the label is just the year,
+  in the same descending order as `listSelectableSeasons`.

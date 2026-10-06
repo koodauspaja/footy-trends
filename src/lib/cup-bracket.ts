@@ -59,6 +59,7 @@ export type BracketLeg = {
  * How a decided tie was settled, for the `(ja)` / `(rp)` suffix. `declared`:
  * the provider named the winner without saying how, so it has no suffix.
  *
+ * decisions/014-champions-league.md
  * decisions/015-finnish-cups.md
  */
 export type TieDecision = "regular" | "extra_time" | "penalties" | "declared";
@@ -313,7 +314,11 @@ function shootoutScore(
   };
 }
 
-/** Groups one round's matches by the unordered pair of teams that played them. */
+/**
+ * Groups one round's matches by the unordered pair of teams that played them.
+ *
+ * decisions/014-champions-league.md
+ */
 function pairLegs(
   stageMatches: BracketSourceMatch[]
 ): Array<[BracketSourceMatch, ...BracketSourceMatch[]]> {
@@ -380,7 +385,11 @@ export function orderRoundsForTree(rounds: BracketRound[]): BracketRound[] {
   return ordered;
 }
 
-/** `earlier`'s ties, reordered to follow the participants of `later`'s. */
+/**
+ * `earlier`'s ties, reordered to follow the participants of `later`'s.
+ *
+ * decisions/015-finnish-cups.md
+ */
 function alignAgainst(earlier: BracketRound, later: BracketRound): BracketRound {
   const remaining = [...earlier.ties];
   const aligned: BracketTie[] = [];

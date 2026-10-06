@@ -189,3 +189,26 @@ the health route a header, and `DomesticStandingsPage` a doc comment. Doc
 comments on statements inside `RefreshForm`, `TeamSearch` and the health
 route's `GET` became line comments, which is what the rule asks of a comment
 inside a function.
+
+## The seventh batch, 2026-10-06
+
+Eighteen files. Fifteen in full: in `src/lib`, `admin-guard.ts`,
+`comebacks.ts`, `domestic-page-context.ts`, `favourite-keys.ts`,
+`form-series.ts`, `page-context.ts`, `prediction-log-service.ts`,
+`team-context.ts`, `team-panels.ts`, `user-agent.ts` and `viewer.ts`; in
+`src/components`, `comebacks-section.tsx`, `cup-bracket.tsx`, `data-table.tsx`
+and `site-header.tsx`. Three were trimmed in the first batch and had what the
+check written since then finds: `favourites.ts`, `force-refresh.ts` and
+`cup-bracket.ts` in `src/lib` gain record paths on eight doc comments,
+seven of them one-liners that had none, and four doc comments on statements
+become line comments. 49 273 characters of comment became 37 240, measured
+after the hand review's fixes; the three finished files grow by the paths
+they gained.
+
+One record is new, `207`, for the chore that gave the site header its region
+breadcrumb.
+
+After the review of the fifth batch, each batch is also swept for three things
+before it opens: history wording left in a short comment, a parameter the old
+comment explained and the new one no longer names, and a rule whose reach
+shrank in the rewrite.

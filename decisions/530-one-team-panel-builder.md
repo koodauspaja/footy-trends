@@ -32,3 +32,27 @@ Cut from `src/components/team-page.tsx` at `94397a8` by #531.
 - **`loadRecords` and `loadComparison` on a failed season lookup.** A database
   failure dressed as a fact about the club is what reporting the outage
   avoids. `not_found` means the club has no stored match under this route.
+
+Cut from `src/lib/team-panels.ts` at `dc74e3e` by #531.
+
+- **`team-panels.ts`.** Each provider's service carried six wrappers of its
+  own, twelve near-identical functions: load the team's matches, answer "no
+  matches", call a pure function, log a failure. What differs between
+  providers is only which matches count: `getTeamPanelMatches` in
+  `standings-service.ts` and in `taso-standings-service.ts`, and the whole
+  stored history for a national team (`national-team-analytics.ts`). An empty
+  list needs no branch of its own, because every pure function answers one as
+  the wrappers' "no matches" branches did: no form before the fifth match,
+  empty charts, zeroed figures. `tests/unit/lib/team-panels.test.ts` holds
+  them to it.
+- **`TeamPanelMatches`.** A TASO team that played only in knockout groups has
+  no league figures, which is `unavailable`. A failed read is one no panel
+  may show as "nothing played".
+- **`TeamPanelContext`.** Each provider numbers its teams separately, so 57
+  is one club at football-data and another at TASO. A caller adds what places
+  it: the competition and the season, as the deleted wrappers logged them.
+- **`teamPanelLoaders`.** The gate in `AnalyticsSection` runs before any
+  thunk, and the matches are read once however many panels ask. Both
+  providers' own loaders catch and log their failures, but nothing obliges
+  the next caller to; without the catch here, one rejected read would surface
+  as six panels each reporting that it could not be computed.

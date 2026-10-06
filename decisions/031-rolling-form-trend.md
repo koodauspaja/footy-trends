@@ -59,3 +59,14 @@ Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
   and never carries, any analytics value. A server component awaited by the
   team pages and not rendered, the shape `CompetitionTeamPage` already uses.
   A league season with no table shows no section.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`form-series.ts`.** `calculateStandings` takes a team's last five
+  finished matches in kickoff order for the `Vire` column; this takes the
+  same five after every match, so the last point is the column's own value in
+  points. Kickoff order, not round order, is what keeps TASO's out-of-order
+  round numbers out of it. The services decide which matches count.
+- **The order in `formSeries`.** Kickoff, then provider match id: one team
+  never has two matches at one kickoff, but a stable order costs nothing if
+  the data ever does.
