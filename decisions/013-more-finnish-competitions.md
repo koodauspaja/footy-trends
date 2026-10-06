@@ -450,3 +450,23 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   cold cache or an outage must not silently change a table's points. The
   rows also serve the numbers a group falls back to when our calculation
   disagrees with TASO's.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DOMESTIC_COMPETITIONS`, its order.** By tier, not grouped by gender or
+  age: the picker stays a flat list, as agreed, even though TASO supplies a
+  grouping in `category_group_name`.
+- **The junior competitions' eras.** Confirmed against `getCategories` for
+  every season 2015-2026.
+- **`categoryIdForSeason`.** Total, not nullable: a season below the
+  competition's floor cannot be selected, since the season selector is built
+  from that same floor, so the oldest range answers that case and no caller
+  handles a null only a bug could produce. An unknown code's own value is
+  what the current `category_id` would be.
+- **`categoryIdsFor`.** Needed wherever a question spans the competition's
+  whole history: "the newest season we have stored" cannot be answered from
+  one era's id, since a junior competition's rows are split across two or
+  three.
+- **`earliestSeasonFor`.** The floor is not the same for every competition:
+  Ykkösliiga did not exist before 2024. The provider-wide fallback means a bad
+  `kilpailu` value cannot widen the range.

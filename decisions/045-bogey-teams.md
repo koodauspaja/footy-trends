@@ -98,3 +98,8 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
 - **`getWorstOpponents`.** National teams have no panel: TASO has no id stable
   across categories for Finland or its opponents, and football-data's
   national teams are countries, not clubs.
+
+Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
+
+- **`loadOpponents` for a national team.** Unavailable: one country could
+  split into several rows, since TASO has no id stable across categories.

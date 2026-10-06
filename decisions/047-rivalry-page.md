@@ -61,3 +61,14 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
   and the latest five, so an opponent's meetings and a team's current form
   count the same matches.
 - **`TeamForm`.** A failed read is its own case, never "too few matches".
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`loadForm`.** Finland has no id stable across categories on the TASO
+  national-team routes.
+- **`FormBlock`.** The results are spelled as the standings `Vire` spells
+  them. A team with fewer than five, or whose read failed, says so; the other
+  block is its own.
+- **The groups on the head-to-head page.** Signed out, a rivalry no longer
+  played, and the TASO national-team routes all leave the page exactly as it
+  was before the form was added.

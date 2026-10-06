@@ -328,3 +328,29 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   after sign-in.
 - **`verification`.** Without the table sign-in fails at the callback, not at
   startup.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **`MESSAGES`.** The failure is carried in the URL, not in component state.
+  Google reports its own failures by sending the reader back to
+  `errorCallbackURL`, so the query string is already the channel for one half;
+  using it for the other half too means one notice with one source. An object
+  literal would answer `MESSAGES["__proto__"]` with `Object.prototype`, and
+  `constructor` and `toString` with functions, none of which `??` treats as
+  absent, so each would reach `Notice` as a non-string child and throw during
+  render.
+- **`AuthButtons`.** A server-side session read would put a Postgres query
+  above `/`, `/kotimaa`, `/ulkomaat` and `/maajoukkueet`, the four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN`. That guard
+  exists because a data-backed page was once prerendered, every query failed
+  at build time against Railway's runtime-only private network, and the error
+  state was baked into the static output while the build exited 0.
+- **The pending state in `AuthButtons`.** A wrong state is worse than an absent
+  one, and a reserved width keeps the header from reflowing when the session
+  lands.
+- **`SignInError`.** A cancelled consent screen, a provider error and a state
+  that did not survive all say the same thing. Google's `error` parameter
+  tells them apart, but the reader's next action is identical: try again.
+- **`AuthControls`.** Without the boundary `useSearchParams` opts the whole
+  route out of prerendering. The fallback is `null` and not a placeholder: on
+  the four prerendered pages it is what ships in the static HTML.

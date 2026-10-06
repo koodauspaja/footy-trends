@@ -153,3 +153,46 @@ Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
   logs since the first production deploy. `trustedProxies` is passed only
   when set: an empty array leaves chain mode disabled anyway, and an absent
   option says more plainly that nothing is trusted.
+
+Cut from `src/lib/forwarding.ts` at `a86c1cb` by #531.
+
+- **Why `forwarding.ts` reports a shape and not the addresses.** better-auth
+  refuses to resolve a client IP from `x-forwarded-for` unless the header holds
+  exactly one entry or `trustedProxies` says which hops to skip, so choosing
+  the configuration needs to know how many hops arrive and of what kind. The
+  addresses would answer that too, but `/api/health` is public.
+- **Why it also compares the single-value headers.** The first round measured
+  two hops on Railway, both public, so there is no infrastructure hop to
+  recognise by its range and nothing to put in `trustedProxies`, which takes
+  literal addresses this never reports. That leaves the single-value headers,
+  which better-auth resolves with no proxy list. Whether one can be trusted
+  comes down to two things, both answered by an index: does it agree with a
+  hop the edge wrote, and does a value sent by the client survive to the app.
+- **`CandidateShape.matchesEntries`.** Reading agreement as provenance would
+  trust a spoofable header: a client who sets it to their own address agrees
+  with the chain for the same reason the edge would. The probe sends a
+  sentinel the client could not otherwise be, an address from TEST-NET-1
+  (`192.0.2.0/24`). Empty: the sentinel survived, so the client sets this
+  header and it must not be trusted. Non-empty: it was overwritten by
+  something matching a hop the edge wrote, and the indices say which hop it
+  names, so nothing has to assume leftmost. Every matching index and not the
+  first: a chain may carry one address twice, and `indexOf` would answer `0`
+  for `A, B, A` whichever occurrence the platform meant.
+- **`CANDIDATE_HEADERS`.** Not only `x-real-ip`: answering the question for one
+  header at a time costs a deployment per guess. Railway fronts applications
+  with Envoy, hence `x-envoy-external-address`; the two Cloudflare spellings
+  are there because a CDN in front of the platform is the other way this
+  shape changes.
+- **`IPV4_IN_IPV6`, and the expanded form in `parseAddress`.** Calling a mapped
+  private address public would put a real proxy hop on the wrong side of the
+  decision. The regex catches only the `::ffff:` spelling with a dotted tail,
+  and a proxy is free to emit either.
+- **`expandIpv6`.** Expanding, not pattern-matching the text, is what makes the
+  classification correct: link-local is `fe80::/10`, which spans `fe80`
+  through `febf`, and a prefix test on the string reports `fe90::1` as
+  public. The dotted tail is what makes `2001:db8::192.0.2.1` valid.
+- **`parseAddress`.** Canonical because the comparison is the point: the edge
+  may write `::ffff:203.0.113.5` in one header and `203.0.113.5` in another,
+  and two spellings of one address must not read as two hops.
+- **`isPrivateIpv4`.** A request from the public internet cannot have such a
+  source address, so those are the hops `trustedProxies` would skip.

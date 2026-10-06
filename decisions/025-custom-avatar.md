@@ -125,3 +125,27 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   response is cached `private, immutable` for a year, so a shared browser
   profile could serve the previous account's picture to the next one. A
   random token cannot collide, and says nothing about when.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **The avatar in `AuthButtons`.** It extends the fallback chain by one. The
+  version rides on the session the browser already fetches, so it costs no
+  extra request.
+
+Cut from `src/components/settings-page.tsx` at `a86c1cb` by #531.
+
+- **`pictureInUse`.** The three states are the reader's own picture, then
+  Google's, then the name, so the sentence and the picture beside it cannot
+  disagree.
+- **`ProfilePicture`.** The stored image is served with a year-long
+  `immutable` cache, which is safe only because a new upload changes the URL.
+- **The chosen file.** A `<form action>` would hand the action a `FormData`
+  built from the DOM: one more place for the file to be missing, and
+  untestable outside a real browser.
+- **The size check in the browser.** Not validation: the server is the truth
+  for what gets stored. A reader who picks a 20 MB file is otherwise told
+  nothing, since a rejection cannot carry a reason.
+- **A rejected upload.** A dropped connection, a crashed server and Next's
+  body limit all arrive the same way, and in production the message is
+  redacted. A specific notice would be wrong more often than right; the size
+  case is caught before anything is sent.

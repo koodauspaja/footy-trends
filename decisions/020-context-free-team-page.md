@@ -203,3 +203,10 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   `kickoff_at` would buy nothing.
 - **`taso_matches_away_team_idx`.** On 20,604 stored rows: 1.03 ms and 144
   buffers without it, 0.20 ms and 94 with.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`allDomesticCategoryIds`.** The registry is hand-maintained while TASO
+  publishes more categories than it lists, 28 in `spljp26` against the
+  picker's 20, so a row can carry a category with no page behind it. Used to
+  skip such a row when resolving a team's own context.

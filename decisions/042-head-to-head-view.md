@@ -142,3 +142,13 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
   match page. No exclusion of the match linked from, which is one of the
   meetings. What does not differ is the scope and which matches count: every
   competition in the region, finished, both scores stored.
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`View.record` on the head-to-head page.** A meeting is what
+  `headToHeadRecord` needs, so the summary cannot be handed a record of
+  nothing and does not guard against one.
+- **`namesFrom`.** Whichever side an id was on in the first meeting decides
+  which name belongs to which id.
+- **`playedLine`.** Finnish counts one thing differently, and a literal
+  `ottelua` would make a pair that has met once read `1 ottelua`.

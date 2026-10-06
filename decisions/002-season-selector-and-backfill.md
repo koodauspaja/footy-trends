@@ -132,3 +132,13 @@ array to `status: "empty"`.
 - `matches_competition_season_idx` confirmed present in the local database.
 - Live backfill of `?kausi=2023` produced the correct 2023/24 table: Manchester
   City, Arsenal, Liverpool in the top three.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **`getSeasonContext`.** The provider's `seasons[]` array is not used to
+  build the selectable list: it advertises seasons back to 1888 that the API
+  plan rejects with 403. Wrapped in React's `cache()` so a page's
+  `generateMetadata` and its default export, which both resolve the same
+  competition's context, do not hit Redis or the provider twice.

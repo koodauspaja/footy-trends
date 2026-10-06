@@ -61,3 +61,12 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
   pair the registry names for it: a competition renamed or re-coded between
   seasons is one line, and a category reused by another competition in
   another season is not counted.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`ChartPoint.marked`.** The season a page is showing.
+- **`xTickNote`.** `(kesken)` under the season in progress.
+- **`thinXTicksOnPhone`.** Counting back from the last tick means the latest
+  season and its note always show.
+- **The overhang in `LineChart`.** A label or note wider than twice the margin
+  would run off the drawing. No chart before this feature needed it.

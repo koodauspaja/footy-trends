@@ -1,21 +1,29 @@
 /**
- * The data rules shared by both national-team pages — see
- * specs/018-helmarit.md, and specs/017-huuhkajat.md for how they arose.
+ * The data rules shared by both national-team pages, as pure functions. Each is
+ * parameterised by a `NationalTeam`: Huuhkajat and Helmarit read the same
+ * provider buckets and differ in which categories they select.
  *
- * Pure functions only: the bucket table, category discovery, the label rules,
- * the Finland filter and the year grouping. Fetching lives in
- * `national-team-service.ts`, so every rule here is testable without a
- * provider.
- *
- * Everything is parameterised by a `NationalTeam`, because Huuhkajat and
- * Helmarit read the *same* provider buckets and differ only in which
- * categories they select and what the page is called.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/019-match-page.md
+ * decisions/041-national-team-analytics.md
  */
 
-/** Finland, as TASO names it — identically for both teams, verified. */
+/**
+ * Finland, as TASO names it, identically for both teams.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export const FINLAND_TEAM_NAME = "Suomi";
 
-/** What distinguishes one team's categories from the other's inside a bucket. */
+/**
+ * What distinguishes one team's categories from the other's inside a bucket.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/019-match-page.md
+ */
 export type NationalTeam = {
   /** The suffix every one of this team's category names ends with. */
   categorySuffix: string;
@@ -23,10 +31,6 @@ export type NationalTeam = {
   displayName: string;
   /**
    * The team's own public path, which its match rows link under.
-   *
-   * These matches are TASO's while `/maajoukkueet/ottelu/:id` is
-   * football-data's, so each team's rows need a route that names their source.
-   * See specs/019-match-page.md.
    */
   basePath: string;
 };
@@ -44,17 +48,11 @@ export const WOMENS_TEAM: NationalTeam = {
 };
 
 /**
- * Year → TASO `competition_id`, newest first. Shared: both teams live in the
- * same buckets.
+ * Year to TASO `competition_id`, newest first. A lookup, not a formula: 2021
+ * lives at `maajp18`. `year` only picks a cache TTL.
  *
- * A lookup rather than a formula, because 2021 breaks the pattern — it lives
- * at `maajp18`, whose categories report `season_id: 2021`. Deriving a season
- * from an id is what stored rows under 2018 while every read asked for 2021
- * (#182's sibling bug in #166); `seasonFromCompetitionId` was deleted for it
- * and must not come back.
- *
- * `year` is the bucket's nominal season, used only to pick a cache TTL. It is
- * **not** the year a match is filed under — see `groupByPlayedYear`.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 const COMPETITION_IDS: ReadonlyArray<readonly [year: number, competitionId: string]> = [
   [2026, "maajp2026"],
@@ -66,25 +64,30 @@ const COMPETITION_IDS: ReadonlyArray<readonly [year: number, competitionId: stri
 ];
 
 /**
- * The oldest calendar year any national-team bucket carries matches for.
+ * The oldest calendar year any national-team bucket carries matches for: the
+ * matches a bucket holds, not the id it is filed under.
  *
- * Not a bucket's nominal year: `maajp18` reports `season_id: 2021` while
- * holding matches played in 2018, 2019, 2020 and 2021 — measured exhaustively
- * in specs/018-helmarit.md. This is the year the match page's head-to-head
- * states as the window it looked in, so it describes the *matches* a bucket
- * holds rather than the id it is filed under.
+ * decisions/019-match-page.md
  */
 export const EARLIEST_NATIONAL_TEAM_YEAR = 2018;
 
 export const NATIONAL_TEAM_SEASONS: ReadonlyArray<{ year: number; competitionId: string }> =
   COMPETITION_IDS.map(([year, competitionId]) => ({ year, competitionId }));
 
-/** Every bucket year the pages read, newest first. */
+/**
+ * Every bucket year the pages read, newest first.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export const NATIONAL_TEAM_YEARS: readonly number[] = COMPETITION_IDS.map(([year]) => year);
 
 /**
  * The newest bucket, which drives the cache TTL split: treated as still
  * changing, every older one as immutable.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export const NATIONAL_TEAM_ACTIVE_YEAR = Math.max(...NATIONAL_TEAM_YEARS);
 
@@ -92,21 +95,20 @@ export function competitionIdForYear(year: number): string | null {
   return COMPETITION_IDS.find(([candidate]) => candidate === year)?.[1] ?? null;
 }
 
-/** A team's category, paired with the label its rows will show. */
+/**
+ * A team's category, paired with the label its rows will show.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export type NationalTeamCategory = { categoryId: string; competitionName: string };
 
 /**
  * The categories in one bucket belonging to this team, each already carrying
- * the label its rows show.
+ * the label its rows show. Discovered, not hardcoded.
  *
- * Discovered rather than hardcoded: the set moves between buckets. Huuhkajat
- * carries `EC` in 2022–2024 and not after; Helmarit gains `WUNL` only from
- * 2023, and `maajp18` holds three of its five. The suffix is also what keeps
- * the other team, the youth sides and futsal out.
- *
- * The label is resolved here, with the name in hand, rather than looked up
- * again later — a second lookup would need a fallback for a key that came out
- * of this very map, which cannot be missing.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function nationalTeamCategories(
   team: NationalTeam,
@@ -121,27 +123,11 @@ export function nationalTeamCategories(
 }
 
 /**
- * What a row says its competition was.
+ * What a row says its competition was: the team suffix comes off, and TASO's
+ * trailing campaign year and leading `Muut ` are normalised away.
  *
- * The team suffix comes off, and then two of TASO's own wording variants are
- * normalised so one competition reads the same way in every year:
- *
- * - a trailing four-digit campaign year — `MM-karsinnat 2023` in the buckets
- *   up to 2024, plain `MM-karsinnat` from 2025;
- * - a leading `Muut ` — `Muut A-maaottelut` in `maajp18`, `A-maaottelut` from
- *   2022.
- *
- * Rules rather than an id→name table, which would need an entry per bucket
- * because the provider's wording changes between them, and is the very thing
- * the suffix rule exists to avoid. Checked against all thirteen distinct
- * category names both teams produce: nothing else is touched.
- *
- * The `Muut` case is a rename, not two competitions — the category id is
- * identical either side of it (`Miehet-A`, `Naiset-A`) in every bucket.
- *
- * This supersedes #166's decision to show provider labels exactly as spelled,
- * which was taken when `Muut A-maaottelut` was the only example. See
- * specs/018-helmarit.md.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function competitionLabel(team: NationalTeam, categoryName: string): string {
   const withoutTeam = categoryName.endsWith(team.categorySuffix)
@@ -155,46 +141,29 @@ export function competitionLabel(team: NationalTeam, categoryName: string): stri
 }
 
 /**
- * Whether Finland actually played in this match.
+ * Whether Finland played in this match. Matched on the name: no team id is
+ * stable across categories.
  *
- * A category is not only Finland's matches, and on the women's side two are
- * *entirely* other teams' — `maajp2024/Naiset-A` and `maajp2025/WEC`. Without
- * this the page would list matches Finland was not in.
- *
- * Matched on the name because there is no team id stable across categories,
- * and TASO publishes the name in Finnish already.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function isFinlandMatch(match: { homeTeamName: string; awayTeamName: string }): boolean {
   return match.homeTeamName === FINLAND_TEAM_NAME || match.awayTeamName === FINLAND_TEAM_NAME;
 }
 
 /**
- * The id every analytics function keys on for Finland (specs/041, S1).
+ * The id every analytics function keys on for Finland. Negative, so it cannot
+ * collide with a provider id; it never leaves the app.
  *
- * TASO publishes no id for Finland that is stable across categories — which is
- * why `isFinlandMatch` matches the name — while all eight analytics functions
- * take a `teamId: number` and compare it against `homeTeamProviderId` or
- * `awayTeamProviderId`. One reserved id is the only thing that *is* stable, so
- * the read boundary writes it on Finland's side and every function works
- * untouched.
- *
- * Negative because provider ids are positive, so this cannot collide with a
- * real team's. The sentinel never leaves the app: nothing stores it, nothing
- * fetches by it, and no URL carries it.
+ * decisions/041-national-team-analytics.md
  */
 export const FINLAND_TEAM_ID = -1;
 
 /**
  * The same match with `FINLAND_TEAM_ID` on Finland's side, whichever side that
- * is (specs/041, S2).
+ * is. A match Finland is not in comes back unchanged.
  *
- * Applied once, here, beside the filter that already knows which side Finland
- * is. The opponent's own id is left exactly as TASO sent it, because the match
- * page and the head-to-head still read it.
- *
- * A match Finland is not in comes back unchanged. That cannot reach the pages —
- * `isFinlandMatch` runs first — but a transformation that quietly relabelled
- * some other team's id would be worse than one that does nothing.
+ * decisions/041-national-team-analytics.md
  */
 export function normalizeFinlandId<
   T extends {
@@ -216,6 +185,9 @@ export function normalizeFinlandId<
 /**
  * Chronological within a year, `match_id` breaking a tie so the order does not
  * shift between renders of the same data.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function byKickoffThenId<T extends { kickoffAt: Date; providerMatchId: number }>(
   left: T,
@@ -226,9 +198,11 @@ export function byKickoffThenId<T extends { kickoffAt: Date; providerMatchId: nu
 }
 
 /**
- * The calendar year a match was played in, in Finnish local time — which is
- * the timezone the date column renders in, so a late kick-off cannot be filed
- * under one year and displayed under another.
+ * The calendar year a match was played in, in Finnish local time: the timezone
+ * the date column renders in.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function playedYear(kickoffAt: Date): number {
   return Number(
@@ -240,12 +214,11 @@ export function playedYear(kickoffAt: Date): number {
 }
 
 /**
- * Matches grouped by the year they were **played**, newest year first,
+ * Matches grouped by the year they were played, newest year first,
  * chronological within a year.
  *
- * A bucket is not a calendar year. `maajp18` holds three years of Huuhkajat
- * matches and **four** of Helmarit's, reaching back to 2018. Filing them under
- * the bucket's nominal season put a 2019 qualifier under a 2021 heading.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export function groupByPlayedYear<T extends { kickoffAt: Date; providerMatchId: number }>(
   matches: readonly T[]
@@ -266,7 +239,12 @@ export function groupByPlayedYear<T extends { kickoffAt: Date; providerMatchId: 
     .map(([year, yearMatches]) => ({ year, matches: yearMatches.toSorted(byKickoffThenId) }));
 }
 
-/** `1 ottelu`, `10 ottelua` — the count in a year's summary line. */
+/**
+ * `1 ottelu`, `10 ottelua`: the count in a year's summary line.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export function matchCountLabel(count: number): string {
   return count === 1 ? "1 ottelu" : `${count} ottelua`;
 }

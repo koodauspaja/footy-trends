@@ -48,3 +48,8 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   for a season with nothing stored. Each season is kept to its own
   `(competition_id, category_id)` pair, and the rounds are renumbered as the
   standings page's are, so every table is the page's own.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`captionLines`.** `Sijoitusmuutos keskimäärin` ran off both ends of the
+  drawing at 375 px. A caption with no space stays whole.

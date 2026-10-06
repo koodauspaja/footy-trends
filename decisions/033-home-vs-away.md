@@ -53,3 +53,22 @@ is safe because each side is off by less than 0,005 × 19.
   below `sm` instead — the text is inside the `viewBox`, so a breakpoint reaches
   it even though `MARGIN` is JavaScript and cannot follow. `BarChart` keeps the
   400 units decided here.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`formatDecimal`.** One decimal is exact for averages over five matches,
+  which move in fifths; a season's average takes two (`2,11`). `toFixed` also
+  hides floating point: `0.2 × 3` is `0.6000000000000001`.
+- **`MARGIN`.** `bottom` and `left` carry the axis labels: 56 keeps the x-tick
+  row clear of the axis caption, and 72 fits a three-digit y tick (the
+  clean-sheet share axis runs to 100) beside the rotated caption. `MARGIN` is
+  JavaScript, so it cannot answer the breakpoint the way the font does; both
+  gutters are sized for the larger text and cost a few units of plot at every
+  width.
+- **`AXIS_TEXT`.** `text-xs` is 12 user units, not 12 screen pixels, and SVG
+  has no non-scaling equivalent for text. At 640 units shown on a 375-px
+  phone the drawing is about 0,54x, so 12 units reached the reader at roughly
+  6 px. Enlarging the font below `sm` fixes that without narrowing the
+  drawing, which would have cost the desktop canvas.
