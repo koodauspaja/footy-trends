@@ -8,8 +8,8 @@
 import { type BracketRound, type BracketSourceMatch, buildBracket } from "./cup-bracket";
 
 /**
- * One of the two round names TASO spells inconsistently across eras; the
- * other is `NUMBERED_ROUND`. Keyed on the whole name, never a substring.
+ * Whole names only, never a substring: `Pikkufinaali` and `Finaali-Kakkonen`
+ * are other rounds.
  *
  * decisions/015-finnish-cups.md
  */

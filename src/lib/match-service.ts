@@ -716,7 +716,8 @@ const loadMatchPageData = cache(async function loadMatchPageData(
 });
 
 /**
- * One match page's data, or `not_found` for an id no stored match can have.
+ * One match page's data. An id the column cannot hold is `not_found` without a
+ * query.
  *
  * decisions/019-match-page.md
  * decisions/020-context-free-team-page.md

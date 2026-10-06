@@ -11,7 +11,7 @@ import { signInRefusal } from "@/lib/sign-in-allowlist";
 
 /**
  * Reads a variable sign-in cannot work without, and throws naming it when it is
- * missing, so the module fails to load and not the OAuth flow, later.
+ * missing, so the module fails to load instead of the OAuth flow failing later.
  *
  * decisions/023-google-oauth-login.md
  */
