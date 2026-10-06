@@ -1370,7 +1370,7 @@ export async function getTeamPanelMatches(
 /**
  * The selected season against the club's others, as `seasonsBeside` picks them;
  * a cup is measured without the ranked measures. The reads are the cached
- * classification's, and stale rows are served (specs/038, S12).
+ * classification's, and stale rows are served.
  *
  * decisions/038-season-against-history.md
  * decisions/040-cup-analytics.md

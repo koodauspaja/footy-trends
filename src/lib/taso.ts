@@ -499,7 +499,7 @@ export async function getSeasonCategoryNames(
  * Eurolopputurnaus isn't a points competition: TASO **omits** every stat
  * field except `matches_played` there rather than sending `null` for it,
  * so `=== null` alone never detects such a group. That absence is what
- * `keepsATable` keys on — see specs/010-playoff-group-match-list.md.
+ * `keepsATable` keys on.
  *
  * decisions/010-playoff-group-match-list.md
  */

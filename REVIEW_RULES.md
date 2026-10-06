@@ -63,8 +63,9 @@ Specs and decision records
   issue's number instead, and has no spec. Drift between them is a finding — the
   spec saying "show last 5 matches" against a decision record saying "show
   last 3".
-- Every PR must reference both documents in its description (not a Sourcery
-  rule — see below).
+- A feature PR must reference both documents in its description (not a Sourcery
+  rule — see below). A bug or chore PR has no spec and marks that section not
+  applicable; it links its decision record when it wrote one.
 - Block 1 compares the two when a pull request changes them together, which a
   feature PR does: it adds both. Whether Sourcery reads the unchanged
   counterpart on a **one-sided edit** is not established — its documentation

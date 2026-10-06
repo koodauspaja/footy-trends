@@ -124,7 +124,7 @@ describe("the citation record", () => {
     expect(citationKey(line("a.ts", "// see #12"))).not.toBe(
       citationKey(line("b.ts", "// see #12"))
     );
-    expect(citationKey(line("a.ts", "// see #12"))).toMatch(/^[0-9a-f]{8}$/);
+    expect(citationKey(line("a.ts", "// see #12"))).toMatch(/^[0-9a-f]{16}$/);
   });
 
   it("records the keys in order, whatever order the lines come in", () => {

@@ -9,7 +9,8 @@ here.
 
 One to three lines about the thing itself, or a constraint the code cannot show.
 Then the decisions behind it, as paths: the original feature's first, then the
-later ones (bugs, chores, other features), oldest first.
+later ones (bugs, chores, other features), oldest first. A spec is not cited
+beside them: its decision record shares its number and leads to it.
 
 ```ts
 /**

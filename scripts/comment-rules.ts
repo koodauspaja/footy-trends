@@ -114,7 +114,7 @@ export function citationKey(citation: Pick<Finding, "file" | "text">): string {
   return createHash("sha256")
     .update(`${citation.file}\n${citation.text}`)
     .digest("hex")
-    .slice(0, 8);
+    .slice(0, 16);
 }
 
 /** The record the tree has now, sorted, as the recorded file stores it. */

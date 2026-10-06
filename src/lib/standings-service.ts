@@ -288,7 +288,7 @@ export function getTeamStreakRecords(
 
 /**
  * Which of the club's seasons belong beside this one: its league seasons across
- * divisions, or for a cup only that cup's (specs/040, S5).
+ * divisions, or for a cup only that cup's.
  *
  * decisions/040-cup-analytics.md
  */
@@ -313,7 +313,7 @@ function isLeagueCompetition(competitionCode: string): boolean {
 
 /**
  * One season as `compareSeasons` needs it: nothing stored is `empty`, a failed
- * refresh with nothing stored `error`, and stale rows are served (specs/038, S12).
+ * refresh with nothing stored `error`, and stale rows are served.
  *
  * decisions/038-season-against-history.md
  */
@@ -489,7 +489,7 @@ export function needsRefresh(
 
 /**
  * Each completed season's table movement in one foreign competition, from
- * stored rows only, never asking the provider (specs/050, S4).
+ * stored rows only, never asking the provider.
  *
  * decisions/050-table-volatility.md
  */
