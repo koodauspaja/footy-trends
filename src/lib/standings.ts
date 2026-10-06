@@ -63,6 +63,8 @@ export function toFinishedMatches<
  * A match's score after extra time, without a penalty shoot-out. Both sides of
  * the shoot-out must be stored for it to be subtracted.
  *
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/049-home-advantage-and-draw-rate.md
  * decisions/495-score-after-extra-time.md
  */
 function withoutShootout<

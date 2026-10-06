@@ -8,6 +8,7 @@ import { logger } from "@/lib/logger";
  * Reading and writing one reader's stored avatar. The bytes live in Postgres,
  * so deleting the account deletes the image.
  *
+ * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
  */
 

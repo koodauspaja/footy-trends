@@ -42,6 +42,7 @@ export const BY_MATCH_HEADING = "Ottelu ottelulta";
 /**
  * About analytics as a whole, not one panel: signed-out readers see none of them.
  *
+ * decisions/030-league-position-by-matchday.md
  * decisions/031-rolling-form-trend.md
  */
 export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
