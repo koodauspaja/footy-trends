@@ -8,16 +8,11 @@ import {
   getSeasonMatchList,
   getSeasonStandings,
   getTasoSeasonMovements,
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -26,6 +21,25 @@ import {
   synchronizeGroupTeams,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
+import { teamPanelLoaders } from "@/lib/team-panels";
+
+/**
+ * The six result panels as the team page builds them: this service's one read
+ * of the team's matches, then the shared builders (#530). Each used to be a
+ * function of its own here, and their tests are kept as they were, asked
+ * through this.
+ */
+function panels(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+) {
+  return teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
+    getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, activeSeasonId)
+  );
+}
 
 const {
   dbMock,
@@ -3232,7 +3246,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // The cup selection keeps every group, which is why the panels appear.
       mockStoredMatches(matches, rows);
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status).toBe("ok");
       expect(series.status === "ok" && series.longest.wins?.length).toBe(2);
@@ -3246,7 +3260,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       }));
       mockStoredMatches(away, rowsFor(CUP, SEASON, 9, [1, 4], null));
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status === "ok" && series.longest.wins?.length).toBe(1);
     });
@@ -3256,7 +3270,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonMatchesMock.mockResolvedValue([]);
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamStreaks(CUP, SEASON, 99, ownSeason(), ACTIVE_SEASON)).toEqual({
+      expect(await panels(CUP, SEASON, 99, ownSeason(), ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "unavailable",
       });
     });
@@ -3269,7 +3283,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonMatchesMock.mockResolvedValue([]);
       mockStoredMatches([], []);
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status).toBe("ok");
       expect(series.status === "ok" && series.current).toBeNull();
@@ -3281,7 +3295,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonGroupsMock.mockRejectedValue(new Error("TASO unavailable"));
       getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
-      expect(await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON)).toEqual({
+      expect(await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "error",
       });
     });
@@ -3652,7 +3666,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     async function series() {
       mockStoredMatches(matches, rows);
-      return getTeamFormSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      return panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
     }
 
     it("continues across the split in kickoff order, and leaves the playoff out", async () => {
@@ -3689,7 +3703,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Own goals, in kickoff order: 2–0, 1–1 (away), 0–1, 3–0, then 2–1, 0–0
       // after the split. The playoff's 4–0 is not league goals.
       mockStoredMatches(matches, rows);
-      const goals = await getTeamGoalsSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      const goals = await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
 
       expect(goals.status === "ok" && goals.totals.at(-1)).toEqual({
         match: 6,
@@ -3706,7 +3720,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Home: 2–0, 0–1, 3–0, 2–1, 0–0. Away: 1–1. The playoff win is not league.
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamHomeAwaySeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
         status: "ok",
         home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
         away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
@@ -3717,7 +3731,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Conceded in the league, in kickoff order: 0, 1, 1, 0, 1, 0 — three.
       mockStoredMatches(matches, rows);
 
-      const series = await getTeamCleanSheetSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      const series = await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets();
 
       expect(series.status === "ok" && series.points.at(-1)).toEqual({
         match: 6,
@@ -3730,7 +3744,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // W D L W W D in the league; the playoff win on the 7th is not counted.
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamStreaks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "ok",
         current: { outcome: "draw", length: 1 },
         longest: {
@@ -3755,7 +3769,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
         rows
       );
 
-      expect(await getTeamComebacks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
         status: "ok",
         trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
         led: { matches: 2, won: 1, drew: 0, lost: 1 },
@@ -3794,13 +3808,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const series = await getTeamFormSeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadForm();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3837,13 +3851,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const goals = await getTeamGoalsSeries(
+    const goals = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadGoals();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3880,13 +3894,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const series = await getTeamHomeAwaySeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadHomeAway();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3917,7 +3931,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamHomeAwaySeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
       status: "unavailable",
     });
   });
@@ -3928,13 +3942,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockResolvedValue([]);
     mockInsert();
 
-    const series = await getTeamHomeAwaySeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadHomeAway();
 
     expect(series.status === "ok" && series.home.matches + series.away.matches).toBe(0);
   });
@@ -3945,11 +3959,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO home and away series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -3959,7 +3973,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()
     ).toEqual({ status: "error" });
   });
 
@@ -3970,7 +3984,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamStreaks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "unavailable",
     });
   });
@@ -3981,13 +3995,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockResolvedValue([]);
     mockInsert();
 
-    const streaks = await getTeamStreaks(
+    const streaks = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadStreaks();
 
     expect(streaks.status === "ok" && streaks.current).toBeNull();
   });
@@ -3998,11 +4012,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamStreaks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO streaks"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4013,7 +4027,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamComebacks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "unavailable",
     });
   });
@@ -4025,7 +4039,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()
     ).toEqual({
       status: "ok",
       trailed: { matches: 0, won: 0, drew: 0, lost: 0 },
@@ -4041,11 +4055,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO comebacks"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4056,7 +4070,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamCleanSheetSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual({
       status: "unavailable",
     });
   });
@@ -4068,7 +4082,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()
     ).toEqual({ status: "ok", points: [] });
   });
 
@@ -4078,11 +4092,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO clean-sheet series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4093,7 +4107,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamGoalsSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()).toEqual({
       status: "unavailable",
     });
   });
@@ -4105,7 +4119,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "ok", rolling: [], totals: [] });
   });
 
@@ -4115,11 +4129,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO goals series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4129,7 +4143,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "error" });
   });
 
@@ -4140,7 +4154,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamFormSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "unavailable",
     });
   });
@@ -4150,7 +4164,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockStoredMatches(matches, rowsFor(CATEGORY_ID, COMPETITION_ID, 1, [1, 2], 99));
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "too-few" });
   });
 
@@ -4161,7 +4175,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "too-few" });
   });
 
@@ -4171,7 +4185,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "error" });
   });
 
@@ -4181,11 +4195,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO form series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 });

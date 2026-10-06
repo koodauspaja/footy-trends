@@ -5,8 +5,10 @@ import {
   favoriteCompetition,
   favoriteTeam,
   matches,
+  predictions,
   refreshRuns,
   session,
+  tasoGroupTeams,
   tasoMatches,
   user,
   userAvatar,
@@ -380,5 +382,52 @@ describe("refresh_runs table", () => {
       expect(column.notNull).toBe(true);
       expect(column.default).toBe(0);
     }
+  });
+});
+
+/**
+ * These two had no test of their own: their definitions were executed only
+ * because the database client used to be built, schema and all, wherever
+ * `@/db` was imported. #536 made the client on first use, and coverage said so.
+ */
+describe("taso_group_teams table", () => {
+  it("makes a team's row in a group unique, by the group and the team together", () => {
+    // TASO gives a standings row no id of its own, so a second sync of the
+    // same group would otherwise add every team again.
+    const { indexes } = getTableConfig(tasoGroupTeams);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "taso_group_teams_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "category_id",
+      // The property is `competitionCode`; the column kept TASO's own name.
+      "competition_id",
+      "season_id",
+      "group_id",
+      "team_provider_id",
+    ]);
+  });
+});
+
+describe("predictions table", () => {
+  it("keeps one prediction per match, model and kind, so logging again replaces it", () => {
+    // The log is written by a cron that runs hourly and by a backtest that can
+    // be re-run: without the index each run would add a row per match.
+    const { indexes } = getTableConfig(predictions);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "predictions_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "source",
+      "provider_match_id",
+      "model",
+      "kind",
+    ]);
   });
 });

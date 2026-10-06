@@ -1,4 +1,5 @@
 import { isRegionSegment, type RegionSegment } from "@/lib/regions";
+import { isStoredInteger, parseWholeNumber } from "./provider-ids";
 
 /**
  * What a favourite *is*, with **no database and no session** — the half a client
@@ -31,16 +32,6 @@ export function isFavouriteSource(value: unknown): value is FavouriteSource {
 }
 
 /**
- * The largest value the `team_provider_id` column can hold: Postgres `integer`.
- *
- * `Number.isSafeInteger` is the wrong bound here and was used twice before this
- * constant existed — it accepts 9 007 199 254 740 991, which the column cannot
- * store, so the row would fail at the driver and surface as "something went
- * wrong" instead of "that is not an id".
- */
-const MAX_TEAM_PROVIDER_ID = 2_147_483_647;
-
-/**
  * Whether a number is an id the app could store, in the one place that decides.
  *
  * Shared rather than repeated: `parseTeamKey` reads ids out of the session and
@@ -49,12 +40,10 @@ const MAX_TEAM_PROVIDER_ID = 2_147_483_647;
  * same bound for the same reason.
  */
 export function isTeamProviderId(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value > 0 &&
-    value <= MAX_TEAM_PROVIDER_ID
-  );
+  // `isStoredInteger`, not `Number.isSafeInteger`: the latter accepts
+  // 9 007 199 254 740 991, which the column cannot store, so the row would fail
+  // at the driver as "something went wrong" instead of "that is not an id".
+  return typeof value === "number" && isStoredInteger(value) && value > 0;
 }
 
 /**
@@ -89,12 +78,9 @@ export function parseTeamKey(
   const source = key.slice(0, separator);
   if (!isFavouriteSource(source)) return null;
 
-  // The same rule `parseProviderId` applies in taso.ts: a positive decimal
-  // integer, or it is not an id. `Number("")` is 0 and `Number("0x10")` is 16,
-  // and neither is a team.
-  const rest = key.slice(separator + 1);
-  if (!/^\d+$/.test(rest)) return null;
-  const teamProviderId = Number(rest);
+  // A positive decimal integer, or it is not an id: `Number("")` is 0 and
+  // `Number("0x10")` is 16, and neither is a team.
+  const teamProviderId = parseWholeNumber(key.slice(separator + 1));
   return isTeamProviderId(teamProviderId) ? { source, teamProviderId } : null;
 }
 

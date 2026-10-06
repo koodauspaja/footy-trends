@@ -1,4 +1,5 @@
 import { isAdmin, type Role } from "@/lib/admin-role";
+import { parseWholeNumber } from "./provider-ids";
 
 /**
  * The shape the admin table renders, and the refusals it must phrase — with
@@ -34,9 +35,8 @@ export type PageWindow = { limit: number; offset: number };
  * class `skills/self-review.md` names.
  */
 export function pageFrom(raw: string | string[] | undefined): number {
-  if (typeof raw !== "string" || !/^\d+$/.test(raw)) return 1;
-  const page = Number(raw);
-  return Number.isSafeInteger(page) && page >= 1 ? page : 1;
+  const page = parseWholeNumber(raw);
+  return page !== null && page >= 1 ? page : 1;
 }
 
 /** How many pages a total needs. Always at least one, so "Sivu 1 / 1" is true of an empty list. */

@@ -44,6 +44,23 @@ describe("backoffSecondsFrom", () => {
     expect(backoffSecondsFrom(headers({}))).toBe(10);
   });
 
+  it("waits the default for an empty header, rather than retrying at once", () => {
+    // `Number("")` is 0, which read an empty Retry-After as "now" (#529).
+    expect(backoffSecondsFrom(headers({ "retry-after": "" }))).toBe(10);
+    expect(backoffSecondsFrom(headers({ "retry-after": "   " }))).toBe(10);
+    expect(backoffSecondsFrom(headers({ "x-requestcounter-reset": "" }))).toBe(10);
+  });
+
+  it("reads the provider's own header past an empty Retry-After", () => {
+    expect(backoffSecondsFrom(headers({ "retry-after": "", "x-requestcounter-reset": "7" }))).toBe(
+      7
+    );
+  });
+
+  it("still retries at once when the provider says zero", () => {
+    expect(backoffSecondsFrom(headers({ "retry-after": "0" }))).toBe(0);
+  });
+
   it("ignores a header that is neither a number nor a date", () => {
     expect(backoffSecondsFrom(headers({ "retry-after": "soon" }))).toBe(10);
   });

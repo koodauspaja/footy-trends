@@ -2,11 +2,9 @@
  * One-shot backfill of the production database — entry point and guard.
  *
  * This file deliberately imports nothing that touches the database. `src/db`
- * constructs its Postgres client from `process.env.DATABASE_URL` at *module
- * load*, and ES imports are hoisted, so importing it here would fix the
- * connection before any of the checks below had run — and the target printed on
- * screen would not necessarily be the database written to. The real work lives
- * in `backfill-run.ts`, imported dynamically once the target is settled.
+ * makes its client from `process.env.DATABASE_URL` the first time it is used,
+ * so the target has to be settled before anything that could use it is loaded.
+ * The real work lives in `backfill-run.ts`, imported dynamically once it is.
  *
  *   DATABASE_URL=<production> npm run backfill
  *   DATABASE_URL=<production> npm run backfill -- --reset=<database-name>
@@ -59,7 +57,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  // `src/db` reads DATABASE_URL at load; restore it for the dynamic import.
+  // `src/db` reads DATABASE_URL on first use; restore it before the work loads.
   process.env.DATABASE_URL = connectionString;
 
   const args = process.argv.slice(2);

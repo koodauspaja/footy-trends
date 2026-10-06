@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
@@ -15,6 +15,7 @@ import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamPanelMatches } from "@/lib/team-panels";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
@@ -26,38 +27,29 @@ import { warmModules } from "../../../../../support/warm-module";
  * happens to be running then. Signed out is what these tests already assumed;
  * this just says so without starting a timer (specs/026-favourites.md).
  */
+const { session } = vi.hoisted(() => ({ session: { data: null as unknown } }));
 vi.mock("@/lib/auth-client", () => ({
-  useSession: () => ({ data: null, refetch: vi.fn() }),
+  useSession: () => ({ data: session.data, refetch: vi.fn() }),
 }));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+/**
+ * The matches the six result panels count. The panels themselves are
+ * `team-panels.test.ts`'s; what this file owns is that the page asks for the
+ * right team's matches.
+ */
+const getTeamPanelMatchesMock = vi.fn(
+  async (..._args: unknown[]): Promise<TeamPanelMatches> => ({ status: "ok", finished: [] })
+);
 const getTeamPositionSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
-);
-const getTeamFormSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
-);
-const getTeamGoalsSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
-);
-const getTeamHomeAwaySeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
-);
-const getTeamCleanSheetSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<CleanSheetSeries> => ({ status: "unavailable" })
-);
-const getTeamStreaksMock = vi.fn(
-  async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
 );
 const getTeamStreakRecordsMock = vi.fn(
   async (..._args: unknown[]): Promise<StreakRecordsSeries> => ({ status: "unavailable" })
 );
 const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
-);
-const getTeamComebacksMock = vi.fn(
-  async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
 
 /**
@@ -102,14 +94,9 @@ vi.mock("@/lib/football-data", () => ({
 
 vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
-  getTeamFormSeries: getTeamFormSeriesMock,
-  getTeamGoalsSeries: getTeamGoalsSeriesMock,
-  getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
-  getTeamStreaks: getTeamStreaksMock,
-  getTeamComebacks: getTeamComebacksMock,
+  getTeamPanelMatches: getTeamPanelMatchesMock,
   getTeamSeasonComparison: getTeamSeasonComparisonMock,
   getTeamStreakRecords: getTeamStreakRecordsMock,
-  getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
@@ -266,6 +253,21 @@ describe("Team page", () => {
     expect(screen.getByText("Arsenal FC – Chelsea FC")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Liverpool FC – Arsenal FC")).toBeInTheDocument();
+    // football-data's last column is the round, where TASO's is the group.
+    expect(screen.getByRole("columnheader", { name: "Kierros" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Sarja" })).not.toBeInTheDocument();
+  });
+
+  it("links each match's date to its match page under the region's own prefix", async () => {
+    await renderTeamPage("1", { kausi: "2025" });
+
+    const hrefs = screen
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"))
+      .filter((href) => href?.includes("/ottelu/"));
+
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) expect(href).toMatch(/^\/ulkomaat\/ottelu\/\d+$/);
   });
 
   it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
@@ -577,15 +579,40 @@ describe("Team page", () => {
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
   });
 
-  it("shows the reduced not-found page for a non-numeric team id, and queries nothing", async () => {
-    await renderTeamPage("abc");
+  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  it.each([
+    ["a word", "abc"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])(
+    "shows the reduced not-found page for a team id that is %s, and queries nothing",
+    async (_name, id) => {
+      await renderTeamPage(id);
 
-    // The page used to name Valioliiga and offer its standings link to a team
-    // that does not exist. See specs/020-context-free-team-page.md.
+      // The page used to name Valioliiga and offer its standings link to a team
+      // that does not exist. See specs/020-context-free-team-page.md.
+      expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+      expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+      expect(getTeamMatchesMock).not.toHaveBeenCalled();
+      expect(getTeamContextMock).not.toHaveBeenCalled();
+      expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+    }
+  );
+
+  it("shows the same reduced page for a well-formed id no stored match has", async () => {
+    // The other way to "not found": the id is a number, and the lookup says no.
+    // Until #529 the malformed-id case above was the only test of this branch.
+    getTeamContextMock.mockResolvedValue({ status: "not_found" });
+    await renderTeamPage("424242");
+
     expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
     expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(getTeamContextMock).toHaveBeenCalledWith(expect.anything(), 424242);
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
   });
 
@@ -638,6 +665,9 @@ describe("Team page", () => {
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Kausi")).not.toBeInTheDocument();
     expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    // The competition was resolved before the failure, so the page is headed
+    // with it; a failed team lookup has only "Joukkue" to offer.
+    expect(screen.getByRole("heading", { level: 1, name: "Valioliiga" })).toBeInTheDocument();
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error), competitionCode: "PL" }),
       "Unable to resolve the selectable seasons"
@@ -730,6 +760,40 @@ describe("Team page", () => {
   });
 });
 
+describe("Team page favourite star (specs/026-favourites.md)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
+    getTeamNameMock.mockResolvedValue({ status: "not_found" });
+    getTeamContextMock.mockImplementation(defaultTeamContext);
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getTeamMatchesMock.mockResolvedValue(okResult);
+  });
+  // Every other block in this file assumes a signed-out reader.
+  afterEach(() => {
+    session.data = null;
+  });
+
+  it("shows a signed-in reader the star, set for a football-data club they follow", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["football-data:1"] };
+    await renderTeamPage("1", { kausi: "2025" });
+
+    expect(
+      await screen.findByRole("button", { name: "Poista suosikeista: Arsenal FC" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not take TASO's club with the same id for this one", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["taso:1"] };
+    await renderTeamPage("1", { kausi: "2025" });
+
+    expect(
+      await screen.findByRole("button", { name: "Lisää suosikkeihin: Arsenal FC" })
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Team page league position (specs/030)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -756,59 +820,37 @@ describe("Team page league position (specs/030)", () => {
     expect(getTeamPositionSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
-  it("asks for this team's form in this competition and season (specs/031)", async () => {
+  it("logs a failed read of the panels' matches with what it takes to find the team", async () => {
+    // A team's id alone is one club here and another at TASO.
+    const failure = new Error("database down");
+    getTeamPanelMatchesMock.mockRejectedValueOnce(failure);
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
 
-    await loadForm?.();
-
-    expect(getTeamFormSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(await analyticsSectionMock.mock.calls[0]?.[0].loadForm()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: failure, teamProviderId: 1, competitionCode: "PL", seasonId: 2024 },
+      "Unable to read the matches a team's panels count"
+    );
   });
 
-  it("asks for this team's goals in this competition and season (specs/032)", async () => {
+  // One read behind all six: `teamPanelLoaders` builds them from the same
+  // matches (specs/031 to specs/036), so each asks for the same thing.
+  it.each([
+    "loadForm",
+    "loadGoals",
+    "loadHomeAway",
+    "loadCleanSheets",
+    "loadStreaks",
+    "loadComebacks",
+  ] as const)("reads this team's matches in this competition and season for %s", async (loader) => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
 
-    await loadGoals?.();
+    await analyticsSectionMock.mock.calls[0]?.[0][loader]();
 
-    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledTimes(1);
+    expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
-  it("asks for this team's home and away in this competition and season (specs/033)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
-
-    await loadHomeAway?.();
-
-    expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's clean sheets in this competition and season (specs/034)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadCleanSheets = analyticsSectionMock.mock.calls[0]?.[0].loadCleanSheets;
-
-    await loadCleanSheets?.();
-
-    expect(getTeamCleanSheetSeriesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's streaks in this competition and season (specs/035)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadStreaks = analyticsSectionMock.mock.calls[0]?.[0].loadStreaks;
-
-    await loadStreaks?.();
-
-    expect(getTeamStreaksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
-
-  it("asks for this team's comebacks in this competition and season (specs/036)", async () => {
-    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
-    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
-
-    await loadComebacks?.();
-
-    expect(getTeamComebacksMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
-  });
   it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;

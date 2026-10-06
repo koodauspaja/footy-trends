@@ -5,8 +5,7 @@ import { warmModules } from "../../support/warm-module";
  * `auth.ts` reads four environment variables at import and builds a database
  * adapter, so nothing here may touch the real `postgres` client or inherit an
  * ambient environment: the CI `unit` job runs with no service containers and no
- * env vars at all, deliberately (#158). Same mocking shape as
- * tests/unit/db/index.test.ts.
+ * env vars at all, deliberately (#158).
  */
 vi.mock("postgres", () => ({ default: vi.fn(() => ({ end: vi.fn() })) }));
 vi.mock("drizzle-orm/postgres-js", () => ({ drizzle: vi.fn(() => ({})) }));

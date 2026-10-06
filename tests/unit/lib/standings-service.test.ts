@@ -7,20 +7,32 @@ import {
   getRoundMatches,
   getSeasonMovements,
   getStandings,
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
   synchronizeMatches,
 } from "@/lib/standings-service";
 import { singleTableMovement } from "@/lib/table-volatility";
+import { teamPanelLoaders } from "@/lib/team-panels";
 import { warmModules } from "../../support/warm-module";
+
+/**
+ * The six result panels as the team page builds them: this service's one read
+ * of the season, then the shared builders (#530). Each used to be a function of
+ * its own here, and their tests are kept as they were, asked through this.
+ */
+function panels(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+) {
+  return teamPanelLoaders({ teamProviderId, competitionCode, seasonId }, () =>
+    getTeamPanelMatches(competitionCode, teamProviderId, seasonId, activeSeasonId)
+  );
+}
 
 const {
   dbMock,
@@ -1244,11 +1256,11 @@ const season = [
   playedOn(6, 4, 0, 2, false),
 ];
 
-describe("getTeamFormSeries", () => {
+describe("the form panel (getTeamPanelMatches)", () => {
   it("gives the team's form after each match from the fifth", async () => {
     mockStoredMatches(season);
 
-    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "ok",
       points: [
         { match: 5, form: (3 + 1 + 0 + 3 + 3) / 5 },
@@ -1260,7 +1272,7 @@ describe("getTeamFormSeries", () => {
   it("ends at the Vire column the standings page shows, in points", async () => {
     // The property the feature rests on, against the real `getStandings`.
     mockStoredMatches(season);
-    const series = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
     mockStoredMatches(season);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1285,7 +1297,7 @@ describe("getTeamFormSeries", () => {
     ];
     mockStoredMatches(withUpcoming);
 
-    const series = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
 
     expect(series.status === "ok" && series.points.map((point) => point.match)).toEqual([5, 6]);
   });
@@ -1293,7 +1305,7 @@ describe("getTeamFormSeries", () => {
   it("has no series before the team's fifth match", async () => {
     mockStoredMatches(season.slice(0, 4));
 
-    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "too-few",
     });
   });
@@ -1301,7 +1313,7 @@ describe("getTeamFormSeries", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(season);
 
-    await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1313,7 +1325,7 @@ describe("getTeamFormSeries", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "too-few",
     });
   });
@@ -1322,7 +1334,7 @@ describe("getTeamFormSeries", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "error",
     });
   });
@@ -1332,21 +1344,21 @@ describe("getTeamFormSeries", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "error",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the form series"
+      "Unable to read the matches a team's panels count"
     );
   });
 });
 
-describe("getTeamGoalsSeries", () => {
+describe("the goals panel (getTeamPanelMatches)", () => {
   it("gives running totals and five-match averages from the team's own side", async () => {
     mockStoredMatches(season);
 
-    const series = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
 
     // Own goals first: 2–0, 1–1, 0–1, 2–1, 1–0, 0–2.
     expect(series).toEqual({
@@ -1370,7 +1382,7 @@ describe("getTeamGoalsSeries", () => {
     // The property the running-total chart rests on, against the real
     // `getStandings`.
     mockStoredMatches(season);
-    const series = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
     mockStoredMatches(season);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1394,9 +1406,9 @@ describe("getTeamGoalsSeries", () => {
       { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
     ];
     mockStoredMatches(withUpcoming);
-    const goals = await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const goals = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
     mockStoredMatches(withUpcoming);
-    const form = await getTeamFormSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const form = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
 
     expect(goals.status === "ok" && goals.totals).toHaveLength(6);
     expect(goals.status === "ok" && goals.rolling.map((point) => point.match)).toEqual(
@@ -1407,7 +1419,7 @@ describe("getTeamGoalsSeries", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(season);
 
-    await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1419,7 +1431,7 @@ describe("getTeamGoalsSeries", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()).toEqual({
       status: "ok",
       rolling: [],
       totals: [],
@@ -1430,7 +1442,7 @@ describe("getTeamGoalsSeries", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()).toEqual({
       status: "error",
     });
   });
@@ -1440,22 +1452,22 @@ describe("getTeamGoalsSeries", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamGoalsSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()).toEqual({
       status: "error",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the goals series"
+      "Unable to read the matches a team's panels count"
     );
   });
 });
 
-describe("getTeamHomeAwaySeries", () => {
+describe("the home and away panel (getTeamPanelMatches)", () => {
   it("splits the season into home and away, from the team's own side", async () => {
     mockStoredMatches(season);
 
     // Home: 2–0 W, 0–1 L, 1–0 W. Away: 1–1 D, 2–1 W, 0–2 L.
-    expect(await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
       status: "ok",
       home: { matches: 3, won: 2, drawn: 0, lost: 1, scored: 3, conceded: 1 },
       away: { matches: 3, won: 1, drawn: 1, lost: 1, scored: 3, conceded: 4 },
@@ -1465,7 +1477,7 @@ describe("getTeamHomeAwaySeries", () => {
   it("adds up to the row the standings page shows", async () => {
     // The property the panel rests on, against the real `getStandings`.
     mockStoredMatches(season);
-    const series = await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway();
     mockStoredMatches(season);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1491,7 +1503,7 @@ describe("getTeamHomeAwaySeries", () => {
       { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
     ]);
 
-    const series = await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway();
 
     expect(series.status === "ok" && series.home.matches).toBe(3);
   });
@@ -1499,7 +1511,7 @@ describe("getTeamHomeAwaySeries", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(season);
 
-    await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1511,7 +1523,7 @@ describe("getTeamHomeAwaySeries", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    const series = await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway();
 
     expect(series.status === "ok" && series.home.matches + series.away.matches).toBe(0);
   });
@@ -1520,7 +1532,7 @@ describe("getTeamHomeAwaySeries", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
       status: "error",
     });
   });
@@ -1530,37 +1542,39 @@ describe("getTeamHomeAwaySeries", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamHomeAwaySeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
       status: "error",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the home and away series"
+      "Unable to read the matches a team's panels count"
     );
   });
 });
 
-describe("getTeamCleanSheetSeries", () => {
+describe("the clean-sheet panel (getTeamPanelMatches)", () => {
   it("keeps a running share over the season, from the team's own side", async () => {
     mockStoredMatches(season);
 
     // Conceded, in kickoff order: 0, 1, 1, 1, 0, 2 — two clean sheets in six.
-    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
-      status: "ok",
-      points: [
-        { match: 1, kept: 1, share: 100 },
-        { match: 2, kept: 1, share: 50 },
-        { match: 3, kept: 1, share: (1 / 3) * 100 },
-        { match: 4, kept: 1, share: 25 },
-        { match: 5, kept: 2, share: 40 },
-        { match: 6, kept: 2, share: (2 / 6) * 100 },
-      ],
-    });
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual(
+      {
+        status: "ok",
+        points: [
+          { match: 1, kept: 1, share: 100 },
+          { match: 2, kept: 1, share: 50 },
+          { match: 3, kept: 1, share: (1 / 3) * 100 },
+          { match: 4, kept: 1, share: 25 },
+          { match: 5, kept: 2, share: 40 },
+          { match: 6, kept: 2, share: (2 / 6) * 100 },
+        ],
+      }
+    );
   });
 
   it("ends at the matches the standings page counts", async () => {
     mockStoredMatches(season);
-    const series = await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets();
     mockStoredMatches(season);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1581,7 +1595,7 @@ describe("getTeamCleanSheetSeries", () => {
       { ...playedOn(7, 2, 0, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
     ]);
 
-    const series = await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const series = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets();
 
     expect(series.status === "ok" && series.points).toHaveLength(6);
   });
@@ -1589,7 +1603,7 @@ describe("getTeamCleanSheetSeries", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(season);
 
-    await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1601,19 +1615,23 @@ describe("getTeamCleanSheetSeries", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
-      status: "ok",
-      points: [],
-    });
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual(
+      {
+        status: "ok",
+        points: [],
+      }
+    );
   });
 
   it("reports an error when nothing is stored and the refresh failed", async () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
-      status: "error",
-    });
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual(
+      {
+        status: "error",
+      }
+    );
   });
 
   it("reports an error, and logs it, when the season cannot be read at all", async () => {
@@ -1621,22 +1639,24 @@ describe("getTeamCleanSheetSeries", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamCleanSheetSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
-      status: "error",
-    });
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual(
+      {
+        status: "error",
+      }
+    );
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the clean-sheet series"
+      "Unable to read the matches a team's panels count"
     );
   });
 });
 
-describe("getTeamStreaks", () => {
+describe("the streaks panel (getTeamPanelMatches)", () => {
   it("counts the streaks over the season's own matches", async () => {
     mockStoredMatches(season);
 
     // W D L W W L, in kickoff order.
-    expect(await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "ok",
       current: { outcome: "defeat", length: 1 },
       longest: {
@@ -1650,7 +1670,7 @@ describe("getTeamStreaks", () => {
 
   it("never counts more matches than the standings page played", async () => {
     mockStoredMatches(season);
-    const streaks = await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const streaks = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks();
     mockStoredMatches(season);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1675,7 +1695,7 @@ describe("getTeamStreaks", () => {
       { ...playedOn(7, 2, 5, 0), status: "SCHEDULED", homeGoals: null, awayGoals: null },
     ]);
 
-    const streaks = await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const streaks = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks();
 
     expect(streaks.status === "ok" && streaks.current).toEqual({ outcome: "defeat", length: 1 });
   });
@@ -1683,7 +1703,7 @@ describe("getTeamStreaks", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(season);
 
-    await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1695,7 +1715,7 @@ describe("getTeamStreaks", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    expect(await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "ok",
       current: null,
       longest: { wins: null, unbeaten: null, defeats: null, winless: null },
@@ -1706,7 +1726,7 @@ describe("getTeamStreaks", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "error",
     });
   });
@@ -1716,12 +1736,12 @@ describe("getTeamStreaks", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamStreaks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "error",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the streaks"
+      "Unable to read the matches a team's panels count"
     );
   });
 });
@@ -1753,11 +1773,11 @@ const halfTimeSeason = [
 /** No match trailed or led: `trailed` and `led` are the directions' totals. */
 const NO_DIRECTION = { matches: 0, won: 0, drew: 0, lost: 0 };
 
-describe("getTeamComebacks", () => {
+describe("the comebacks panel (getTeamPanelMatches)", () => {
   it("counts what became of the matches the team trailed and led at half-time", async () => {
     mockStoredMatches(halfTimeSeason);
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "ok",
       trailed: { matches: 3, won: 1, drew: 1, lost: 1 },
       led: { matches: 2, won: 1, drew: 0, lost: 1 },
@@ -1768,7 +1788,7 @@ describe("getTeamComebacks", () => {
 
   it("never counts more matches than the standings page played", async () => {
     mockStoredMatches(halfTimeSeason);
-    const comebacks = await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    const comebacks = await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks();
     mockStoredMatches(halfTimeSeason);
     const standings = await getStandings({
       competitionCode: COMPETITION_CODE,
@@ -1801,7 +1821,7 @@ describe("getTeamComebacks", () => {
       },
     ]);
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "ok",
       trailed: { matches: 3, won: 1, drew: 1, lost: 1 },
       led: { matches: 2, won: 1, drew: 0, lost: 1 },
@@ -1813,7 +1833,7 @@ describe("getTeamComebacks", () => {
   it("reads the season once and asks no provider", async () => {
     mockStoredMatches(halfTimeSeason);
 
-    await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
+    await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks();
 
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
@@ -1823,7 +1843,7 @@ describe("getTeamComebacks", () => {
   it("knows nothing for a season stored before the half-time columns existed", async () => {
     mockStoredMatches(season);
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "ok",
       trailed: NO_DIRECTION,
       led: NO_DIRECTION,
@@ -1837,7 +1857,7 @@ describe("getTeamComebacks", () => {
     getSeasonMatchesMock.mockResolvedValue([]);
     mockInsert();
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "ok",
       trailed: NO_DIRECTION,
       led: NO_DIRECTION,
@@ -1850,7 +1870,7 @@ describe("getTeamComebacks", () => {
     mockStoredMatches([]);
     getSeasonMatchesMock.mockRejectedValue(new Error("provider down"));
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "error",
     });
   });
@@ -1860,12 +1880,12 @@ describe("getTeamComebacks", () => {
       throw new Error("database down");
     });
 
-    expect(await getTeamComebacks(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "error",
     });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ competitionCode: COMPETITION_CODE, teamProviderId: 1 }),
-      "Unable to compute the comebacks"
+      "Unable to read the matches a team's panels count"
     );
   });
 });

@@ -69,6 +69,10 @@ describe("parseTasoSeasonParam", () => {
   it("rejects a season outside the range, a non-numeric value, and an array value", () => {
     expect(parseTasoSeasonParam("2014", seasons)).toEqual({ kind: "invalid" });
     expect(parseTasoSeasonParam("not-a-year", seasons)).toEqual({ kind: "invalid" });
+    // Each of these is 2020 to `Number()`, a selectable season.
+    for (const value of ["0x7E4", "2.02e3", "2020.0", " 2020"]) {
+      expect(parseTasoSeasonParam(value, seasons)).toEqual({ kind: "invalid" });
+    }
     expect(parseTasoSeasonParam(["2020"], seasons)).toEqual({ kind: "invalid" });
   });
 });

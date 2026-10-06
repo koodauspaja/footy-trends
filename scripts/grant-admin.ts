@@ -4,13 +4,10 @@
  *   DATABASE_URL=<production> npm run admin:role -- --email=someone@example.fi
  *   DATABASE_URL=<production> npm run admin:role -- --email=someone@example.fi --role=user
  *
- * This file deliberately imports nothing that touches the database. `src/db`
- * constructs its Postgres client from `process.env.DATABASE_URL` at *module
- * load*, and ES imports are hoisted, so importing it here would fix the
- * connection before the checks below had run — and the target printed on screen
- * would not necessarily be the database written to. The work lives in
- * `grant-admin-run.ts`, imported dynamically once the target is settled. The
- * same reasoning, and the same shape, as `scripts/backfill.ts`.
+ * This file deliberately imports nothing that touches the database, so the
+ * target is settled before anything that could connect is loaded. The work
+ * lives in `grant-admin-run.ts`, imported dynamically once it is. The same
+ * shape as `scripts/backfill.ts`.
  *
  * **`DATABASE_URL` must come from the environment.** The one in `.env` is
  * deliberately ignored: this script exists to write to production, and picking

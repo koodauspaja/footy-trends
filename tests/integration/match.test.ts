@@ -1,9 +1,11 @@
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { headToHeadRecord } from "@/lib/head-to-head";
 import {
+  FOOTBALL_DATA_AWAY_GOALS,
+  FOOTBALL_DATA_HOME_GOALS,
   getCompetitionAverages,
   getGoalsPerGame,
   getHeadToHeadHistory,
@@ -364,6 +366,76 @@ describe("the head-to-head history", () => {
     expect(page.headToHead.matches.map((row) => row.providerMatchId)).toEqual([991001]);
     expect(page.headToHead.total).toBe(history.matches.length);
     expect(page.headToHead.total).toBe(3);
+  });
+});
+
+describe("a football-data score without its shoot-out (#528, specs/049 S3)", () => {
+  it("is the same from SQL as from the tables' own rule, half a shoot-out included", async () => {
+    const rows = [
+      // Both sides stored: 0–0 after extra time.
+      footballDataRow({ providerMatchId: 991001, penaltiesHome: 3, penaltiesAway: 4 }),
+      // Half a shoot-out is not one: the score stays as stored.
+      footballDataRow({ providerMatchId: 991002, penaltiesHome: 3, penaltiesAway: null }),
+      footballDataRow({ providerMatchId: 991003, penaltiesHome: null, penaltiesAway: 4 }),
+      footballDataRow({ providerMatchId: 991004 }),
+    ].map((row) => ({ ...row, homeGoals: 3, awayGoals: 4 }));
+    await db.insert(matches).values(rows);
+
+    const fromSql = await db
+      .select({
+        providerMatchId: matches.providerMatchId,
+        homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
+        awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
+      })
+      .from(matches)
+      .where(inArray(matches.providerMatchId, FD_IDS))
+      .orderBy(matches.providerMatchId);
+
+    expect(fromSql).toEqual([
+      { providerMatchId: 991001, homeGoals: 0, awayGoals: 0 },
+      { providerMatchId: 991002, homeGoals: 3, awayGoals: 4 },
+      { providerMatchId: 991003, homeGoals: 3, awayGoals: 4 },
+      { providerMatchId: 991004, homeGoals: 3, awayGoals: 4 },
+    ]);
+    // The other path: the stored rows, through the rule the tables use.
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(inArray(matches.providerMatchId, FD_IDS))
+      .orderBy(matches.providerMatchId);
+    expect(fromSql).toEqual(
+      toFinishedMatches(stored).map(({ providerMatchId, homeGoals, awayGoals }) => ({
+        providerMatchId,
+        homeGoals,
+        awayGoals,
+      }))
+    );
+  });
+
+  it("counts a half-stored shoot-out's whole score in the goals per game", async () => {
+    await db.insert(matches).values([
+      footballDataRow({
+        providerMatchId: 991001,
+        homeGoals: 3,
+        awayGoals: 4,
+        penaltiesHome: 3,
+        penaltiesAway: null,
+      }),
+    ]);
+
+    const result = await getCompetitionAverages([
+      { scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] } },
+    ]);
+
+    expect(result).toEqual({
+      status: "ok",
+      rows: [
+        {
+          scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] },
+          competition: { home: 3, away: 4 },
+        },
+      ],
+    });
   });
 });
 

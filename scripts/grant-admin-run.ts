@@ -7,11 +7,10 @@ import { ambiguousAccount, describeOutcome, noSuchAccount, type Request } from "
 /**
  * The database half of `grant-admin.ts`.
  *
- * Its own pool rather than `src/db`, because that module reads
- * `process.env.DATABASE_URL` at import time and this script's whole point is
- * that the operator passes the target explicitly. Taking the connection string
- * as an argument makes the target impossible to get wrong by forgetting a
- * variable.
+ * Its own pool rather than `src/db`, because that module takes its target
+ * from `process.env.DATABASE_URL` and this script's whole point is that the
+ * operator passes the target explicitly. Taking the connection string as an
+ * argument makes the target impossible to get wrong by forgetting a variable.
  */
 export type RunResult = { ok: boolean; message: string };
 

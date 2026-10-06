@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
+import { SameRouteLink } from "@/components/same-route-link";
 import { deleteUserAction, demoteUserAction, promoteUserAction } from "@/lib/admin-actions";
 import {
   type AdminRefusal,
@@ -167,13 +167,13 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
               so a page change is a navigation. That also makes each page
               linkable and the browser's back button work. */}
           {page > 1 ? (
-            <Link href={`?${pageParam}=${page - 1}`}>{PREVIOUS}</Link>
+            <SameRouteLink href={`?${pageParam}=${page - 1}`}>{PREVIOUS}</SameRouteLink>
           ) : (
             <span className="text-muted">{PREVIOUS}</span>
           )}
           <span className="text-muted">{`Sivu ${page} / ${pages}`}</span>
           {page < pages ? (
-            <Link href={`?${pageParam}=${page + 1}`}>{NEXT}</Link>
+            <SameRouteLink href={`?${pageParam}=${page + 1}`}>{NEXT}</SameRouteLink>
           ) : (
             <span className="text-muted">{NEXT}</span>
           )}

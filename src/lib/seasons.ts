@@ -1,3 +1,4 @@
+import { parseWholeNumber } from "./provider-ids";
 /**
  * Season identifiers are the season's start year (e.g. 2025 for 2025/26), which
  * is what the football-data.org `season` query parameter expects.
@@ -19,8 +20,6 @@ export type SeasonParamResult =
   | { kind: "valid"; seasonId: number }
   | { kind: "invalid" };
 
-const POSITIVE_INTEGER = /^\d+$/;
-
 /**
  * Formats a season start year as `2024/25`, zero-padding a century rollover —
  * or as plain `2026` for a competition whose season does not span two calendar
@@ -40,9 +39,10 @@ export function formatSeasonLabel(seasonId: number, spansCalendarYears = true): 
 
 /** Reads the configured floor, falling back to the default for any unusable value. */
 export function resolveEarliestSeason(rawValue: string | undefined): number {
-  if (rawValue === undefined || !POSITIVE_INTEGER.test(rawValue)) return DEFAULT_EARLIEST_SEASON;
-  const parsed = Number(rawValue);
-  return parsed > 0 ? parsed : DEFAULT_EARLIEST_SEASON;
+  // An environment variable, not a URL, but the same rule fits: a year is a
+  // whole number our columns hold, and anything else is no floor at all.
+  const parsed = parseWholeNumber(rawValue);
+  return parsed !== null && parsed > 0 ? parsed : DEFAULT_EARLIEST_SEASON;
 }
 
 /**
@@ -79,9 +79,9 @@ export function parseSeasonParam(
   selectable: SeasonOption[]
 ): SeasonParamResult {
   if (rawValue === undefined) return { kind: "absent" };
-  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
+  const seasonId = parseWholeNumber(rawValue);
+  if (seasonId === null) return { kind: "invalid" };
 
-  const seasonId = Number(rawValue);
   return selectable.some((option) => option.seasonId === seasonId)
     ? { kind: "valid", seasonId }
     : { kind: "invalid" };

@@ -3,8 +3,6 @@ import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
-import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
-import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import { isRoundRobin } from "./cup-rounds";
 import {
   categoryIdForSeason,
@@ -17,9 +15,6 @@ import {
   getDomesticCompetitionName,
   isDomesticCup,
 } from "./domestic-competitions";
-import { type FormSeries, formSeries } from "./form-series";
-import { type GoalsSeries, goalsSeries } from "./goals-series";
-import { type HomeAwaySeries, homeAwayStats } from "./home-away";
 import { logger } from "./logger";
 import {
   lastRoundPlayedBy,
@@ -29,6 +24,7 @@ import {
   type RankedRow,
   teamsInGroupsAbove,
 } from "./position-series";
+import { parseWholeNumber } from "./provider-ids";
 import {
   comparisonFor,
   RANKED_MEASURES,
@@ -38,7 +34,6 @@ import {
 } from "./season-comparison";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
-import { type StreaksSeries, streaksOf } from "./streaks";
 import {
   type Movement,
   midSeasonRound,
@@ -57,6 +52,7 @@ import {
   parseProviderId,
   type TasoGroup,
 } from "./taso";
+import type { TeamPanelMatches } from "./team-panels";
 import type { TeamSeason } from "./team-seasons";
 
 const FINISHED_STATUS = "FINISHED";
@@ -1381,17 +1377,23 @@ export async function getTeamPositionSeries(
 }
 
 /**
- * This team's form after each match of a season, for the team page's chart
- * (specs/031). Counts the matches `teamPanelMatches` selects — a league's
- * table groups, or a cup's every group (specs/040).
+ * The finished matches this team's result panels count in a season: form,
+ * goals, home and away, clean sheets, streaks and comebacks (specs/031 to
+ * specs/037), built by `teamPanelLoaders`. They are the matches
+ * `teamPanelMatches` selects: a league's table groups, or a cup's every group
+ * (specs/040).
+ *
+ * A season with nothing stored yet is an empty list, which every panel answers
+ * as "nothing played yet". `unavailable` is kept apart from it: a team that
+ * played only in match lists has no league panels at all.
  */
-export async function getTeamFormSeries(
+export async function getTeamPanelMatches(
   categoryId: string,
   competitionId: string,
   teamProviderId: number,
   seasonId: number,
   activeSeasonId: number
-): Promise<FormSeries> {
+): Promise<TeamPanelMatches> {
   try {
     const league = await teamPanelMatches(
       categoryId,
@@ -1400,91 +1402,16 @@ export async function getTeamFormSeries(
       seasonId,
       activeSeasonId
     );
-    if (league.status === "no-matches") return { status: "too-few" };
-    if (league.status !== "ok") return league;
-
-    return formSeries(league.finished, teamProviderId);
+    return league.status === "no-matches" ? { status: "ok", finished: [] } : league;
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO form series"
+      "Unable to read the matches a TASO team's panels count"
     );
     return { status: "error" };
   }
 }
 
-/**
- * This team's goals scored and conceded across a season, for the team page's
- * two goals charts (specs/032). Counts exactly the matches the form chart
- * counts.
- */
-export async function getTeamGoalsSeries(
-  categoryId: string,
-  competitionId: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<GoalsSeries> {
-  try {
-    const league = await teamPanelMatches(
-      categoryId,
-      competitionId,
-      teamProviderId,
-      seasonId,
-      activeSeasonId
-    );
-    if (league.status === "no-matches") return { status: "ok", rolling: [], totals: [] };
-    if (league.status !== "ok") return league;
-
-    return goalsSeries(league.finished, teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO goals series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * This team's season split into home and away, for the team page's
- * `Koti- ja vierastilastot` panel (specs/033). Counts exactly the matches the
- * form and goals charts count.
- */
-export async function getTeamHomeAwaySeries(
-  categoryId: string,
-  competitionId: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<HomeAwaySeries> {
-  try {
-    const league = await teamPanelMatches(
-      categoryId,
-      competitionId,
-      teamProviderId,
-      seasonId,
-      activeSeasonId
-    );
-    if (league.status === "no-matches")
-      return { status: "ok", ...homeAwayStats([], teamProviderId) };
-    if (league.status !== "ok") return league;
-
-    return { status: "ok", ...homeAwayStats(league.finished, teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO home and away series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * How often this team kept a clean sheet, after each match of a season, for the
- * team page's `Nollapelit` chart (specs/034). Counts exactly the matches the
- * other result charts count.
- */
 /**
  * The selected season against this club's other stored seasons, for the team
  * page's `Tämä kausi verrattuna` panel (specs/038).
@@ -1653,102 +1580,6 @@ function isDomesticLeague(competitionCode: string): boolean {
     DOMESTIC_COMPETITIONS.some((competition) => competition.code === competitionCode) &&
     !isDomesticCup(competitionCode)
   );
-}
-
-export async function getTeamCleanSheetSeries(
-  categoryId: string,
-  competitionId: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<CleanSheetSeries> {
-  try {
-    const league = await teamPanelMatches(
-      categoryId,
-      competitionId,
-      teamProviderId,
-      seasonId,
-      activeSeasonId
-    );
-    if (league.status === "no-matches") return { status: "ok", points: [] };
-    if (league.status !== "ok") return league;
-
-    return cleanSheetSeries(league.finished, teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO clean-sheet series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * This team's streaks in a season, for the team page's `Putket` panel
- * (specs/035). Counts exactly the matches the other result panels count.
- */
-export async function getTeamStreaks(
-  categoryId: string,
-  competitionId: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<StreaksSeries> {
-  try {
-    const league = await teamPanelMatches(
-      categoryId,
-      competitionId,
-      teamProviderId,
-      seasonId,
-      activeSeasonId
-    );
-    if (league.status === "no-matches") return { status: "ok", ...streaksOf([], teamProviderId) };
-    if (league.status !== "ok") return league;
-
-    return { status: "ok", ...streaksOf(league.finished, teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO streaks"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * What became of this team's matches after half-time — deficits rescued and
- * leads given away — for the team page's `Kääntyneet ottelut` panel
- * (specs/036, specs/037). Counts exactly the matches the other result panels
- * count.
- */
-export async function getTeamComebacks(
-  categoryId: string,
-  competitionId: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<ComebacksSeries> {
-  try {
-    const league = await teamPanelMatches(
-      categoryId,
-      competitionId,
-      teamProviderId,
-      seasonId,
-      activeSeasonId
-    );
-    if (league.status === "no-matches") {
-      return { status: "ok", ...comebacksOf([], teamProviderId) };
-    }
-    if (league.status !== "ok") return league;
-
-    return { status: "ok", ...comebacksOf(league.finished, teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, categoryId, competitionId, seasonId, teamProviderId },
-      "Unable to compute the TASO comebacks"
-    );
-    return { status: "error" };
-  }
 }
 
 /**
@@ -2535,8 +2366,6 @@ export type TasoRoundParamResult =
   | { kind: "valid"; round: number }
   | { kind: "invalid" };
 
-const POSITIVE_INTEGER = /^\d+$/;
-
 /**
  * Validates the `kierros` query parameter against the actual round numbers
  * `listSelectableTasoRounds` returned — a membership check, not a 1..max
@@ -2548,8 +2377,8 @@ export function parseTasoRoundParam(
   availableRounds: number[]
 ): TasoRoundParamResult {
   if (rawValue === undefined || rawValue === "") return { kind: "absent" };
-  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
-
-  const round = Number(rawValue);
-  return availableRounds.includes(round) ? { kind: "valid", round } : { kind: "invalid" };
+  const round = parseWholeNumber(rawValue);
+  return round !== null && availableRounds.includes(round)
+    ? { kind: "valid", round }
+    : { kind: "invalid" };
 }

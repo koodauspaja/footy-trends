@@ -49,7 +49,7 @@ import {
   labelTasoRows,
 } from "@/lib/meeting-labels";
 import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
-import { isStoredInteger } from "@/lib/provider-ids";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import { toFinishedMatches } from "@/lib/standings";
 
 const HEADING = "Kohtaamiset";
@@ -663,8 +663,8 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
  */
 async function resolve(options: HeadToHeadPageOptions) {
   const { a, b } = await options.params;
-  const first = Number(a);
-  const second = Number(b);
+  const first = parseWholeNumber(a);
+  const second = parseWholeNumber(b);
   if (!isTeamId(first) || !isTeamId(second) || first === second) {
     return { status: "not_found" } as const;
   }
@@ -680,8 +680,8 @@ async function resolve(options: HeadToHeadPageOptions) {
   return view === null ? ({ status: "not_found" } as const) : { status: "ok" as const, view };
 }
 
-function isTeamId(id: number): boolean {
-  return isStoredInteger(id) && id !== PLACEHOLDER_TEAM_ID;
+function isTeamId(id: number | null): id is number {
+  return id !== null && id !== PLACEHOLDER_TEAM_ID;
 }
 
 export async function headToHeadMetadata(

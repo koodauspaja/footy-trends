@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
@@ -16,30 +16,43 @@ import type { StreaksSeries } from "@/lib/streaks";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
+import type { TeamPanelMatches } from "@/lib/team-panels";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
+/**
+ * The favourite star in this tree reads the session through `useSession`, and
+ * the real client must not be loaded in a unit test (see
+ * `favourite-toggle.tsx`). Signed out unless a test signs in.
+ */
+const { session, toggleFavouriteTeamActionMock } = vi.hoisted(() => ({
+  session: { data: null as unknown },
+  toggleFavouriteTeamActionMock: vi.fn(async (_source: string, _teamProviderId: number) => ({
+    ok: true as const,
+    favorite: true,
+  })),
+}));
+vi.mock("@/lib/auth-client", () => ({
+  useSession: () => ({ data: session.data, refetch: vi.fn(async () => {}) }),
+}));
+vi.mock("@/lib/favourite-actions", () => ({
+  toggleFavouriteTeamAction: toggleFavouriteTeamActionMock,
+  toggleFavouriteCompetitionAction: vi.fn(),
+}));
+
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
+const loggerErrorMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
+/**
+ * The matches the six result panels count. The panels themselves are
+ * `team-panels.test.ts`'s; what this file owns is that the page asks for the
+ * right team's matches.
+ */
+const getTeamPanelMatchesMock = vi.fn(
+  async (..._args: unknown[]): Promise<TeamPanelMatches> => ({ status: "ok", finished: [] })
+);
 const getTeamPositionSeriesMock = vi.fn(
   async (..._args: unknown[]): Promise<PositionSeries> => ({ status: "no-rounds" })
-);
-const getTeamFormSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<FormSeries> => ({ status: "too-few" })
-);
-const getTeamGoalsSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<GoalsSeries> => ({ status: "ok", rolling: [], totals: [] })
-);
-const getTeamHomeAwaySeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<HomeAwaySeries> => ({ status: "unavailable" })
-);
-const getTeamCleanSheetSeriesMock = vi.fn(
-  async (..._args: unknown[]): Promise<CleanSheetSeries> => ({ status: "unavailable" })
-);
-const getTeamStreaksMock = vi.fn(
-  async (..._args: unknown[]): Promise<StreaksSeries> => ({ status: "unavailable" })
-);
-const getTeamComebacksMock = vi.fn(
-  async (..._args: unknown[]): Promise<ComebacksSeries> => ({ status: "unavailable" })
 );
 const getTeamStreakRecordsMock = vi.fn(
   async (..._args: unknown[]): Promise<StreakRecordsSeries> => ({ status: "unavailable" })
@@ -105,14 +118,9 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
-    getTeamFormSeries: getTeamFormSeriesMock,
-    getTeamGoalsSeries: getTeamGoalsSeriesMock,
-    getTeamCleanSheetSeries: getTeamCleanSheetSeriesMock,
-    getTeamStreaks: getTeamStreaksMock,
-    getTeamComebacks: getTeamComebacksMock,
+    getTeamPanelMatches: getTeamPanelMatchesMock,
     getTeamSeasonComparison: getTeamSeasonComparisonMock,
     getTeamStreakRecords: getTeamStreakRecordsMock,
-    getTeamHomeAwaySeries: getTeamHomeAwaySeriesMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
@@ -206,6 +214,7 @@ async function renderTeam(
  */
 beforeEach(() => {
   vi.clearAllMocks();
+  session.data = null;
   getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
   getTeamNameMock.mockResolvedValue({ status: "not_found" });
   getTeamContextMock.mockImplementation(defaultTeamContext);
@@ -244,6 +253,18 @@ describe("Domestic team page", () => {
     expect(screen.getByText("HJK – KuPS")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
+    // TASO's last column is the group, where football-data's is the round.
+    expect(screen.getByRole("columnheader", { name: "Sarja" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Kierros" })).not.toBeInTheDocument();
+  });
+
+  it("links each match's date to its match page under /kotimaa", async () => {
+    await renderTeam("1");
+
+    expect(screen.getByRole("link", { name: "01.04.2026" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/1"
+    );
   });
 
   it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
@@ -318,6 +339,19 @@ describe("Domestic team page", () => {
       "href",
       "/kotimaa/sarjataulukko?kilpailu=M1&kausi=2018"
     );
+  });
+
+  it("shows the reduced not-found page for a well-formed id no stored match has", async () => {
+    // The id is a number, and the lookup says no club has it under /kotimaa.
+    getTeamContextMock.mockResolvedValue({ status: "not_found" });
+
+    await renderTeam("424242");
+
+    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+    expect(getTeamContextMock).toHaveBeenCalledWith(expect.anything(), 424242);
+    expect(getTeamMatchesMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
   });
 
   it("shows the error state rather than an unknown team when the lookup fails", async () => {
@@ -460,17 +494,29 @@ describe("Domestic team page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the reduced not-found page for a non-numeric id, without calling getTeamMatches", async () => {
-    await renderTeam("not-a-number");
+  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  it.each([
+    ["a word", "not-a-number"],
+    ["hexadecimal, which Number() reads as 16", "0x10"],
+    ["exponent notation, which Number() reads as 1000", "1e3"],
+    ["a sign", "-1"],
+    ["a fraction", "1.5"],
+    ["a value past the column's limit", "2147483648"],
+  ])(
+    "shows the reduced not-found page for an id that is %s, without asking for the team",
+    async (_name, id) => {
+      await renderTeam(id);
 
-    // No competition to name, so no season selector and no standings link: the
-    // page used to offer both for Veikkausliiga. See specs/020.
-    expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
-    expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(getTeamMatchesMock).not.toHaveBeenCalled();
-  });
+      // No competition to name, so no season selector and no standings link: the
+      // page used to offer both for Veikkausliiga. See specs/020.
+      expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
+      expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      expect(getTeamMatchesMock).not.toHaveBeenCalled();
+      expect(getTeamContextMock).not.toHaveBeenCalled();
+    }
+  );
 
   it("shows the empty message when the season truly has no matches", async () => {
     getTeamMatchesMock.mockResolvedValue({ status: "empty" });
@@ -577,6 +623,55 @@ describe("Domestic team page", () => {
   });
 });
 
+describe("Domestic team page favourite star (#526, specs/026-favourites.md)", () => {
+  it("offers a signed-in reader the star, which favourites this club as a TASO team", async () => {
+    session.data = { user: { id: "user-1" } };
+    await renderTeam("1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Lisää suosikkeihin: HJK" }));
+
+    await waitFor(() => expect(toggleFavouriteTeamActionMock).toHaveBeenCalledWith("taso", 1));
+  });
+
+  it("shows the star as set for a club the reader already follows", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["taso:1"] };
+    await renderTeam("1");
+
+    expect(
+      await screen.findByRole("button", { name: "Poista suosikeista: HJK" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not take football-data's club with the same id for this one", async () => {
+    session.data = { user: { id: "user-1" }, favoriteTeams: ["football-data:1"] };
+    await renderTeam("1");
+
+    expect(
+      await screen.findByRole("button", { name: "Lisää suosikkeihin: HJK" })
+    ).toBeInTheDocument();
+  });
+
+  it("offers no star to a signed-out reader", async () => {
+    await renderTeam("1");
+
+    expect(screen.getByRole("heading", { name: "HJK – Veikkausliiga 2026" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /suosik/i })).not.toBeInTheDocument();
+  });
+
+  it("offers no star when the club's name is unknown", async () => {
+    session.data = { user: { id: "user-1" } };
+    getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [] });
+    await renderTeam("1");
+
+    expect(screen.getByRole("heading", { name: "Veikkausliiga" })).toBeInTheDocument();
+    // The heading's own effects have run by now, so "none" is the answer and
+    // not the moment before the star mounts.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /suosik/i })).not.toBeInTheDocument()
+    );
+  });
+});
+
 describe("Domestic team page competition naming", () => {
   it("says what a renamed competition is called now, like the standings page does", async () => {
     // Each /kotimaa page heads with the season's own name, so each owes the
@@ -587,6 +682,10 @@ describe("Domestic team page competition naming", () => {
     await renderTeam("1", { kilpailu: "NL", kausi: "2016" });
 
     expect(screen.getByText("nykyisin Briotech Kansallinen Liiga")).toBeInTheDocument();
+    // The heading carries the name the season was played under, not today's.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "HJK – Naisten Liiga 2016" })
+    ).toBeInTheDocument();
   });
 });
 
@@ -612,80 +711,51 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
-  it("asks for this team's form in the same TASO category and competition (specs/031)", async () => {
+  it("logs a failed read of the panels' matches with what it takes to find the team", async () => {
+    // A team's id alone is one club here and another at football-data.
+    const failure = new Error("database down");
+    getTeamPanelMatchesMock.mockRejectedValueOnce(failure);
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadForm = analyticsSectionMock.mock.calls[0]?.[0].loadForm;
 
-    await loadForm?.();
-
-    expect(getTeamFormSeriesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
+    expect(await analyticsSectionMock.mock.calls[0]?.[0].loadForm()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: failure,
+        teamProviderId: 1,
+        categoryId: categoryIdForSeason("VL", 2025),
+        competitionId: competitionIdForSeason("VL", 2025),
+        seasonId: 2025,
+      },
+      "Unable to read the matches a team's panels count"
     );
   });
 
-  it("asks for this team's goals in the same TASO category and competition (specs/032)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadGoals = analyticsSectionMock.mock.calls[0]?.[0].loadGoals;
+  // One read behind all six: `teamPanelLoaders` builds them from the same
+  // matches (specs/031 to specs/036), so each asks for the same thing.
+  it.each([
+    "loadForm",
+    "loadGoals",
+    "loadHomeAway",
+    "loadCleanSheets",
+    "loadStreaks",
+    "loadComebacks",
+  ] as const)(
+    "reads this team's matches in the season's own TASO category and competition for %s",
+    async (loader) => {
+      await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
 
-    await loadGoals?.();
+      await analyticsSectionMock.mock.calls[0]?.[0][loader]();
 
-    expect(getTeamGoalsSeriesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's home and away in the same TASO category and competition (specs/033)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadHomeAway = analyticsSectionMock.mock.calls[0]?.[0].loadHomeAway;
-
-    await loadHomeAway?.();
-
-    expect(getTeamHomeAwaySeriesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's clean sheets in the same TASO category and competition (specs/034)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadCleanSheets = analyticsSectionMock.mock.calls[0]?.[0].loadCleanSheets;
-
-    await loadCleanSheets?.();
-
-    expect(getTeamCleanSheetSeriesMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
-
-  it("asks for this team's streaks in the same TASO category and competition (specs/035)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadStreaks = analyticsSectionMock.mock.calls[0]?.[0].loadStreaks;
-
-    await loadStreaks?.();
-
-    expect(getTeamStreaksMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
+      expect(getTeamPanelMatchesMock).toHaveBeenCalledTimes(1);
+      expect(getTeamPanelMatchesMock).toHaveBeenCalledWith(
+        categoryIdForSeason("VL", 2025),
+        competitionIdForSeason("VL", 2025),
+        1,
+        2025,
+        2026
+      );
+    }
+  );
 
   it("asks for the season comparison by competition code, not by TASO category (specs/038)", async () => {
     // The comparison reads many seasons, and a category id belongs to one: the
@@ -747,20 +817,6 @@ describe("Domestic team page league position (specs/030)", () => {
     expect(label(2025)).toBe("2025");
   });
 
-  it("asks for this team's comebacks in the same TASO category and competition (specs/036)", async () => {
-    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
-    const loadComebacks = analyticsSectionMock.mock.calls[0]?.[0].loadComebacks;
-
-    await loadComebacks?.();
-
-    expect(getTeamComebacksMock).toHaveBeenCalledWith(
-      categoryIdForSeason("VL", 2025),
-      competitionIdForSeason("VL", 2025),
-      1,
-      2025,
-      2026
-    );
-  });
   it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;

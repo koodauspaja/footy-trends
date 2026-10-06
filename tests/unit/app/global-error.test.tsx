@@ -10,9 +10,8 @@ vi.mock("@sentry/nextjs", () => ({ captureException }));
  * reader sees, and the one page that cannot rely on anything else working.
  * Nothing asserted that it rendered at all until #403.
  *
- * `NextError` is rendered for real rather than mocked: what is worth pinning is
- * that this component produces a page, and a mock of the thing that produces it
- * would assert only that the code calls the function the code calls.
+ * It renders its own page, in Finnish, and nothing of Next's: the default it
+ * used to hand over to is in English (#533).
  */
 import GlobalError from "@/app/global-error";
 
@@ -48,24 +47,39 @@ describe("GlobalError", () => {
     }
   });
 
-  it("renders Next's generic error page rather than nothing", () => {
+  it("says in Finnish that something went wrong, and that trying again may help", () => {
     renderDocument(failure);
 
-    expect(document.documentElement.textContent).toContain("Application error");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Jokin meni vikaan" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Sivun lataaminen epäonnistui. Yritä hetken kuluttua uudelleen.")
+    ).toBeInTheDocument();
   });
 
-  it("shows no status code, which is what passing 0 asks for", () => {
-    /**
-     * The App Router exposes no status code for an error, so 0 selects the
-     * generic message. Next renders a numbered heading for any real code, so a
-     * `500` here would mean the prop had started carrying something.
-     */
+  it("declares the document Finnish, which the layout it replaces would have", () => {
     renderDocument(failure);
 
-    // Next does render a heading — it carries the generic message — but no
-    // number: `statusCode={404}` would put "404" in it.
-    expect(screen.getByRole("heading").textContent).toContain("Application error");
-    expect(document.documentElement.textContent).not.toMatch(/\b[45]\d\d\b/);
+    expect(document.documentElement).toHaveAttribute("lang", "fi");
+  });
+
+  it("offers the way home as a plain link, so following it loads the app afresh", () => {
+    renderDocument(failure);
+
+    expect(screen.getByRole("link", { name: "Etusivulle" })).toHaveAttribute("href", "/");
+  });
+
+  it("shows nothing of Next's English default, and no status code or error detail", () => {
+    renderDocument(failure);
+
+    const text = document.documentElement.textContent ?? "";
+    expect(text).not.toMatch(/application error|exception|error/i);
+    // The App Router exposes no status code for an error, and the reader has
+    // no use for the message or the digest: those go to Sentry.
+    expect(text).not.toMatch(/\b[45]\d\d\b/);
+    expect(text).not.toContain("boom");
+    expect(text).not.toContain("abc123");
   });
 
   it("reports the failure to Sentry, digest and all", () => {

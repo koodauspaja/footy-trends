@@ -112,6 +112,23 @@ test.describe("Favourites, signed in", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
+  // A Finnish club's page is its own copy of the team page, and for a long
+  // time the only one without the star (#526).
+  for (const [region, path, club] of [
+    ["kotimaa", "/kotimaa/joukkue/60987", "Inter"],
+    ["ulkomaat", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024", "Arsenal"],
+  ] as const) {
+    test(`puts one star beside the club's name on a /${region} team page`, async ({ page }) => {
+      await signedInAs(page, "Matti Meikäläinen");
+      await page.goto(path);
+      await waitForSession(page);
+
+      const star = page.getByRole("main").getByRole("button", { name: /^Lisää suosikkeihin: / });
+      await expect(star).toHaveCount(1);
+      await expect(star).toHaveAccessibleName(new RegExp(club));
+    });
+  }
+
   test("reaches the favourites page from the account menu", async ({ page }) => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto("/kotimaa");
