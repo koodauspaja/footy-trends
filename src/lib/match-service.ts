@@ -1,3 +1,11 @@
+/**
+ * Stored matches read across both providers: a match page's data, a pair's
+ * head-to-head history, and the per-competition aggregates.
+ *
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ */
+
 import { and, desc, eq, gte, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
@@ -45,23 +53,20 @@ export type FootballDataMatchRow = typeof matches.$inferSelect;
 export type TasoMatchRow = typeof tasoMatches.$inferSelect;
 
 /**
- * A stored match, tagged with the table it came from.
+ * A stored match, tagged with the table it came from. The page branches on
+ * `source`: the two rows are not interchangeable.
  *
- * The two rows are not interchangeable — one carries a score breakdown and a
- * stage, the other a series name and TASO's own verdict on who went through —
- * so the page branches on `source` rather than flattening them into a shape
- * that would have to lie about one of them.
+ * decisions/019-match-page.md
  */
 export type StoredMatch =
   | { source: "football-data"; match: FootballDataMatchRow }
   | { source: "taso"; match: TasoMatchRow };
 
 /**
- * Why the head-to-head block is empty, when it is.
+ * The head-to-head block, or why it is empty. `unavailable` is a match with a
+ * placeholder team, which has no identity to look up.
  *
- * `unavailable` is not an error: it is a match with a placeholder team, where
- * there is no identity to look up. Telling the reader that is honest;
- * showing an empty list would claim these teams have never met.
+ * decisions/019-match-page.md
  */
 export type HeadToHeadResult =
   | { status: "ok"; matches: FootballDataMatchRow[] }
@@ -71,12 +76,9 @@ export type HeadToHeadResult =
 
 /**
  * The match page's head-to-head block: the five meetings it lists, and how many
- * the pair has in all — the number its link to the full history carries
- * (specs/042, S10).
+ * the pair has in all, from one read of the whole history.
  *
- * Both come from one read of the whole history, so `total` is the row count of
- * the page the link leads to rather than a second query able to disagree with
- * it, and a match page costs one head-to-head query, not two.
+ * decisions/042-head-to-head-view.md
  */
 export type PreviousMeetings =
   | { status: "ok"; matches: FootballDataMatchRow[]; total: number }
@@ -89,7 +91,11 @@ export type MatchPageData =
   | { status: "error" }
   | { status: "ok"; match: StoredMatch; headToHead: PreviousMeetings };
 
-/** The `competition_id` predicate that splits TASO's shared table by bucket. */
+/**
+ * The `competition_id` predicate that splits TASO's shared table by bucket.
+ *
+ * decisions/019-match-page.md
+ */
 function tasoBucketPredicate(bucket: "domestic" | "national") {
   const pattern = `${NATIONAL_TEAM_COMPETITION_PREFIX}%`;
   return bucket === "national"
@@ -97,34 +103,33 @@ function tasoBucketPredicate(bucket: "domestic" | "national") {
     : notLike(tasoMatches.competitionCode, pattern);
 }
 
-/** Whether a football-data row belongs to the region whose route asked for it. */
+/**
+ * Whether a football-data row belongs to the region whose route asked for it.
+ *
+ * decisions/019-match-page.md
+ */
 function isInRegion(row: FootballDataMatchRow, region: CompetitionRegion): boolean {
   return competitionsInRegion(region).some(
     (competition) => competition.code === row.competitionCode
   );
 }
 
-/** Whether a TASO row belongs to the bucket whose route asked for it. */
+/**
+ * Whether a TASO row belongs to the bucket whose route asked for it.
+ *
+ * decisions/019-match-page.md
+ */
 function isInBucket(row: TasoMatchRow, bucket: "domestic" | "national"): boolean {
   const isNational = row.competitionCode.startsWith(NATIONAL_TEAM_COMPETITION_PREFIX);
   return bucket === "national" ? isNational : !isNational;
 }
 
 /**
- * The five most recent meetings before `match`, newest first, out of the pair's
- * whole history.
+ * The five most recent meetings strictly before `match`, newest first, out of
+ * the pair's whole history. A leg of a two-legged tie is a match here.
  *
- * Every clause is a decision, set out in specs/019-match-page.md: both
- * orientations, strictly earlier than this match, played matches only, and
- * scoped to the same source so a Kotimaa page cannot surface a Huuhkajat row
- * out of the table they share. The history already applies all but "strictly
- * earlier", and a row cannot kick off strictly before itself, so that one
- * clause also keeps the match off its own list. The history's ordering is
- * total — two meetings can share a kickoff instant, and a page that reordered
- * between renders would be a bug nobody could reproduce — and filtering keeps it.
- *
- * A leg of a two-legged tie is a match here, with its own row and its own
- * score. Ties belong to the bracket; this is a list of matches.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
  */
 function previousOf<Row extends FootballDataMatchRow | TasoMatchRow>(
   match: Row,
@@ -134,11 +139,10 @@ function previousOf<Row extends FootballDataMatchRow | TasoMatchRow>(
 }
 
 /**
- * Two functions rather than one taking both providers: a single one had to
- * re-check that the row and the route agreed about the source, which the caller
- * already knows by construction — and that check was an unreachable branch
- * pretending to be error handling. Each is called from the branch that already
- * proved its own types.
+ * The football-data match's previous meetings. One function per provider, each
+ * called from the branch that already proved its types.
+ *
+ * decisions/019-match-page.md
  */
 async function footballDataHeadToHead(
   region: CompetitionRegion,
@@ -163,22 +167,10 @@ async function tasoHeadToHead(
 }
 
 /**
- * Every stored meeting between two teams, newest first — the whole history
- * behind specs/042, rather than the five a match page shows.
+ * Every stored meeting between two teams, newest first: no anchor, no limit,
+ * and the match linked from included. Same scope as the match page's block.
  *
- * Three things differ from the block on the match page, and each is a decision
- * rather than an omission:
- *
- * - **no anchor** (S4). The match page takes only meetings before its own
- *   kickoff, because it is context for that fixture; a history of the pair is
- *   not about one fixture, so a meeting played since belongs in it;
- * - **no limit** (S5). `HEAD_TO_HEAD_LIMIT` is a choice about the match page;
- * - **no exclusion** of the match linked from, which is one of the meetings.
- *
- * What is *not* different is the competition scope (S2) or which matches count
- * (S3): every competition in the region, finished, both scores stored. A
- * fixture still to come is returned by neither read, so nothing on that page
- * can describe a match that has not been played.
+ * decisions/042-head-to-head-view.md
  */
 export const getHeadToHeadHistory = cache(
   async (source: MatchSource, first: number, second: number): Promise<HeadToHeadResult> => {
@@ -251,33 +243,22 @@ async function tasoHistory(
 const FINISHED_STATUS = "FINISHED";
 
 /**
- * A football-data match's goals after extra time, each side's.
+ * Whether a football-data row has a shoot-out stored, both sides. The stored
+ * score includes one, and every aggregate here subtracts it, as
+ * `withoutShootout` does for the tables.
  *
- * The stored score is the provider's `fullTime`, which **includes** a penalty
- * shoot-out: Liverpool "1–5" PSG (Champions League, 2024/25) was 0–1 with
- * penalties 1–4. A shoot-out is neither goals (specs/044, specs/048) nor the
- * result (specs/049, S3), so every aggregate here subtracts it where stored.
- * TASO's score never includes one. See #492.
- *
- * **The same rule as `withoutShootout` in `standings.ts`, which the tables and
- * the team panels read through: half a shoot-out is not one.** Each side is
- * subtracted only when both are stored. Subtracting each on its own gave a
- * match with one side stored a different score here than there (#528).
+ * decisions/492-shootout-out-of-the-score.md
+ * decisions/528-one-shootout-rule.md
  */
 const SHOOTOUT_STORED = sql`(${matches.penaltiesHome} is not null and ${matches.penaltiesAway} is not null)`;
 export const FOOTBALL_DATA_HOME_GOALS = sql`(${matches.homeGoals} - case when ${SHOOTOUT_STORED} then ${matches.penaltiesHome} else 0 end)`;
 export const FOOTBALL_DATA_AWAY_GOALS = sql`(${matches.awayGoals} - case when ${SHOOTOUT_STORED} then ${matches.penaltiesAway} else 0 end)`;
 
 /**
- * A competition's goals per game in each stored season, for its standings page
- * (specs/048), or `error` — a failed read is its own case, never "too few".
+ * A competition's goals per game in each stored season, or `error`. Every
+ * finished match with both scores, every stage.
  *
- * One aggregate per competition: every finished match with both scores, every
- * stage (S1, S6). A TASO competition is read over every category id the
- * registry has published it under, and each season keeps only the
- * `(competition_id, category_id)` pair the registry names for it — so a
- * competition renamed or re-coded between seasons is one line (S2), and a
- * category reused by another competition in another season is not counted.
+ * decisions/048-league-goals-per-game-trend.md
  */
 export async function getGoalsPerGame(
   kind: MatchSource["kind"],
@@ -343,13 +324,10 @@ async function tasoSeasonGoals(code: string): Promise<SeasonGoals[]> {
 }
 
 /**
- * Every compared competition's home wins, draws and away wins (specs/049), or
- * `error` when either provider's read fails — never a partial table, which
- * could rank a competition against only some of the others (S15).
+ * Every compared competition's home wins, draws and away wins, or `error` when
+ * either provider's read fails: never a partial table.
  *
- * One aggregate per provider over the competitions specs/048 S5 names, from
- * the football-data plan floor on (S8). Which seasons are completed is decided
- * from the same rows (S19), so no provider is asked for a current season.
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export async function getOutcomeShares(): Promise<OutcomeShares> {
   const floor = resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON);
@@ -366,13 +344,10 @@ export async function getOutcomeShares(): Promise<OutcomeShares> {
 }
 
 /**
- * One competition's home-win baseline (specs/051), or `error` when the read
- * fails — never `empty`, which says the competition has no finished match.
+ * One competition's home-win baseline, or `error`: every stored finished match,
+ * the season in progress included, with no season floor.
  *
- * specs/049's per-season counts for this one competition, with **no season
- * floor and no completed-season filter** (S2): every stored finished match,
- * the season in progress's included. Its unplayed matches count nowhere, since
- * only finished matches with both scores are counted.
+ * decisions/051-home-win-baseline.md
  */
 export async function getHomeBaseline(
   kind: MatchSource["kind"],
@@ -390,7 +365,11 @@ export async function getHomeBaseline(
   }
 }
 
-/** The four counts `SeasonOutcomes` needs, from a side's goals and the match's status. */
+/**
+ * The four counts `SeasonOutcomes` needs, from a side's goals and the match's status.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 function outcomeCounts(
   status: typeof matches.status | typeof tasoMatches.status,
   home: ReturnType<typeof sql>,
@@ -407,8 +386,11 @@ function outcomeCounts(
 }
 
 /**
- * Each season's counts for `codes`, from `floor` on — or from the first stored
- * season when `floor` is null (specs/051, S2).
+ * Each season's counts for `codes`, from `floor` on, or from the first stored
+ * season when `floor` is null.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
  */
 async function footballDataSeasonOutcomes(
   codes: string[],
@@ -458,7 +440,7 @@ async function tasoSeasonOutcomes(
     .groupBy(tasoMatches.seasonId, tasoMatches.competitionCode, tasoMatches.categoryId);
 
   // Each row belongs to the competition whose registry names its exact
-  // `(competition_id, category_id)` pair for that season, as specs/048 reads.
+  // `(competition_id, category_id)` pair for that season.
   return rows.flatMap(({ competitionId, categoryId, ...counts }) => {
     const code = competitionForSeasonPair(codes, competitionId, categoryId, counts.seasonId);
     return code === null
@@ -468,11 +450,11 @@ async function tasoSeasonOutcomes(
 }
 
 /**
- * One club's finished matches with both scores stored, in its source's scope —
- * `footballDataHistory` and `tasoHistory`'s predicates without the second team
- * (specs/045, S4). Shared by the full history and the latest five (specs/047,
- * S5), so an opponent's meetings and a team's current form count the same
- * matches.
+ * One club's finished matches with both scores stored, in its source's scope:
+ * the head-to-head's predicates without the second team.
+ *
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
  */
 function footballDataTeamMatches(region: CompetitionRegion, team: number) {
   const codes = competitionsInRegion(region).map((competition) => competition.code);
@@ -495,7 +477,11 @@ function tasoTeamMatches(bucket: "domestic" | "national", team: number) {
   );
 }
 
-/** Every such match of one club, newest first (specs/045). */
+/**
+ * Every such match of one club, newest first.
+ *
+ * decisions/045-bogey-teams.md
+ */
 async function teamHistory(
   source: MatchSource,
   team: number
@@ -513,7 +499,11 @@ async function teamHistory(
         .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId));
 }
 
-/** The club's `FORM_WINDOW` most recent such matches, newest first (specs/047, S5). */
+/**
+ * The club's `FORM_WINDOW` most recent such matches, newest first.
+ *
+ * decisions/047-rivalry-page.md
+ */
 async function latestTeamMatches(
   source: MatchSource,
   team: number
@@ -534,8 +524,9 @@ async function latestTeamMatches(
 }
 
 /**
- * A team's current form for the head-to-head page (specs/047), or `error` —
- * a failed read is its own case, never "too few matches".
+ * A team's current form for the head-to-head page, or `error`.
+ *
+ * decisions/047-rivalry-page.md
  */
 export type TeamForm =
   | LatestForm<(FootballDataMatchRow | TasoMatchRow) & { homeGoals: number; awayGoals: number }>
@@ -551,12 +542,10 @@ export async function getTeamForm(source: MatchSource, team: number): Promise<Te
 }
 
 /**
- * The `Vaikeimmat vastustajat` panel's series for one club (specs/045).
+ * The `Vaikeimmat vastustajat` panel's series for one club. `basePath` is the
+ * club's own route prefix, which the head-to-head links are built on.
  *
- * `basePath` is the club's own route prefix, which the head-to-head links are
- * built on (specs/042, S10's `meetingsLink`). National teams have no panel
- * (S5): TASO has no id stable across categories for Finland or its opponents,
- * and football-data's national teams are countries, not clubs.
+ * decisions/045-bogey-teams.md
  */
 export async function getWorstOpponents(
   source: MatchSource,
@@ -590,26 +579,20 @@ export async function getWorstOpponents(
 }
 
 /**
- * Each group given, with its competition's average score attached, or why
- * there is none (specs/044, S3, S7).
+ * Each group given with its competition's average score attached, or why there
+ * is none.
  *
- * The average travels on the group it belongs to rather than in a parallel
- * list, so a caller cannot pair one competition's average with another's row.
- * A failure is its own case rather than an empty list, so the page can say the
- * averages could not be computed instead of showing no competitions (S10).
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export type CompetitionAverages<Group> =
   | { status: "ok"; rows: Array<Group & { competition: ScoreAverage }> }
   | { status: "error" };
 
 /**
- * The average home and away score over every finished match with both scores
- * in exactly the competition-seasons given — not the whole competition (S7).
+ * The average home and away score over every finished match with both scores in
+ * exactly the competition-seasons given. An empty scope is a failure.
  *
- * One aggregate per competition. The pair's own meetings are in every scope, so
- * each scope has at least one match; an empty one means the meetings and this
- * query disagree about what counts, and is reported as the failure it is rather
- * than printed as `0,0 – 0,0`.
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export async function getCompetitionAverages<Group extends { scope: CompetitionScope }>(
   groups: readonly Group[]
@@ -678,17 +661,11 @@ async function averageFor(scope: CompetitionScope): Promise<ScoreAverage> {
 }
 
 /**
- * One match, its previous meetings and how many meetings the pair has in all,
- * or why they are not there.
+ * One match, its previous meetings and how many the pair has in all, or why
+ * they are not there. `cache()`d per request, keyed on primitives.
  *
- * Cached per request because Next.js calls `generateMetadata` and the page
- * separately, and both need the same two rows — the same reason
- * `getTeamMatches` is cached. Keyed on primitives rather than on the source
- * object, which a route rebuilds on every render and which would therefore
- * miss the cache every time.
- *
- * A head-to-head failure never reaches the match: the reader came for the
- * match, and the secondary block failing is not a reason to blank it.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
  */
 const loadMatchPageData = cache(async function loadMatchPageData(
   kind: MatchSource["kind"],
@@ -742,9 +719,8 @@ export function getMatchPageData(
   source: MatchSource,
   providerMatchId: number
 ): Promise<MatchPageData> {
-  // An id the column cannot hold is a match that cannot exist. Left to the
-  // database it fails at bind time instead, and the reader is told the site
-  // broke. See specs/020-context-free-team-page.md.
+  // An id the column cannot hold is a match that cannot exist: not found, where
+  // the database would fail at bind time.
   if (!isStoredInteger(providerMatchId)) return Promise.resolve({ status: "not_found" });
 
   const scope = source.kind === "football-data" ? source.region : source.bucket;

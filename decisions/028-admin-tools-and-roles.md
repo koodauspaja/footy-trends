@@ -240,3 +240,16 @@ Cut from `src/lib/admin-users.ts` at `55a14fc` by #531.
 - **`changeRole`.** An admin who wants to leave is removed by another.
 - **`deleteUser`.** Avatar bytes live in Postgres, so the cascade covers them;
   sign-out through the cascade, not a separate revocation, is relied on.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`user.role`.** `text` and not a Postgres enum: adding a value to an enum is
+  a migration that takes a lock, and the set is validated by `admin-role.ts`,
+  the shape `favourite-keys.ts` uses for its own small closed set. Defaulted
+  and not null, so every existing row became a reader without a backfill, and
+  a row inserted by better-auth's sign-up path, which knows nothing about the
+  column, gets the safe value and not a null nobody checks for. There is no
+  bootstrap path in the app: the first admin is made by one documented
+  `UPDATE`, in `docs/setup/023-admin-access.md`.

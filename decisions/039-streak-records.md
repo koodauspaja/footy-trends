@@ -76,3 +76,12 @@ meant by "verified separately".
   not for this change, and belongs in its own issue.
 - **Ten panels.** #424 was filed at five. This does not block it, but it grows
   it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
+
+- **`leagueSeasons`.** Split out because the record book counts every stored
+  season while the comparison excludes the one being looked at. "Which seasons
+  are league seasons" must mean the same to both, or the two panels would
+  disagree about what a club's history is.

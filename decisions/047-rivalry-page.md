@@ -44,3 +44,20 @@ FC Inter v AC Oulu, signed in: FC Inter `V V H V V`, 2,4 per match; AC Oulu
 `V T H H H`, 0,8; both last played 18.09.2026 — each other, the meeting
 `Kohtaamiset` lists first. A result link opens that match's page. Screenshots at
 375 px in light and dark, and 1280 px; the page does not scroll sideways.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`isCurrentRivalry`.** In 2026 a 2024 meeting counts and any 2023 one does
+  not. Both years are Helsinki's, as `playedYear` reads every date on the
+  site, so a late kick-off on 31 December is not filed under the next year
+  because UTC has already turned. `today` is a parameter so the rule is
+  testable at its boundary.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`footballDataTeamMatches`, `tasoTeamMatches`.** Shared by the full history
+  and the latest five, so an opponent's meetings and a team's current form
+  count the same matches.
+- **`TeamForm`.** A failed read is its own case, never "too few matches".

@@ -270,3 +270,26 @@ Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
   does not exist). Unscoped by region, as `specs/022` has a team span
   competitions: fifty ids in one `IN` beat fifty guesses. `distinct on`, as
   unordered rows show whichever name the planner returned last.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **The favourites in `customSession`.** The toggle renders on the region
+  picker, which lives on the four prerendered pages, so it cannot read a
+  session on the server at all. The cost, since this runs on every
+  `/api/auth/get-session`: the region and the avatar version come from one
+  query, a left join from `user`; the favourites are two more, in parallel,
+  because they are one-to-many and joining them would multiply the row out.
+  Measured with both caps filled: 15.1 ms against 2.6 ms with nothing stored,
+  and 2326 bytes of payload (334 gzipped).
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`favoriteTeam`.** A team page spans competitions and seasons, so a
+  favourite follows the club and not one of its league entries. The source is
+  half the identity because the two providers' id spaces are independent: 317
+  exists in both.
+- **`favoriteCompetition`.** A team is a provider and a number, a competition a
+  region and a code. One table holding both would need four nullable columns
+  plus a constraint saying which pair is legal: a check where a type will do.

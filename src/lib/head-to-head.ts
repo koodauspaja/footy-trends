@@ -1,11 +1,13 @@
 /**
- * The previous meetings between two teams, and the sentence that says how far
- * back we could look.
+ * The previous meetings between two teams as records, grids and sentences:
+ * what has to be right in words. The selection itself is SQL, in
+ * `match-service.ts`.
  *
- * The selection itself is SQL — see `match-service.ts`. What lives here is the
- * part that has to be right in words rather than in rows: how deep the window
- * is per source, and how that is stated to a reader. See
- * specs/019-match-page.md.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
  */
 
 import { competitionsInRegion, earliestSeasonFor } from "./competitions";
@@ -15,28 +17,25 @@ import { EARLIEST_NATIONAL_TEAM_YEAR, playedYear } from "./national-team";
 import { formatSeasonLabel, resolveEarliestSeason } from "./seasons";
 import { EARLIEST_TASO_SEASON } from "./taso";
 
-/** How many meetings the page lists. Five, per #71 — the data supports more. */
+/**
+ * How many meetings the match page lists.
+ *
+ * decisions/019-match-page.md
+ */
 export const HEAD_TO_HEAD_LIMIT = 5;
 
 /**
- * The window the head-to-head was drawn from.
+ * The window the head-to-head was drawn from: a season for the club game, a
+ * calendar year for the national teams.
  *
- * A season for the club game, a calendar year for the national teams — whose
- * matches are grouped by the year they were played rather than by a season at
- * all (specs/018).
+ * decisions/019-match-page.md
  */
 export type HeadToHeadWindow = { kind: "season"; label: string } | { kind: "year"; year: number };
 
 /**
  * The window sentence, shown whether or not there are meetings to explain.
  *
- * "tallennettuihin" — stored — is load-bearing. It claims a window we looked
- * in, not a set of seasons we guarantee are complete, which is the truth: a
- * season is synced when someone browses it. The measured asymmetry is the
- * reason the sentence exists at all: 47% of football-data pairs have two
- * meetings or fewer, against 10% in Veikkausliiga, where the deepest pair has
- * 35. Without it, "2 aiempaa kohtaamista" reads as a fact about the teams
- * rather than about our data.
+ * decisions/019-match-page.md
  */
 export function headToHeadWindowSentence(window: HeadToHeadWindow): string {
   const from = window.kind === "season" ? `kaudesta ${window.label}` : `vuodesta ${window.year}`;
@@ -44,19 +43,10 @@ export function headToHeadWindowSentence(window: HeadToHeadWindow): string {
 }
 
 /**
- * How far back this source can reach, read from the constants that actually
- * bound it rather than repeated as a literal on the page.
+ * How far back this source can reach, read from the constants that bound it.
+ * The window is the region's, not this match's competition's.
  *
- * **The window is the region's, not this match's competition's.** The
- * head-to-head deliberately spans every competition in a region, so a World Cup
- * page can list a European Championship meeting — and stating the World Cup's
- * own floor (2026) under a list containing a 2024 meeting would describe a
- * window the page has just contradicted. The floor is therefore the oldest
- * season any competition the query can return reaches, which is exactly the set
- * the query scopes itself to.
- *
- * `spansCalendarYears` only shapes the label — `2023/24` for a league, `2026`
- * for a tournament played inside one summer.
+ * decisions/019-match-page.md
  */
 export function headToHeadWindow(
   source: MatchSource,
@@ -80,10 +70,7 @@ export function headToHeadWindow(
 /**
  * A finished meeting, as both providers' rows already satisfy it.
  *
- * Structural rather than one of the two row types, for the reason
- * `form-series.ts` takes `ResultMatch`: the arithmetic below is the same
- * whichever table the row came out of, and naming one of them here would make
- * the other a cast.
+ * decisions/042-head-to-head-view.md
  */
 export type Meeting = {
   homeTeamProviderId: number;
@@ -93,18 +80,18 @@ export type Meeting = {
   kickoffAt: Date;
 };
 
-/** A win–draw–loss line, from the point of view of whoever it is about. */
+/**
+ * A win–draw–loss line, from the point of view of whoever it is about.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export type SideRecord = { wins: number; draws: number; losses: number };
 
 /**
- * The `Yhteenveto` section (specs/042, S9): everything the meetings say without
- * a new computation.
+ * The `Yhteenveto` section. Every figure is from the first team's side, the one
+ * the URL names first, except `secondAtHome`: the second team at its own ground.
  *
- * Every figure is from the **first** team's side — the one the URL names first
- * — except `secondAtHome`, which is the second team's record at its own ground.
- * Two home lines rather than one home and one away: a reader comparing them is
- * comparing two teams at home, which is the question a rivalry's ground record
- * actually asks.
+ * decisions/042-head-to-head-view.md
  */
 export type HeadToHeadRecord = {
   played: number;
@@ -125,13 +112,21 @@ export type HeadToHeadRecord = {
 
 const NO_SIDE: SideRecord = { wins: 0, draws: 0, losses: 0 };
 
-/** One meeting's outcome for the home side, which is the only side a row names. */
+/**
+ * One meeting's outcome for the home side, which is the only side a row names.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 function homeOutcome(meeting: Meeting): keyof SideRecord {
   if (meeting.homeGoals > meeting.awayGoals) return "wins";
   return meeting.homeGoals === meeting.awayGoals ? "draws" : "losses";
 }
 
-/** The mirror image, for reading the same row from the away side. */
+/**
+ * The mirror image, for reading the same row from the away side.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 function mirror(outcome: keyof SideRecord): keyof SideRecord {
   if (outcome === "wins") return "losses";
   return outcome === "losses" ? "wins" : "draws";
@@ -142,16 +137,10 @@ function add(side: SideRecord, outcome: keyof SideRecord): SideRecord {
 }
 
 /**
- * The record between two teams, over the meetings given.
+ * The record between two teams over the meetings given, or `null` for none.
+ * Pure: the service decides which meetings exist.
  *
- * **Pure, and it counts only what it is handed.** The service decides which
- * meetings exist — finished, both scores stored, every competition in the
- * region (specs/042, S2 and S3) — so a fixture still to come cannot reach this
- * function, and the summary cannot describe a match that has not been played.
- *
- * `null` when there are no meetings: a record of nothing is not a record, and a
- * caller rendering `0 ottelua, NaN–NaN` is the failure that makes returning
- * zeroes worse than returning nothing.
+ * decisions/042-head-to-head-view.md
  */
 export function headToHeadRecord(
   meetings: readonly Meeting[],
@@ -197,30 +186,28 @@ export function headToHeadRecord(
 }
 
 /**
- * The count to put on the match page's link, or `null` for no link at all
- * (specs/042, S10).
+ * The count to put on the match page's link, or `null` for no link: a count
+ * that failed to read, or zero.
  *
- * Two different reasons for the same answer, which is why they are decided
- * here rather than inline: a `null` count is a read that failed, and a link
- * promising a number it does not have is worse than no link; a count of zero
- * is a pair with nothing to open, where the block above already shows
- * everything there is.
+ * decisions/042-head-to-head-view.md
  */
 export function meetingsLinkCount(count: number | null): number | null {
   if (count === null) return null;
   return count === 0 ? null : count;
 }
 
-/** Where the full history lives, given how many meetings there are. */
+/**
+ * Where the full history lives, given how many meetings there are.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export type MeetingsLink = { href: string; count: number };
 
 /**
  * The match page's link to the full history, or `null` when there is none to
- * offer (specs/042, S10).
+ * offer.
  *
- * The href sits beside the rule that decides whether to show it, so a caller
- * cannot build one for a pair with nothing behind it — and both live here,
- * where a test reaches them directly rather than through a page.
+ * decisions/042-head-to-head-view.md
  */
 export function meetingsLink(
   basePath: string,
@@ -233,33 +220,37 @@ export function meetingsLink(
 }
 
 /**
- * The head-to-head page for a pair, under a route's own prefix — the one place
- * its URL is spelled, for the match page's link and specs/045's rows alike.
+ * The head-to-head page for a pair, under a route's own prefix: the one place
+ * its URL is spelled.
+ *
+ * decisions/042-head-to-head-view.md
+ * decisions/045-bogey-teams.md
  */
 export function meetingsHref(basePath: string, first: number, second: number): string {
   return `${basePath}/kohtaamiset/${first}/${second}`;
 }
 
 /**
- * The score grid's last row and column: every score from this many up
- * (specs/044). Six rows and six columns at most, which is what keeps the grid
- * legible at 375 px; a 7–0 is counted against `5+`.
+ * The score grid's last row and column: every score from this many up. A 7–0
+ * is counted against `5+`.
+ *
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export const SCORE_GRID_CAP = 5;
 
-/** A final score from the first team's side — the side `Yhteenveto` reads from (specs/044, S5). */
+/**
+ * A final score from the first team's side, the side `Yhteenveto` reads from.
+ *
+ * decisions/044-scorelines-and-goal-averages.md
+ */
 export type Scoreline = { first: number; second: number };
 
 /**
- * The `Tulokset` section (specs/044): every meeting's score, counted per cell.
+ * The `Tulokset` section: every meeting's score counted per cell, rows down the
+ * first team's goals. The most common scorelines are uncapped, and empty when
+ * none occurred more than once.
  *
- * `rows` runs down the first team's goals and each row's `cells` across the
- * second team's, `0` to `SCORE_GRID_CAP`, the last of each counting that many
- * and more. Every cell names its own goals, so a renderer keys on the score
- * rather than on a position. The most common scorelines are
- * **uncapped** — the sentence names a real score, not a bucket — and empty when
- * none occurred more than once, which is when the sentence says nothing the
- * grid does not (S8).
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export type ScoreGrid = {
   rows: Array<{ first: number; cells: Array<{ second: number; count: number }> }>;
@@ -277,10 +268,10 @@ function scorelineFor(meeting: Meeting, firstTeamProviderId: number): Scoreline 
 }
 
 /**
- * The score grid over the meetings given, from the first team's side (S5).
+ * The score grid over the meetings given, from the first team's side. Pure, as
+ * `headToHeadRecord` is.
  *
- * Pure and counting only what it is handed, as `headToHeadRecord` is: the
- * service decides which meetings exist (specs/042, S2 and S3).
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export function scoreGrid(meetings: readonly Meeting[], firstTeamProviderId: number): ScoreGrid {
   const cells = new Map<string, number>();
@@ -303,7 +294,7 @@ export function scoreGrid(meetings: readonly Meeting[], firstTeamProviderId: num
   const tallies = [...byScoreline.values()];
   const top = Math.max(0, ...tallies.map((tally) => tally.count));
   // Once is not "most common": with every scoreline occurring once, naming
-  // them all says nothing the grid does not (S8) — one meeting included.
+  // them all says nothing the grid does not, one meeting included.
   const mostCommon =
     top > 1
       ? tallies
@@ -320,27 +311,28 @@ export function scoreGrid(meetings: readonly Meeting[], firstTeamProviderId: num
   };
 }
 
-/** An average score, home side first (specs/044, S3). */
+/**
+ * An average score, home side first.
+ *
+ * decisions/044-scorelines-and-goal-averages.md
+ */
 export type ScoreAverage = { home: number; away: number };
 
 /**
  * Where a meeting was played, precisely enough to find that competition-season
- * again — which is what the competition's average is taken over (S7).
+ * again: what the competition's average is taken over.
  *
- * football-data names a season within a competition code. TASO's
- * `competition_id` is itself a season (`spljp24`, `Liigacup24`) and its
- * `category_id` the competition inside it, so the pair is the season.
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export type SeasonRef =
   | { kind: "football-data"; competitionCode: string; seasonId: number }
   | { kind: "taso"; competitionId: string; categoryId: string };
 
 /**
- * A meeting as the averages read it: its score, the competition it belongs to,
- * and the name `Kohtaamiset` gives that competition.
+ * A meeting as the averages read it. `competitionKey` is the competition across
+ * seasons; `season` is this meeting's own competition-season.
  *
- * `competitionKey` is the competition across seasons — Liigacup's `LC2023` and
- * `LC` are one key — while `season` is this meeting's own competition-season.
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export type AnalysedMeeting = Meeting & {
   competitionKey: string;
@@ -348,12 +340,20 @@ export type AnalysedMeeting = Meeting & {
   season: SeasonRef;
 };
 
-/** The competition-seasons one competition's average is taken over (S7). */
+/**
+ * The competition-seasons one competition's average is taken over.
+ *
+ * decisions/044-scorelines-and-goal-averages.md
+ */
 export type CompetitionScope =
   | { kind: "football-data"; competitionCode: string; seasonIds: number[] }
   | { kind: "taso"; seasons: Array<{ competitionId: string; categoryId: string }> };
 
-/** One row of `Maalit kilpailuittain`, before the competition's own average is known. */
+/**
+ * One row of `Maalit kilpailuittain`, before the competition's own average is known.
+ *
+ * decisions/044-scorelines-and-goal-averages.md
+ */
 export type CompetitionGroup = {
   key: string;
   /** The newest meeting's name for it, as the list shows it. */
@@ -373,10 +373,10 @@ function averageOf(meetings: readonly Meeting[]): ScoreAverage {
 }
 
 /**
- * Every competition-season the meetings were played in, once each.
+ * Every competition-season the meetings were played in, once each. A group is
+ * within one provider, so the first meeting's kind is every meeting's.
  *
- * A group is always within one provider — a head-to-head is (specs/042, S6) —
- * so the first meeting's kind is every meeting's.
+ * decisions/044-scorelines-and-goal-averages.md
  */
 function scopeOf(meetings: readonly AnalysedMeeting[]): CompetitionScope {
   const footballData: Array<{ competitionCode: string; seasonId: number }> = [];
@@ -405,11 +405,10 @@ function scopeOf(meetings: readonly AnalysedMeeting[]): CompetitionScope {
 }
 
 /**
- * The meetings split by competition, one group per competition and never one
- * blended average (specs/044, S4) — most meetings first, then by name.
+ * The meetings split by competition, most meetings first, then by name. They
+ * arrive newest first, so a renamed competition shows under its current name.
  *
- * The meetings arrive newest first, so each group's first meeting names it: a
- * renamed competition shows once, under its current name.
+ * decisions/044-scorelines-and-goal-averages.md
  */
 export function competitionGroups(meetings: readonly AnalysedMeeting[]): CompetitionGroup[] {
   // Named when first seen, which is the newest meeting in it.
@@ -436,39 +435,40 @@ export function competitionGroups(meetings: readonly AnalysedMeeting[]): Competi
 
 /**
  * Whether this region's seasons cross a calendar year, for the window sentence.
+ * Decided from the region, never asked of the provider.
  *
- * **Decided from the region, not asked of the provider.** specs/042 promises
- * the head-to-head page makes no provider request, and its first version called
- * `getSeasonContext` — which hangs a test runner with no API key and, worse,
- * made the promise false. The flag only shapes a label (`2023/24` against
- * `2026`), and that distinction is exactly region-shaped: the foreign
- * competitions are leagues played across a winter, the national-team ones are
- * tournaments played inside one summer. TASO ignores the flag entirely —
- * `headToHeadWindow` answers with a year or a bare season there.
- *
- * Here rather than in the page since specs/045, whose panel states the same
- * window: one rule, not two copies of it.
+ * decisions/045-bogey-teams.md
  */
 export function spansCalendarYears(source: MatchSource): boolean {
   return source.kind === "football-data" && source.region === "foreign";
 }
 
-/** An opponent counts once the club has met it this many times (specs/045, S2). */
+/**
+ * An opponent counts once the club has met it this many times.
+ *
+ * decisions/045-bogey-teams.md
+ */
 export const BOGEY_MINIMUM_MEETINGS = 3;
 
-/** How many opponents the panel names (specs/045, S3). */
+/**
+ * How many opponents the panel names.
+ *
+ * decisions/045-bogey-teams.md
+ */
 export const BOGEY_ROWS = 3;
 
-/** A meeting with both teams' names, which is what an opponent is named from. */
+/**
+ * A meeting with both teams' names, which is what an opponent is named from.
+ *
+ * decisions/045-bogey-teams.md
+ */
 export type NamedMeeting = Meeting & { homeTeamName: string; awayTeamName: string };
 
 /**
- * One opponent's record against the club, from the **club's** side
- * (specs/045).
+ * One opponent's record against the club, from the club's side: the
+ * head-to-head's own record over the meetings its page lists.
  *
- * The win–draw–loss and the meetings are `headToHeadRecord`'s own, over exactly
- * the meetings the head-to-head page lists for the pair — so a row and the page
- * it links to cannot disagree (S4).
+ * decisions/045-bogey-teams.md
  */
 export type OpponentRecord = {
   opponentProviderId: number;
@@ -477,9 +477,9 @@ export type OpponentRecord = {
   wins: number;
   draws: number;
   losses: number;
-  /** 3 for a win and 1 for a draw, over `played` (S1). */
+  /** 3 for a win and 1 for a draw, over `played`. */
   pointsPerMatch: number;
-  /** The latest kickoff between them, the second tie-break (S7). */
+  /** The latest kickoff between them, the second tie-break. */
   lastMet: Date;
 };
 
@@ -490,15 +490,11 @@ function opponentOf(meeting: NamedMeeting, teamProviderId: number) {
 }
 
 /**
- * The club's worst opponents: at least `BOGEY_MINIMUM_MEETINGS` meetings, fewest
- * points per match first; ties by more meetings, then by the most recent
- * meeting (S1, S2, S3, S7). At most `BOGEY_ROWS`.
+ * The club's worst opponents: enough meetings, fewest points per match first,
+ * then more meetings, then the most recent. Never a bracket slot or the club
+ * itself.
  *
- * Pure, and counting only what it is handed, as `headToHeadRecord` is — the
- * read decides which meetings exist (S4). The meetings arrive newest first, so
- * an opponent is named as it was when last met. A bracket slot is never an
- * opponent — `hasPlaceholderTeam`'s rule, as the head-to-head applies it — and
- * neither is the club itself, which the head-to-head also refuses.
+ * decisions/045-bogey-teams.md
  */
 export function worstOpponents(
   meetings: readonly NamedMeeting[],
@@ -508,8 +504,7 @@ export function worstOpponents(
   for (const meeting of meetings) {
     if (hasPlaceholderTeam(meeting)) continue;
     const opponent = opponentOf(meeting, teamProviderId);
-    // A club is never its own opponent: a row naming it on both sides would
-    // link to a head-to-head that refuses a team against itself (specs/042).
+    // A club is never its own opponent: the head-to-head refuses that pair.
     if (opponent.id === teamProviderId) continue;
     const seen = byOpponent.get(opponent.id);
     if (seen === undefined) {
@@ -545,8 +540,10 @@ export function worstOpponents(
 }
 
 /**
- * The `Vaikeimmat vastustajat` panel (specs/045): its rows, each with the link
- * to its head-to-head, and the window sentence the rows are true within.
+ * The `Vaikeimmat vastustajat` panel: its rows, each with the link to its
+ * head-to-head, and the window sentence the rows are true within.
+ *
+ * decisions/045-bogey-teams.md
  */
 export type OpponentsSeries =
   | {
@@ -554,22 +551,22 @@ export type OpponentsSeries =
       rows: Array<OpponentRecord & { href: string }>;
       windowSentence: string;
     }
-  /** A page the panel is not on: a national team's (S5). */
+  /** A page the panel is not on: a national team's. */
   | { status: "unavailable" }
   | { status: "error" };
 
-/** How many calendar years back a meeting keeps a rivalry current (specs/047, S8). */
+/**
+ * How many calendar years back a meeting keeps a rivalry current.
+ *
+ * decisions/047-rivalry-page.md
+ */
 const CURRENT_RIVALRY_YEARS = 3;
 
 /**
- * Whether the pair's latest meeting keeps the rivalry current (specs/047, S8,
- * S13): played in `current year − 2` or later — in 2026, a 2024 meeting counts
- * and any 2023 one does not.
+ * Whether the pair's latest meeting keeps the rivalry current: played in
+ * `current year − 2` or later, by Helsinki's calendar. `today` is passed in.
  *
- * Both years are Helsinki's, as `playedYear` reads every date on the site, so
- * a late kick-off on 31 December is not filed under the next year because UTC
- * has already turned. `today` is passed in, never read here, so the rule is
- * testable at its boundary.
+ * decisions/047-rivalry-page.md
  */
 export function isCurrentRivalry(latestMeeting: Date, today: Date): boolean {
   return playedYear(latestMeeting) > playedYear(today) - CURRENT_RIVALRY_YEARS;

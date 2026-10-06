@@ -197,3 +197,60 @@ integration test can trigger on demand.
 - **The season label falls back to the bare start year** when `getSeasonContext`
   cannot be reached. The match is the page; losing a slash is not worth an
   error state.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`HEAD_TO_HEAD_LIMIT`.** Five, as the issue asked; the data supports more.
+- **`HeadToHeadWindow`.** National-team matches are grouped by the year they
+  were played and not by a season at all.
+- **`headToHeadWindowSentence`.** "tallennettuihin" (stored) is load-bearing: it
+  claims a window we looked in, not a set of seasons guaranteed complete,
+  since a season is synced when someone browses it. The measured asymmetry is
+  why the sentence exists: 47% of football-data pairs have two meetings or
+  fewer, against 10% in Veikkausliiga, where the deepest pair has 35. Without
+  it, "2 aiempaa kohtaamista" reads as a fact about the teams and not about
+  our data.
+- **`headToHeadWindow`.** The head-to-head spans every competition in a region,
+  so a World Cup page can list a European Championship meeting. Stating the
+  World Cup's own floor (2026) under a list containing a 2024 meeting would
+  describe a window the page has just contradicted, so the floor is the oldest
+  season any competition the query can return reaches. `spansCalendarYears`
+  only shapes the label: `2023/24` for a league, `2026` for a tournament
+  played inside one summer.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`StoredMatch`.** One row carries a score breakdown and a stage, the other a
+  series name and TASO's verdict on who went through, so flattening them
+  would have to lie about one of them.
+- **`HeadToHeadResult`, `unavailable`.** Not an error. Telling the reader is
+  honest; an empty list would claim these teams have never met.
+- **`previousOf`.** Every clause is a decision: both orientations, strictly
+  earlier than this match, played matches only, and scoped to the same source
+  so a Kotimaa page cannot surface a Huuhkajat row out of the table they
+  share. A row cannot kick off strictly before itself, so that clause also
+  keeps the match off its own list. The ordering is total, since two meetings
+  can share a kickoff instant and a page that reordered between renders would
+  be a bug nobody could reproduce. Ties belong to the bracket; this is a list
+  of matches.
+- **`footballDataHeadToHead`, `tasoHeadToHead`.** A single function had to
+  re-check that the row and the route agreed about the source, which the
+  caller knows by construction: an unreachable branch pretending to be error
+  handling.
+- **`loadMatchPageData`.** Cached per request because Next.js calls
+  `generateMetadata` and the page separately and both need the same rows, as
+  for `getTeamMatches`. Keyed on primitives, not the source object, which a
+  route rebuilds on every render and would miss the cache every time. A
+  head-to-head failure never reaches the match: the reader came for the
+  match.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches_head_to_head_idx`.** The match page's head-to-head asks for one
+  pair in either order. One composite index serves both orientations under a
+  BitmapOr, so the mirrored index would earn nothing and is absent on
+  purpose.
+- **`taso_matches_head_to_head_idx`.** On 20,604 stored rows it turns the
+  pair lookup from a 3.16 ms sequential scan into a 0.13 ms bitmap scan.

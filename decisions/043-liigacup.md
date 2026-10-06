@@ -98,3 +98,22 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
 - **`listSeasonRounds`, cups.** A cup page has no round selector, and tabled
   groups do not change that: the rounds are one short group stage, and the
   page's other half is a playoff no round filters.
+
+Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
+
+- **`isRoundRobin`.** Asked only of a `groups-and-playoff` cup, where it tells
+  `Lohko A` from `1-4`. Points cannot: TASO sends them for knockout groups
+  too. Counted from the matches, not the provider's rows, which are one per
+  bracket slot for a knockout. Three teams is the floor because a lone final
+  is trivially "every pair met".
+- **`splitCombinedKnockout`.** Liigacup publishes its whole playoff as one
+  group, `1-4`: A1 v B2, B1 v A2, then the winners. `selectBracketRounds`
+  needs the final as its own 2-team group, so without this the playoff is
+  never drawn. It qualifies on structure alone: four teams, three matches,
+  and the last to kick off is between the winners of the other two and has a
+  winner of its own. A final still to be decided leaves the group whole,
+  listed and not drawn, and so does a third-place match. Called only for a
+  `groups-and-playoff` cup; Suomen Cup's rounds are separate groups already.
+- **`buildPlayoffBracket`.** It says which groups the tree drew because this
+  layout, the Champions League's, lists only the knockout groups the tree
+  does not show: a group is shown once, as a tree or as a list.

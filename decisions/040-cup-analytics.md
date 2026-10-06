@@ -77,3 +77,13 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
 - **`teamPanelMatches`.** The services call this and never either function, so
   the choice is made once and no panel can disagree with another about what a
   cup match is.
+
+Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
+
+- **`SeasonRead.competition`.** The two readers set it with
+  `getCompetitionName` and `getDomesticCompetitionName`, and nothing else
+  writes it. A page renders only a competition its own parameter validation
+  accepted, and that validation is registry membership.
+- **`RANKED_MEASURES`.** A cup has no table, so `Sijoitus` can never have a
+  value there, and a row that is structurally impossible is noise, not the
+  `–` that means "not this time".

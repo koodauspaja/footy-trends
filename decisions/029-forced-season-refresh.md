@@ -513,3 +513,22 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   the stored fallback is not, so the cache key is scoped to the competition.
 - **`synchronizeGroupTeams`' `executor`.** Defaults to opening its own
   transaction, which is what every caller before the forced refresh did.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`refreshRuns`.** A forced refresh is run a handful of times a year, by an
+  admin, against a season whose data turned out wrong, so its questions are
+  asked months apart ("when did we last refresh this, and did it work?") by
+  someone who cannot be expected to remember. What an admin approved and what
+  is recorded are the same numbers by construction.
+- **`refresh_runs.source`.** `text` and not an enum, for the reason recorded
+  for `user.role`; the set is validated in `refresh-view.ts`.
+- **`refresh_runs.season_label`.** `2016` for a Finnish season, `2025/26` for a
+  foreign one that spans two calendar years. Deriving it later would mean a
+  provider call per row. Where it is null the list falls back to the season
+  id.
+- **`refresh_runs.run_by`.** The only user reference in the schema that does
+  not cascade. The row then renders as `Poistettu käyttäjä`. The admin-tools
+  feature relies on cascade so that one `DELETE` removes everything a reader
+  owns; a log of operations performed on the app is not something a reader
+  owns, so this is not a hole in that.

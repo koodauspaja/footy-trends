@@ -52,3 +52,12 @@ container start is not in these figures; the first week's usage is.
 The live run's logging was not seen against real upcoming fixtures here: the
 test database held none inside the 48 hours. The integration test covers it,
 and the first production runs will show it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`predictions`.** Because the result is read and not copied, a corrected
+  score corrects every figure built on it. The `live` row is the last
+  prediction before kickoff, overwritten until then; the `backtest` row is
+  what the model would have said from the matches before it.

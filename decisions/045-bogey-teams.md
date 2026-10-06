@@ -73,3 +73,28 @@ FC Inter's page (`/kotimaa/joukkue/60987`): KuPS 4–4–9 over 17 (0,9), FC Hon
 head-to-head whose `Yhteenveto` reads the same 17 meetings and the same record.
 Screenshots at 375 px in light and dark, and 1280 px; the page does not scroll
 sideways.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`meetingsHref`.** Used by the match page's link and the opponents panel's
+  rows alike.
+- **`spansCalendarYears`.** The head-to-head page promises to make no provider
+  request, and its first version called `getSeasonContext`, which hangs a test
+  runner with no API key and made the promise false. The flag only shapes a
+  label (`2023/24` against `2026`), and that is region-shaped: the foreign
+  competitions are leagues played across a winter, the national-team ones
+  tournaments inside one summer. TASO ignores the flag. It lives here and not
+  in the page because the opponents panel states the same window.
+- **`OpponentRecord`.** A row and the page it links to cannot disagree, since
+  both are `headToHeadRecord` over the same meetings.
+- **`worstOpponents`.** The meetings arrive newest first, so an opponent is
+  named as it was when last met. A bracket slot is excluded by
+  `hasPlaceholderTeam`'s rule, as the head-to-head applies it.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getWorstOpponents`.** National teams have no panel: TASO has no id stable
+  across categories for Finland or its opponents, and football-data's
+  national teams are countries, not clubs.

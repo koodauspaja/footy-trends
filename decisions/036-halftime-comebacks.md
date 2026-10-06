@@ -74,3 +74,10 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
 
 - **`FinishedMatchRow`.** Not narrowed to `NormalizedMatch`, which is a subset
   of the row, so `calculateStandings` and the rest still take one unchanged.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`half_time_home`, `half_time_away`.** Nullable twice over. TASO omitted the
+  half-time score for 1 of 132 Ykkönen 2025 matches, and football-data
+  refuses older seasons outright. "No half-time score" and "0–0 at the break"
+  must stay distinguishable.

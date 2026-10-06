@@ -110,3 +110,18 @@ does not touch it — the boundary `tests/e2e/settings.spec.ts` documents for
 specs/024. What e2e does cover is the signed-out page and the route handler's
 401. Uploading a real photograph from a real phone is a manual staging check,
 listed on #268.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`bytea`.** A `Buffer` is what `sharp` produces and what the route handler
+  hands to a `Response`.
+- **`userAvatar`.** Image bytes have no business in a row read on every
+  session lookup.
+- **`user_avatar.version`.** `/api/avatar/me` is one URL for every reader, so
+  the query parameter is the only thing separating one reader's cached image
+  from another's. A millisecond timestamp collides across readers, and the
+  response is cached `private, immutable` for a year, so a shared browser
+  profile could serve the previous account's picture to the next one. A
+  random token cannot collide, and says nothing about when.

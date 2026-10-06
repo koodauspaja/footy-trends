@@ -436,3 +436,17 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   including it would put a "Kierros 0" in the selector that filters nothing.
   Own-calculated groups only: a pass-through group shows TASO's final numbers
   whatever round is picked.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`taso_matches.category_id`.** Veikkausliiga, Kakkonen and Ykkönen each
+  have a group 1 in `spljp26`, so the category is what separates one
+  competition's matches from another's.
+- **`taso_matches_taso_match_id_idx`.** Confirmed live: 710 ids across six
+  categories in `spljp26`, zero collisions. So `category_id` is a filter and
+  index column and not part of uniqueness.
+- **`tasoGroupTeams`.** Own-calculated standings depend on `starting_points`,
+  TASO's carrier for points deductions and junior qualifying bonuses, so a
+  cold cache or an outage must not silently change a table's points. The
+  rows also serve the numbers a group falls back to when our calculation
+  disagrees with TASO's.
