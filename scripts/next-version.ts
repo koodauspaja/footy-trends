@@ -1,13 +1,14 @@
 /**
  * Works out the next release version from the commits going into it, so a
- * release number is derived rather than chosen — nobody has to remember
- * whether the last three weeks were a patch or a minor.
+ * release number is derived, not chosen. A subject that does not parse is
+ * treated as a patch, not ignored.
  *
- * The repository writes conventional commit subjects (`feat:`, `fix:`,
- * `chore:` …), which is what makes this possible. A subject that does not
- * parse is treated as a patch rather than ignored: an unrecognised commit
- * still changed something, and silently contributing nothing is the one
- * behaviour that would make the number wrong.
+ * decisions/085-release-workflow.md
+ * decisions/217-release-notes-format.md
+ * decisions/292-sonar-zero-open-issues.md
+ * decisions/357-release-domains.md
+ * decisions/361-release-domains-on-the-pr.md
+ * decisions/471-dependency-updates-are-chores.md
  */
 
 export type Bump = "major" | "minor" | "patch";
@@ -32,11 +33,8 @@ const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?:\s
 /**
  * One conventional-commit subject, taken apart.
  *
- * The three call sites used to run `CONVENTIONAL.exec` themselves and reach
- * into `.groups` for one field each, which left the regex and its readers in
- * different functions — invisible to a reader, and to Sonar, which reported the
- * names as unused. Parsing in one place beside the pattern is what makes the
- * groups obviously read.
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 function parseSubject(subject: string): {
   type: string | undefined;
@@ -53,7 +51,11 @@ function parseSubject(subject: string): {
   };
 }
 
-/** `git log` gives subject and body; a breaking change may be declared in either. */
+/**
+ * `git log` gives subject and body; a breaking change may be declared in either.
+ *
+ * decisions/085-release-workflow.md
+ */
 export type Commit = { subject: string; body?: string };
 
 function isBreaking(commit: Commit): boolean {
@@ -69,53 +71,36 @@ function typeOf(commit: Commit): string | undefined {
 /**
  * The scope Renovate uses for a dependency update.
  *
- * It writes `fix(deps):` when the *upstream* release called itself a fix, and
- * `chore(deps):` otherwise — a distinction about someone else's library, taken
- * from someone else's changelog.
+ * decisions/471-dependency-updates-are-chores.md
  */
 const DEPENDENCY_SCOPE = "deps";
 
 /**
- * Whether a commit updates a dependency, whichever type it carries.
+ * Whether a commit updates a dependency, whichever type it carries: the scope
+ * decides, not the type, also for `feat(deps)`. A breaking commit is still
+ * breaking.
  *
- * `fix(deps): update dependency next to v16.3.6` is maintenance: nothing in
- * this repository was broken, and a reader of the release notes looking under
- * `Bugs` for what went wrong finds three library bumps instead.
- *
- * **The scope decides, not the type**, and that has to hold for `feat(deps)`
- * as well — which is the case worth naming, because a feature moves the
- * *minor*. A library's own release being a feature says nothing about whether
- * this application gained one. Raised in review on #471, where the first
- * version excluded `deps` from the fixes and not from the features.
- *
- * A **breaking** commit is still breaking. `!` and a `BREAKING CHANGE:` footer
- * are deliberate statements by whoever wrote them, rather than a type copied
- * from an upstream changelog, and an upgrade that breaks this application is
- * exactly what they are for.
+ * decisions/471-dependency-updates-are-chores.md
  */
 function isDependencyUpdate(commit: Commit): boolean {
   return parseSubject(commit.subject).scope === DEPENDENCY_SCOPE;
 }
 
 /**
- * `git tag --list v*` also matches things like `v1.0.0-rc.1` or `v2-old`, and
- * `parseVersion` would throw on them — taking the whole release workflow down
- * because somebody once created a tag by hand.
+ * Whether a tag is a stable version. `git tag --list v*` also matches things
+ * like `v1.0.0-rc.1` or `v2-old`, on which `parseVersion` would throw.
+ *
+ * decisions/085-release-workflow.md
  */
 export function isStableVersionTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+$/.test(tag.trim());
 }
 
 /**
- * The newest stable tag that is *not* already on the commit being released.
- *
- * Ordinarily that is simply the newest tag. It matters on a rerun: if the tag
- * was pushed but publishing the release notes failed, the tag now points at
- * HEAD, and treating it as the previous tag would compute an empty range and
- * strand the release with no notes and no way to recover by rerunning. Skipping
- * it reproduces the original range, and therefore the same version.
- *
+ * The newest stable tag that is not already on the commit being released.
  * `tags` must be newest-first; `tagsAtHead` is whatever points at HEAD.
+ *
+ * decisions/085-release-workflow.md
  */
 export function selectPreviousTag(tags: string[], tagsAtHead: string[]): string | null {
   const atHead = new Set(tagsAtHead);
@@ -130,10 +115,9 @@ export function parseVersion(tag: string): [number, number, number] {
 
 /**
  * A last-resort filter for merge commits, for callers that did not ask git to
- * exclude them. `release-version.ts` passes `--no-merges`, which settles it by
- * topology; this only catches a caller that collected commits some other way.
- * Subject matching cannot be authoritative — a merge subject can be edited —
- * so it is the fallback rather than the mechanism.
+ * exclude them. Subject matching cannot be authoritative.
+ *
+ * decisions/085-release-workflow.md
  */
 export function isMergeSubject(subject: string): boolean {
   return /^Merge (pull request|branch|remote-tracking branch) /.test(subject);
@@ -142,9 +126,8 @@ export function isMergeSubject(subject: string): boolean {
 /**
  * Which part of the version a bump moves, and what the rest becomes.
  *
- * A named function rather than a nested ternary: the three cases are the whole
- * of semantic versioning's arithmetic, and reading them as one expression means
- * holding two conditions at once to answer "what happens to patch?".
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 function nextTripleFor(
   bump: "major" | "minor" | "patch",
@@ -156,24 +139,15 @@ function nextTripleFor(
 }
 
 /**
- * Thrown rather than falling back, because a mistyped override must not
- * silently produce a version nobody intended.
+ * What a version decision may be given beyond the commits. A mistyped override
+ * throws; it never falls back.
+ *
+ * decisions/085-release-workflow.md
  */
 export type DecideVersionOptions = {
   /**
-   * Names the first release explicitly — the one decision the commits cannot
-   * make, since whether a project's first tag is 0.x or 1.0.0 is a statement
-   * about stability rather than a fact about its changes.
-   *
-   * Applied only when `previousTag` is null — a genuine first release.
-   *
-   * Known limitation, accepted rather than guarded: a repository whose only
-   * tags are pre-release or malformed also has no previous tag, so a stale
-   * override would apply there. Guarding it needs a second definition of "has
-   * this been tagged", and having two produced six rounds of contradictions
-   * before they were reduced back to one. The variable is set once for a first
-   * release, and a rerun never reads it, so the case needs both an unused
-   * override and a tagging convention this repository does not use.
+   * Names the first release explicitly, the one decision the commits cannot
+   * make. Applied only when `previousTag` is null.
    */
   firstReleaseVersion?: string | undefined;
 };
@@ -185,7 +159,12 @@ export class InvalidFirstReleaseVersion extends Error {
   }
 }
 
-/** The commits that count, grouped by what they mean for the version. */
+/**
+ * The commits that count, grouped by what they mean for the version.
+ *
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
+ */
 function sortCommits(commits: Commit[]): {
   breaking: string[];
   features: string[];
@@ -210,11 +189,11 @@ function sortCommits(commits: Commit[]): {
 }
 
 /**
- * Which part moves, and the sentence explaining why.
+ * Which part moves, and the sentence explaining why. `reasons` is appended to,
+ * so the explanation follows the order of the decisions.
  *
- * `reasons` is appended to rather than returned alongside, because the order of
- * the explanation follows the order of the decisions — the pre-1.0 rule reads
- * as a correction to the line above it.
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 function decideBump(
   groups: { breaking: string[]; features: string[]; fixes: string[]; other: string[] },
@@ -245,11 +224,11 @@ function decideBump(
 }
 
 /**
- * The first release cannot be derived. `release` already holds the whole
- * history, so the commits in the promotion range describe only what happened
- * since the branch was cut — one docs commit would otherwise name the first
- * production release v0.0.1. v0.1.0 is the floor; going straight to v1.0.0 is a
- * statement about stability and stays a deliberate call.
+ * The first release's version, which cannot be derived: v0.1.0 unless an
+ * override names another.
+ *
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 function firstReleaseVersion(override: string | undefined, reasons: string[]): string {
   reasons.push(
@@ -284,11 +263,7 @@ export function decideVersion(
 
   const nextTriple = nextTripleFor(bump, [major, minor, patch]);
 
-  // The first release cannot be derived. `release` already holds the whole
-  // history, so the commits in the promotion range describe only what happened
-  // since the branch was cut — one docs commit would otherwise name the first
-  // production release v0.0.1. v0.1.0 is the floor; going straight to v1.0.0 is
-  // a statement about stability and stays a deliberate call.
+  // The first release cannot be derived from the commits in the range.
   const next = isFirstRelease
     ? firstReleaseVersion(options.firstReleaseVersion, reasons)
     : `v${nextTriple.join(".")}`;
@@ -307,32 +282,25 @@ export function decideVersion(
 }
 
 /**
- * One row of the release notes: the issue it came from, and a sentence.
+ * One row of the release notes: the issue it came from, and a sentence. Both
+ * are already in the commit subject, so nothing is looked up.
  *
- * Both are already in the commit subject — `chore: repair the allowlist (#210)
- * (#212)` carries the reference and the description — so nothing is looked up.
- * A formatter that needed the network would fail exactly when it is used.
+ * decisions/217-release-notes-format.md
  */
 export type ReleaseEntry = { ref: string | null; description: string };
 
 /**
  * Splits a conventional commit subject into its issue reference and a readable
- * description.
+ * description. Of two references the first is the issue and the last the
+ * pull request; a single one is used as it is.
  *
- * A squash merge appends its own `(#N)`, so a subject that already named an
- * issue ends with two references. The **first** is the issue and the last is
- * the pull request — the issue is what a reader wants, since it says why the
- * work happened rather than how it landed. A single reference means no issue
- * was named, which is what Renovate's commits look like; that one is used
- * rather than dropping the row's identity entirely.
+ * decisions/217-release-notes-format.md
  */
 export function describeCommit(subject: string): ReleaseEntry {
   const summary = parseSubject(subject).summary ?? subject;
   const refs = [...summary.matchAll(/\(#(\d+)\)/g)].map((match) => match[1]);
-  // Two passes rather than one `\s*\(#\d+\)`: the optional whitespace in front
-  // of the literal is what makes that pattern backtrack, and the engine has to
-  // retry every prefix of a run of spaces before failing. Removing the refs and
-  // then collapsing whitespace is linear and says what it does.
+  // Two passes, not one `\s*\(#\d+\)`: optional whitespace in front of the
+  // literal makes that pattern backtrack over a run of spaces.
   const text = summary
     .replaceAll(/\(#\d+\)/g, "")
     .replaceAll(/\s+/g, " ")
@@ -346,22 +314,20 @@ export function describeCommit(subject: string): ReleaseEntry {
 }
 
 /**
- * A vertical bar ends a Markdown table cell, so a commit subject containing one
- * would silently split into extra columns and misalign the row. Escaping is
- * cheaper than forbidding the character in commit messages.
+ * Escapes a vertical bar, which ends a Markdown table cell: a subject
+ * containing one would split into extra columns.
+ *
+ * decisions/217-release-notes-format.md
  */
 function escapeTableCell(text: string): string {
   return text.replaceAll("|", String.raw`\|`);
 }
 
 /**
- * Labels that say what *kind* of work an issue is, rather than which part of
- * the app it touches.
+ * Labels that say what kind of work an issue is, not which part of the app it
+ * touches. A denylist, not an allowlist.
  *
- * A denylist and not an allowlist, deliberately: the domain taxonomy was
- * created in one pass and will grow, and an allowlist would silently omit every
- * label added after this was written — the failure nobody notices, because the
- * line still renders and just says less than it should.
+ * decisions/357-release-domains.md
  */
 const KIND_LABELS = new Set([
   "enhancement",
@@ -378,15 +344,10 @@ const KIND_LABELS = new Set([
 ]);
 
 /**
- * The labels on one `/issues/{n}` response, or none when it is a pull request.
+ * The labels on one `/issues/{n}` response, or none when it is a pull request:
+ * GitHub answers that path for pull requests too.
  *
- * **GitHub answers `/issues/{n}` for pull requests too**, with a `pull_request`
- * field and a `200`. This repository's squash commits name both — `fix: a thing
- * (#309) (#315)` — so without this check a labelled pull request would
- * contribute domains the issue never had.
- *
- * Pull requests here carry no labels today, which is exactly why it is worth
- * checking: nothing would look wrong until someone labelled one.
+ * decisions/357-release-domains.md
  */
 export function labelsOfIssueResponse(payload: unknown): string[] {
   if (typeof payload !== "object" || payload === null) return [];
@@ -400,14 +361,22 @@ export function labelsOfIssueResponse(payload: unknown): string[] {
   });
 }
 
-/** Which parts of the app a set of issue labels names, sorted and deduplicated. */
+/**
+ * Which parts of the app a set of issue labels names, sorted and deduplicated.
+ *
+ * decisions/357-release-domains.md
+ */
 export function domainsFrom(labels: Iterable<string>): string[] {
   return [...new Set([...labels].filter((label) => !KIND_LABELS.has(label)))].sort((a, b) =>
     a.localeCompare(b, "en")
   );
 }
 
-/** Every issue a release's commits reference, in the order they first appear. */
+/**
+ * Every issue a release's commits reference, in the order they first appear.
+ *
+ * decisions/357-release-domains.md
+ */
 export function issueRefsIn(decision: VersionDecision): number[] {
   const subjects = [
     ...decision.breaking,
@@ -425,7 +394,11 @@ export function issueRefsIn(decision: VersionDecision): number[] {
   return [...found];
 }
 
-/** Markdown release notes: a table per section, matching the v1.0.0 release. */
+/**
+ * Markdown release notes: a table per section, matching the v1.0.0 release.
+ *
+ * decisions/217-release-notes-format.md
+ */
 export function formatReleaseNotes(decision: VersionDecision): string {
   const section = (title: string, subjects: string[]): string => {
     if (subjects.length === 0) return "";
@@ -449,10 +422,7 @@ export function formatReleaseNotes(decision: VersionDecision): string {
     section(`Chores${since}`, decision.other);
 
   // A first release is the whole application reaching production, not the
-  // commits in the promotion range — `release` was branched from `main` and
-  // already carried everything before it. Presenting that range as the release
-  // contents understates it by two orders of magnitude, and does so on the one
-  // release where a reader is least able to tell.
+  // commits in the promotion range.
   const preamble = decision.isFirstRelease
     ? "First release: the whole application reaching production for the first time.\n\n" +
       "The commits below are **not** the contents of this release — they are only what\n" +
@@ -461,15 +431,18 @@ export function formatReleaseNotes(decision: VersionDecision): string {
     : `Changes since ${decision.previous}${describeCounts(decision)}.\n\n`;
 
   // What the release touches is on the pull request as labels, put there by
-  // `release-pr.ts`. It was also a `Touches:` line here, and two renderings of
-  // one fact is one more than can be kept true — the labels are the ones a
-  // reader filters and searches by, so they are the ones that stayed.
+  // `release-pr.ts`, and is not repeated here.
+
   // A release with nothing to list would otherwise publish an empty body,
   // which reads as a mistake rather than as a deliberate no-change release.
   return `# release: ${decision.next}\n\n${preamble}${body || "No categorised commits in this range.\n"}`.trimEnd();
 }
 
-/** ` — 3 features, 6 chores`, naming only the categories that have anything. */
+/**
+ * ` — 3 features, 6 chores`, naming only the categories that have anything.
+ *
+ * decisions/217-release-notes-format.md
+ */
 function describeCounts(decision: VersionDecision): string {
   const counts: string[] = [];
   const add = (n: number, one: string, many: string) => {

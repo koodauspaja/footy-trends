@@ -391,3 +391,11 @@ Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
   `SUPPORTED_COMPETITIONS`. That list also feeds `kilpailu` validation, and
   an entry there would let `?kilpailu=…` resolve on a standings page that
   cannot serve it. So the region page concatenates.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **Stylesheets are outside coverage.** Vite processes
+  `import "./globals.css"` in the root layout, so once that layout gained a
+  test the file appeared in the report as a 0/0 entry.

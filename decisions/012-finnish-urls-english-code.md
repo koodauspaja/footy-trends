@@ -126,3 +126,12 @@ Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
   `/foreign/team/:id` App Router folder (see the rewrite in
   `next.config.ts`), so navigation never leaks the internal English route
   name.
+
+## Moved from comments, 2026-10-07
+
+Cut from `next.config.ts` at `5b180e0` by #531.
+
+- **Redirects and rewrites.** A Finnish URL matches no redirect and is
+  rewritten internally, and an internal rewrite never re-enters the table,
+  so the two cannot bounce off each other; verified on a running server.
+  `?kilpailu=` and `?kausi=` survive without any `:path*` handling.

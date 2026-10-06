@@ -18,3 +18,12 @@ Cut from `src/lib/test-database-name.ts` at `ef99862` by #531.
   override "where the derivation is wrong", and such a database need not end
   in `_test`. Naming it explicitly is a decision and not the accident this
   guards against.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **The integration project's guard.** `npx vitest run --project
+  integration` skips `with-test-db.ts` and so reads `.env`'s development
+  database, which once wrote fixture rows into a developer's own data. A
+  note said not to; the guard makes it impossible.

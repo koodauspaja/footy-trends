@@ -1,6 +1,6 @@
-# 132 — Every carry-over entry validated against TASO: decisions
+# 127 — Every carry-over entry validated against TASO: decisions
 
-Chore #132 had no record of its own; #531 created this one for reasons cut
+Chore #127 had no record of its own; #531 created this one for reasons cut
 from the comments of its code.
 
 ## Moved from comments, 2026-10-06

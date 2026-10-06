@@ -149,3 +149,12 @@ Cut from `src/lib/seasons.ts` at `ef99862` by #531.
   every season back to 1888, but only the seasons inside the current API
   plan return 200; the rest return 403. So the selectable range is bounded
   by configuration and not by the provider's list.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **`.env` in `vitest.config.ts`.** The integration tests could not reach
+  Postgres or Redis without exporting the variables by hand first.
+  `process.loadEnvFile` requires Node 20.12 or later, and the project
+  requires 24.

@@ -1,12 +1,16 @@
 /**
- * The decisions a backfill makes, separated from the I/O that carries them out.
+ * The decisions a backfill makes, separated from the I/O that carries them out:
+ * which competition-seasons get fetched, how fast, and whether a destructive
+ * reset may proceed.
  *
- * Everything here is pure so it can be tested: which competition-seasons get
- * fetched, how fast, and whether a destructive reset is allowed to proceed.
- * `backfill.ts` does the talking to providers and the database.
+ * decisions/169-production-backfill.md
  */
 
-/** One unit of work: a single provider request pair for one competition-season. */
+/**
+ * One unit of work: a single provider request pair for one competition-season.
+ *
+ * decisions/169-production-backfill.md
+ */
 export type TasoTarget = {
   code: string;
   competitionId: string;
@@ -16,9 +20,9 @@ export type TasoTarget = {
 
 /**
  * Seasons for one TASO competition, newest first, from its own floor up to the
- * current season. Each competition has a different floor — Ykkösliiga did not
- * exist before 2024 — so asking every competition for every season since 2015
- * would spend hundreds of requests on seasons that never happened.
+ * current season.
+ *
+ * decisions/169-production-backfill.md
  */
 export function tasoSeasonsFor(earliestSeason: number, currentSeason: number): number[] {
   if (currentSeason < earliestSeason) return [];
@@ -30,6 +34,8 @@ export function tasoSeasonsFor(earliestSeason: number, currentSeason: number): n
 /**
  * The database name in a connection string, for display and for the reset
  * guard. Never returns anything from the credentials portion.
+ *
+ * decisions/169-production-backfill.md
  */
 export function databaseNameFrom(connectionString: string): string | null {
   try {
@@ -49,7 +55,11 @@ export function databaseNameFrom(connectionString: string): string | null {
   }
 }
 
-/** Host and database only — a connection string must never reach a log. */
+/**
+ * Host and database only: a connection string must never reach a log.
+ *
+ * decisions/169-production-backfill.md
+ */
 export function describeTarget(connectionString: string): string {
   try {
     const url = new URL(connectionString);
@@ -62,11 +72,10 @@ export function describeTarget(connectionString: string): string {
 export type ResetVerdict = { allowed: true } | { allowed: false; reason: string };
 
 /**
- * A reset empties every table in whatever database `DATABASE_URL` points at,
- * which in the intended use is production. So it is not enough to pass a flag:
- * the operator has to name the database, and the name has to match. Typing the
- * wrong name is the mistake this catches — a `--reset` on a shell that still
- * has yesterday's `DATABASE_URL` exported.
+ * Whether a reset may proceed. A flag is not enough: the operator has to name
+ * the database, and the name has to match.
+ *
+ * decisions/169-production-backfill.md
  */
 export function authoriseReset(
   connectionString: string,
@@ -90,12 +99,10 @@ export function authoriseReset(
 }
 
 /**
- * The useful sentence out of a driver error.
+ * The useful sentence out of a driver error: postgres-js puts the reason in
+ * `cause` and the whole failed statement in `message`.
  *
- * postgres-js puts the whole failed statement in `message` and the actual
- * reason in `cause`. A backfill inserting a season at a time produces
- * statements thousands of parameters long, so printing `message` buries the one
- * line that says what went wrong under 20KB of `$3791, $3792, ...`.
+ * decisions/169-production-backfill.md
  */
 export function describeError(error: unknown, maxLength = 200): string {
   if (!(error instanceof Error)) return String(error);
@@ -105,21 +112,10 @@ export function describeError(error: unknown, maxLength = 200): string {
 }
 
 /**
- * Whether a competition-season can be skipped on a re-run.
+ * Whether a competition-season can be skipped on a re-run: it must already
+ * hold rows, and be older than the season currently being played.
  *
- * Two conditions, both required. It must already hold rows — proof the fetch
- * succeeded, which "we tried" alone would not be. And it must be older than the
- * season currently being played, because a finished season's results do not
- * change while the current one does.
- *
- * That is deliberately the same rule `needsRefresh` applies during normal
- * operation, rather than a second notion of "done" invented for this script.
- *
- * A season that is genuinely empty — TASO publishes nothing for NSC 2018 — has
- * no rows and is therefore re-fetched. That is one request rather than the 329
- * a full re-run costs, and it is the right way round: re-asking about an empty
- * season is cheap, while skipping one that merely failed would leave a hole
- * nothing later fills.
+ * decisions/169-production-backfill.md
  */
 export function canSkip(storedRows: number, seasonId: number, currentSeason: number): boolean {
   return storedRows > 0 && seasonId < currentSeason;

@@ -1,17 +1,30 @@
+/**
+ * Vitest's configuration: two unit projects, split by whether a test needs a
+ * DOM, and the integration project.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/009-veikkausliiga.md
+ * decisions/017-huuhkajat.md
+ * decisions/278-quiet-test-logs.md
+ * decisions/384-a-dom-only-where-a-test-needs-one.md
+ * decisions/400-one-command-setup.md
+ * decisions/467-deterministic-integration-suite.md
+ * decisions/479-integration-suite-database-guard.md
+ */
+
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import { parseSonarProperty } from "./scripts/coverage-gaps-plan";
 
-// Vitest does not populate process.env from .env files, so the integration
-// tests could not reach Postgres or Redis without exporting the variables by
-// hand first. Node's built-in loader fills process.env here; test workers
-// inherit it. Requires Node >= 20.12, and the project already requires 24.
+// Vitest does not populate process.env from .env files, so Node's built-in
+// loader fills it here; test workers inherit it.
 /**
- * Whether the developer exported `LOG_LEVEL` for this run, captured *before*
- * `.env` is read. `process.loadEnvFile` does not override a variable that is
- * already set, so anything present now came from the shell.
+ * Whether the developer exported `LOG_LEVEL` for this run, captured before
+ * `.env` is read: anything present now came from the shell.
+ *
+ * decisions/278-quiet-test-logs.md
  */
 const logLevelWasExported = process.env.LOG_LEVEL !== undefined;
 
@@ -19,15 +32,8 @@ if (existsSync(".env")) {
   process.loadEnvFile(".env");
 }
 
-/**
- * `.env` must not decide how loud the tests are.
- *
- * `.env.example` sets `LOG_LEVEL=info` and the setup docs say to copy it, so
- * the logger's silent-under-test default was being overridden for anyone who
- * followed them — the suite kept printing application logs, which is the thing
- * silencing it was meant to stop. An `LOG_LEVEL=debug npm run test:unit`
- * survives, because that was exported rather than loaded from the file.
- */
+// `.env` must not decide how loud the tests are. An exported `LOG_LEVEL`
+// survives; one loaded from the file does not.
 if (!logLevelWasExported) {
   process.env.LOG_LEVEL = undefined;
   delete process.env.LOG_LEVEL;
@@ -36,28 +42,9 @@ if (!logLevelWasExported) {
 export default defineConfig({
   plugins: [react()],
   test: {
-    /**
-     * **A DOM only where a test needs one.**
-     *
-     * `environment: "jsdom"` for everything built one for all 139 unit files
-     * while only 52 of them touch a DOM, and constructing it dominated the run:
-     * measured across the whole suite, `environment` accounted for ~290 s of
-     * cumulative worker time against ~93 s actually running tests. The 65
-     * `tests/unit/lib` files alone took 26.3 s under jsdom and 9.0 s under node,
-     * with `environment` falling from 158.74 s to 7 ms and every test still
-     * passing.
-     *
-     * The split is by extension because that is exactly where the line falls,
-     * checked rather than assumed: running the whole suite under `node`, the 52
-     * files that failed were **every** `.tsx` file bar `app/layout.test.tsx`,
-     * and **no** `.ts` file at all. So a `.tsx` test gets a DOM and a `.ts` test
-     * does not — and a new test that needs one says so by its extension, which
-     * is a rule nobody has to remember.
-     *
-     * Both projects extend this configuration, so the setup file, the alias and
-     * the plugins are shared; coverage stays here, at the root, where it is
-     * gathered across both.
-     */
+    // A DOM only where a test needs one: a `.tsx` test gets jsdom and a `.ts` test
+    // does not. Both projects extend this configuration; coverage stays at the
+    // root, where it is gathered across both.
     projects: [
       {
         extends: true,
@@ -80,48 +67,16 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          /**
-           * Its own project, and not an afterthought.
-           *
-           * When the unit projects were the only ones, `npm run test:integration`
-           * matched nothing — and `--passWithNoTests` reported that as a pass, so
-           * a CI job ran zero tests and went green. Naming the suite here means a
-           * configuration that cannot see it fails loudly instead.
-           *
-           * It keeps `.env`: unlike a unit test, it genuinely needs Postgres and
-           * Redis, and `scripts/with-test-db.ts` points it at the test database.
-           */
+          // Its own project, so a configuration that cannot see the suite fails loudly.
+          // It keeps `.env`: it needs Postgres and Redis.
           name: "integration",
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
           setupFiles: ["./vitest.setup.ts"],
-          /**
-           * Refuses to run against anything but a test database (#479).
-           * `npx vitest run --project integration` skips `with-test-db.ts` and
-           * so reads `.env`'s development database — which once wrote fixture
-           * rows into a developer's own data. A note said not to; this makes it
-           * impossible.
-           */
+          // Refuses to run against anything but a test database, also when started
+          // without `with-test-db.ts`.
           globalSetup: ["./tests/support/integration-database-guard.ts"],
-          /**
-           * **One file at a time**, because they share one database (#467).
-           *
-           * `team-search.test.ts` clears a whole range of `providerMatchId` in
-           * `beforeEach` and `afterEach` — it searches by name, so it has to
-           * clear everything it might have created — and that range covered ids
-           * `team-seasons.test.ts` had just inserted. Run together the two
-           * failed four or five assertions every time and passed alone, which
-           * is how it reached `main`: a suite that fails on timing trains
-           * everyone to re-run rather than to read.
-           *
-           * The ids no longer overlap either, and
-           * `tests/unit/scripts/integration-fixtures.test.ts` keeps them apart.
-           * This is the guarantee behind that convention: sharing a database is
-           * the coupling, and an id is only the way it showed up first.
-           *
-           * It costs seconds. The suite is 154 tests and the whole thing runs
-           * in about ten.
-           */
+          // One file at a time, because they share one database.
           fileParallelism: false,
         },
       },
@@ -136,27 +91,9 @@ export default defineConfig({
       // The run fails below 100% on any of the four: nothing else catches an
       // uncovered statement, function or line in a file some test imports.
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
-      // Everything under tests/ is test code or test data, neither of which
-      // is a subject of coverage. Without this a JSON fixture is reported as a
-      // permanently 0%-covered file, which both adds noise and drags the
-      // totals down — hiding a real regression in src/.
-      //
-      // Stylesheets are not executable code and have nothing to cover. Vite
-      // processes `import "./globals.css"` in the root layout, so once that
-      // layout gained a test the file appeared in the report as a 0/0 entry.
-      /**
-       * Plus whatever Sonar already says it does not score, read from Sonar's
-       * own file rather than copied. The two lists had never met, because a
-       * file listed there was also a file no test imported — so vitest never
-       * saw it either. #400 broke that coincidence: `setup-wiring.ts` imports
-       * `services-run.ts`, so a test of the wiring pulls an excluded runner
-       * into the report and the totals fall below the 100% this repository
-       * holds itself to, for a file Sonar deliberately ignores.
-       *
-       * One source of truth, the same one `scripts/coverage-gaps.ts` reads —
-       * and that guard still fails on any source file that is missing from the
-       * report without being excluded there.
-       */
+      // Everything under tests/ is test code or data, and stylesheets are not
+      // executable. Plus whatever Sonar says it does not score, read from Sonar's
+      // own file, the one `scripts/coverage-gaps.ts` reads.
       exclude: [
         "node_modules",
         ".next",

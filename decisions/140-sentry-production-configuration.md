@@ -40,3 +40,12 @@ Cut from `src/lib/sentry-config.ts` at `ef99862` by #531.
   dashboard is an easy place to acquire a stray space. Anything else (unset,
   blank, a typo) leaves the flag as it was, because the failure that matters
   is a setting silently flipping, not one failing to flip.
+
+## Moved from comments, 2026-10-07
+
+Cut from `sentry.edge.config.ts` at `5b180e0` by #531.
+
+- **Sentry's server and edge settings.** The wizard ships development
+  defaults, 100% tracing and PII on, the wrong thing to inherit for a public
+  site. `docs/setup/021-production-environment.md` has the values production
+  uses and why.

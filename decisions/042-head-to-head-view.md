@@ -200,3 +200,11 @@ Cut from `src/app/national-teams/womens-team/head-to-head/[a]/[b]/page.tsx` at `
   `/maajoukkueet/helmarit/ottelu/:id` is built from that prefix, and without
   the route it would lead nowhere. The competitions' only source of names is
   TASO's category map.
+
+## Moved from comments, 2026-10-07
+
+Cut from `next.config.ts` at `5b180e0` by #531.
+
+- **`HEAD_TO_HEAD_PREFIXES`.** The two national-team routes have their own
+  prefix, so without them the link on Finland's match pages would lead
+  nowhere.

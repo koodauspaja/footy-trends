@@ -1,23 +1,10 @@
 /**
- * Counts what code review keeps finding in this repository, by class.
+ * Counts what code review keeps finding in this repository, by class:
+ * `GH_TOKEN=$(gh auth token) npm run review:findings -- 25` for the last 25
+ * merges, 10 without a number. It reads the API over HTTPS, not through `gh`.
  *
- *   GH_TOKEN=$(gh auth token) npm run review:findings        # last 10 merges
- *   GH_TOKEN=$(gh auth token) npm run review:findings -- 25  # last 25
- *
- * Why this exists as a command rather than a paragraph in a document: a
- * measurement nobody can repeat becomes folklore the moment the codebase moves.
- * The table in `skills/self-review.md` carries the date it was last run, and
- * running this is how that list is kept honest.
- *
- * A class dropping to zero is a prompt to look, not a licence to delete it.
- * On #390 two classes read as extinct and neither was: one had three findings
- * in `unclassified` under wording its patterns did not cover, the other had
- * its single instance reclassified into a better home.
- *
- * **Reads the API over HTTPS rather than shelling out to `gh`.** Spawning a
- * binary found on `PATH` is a vulnerability Sonar flags and is right to: the
- * command a script runs should not depend on what happens to be earlier in
- * someone's path. `gh auth token` supplies the credential; nothing is stored.
+ * decisions/290-review-finding-classes.md
+ * decisions/390-review-classes-remeasured.md
  */
 import {
   type ApiComment,
@@ -37,21 +24,28 @@ function err(line = ""): void {
   process.stderr.write(`${line}\n`);
 }
 
-/** Enough to see a pattern, few enough that the requests stay quick. */
+/**
+ * Enough to see a pattern, few enough that the requests stay quick.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 const DEFAULT_PULL_COUNT = 10;
 
 const REPOSITORY = "koodauspaja/footy-trends";
 const API = "https://api.github.com";
 
-/** The API's maximum, so a page count is the fewest requests that can work. */
+/**
+ * The API's maximum, so a page count is the fewest requests that can work.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 const PER_PAGE = 100;
 
 /**
- * Enough closed pull requests to find the newest merges among them.
+ * Enough closed pull requests to find the newest merges among them. Merged and
+ * closed-unmerged are one list in the API, so this over-fetches on purpose.
  *
- * Merged and closed-unmerged are one list in the API, so this over-fetches on
- * purpose: asking for exactly `count` closed ones could return `count`
- * abandoned branches and no merges at all.
+ * decisions/290-review-finding-classes.md
  */
 const CLOSED_PAGES = 3;
 
@@ -70,13 +64,16 @@ async function get<T>(path: string, token: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Every review comment on one pull request, across as many pages as it has. */
+/**
+ * Every review comment on one pull request, across as many pages as it has.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 async function commentsFor(pull: number, token: string): Promise<ApiComment[]> {
   const collected: ApiComment[] = [];
 
-  // Paged until a short page arrives. A pull request with more than 100
-  // comments is not hypothetical here — #270 had 18 from one reviewer alone,
-  // and a busy one carries replies too.
+  // Paged until a short page arrives: a pull request can have more than 100
+  // comments.
   for (let page = 1; ; page++) {
     const batch = await get<ApiComment[]>(
       `/repos/${REPOSITORY}/pulls/${pull}/comments?per_page=${PER_PAGE}&page=${page}`,
@@ -99,12 +96,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  /**
-   * One `try` around every request, not just the first. An earlier version
-   * guarded the listing and left the per-pull fetches outside, so a token
-   * expiring mid-run printed a stack trace and no table — the "failure path
-   * dropped" class this command exists to count.
-   */
+  // One `try` around every request, not just the first.
   let findings: Finding[] = [];
   let fetching = "the pull request list";
   try {

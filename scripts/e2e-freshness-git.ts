@@ -5,31 +5,35 @@ import { executablePath } from "./executable";
 
 /**
  * The git side of the freshness marker, shared by the reporter that writes it
- * and the pre-push hook that reads it.
+ * and the pre-push hook that reads it. `null` means git could not answer,
+ * which is not the same as an empty list.
  *
- * Kept apart from `e2e-freshness-plan.ts` so the decisions there stay pure and
- * unit-testable, and apart from the hook so the reporter can reuse it without
- * pulling in the hook's `docker` probe.
- *
- * `null` means git could not answer. That distinction is load-bearing: an empty
- * list and a failed command look identical otherwise, and "git failed" would
- * read as "nothing is there" — the check would pass having verified nothing.
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
+ * decisions/292-sonar-zero-open-issues.md
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 
-/** Enough headroom under any platform's argument limit, with room to grow. */
+/**
+ * Enough headroom under any platform's argument limit, with room to grow.
+ *
+ * decisions/242-freshness-compares-content.md
+ */
 const HASH_BATCH = 500;
 
-/** Just enough of `spawnSync`'s result for the decisions here. */
+/**
+ * Just enough of `spawnSync`'s result for the decisions here.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ */
 export type GitOutput = { status: number | null; stdout: string };
 
 /**
- * The IO this module does, injected the way `docker.ts` injects its spawn and
- * `executable.ts` injects its existence check (#403).
+ * The IO this module does, injected, so a test can assert which arguments git
+ * is given.
  *
- * Which arguments git is given is the point: `-z` on `ls-files`, and paths as
- * arguments rather than `--stdin-paths`, are the difference between a
- * fingerprint that covers a filename containing a newline and one that silently
- * drops it. A test can assert that; reading the file could not.
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 export type GitDeps = {
   /** Where `git` lives, or `null` when it cannot be found. */
@@ -53,10 +57,8 @@ export const defaultGitDeps: GitDeps = {
 };
 
 function git(deps: GitDeps, args: string[]): string | null {
-  // An absolute path rather than a name resolved through `PATH` — see
-  // `executable.ts`. Not finding git is the same answer as git failing: this
-  // function's `null` already means "git could not tell us", and the caller
-  // warns rather than blocking the push.
+  // An absolute path, not a name resolved through `PATH`: see `executable.ts`.
+  // Not finding git is the same answer as git failing.
   const binary = deps.find();
   if (binary === null) return null;
 
@@ -65,12 +67,9 @@ function git(deps: GitDeps, args: string[]): string | null {
 }
 
 /**
- * What the path is, without following it — `lstat`, not `exists`.
+ * What the path is, without following it: `lstat`, not `exists`.
  *
- * `existsSync` follows symlinks, so a tracked symlink whose target is missing
- * reports as absent and drops out of the fingerprint entirely; editing or
- * deleting it would then be invisible. `lstat` describes the link itself,
- * which is the thing git tracks.
+ * decisions/242-freshness-compares-content.md
  */
 function describePath(deps: GitDeps, path: string): "file" | "symlink" | "absent" {
   try {
@@ -81,14 +80,11 @@ function describePath(deps: GitDeps, path: string): "file" | "symlink" | "absent
 }
 
 /**
- * A symlink's content is its target path — that is what git stores in the blob
- * — so the target is its fingerprint.
+ * A symlink's fingerprint: its target path, which is what git stores in the
+ * blob. Read directly, as `git hash-object` fails on a dangling link.
  *
- * Read directly rather than through `git hash-object`, which opens the file and
- * so fails on a dangling link. Letting that fail would take the whole
- * fingerprint with it, and one broken symlink under `src/` would then block
- * every push *and* stop a passing run recording anything. Retargeting the link
- * still shows as a change, which is the behaviour that matters.
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
  */
 function symlinkEntry(deps: GitDeps, path: string): string | null {
   try {
@@ -99,15 +95,12 @@ function symlinkEntry(deps: GitDeps, path: string): string | null {
 }
 
 /**
- * Every watched file that exists on disk — tracked and untracked, with
- * `.gitignore` respected so build output and the marker itself stay out.
+ * Every watched file that exists on disk, tracked and untracked, with
+ * `.gitignore` respected. Asked with `-z`, so a path needing escaping comes
+ * back as raw bytes.
  *
- * `-z`, because without it git *quotes* any path needing escaping — a newline
- * in a filename comes back as the literal `"src/od\nd.ts"`, which matches no
- * file and would silently drop it. NUL-separated output is the raw bytes.
- *
- * A tracked file deleted from the working tree is simply absent, which is what
- * makes a deletion visible: its entry disappears from the fingerprint.
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
  */
 function watchedPaths(deps: GitDeps): string[] | null {
   const out = git(deps, [
@@ -124,11 +117,10 @@ function watchedPaths(deps: GitDeps): string[] | null {
 }
 
 /**
- * Hashes for the given paths, in order.
+ * Hashes for the given paths, in order. Paths go as arguments, not through
+ * `--stdin-paths`, and in batches.
  *
- * Paths go as arguments rather than through `--stdin-paths`, which is
- * newline-delimited and so cannot express a filename containing one. Batched
- * only to stay clear of the platform argument limit.
+ * decisions/242-freshness-compares-content.md
  */
 function hashAll(deps: GitDeps, files: string[]): string[] | null {
   const hashes: string[] = [];
@@ -146,16 +138,11 @@ function hashAll(deps: GitDeps, files: string[]): string[] | null {
 }
 
 /**
- * `hash<TAB>path` for every watched file, sorted — a description of the code
- * the suite ran against, and nothing else.
+ * `hash<TAB>path` for every watched file, sorted: a description of the code the
+ * suite ran against, and nothing else.
  *
- * Content, deliberately, rather than `HEAD` plus working-tree status. That pair
- * describes *where* content lives, so committing moved a file from one half to
- * the other and read as a change even though nothing was edited (#242). It also
- * forced special cases for a rebase or a branch switch. A content fingerprint
- * has none: identical content is identical, wherever git is keeping it.
- *
- * Cheap: 94 files in ~37ms here.
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
  */
 export function fingerprint(deps: GitDeps = defaultGitDeps): string[] | null {
   const paths = watchedPaths(deps);

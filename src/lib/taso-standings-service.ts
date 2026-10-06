@@ -102,7 +102,7 @@ type CarryOverEntry = {
  *
  * decisions/009-veikkausliiga.md
  * decisions/013-more-finnish-competitions.md
- * decisions/132-carry-over-config-validation.md
+ * decisions/127-carry-over-config-validation.md
  * decisions/133-split-group-round-numbering.md
  * decisions/272-group-standings-endpoint.md
  */
@@ -194,7 +194,7 @@ const CARRY_OVER_CONFIG: Record<string, Record<string, Record<number, CarryOverE
  * Every configured carry-over, flattened to one entry per `competitionId` and
  * `groupId`, for the test that checks each against TASO's published standings.
  *
- * decisions/132-carry-over-config-validation.md
+ * decisions/127-carry-over-config-validation.md
  */
 export function listCarryOverEntries(): {
   categoryId: string;
@@ -917,7 +917,10 @@ function teamIdsInGroup(seasonMatches: MatchRow[], groupId: number): Set<number>
  */
 function ownCalculatedStandings(
   seasonMatches: MatchRow[],
-  /** Scoped to this group already — a season-wide list would let one group's `starting_points` overwrite another's, since adjustments are keyed by team. */
+  /**
+   * Scoped to this group already: a season-wide list would let one group's
+   * `starting_points` overwrite another's, since adjustments are keyed by team.
+   */
   groupTeamRows: StoredGroupTeam[],
   categoryId: string,
   competitionId: string,

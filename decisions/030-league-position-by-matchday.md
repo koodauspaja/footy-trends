@@ -190,3 +190,12 @@ Cut from `src/components/charts/position-chart.tsx` at `48ebab4` by #531.
   same way as the table beside it, and two seasons of one league share a
   scale. The list below the chart holds each round and position, for a
   screen reader and for anyone who cannot read the line.
+
+## Moved from comments, 2026-10-07
+
+Cut from `playwright.config.ts` at `5b180e0` by #531.
+
+- **The analytics flag in the e2e server's environment.** It lets a spec
+  send `x-e2e-analytics: signed-in` and see what a signed-in reader sees,
+  which the suite cannot otherwise reach: the gate runs on the server, where
+  session interception does not.

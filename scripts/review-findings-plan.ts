@@ -1,27 +1,10 @@
 /**
- * Sorting review findings into the classes that keep recurring, kept free of
- * the network so it can be unit-tested directly — the same split as
- * `backfill-plan.ts` and `e2e-freshness-plan.ts` and their entry points.
+ * Sorting review findings into the classes that keep recurring, free of the
+ * network so it can be unit-tested directly. A coarse indicator, not a
+ * judgement: a finding is filed by the words it uses.
  *
- * The classes are not invented. Each comes from reading every Sourcery inline
- * finding on the last fourteen merged pull requests, and they are what
- * `skills/self-review.md` is organised around. Re-running the command is how
- * that list stays honest as the codebase changes — and it has changed:
- *
- * - 2026-09-08 (#290): seven classes, from 48 findings across nine PRs.
- * - 2026-09-14 (#390): two added — a read and a write that do not span one
- *   transaction, and the same value compared under two normalisations — from
- *   the 35 of 64 findings that were landing in `unclassified`. Widened
- *   `failure path dropped`, which read as extinct while three of its findings
- *   sat unclassified under wording its patterns did not have.
- *
- * Re-measure before trusting the ordering here; do not update this comment by
- * hand without running the command that produced it.
- *
- * **This is a coarse indicator, not a judgement.** A finding is filed by the
- * words it uses, and a review often describes one defect while mentioning
- * another. The table says which class to weight while reading your own diff; it
- * does not replace reading the findings.
+ * decisions/290-review-finding-classes.md
+ * decisions/390-review-classes-remeasured.md
  */
 
 export type Finding = {
@@ -38,24 +21,27 @@ export type Tally = {
   pulls: number[];
 };
 
-/** One pull request, as the REST API reports it. */
+/**
+ * One pull request, as the REST API reports it.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 export type ApiPull = { number: number; merged_at: string | null };
 
-/** One review comment, as the REST API reports it. */
+/**
+ * One review comment, as the REST API reports it.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 export type ApiComment = { user: { login: string } | null; path: string; body: string };
 
 /**
  * The recurring classes, each with the label `skills/self-review.md` uses for
- * it — the document and the command have to say the same words, or the table
- * cannot be compared with the document it points at.
+ * it. Every pattern is a phrase that names the defect, not a bare keyword.
+ * Ordered by measured cost, largest first: a tie falls to the earlier entry.
  *
- * Every pattern is a phrase that names the defect rather than a bare keyword:
- * "the test", not "test". A parser finding that mentions a test in passing
- * belongs under parsing, and the scoring below is what settles that.
- *
- * Ordered by measured cost, largest first, because a tie falls to the earlier
- * entry. Re-ordered on 2026-09-14 (#390): the 2026-09-08 ordering put tests
- * first, and tests are now fourth.
+ * decisions/290-review-finding-classes.md
+ * decisions/390-review-classes-remeasured.md
  */
 const CLASSES = [
   {
@@ -123,16 +109,11 @@ const CLASSES = [
       /converted to an empty/i,
       /silently (?:pass|succeed|continue|fail)/i,
       /stack trace/i,
-      // Added in #390. The class read as extinct at zero findings while three
-      // sat in `unclassified`, because recent reviews say "is not caught"
-      // where older ones said "unhandled".
+      // Recent reviews say "is not caught" where older ones said "unhandled".
       /is not caught|are not caught/i,
       /no (?:Finnish )?error (?:notice|message|state)/i,
       /returned as (?:an? )?(?:empty|absent|missing)/i,
-      // The label's second half — "turned into a plausible wrong value" — had
-      // no pattern at all. Its clearest instance on #381 says a database
-      // failure is "returned as `reason: \"provider\"`, even though the
-      // provider has not failed", and sat unclassified.
+      // The label's second half, "turned into a plausible wrong value".
       /caught .{0,60}and returned as/i,
       /treats .{0,40}as success/i,
     ],
@@ -184,13 +165,10 @@ export type ClassName = (typeof CLASSES)[number]["name"] | "unclassified";
 const UNCLASSIFIED_LABEL = "unclassified";
 
 /**
- * Which class a finding falls into, by **how many** of a class's phrases it
- * uses rather than by which class happens to be checked first.
+ * Which class a finding falls into, by how many of a class's phrases it uses,
+ * not by which class is checked first. Ties fall to the earlier class.
  *
- * First-match-wins was the earlier design and it misfiled the obvious case: a
- * parser finding saying "the test asserts an invalid id" mentions a test once
- * and parsing three times, and belongs under parsing. Ties fall to the earlier
- * class, which is why the list is ordered by how much each class has cost.
+ * decisions/290-review-finding-classes.md
  */
 export function classify(body: string): ClassName {
   let best: { name: ClassName; score: number } = { name: "unclassified", score: 0 };
@@ -203,17 +181,20 @@ export function classify(body: string): ClassName {
   return best.name;
 }
 
-/** The label `skills/self-review.md` uses for a class. */
+/**
+ * The label `skills/self-review.md` uses for a class.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 export function labelFor(klass: ClassName): string {
   return CLASSES.find((entry) => entry.name === klass)?.label ?? UNCLASSIFIED_LABEL;
 }
 
 /**
- * The most recently **merged** pull requests, newest merge first.
+ * The most recently merged pull requests, newest merge first: sorted by merge
+ * date, not taken in the API's order, which is by creation.
  *
- * Sorted by merge date rather than taken in the API's own order, which is by
- * creation: a long-lived branch merged this morning would otherwise be missed
- * while an older merge was counted in its place.
+ * decisions/290-review-finding-classes.md
  */
 export function mergedPullNumbers(pulls: ApiPull[], count: number): number[] {
   return pulls
@@ -224,14 +205,17 @@ export function mergedPullNumbers(pulls: ApiPull[], count: number): number[] {
 }
 
 /**
- * Sourcery is the reviewer this counts.
+ * Sourcery is the reviewer this counts. Human review comments are excluded.
  *
- * Human review comments are deliberately excluded: they arrive as conversation
- * — "why this and not that?" — and are not the same measurement.
+ * decisions/290-review-finding-classes.md
  */
 const REVIEWER = "sourcery-ai[bot]";
 
-/** One pull request's review comments, reduced to that reviewer's findings. */
+/**
+ * One pull request's review comments, reduced to that reviewer's findings.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 export function findingsFrom(pull: number, comments: ApiComment[]): Finding[] {
   return comments
     .filter((comment) => comment.user?.login === REVIEWER)
@@ -239,11 +223,10 @@ export function findingsFrom(pull: number, comments: ApiComment[]): Finding[] {
 }
 
 /**
- * The findings grouped by class, largest first.
+ * The findings grouped by class, largest first. `unclassified` is always
+ * reported last and never hidden.
  *
- * `unclassified` is always reported last and never hidden: a growing
- * unclassified pile is the signal that the classes themselves need revisiting,
- * and sorting it by size would bury it mid-table on the day it matters most.
+ * decisions/290-review-finding-classes.md
  */
 export function tally(findings: Finding[]): Tally[] {
   const grouped = new Map<ClassName, Finding[]>();
@@ -267,7 +250,11 @@ export function tally(findings: Finding[]): Tally[] {
     });
 }
 
-/** The tally as a Markdown table, ready to paste into an issue. */
+/**
+ * The tally as a Markdown table, ready to paste into an issue.
+ *
+ * decisions/290-review-finding-classes.md
+ */
 export function format(rows: Tally[], total: number): string {
   if (total === 0) return "No review findings found.";
 

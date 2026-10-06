@@ -1,27 +1,17 @@
-# The TASO key is scraped from Palloliitto's public frontend, not issued to us
-# (docs/setup/020-taso-api-key.md). It can stop working without notice, and
-# nothing else would notice quickly: pages backed by stored rows keep serving,
-# so the site looks fine while the current season quietly stops updating.
-#
-# This asks production, once a day, whether its configured key still reaches
-# TASO. It needs **no secrets**: `/api/health?providers=1` is public and makes a
-# real TASO request with production's own key, so the check exercises the thing
-# that can break rather than a copy of it. A key in Actions secrets would be a
-# second copy that could pass while production's fails.
-#
-# Failure surfaces as a red scheduled workflow, which GitHub emails to watchers
-# — the same signal as a failed CI run, and no new infrastructure to maintain.
+# Why each setting is as it is: decisions/531-configuration-files.md
+# The TASO key is scraped from Palloliitto's public frontend, not issued to us,
+# so it can stop working without notice. This checks it on a schedule.
 name: TASO key check
 
 on:
   schedule:
     # 06:00 UTC daily. Early enough that a broken key is known before the day's
     # fixtures matter, and daily because there is no evidence yet on how often
-    # the key actually rotates — see #113.
+    # the key actually rotates.
     - cron: "0 6 * * *"
   workflow_dispatch:
 
-# The token every job gets unless it asks for more (#537).
+# The token every job gets unless it asks for more.
 permissions:
   contents: read
 

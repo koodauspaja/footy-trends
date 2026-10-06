@@ -263,3 +263,15 @@ Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
   for server-side plugins, so the field `customSession` adds (see
   `src/lib/auth.ts`) is narrowed by `defaultRegionOf`, the check wanted
   regardless.
+
+## Moved from comments, 2026-10-07
+
+Cut from `next.config.ts` at `5b180e0` by #531.
+
+- **`bodySizeLimit`.** Without it the app's own 8 MB cap would be fiction:
+  Next rejects an oversized action body with a 413 before the action runs,
+  so every upload between 1 MB and 8 MB, which is most phone photographs,
+  would fail as a rejected invocation and not as the "image is too large"
+  notice, which would be unreachable except for files the client already
+  refused. 10 MB against a cap of 8: the gap absorbs multipart framing,
+  bytes on the wire that are not bytes of the image.

@@ -123,3 +123,24 @@ Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
   filter. Asked of the competition, not the category id: they coincide for
   Suomen Cup and Ykkösliigacup, but Liigacup 2023 is `LC2023`, which is no
   code.
+
+## Moved from comments, 2026-10-07
+
+Cut from `scripts/with-test-db.ts` at `5b180e0` by #531.
+
+- **`with-test-db.ts`.** The integration suite creates and deletes rows,
+  `itest-*` users among them, and used to do it in whatever `DATABASE_URL`
+  pointed at, normally the developer's own database. Separating them means a
+  test run cannot disturb development data, and cannot read anything
+  development left behind. A line in `vitest.config.ts` could not do it: a
+  config file cannot await the database existing and being migrated.
+
+Cut from `playwright.config.ts` at `5b180e0` by #531.
+
+- **`.env` in `playwright.config.ts`.** The same gap `vitest.config.ts` and
+  `src/db/migrate.ts` each note.
+- **The suite's own server.** Development browses the development database,
+  and the suite never sees what that browsing synced. A server already
+  listening was started by somebody else, so reusing it would put the suite
+  back on whatever that database happens to hold, the entire bug the
+  separation fixes. Provider keys and the Redis URL still come from `.env`.

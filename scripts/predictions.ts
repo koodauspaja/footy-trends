@@ -1,16 +1,9 @@
 /**
- * The predictions log's entry point (specs/052): the Railway cron service runs
- * `npm run predictions -- log` hourly in production (S1, S11, S12), and the
- * backtest is run by hand after deploy (S10).
+ * The predictions log's entry point: `npm run predictions -- log`, which the
+ * Railway cron service runs hourly, and `-- backtest`, run by hand after a
+ * deploy. `DATABASE_URL` must come from the environment, not `.env`.
  *
- *   DATABASE_URL=<target> npm run predictions -- log
- *   DATABASE_URL=<target> npm run predictions -- backtest
- *
- * `DATABASE_URL` must come from the environment; the one in `.env` is ignored,
- * as `backfill.ts` ignores it, so a forgotten variable cannot write
- * predictions into a development database. Nothing touching the database is
- * imported until the target is settled: `src/db` reads the variable when it
- * is first used.
+ * decisions/052-predictions-log.md
  */
 import { existsSync } from "node:fs";
 import { describeRun, exitCodeFor, parseCommand, USAGE } from "./predictions-plan";

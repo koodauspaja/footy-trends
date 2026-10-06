@@ -1,16 +1,25 @@
-// From `@sentry/nextjs/config`, not the package root: the root export is
-// deprecated as of 10.73.0 and stops working in v11, and it printed a warning
-// on every build until #293.
+/**
+ * Next's configuration: the route table behind every Finnish URL, the
+ * server-action body limit, and Sentry's build settings.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/025-custom-avatar.md
+ * decisions/042-head-to-head-view.md
+ * decisions/293-sentry-config-subpath.md
+ * decisions/527-one-route-table.md
+ */
+
+// From `@sentry/nextjs/config`, not the package root, whose export is
+// deprecated and stops working in v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 /**
  * The Finnish prefix each head-to-head route is reached by, and the directory
- * behind it (specs/042).
+ * behind it. Five, because every match page builds its link from its own
+ * prefix.
  *
- * **Five, because every match page builds its link from its own prefix.** The
- * two national-team routes have theirs, so without them the link on Finland's
- * match pages would lead nowhere.
+ * decisions/042-head-to-head-view.md
  */
 const HEAD_TO_HEAD_PREFIXES = [
   ["/kotimaa", "/domestic"],
@@ -22,30 +31,25 @@ const HEAD_TO_HEAD_PREFIXES = [
 
 /**
  * Every page: its Finnish URL, and the English App Router folder that serves
- * it (specs/012-finnish-urls-english-code.md, CLAUDE.md's split).
+ * it. One table, read twice: a rewrite from the URL to the folder, and a
+ * redirect from the folder's path back to the URL.
  *
- * **One table, read twice.** A page needs a rewrite from its URL to its folder
- * and a redirect from the folder's path back to the URL, because a rewrite
- * does not block its own target: without the redirect the page answers on two
- * addresses. The two lists used to be kept by hand, and eight pages had the
- * rewrite alone (#527). Both are now made from this table, so a page cannot
- * have one without the other, and `tests/unit/next-config.test.ts` fails if a
- * rewrite appears that did not come from here.
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/527-one-route-table.md
  */
 const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
-  // The account settings page, added in specs/024-account-settings.md.
+  // The account settings page.
   ["/asetukset", "/settings"],
-  // The favourites page, added in specs/026-favourites.md.
+  // The favourites page.
   ["/suosikit", "/favorites"],
-  // The admin area, added in specs/028-admin-tools-and-roles.md.
+  // The admin area.
   ["/yllapito", "/admin"],
-  // The forced season refresh, added in specs/029-forced-season-refresh.md.
-  // `data` rather than a provider's name: the page covers both Kotimaa and
-  // Ulkomaat, and neither belongs in the path.
+  // The forced season refresh. `data`, not a provider's name: the page covers
+  // both Kotimaa and Ulkomaat.
   ["/yllapito/data", "/admin/data"],
-  // The privacy policy, added in #302.
+  // The privacy policy.
   ["/tietosuoja", "/privacy"],
-  // The terms of service, added in #303.
+  // The terms of service.
   ["/kayttoehdot", "/terms"],
   ["/ennusteet", "/predictions"],
   ["/kotimaa", "/domestic"],
@@ -65,10 +69,8 @@ const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
   ["/maajoukkueet/sarjataulukko", "/national-teams/standings"],
   ["/maajoukkueet/huuhkajat", "/national-teams/mens-team"],
   ["/maajoukkueet/helmarit", "/national-teams/womens-team"],
-  // The two national teams are TASO's, not football-data's, so their
-  // matches cannot share `/maajoukkueet/ottelu/:id` — the id spaces are
-  // independent and 317 ids already exist in both tables. See
-  // specs/019-match-page.md.
+  // The two national teams are TASO's, not football-data's, so their matches
+  // cannot share `/maajoukkueet/ottelu/:id`: the id spaces are independent.
   ["/maajoukkueet/huuhkajat/ottelu/:id", "/national-teams/mens-team/match/:id"],
   ["/maajoukkueet/helmarit/ottelu/:id", "/national-teams/womens-team/match/:id"],
   // Each prefix's `kohtaamiset` route, which names two teams rather than one match.
@@ -82,6 +84,9 @@ const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
  * Other spellings that lead to a page: addresses from before a move, and a
  * Finnish prefix with an English last segment. None of them is a folder, so
  * none has a rewrite, and each is listed by hand.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/527-one-route-table.md
  */
 const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
   // The foreign pages moved under /ulkomaat.
@@ -103,12 +108,11 @@ const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
   ["/ulkomaat/standings", "/ulkomaat/sarjataulukko"],
   ["/ulkomaat/matches", "/ulkomaat/ottelut"],
   ["/ulkomaat/team/:id", "/ulkomaat/joukkue/:id"],
-  // The same shape for the third region, added in specs/016.
+  // The same shape for the third region.
   ["/maajoukkueet/standings", "/maajoukkueet/sarjataulukko"],
   ["/maajoukkueet/matches", "/maajoukkueet/ottelut"],
   ["/maajoukkueet/team/:id", "/maajoukkueet/joukkue/:id"],
-  // The match pages added in specs/019, closed on both spellings like
-  // every URL above them.
+  // The match pages, closed on both spellings like every URL above them.
   ["/kotimaa/match/:id", "/kotimaa/ottelu/:id"],
   ["/ulkomaat/match/:id", "/ulkomaat/ottelu/:id"],
   ["/maajoukkueet/match/:id", "/maajoukkueet/ottelu/:id"],
@@ -123,16 +127,9 @@ const nextConfig: NextConfig = {
     return ROUTES.map(([url, folder]) => ({ source: url, destination: folder }));
   },
 
-  /**
-   * Redirects are checked before rewrites, which is what makes pairing them
-   * safe: a Finnish URL matches no redirect and is rewritten internally,
-   * and an internal rewrite never re-enters this table, so the two cannot
-   * bounce off each other. Verified on a running server — see spec 012.
-   *
-   * `permanent: true` emits 308 and preserves the request method. Query
-   * strings are forwarded automatically, so `?kilpailu=` and `?kausi=`
-   * survive without any `:path*` handling.
-   */
+  // Redirects are checked before rewrites, which is what makes pairing them
+  // safe. `permanent: true` emits 308 and preserves the request method; query
+  // strings are forwarded automatically.
   async redirects() {
     return [
       // English folder paths are not URLs.
@@ -143,21 +140,8 @@ const nextConfig: NextConfig = {
 
   experimental: {
     serverActions: {
-      /**
-       * Raised from Next's default of 1 MB, for the avatar upload in
-       * specs/025-custom-avatar.md.
-       *
-       * Without this the app's own 8 MB cap would be fiction: Next rejects an
-       * oversized action body with a 413 *before* the action runs, so every
-       * upload between 1 MB and 8 MB — which is most phone photographs — would
-       * fail as a rejected invocation rather than as the "image is too large"
-       * notice, and that notice would be unreachable except for files the
-       * client already refused.
-       *
-       * 10 MB against a cap of 8: the gap absorbs multipart framing, which is
-       * bytes on the wire that are not bytes of the image. The app's cap stays
-       * the one the reader meets.
-       */
+      // Raised from Next's default of 1 MB for the avatar upload, whose own cap is
+      // 8 MB: Next rejects an oversized action body before the action runs.
       bodySizeLimit: "10mb",
     },
   },
@@ -180,17 +164,13 @@ export default withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
+  // Routes browser requests to Sentry through a Next.js rewrite, past
+  // ad-blockers. The route must not match the app's middleware.
   tunnelRoute: "/monitoring",
 
   webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
+    // Automatic instrumentation of Vercel Cron Monitors. Does not yet work with
+    // App Router route handlers.
     automaticVercelMonitors: true,
 
     // Tree-shaking options for reducing bundle size

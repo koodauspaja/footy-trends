@@ -3,7 +3,7 @@
  * shape of the forwarded headers only when asked.
  *
  * decisions/017-huuhkajat.md
- * decisions/085-running-commit-at-health.md
+ * decisions/085-release-workflow.md
  * decisions/113-taso-key-monitor.md
  * decisions/309-client-ip-resolution.md
  */
@@ -34,7 +34,7 @@ function toLogError(error: unknown) {
  * The commit serving this response, as Railway sets it per deployment. Null
  * locally and in tests, and when the variable is blank.
  *
- * decisions/085-running-commit-at-health.md
+ * decisions/085-release-workflow.md
  */
 function deployedCommit(): string | null {
   const sha = process.env.RAILWAY_GIT_COMMIT_SHA?.trim();
