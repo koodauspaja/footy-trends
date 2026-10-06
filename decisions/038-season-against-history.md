@@ -135,3 +135,12 @@ Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
   pooled rate and name itself `PL` in the Finnish `Verrattuna` line.
 - **`readSeasonFor`.** Erroring on stale rows here alone would make this panel
   disagree with the eight beside it, from the same read.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`readTasoSeason`.** The club's matches come from `teamPanelMatches`, so a
+  comparison can never rest on matches the season's charts do not. The
+  fixture list comes from the same cached classification, and is the
+  denominator of the share the comparison matches on.

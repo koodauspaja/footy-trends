@@ -110,3 +110,16 @@ now, and four concurrent setups from nothing succeed three runs out of three.
 That is the lesson of this whole issue in miniature. Review found the race;
 reasoning about it produced a fix that was still wrong twice over; running it is
 what settled it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **Cup rounds in `buildGroup`.** This used to fall out of the data: `getGroups`
+  omitted `points` for a knockout, so `keepsATable` said no. `getCategory` does
+  send points for cup rounds, which rendered every round of Suomen Cup as a
+  league table, took the bracket with it (it is built from the groups that
+  render as matches) and put a `Kierros` selector on a page with no rounds to
+  filter. Asked of the competition, not the category id: they coincide for
+  Suomen Cup and Ykkösliigacup, but Liigacup 2023 is `LC2023`, which is no
+  code.

@@ -311,3 +311,20 @@ Unit tests: **100% statements, branches, functions and lines.**
 Integration 21. Playwright includes 8 new specs, run with `--workers=1`
 because the parallel default exhausts football-data.org's quota on the
 neighbouring pages.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`getSeasonMatches`.** Deriving the season from an id's last two digits is
+  right for `spljp26` and wrong for `maajp18`, which is season 2021. It stored
+  that bucket's rows under 2018 while every read asked for 2021, so the
+  database never answered and all five of its categories refetched on each
+  request.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`getSeasonCategoryNameMap`.** Its caller discovers which competitions a
+  season contains, where the other dresses up one it already knows. A
+  swallowed error would silently produce a season with no competitions and no
+  error state.

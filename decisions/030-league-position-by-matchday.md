@@ -74,3 +74,32 @@ Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
 
 - **`getTeamPositionSeries`.** Not `getStandings({ round })`, which re-reads the
   season per call.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`getTeamPositionSeries`.** It reads nothing the standings page does not:
+  the matches and group rows come through the same `cache()`d syncs, and
+  nothing is fetched per round. The group rows are the one read the TASO team
+  page did not make before, and they are read once, since
+  `classifySeasonGroups` returns the rows it used. They carry the points
+  adjustments and decide whether a split group is verified, so a position
+  cannot equal the page's without them. Their TASO request is limited to the
+  active season and the 15-minute cache the standings page shares.
+- **`positionSeriesFrom`.** The line plots a round only where the standings
+  page has a table for it. The regular-season group must be own-calculated: a
+  pass-through group has no per-round position, so `unavailable`. After the
+  split, the continuation is combined only when it is a verified carry-over,
+  own-calculated and configured as that group's child; otherwise the line
+  ends at the regular season and `endsAtSplit` says so. A combined position is
+  the team's place in its group plus every team in the groups ranked above. A
+  league played in parallel pools is one league per pool until the end of its
+  continuation (Kakkonen's Lohko A, B and C each split into their own upper
+  and lower groups), so "the groups above" are that pool's children and the
+  axis spans the pool. What follows the continuation is a bracket, with no
+  line.
+- **`playedWithoutRound` in `positionSeriesFrom`.** Two states share it. Split
+  but not yet played in: the line is the regular season so far, and nothing
+  is missing. Played, but only in matches TASO gave no round: the standings
+  page cannot show those per round either, so the line stops, with the note.

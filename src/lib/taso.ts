@@ -1,92 +1,60 @@
+/**
+ * TASO's API as this app reads it: the requests it makes, and their rows
+ * normalised for storage.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ */
+
 import { getCached } from "./cache";
 import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 
-/** Mirrors football-data's match cache. Long enough to stop a page re-asking
- * the same question, short enough that a live result is not stale for long. */
+/**
+ * How long a season's match list stays cached: long enough that a page does not
+ * re-ask, short enough that a live result is not stale for long.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/200-taso-read-cache.md
+ */
 const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * The Redis keys the two season endpoints cache under.
+ * The Redis key one category's season of matches is cached under.
  *
- * Exported rather than inlined because the forced refresh in
- * `force-refresh.ts` has to *delete* exactly these keys in order to reach TASO
- * — see specs/029-forced-season-refresh.md. Spelling them out in two places
- * would mean a changed key here silently stops the refresh clearing anything,
- * and the failure is invisible: the refetch just answers out of the cache it
- * was meant to bypass.
- *
- * The season is inside `competitionId` (`spljp26`, `M1LCUP26`), so these are
- * per-season keys despite not naming a season.
+ * decisions/029-forced-season-refresh.md
  */
 export function tasoMatchesCacheKey(competitionId: string, categoryId: string): string {
   return `taso:matches:${competitionId}:${categoryId}`;
 }
 
+/**
+ * The Redis key one category's season of groups is cached under.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export function tasoCategoryCacheKey(competitionId: string, categoryId: string): string {
   return `taso:category:${competitionId}:${categoryId}`;
 }
 
 /**
- * How long a page render waits for TASO before giving up on it.
+ * How long one TASO request waits before a page render gives up on it. Insurance
+ * against a stalled provider, not a latency budget; `/api/health` passes its
+ * own, shorter signal on top.
  *
- * Unbounded before #363, which is how the v1.4.0 release e2e run failed 41
- * specs: TASO accepted the connection and then stalled, and with nothing
- * bounding the render the only limit that applied was Playwright's own 30 s.
- * The same commit passed twenty minutes later. Measured at the time: 47-67 ms
- * across six fresh connections, and once 19.9 s for a response whose own
- * `result_time` said 0.061 s — the server answered instantly and the transfer
- * took twenty seconds.
- *
- * Ten seconds, chosen for margin rather than derived from a measurement.
- *
- * Five was tried first and failed four national-team specs against a cold
- * cache, twice over, so the failure was real. The explanation first written
- * here was not: it blamed the page's fan-out, claiming requests spend their
- * lives queued behind each other. Measuring that fan-out refuted it — 18-20
- * requests, 12-14 of them concurrent, 0.52 MB in total, JSON parsing too cheap
- * to register, and a per-request worst case of 80-512 ms — roughly a tenth of
- * the five-second bound it was supposed to be exhausting, not the near-miss
- * the queueing story needed. Re-run later, five seconds passed all nineteen.
- *
- * So what those runs caught was TASO being slow for an afternoon, not a
- * property of this code — the same afternoon that failed 41 specs on the
- * v1.4.0 release and answered one request in 19.9 s while reporting its own
- * `result_time` as 0.061 s.
- *
- * Ten stands because the bound is insurance against exactly those afternoons,
- * and the cost of it being loose is only how long a stalled render waits before
- * falling back. It is not a latency budget and should not be read as one.
- * Separate from football-data's bound so that tuning one does not move the
- * other.
- *
- * This bounds one attempt. `/api/health` passes its own, shorter signal, which
- * bounds the whole call on top of it — a probe and a page are different
- * questions, and the two limits stack rather than replace each other.
+ * decisions/363-render-timeouts.md
  */
 const RENDER_TIMEOUT_MS = 10000;
 
-// Fixed values, not secrets: TASO 403s without headers matching the real
-// tulospalvelu.palloliitto.fi frontend — server-side origin validation, not
-// browser-enforced CORS, so every server-to-server request needs them too.
-// See specs/009-veikkausliiga.md.
+// Fixed values, not secrets: TASO answers 403 without headers matching its own
+// frontend, a server-side origin check that server-to-server requests meet too.
 const REFERER = "https://tulospalvelu.palloliitto.fi/";
 const ORIGIN = "https://tulospalvelu.palloliitto.fi";
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-// `competition_id` (e.g. "spljp26") alone is the whole SPL Jalkapallo season
-// umbrella — cup, women's, youth, and every other category share it, and
-// their `group_id`s are NOT globally unique across categories (confirmed
-// live: Veikkausliiga, Miesten Kakkonen and Ykkönen each have their own
-// `group_id: "1"` in `spljp26`). `category_id` is required on every request —
-// omitting it silently mixes in other categories' groups/matches under
-// colliding group_ids — and is a parameter rather than a constant now that
-// more than one category is served. See
-// specs/013-more-finnish-competitions.md.
 
 function apiKey(): string {
   const key = process.env.TASO_API_KEY;
@@ -94,6 +62,13 @@ function apiKey(): string {
   return key;
 }
 
+/**
+ * One TASO request, with the headers its origin check wants and a bound on how
+ * long it waits.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/363-render-timeouts.md
+ */
 function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetchProviderJson<T>(
     "TASO",
@@ -106,11 +81,7 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
       "User-Agent": USER_AGENT,
     }),
     signal,
-    // Bounded here rather than at each call site: every TASO request goes
-    // through this function, so one value covers the ones page renders make
-    // without threading a signal through four exported functions that would
-    // each have to remember to pass it. `/api/health`'s own signal still
-    // bounds the whole call on top of this.
+    // One bound for every TASO request, since they all pass through here.
     RENDER_TIMEOUT_MS
   );
 }
@@ -118,14 +89,15 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 // --- Matches -----------------------------------------------------------
 
 /**
- * Every field in TASO's raw response is a JSON string, including
- * numeric-looking ones (`match_id`, `group_id`, `round_id`, team ids,
- * scores) — confirmed live against `getMatches`, not assumed. An unplayed
- * match's `fs_A`/`fs_B` is `""`, not `null` and not `"0"`.
+ * One match as TASO sends it. Every field is a JSON string, the numeric-looking
+ * ones too, and an unplayed match's `fs_A`/`fs_B` is `""`, not `null` or `"0"`.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/036-halftime-comebacks.md
  */
 export type TasoProviderMatch = {
   match_id?: string;
-  status?: string; // "Played" | "Fixture" | "Live", confirmed against live data
+  status?: string; // TASO's own word: see `normalizeStatus`
   winner?: string; // "Home" | "Away" | "Tie", absent until the match is played
   round_id?: string;
   group_id?: string;
@@ -139,9 +111,7 @@ export type TasoProviderMatch = {
   team_B_name?: string;
   fs_A?: string;
   fs_B?: string;
-  // The half-time score, in the same string-or-empty shape as `fs_*`. Present
-  // for all but one of Ykkönen 2025's 132 played matches, and for all of
-  // Veikkausliiga 2015, 2019 and 2025 — measured, not assumed (specs/036).
+  // The half-time score, in the same string-or-empty shape as `fs_*`.
   hts_A?: string;
   hts_B?: string;
 };
@@ -149,11 +119,13 @@ export type TasoProviderMatch = {
 type MatchesResponse = { matches?: TasoProviderMatch[] };
 
 /**
- * The shape every own-calculated group's matches are normalized into —
- * structurally compatible with `NormalizedMatch`/`RosterMatch` from
- * `standings.ts` (same field names), so `calculateStandings` is reused
- * as-is. Extends it with TASO-only `groupId`/`groupName`, needed for
- * per-group tables and the match-list/team-page "which group" label.
+ * A TASO match normalized to the field names `calculateStandings` takes, plus
+ * the group it belongs to.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/036-halftime-comebacks.md
  */
 export type NormalizedTasoMatch = {
   providerMatchId: number;
@@ -176,22 +148,21 @@ export type NormalizedTasoMatch = {
   awayTeamName: string;
   homeGoals: number | null;
   awayGoals: number | null;
-  /** The half-time score, or null when TASO reports none (specs/036). */
+  /** The half-time score, or null when TASO reports none. */
   halfTimeHome: number | null;
   halfTimeAway: number | null;
   /**
-   * Who TASO says went through, which the score alone cannot answer for a cup:
-   * a knockout tie level after normal time is decided on penalties that TASO
-   * does not itemise, and it reports the outcome here instead.
-   *
-   * `"tie"` only ever appears in a league — verified live: `MSC` 2025 returns
-   * `Home`/`Away` for all 419 matches including the 55 level ones, while `VL`
-   * 2025 returns `Tie` for exactly its 40 level matches.
+   * Who TASO says went through. The score cannot say for a cup: a tie level after
+   * normal time goes to penalties TASO does not itemise. `"tie"` is a league's.
    */
   winner: TasoWinner;
 };
 
-/** TASO's own `winner`, lowercased. Null when the match has not been played. */
+/**
+ * TASO's own `winner`, lowercased. Null when the match has not been played.
+ *
+ * decisions/015-finnish-cups.md
+ */
 export type TasoWinner = "home" | "away" | "tie" | null;
 
 function normalizeWinner(winner: string | undefined): TasoWinner {
@@ -202,10 +173,10 @@ function normalizeWinner(winner: string | undefined): TasoWinner {
 }
 
 /**
- * Combines `date` + `time` using the match's own `time_zone_offset` — TASO
- * reports the correct Europe/Helsinki offset per match (`+0300` in summer,
- * `+0200` in winter, confirmed live across the 2025 DST boundary), so no
- * timezone-database lookup is needed here.
+ * A kickoff from `date`, `time` and the match's own `time_zone_offset`, or null
+ * when they do not make a real instant.
+ *
+ * decisions/009-veikkausliiga.md
  */
 function parseKickoff(date: string, time: string, offset: string): Date | null {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
@@ -219,11 +190,8 @@ function parseKickoff(date: string, time: string, offset: string): Date | null {
   const minute = Number(timeMatch[2]);
   const [, sign, offsetHours, offsetMinutes] = offsetMatch;
 
-  // The regexes above only prove the fields are shaped like a timestamp:
-  // `2026-99-99 25:00 +0099` matches all three, and `Date.UTC` would
-  // silently normalize it into a real-but-wrong instant, storing a match at
-  // a kickoff it never had. Out-of-range components are rejected here so
-  // such a row is skipped like any other unusable one.
+  // Shaped like a timestamp is not one: out-of-range parts would be normalized
+  // into a real but wrong instant.
   if (hour > 23 || minute > 59 || Number(offsetHours) > 23 || Number(offsetMinutes) > 59) {
     return null;
   }
@@ -247,18 +215,11 @@ function parseKickoff(date: string, time: string, offset: string): Date | null {
 }
 
 /**
- * `Forfeited` is a walkover, and TASO counts it: the row carries the awarded
- * result (3-0 in every case observed) and the team's `matches_played`
- * includes it. Mapping it to anything but `FINISHED` drops it from the table
- * while TASO's own numbers still count it, which is how three P20 Ykkönen
- * groups failed to reconcile before this. 36 such matches exist across the
- * competitions spec 013 covers.
+ * TASO's status as the app's. A walkover (`Forfeited`) is `FINISHED`, as TASO
+ * counts it; `Planned` is scheduled; an unknown status passes through verbatim.
  *
- * `Planned` is a fixture whose date is not yet fixed — a scheduled match by
- * any other name, and it must not fall through as an unknown status.
- *
- * Any other status (e.g. "Live") still passes through verbatim rather than
- * crashing on the unexpected. See specs/013-more-finnish-competitions.md.
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
  */
 function normalizeStatus(status: string): string {
   if (status === "Played" || status === "Forfeited") return "FINISHED";
@@ -266,6 +227,14 @@ function normalizeStatus(status: string): string {
   return status;
 }
 
+/**
+ * One TASO match normalized for storage, or `null` for a row that cannot be
+ * stored: a missing field, an unusable id, or no kickoff.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/284-provider-id-validation.md
+ */
 export function normalizeTasoMatch(
   match: TasoProviderMatch,
   competitionId: string,
@@ -287,13 +256,8 @@ export function normalizeTasoMatch(
   )
     return null;
 
-  /**
-   * The four ids the row is stored under, all of them `integer NOT NULL`.
-   * `Number` alone let `""`, `"2abc"` and an over-long digit string through as
-   * 0, NaN and a rounded value — the first two fail the insert for the whole
-   * season, and the third stores the match under a group or team that exists
-   * but is not this one. One unusable row is worth less than the season.
-   */
+  // The four ids the row is stored under. A row with an unusable one is skipped:
+  // it is worth less than the season.
   const providerMatchId = parseProviderId(match.match_id);
   const groupId = parseProviderId(match.group_id);
   const homeTeamProviderId = parseProviderId(match.team_A_id);
@@ -316,13 +280,8 @@ export function normalizeTasoMatch(
     return null;
   }
 
-  // TASO returns a dateless row for every two-legged playoff final,
-  // holding the tie's aggregate score — confirmed to be exactly the sum of
-  // the two legs in 2019, 2022, 2023 and 2024. It is not a fixture and
-  // must not render as one, and the empty date/time is the only thing
-  // marking it: it carries `status: "Played"` and a real score like any
-  // other row. Skipping it here both hides it and keeps one unusable row
-  // from taking down a whole season's sync.
+  // A dateless row is a two-legged final's aggregate, not a fixture. The empty
+  // date is all that marks it, so it is skipped here.
   const kickoffAt = parseKickoff(match.date, match.time, match.time_zone_offset);
   if (kickoffAt === null) {
     logger.warn(
@@ -348,14 +307,10 @@ export function normalizeTasoMatch(
     homeTeamName: match.team_A_name,
     awayTeamProviderId,
     awayTeamName: match.team_B_name,
-    // `""` (an unplayed match's score) and `undefined` both mean "no score
-    // yet", which is what `optionalNumber` already answers for them — it read
-    // the same fields the same way, so a second copy of the rule only gave the
-    // scores their own version of the `Number` traps.
+    // `""` and `undefined` both mean no score yet, which `optionalNumber` answers.
     homeGoals: optionalNumber(match.fs_A),
     awayGoals: optionalNumber(match.fs_B),
-    // Same shape, same rule: `""` means TASO has no half-time score for this
-    // match, which is not the same as 0–0 (specs/036).
+    // Same rule: `""` is no half-time score, which is not 0–0.
     halfTimeHome: optionalNumber(match.hts_A),
     halfTimeAway: optionalNumber(match.hts_B),
     winner: normalizeWinner(match.winner),
@@ -363,27 +318,22 @@ export function normalizeTasoMatch(
 }
 
 /**
- * Every match TASO has for one category's season, regardless of group or
- * status.
+ * Every match TASO has for one category's season, whatever its group or status.
+ * `seasonId` is passed in, never derived from `competitionId`. The category is
+ * part of the request: `group_id`s collide across a season's categories.
  *
- * `seasonId` is passed in rather than derived from `competitionId`. The
- * derivation — an id's last two digits — is right for `spljp26` and wrong for
- * `maajp18`, which is season 2021. Deriving it here stored that bucket's rows
- * under 2018 while every read asked for 2021, so the database never answered
- * and all five of its categories refetched on each request. The caller knows
- * the season; nothing here has to guess it. See specs/017-huuhkajat.md.
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/017-huuhkajat.md
+ * decisions/200-taso-read-cache.md
  */
 export async function getSeasonMatches(
   competitionId: string,
   categoryId: string,
   seasonId: number
 ): Promise<NormalizedTasoMatch[]> {
-  // Cached like football-data's equivalent, and for a reason this provider
-  // makes sharper: a bucket/category pair with no matches stores no rows, so
-  // `getSyncedSeasonMatches` cannot tell "never fetched" from "fetched, and
-  // there is nothing there" and refreshes on every single request. The national
-  // team pages ask about every year × category combination and most are empty,
-  // which made one such pair account for 18 requests in a single test run.
+  // Cached: a pair with no matches stores no rows, so without this an empty
+  // answer is asked again on every request.
   const response = await getCached<MatchesResponse>(
     tasoMatchesCacheKey(competitionId, categoryId),
     MATCHES_CACHE_TTL_SECONDS,
@@ -399,10 +349,11 @@ export async function getSeasonMatches(
 }
 
 /**
- * The oldest season the app offers. Configured rather than discovered:
- * `getCompetitions` lists only *currently published* competitions, so it
- * can answer "what is the current season" but never "what seasons have
- * existed". Mirrors `FOOTBALL_DATA_EARLIEST_SEASON`.
+ * The oldest season the app offers. Configured: TASO lists only currently
+ * published competitions, so it cannot say what seasons have existed.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
  */
 export const EARLIEST_TASO_SEASON = 2015;
 
@@ -417,18 +368,10 @@ export type TasoCompetition = {
 type CompetitionsResponse = { competitions?: TasoCompetition[] };
 
 /**
- * A `competition_id` identifies a *season of all Finnish football*, not a
- * single competition: `spljp26` contains 28 categories, among them `VL`
- * (Veikkausliiga), `M1L` (Ykkösliiga) and `MSC` (Miesten Suomen Cup),
- * which is why every other call here also passes `category_id`. So this
- * pattern is competition-agnostic — any Finnish competition added later
- * shares the same season lookup.
+ * The id of a whole season of Finnish football, which every category shares.
+ * The exact shape matters: `spljphhl26` is another competition with the prefix.
  *
- * The `\d{2}` is load-bearing and must not be relaxed to a prefix test.
- * `spljphhl26` (SPL Huuhkaja-Helmariliiga) is a genuinely separate
- * competition that shares the `spljp` prefix, the `published` status *and*
- * `season_id: 2026` — the exact id shape is the only thing that
- * distinguishes it. See specs/011-current-season-discovery.md.
+ * decisions/011-current-season-discovery.md
  */
 const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 
@@ -463,13 +406,10 @@ export type TasoCategory = {
 type CategoriesResponse = { categories?: TasoCategory[] };
 
 /**
- * Every category in one season, as `category_id → category_name`.
+ * Every category in one season, as `category_id → category_name`: a competition's
+ * name changes between seasons, and a page shows the one that season carried.
  *
- * A competition's name is not stable across seasons: `NL` is "Naisten Liiga"
- * 2015-2019, "Kansallinen Liiga" 2020-2024 and "Briotech Kansallinen Liiga"
- * from 2025, and `M1` alternates between "Ykkönen" and "Miesten Ykkönen". One
- * call covers all 28 categories in a season, so a page shows the name that
- * season actually carried. See specs/013-more-finnish-competitions.md.
+ * decisions/013-more-finnish-competitions.md
  */
 export async function getSeasonCategoryNames(
   competitionId: string
@@ -490,17 +430,10 @@ export async function getSeasonCategoryNames(
 // --- Groups (precomputed standings) ------------------------------------
 
 /**
- * `getGroups`' per-team fields are a mix of native JSON numbers (points,
- * matches_played, etc.) and strings (`team_id`, `final_group_standing`) —
- * confirmed live, an inconsistency with `getMatches`' all-strings
- * convention, not a typo here.
+ * One team's row in a group, as TASO sends it: numbers for the stats, strings for
+ * `team_id` and `final_group_standing`. A knockout group omits the stat fields.
  *
- * Every field is both optional and nullable because a knockout group like
- * Eurolopputurnaus isn't a points competition: TASO **omits** every stat
- * field except `matches_played` there rather than sending `null` for it,
- * so `=== null` alone never detects such a group. That absence is what
- * `keepsATable` keys on.
- *
+ * decisions/009-veikkausliiga.md
  * decisions/010-playoff-group-match-list.md
  */
 export type TasoGroupTeam = {
@@ -519,44 +452,42 @@ export type TasoGroupTeam = {
   final_group_standing?: string | null;
 };
 
+/**
+ * One group as TASO sends it, with its teams' rows.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/281-missing-carry-over-entry.md
+ */
 export type TasoGroup = {
   group_id?: string;
   group_name?: string;
   phase_number?: string;
   category_notice?: string;
   /**
-   * TASO's own classification of what the group is. `group_stage` is a first
-   * round, `additional_group_stage` a continuation that carries the first
-   * round's results forward, `knockout_final` a cup bracket.
-   *
-   * This is what lets a missing carry-over entry be *detected* rather than
-   * merely regretted — see `CARRY_OVER_CONFIG` in taso-standings-service.ts.
+   * What TASO says the group is: `group_stage` a first round,
+   * `additional_group_stage` a continuation, `knockout_final` a cup bracket.
    */
   group_type?: string;
   /**
-   * The group a continuation inherits from, when TASO says. Populated for
-   * recent seasons — 2026's splits point at group 1 — and `"0"` for older ones
-   * (Kakkonen 2019 and Naisten SM 2015 both report 0 for groups whose parent we
-   * have configured), so it is a useful hint to put in a log and not something
-   * to derive the whole mapping from.
+   * The group a continuation inherits from, when TASO says. A hint for a log, not
+   * a source for the mapping: older seasons report `"0"`.
    */
   import_match_group_id?: string;
   teams?: TasoGroupTeam[];
 };
 
 /**
- * `getCategory`'s shape. The groups sit under `category`, where `getGroups`
- * returned them at the top level — see `getSeasonGroups` for why we moved.
+ * `getCategory`'s shape: the groups sit under `category`.
+ *
+ * decisions/272-group-standings-endpoint.md
  */
 type CategoryResponse = { category?: { groups?: TasoGroup[] } };
 
 /**
- * One `getGroups` team row, flattened and typed for storage.
+ * One team's row in a group, flattened and typed for storage. `startingPoints` is
+ * why it exists: standings are wrong without it.
  *
- * `startingPoints` is the field this whole shape exists for: TASO uses it for
- * three different things — a carry-over seed, a points deduction, and a junior
- * qualifying bonus — and standings are wrong without it. See
- * specs/013-more-finnish-competitions.md.
+ * decisions/013-more-finnish-competitions.md
  */
 export type NormalizedTasoGroupTeam = {
   categoryId: string;
@@ -579,27 +510,20 @@ export type NormalizedTasoGroupTeam = {
 };
 
 /**
- * The range a Postgres `integer` column holds. Every numeric column these
- * normalisers feed is one, so a number outside it is not a number we can
- * store: it reaches the driver and fails the whole season's sync rather than
- * costing a single field.
+ * The range a Postgres `integer` column holds, which is every numeric column
+ * these normalisers feed.
+ *
+ * decisions/284-provider-id-validation.md
  */
 const INT4_MIN = -2_147_483_648;
 const INT4_MAX = 2_147_483_647;
 
 /**
  * One numeric field as TASO reported it, or `null` when it reported nothing
- * usable — `undefined` and `null` both mean "not reported", and a knockout
- * group omits the stat fields entirely.
+ * usable: a string is a decimal integer the column can hold, or it is nothing.
  *
- * Two separate rules, because `Number` alone answers for far more than it
- * should. It reads formats TASO does not write — `"0x10"` as 16, `"1e2"` as
- * 100, `"+2"` and `" 2"` as 2, `""` as 0 — and each of those is a made-up
- * value that looks exactly like a reported one. And it reads `"2abc"` as NaN,
- * `"1e400"` as Infinity and `"2.5"` as a decimal, none of which an `integer`
- * column takes, so they would fail at the driver rather than here. So: a
- * string is a decimal integer or it is nothing, and the number it converts to
- * has to be one the column can hold.
+ * decisions/013-more-finnish-competitions.md
+ * decisions/284-provider-id-validation.md
  */
 function optionalNumber(value: number | string | null | undefined): number | null {
   if (value === undefined || value === null) return null;
@@ -610,17 +534,10 @@ function optionalNumber(value: number | string | null | undefined): number | nul
 }
 
 /**
- * A TASO id — a match, a group, a team — or `null` when the field holds
- * something that is not one.
+ * A TASO id (a match, a group, a team), or `null`: a positive decimal integer the
+ * column can hold, or it is not an id.
  *
- * Separate from `optionalNumber` because an id is a *key*. An unusable stat
- * costs one column; an unusable id costs the row its identity, and a
- * plausible-looking wrong one files real data under something else — which is
- * why the string-format rule above matters most here: `"0x10"` reported as
- * group 16 is not a rejected id, it is a real group's table with a foreign
- * team in it. Sign and zero are the rest of it: `Number("-0")` and `Number("")`
- * are zero, which `Number.isInteger` accepts and which no TASO entity has. An
- * id is a positive decimal integer the column can hold, or it is not an id.
+ * decisions/284-provider-id-validation.md
  */
 export function parseProviderId(value: number | string | null | undefined): number | null {
   const parsed = optionalNumber(value);
@@ -628,9 +545,10 @@ export function parseProviderId(value: number | string | null | undefined): numb
 }
 
 /**
- * Flattens `getGroups` into one row per team per group. A group with no teams
- * (TASO returns these for a qualifying match that has not been played yet)
- * contributes no rows, which is what marks it as having no table at all.
+ * Flattens the groups into one row per team per group. A group with no teams
+ * contributes none, which is what marks it as having no table.
+ *
+ * decisions/013-more-finnish-competitions.md
  */
 export function normalizeGroupTeams(
   groups: TasoGroup[],
@@ -675,24 +593,13 @@ export function normalizeGroupTeams(
 }
 
 /**
- * Every group TASO currently returns for one category's season, with its own
- * precomputed standings.
+ * Every group TASO returns for one category's season, with its own precomputed
+ * standings. Read from `getCategory`: TASO refuses `getGroups`. The category is
+ * part of the request, as for `getSeasonMatches`.
  *
- * **Reads `getCategory`, not `getGroups`** (#272). TASO answers `getGroups`
- * with `{"status":"error","error":"Not allowed"}` for every category and season
- * we tried, including ones whose data we already hold — while `getCategories`
- * with the same key and headers returns 200, so it is the endpoint rather than
- * the credential. Driving tulospalvelu.palloliitto.fi through a browser and
- * capturing every `taso/rest` request shows the site itself never calls
- * `getGroups`; it reads standings from `getCategory`.
- *
- * The failure was invisible because `getSyncedGroupTeams` falls back to stored
- * rows. Groups we had already synced kept rendering their last-known numbers,
- * so only a *new* group showed the problem — which is why a split round opened
- * at zero while finished seasons looked fine.
- *
- * The team rows carry the same field names either way; only the nesting
- * differs.
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/272-group-standings-endpoint.md
  */
 export async function getSeasonGroups(
   competitionId: string,

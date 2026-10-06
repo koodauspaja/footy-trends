@@ -162,3 +162,11 @@ Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
   quarter-final and appear in the bottom semi-final, as the real MSC 2025 bracket
   does. It works back from the last round, and is presentation only, so
   `buildBracket` stays chronological for the round lists.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`NormalizedTasoMatch.winner`.** Verified live: `MSC` 2025 returns `Home` or
+  `Away` for all 419 matches including the 55 level ones, while `VL` 2025
+  returns `Tie` for exactly its 40 level matches.

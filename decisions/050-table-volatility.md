@@ -36,3 +36,15 @@ The Premier League and Veikkausliiga signed in, at 375 px in light and dark and 
 1280 px: three Premier League seasons of 20 teams, the selected season ringed;
 Veikkausliiga with two seasons left out and the line saying so; the Champions
 League without the panel; Kakkonen showing the too-few message.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`LeaguePath`.** Shared by the team page's position chart and the
+  competition page's table movement, so the two cannot place a team
+  differently.
+- **`getTasoSeasonMovements`.** Never `getSyncedSeasonMatches`, which asks TASO
+  for a season with nothing stored. Each season is kept to its own
+  `(competition_id, category_id)` pair, and the rounds are renumbered as the
+  standings page's are, so every table is the page's own.

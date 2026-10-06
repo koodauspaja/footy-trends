@@ -62,3 +62,15 @@ panel says how many it could not read.
   figures are asserted against the seeded season, which is rewritten every run;
   the live league is checked for `won + drew ≤ trailed ≤ played`, and for the
   no-data message when it has none.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`TasoProviderMatch.hts_A`.** Present for all but one of Ykkönen 2025's 132
+  played matches, and for all of Veikkausliiga 2015, 2019 and 2025: measured.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`FinishedMatchRow`.** Not narrowed to `NormalizedMatch`, which is a subset
+  of the row, so `calculateStandings` and the rest still take one unchanged.

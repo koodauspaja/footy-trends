@@ -57,3 +57,23 @@ one failure it exists to catch.
 - **A `WC` or `EC` club's records will rarely span two seasons**, because
   specs/039 joins only consecutive years and tournaments are four apart. That is
   correct: a run cannot cross a tournament the team did not play.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **The empty case in `readTasoSeason`.** Either selection reports an error
+  only when the classification failed, which is handled earlier and cached.
+  What "counted" means is the competition's own shape. For a league season it
+  is its table groups, so a season played entirely in knockout groups has
+  none: the rule `Vire`, `Maalit` and the standings table apply, and why the
+  playoff is excluded from `Putket`. For a cup season it is every group. Either
+  way the baseline counts what the selected season's own measures count.
+- **`teamCupMatches`.** Beside `teamLeagueMatches` on purpose, not a flag inside
+  it. That function's table-groups-only step is what keeps the Veikkausliiga
+  playoff out of `Putket`, `Kääntyneet ottelut` and every other panel; one
+  function that sometimes skipped the step would put that rule one edit away
+  from being widened.
+- **`teamPanelMatches`.** The services call this and never either function, so
+  the choice is made once and no panel can disagree with another about what a
+  cup match is.
