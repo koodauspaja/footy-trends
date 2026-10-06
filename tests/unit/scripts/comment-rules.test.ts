@@ -20,7 +20,7 @@ import {
  *
  * decisions/531-comments-say-what-code-is-for.md
  */
-const RECORDED_ISSUE_CITATIONS = 454;
+const RECORDED_ISSUE_CITATIONS = 453;
 
 const texts = (comments: readonly Comment[]) => comments.map((comment) => comment.text);
 
