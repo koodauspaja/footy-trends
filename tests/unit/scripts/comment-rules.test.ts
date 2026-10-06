@@ -137,8 +137,9 @@ describe("stackedDocComments", () => {
     expect(stacked("/** The module. */\n\n/** For f. */\nfunction f() {}")).toEqual([]);
   });
 
-  it("passes doc comments with code between them", () => {
+  it("passes doc comments with code between them, on lines of its own or the same one", () => {
     expect(stacked("/** For a. */\nconst a = 1;\n/** For f. */\nfunction f() {}")).toEqual([]);
+    expect(stacked("/** For a. */ const a = 1; /** For b. */\nconst b = 2;")).toEqual([]);
   });
 
   it("passes a doc comment beside a plain comment, either way round", () => {
