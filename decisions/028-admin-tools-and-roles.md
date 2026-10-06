@@ -304,3 +304,42 @@ Cut from `src/lib/admin-guard.ts` at `dc74e3e` by #531.
   better-auth, which queries Postgres, so it fails for exactly the reasons
   the lookup does. Left outside, a session-read failure threw a 500 where the
   contract is to refuse.
+
+Cut from `src/app/admin/page.tsx` at `dc74e3e` by #531.
+
+- **`/yllapito` is dynamic.** A build artefact of the page would contain
+  every user's email address.
+- **The refusal on `/yllapito`.** A 403 says "this exists and you may not
+  have it", a fact a stranger has no use for. Everyone refused gets the same
+  generic page: no admin markup, no admin title, nothing in the body that
+  distinguishes it from any other missing URL. The status is 200 and not 404
+  as a framework limit: `src/app/loading.tsx` puts every segment behind a
+  Suspense boundary, so the response streams and Next commits the status line
+  before `notFound()` is caught; its documentation says "200 for streamed
+  responses, and 404 for non-streamed". So the route is identifiable as real
+  by status alone. A proxy was built to close that and deleted again: it
+  could only read the session cookie, not validate it, so
+  `Cookie: better-auth.session_token=x` walked straight through, 200 against
+  the 404 an absent cookie got. Machinery whose stated purpose it does not
+  achieve is worse than none. What refuses is `requireAdmin()`, here and on
+  every action; the route being discoverable costs an attacker one fact and
+  gains them nothing.
+
+Cut from `src/lib/admin-user-view.ts` at `dc74e3e` by #531.
+
+- **`admin-user-view.ts`.** The same boundary as `favourite-keys.ts` and
+  `avatar-limits.ts`, for the same reason: `admin-users.ts` opens `@/db`.
+  Keeping the type and the refusal vocabulary apart means the browser bundle
+  never reaches the query layer to learn what a row looks like.
+- **`USERS_PER_PAGE`.** It replaced a hard cap of 500. The cap kept the
+  render bounded but made the oldest accounts unreachable once it was hit,
+  and a notice saying so only made that visible. Fifty is a screenful with
+  scrolling and keeps the query small; the number is a judgement, not a
+  measurement, and changing it changes nothing else.
+- **`pageFrom`.** The parameter is attacker-controlled and arrives as a
+  string: `"0"`, `"-3"`, `"2abc"`, `"1e3"`, an array from a repeated
+  parameter, `undefined`. `Number()` alone would accept several of those,
+  `Number("0x10")` is 16, which is the parser class `skills/self-review.md`
+  names.
+- **`isAdminRole`.** `isAdmin(entry.role)` would invite being read as "is
+  this entry an admin object".

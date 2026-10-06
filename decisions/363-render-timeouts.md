@@ -1,6 +1,6 @@
 # 363 — A page render's provider requests are bounded: decisions
 
-Bug #363 had no record of its own; #531 created this one for reasons cut
+Chore #363 had no record of its own; #531 created this one for reasons cut
 from the comments of its code.
 
 ## Moved from comments, 2026-10-06

@@ -1,10 +1,9 @@
 /**
- * How a competition's matches end — home win, draw, away win — set beside the
- * same for every other competition: the data behind the standings page's
- * `Kotietu ja tasapelit` (specs/049).
+ * How a competition's matches end (home win, draw, away win) beside the same
+ * for every other competition: the data behind the standings page's
+ * `Kotietu ja tasapelit`. Pure: the services count each season's results.
  *
- * Pure: the services count each competition-season's results, and this decides
- * which seasons count, turns the counts into shares, and orders the rows.
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 
 import { getCompetitionName } from "./competitions";
@@ -13,8 +12,10 @@ import type { MatchSource } from "./match-source";
 
 /**
  * The statuses of a match still to be played, on either provider. A season with
- * any of them is not completed (S19). A postponed, suspended, cancelled,
+ * any of them is not completed. A postponed, suspended, cancelled,
  * awarded or abandoned match is not among them: it does not hold a season open.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export const LEFT_TO_PLAY = [
   "SCHEDULED",
@@ -28,12 +29,16 @@ export const LEFT_TO_PLAY = [
   "Live",
 ] as const;
 
-/** One competition-season's counts, as the services read them. */
+/**
+ * One competition-season's counts, as the services read them.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export type SeasonOutcomes = {
   kind: MatchSource["kind"];
   code: string;
   seasonId: number;
-  /** Finished matches with both scores stored (S3). */
+  /** Finished matches with both scores stored. */
   matches: number;
   homeWins: number;
   draws: number;
@@ -44,7 +49,11 @@ export type SeasonOutcomes = {
   spansCalendarYears: boolean;
 };
 
-/** One competition's row. Shares are 0–100, unrounded. */
+/**
+ * One competition's row. Shares are 0–100, unrounded.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export type OutcomeRow = {
   kind: MatchSource["kind"];
   code: string;
@@ -53,33 +62,43 @@ export type OutcomeRow = {
   homeShare: number;
   drawShare: number;
   awayShare: number;
-  /** `Kotietu`: the home-win share minus the away-win share, unrounded (S5, S14). */
+  /** `Kotietu`: the home-win share minus the away-win share, unrounded. */
   advantage: number;
 };
 
-/** The first and last season a kind of season covers in the table. */
+/**
+ * The first and last season a kind of season covers in the table.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export type SeasonRange = { first: number; last: number };
 
 export type OutcomeShares =
   | {
       status: "ok";
-      /** Strongest `Kotietu` first (S11). */
+      /** Strongest `Kotietu` first. */
       rows: OutcomeRow[];
-      /** Calendar-year seasons in the table, or null when none is (S18). */
+      /** Calendar-year seasons in the table, or null when none is. */
       calendarYears: SeasonRange | null;
-      /** Seasons such as `2024/25` in the table, or null when none is (S18). */
+      /** Seasons such as `2024/25` in the table, or null when none is. */
       spanningYears: SeasonRange | null;
     }
   | { status: "error" };
 
-/** `Kotietu` as printed: whole percentage points, never `-0`. */
+/**
+ * `Kotietu` as printed: whole percentage points, never `-0`.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export function roundedAdvantage(advantage: number): number {
   return Math.round(advantage) || 0;
 }
 
 /**
- * Whether a season counts (S8, S19): from the plan floor on, with finished
+ * Whether a season counts: from the plan floor on, with finished
  * matches and none left to play.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 function counts(season: SeasonOutcomes, floor: number): boolean {
   return season.seasonId >= floor && season.matches > 0 && season.leftToPlay === 0;
@@ -93,9 +112,9 @@ function widen(range: SeasonRange | null, seasonId: number): SeasonRange {
 
 /**
  * The table: one row per competition with a counted season, its counts summed
- * over them, ordered by `Kotietu` as printed and then by more matches (S11,
- * S17). Ordering by the printed value keeps two rows reading `+16` in the order
- * S17 gives, rather than by a decimal the reader cannot see.
+ * over them, ordered by `Kotietu` as printed and then by more matches.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export function outcomeShares(
   seasons: readonly SeasonOutcomes[],

@@ -424,3 +424,10 @@ Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
 - **Finnish seasons.** A Finnish season is a single calendar year, not a
   year-spanning one like the foreign leagues, so the label is just the year,
   in the same descending order as `listSelectableSeasons`.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **`MatchListTable`.** Shared by football-data.org's `/ulkomaat/ottelut`
+  and `/ulkomaat/joukkue/:id` and `/kotimaa`'s equivalents. Only the
+  team-name link behaviour and the fourth column, `Kierros`' matchday against
+  `Sarja`'s group name, differ between them.

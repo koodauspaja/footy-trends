@@ -172,3 +172,13 @@ Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
 
 - **`axis` on `AnalyticsSection`.** A page that forgot it would quietly
   claim its panels were about a season.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **The analytics on a national team's page.** The panels cannot sit inside
+  one year. The loaders are computed from `result.years`, so the section adds
+  no query and no provider request. They stay thunks because
+  `AnalyticsSection` checks the sign-in gate before calling any of them, and
+  a signed-out page must carry no computed value at all. The `incomplete`
+  notice already says the history may be short, and a partial history is
+  still a history: the same trade as on the list itself.

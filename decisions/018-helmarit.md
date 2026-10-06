@@ -174,3 +174,11 @@ Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
   return no rows at all, and two more hold only other teams' matches.
 - **Buckets in `getNationalTeamYears`.** `maajp18` holds three years of
   Huuhkajat matches and four of Helmarit's.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **`NationalTeamPage`.** No season selector: 85 matches for each team, so a
+  reader scrolls and does not step through a dropdown. Sections are calendar
+  years, which is not the same as the provider's season buckets; `maajp18`
+  alone spans four of them. The two teams differ only in the category suffix
+  that selects their matches and in what the page is called.

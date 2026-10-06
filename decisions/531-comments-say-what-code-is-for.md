@@ -212,3 +212,28 @@ After the review of the fifth batch, each batch is also swept for three things
 before it opens: history wording left in a short comment, a parameter the old
 comment explained and the new one no longer names, and a rule whose reach
 shrank in the rewrite.
+
+## The eighth batch, 2026-10-06
+
+Nineteen files in full: in `src/lib`, `admin-user-view.ts`, `admin-users.ts`,
+`competition-preferences.ts`, `current-user.ts`, `elo.ts`, `goals-per-game.ts`,
+`outcome-shares.ts`, `prediction-quality.ts`, `sign-in-allowlist.ts` and
+`team-page-context.ts`; in `src/components`, `competition-analytics.tsx`,
+`match-list-table.tsx`, `national-team-page.tsx`, `standings-table.tsx` and
+`team-matches-outcome.tsx`; `src/app/admin/page.tsx`,
+`src/app/settings/page.tsx`, `src/db/index.ts` and
+`src/instrumentation-client.ts`. 37 182 characters of comment became 25 906,
+measured after the fixes the reviews of the sixth and seventh batches brought.
+
+Four records are new: `140` (Sentry's production configuration), `169` (the
+one-shot production backfill), `498` (a match list prints the score as the
+match page does) and `536` (a missing `DATABASE_URL` fails by name).
+
+From this batch on, a comment that needs no judgement is rewritten by a
+script and not by hand. The script is a local one-off of this chore's and is
+not in the repository; what it does is all of this: a doc comment of three
+lines or fewer whose only fault is a bare citation in parentheses, `(S4)` or
+`(specs/053 S2)`, loses the citation, and on a declaration gains the path of
+the record its last writer belongs to. 73 of this batch's comments went that
+way. Everything longer, and every citation that is part of a sentence, is
+still read and rewritten.

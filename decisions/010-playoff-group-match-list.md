@@ -149,3 +149,8 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
 
 - **Knockout groups in `GroupBody`.** TASO returns one row per bracket slot,
   so an advancing team would repeat itself down the rows of a table.
+
+Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
+
+- **`StandingsRow`'s nullable fields.** football-data's are always numeric;
+  TASO reports its optionally.

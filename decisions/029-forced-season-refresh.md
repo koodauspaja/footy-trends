@@ -642,3 +642,9 @@ Cut from `src/lib/refresh-runs.ts` at `ef7eb13` by #531.
   mean a provider call per row just to learn whether a foreign season spans
   two calendar years, so a run would read `2025` where the picker says
   `2025/26`.
+
+Cut from `src/db/index.ts` at `dc74e3e` by #531.
+
+- **`Executor`.** Without the parameter a writer silently commits on its own
+  connection while its caller believes it is inside a transaction, which is
+  what `force-refresh.ts` believed, and did not have, until review said so.

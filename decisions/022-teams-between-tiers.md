@@ -194,3 +194,19 @@ Cut from `src/lib/team-seasons.ts` at `94397a8` by #531.
 - **The season being shown.** A dropdown that omits it has nothing selected,
   so the browser displays its first option and the control claims a different
   season from the page.
+
+Cut from `src/components/team-matches-outcome.tsx` at `dc74e3e` by #531.
+
+- **`TeamOutcome`.** Both team pages had the same six conditions written
+  out, and Sonar counted fourteen duplicated lines. The outcomes: matches to
+  show, the caller's table passed in; the club exists but played elsewhere
+  that season, an explanation and a link to where it was; the competition and
+  season exist for this club but hold no matches yet; nothing is stored for
+  this id at all; the lookup failed. The heading above already names the
+  club, the competition and the season, so the missing-season sentence needs
+  no inflected competition name: Finnish case endings are not something to
+  derive from a registry string.
+- **The list's verdict comes first.** Both services answer
+  `refreshFailed ? error : empty`, so `empty` stays true whether or not the
+  club's other seasons could be read, and reporting an outage in its place
+  would be less accurate, not more.

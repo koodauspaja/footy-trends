@@ -375,3 +375,31 @@ Cut from `src/lib/favourite-keys.ts` at `dc74e3e` by #531.
 - **`parseTeamKey`.** The client cannot vouch for the payload, and a
   malformed key must render nothing and not a link to a team that does not
   exist.
+
+Cut from `src/lib/current-user.ts` at `dc74e3e` by #531.
+
+- **`getAuthInstance`'s dynamic import.** `@/lib/auth` constructs
+  better-auth at module scope, and that constructor requires
+  `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`. A `"use server"` module is
+  imported by name from client components: Next replaces it with a network
+  stub at build time, so production never evaluates this chain in a browser
+  and never noticed. Any environment without that transform does, and the CI
+  unit job has no environment at all, deliberately. The toggle renders inside
+  `standings-table` and the region picker, so importing the actions module
+  statically put better-auth in the import graph of eight test files that
+  have nothing to do with authentication, and 114 tests failed in CI while
+  passing locally, where a `.env` happens to exist.
+- **`currentUserId` is shared.** It was written three times, identically, in
+  `settings-actions.ts`, `avatar-actions.ts` and `favourite-actions.ts`.
+  Three copies of the rule that no action takes a user id from its caller is
+  how one of them ends up not following it, the reasoning that produced
+  `session-extras.ts`. Reading the id from the session removes "do this for
+  someone else" as a category where a check would only look for it, and one
+  function cannot be half-applied.
+
+Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
+
+- **`favouriteSource`.** Passed and not derived from the region:
+  `/maajoukkueet` shows football-data's World Cup standings and TASO's
+  national-team pages, so the region does not decide the provider. A bracket
+  or a pass-through group has rows that are not teams anyone can follow.

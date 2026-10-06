@@ -48,3 +48,9 @@ Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
   only some of the others. One aggregate per provider, from the football-data
   plan floor on. Which seasons are completed is decided from the same rows,
   so no provider is asked for a current season.
+
+Cut from `src/lib/outcome-shares.ts` at `dc74e3e` by #531.
+
+- **The order in `outcomeShares`.** Ordering by the printed value keeps two
+  rows reading `+16` in the order the tie-break gives, and not by a decimal
+  the reader cannot see.

@@ -333,3 +333,10 @@ Cut from `src/components/match-page.tsx` at `94397a8` by #531.
   id.
 - **`MatchPage`.** Five routes share this body, `/maajoukkueet` needing two of
   them. A not-found inside the page shell is what the team pages already do.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **`matchHref`.** No caller has ever needed one row to differ from its
+  neighbours. The date carries the link and not the row: `Pvm` is the one
+  column every one of these tables has, it is never a link otherwise, and it
+  does not nest inside the team links the `Ottelu` column already carries.
