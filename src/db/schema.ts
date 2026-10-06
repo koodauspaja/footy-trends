@@ -66,7 +66,6 @@ export const matches = pgTable(
     seasonId: integer("season_id").notNull(),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     matchday: integer("matchday"),
-    // The default keeps rows from before the column accurate.
     status: text("status").notNull().default("FINISHED"),
     // Cup competitions only; null for a league.
     stage: text("stage"),

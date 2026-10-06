@@ -84,7 +84,7 @@ Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
   request, and its first version called `getSeasonContext`, which hangs a test
   runner with no API key and made the promise false. The flag only shapes a
   label (`2023/24` against `2026`), and that is region-shaped: the foreign
-  competitions are leagues played across a winter, the national-team ones
+  competitions' seasons cross a calendar year, the national-team ones are
   tournaments inside one summer. TASO ignores the flag. It lives here and not
   in the page because the opponents panel states the same window.
 - **`OpponentRecord`.** A row and the page it links to cannot disagree, since
