@@ -159,10 +159,12 @@ describe("longDocComments", () => {
     ]);
   });
 
-  it("leaves a long run of line comments alone", () => {
-    const source = Array.from({ length: 20 }, () => "// line").join("\n");
+  it("leaves a long run of line comments alone, and a long plain block comment", () => {
+    const lines = Array.from({ length: 20 }, () => "// line").join("\n");
+    const block = ["/*", ...Array.from({ length: 18 }, () => " * line"), " */"].join("\n");
 
-    expect(longDocComments("a.ts", commentsOf("a.ts", source))).toEqual([]);
+    expect(longDocComments("a.ts", commentsOf("a.ts", lines))).toEqual([]);
+    expect(longDocComments("a.ts", commentsOf("a.ts", block))).toEqual([]);
   });
 });
 
@@ -176,6 +178,7 @@ describe("listSourceFiles", () => {
     }
     for (const file of [
       "src/lib/b.ts",
+      "src/lib.ts",
       "src/a.tsx",
       "src/c.mts",
       "config.mjs",
@@ -190,7 +193,13 @@ describe("listSourceFiles", () => {
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
   it("lists TypeScript sources sorted, and skips dependencies and git", () => {
-    expect(listSourceFiles(root)).toEqual(["config.mjs", "src/a.tsx", "src/c.mts", "src/lib/b.ts"]);
+    expect(listSourceFiles(root)).toEqual([
+      "config.mjs",
+      "src/a.tsx",
+      "src/c.mts",
+      "src/lib.ts",
+      "src/lib/b.ts",
+    ]);
   });
 });
 

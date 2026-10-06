@@ -49,8 +49,7 @@ export function listSourceFiles(root: string, directory = "."): string[] {
 }
 
 function scriptKind(file: string): ts.ScriptKind {
-  if (file.endsWith(".tsx")) return ts.ScriptKind.TSX;
-  return file.endsWith(".mjs") ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
 }
 
 /**
