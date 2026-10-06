@@ -6,21 +6,19 @@ import { getSeasonMovements } from "@/lib/standings-service";
 import { getTasoSeasonMovements } from "@/lib/taso-standings-service";
 
 /**
- * The season reads behind `Sijoitusten vaihtelu` (specs/050) against a real
- * Postgres: only completed seasons, only stored rows, and on TASO only each
- * season's own competition and category.
+ * The season reads behind `Sijoitusten vaihtelu` against a real Postgres: only
+ * completed seasons and stored rows, and on TASO only each season's own
+ * competition and category. Codes no provider issues: the reads span a history.
  *
- * Codes no provider issues, so the reads — which span a competition's whole
- * history — see only these rows; the ids are deleted either side of every test.
+ * decisions/050-table-volatility.md
  */
+
 const FD_CODE = "ZZ50";
 const TASO_CODE = "ZZ50T";
 const IDS = Array.from({ length: 20 }, (_, index) => 996001 + index);
 
-/**
- * Four teams, three rounds. After round 2 — halfway, ⌈3 / 2⌉ — the order is
- * a, c, b, d; at the end a, b, c, d. b and c trade places: 2 places over 4 teams.
- */
+// Four teams, three rounds. After round 2, halfway, the order is a, c, b, d;
+// at the end a, b, c, d. b and c trade places: 2 places over 4 teams.
 const RESULTS: Array<[number, number, number, [number, number]]> = [
   [1, 1, 2, [2, 0]],
   [1, 3, 4, [1, 0]],
@@ -67,7 +65,7 @@ describe("a foreign competition's completed seasons (specs/050)", () => {
   it("measures each completed season from what is stored, leaving the season in progress out", async () => {
     await db.insert(matches).values([
       ...RESULTS.map((result, index) => row(IDS[index] as number, 2030, result)),
-      // The season in progress: not a point (S3).
+      // The season in progress: not a point.
       ...RESULTS.map((result, index) => row(IDS[index + 6] as number, 2031, result)),
     ]);
 

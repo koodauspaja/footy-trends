@@ -122,3 +122,12 @@ Cut from `src/components/streak-records-section.tsx` at `ef99862` by #531.
   something a reader can find. `Putket` keeps `Ottelut 5–9` for the season it
   shows: the two panels answer different questions, so a different unit for
   "when" is honest and not inconsistent.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/integration/standings.test.ts` at `79f2c6a` by #531.
+
+- **`clearFixtures` in `standings.test.ts`.** Leaving the second season
+  behind let one test's rows reach the next one's baseline; found when a
+  records test made a comparison test read 1,5 points a match where it
+  expected 0.

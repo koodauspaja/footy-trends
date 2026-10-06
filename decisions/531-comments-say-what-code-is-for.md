@@ -332,3 +332,37 @@ Usage lines stay where they fit in three lines (`review-findings.ts`,
 `release-pr.ts`, `backfill.ts`, `grant-admin.ts`, `issue-boxes.ts`,
 `predictions.ts`); the six modes of `release-version.ts` do not fit, and are in
 record 085.
+
+## The twelfth batch, 2026-10-07: the first of the tests
+
+A small batch, to settle how tests are done before the other 216 files: the 17
+files of `tests/integration` and the five shared modules under `tests/support`
+and `tests/shared`. 38 288 characters of comment became 25 698.
+
+**How a test file is done**, as agreed with Miikka on 2026-10-06 and
+2026-10-07, and corrected by the hand review of this batch. It differs from
+`src/` in four ways.
+
+- **The header carries the record paths, once.** It sits after the imports with a
+  blank line under it, so it is the file's and not the first constant's. It says
+  what the file tests and cites the record of the feature the tests were first
+  written for, then the records of any later change that added tests. A helper
+  inside the file takes a line comment and no path of its own.
+- **A test's name says what it protects.** A comment stays, in one to three
+  lines, where the body cannot show something, and what stays is the reason: why
+  a fixture has this value, why two calls start before either is awaited, why the
+  assertion is on one thing and not another. A comment that says only what the
+  code does is the one to cut.
+- **Only history leaves the file**: what broke, which review found it, what the
+  earlier version did.
+- **The record is read first.** Tests were mostly written with the fix they
+  prove, and its record usually tells the story already. History goes to the
+  record only where the record lacks it; otherwise it is simply cut. The first
+  version of this batch moved every story, and ten of the sixteen records it
+  appended to had said the same thing before.
+
+The five shared modules, which are not tests, are done as `src/` is, with a
+path on each declaration.
+
+Issue and spec citations inside a test's name, `it("… (#528)")`, are left: a
+name is a string in the code, and this chore changes comments only.

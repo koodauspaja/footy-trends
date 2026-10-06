@@ -6,6 +6,17 @@ import { calculateStandings } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
 
+/**
+ * The TASO sync and the reads over its rows, against a real Postgres. Carry-over
+ * config validation is in `tests/unit/lib/taso-carry-over.test.ts`, not here.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/127-carry-over-config-validation.md
+ * decisions/196-concurrent-group-syncs.md
+ */
+
 vi.mock("@/lib/taso", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso")>();
   return { ...actual, getSeasonMatches: vi.fn(), getSeasonGroups: vi.fn() };
@@ -13,12 +24,12 @@ vi.mock("@/lib/taso", async (importOriginal) => {
 
 const competitionId = "spljp901101";
 const seasonId = 901101;
-/** Makes `seasonId` a completed past season rather than the one being played. */
+// Makes `seasonId` a completed past season, not the one being played.
 const laterActiveSeasonId = seasonId + 1;
 
 const CATEGORY_ID = "VL";
 
-/** Narrows to matches with a final score, mirroring standings-service.ts's own filter. */
+// Narrows to matches with a final score, mirroring standings-service.ts's own filter.
 function toFinishedMatches<T extends { homeGoals: number | null; awayGoals: number | null }>(
   rows: T[]
 ): Array<T & { homeGoals: number; awayGoals: number }> {
@@ -52,7 +63,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   };
 }
 
-/** Scoped by season + competition, so it clears every category's fixtures alike. */
+// Scoped by season and competition, so it clears every category's fixtures alike.
 async function clearFixtures() {
   await db
     .delete(tasoMatches)
@@ -128,8 +139,8 @@ describe("taso integration", () => {
   });
 
   it("fills in a half-time score a later sync brings, which is what the backfill does", async () => {
-    // TASO gave no half-time score for 1 of Ykkönen 2025's 132 matches, and
-    // every row stored before specs/036 has `null` here.
+    // TASO gives no half-time score for some matches, and rows stored before the
+    // columns existed have `null` here.
     const { synchronizeMatches } = await import("@/lib/taso-standings-service");
     const providerMatch = buildMatch({ halfTimeHome: null, halfTimeAway: null });
 
@@ -145,10 +156,8 @@ describe("taso integration", () => {
     expect(stored[0]).toMatchObject({ halfTimeHome: 1, halfTimeAway: 2 });
   });
 
-  // The reason `category_id` exists at all: one `competition_id` is the whole
-  // season umbrella, and `group_id` is only unique *within* a category. In
-  // spljp26 Veikkausliiga, Miesten Kakkonen and Ykkönen each have a group 1.
-  // See specs/013-more-finnish-competitions.md.
+  // One `competition_id` is the whole season umbrella, and `group_id` is only
+  // unique within a category.
   it("keeps two categories' identically-numbered groups apart", async () => {
     const { synchronizeMatches, getSeasonStandings, getSeasonMatchList } = await import(
       "@/lib/taso-standings-service"
@@ -383,29 +392,10 @@ describe("taso integration", () => {
   });
 });
 
-/**
- * Carry-over config validation lives in
- * `tests/unit/lib/taso-carry-over.test.ts`, not here.
- *
- * A synthetic version of it used to sit in this file, building matches whose
- * win/draw/loss counts were engineered to total KuPS's real 67 points from
- * 32 games. That proved `calculateStandings` can add up — which its own
- * tests already cover — while proving nothing about `CARRY_OVER_CONFIG`,
- * the thing that actually fails silently when wrong. Removing an entry left
- * it green.
- *
- * The replacement drives the real `getSeasonStandings` over captured TASO
- * matches and asserts each split group against TASO's own published
- * standings, for every configured season. See #127.
- */
-
 describe("synchronizeGroupTeams concurrency", () => {
   it("survives concurrent syncs against an empty table", async () => {
-    // Regression for #196. The delete inside the transaction locks nothing when
-    // the season has no rows yet, so two concurrent syncs both find it clear and
-    // both insert — and one dies on the identity index. Only reachable on a cold
-    // database, which is exactly a first deploy, and exactly when there is no
-    // stored data for the caller's catch to fall back to.
+    // The delete inside the transaction locks nothing when the season has no rows
+    // yet, so two concurrent syncs on a cold database both insert.
     const seasonId = 901102;
     const rows = [1, 2, 3].map((id) => ({
       categoryId: "VL",

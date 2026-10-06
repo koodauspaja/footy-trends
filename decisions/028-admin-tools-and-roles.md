@@ -379,3 +379,17 @@ Cut from `src/lib/admin-actions.ts` at `48ebab4` by #531.
   menu link nor the page's not-found answer keeps a caller out; only the
   gate does. `favourite-actions.ts` follows the same rule about the acting
   user's id.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/integration/admin.test.ts` at `79f2c6a` by #531.
+
+- **What `admin.test.ts` can show and a mock cannot.** The acceptance
+  criterion says to verify the cascade by querying each table, and a mocked
+  transaction cannot demonstrate two demotions running at once. An earlier
+  version of the concurrent test passed `READER_ID` as the actor for both
+  calls, so neither was an admin acting and the test passed without
+  exercising what it described: `changeRole` does not check the actor's
+  role, because `requireAdmin()` does that a layer up. The race between
+  count and page is inherent to reading a live table and harmless for a list
+  refetched on every request, but the test must not claim otherwise.
