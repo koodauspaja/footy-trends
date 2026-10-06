@@ -1,9 +1,9 @@
 import { parseWholeNumber } from "./provider-ids";
 /**
- * A round is a matchday. Which rounds are selectable depends on the season
- * (how many matchdays have at least one stored match), so — unlike seasons —
- * there is no independent floor/ceiling to configure; the caller supplies
- * the season's highest known matchday.
+ * A round is a matchday. Which rounds are selectable depends on the season, so
+ * the caller supplies the season's highest known matchday.
+ *
+ * decisions/003-standings-after-selected-round.md
  */
 
 export type RoundParamResult =
@@ -11,7 +11,11 @@ export type RoundParamResult =
   | { kind: "valid"; round: number }
   | { kind: "invalid" };
 
-/** Every round from 1 to the season's highest known matchday. */
+/**
+ * Every round from 1 to the season's highest known matchday.
+ *
+ * decisions/003-standings-after-selected-round.md
+ */
 export function listSelectableRounds(maxMatchday: number | null): number[] {
   if (maxMatchday === null || maxMatchday < 1) return [];
   return Array.from({ length: maxMatchday }, (_, index) => index + 1);
@@ -20,6 +24,8 @@ export function listSelectableRounds(maxMatchday: number | null): number[] {
 /**
  * Validates the `kierros` query parameter against the season's highest known
  * matchday. An unvalidated value must never reach a cache key or a query.
+ *
+ * decisions/003-standings-after-selected-round.md
  */
 export function parseRoundParam(
   rawValue: string | string[] | undefined,
@@ -38,9 +44,10 @@ const FINISHED_STATUS = "FINISHED";
 
 /**
  * The round to show by default: the earliest not-yet-finished match's
- * matchday, or the season's last round if everything is `FINISHED`. Callers
- * must supply a non-empty `matches` list and its season's `maxMatchday` —
- * an empty season has no "current round" and is the caller's own concern.
+ * matchday, or `maxMatchday`, the season's last round, if everything is
+ * `FINISHED`. `matches` must not be empty.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export function resolveCurrentRound(matches: RoundCandidate[], maxMatchday: number): number {
   const nextUnplayed = matches

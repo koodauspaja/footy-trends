@@ -4,16 +4,11 @@ import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 
 /**
- * The page Next renders when the app itself has failed: in place of the root
- * layout, `<html>` and all.
+ * The page Next renders when the app itself has failed, in place of the root
+ * layout. It leans on nothing of the app's own, and the way home is a plain
+ * link, not a `Link`, so it is a full page load.
  *
- * **It leans on nothing else.** No layout, no stylesheet, no component of the
- * app's own: whatever failed may be one of them. It used to render Next's
- * default error page, which is in English under `lang="en"` (#533).
- *
- * The way home is a plain link and not a `Link`: a full page load is the
- * point, since the router that would handle a client navigation belongs to
- * what just failed.
+ * decisions/533-finnish-error-pages.md
  */
 export default function GlobalError({ error }: Readonly<{ error: Error & { digest?: string } }>) {
   useEffect(() => {

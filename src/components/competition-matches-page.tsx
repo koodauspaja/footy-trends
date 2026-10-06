@@ -116,13 +116,12 @@ type StageMatch = {
 };
 
 /**
- * The match list's fourth column, or nothing.
+ * The match list's fourth column, or nothing: rounds for a league or group
+ * phase, legs for a two-legged knockout round, and no column for a single-leg
+ * knockout round.
  *
- * A league or group phase numbers its matches as rounds. A **two-legged**
- * knockout round numbers them as legs. A single-leg knockout round numbers
- * them as neither — and its `matchday` is whatever the provider happens to
- * carry there, which is null for the World Cup and a continued group counter
- * for the European Championship. Either way it is not a leg, so no column.
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
  */
 function fourthColumnFor(stage: string | undefined, matches: StageMatch[]) {
   if (stage !== undefined && !TABLE_PRODUCING_STAGES.has(stage)) {
@@ -145,7 +144,12 @@ function fourthColumnFor(stage: string | undefined, matches: StageMatch[]) {
   };
 }
 
-/** The league shape: one round at a time, with ◀/▶ navigation. */
+/**
+ * The league shape: one round at a time, with ◀/▶ navigation.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
 async function renderLeagueMatches({
   resolved,
   params,
@@ -236,8 +240,10 @@ async function renderLeagueMatches({
 }
 
 /**
- * The match list for one region — `/ulkomaat` or `/maajoukkueet`. One
- * implementation for both; see specs/016-world-cup-and-euro.md.
+ * The match list for one region, `/ulkomaat` or `/maajoukkueet`. One
+ * implementation for both.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 export async function CompetitionMatchesPage({
   searchParams,

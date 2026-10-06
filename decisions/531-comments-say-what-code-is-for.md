@@ -267,3 +267,23 @@ script wrote those. From the review of the eighth batch, each batch is also
 checked for a comment line over 100 columns, a code span split across lines, a
 record path on a comment it does not belong to, and a new record's issue kind
 against the issue's label.
+
+## The tenth batch, 2026-10-06
+
+The last 76 files of `src/` that broke the rule: 22 pages and routes under
+`src/app`, 35 components, `src/db/connection-string.ts` and
+`src/db/migrate.ts`, and 17 modules in `src/lib`. 42 224 characters of comment
+became 31 244, measured after the hand review's fixes. With this batch no file under `src/` has a comment over three
+lines, a doc comment on a declaration without a record path, a spec or issue
+citation, or a doc comment on a statement inside a function.
+
+Five records are new: `179` (the loading state names no table), `182` (the
+national team pages are never prerendered), `416` (the team page's folds),
+`489` (links repeated per data row are not prefetched) and `533` (the
+not-found and error pages are in Finnish).
+
+Two pages gained a doc comment so that a cut citation's record has a
+declaration to sit on: `Domestic`, the `/kotimaa` picker, and the front page's
+`REGIONS`. From the review of the ninth batch, a record path goes on the
+comment of the function a reason was cut from, and a measurement left in a
+comment the script only touched is moved with the others.

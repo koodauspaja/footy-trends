@@ -1,7 +1,9 @@
 /**
- * Elo ratings for the pages (specs/053): one replay per provider, cached in
- * Redis for 15 minutes (S11). The hourly run and the backtest never read this
- * cache — they replay for themselves (S17).
+ * Elo ratings for the pages: one replay per provider, cached in
+ * Redis for 15 minutes. The hourly run and the backtest never read this
+ * cache — they replay for themselves.
+ *
+ * decisions/053-elo-ratings.md
  */
 
 import { getCached } from "./cache";
@@ -10,12 +12,18 @@ import { logger } from "./logger";
 import type { MatchSource } from "./match-source";
 import { readFinished } from "./prediction-log-service";
 
-/** As long as the providers' own response cache (S11). */
+/**
+ * As long as the providers' own response cache.
+ *
+ * decisions/053-elo-ratings.md
+ */
 const ELO_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
  * What the cache holds per provider: JSON-safe, and small — each team's
  * history as `[seasonId, rating]` pairs, the rating to one decimal.
+ *
+ * decisions/053-elo-ratings.md
  */
 type EloSnapshot = {
   ratings: Array<[number, TeamRating]>;
@@ -26,10 +34,14 @@ export type EloRatings =
   | { status: "ok"; ratings: ReadonlyMap<number, TeamRating> }
   | { status: "error" };
 
-/** A team's rating after each of its matches, oldest first. */
+/**
+ * A team's rating after each of its matches, oldest first.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export type TeamEloSeries =
   | { status: "ok"; points: Array<{ seasonId: number; rating: number }> }
-  /** The team played none of the covered competitions (specs/053, UX). */
+  /** The team played none of the covered competitions. */
   | { status: "empty" }
   | { status: "error" };
 
@@ -52,7 +64,11 @@ async function snapshot(source: MatchSource["kind"]): Promise<EloSnapshot> {
   });
 }
 
-/** Every team's current rating on one provider, for the match page (S8). */
+/**
+ * Every team's current rating on one provider, for the match page.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export async function getEloRatings(source: MatchSource["kind"]): Promise<EloRatings> {
   try {
     return { status: "ok", ratings: new Map((await snapshot(source)).ratings) };
@@ -62,7 +78,11 @@ export async function getEloRatings(source: MatchSource["kind"]): Promise<EloRat
   }
 }
 
-/** One team's rating history, for the team page's chart (S9). */
+/**
+ * One team's rating history, for the team page's chart.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export async function getTeamElo(
   source: MatchSource["kind"],
   team: number

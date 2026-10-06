@@ -200,3 +200,8 @@ Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #53
 
 - **`BASELINE_LABEL`.** The filled column is `Tämä kausi` on a club page and
   `Tämä vuosi` on a national-team one.
+
+Cut from `src/components/season-comparison-section.tsx` at `48ebab4` by #531.
+
+- **The comparison panel's strings.** The ones naming a period are a season
+  on a club page and a calendar year on a national-team page.

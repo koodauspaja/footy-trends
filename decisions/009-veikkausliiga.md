@@ -438,3 +438,23 @@ Cut from `src/components/taso-season-only-controls.tsx` at `ef99862` by #531.
   once: the acceptance criteria describe both pages as listing a season's
   matches, not a round-paginated view. `actionPath` follows the reasoning of
   `TeamSeasonSelector`.
+
+Cut from `src/components/notice.tsx` at `48ebab4` by #531.
+
+- **`Notice`.** Identical markup was repeated three or four times per page
+  across every standings, matches and team page of both providers, and was
+  flagged as duplicated code. `<output>` carries the same implicit "status"
+  semantics as `<p role="status">` without the redundant explicit role.
+
+Cut from `src/components/season-form.tsx` at `48ebab4` by #531.
+
+- **`SeasonForm`.** Used by `MatchesControls`, `TeamSeasonSelector`,
+  `TasoStandingsControls` and `TasoSeasonOnlyControls`, so selections work
+  without JavaScript. `StandingsControls` is the one exception: it shows
+  `Kilpailu` as a visible field, not a hidden one.
+
+Cut from `src/components/use-season-round-navigation.ts` at `48ebab4` by #531.
+
+- **`useSeasonRoundNavigation`.** Reading `window.location.search`, and not
+  rebuilding the query from props, is what preserves any parameter neither
+  control owns.

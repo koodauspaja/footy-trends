@@ -197,3 +197,9 @@ Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #53
 - **`measureText`.** A `0` would read as a real zero. An average of other
   seasons is a place no one finished in, which is why it keeps its decimal.
   Without a table to put it in, a share is not a place.
+
+Cut from `src/components/season-comparison-section.tsx` at `48ebab4` by #531.
+
+- **`seasonComparisonPanel` with nothing to compare.** The page must not
+  change shape as a club's history grows, and this is exactly where a reader
+  asks whether a season is normal.

@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 
 /**
- * The season+round navigation shared by `MatchesControls` (`/ulkomaat/ottelut`) and
- * `TasoStandingsControls` (`/kotimaa/sarjataulukko`): copy the current query
- * string forward, overwrite `kilpailu`/`kausi`, and set or clear `kierros`.
- * Reading `window.location.search` (rather than rebuilding from props) is
- * what preserves any query param neither control owns.
+ * The season and round navigation shared by `MatchesControls` and
+ * `TasoStandingsControls`: copy the current query string forward, overwrite
+ * `kilpailu` and `kausi`, and set or clear `kierros`.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/012-finnish-urls-english-code.md
  */
 export function useSeasonRoundNavigation(actionPath: string, competitionCode: string) {
   const router = useRouter();

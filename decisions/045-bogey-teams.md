@@ -103,3 +103,11 @@ Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
 
 - **`loadOpponents` for a national team.** Unavailable: one country could
   split into several rows, since TASO has no id stable across categories.
+
+Cut from `src/components/opponents-section.tsx` at `48ebab4` by #531.
+
+- **`OpponentsTable`.** `DataTable`'s fixed widths exist so sibling tables
+  line up, and its 240 px floor for the name column put this one at 480 px,
+  so at 375 px a phone showed `O` and `V` and scrolled `P/O`, the figure the
+  rows are ranked by, out of sight. Names wrap and do not push the numbers
+  away.

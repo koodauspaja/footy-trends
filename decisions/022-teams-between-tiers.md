@@ -226,3 +226,9 @@ Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
   URL still renders the competition it names, and the plain GET fallback
   keeps carrying the current one, which lands on a page that explains
   itself. The same field is on `TasoSeasonOnlyControls`.
+
+Cut from `src/components/context-notices.tsx` at `48ebab4` by #531.
+
+- **`NoticeContext`.** Widened from `BasePageContext` so `/kotimaa`'s pages,
+  whose context is a different type with the same three fields, stop
+  carrying their own copy of the markup.

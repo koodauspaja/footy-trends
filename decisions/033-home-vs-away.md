@@ -93,3 +93,13 @@ Cut from `src/components/charts/bar-chart.tsx` at `ef7eb13` by #531.
 - **`barLength`.** A value past the scale fills the track and no more, and
   its printed text still states the true number. A negative value cannot
   occur in these measures.
+
+Cut from `src/lib/home-away.ts` at `48ebab4` by #531.
+
+- **`home-away.ts`.** Counted over exactly the matches the form and goals
+  charts count; the services pass them in.
+
+Cut from `src/components/charts/home-away-chart.tsx` at `48ebab4` by #531.
+
+- **The goals scale in `MEASURES`.** No stored top-tier side reached 4 goals a
+  match over a season; 3,12 was the most.

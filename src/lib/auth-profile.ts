@@ -1,15 +1,8 @@
 /**
- * The name a signed-in reader is shown, from specs/023-google-oauth-login.md.
+ * The name a signed-in reader is shown. `user.name` is `NOT NULL`, so the
+ * fallbacks keep the insert at the OAuth callback from failing.
  *
- * Its own module rather than a closure inside `auth.ts`, so it can be tested
- * without constructing better-auth — `auth.ts` reads four environment variables
- * at import and throws without them, which is exactly what the CI unit job has
- * none of.
- *
- * `user.name` is `NOT NULL`. Google returns a name under the `profile` scope, so
- * the fallbacks below guard a contract rather than an expected path — but the
- * failure they prevent is an insert that fails at the OAuth callback, where the
- * reader sees only a generic error.
+ * decisions/023-google-oauth-login.md
  */
 export function displayNameFor(profile: {
   name?: string | null | undefined;

@@ -164,3 +164,19 @@ Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
 - **`kilpailu` in `TeamSeasonSelector`.** There is no competition selector
   on the team page, so the value must survive both the JS-driven navigation
   and the plain GET form fallback.
+
+Cut from `src/components/competition-select.tsx` at `48ebab4` by #531.
+
+- **The flag beside `CompetitionSelect`.** It reflects whichever competition
+  is selected. The picker page, plain links and not a `<select>`, shows a
+  flag per competition without this constraint.
+
+Cut from `src/components/matches-controls.tsx` at `48ebab4` by #531.
+
+- **`kilpailu` in `MatchesControls`.** There is no competition selector on
+  the page, so the value rides in a hidden field.
+
+Cut from `src/components/standings-controls.tsx` at `48ebab4` by #531.
+
+- **One form for the three selections.** No selection is lost when another
+  changes.

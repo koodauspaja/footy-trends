@@ -70,3 +70,14 @@ Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
 - **The order in `formSeries`.** Kickoff, then provider match id: one team
   never has two matches at one kickoff, but a stable order costs nothing if
   the data ever does.
+
+Cut from `src/components/charts/form-chart.tsx` at `48ebab4` by #531.
+
+- **`FormChart`'s axis.** More points is higher, the other way up from the
+  position chart beside it. The text is a list for a screen reader, as on
+  the position chart.
+
+Cut from `src/components/league-position-section.tsx` at `48ebab4` by #531.
+
+- **`positionPanel` is a function.** So the section can tell an absent panel
+  from a present one. The sign-in gate is the section's, not the panel's.

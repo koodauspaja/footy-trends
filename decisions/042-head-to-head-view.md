@@ -186,3 +186,17 @@ Cut from `src/lib/meeting-labels.ts` at `ef7eb13` by #531.
   meetings; a full history asks about every meeting.
 - **`labelFromCategoryName`.** A Helmarit row reached from a Huuhkajat match
   must lose `Helmarit`, not `Huuhkajat`.
+
+Cut from `src/app/national-teams/mens-team/head-to-head/[a]/[b]/page.tsx` at `48ebab4` by #531.
+
+- **`/maajoukkueet/huuhkajat/kohtaamiset`.** The link on
+  `/maajoukkueet/huuhkajat/ottelu/:id` is built from that prefix, and without
+  the route it would lead nowhere. The competitions' only source of names is
+  TASO's category map.
+
+Cut from `src/app/national-teams/womens-team/head-to-head/[a]/[b]/page.tsx` at `48ebab4` by #531.
+
+- **`/maajoukkueet/helmarit/kohtaamiset`.** The link on
+  `/maajoukkueet/helmarit/ottelu/:id` is built from that prefix, and without
+  the route it would lead nowhere. The competitions' only source of names is
+  TASO's category map.

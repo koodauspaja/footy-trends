@@ -44,9 +44,11 @@ export async function standingsMetadata({
 }
 
 /**
- * The page's `Analyysit` (specs/048), under the tables. `null` on a
+ * The page's `Analyysit`, under the tables. `null` on a
  * competition that has none — every cup and national-team competition but the
  * Champions League.
+ *
+ * decisions/048-league-goals-per-game-trend.md
  */
 function analyticsFor(resolved: ResolvedContext) {
   const { competitionCode, context, seasonId } = resolved;
@@ -61,8 +63,11 @@ function analyticsFor(resolved: ResolvedContext) {
 
 /**
  * A cup's standings: one table per group of the season's table-producing
- * phase, then the closing knockout rounds as a bracket. No round selector —
- * see `CupStandingsControls`.
+ * phase, then the closing knockout rounds as a bracket. No round selector: a
+ * cup's matchdays are leg numbers, not rounds.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
  */
 async function renderCupStandings({
   resolved,
@@ -128,7 +133,12 @@ async function renderCupStandings({
   );
 }
 
-/** The league shape: one table for the whole season, with a round filter. */
+/**
+ * The league shape: one table for the whole season, with a round filter.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
 async function renderLeagueStandings({
   resolved,
   region,
@@ -191,11 +201,10 @@ async function renderLeagueStandings({
 }
 
 /**
- * The standings page for one region — `/ulkomaat` or `/maajoukkueet`.
+ * The standings page for one region, `/ulkomaat` or `/maajoukkueet`. One
+ * implementation for both.
  *
- * One implementation rather than two, because the regions differ only in which
- * competitions they offer and what their links are prefixed with. See
- * specs/016-world-cup-and-euro.md.
+ * decisions/016-world-cup-and-euro.md
  */
 export async function CompetitionStandingsPage({
   searchParams,

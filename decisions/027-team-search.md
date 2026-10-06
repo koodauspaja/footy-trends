@@ -186,3 +186,15 @@ Cut from `src/components/team-search.tsx` at `ef7eb13` by #531.
   race, but by discarding what the reader asked for; the latest intent wins.
 - **`mounted`.** The header is server-rendered on every page and prerendered
   on four of them, where there is no session.
+
+Cut from `src/lib/team-search-actions.ts` at `48ebab4` by #531.
+
+- **`TeamSearchResult`'s reason.** A short term needs another character, a
+  failure needs another attempt, and a signed-out caller needs nothing at
+  all: the field is not offered to them.
+- **`searchTeamsAction`.** Hiding the field from a signed-out reader is a UX
+  decision; the check in the action is the gate, as a server action is a
+  public endpoint whether or not anything renders a control for it. The
+  module is imported by name from a client component, and a static import
+  of `@/lib/auth` would put better-auth into that bundle's graph, the
+  failure that cost 114 CI tests.

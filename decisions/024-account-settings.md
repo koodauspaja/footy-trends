@@ -527,3 +527,10 @@ Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
   the redirect happens after hydration. The competition defaults are
   resolved server-side, because those pages are already `force-dynamic` and
   lose nothing by it.
+
+Cut from `src/components/sign-in-prompt.tsx` at `48ebab4` by #531.
+
+- **A failed sign-in from `SignInPrompt`.** One mechanism, one source. An
+  earlier version swallowed the failure and claimed the header would report
+  it; the header only reports its own sign-in call, so the reader was left
+  with a button that appeared to do nothing.

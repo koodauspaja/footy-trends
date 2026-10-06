@@ -18,11 +18,12 @@ type StandingsControlsProps = {
 };
 
 /**
- * Plain GET form so all three selections still work without JavaScript; the
- * `Näytä` button is only shown when scripting is unavailable, because with
- * scripting each change handler navigates immediately. `Kilpailu`, `Kausi`,
- * and `Kierros` live in one form so changing any one of them resubmits all
- * three together — no selection is lost when another changes.
+ * `Kilpailu`, `Kausi` and `Kierros` in one plain GET form, so changing one
+ * resubmits all three. The `Näytä` button shows only when scripting is
+ * unavailable.
+ *
+ * decisions/003-standings-after-selected-round.md
+ * decisions/006-other-competitions.md
  */
 export function StandingsControls({
   basePath,

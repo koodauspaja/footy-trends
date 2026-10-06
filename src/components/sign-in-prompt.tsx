@@ -5,13 +5,14 @@ import { signIn } from "@/lib/auth-client";
 import { returnPath, withError } from "@/lib/return-path";
 
 /**
- * What a signed-out reader gets at `/asetukset`: an explanation and a way in,
- * rather than a redirect or a middleware bounce. See
- * specs/024-account-settings.md.
+ * What a signed-out reader gets in place of a page of their own: an
+ * explanation and a way in, not a redirect or a middleware bounce.
+ *
+ * decisions/024-account-settings.md
+ * decisions/026-favourites.md
  */
 export function SignInPrompt({
-  // The settings sentence stays the default, so specs/024's page reads exactly
-  // as it did; `/suosikit` passes its own (specs/026-favourites.md).
+  // The settings sentence is the default; `/suosikit` passes its own.
   message = "Kirjaudu sisään nähdäksesi asetuksesi.",
 }: Readonly<{ message?: string }> = {}) {
   const pathname = usePathname();
@@ -32,14 +33,8 @@ export function SignInPrompt({
               callbackURL: returnPath(pathname, searchParams),
               errorCallbackURL: "/?error=auth",
             })
-            /**
-             * Reported through the same `?error=` channel Google's own
-             * failures use, so the header's notice renders it — one mechanism,
-             * one source. An earlier version swallowed this and claimed the
-             * header would report it; the header only reports *its own*
-             * sign-in call, so the reader was left with a button that appeared
-             * to do nothing.
-             */
+            // Reported through the same `?error=` channel Google's own failures use, so
+            // the header's notice renders it.
             .catch(() => router.replace(withError(pathname, searchParams, "auth")));
         }}
         type="button"

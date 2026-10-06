@@ -705,3 +705,22 @@ Cut from `src/components/refresh-run-list.tsx` at `ef99862` by #531.
   `<span>` has no role, and ARIA labelling is not supported on elements that
   have none. `sr-only` is what `team-search.tsx` already uses for the same
   job.
+
+Cut from `src/lib/cache.ts` at `48ebab4` by #531.
+
+- **`invalidateCache`'s boolean.** The forced refresh clears a provider's
+  entry in order to reach the provider. If the clear silently failed, the
+  refetch would come back out of Redis and an admin would be shown, and
+  would apply, a diff built from the stale data they were trying to correct.
+  For every other caller, a failure to invalidate is no reason to fail a
+  request that was only trying to be helpful.
+
+Cut from `src/lib/refresh-competitions.ts` at `48ebab4` by #531.
+
+- **`refresh-competitions.ts`.** Its own module because both
+  `force-refresh.ts` and `refresh-runs.ts` need it, the engine to validate a
+  submission and the log to name a competition in a row written months ago,
+  and having the log import the engine would be a cycle.
+- **`isKnownCompetition`.** `decodeChoice` in `refresh-view.ts` validates
+  the shape and stays client-safe; this is the half that needs the
+  registries.
