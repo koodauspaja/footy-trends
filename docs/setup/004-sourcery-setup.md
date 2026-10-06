@@ -72,7 +72,7 @@ request leaves alone.
 
 **Block 7** — path: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`
 ```
-- A new or changed comment says what the code beside it is for, in one to three lines, or a constraint the code cannot show, followed by the paths of the decision records behind it. The paths go on the doc comment of a declaration (a function, a type, a constant); the comment on a field, and a comment inside a function, need none and are covered by the declaration they sit in. Flag a changed comment that narrates history (how the code used to work, which pull request or review found something, how a number was measured) or that describes something other than the code it sits on. That history belongs in a decision record under decisions/.
+- A new or changed comment says what the code beside it is for, in one to three lines, or a constraint the code cannot show, followed by the paths of the decision records behind it. The paths go on the doc comment of a declaration (a function, a type, a constant) or on the file's header comment; the comment on a field, and a comment inside a function, need none and are covered by the declaration they sit in or by the file's header. Flag a changed comment that narrates history (how the code used to work, which pull request or review found something, how a number was measured) or that describes something other than the code it sits on. That history belongs in a decision record under decisions/.
 ```
 
 Each block's paths are chosen to cover every file its rules ask about.

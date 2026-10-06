@@ -48,9 +48,10 @@ belongs with the feature, bug or chore that had it (Miikka, 2026-10-05).
   `## Moved from comments, <date>`, with the path and the commit it was cut at,
   so `git show <commit>:<path>` gives the original.
 - The comment left behind links that record. The paths go on the doc comment of
-  a declaration: a function, a type, a constant. A field's comment and a
-  comment inside a function carry none, and are covered by the paths on the
-  declaration they sit in.
+  a declaration (a function, a type, a constant) or on the file's header
+  comment. A field's comment and a comment inside a function need none: they
+  are covered by the declaration they sit in, or by the file's header where the
+  declaration has no comment of its own.
 
 ## The check
 

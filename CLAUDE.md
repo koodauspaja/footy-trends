@@ -36,10 +36,10 @@
    */
   ```
 
-  The paths go on a declaration's doc comment; a field's comment and a comment
-  inside a function are covered by the declaration they sit in. History (how it
-  used to work, which pull request found it, what a reviewer said) goes in the
-  record, never the comment, and no comment cites an issue or
+  The paths go on a declaration's doc comment or the file's header; a field's
+  comment and a comment inside a function are covered by the declaration they
+  sit in, or by the header. History (how it used to work, which pull request
+  found it, what a reviewer said) goes in the record, never the comment, and no comment cites an issue or
   pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
   citation, on a cited record that does not exist, and on a doc comment stacked
   on another. Comments not yet in this shape are trimmed file by file, by the
