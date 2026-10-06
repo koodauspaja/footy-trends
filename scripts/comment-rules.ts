@@ -55,7 +55,8 @@ function scriptKind(file: string): ts.ScriptKind {
 
 /**
  * Every comment in a file, in order, read from the parsed tree rather than a
- * regex: a `//` inside a string, a template or JSX text is not a comment.
+ * regex: a `//` inside a string, a template, JSX text or a doc comment's own
+ * text is not a comment.
  */
 export function commentsOf(file: string, source: string): Comment[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
@@ -71,7 +72,7 @@ export function commentsOf(file: string, source: string): Comment[] {
   };
 
   const visit = (node: ts.Node) => {
-    if (ts.isJsxText(node)) return;
+    if (ts.isJsxText(node) || ts.isJSDoc(node)) return;
     const children = node.getChildren(tree);
     if (children.length === 0) collect(node.pos);
     for (const child of children) visit(child);

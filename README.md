@@ -94,7 +94,7 @@ flowchart TD
   Human_ready{"Authorised? Card moved to Ready by a human, OR the human said start — either alone"}
   AI_branch["If the card is not already Ready, AI moves it there quoting the authorisation; then In Progress; then branches"]
   AI_implement["AI implements feature within spec (skills/implement-feature.md)"]
-  AI_decision["AI writes/updates decision record in decisions/NNN-feature-name.md"]
+  AI_decision["AI writes the decision record, decisions/NNN-feature-name.md"]
   AI_checks["AI runs tests, lint, typecheck, skills/self-review.md"]
   AI_open_pr["AI opens PR, ticks the issue boxes, moves the card to In Review (skills/open-pr.md)"]
   Human_merge["Human checks the result and merges, or tells the AI to merge"]

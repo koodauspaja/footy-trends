@@ -82,6 +82,21 @@ describe("commentsOf", () => {
     expect(texts(commentsOf("a.tsx", source))).toEqual(["/* a comment */"]);
   });
 
+  it("finds no comment inside a doc comment's own text", () => {
+    const source = [
+      "/** See {@link foo} // not a comment, and #12. */",
+      "/**",
+      " * @param a the // thing, see {@link https://example.com/x}",
+      " */",
+      "function f(a: number) {}",
+    ].join("\n");
+
+    expect(texts(commentsOf("a.ts", source))).toEqual([
+      "/** See {@link foo} // not a comment, and #12. */",
+      "/**\n * @param a the // thing, see {@link https://example.com/x}\n */",
+    ]);
+  });
+
   it("reads a JavaScript module", () => {
     expect(texts(commentsOf("a.mjs", "/** config */\nexport default {};"))).toEqual([
       "/** config */",
@@ -180,6 +195,12 @@ describe("stackedDocComments", () => {
   it("finds a doc comment starting on the line after another ends", () => {
     expect(stacked("/** For something else. */\n/**\n * For f.\n */\nfunction f() {}")).toEqual([
       { file: "a.ts", line: 2, text: "/**" },
+    ]);
+  });
+
+  it("finds one under a doc comment whose text holds a link and a `//`", () => {
+    expect(stacked("/** See {@link foo} // and more. */\n/** For f. */\nfunction f() {}")).toEqual([
+      { file: "a.ts", line: 2, text: "/** For f. */" },
     ]);
   });
 
