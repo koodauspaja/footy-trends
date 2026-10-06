@@ -1,6 +1,11 @@
 const FINISHED_STATUS = "FINISHED";
 
-/** The minimum a match needs to contribute two teams to the standings roster, regardless of status or score. */
+/**
+ * The minimum a match needs to contribute two teams to the standings roster,
+ * regardless of status or score.
+ *
+ * decisions/008-winless-teams-in-standings.md
+ */
 export type RosterMatch = {
   homeTeamProviderId: number;
   homeTeamName: string;
@@ -22,9 +27,9 @@ export type NormalizedMatch = RosterMatch & {
 };
 
 /**
- * "H–A" for a played match, "–" for one with no final score yet — the same
- * formatting was duplicated across every matches/team page, both
- * football-data.org's and TASO's.
+ * "H–A" for a played match, "–" for one with no final score yet.
+ *
+ * decisions/009-veikkausliiga.md
  */
 export function formatMatchResult(homeGoals: number | null, awayGoals: number | null): string {
   return homeGoals !== null && awayGoals !== null ? `${homeGoals}–${awayGoals}` : "–";
@@ -32,11 +37,10 @@ export function formatMatchResult(homeGoals: number | null, awayGoals: number | 
 
 /**
  * Narrows to matches with a final score, which is what `calculateStandings`
- * requires. A match with `status !== "FINISHED"` is excluded even if it
- * happens to carry goals (defensive — the provider should never do this).
+ * requires. A match that is not `FINISHED` is excluded even if it carries goals.
  *
- * Lives here rather than in `standings-service` so the cup phase tables can
- * apply the same rule without importing the database.
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/014-champions-league.md
  */
 export function toFinishedMatches<
   T extends {
@@ -56,17 +60,10 @@ export function toFinishedMatches<
 }
 
 /**
- * A match's score after extra time (#495).
+ * A match's score after extra time, without a penalty shoot-out. Both sides of
+ * the shoot-out must be stored for it to be subtracted.
  *
- * football-data stores the provider's `fullTime`, which **includes** a penalty
- * shoot-out: Liverpool "1–5" PSG (Champions League, 2024/25) was 0–1 with
- * penalties 1–4. A shoot-out is neither goals nor the result (specs/044,
- * specs/049 S3), so every analytic reading finished matches gets the score
- * without it — the one place they all pass through. The stored value itself
- * stays `fullTime` (see `football-data.ts`), and the match list and the bracket
- * read the breakdown on their own. A TASO row has no shoot-out columns.
- *
- * Half a shoot-out is not one: both sides must be stored, as `formatScore` asks.
+ * decisions/495-score-after-extra-time.md
  */
 function withoutShootout<
   T extends {
@@ -113,14 +110,20 @@ const resultLabels: Record<FormResult, string> = {
 };
 
 /**
- * A `Vire` letter's title — `Voitto`, `Tasapeli`, `Häviö` — exported so the
- * head-to-head page's form (specs/047) spells a result as the table does.
+ * A `Vire` letter's title: `Voitto`, `Tasapeli`, `Häviö`.
+ *
+ * decisions/047-rivalry-page.md
  */
 export function formResultLabel(result: FormResult): string {
   return resultLabels[result];
 }
 
-/** One side's result, from its own goals. Called twice per match, with the arguments swapped. */
+/**
+ * One side's result, from its own goals. Called twice per match, with the
+ * arguments swapped.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ */
 export function resultFor(goalsFor: number, goalsAgainst: number): FormResult {
   if (goalsFor > goalsAgainst) return "V";
   if (goalsFor < goalsAgainst) return "H";
@@ -152,12 +155,11 @@ function getOrCreateTeam(
 }
 
 /**
- * `rosterMatches` seeds a zero-stats entry for every team that appears in
- * it, home or away, regardless of match status — defaults to `matches`
- * itself so a caller only interested in finished-match stats can omit it.
- * Passing the season's full match list (finished and scheduled alike) is
- * what makes a winless team with only upcoming fixtures show a 0-played row
- * instead of being absent — see specs/008-winless-teams-in-standings.md.
+ * The table from finished matches. `rosterMatches` seeds a zero-stats row for
+ * every team in it, whatever the match status, and defaults to `matches`.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/008-winless-teams-in-standings.md
  */
 export function calculateStandings(
   matches: NormalizedMatch[],
@@ -218,10 +220,9 @@ export function calculateStandings(
 }
 
 /**
- * A team's matches within a season's full match list, chronological —
- * shared by every provider's `getTeamMatches` (football-data.org, TASO):
- * same "find this team's games, oldest first" logic regardless of where
- * the match list came from.
+ * A team's matches within a season's full match list, chronological.
+ *
+ * decisions/009-veikkausliiga.md
  */
 export function selectTeamMatches<
   T extends { homeTeamProviderId: number; awayTeamProviderId: number; kickoffAt: Date },

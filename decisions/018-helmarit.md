@@ -159,3 +159,18 @@ Cut from `src/lib/national-team.ts` at `a86c1cb` by #531.
   reaching back to 2018. Filing them under the bucket's nominal season put a
   2019 qualifier under a 2021 heading. Finnish local time, so a late kick-off
   cannot be filed under one year and displayed under another.
+
+Cut from `src/lib/country-names.ts` at `ef7eb13` by #531.
+
+- **Helmarit's names in `FINNISH_TASO_TEAM_NAMES`.** Helmarit reads the same
+  buckets and needed five more: `Croatia`, `Cyprus`, `Czech Republic`,
+  `Portugal` and `Scotland`, all from `maajp18`. Croatia, Portugal and
+  Scotland appear in Finnish elsewhere in the same data, so leaving them
+  would put one country under two spellings on one page.
+
+Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
+
+- **Empty categories in `loadSeason`.** Thirteen of Helmarit's categories
+  return no rows at all, and two more hold only other teams' matches.
+- **Buckets in `getNationalTeamYears`.** `maajp18` holds three years of
+  Huuhkajat matches and four of Helmarit's.

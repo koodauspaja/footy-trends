@@ -310,3 +310,10 @@ Cut from `src/lib/competitions.ts` at `94397a8` by #531.
   existed, so a bad `kilpailu` value cannot route a request into the newer cup
   rendering. `parseCompetitionParam` rejects unknown codes before this is
   reached in practice.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`toFinishedMatches`.** Excluding an unfinished match that carries goals
+  is defensive; the provider should never do this. It lives in `standings.ts`
+  and not in `standings-service` so the cup phase tables can apply the same
+  rule without importing the database.

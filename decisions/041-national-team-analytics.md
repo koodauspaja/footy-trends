@@ -162,3 +162,13 @@ Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
   place.
 - **`competitionScope`.** Shared by both providers: they differ in how a
   season is read and in nothing about how it is named.
+
+Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
+
+- **`normalizeFinlandId` in `loadSeason`.** The analytics functions all key
+  on an id.
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **`axis` on `AnalyticsSection`.** A page that forgot it would quietly
+  claim its panels were about a season.

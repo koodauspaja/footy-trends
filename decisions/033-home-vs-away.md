@@ -72,3 +72,24 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
   phone the drawing is about 0,54x, so 12 units reached the reader at roughly
   6 px. Enlarging the font below `sm` fixes that without narrowing the
   drawing, which would have cost the desktop canvas.
+
+Cut from `src/components/charts/bar-chart.tsx` at `ef7eb13` by #531.
+
+- **`bar-chart.tsx`.** Built beside `LineChart` and in the same way: no
+  client JavaScript, geometry in exported functions tested directly, theme
+  tokens only. A row is a measure and measures do not share units (points
+  per match, goals per match, a percentage), so each bar sits on a faint
+  track the length of its row's scale, which makes the scale visible. Its
+  value is printed just past the track, in one column for every bar: easier
+  to scan than text at each bar's own end, and never over the track's faint
+  fill, so the chart reads exactly without an axis. Filled or outlined, both
+  in the foreground colour, with `BarLegend` to name them.
+- **`WIDTH`.** Narrower than `LineChart`'s 640, and shown no wider than
+  `max-w-md`: the text is most of the content, and it scales with the
+  drawing. At 400 units a phone's width shows it at about 0,86× and a desktop
+  at about 1,1×; at 640 a phone would show it at about half size. `LineChart`
+  reached the same end differently: its text is the axis and not the
+  content, so it kept its width and enlarges the font below `sm`.
+- **`barLength`.** A value past the scale fills the track and no more, and
+  its printed text still states the true number. A negative value cannot
+  occur in these measures.

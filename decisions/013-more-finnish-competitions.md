@@ -470,3 +470,11 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
 - **`earliestSeasonFor`.** The floor is not the same for every competition:
   Ykkösliiga did not exist before 2024. The provider-wide fallback means a bad
   `kilpailu` value cannot widen the range.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`TASO_FALLBACK_MESSAGE`.** It names Palloliitto and not "TASO" because
+  that is the name a reader knows.
+- **`GroupBody`.** A pass-through group's numbers are TASO's and not ours
+  because the two disagreed. A group TASO lists with no teams at all also
+  renders as its matches.

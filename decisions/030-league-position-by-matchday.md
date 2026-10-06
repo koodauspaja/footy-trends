@@ -149,3 +149,11 @@ Cut from `src/lib/position-series.ts` at `94397a8` by #531.
   records the order: the lower group's leader is 7th when the upper group has
   six teams, whatever the ids say. Group sizes come from the data: six is
   Veikkausliiga's current shape, not a constant.
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **`AnalyticsSection`'s gate.** One prompt and not one per panel, shown
+  before any loader is called, so a signed-out page is never computed from,
+  and never carries, any analytics value. A server component awaited by the
+  team pages and not rendered, the shape `CompetitionTeamPage` already uses.
+  A league season with no table shows no section.

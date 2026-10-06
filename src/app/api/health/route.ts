@@ -1,3 +1,13 @@
+/**
+ * The health endpoint: the database and Redis on every call, TASO and the
+ * shape of the forwarded headers only when asked.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/085-running-commit-at-health.md
+ * decisions/113-taso-key-monitor.md
+ * decisions/309-client-ip-resolution.md
+ */
+
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { forwardingShape } from "@/lib/forwarding";
@@ -7,7 +17,11 @@ import { getCurrentSeason } from "@/lib/taso";
 
 export const dynamic = "force-dynamic";
 
-/** Long enough for a healthy provider, short enough that a probe never waits on a stall. */
+/**
+ * Long enough for a healthy provider, short enough that a probe never waits on a stall.
+ *
+ * decisions/017-huuhkajat.md
+ */
 const PROVIDER_TIMEOUT_MS = 3000;
 
 function toLogError(error: unknown) {
@@ -17,18 +31,10 @@ function toLogError(error: unknown) {
 }
 
 /**
- * The commit actually serving this response, so "which version is in
- * production?" is a request rather than dashboard archaeology. Railway sets it
- * per deployment; locally and in tests there is no deployment behind it, and
- * `null` is the honest answer rather than a guess.
+ * The commit serving this response, as Railway sets it per deployment. Null
+ * locally and in tests, and when the variable is blank.
  *
- * Blank counts as absent. `?? null` alone would report `""` for a variable that
- * exists but is empty, which reads as "the commit is the empty string" rather
- * than "unknown" — and a probe cannot tell those apart.
- *
- * The commit rather than a version string: the tag is derived from it
- * (`git tag --points-at`), so the two cannot drift the way a hand-maintained
- * version would. See skills/release.md.
+ * decisions/085-running-commit-at-health.md
  */
 function deployedCommit(): string | null {
   const sha = process.env.RAILWAY_GIT_COMMIT_SHA?.trim();
@@ -58,31 +64,16 @@ export async function GET(request: Request) {
     logger.warn(toLogError(error), "Redis health check failed");
   }
 
-  // Opt-in, not on by default. A platform probe hits this endpoint constantly,
-  // and the project's own rule is that provider responses are cached and never
-  // fetched per request — so making every probe call TASO would be the very
-  // thing the rule forbids. A human debugging "every page works but one" asks
-  // for it explicitly with `?providers=1`. See #182.
+  // Opt-in with `?providers=1`: a platform probe hits this endpoint constantly,
+  // and provider responses are never fetched per request.
   if (new URL(request.url).searchParams.has("providers")) {
     try {
-      // A real request, not a ping: TASO sits behind Cloudflare and needs an
-      // API key plus Referer/Origin/User-Agent, so only a genuine call proves
-      // the path. `getCurrentSeason` asks which seasons it publishes, so
-      // nothing here has to name a competition and guess wrong in January.
-      //
-      // Bounded, because a health endpoint that hangs until the probe times
-      // out is worse than one reporting a provider as unreachable.
+      // A real request, not a ping: only a genuine call proves the key and headers.
+      // Bounded, so the endpoint cannot hang until the probe times out.
       const season = await getCurrentSeason(AbortSignal.timeout(PROVIDER_TIMEOUT_MS));
 
-      // A throw is not the only way this fails. A stale key is blocked by
-      // Cloudflare with a 403, which throws — but TASO's own API answers a bad
-      // request with **HTTP 200** and an error body, which parses fine and
-      // yields no recognisable seasons. `getCurrentSeason` returns `null` for
-      // that, and awaiting it without looking reported the provider healthy on
-      // a response that contained no data at all (#113).
-      //
-      // Either way there is nothing usable behind the key, which is what the
-      // probe is being asked about.
+      // A throw is not the only failure: TASO answers a bad request with HTTP 200
+      // and an error body, for which `getCurrentSeason` returns `null`.
       checks.taso = season === null ? "error" : "ok";
       if (season === null) {
         logger.warn(
@@ -98,17 +89,8 @@ export async function GET(request: Request) {
     }
   }
 
-  /**
-   * Opt-in, like `?providers=1` above, and for the same reason: a platform
-   * probe hits this constantly and has no use for it.
-   *
-   * It answers what #309 turns on: how many hops arrive in `x-forwarded-for`,
-   * which of them are infrastructure, and which single-value header agrees with
-   * one the edge wrote — because better-auth refuses to resolve a client IP from
-   * a multi-hop header unless `trustedProxies` says which to skip, and resolves
-   * a single-value header with no proxy list at all. Counts, classifications and
-   * indices only: this endpoint is public, so it never reports an address.
-   */
+  // Opt-in with `?forwarded`, like the providers above. Counts, classifications
+  // and indices only: this endpoint is public, so it never reports an address.
   const forwarding = new URL(request.url).searchParams.has("forwarded")
     ? forwardingShape(request.headers)
     : undefined;

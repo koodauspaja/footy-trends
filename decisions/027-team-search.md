@@ -161,3 +161,28 @@ Cut from `src/lib/team-search.ts` at `94397a8` by #531.
   a short common term like `ja` cannot pull every matching team into memory.
 - **`PLACEHOLDER_TEAM_ID` in `team-search.ts`.** The match page already keeps
   both off: the unresolved bracket slot and the team with no name.
+
+Cut from `src/components/team-search.tsx` at `ef7eb13` by #531.
+
+- **`team-search.tsx`.** Client-side like `favourite-toggle.tsx`, and for
+  the same reason: the header is on every page, including the four
+  `tests/unit/app/rendering-mode.test.ts` keeps prerendered, and reading the
+  session on the server would cost those pages their prerendering. It imports
+  `team-search-actions` by name; Next replaces a `"use server"` module with a
+  network stub in the client bundle, so better-auth and the database stay out
+  of it. The types come from `team-search.ts` as types only, which are
+  erased. The mock is needed for the reason noted in `favourite-toggle.tsx`:
+  the broadcast channel outlives its jsdom.
+- **`secondaryLine`.** The first version got this wrong. A bare `2026` does
+  not disambiguate two teams sharing a name, the one thing the line exists
+  for, and a placeholder like `Tuntematon · 2026` tells the reader less than
+  no line at all. A TASO national-team category has no name in any registry
+  the app carries, so that is the case this covers.
+- **`latestSubmission`.** Two searches in flight resolve in whatever order
+  the network gives them, and the reader would be left looking at results
+  for a term they had already replaced, silently and indistinguishable from
+  a correct answer. The closure that checks the ref is created before the
+  re-render. Refusing to submit while one is pending would also close the
+  race, but by discarding what the reader asked for; the latest intent wins.
+- **`mounted`.** The header is server-rendered on every page and prerendered
+  on four of them, where there is no session.

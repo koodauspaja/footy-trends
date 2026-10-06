@@ -7,20 +7,12 @@ import type { TeamSearchView } from "@/lib/team-search";
 import { searchTeamsAction } from "@/lib/team-search-actions";
 
 /**
- * Finding a team by name, from specs/027-team-search.md.
+ * Finding a team by name. A client component, rendered in the site header on
+ * every page. A unit test rendering anything that contains it must mock
+ * `@/lib/auth-client`.
  *
- * **Client-side, like `favourite-toggle.tsx`, and for the same reason.** This
- * renders in the site header, which is on every page — including the four
- * `tests/unit/app/rendering-mode.test.ts` keeps prerendered (#182). Reading the
- * session on the server would cost those pages their prerendering.
- *
- * It imports `team-search-actions` by name; Next replaces a `"use server"`
- * module with a network stub in the client bundle, so better-auth and the
- * database stay out of it. The types come from `team-search.ts` as **types
- * only**, which are erased.
- *
- * **A unit test rendering this must mock `@/lib/auth-client`** — see the note in
- * `favourite-toggle.tsx` about the broadcast channel outliving its jsdom.
+ * decisions/027-team-search.md
+ * decisions/373-team-search-header-row.md
  */
 
 const LABEL = "Hae joukkuetta";
@@ -36,15 +28,9 @@ type State =
   | { kind: "message"; text: string };
 
 /**
- * The competition and season under the name, or nothing.
+ * The competition and season under the name, or nothing: both or neither.
  *
- * **Both or neither**, which is what specs/027 asks for and what the first
- * version got wrong. A bare `2026` does not disambiguate two teams sharing a
- * name — the one thing this line exists for — and a placeholder like
- * `Tuntematon · 2026` tells the reader less than no line at all.
- *
- * A TASO national-team category has no name in any registry the app carries, so
- * that is the case this actually covers.
+ * decisions/027-team-search.md
  */
 function secondaryLine(team: TeamSearchView): string | null {
   if (team.competitionName === null || team.seasonId === null) return null;
@@ -56,27 +42,11 @@ export function TeamSearch() {
   const [term, setTerm] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
   const [pending, startTransition] = useTransition();
-  /**
-   * Which submission is current, so a slow earlier one cannot overwrite a fast
-   * later one.
-   *
-   * Two searches in flight resolve in whatever order the network gives them,
-   * and the reader would be left looking at results for a term they had already
-   * replaced — silently, and indistinguishable from a correct answer.
-   *
-   * A ref rather than state: the closure that checks it is created before the
-   * re-render, and bumping it must not itself cause one.
-   *
-   * Refusing to submit while one is pending would also close the race, but by
-   * discarding what the reader asked for. The latest intent wins instead.
-   */
+  // Which submission is current, so a slow earlier one cannot overwrite a fast
+  // later one. A ref, not state: bumping it must not itself cause a re-render.
   const latestSubmission = useRef(0);
-  /**
-   * Rendered only after hydration. The header is server-rendered on every page
-   * and prerendered on four of them, where there is no session — and
-   * better-auth's client can answer from its own cache on the first client
-   * render, which would disagree with that HTML.
-   */
+  // Rendered only after hydration: better-auth's client can answer from its own
+  // cache on the first client render, which would disagree with the server's HTML.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -85,16 +55,8 @@ export function TeamSearch() {
   if (!mounted || !session) return null;
 
   return (
-    /**
-     * The row's own padding lives here, not in `site-header.tsx`.
-     *
-     * This component returns `null` above for a signed-out reader, so a wrapper
-     * in the header would still render its padding and leave an empty strip
-     * where the search would be — the header would visibly change for someone
-     * who cannot use the search. Owning the padding makes that impossible
-     * rather than merely unlikely (#373). It is used in one place, so there is
-     * no other layout for this to be wrong in.
-     */
+    // The row's own padding lives here, not in `site-header.tsx`: this component
+    // returns `null` for a signed-out reader, and a wrapper would still pad.
     <div className="w-full px-4 pb-3 sm:px-8">
       <form
         className="flex items-center gap-2"

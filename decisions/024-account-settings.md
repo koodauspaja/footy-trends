@@ -377,3 +377,9 @@ Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
   worse for a screen reader than not claiming them. The label contains the
   visible name in the text branch, which is what WCAG 2.5.3 (Label in Name)
   asks for.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`getPreferencesFor`.** Next calls `generateMetadata` and the page
+  component separately, and both resolve the same page context, so without
+  `cache()` the same lookup would repeat.

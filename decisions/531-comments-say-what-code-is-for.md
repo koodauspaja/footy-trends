@@ -167,3 +167,25 @@ follows the theme. Two comments sat on the wrong declaration, as one did in the
 fourth batch: the description of the competition list was on
 `DEFAULT_COMPETITION_CODE`, and the team page's own description on its
 `TEAM_HEADING` constant. Each moved to what it describes.
+
+## The sixth batch, 2026-10-06
+
+Seventeen files in full: in `src/lib`, `avatar.ts`, `avatar-image.ts`,
+`country-names.ts`, `meeting-labels.ts`, `national-team-service.ts`,
+`preferences.ts`, `provider-request.ts`, `refresh-diff.ts`, `refresh-runs.ts`,
+`session-extras.ts` and `standings.ts`; in `src/components`,
+`analytics-section.tsx`, `refresh-form.tsx`, `team-search.tsx` and
+`charts/bar-chart.tsx`; in `src/app`, `api/health/route.ts` and
+`domestic/standings/page.tsx`. 50 989 characters of comment became 26 906.
+
+Seven records are new, each for a change that had none: `085` (the health
+endpoint reports the running commit), `113` (the TASO key is monitored), `197`
+(a rate limit is waited out), `373` (the team search's own header row), `419`
+(one fold marker), `424` (the `Analyysit` groups) and `495` (analytics read the
+score after extra time).
+
+Two files gained a comment so that record paths have a declaration to sit on:
+the health route a header, and `DomesticStandingsPage` a doc comment. Doc
+comments on statements inside `RefreshForm`, `TeamSearch` and the health
+route's `GET` became line comments, which is what the rule asks of a comment
+inside a function.

@@ -335,3 +335,22 @@ Cut from `src/components/favourite-toggle.tsx` at `94397a8` by #531.
   made in another tab would never appear. Only when they agree: dropping it
   while the session still disagrees would show an empty star for a favourite
   the reader just added.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`favoriteTeams` in the session.** The toggle renders on the region
+  picker, which lives on the four pages `rendering-mode.test.ts` keeps
+  prerendered, and reading a session on the server there would cost them
+  that. The browser already fetches this payload, so a client toggle costs no
+  extra request.
+- **The favourites' own query.** A reader with 20 teams and 5 competitions
+  would fetch 100 rows to learn one region if the two relations were joined
+  onto the session row. Two small indexed queries beat that.
+
+Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
+
+- **`favouriteKeysOf`.** Being the single reader keeps the choice reversible:
+  the whole list is sent because it rides free on a request the browser
+  already makes, and if it measures heavy at the cap, this function fetches
+  instead and no caller changes. A missing star is a smaller loss than a page
+  that will not render.

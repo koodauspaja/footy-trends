@@ -46,3 +46,11 @@ oldest first, must end on the run the panel calls current.
   #426, the across-seasons placeholder.
 - **Streaks of clean sheets or of scoring** are a different measure; `Nollapelit`
   (#334) covers clean sheets as a share.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **Panels, not charts.** Most are charts; `Putket` and `Kääntyneet ottelut`
+  are lists of figures, which is why `AnalyticsSection` calls its parts
+  panels.

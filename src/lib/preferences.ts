@@ -8,11 +8,10 @@ import { logger } from "@/lib/logger";
 import { type Preferences, type RegionSegment, resolveRegion, toPreferences } from "@/lib/regions";
 
 /**
- * The stored preferences for one user, or null when there are none.
+ * The stored preferences for one user, or null when there are none. `cache()`d
+ * for the request.
  *
- * `cache()`d for the request: Next calls `generateMetadata` and the page
- * component separately, and both resolve the same page context, so this would
- * otherwise repeat the same lookup.
+ * decisions/024-account-settings.md
  */
 export const getPreferencesFor = cache(async (userId: string): Promise<Preferences | null> => {
   const [row] = await db
@@ -26,38 +25,26 @@ export const getPreferencesFor = cache(async (userId: string): Promise<Preferenc
 
 /**
  * What the browser needs from the session beyond better-auth's own fields.
- *
  * `avatarVersion` is the avatar's random cache token, or null when the reader
- * has no custom picture — the client builds `/api/avatar/me?v=…` from it. See
- * specs/025-custom-avatar.md.
+ * has no custom picture.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/026-favourites.md
+ * decisions/028-admin-tools-and-roles.md
  */
 export type SessionExtras = {
   defaultRegion: RegionSegment | null;
   avatarVersion: string | null;
   /**
-   * The reader's favourites as keys, from specs/026-favourites.md.
-   *
-   * They ride here because the toggle renders on the region picker, which lives
-   * on the four pages `rendering-mode.test.ts` keeps prerendered (#182) —
-   * reading a session on the server there would cost them that. The browser
-   * already fetches this payload, so a client toggle costs no extra request.
+   * The reader's favourites as keys, for the client toggle on pages that stay
+   * prerendered.
    */
   favoriteTeams: string[];
   favoriteCompetitions: string[];
   /**
    * The reader's role, so the account menu can decide whether to offer the
-   * `Ylläpito` link — from specs/028-admin-tools-and-roles.md.
-   *
-   * **It costs nothing to carry.** The query below already selects from `user`;
-   * this is one more column on a row that was being read anyway, so unlike the
-   * favourites it adds no round trip and no measurable payload.
-   *
-   * **It is not an authorisation.** Nothing decides access from this. The link
-   * it hides is a convenience, and `requireAdmin()` — which reads the column
-   * from the database on every request — is what actually refuses. A session is
-   * issued once, so this value can be stale by exactly as long as the session
-   * lives; that is tolerable for whether a menu item renders and intolerable
-   * for whether a page opens, which is why only one of them uses it.
+   * `Ylläpito` link. Not an authorisation: `requireAdmin()` is what refuses.
    */
   role: Role;
 };
@@ -74,22 +61,13 @@ const NO_EXTRAS: SessionExtras = {
 };
 
 /**
- * The fields the session payload carries, for the browser that already fetches
- * it.
+ * The fields the session payload carries. Preferences, avatar and role come
+ * from one query, a left join from `user`. A failure is logged and answered
+ * with no extras.
  *
- * Separate from `getPreferencesFor` because it runs inside better-auth's
- * `customSession` on every `/api/auth/get-session` call: reading two columns and
- * swallowing failure keeps a database blip from turning a session lookup — and
- * therefore the whole header — into an error. A reader who cannot be redirected
- * simply sees the region picker, which is the app's stock behaviour, and one
- * whose avatar version is missing gets the Google picture, which is the
- * fallback that already exists.
- *
- * **One query for both**, by a left join from `user`: the preference row and
- * the avatar row are independently optional, and either may be absent for a
- * reader who has one and not the other. Joining from `user` is what keeps a
- * missing preference row from hiding a present avatar. Adding a field here must
- * not add a round trip to every page load.
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/026-favourites.md
  */
 export async function getSessionExtrasFor(userId: string): Promise<SessionExtras> {
   try {
@@ -107,10 +85,8 @@ export async function getSessionExtrasFor(userId: string): Promise<SessionExtras
 
     if (row === undefined) return NO_EXTRAS;
 
-    // A second round trip rather than more joins. The favourites are two
-    // one-to-many relations, and joining them onto the same row would multiply
-    // it out — a reader with 20 teams and 5 competitions would fetch 100 rows to
-    // learn one region. Two small indexed queries beat that.
+    // A second round trip, not more joins: the favourites are two one-to-many
+    // relations, and joining them onto the same row would multiply it out.
     const favourites = await favouritesForSession(userId);
 
     return {

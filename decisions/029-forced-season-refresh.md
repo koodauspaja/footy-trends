@@ -565,3 +565,80 @@ Cut from `src/lib/refresh-view.ts` at `94397a8` by #531.
   deductions separately: leaving them out would make the button's condition
   and the dialog's contents two ideas of "something changed", free to drift
   when the diff does.
+
+Cut from `src/lib/refresh-diff.ts` at `ef7eb13` by #531.
+
+- **`refresh-diff.ts`.** Pure and separate from `force-refresh.ts` because it
+  is both what the confirmation dialog shows an admin and what the run log
+  records: computed once, what was approved and what is recorded are the same
+  numbers by construction.
+- **`valuesDiffer`.** Two `Date` objects for the same instant are never `===`,
+  so without their own case every match would read as changed on every run
+  and the confirmation dialog would be worthless.
+- **`rowChanged`.** Driven by the provider row's keys and not a hand-written
+  column list. Both normalized provider types mirror their table's columns
+  exactly, which is what lets a selected row satisfy the provider type
+  structurally, so the provider row's keys are the columns the upsert writes.
+  A hand-written list would be a second thing to keep true, and the column
+  it missed would be a change the admin was never shown.
+- **`groupTeamKey`.** There is no provider-side row id to key on.
+- **`byCodeUnit`.** `localeCompare` answers by the runtime's locale data, so
+  two machines, or one machine after an ICU upgrade, could order the same keys
+  differently and hash the same rows to different digests. The apply would
+  then refuse a diff nobody had changed, as `"stale"`, and re-previewing would
+  not help. Where the repository sorts for display it uses `localeCompare`
+  with a locale.
+- **`snapshotHash`.** The apply recomputes it and refuses when it no longer
+  matches, so an admin can never approve one diff and have another applied.
+  The provider is under no obligation to keep a row order. Each group is
+  length-prefixed and hashed separately, so matches and group teams cannot be
+  swapped for each other.
+
+Cut from `src/components/refresh-form.tsx` at `ef7eb13` by #531.
+
+- **`refresh-form.tsx`.** A client component because every control is
+  interactive and the apply asks first. The engine must not travel in a
+  browser bundle: the boundary `admin-user-view.ts` and `favourite-keys.ts`
+  exist for.
+- **`requestId`.** Without it a slow preview could put one competition's diff
+  on screen while the buttons beneath it act on another, and the whole
+  feature rests on the diff an admin sees being the one they approve.
+- **`abandonInFlight`.** `useCallback` with no dependencies: a function
+  rebuilt each render would restart the effect that lists it every render,
+  refetching the season list continuously.
+- **The season list.** There are ten foreign competitions, so resolving them
+  all on mount would turn a cold cache into ten requests against a
+  rate-limited plan.
+- **`run`.** A server action can reject where it could return a refusal, on a
+  dropped connection or an exception the engine did not convert, and
+  `void action()` alone would swallow that, leaving the form pending with no
+  notice and no way forward. `startTransition` tracks only what its callback
+  does before returning, so firing the request and returning at once drops
+  `pending` to false while the server action is still running.
+- **`chosenSeason`.** A guard the disabled button makes unreachable is a
+  branch no test can reach and no reader can justify.
+
+Cut from `src/lib/refresh-runs.ts` at `ef7eb13` by #531.
+
+- **`refresh-runs.ts`.** A forced refresh happens a handful of times a year,
+  so its questions are asked months apart by someone with no memory of the
+  event: when did we last refresh this, did it work, and what did it move?
+- **`recordSuccess`.** A refresh that succeeded has already changed the
+  database, and losing the note of it is no reason to tell an admin their
+  change failed: the one place in the feature where swallowing is right.
+- **`recordFailure`.** A submission naming a competition or season the app
+  does not have is a malformed request, not an event that happened to the
+  data; a stale bounce is the apply working as intended, and the admin is
+  about to see the fresh diff and decide again. Recording either would fill
+  the log with noise nobody can act on.
+- **`groupCountsFrom`.** A foreign competition stores null in all three
+  columns because it has no group standings. Null means "this table does not
+  exist for this provider"; three zeroes would claim nothing changed.
+- **`listRuns`.** The table gains a handful of rows a year, and a list that
+  needed paging would itself be the finding. A deleted admin's run has
+  `run_by` null, which is what `on delete set null` on the column is for.
+  Guessing which provider a hand-edited row meant would put a wrong
+  competition name in an audit log. Deriving the season label on read would
+  mean a provider call per row just to learn whether a foreign season spans
+  two calendar years, so a run would read `2025` where the picker says
+  `2025/26`.
