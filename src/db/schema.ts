@@ -1,3 +1,12 @@
+/**
+ * Every table: the two providers' matches, TASO's group rows, better-auth's
+ * four, and what the app stores for its readers and admins.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/009-veikkausliiga.md
+ * decisions/023-google-oauth-login.md
+ */
+
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -14,10 +23,11 @@ import {
 import type { TasoWinner } from "@/lib/taso";
 
 /**
- * Columns identical between `matches` and `tasoMatches` — a function, not a
- * shared object literal, because Drizzle column builders are stateful and
- * can't be reused across two `pgTable` calls; each call here builds fresh
- * instances.
+ * The columns `matches` and `tasoMatches` share. A function, because Drizzle's
+ * column builders are stateful and cannot be reused across two tables.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/036-halftime-comebacks.md
  */
 function matchTeamColumns() {
   return {
@@ -28,12 +38,8 @@ function matchTeamColumns() {
     // Nullable: a not-yet-played match has no final score.
     homeGoals: integer("home_goals"),
     awayGoals: integer("away_goals"),
-    // Nullable twice over (specs/036): an unplayed match has no half-time
-    // score, and a provider may not report one for a match it has played —
-    // TASO omitted it for 1 of 132 Ykkönen 2025 matches, and football-data
-    // refuses older seasons outright. "No half-time score" and "0–0 at the
-    // break" must stay distinguishable, which is why this is null rather than
-    // 0.
+    // Null, not 0, for an unplayed match and for a played one the provider
+    // reports no half-time score for: 0 is a score.
     halfTimeHome: integer("half_time_home"),
     halfTimeAway: integer("half_time_away"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -41,6 +47,16 @@ function matchTeamColumns() {
   };
 }
 
+/**
+ * football-data's matches, every competition and season in one table.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/014-champions-league.md
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ * decisions/027-team-search.md
+ */
 export const matches = pgTable(
   "matches",
   {
@@ -50,19 +66,14 @@ export const matches = pgTable(
     seasonId: integer("season_id").notNull(),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     matchday: integer("matchday"),
-    // Only ever "FINISHED" until 004-listing-matches-for-selected-team, whose
-    // migration backfills the default below so existing rows stay accurate.
     status: text("status").notNull().default("FINISHED"),
-    // Cup competitions only, added in specs/014-champions-league.md. Null for
-    // all nine league competitions, so the migration needs no backfill.
+    // Cup competitions only; null for a league.
     stage: text("stage"),
     // "group" is reserved in SQL, hence the column name. Null outside a group
     // stage, including every match of a LEAGUE_STAGE season.
     groupName: text("group_name"),
-    // The score breakdown behind a knockout tie. `home_goals`/`away_goals`
-    // stay the provider's `fullTime`, which INCLUDES a penalty shootout and is
-    // therefore useless for aggregating a two-legged tie — see
-    // `ProviderMatch` in src/lib/football-data.ts.
+    // The score breakdown behind a knockout tie. `home_goals` and `away_goals` are
+    // the provider's `fullTime`, which includes a penalty shoot-out.
     regularTimeHome: integer("regular_time_home"),
     regularTimeAway: integer("regular_time_away"),
     extraTimeHome: integer("extra_time_home"),
@@ -81,30 +92,14 @@ export const matches = pgTable(
       table.seasonId,
       table.stage
     ),
-    // The match page's head-to-head list, which asks for one pair of teams in
-    // either order. One composite index serves both orientations: the planner
-    // scans it twice under a BitmapOr, so the mirrored (away, home) index earns
-    // nothing and is deliberately absent. See specs/019-match-page.md.
+    // A pair of teams in either order: the planner scans this twice, so there is
+    // no mirrored (away, home) index.
     index("matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
-    // The away half of "every match this team played, either side". The index
-    // above already serves the home half; without this one the away half scans
-    // that index's whole second column. Single-column deliberately: the sort
-    // that follows reads from a bitmap, which has already discarded index
-    // order, so carrying `kickoff_at` here buys nothing. See
-    // specs/020-context-free-team-page.md.
+    // The away half of every match a team played; the index above serves the home
+    // half. One column: the sort that follows reads from a bitmap.
     index("matches_away_team_idx").on(table.awayTeamProviderId),
-    /**
-     * Team search folds Finnish letters before matching, so the index has to
-     * store the folded form — an index on the raw column cannot serve a query
-     * on `translate(lower(...))`. See specs/027-team-search.md.
-     *
-     * `translate` rather than `unaccent`: the extension is not installed, and
-     * `unaccent` is not `IMMUTABLE`, so it cannot be indexed at all.
-     *
-     * These serve exact and prefix matching. A leading-wildcard `LIKE '%x%'`
-     * cannot use a B-tree, which is why 027 requires the substring query to be
-     * measured at production scale before anyone trusts it.
-     */
+    // Team search matches the folded name, so the index stores the folded form.
+    // It serves exact and prefix matches only.
     index("matches_home_team_name_folded_idx").on(
       sql`translate(lower(${table.homeTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
     ),
@@ -114,25 +109,27 @@ export const matches = pgTable(
   ]
 );
 
-// Own table, own uniqueness on tasoMatchId: TASO's match IDs are a separate
-// numeric space from football-data.org's and could otherwise collide if
-// sharing `matches`' provider_match_id unique index. See
-// specs/009-veikkausliiga.md.
+/**
+ * TASO's matches, in a table of their own: TASO's match ids are a separate
+ * numeric space from football-data's and would collide in one unique index.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ * decisions/027-team-search.md
+ */
 export const tasoMatches = pgTable(
   "taso_matches",
   {
     id: serial("id").primaryKey(),
-    // TS field names match `NormalizedTasoMatch` (taso.ts) verbatim — same
-    // reason `matches` above mirrors `NormalizedProviderMatch` — so a
-    // selected row satisfies that type structurally, with no mapping step.
-    // The underlying SQL column names stay TASO-specific.
+    // Field names match `NormalizedTasoMatch`, so a selected row satisfies that
+    // type with no mapping. The SQL column names stay TASO's.
     providerMatchId: integer("taso_match_id").notNull(),
     competitionCode: text("competition_id").notNull(),
-    // Which competition inside the season umbrella. `competition_id` is
-    // shared by every category and `group_id` collides across them
-    // (Veikkausliiga, Kakkonen and Ykkönen each have a group 1 in spljp26),
-    // so this is what actually separates one competition's matches from
-    // another's. See specs/013-more-finnish-competitions.md.
+    // Which competition inside the season umbrella: `competition_id` is shared by
+    // every category and `group_id` collides across them.
     categoryId: text("category_id").notNull(),
     seasonId: integer("season_id").notNull(),
     groupId: integer("group_id").notNull(),
@@ -142,21 +139,13 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
-    // TASO's own verdict on who went through: "home" | "away" | "tie", null
-    // until played. A cup tie level after normal time is decided on penalties
-    // TASO does not itemise, so the score cannot answer this and the bracket
-    // has nothing else to go on. See specs/015-finnish-cups.md.
-    // Typed as the union rather than plain text, so a selected row keeps
-    // satisfying `NormalizedTasoMatch` structurally — the same reason every
-    // other column here mirrors that type's field names.
+    // TASO's verdict on who went through, null until played: a cup tie level after
+    // normal time goes to penalties it does not itemise.
     winner: text("winner").$type<TasoWinner>(),
     ...matchTeamColumns(),
   },
   (table) => [
-    // Still keyed on the match id alone: TASO's `match_id` is unique across
-    // categories, confirmed live (710 ids across six categories in spljp26,
-    // zero collisions), so `category_id` is a filter and index column rather
-    // than part of uniqueness.
+    // Unique on the match id alone: TASO's ids are unique across categories.
     uniqueIndex("taso_matches_taso_match_id_idx").on(table.providerMatchId),
     // Standings/match-list reads are always scoped to one category,
     // competition, season, and group at a time.
@@ -167,13 +156,11 @@ export const tasoMatches = pgTable(
       table.groupId
     ),
     // As on `matches` above: the head-to-head pair lookup, one index for both
-    // orientations. Measured on 20,604 stored rows, this turns the query from a
-    // 3.16 ms sequential scan into a 0.13 ms bitmap scan.
+    // orientations.
     index("taso_matches_head_to_head_idx").on(table.homeTeamProviderId, table.awayTeamProviderId),
-    // As on `matches` above. Measured on 20,604 stored rows: 1.03 ms and 144
-    // buffers without it, 0.20 ms and 94 with.
+    // As on `matches` above: the away half of a team's matches.
     index("taso_matches_away_team_idx").on(table.awayTeamProviderId),
-    /** The TASO half of the same search, from specs/027-team-search.md. */
+    // The TASO half of the same search.
     index("taso_matches_home_team_name_folded_idx").on(
       sql`translate(lower(${table.homeTeamName}), 'äöåÄÖÅ', 'aoaAOA')`
     ),
@@ -184,16 +171,10 @@ export const tasoMatches = pgTable(
 );
 
 /**
- * `getGroups`' per-team rows, stored rather than only Redis-cached.
+ * TASO's per-team group rows, stored. Every stat column is nullable: a knockout
+ * group has no points competition, and TASO omits the fields.
  *
- * Own-calculated standings depend on `starting_points` — TASO's carrier for
- * points deductions and junior qualifying bonuses — so a cold cache or a TASO
- * outage must not silently change a table's points. This also serves the
- * numbers a group falls back to when our calculation disagrees with TASO's.
- * See specs/013-more-finnish-competitions.md.
- *
- * Every stat column is nullable: a knockout group has no points competition at
- * all and TASO omits the fields entirely rather than sending zeroes.
+ * decisions/013-more-finnish-competitions.md
  */
 export const tasoGroupTeams = pgTable(
   "taso_group_teams",
@@ -236,27 +217,12 @@ export const tasoGroupTeams = pgTable(
 );
 
 /**
- * better-auth's four tables, from specs/023-google-oauth-login.md.
+ * better-auth's `user` table, written by hand as its other three are. Its ids
+ * are `text`, and the property names stay camelCase: the adapter resolves a
+ * field by indexing this object.
  *
- * Written by hand rather than by `@better-auth/cli generate`: the CLI is
- * published at 1.4.21 against the 1.7.3 library this repo pins, and a generated
- * file arrives without the comments every table above carries. The column list
- * is taken from `@better-auth/core/dist/db/get-tables.mjs` at 1.7.3.
- *
- * Two conventions differ from the tables above, both deliberately:
- *
- * 1. **Primary keys are `text`, not `serial`.** better-auth generates its own
- *    string ids; an integer key would need its `useNumberId` mode and a matching
- *    adapter config. The two id spaces never meet — no auth table references a
- *    match table or the reverse — so the inconsistency is contained.
- * 2. **Model names are singular.** `user`, `session`, `account` and
- *    `verification` are better-auth's defaults, and renaming them buys a naming
- *    convention at the cost of a mapping in every adapter call.
- *
- * The TS property names must stay camelCase whatever the SQL columns are called:
- * the Drizzle adapter resolves a field by indexing this table object with the
- * property key (`schemaModel[fieldName]`), and throws if it is absent. The SQL
- * column names are therefore free to stay snake_case like the rest of the file.
+ * decisions/023-google-oauth-login.md
+ * decisions/028-admin-tools-and-roles.md
  */
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -270,28 +236,19 @@ export const user = pgTable("user", {
   // The Google avatar URL. Nullable, and nothing renders it yet.
   image: text("image"),
   /**
-   * What this user may do, from specs/028-admin-tools-and-roles.md.
-   *
-   * **`text` rather than a Postgres enum.** Adding a value to an enum is a
-   * migration that takes a lock, and the set is validated in TypeScript by
-   * `admin-role.ts` — the same shape `favourite-keys.ts` uses for its own small
-   * closed set. Two values exist and a third is a real design question, not a
-   * column change.
-   *
-   * **Defaulted and not null**, so every row that already exists becomes a
-   * reader without a backfill, and a row inserted by better-auth's sign-up path
-   * — which knows nothing about this column — gets the safe value rather than a
-   * null nobody checks for.
-   *
-   * There is no bootstrap path in the app: the first admin is made by one
-   * documented `UPDATE`, in docs/setup/023-admin-access.md. Every automatic rule
-   * for it would exist forever to serve a single moment.
+   * What this user may do. `text`, validated in TypeScript; defaulted and not
+   * null, so a row better-auth inserts is a reader.
    */
   role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * better-auth's sessions, one row per signed-in device.
+ *
+ * decisions/023-google-oauth-login.md
+ */
 export const session = pgTable(
   "session",
   {
@@ -316,6 +273,11 @@ export const session = pgTable(
   ]
 );
 
+/**
+ * better-auth's link from a user to their Google account.
+ *
+ * decisions/023-google-oauth-login.md
+ */
 export const account = pgTable(
   "account",
   {
@@ -328,10 +290,7 @@ export const account = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // Google's tokens. better-auth marks all three `returned: false`, so they
-    // are never serialised to the client, and nothing in this app reads them —
-    // the only scopes requested are `openid email profile`, which need no API
-    // call after sign-in.
+    // Google's tokens. Never sent to the client, and nothing here reads them.
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
     idToken: text("id_token"),
@@ -354,9 +313,10 @@ export const account = pgTable(
 );
 
 /**
- * Required even though no email flow exists: better-auth stores the OAuth state
- * and PKCE verifier here for the duration of the Google redirect. Without this
- * table sign-in fails at the callback, not at startup.
+ * Required though no email flow exists: better-auth keeps the OAuth state and
+ * PKCE verifier here for the duration of the Google redirect.
+ *
+ * decisions/023-google-oauth-login.md
  */
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
@@ -368,25 +328,10 @@ export const verification = pgTable("verification", {
 });
 
 /**
- * A signed-in reader's preferences, from specs/024-account-settings.md.
+ * A signed-in reader's preferences: one row per user, created on first save.
+ * Every column is nullable, and null means no preference.
  *
- * One row per user, created on first save rather than at sign-in: an untouched
- * settings page writes nothing, so a row's existence means someone chose
- * something.
- *
- * **Every column is nullable, and null is meaningful.** It means "no
- * preference", which is not the same as "prefers what the default happens to be
- * today". If the domestic fallback ever moves off Veikkausliiga, a reader who
- * never chose follows the change and a reader who explicitly chose Veikkausliiga
- * does not. It is also what makes every setting unsettable — nothing here is a
- * one-way door.
- *
- * Three competition columns rather than a `(user, region, code)` join table: the
- * three regions are fixed by the URL structure, and the code does not even have
- * one type spanning them — `CompetitionRegion` covers `foreign` and
- * `national-teams`, while Kotimaa's competitions come from TASO with their own
- * `DEFAULT_DOMESTIC_COMPETITION_CODE`. The column names say which registry each
- * value belongs to instead of pretending to a uniformity the data lacks.
+ * decisions/024-account-settings.md
  */
 export const userPreferences = pgTable("user_preferences", {
   id: text("id").primaryKey(),
@@ -411,21 +356,20 @@ export const userPreferences = pgTable("user_preferences", {
 });
 
 /**
- * Postgres `bytea`, which drizzle has no built-in column for.
+ * Postgres `bytea`, which drizzle has no built-in column for. A `Buffer` both
+ * ways.
  *
- * `Buffer` on the way in and out, which is what `sharp` produces and what the
- * route handler hands to a `Response`.
+ * decisions/025-custom-avatar.md
  */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
 
 /**
- * One reader's own profile picture, from specs/025-custom-avatar.md.
+ * One reader's own profile picture, in a table of its own: better-auth owns
+ * `user` and rewrites it on every sign-in.
  *
- * A separate table rather than a column on `user`: better-auth owns that table
- * and writes it from the Google profile on every sign-in, and image bytes have
- * no business in a row read on every session lookup.
+ * decisions/025-custom-avatar.md
  */
 export const userAvatar = pgTable("user_avatar", {
   // The foreign key *is* the primary key. One avatar per reader, an upload
@@ -435,16 +379,7 @@ export const userAvatar = pgTable("user_avatar", {
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   /**
-   * The cache key in the image URL, and a random token rather than a
-   * timestamp.
-   *
-   * `/api/avatar/me` is one URL for every reader, so the query parameter is the
-   * only thing separating one reader's cached image from another's. A
-   * millisecond timestamp collides across readers — two avatars saved in the
-   * same millisecond produce byte-identical URLs — and the response is cached
-   * `private, immutable` for a year, so a shared browser profile could serve
-   * the previous account's picture to the next one. A random token cannot
-   * collide, and unlike a timestamp it says nothing about when.
+   * The cache key in the image URL: a random token, not a timestamp.
    */
   version: text("version").notNull(),
   // Always the output of our own re-encode, never the bytes that were uploaded.
@@ -458,13 +393,10 @@ export const userAvatar = pgTable("user_avatar", {
 });
 
 /**
- * A reader's favourite teams, from specs/026-favourites.md.
+ * A reader's favourite teams. The identity is `(source, team_provider_id)`, not
+ * a competition: a favourite follows the club.
  *
- * The identity is `(source, team_provider_id)` and **not** a competition:
- * specs/022 established that a team page spans competitions and seasons, so a
- * favourite follows the club rather than one of its league entries. The source
- * is half of it because the two providers' id spaces are independent — 317
- * already exists in both.
+ * decisions/026-favourites.md
  */
 export const favoriteTeam = pgTable(
   "favorite_team",
@@ -486,12 +418,9 @@ export const favoriteTeam = pgTable(
 );
 
 /**
- * A reader's favourite competitions.
+ * A reader's favourite competitions, in a table of their own.
  *
- * A separate table rather than a `kind` column on the one above: a team is a
- * provider and a number, a competition is a region and a code, and one table
- * holding both would need four nullable columns plus a constraint saying which
- * pair is legal — a check where a type will do.
+ * decisions/026-favourites.md
  */
 export const favoriteCompetition = pgTable(
   "favorite_competition",
@@ -515,38 +444,22 @@ export const favoriteCompetition = pgTable(
 );
 
 /**
- * One record per applied forced refresh, from specs/029-forced-season-refresh.md.
+ * One record per applied forced refresh: an operational log, not reader data.
+ * The counts are the ones the confirmation dialog showed.
  *
- * An operational log, not reader data. A forced refresh is run a handful of
- * times a year, by an admin, against a season whose data turned out to be
- * wrong — so the questions it has to answer are asked months apart ("when did
- * we last refresh this, and did that work?") by someone who cannot be expected
- * to remember.
- *
- * The counts come from the same diff the confirmation dialog showed, so what
- * an admin approved and what is recorded here are the same numbers by
- * construction rather than by two pieces of code agreeing.
+ * decisions/029-forced-season-refresh.md
  */
 export const refreshRuns = pgTable("refresh_runs", {
   id: serial("id").primaryKey(),
   /**
-   * `"taso"` or `"football-data"`. `text` rather than a Postgres enum, for the
-   * reason already recorded for `user.role`: adding a value to an enum is a
-   * migration that takes a lock, and this repository validates small closed
-   * sets in TypeScript — see `refresh-view.ts`.
+   * `"taso"` or `"football-data"`, validated in TypeScript.
    */
   source: text("source").notNull(),
   competitionCode: text("competition_code").notNull(),
   seasonId: integer("season_id").notNull(),
   /**
-   * The season as the picker spells it — `2016` for a Finnish season,
-   * `2025/26` for a foreign one that spans two calendar years.
-   *
-   * Stored rather than derived, because deriving it later would mean a provider
-   * call per row just to learn whether a season spans a year boundary. Null
-   * when the run failed before the season range could be resolved, which is the
-   * one case where we genuinely do not know it; the list falls back to the
-   * season id there.
+   * The season as the picker spells it, stored. Null when the run failed before
+   * the season range could be resolved.
    */
   seasonLabel: text("season_label"),
   /** `"success"` or `"failed"`. */
@@ -562,49 +475,38 @@ export const refreshRuns = pgTable("refresh_runs", {
   groupRowsDeleted: integer("group_rows_deleted"),
   deductionsChanged: integer("deductions_changed").notNull().default(0),
   /**
-   * **`set null`, not `cascade`** — the only user reference in this schema that
-   * is not. Deliberate in both directions: the operational record survives an
-   * admin account being deleted, while the link to the person does not, which
-   * is this project's rule for ids. The row then renders as
-   * `Poistettu käyttäjä`.
-   *
-   * `decisions/028-admin-tools-and-roles.md` relies on cascade to make one
-   * `DELETE` remove everything a *reader owns*. A log of operations performed
-   * on the app is not something a reader owns, so this is not a hole in that.
+   * `set null`, not `cascade`: the record survives the admin's account, the link
+   * to the person does not.
    */
   runBy: text("run_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**
- * Every prediction a model made, set against the match's result only when a
- * calibration feature reads it (specs/052). The result is never copied in: it
- * is read from `matches` or `taso_matches`, so a corrected score (#492)
- * corrects every figure built on it.
+ * Every prediction a model made. The result is never copied in: it is read from
+ * the match tables. One `live` and one `backtest` row per match per model.
  *
- * One `live` row per match per model — the last prediction before kickoff,
- * overwritten until then (S3) — and one `backtest` row, what the model would
- * have said from the matches before it (S2, S14).
+ * decisions/052-predictions-log.md
  */
 export const predictions = pgTable(
   "predictions",
   {
     id: serial("id").primaryKey(),
-    /** `"football-data"` or `"taso"`: the two id spaces never meet (specs/026). */
+    /** `"football-data"` or `"taso"`: the two id spaces never meet. */
     source: text("source").notNull(),
     providerMatchId: integer("provider_match_id").notNull(),
-    /** The competition as specs/051 files the match, so #353 needs no second lookup. */
+    /** The competition the match is filed under, so a prediction needs no second lookup. */
     competitionCode: text("competition_code").notNull(),
-    /** `home-baseline-v1`; a rule change is a new name (specs/051, S10). */
+    /** The model's name; a rule change is a new name. */
     model: text("model").notNull(),
-    /** `"live"` or `"backtest"` (S2). */
+    /** `"live"` or `"backtest"`. */
     kind: text("kind").notNull(),
     /** 0–1, unrounded. */
     homeProbability: doublePrecision("home_probability").notNull(),
     drawProbability: doublePrecision("draw_probability").notNull(),
     awayProbability: doublePrecision("away_probability").notNull(),
     predictedAt: timestamp("predicted_at", { withTimezone: true }).notNull(),
-    /** The kickoff the prediction was made against; it follows a rescheduled match (S4). */
+    /** The kickoff the prediction was made against; it follows a rescheduled match. */
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
   },
   (table) => [

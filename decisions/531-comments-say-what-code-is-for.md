@@ -128,3 +128,15 @@ The reasons went to 24 records by `git blame`. Seven are new, for bugs and
 chores that had none: `132`, `196`, `200`, `272`, `281`, `284` and `363`. Each
 entry names `a86c1cb`, the commit on `main` both files were cut from, so
 `git show a86c1cb:<path>` gives the original comment.
+
+## The third batch, 2026-10-06
+
+Seven files in full: `src/db/schema.ts`, and in `src/lib` `auth.ts`,
+`cup-rounds.ts`, `head-to-head.ts`, `match-service.ts`, `rate-limit-storage.ts`
+and `season-comparison.ts`. 64 700 characters of comment became 32 000.
+
+The reasons went to 31 records by `git blame`, three of them new: `314`, `492`
+and `528`. The checks the hand review of the second batch added were run before
+this one opened: the code cites every record a reason of its went to, each
+declaration cites the feature that first added it, every function an entry
+names exists, and no doc comment sits on a statement inside a function body.

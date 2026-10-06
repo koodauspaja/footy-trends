@@ -303,3 +303,33 @@ specific session, and data export.
 **Not verifiable without a human:** the settings page signed in, the device list
 against real sessions, and account deletion end to end. A real Google sign-in
 cannot be automated, which is the gap 023 documented and this feature inherits.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **`user.deleteUser`.** Off by default in better-auth. The email round trip
+  would add friction without safety: the session already proves the account,
+  and the page requires typing `POISTA` before the button enables.
+- **`customSession`.** `/` is prerendered and applies the region preference
+  client-side, so it needs the value in the browser. Enriching
+  `/api/auth/get-session` costs no extra round trip, where a second client
+  fetch would. Only what the client acts on is sent: the settings page reads
+  the rest server-side, so shipping it would be payload on every page load.
+- **`nextCookies`.** Last in the plugin list because it writes better-auth's
+  `Set-Cookie` headers through Next's cookie API, which is what makes a
+  server action or route handler persist the session.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`userPreferences`.** Created on first save and not at sign-in: an untouched
+  settings page writes nothing, so a row's existence means someone chose
+  something. Null is "no preference", which is not "prefers what the default
+  happens to be today": if the domestic fallback ever moves off Veikkausliiga,
+  a reader who never chose follows the change and one who chose Veikkausliiga
+  does not. It is also what makes every setting unsettable.
+- **Three competition columns, not a `(user, region, code)` join table.** The
+  three regions are fixed by the URL structure, and the code has no single
+  type spanning them: `CompetitionRegion` covers `foreign` and
+  `national-teams`, while Kotimaa's competitions come from TASO with their own
+  default. The column names say which registry each value belongs to.

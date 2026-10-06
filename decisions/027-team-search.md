@@ -119,3 +119,14 @@ Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
   season's teams to the wrong place.
 - **`FavouriteTeamView`.** The competition and season serve `specs/027`, where
   `FC Honka` is nine teams.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`*_team_name_folded_idx`.** An index on the raw column cannot serve a query
+  on `translate(lower(...))`. `translate` and not `unaccent`: the extension is
+  not installed, and `unaccent` is not `IMMUTABLE`, so it cannot be indexed.
+  A leading-wildcard `LIKE '%x%'` cannot use a B-tree, which is why the
+  substring query has to be measured at production scale before it is
+  trusted.

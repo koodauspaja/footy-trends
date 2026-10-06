@@ -170,3 +170,39 @@ Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 - **`NormalizedTasoMatch.winner`.** Verified live: `MSC` 2025 returns `Home` or
   `Away` for all 419 matches including the 55 level ones, while `VL` 2025
   returns `Tie` for exactly its 40 level matches.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`taso_matches.winner`.** The score cannot answer who went through, and the
+  bracket has nothing else to go on. Typed as the union and not plain text,
+  so a selected row keeps satisfying `NormalizedTasoMatch` structurally.
+
+Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
+
+- **`ROUND_NAME_OVERRIDES`.** Counted over every MSC and NSC season 2015-2026.
+  `Kierros N` (63) against `N. Kierros` (23): the common form wins.
+  `Loppuottelu` (9) against `Finaali` (11): the less common form wins, because
+  that split is by era and not popularity (`Finaali` 2015-2019, `Loppuottelu`
+  from 2020); the count favours `Finaali` only because the older era has more
+  seasons in range. A substring replace would mangle `Pikkufinaali`, the
+  third-place match, and `Finaali-Kakkonen`, a separate Kakkonen-cup round.
+  Every other group name (`Juuson kierros`, `Tasaus`, `Superkierros`,
+  `Kierros 1B` and some 50 more) is TASO's own and already Finnish.
+- **`CupRoundGroup.teamCount`.** Not the provider's row count, which is one
+  row per bracket slot: the reason those groups have no standings table.
+- **`selectBracketRounds`.** It stops at 8: a round of sixteen is eight ties
+  wide and no tree survives that on a phone. Neither names nor team counts
+  work alone, and all three counter-examples are real (verified live
+  2026-08-26). MSC 2018's `Kierros 1` has 8 teams and is the first round:
+  rejected because `Puolivälierät` is a later 8-team group and claims the
+  slot. NSC 2015's `Pikkufinaali` (2 teams) sits before `Finaali`: rejected
+  because `Finaali` is later, so it falls out of the chain and renders as a
+  list. MSC 2021 has six 4-team groups that keep tables and no knockout:
+  rejected because the caller passes only table-less groups.
+- **`CupKnockoutMatch`.** The adapter fills the breakdown in as null so that
+  not every caller has to. A cup tie decided on penalties shows its score as
+  it stands, unlike football-data's `fullTime`, which folds the shoot-out in.
+- **`buildCupBracket`.** The normalised name is what `BracketTree` shows as
+  the column heading. Selection picks at most one group per size, so two
+  chosen rounds sharing a name is not reachable in practice; were it to
+  happen the two would merge into one column, which is visible.

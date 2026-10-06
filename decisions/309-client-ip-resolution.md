@@ -123,3 +123,33 @@ That same distinction is why `x-real-ip` came back out of the default list. The
 principle is one line: **read a header only where the edge is known to overwrite
 it**, and "known" means a sentinel came back overwritten, not that the header
 looked plausible.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **Why the address headers are configuration.** better-auth resolves an IP
+  from a single-value header on its own, but from `x-forwarded-for` only when
+  `trustedProxies` names the hops to skip. Behind Railway that header arrives
+  with two entries, so without help every visitor shares one rate-limit bucket
+  and one attacker locks everyone out. Measured on staging: the edge replaces
+  `x-forwarded-for`, it does not append, and sets `x-real-ip` beside it.
+- **The rule: read a header only where the edge is measured to overwrite it.**
+  A header the platform passes through is not a client address, it is a
+  request body. Trusting one lets an attacker rotate it for a fresh bucket per
+  request, worse than the shared bucket, where they at least share the limit.
+- **The measurement.** `192.0.2.1` (TEST-NET-1) was sent as each candidate and
+  `/api/health?forwarded=1` read: `x-real-ip` was overwritten by the edge,
+  matching forwarded entry 0; `x-envoy-external-address`, `cf-connecting-ip`
+  and `true-client-ip` arrived intact. So `x-real-ip` is the only default.
+  `x-envoy-external-address` was the default for one release, on the reasoning
+  that Railway fronts applications with Envoy; it does, but does not forward
+  that header, and an absent header a client may set is the worst case.
+- **Why both are read from the environment.** If a platform turns out to pass
+  a client-supplied `x-real-ip` through, the correction is a Railway variable
+  and not a release.
+- **`advanced.ipAddress`.** Without it every request resolves to no IP and
+  better-auth falls back to one shared per-path bucket, the warning in the
+  logs since the first production deploy. `trustedProxies` is passed only
+  when set: an empty array leaves chain mode disabled anyway, and an absent
+  option says more plainly that nothing is trusted.

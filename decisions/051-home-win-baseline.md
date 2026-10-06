@@ -48,3 +48,11 @@ stored matches in the suite's database; the three wrap onto two lines at
 The spec placed the panel before `Keskinäiset ottelut`. The match page's
 section is `Aiemmat kohtaamiset`; the spec now says so, and the placement is
 unchanged.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getHomeBaseline`.** Never `empty` on a failed read, which would say the
+  competition has no finished match. Unplayed matches count nowhere, since
+  only finished matches with both scores are counted.

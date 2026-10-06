@@ -192,3 +192,14 @@ All four URLs were re-loaded after the fix and now answer honestly, the
 - **No redirect and no canonical tag.** A bare URL renders; both spellings
   answer 200. Bouncing to a parametrised URL would break the clean link the
   feature exists to provide, and no other page in this app sets a canonical.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches_away_team_idx`.** Without it the away half scans the whole second
+  column of the head-to-head index. Single-column on purpose: the sort reads
+  from a bitmap, which has already discarded index order, so carrying
+  `kickoff_at` would buy nothing.
+- **`taso_matches_away_team_idx`.** On 20,604 stored rows: 1.03 ms and 144
+  buffers without it, 0.20 ms and 94 with.

@@ -249,3 +249,13 @@ Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
 
 - **`getCupSeason`.** The tables, stage list and bracket ask about one season,
   which the provider returns in one response.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches.stage`.** Null for all nine league competitions, so the migration
+  needed no backfill.
+- **`regular_time_*`, `extra_time_*`, `penalties_*`.** `fullTime` includes the
+  shoot-out and is therefore useless for aggregating a two-legged tie: see
+  `ProviderMatch` in `football-data.ts`.

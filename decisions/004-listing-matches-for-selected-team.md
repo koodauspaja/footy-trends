@@ -139,3 +139,11 @@ Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
 
 - **`getSyncedSeasonMatches`.** `refreshFailed` tells "stale but present" from
   "nothing to show".
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches.status`.** Every row was a finished match until this feature,
+  whose migration backfills the default `FINISHED` so existing rows stay
+  accurate.

@@ -288,3 +288,43 @@ Publishing the OAuth consent screen is **#264**. Until then only Google accounts
 on the test-user list can sign in — everyone else is refused by Google before
 reaching the app, which is why the failure notice names no cause: distinguishing
 "you cancelled" from "you are not on the list" would leak the list.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **`required`.** With no secret, better-auth still constructs and the header
+  still renders; the break only appears when someone clicks `Kirjaudu sisään`
+  in production.
+- **`auth`.** Google is the only provider and sessions live in Postgres. When
+  it was added nothing gated on a session: it existed so that later features
+  had a real user to attach to.
+- **`session.cookieCache`.** Database sessions on purpose: signing out revokes
+  immediately. The cookie cache would remove the per-request lookup by
+  carrying the session in a signed cookie for a TTL, and bring back the
+  revocation delay database sessions were chosen to avoid. It stays off until
+  something measures the lookup as a problem.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **The four auth tables.** Written by hand and not by
+  `@better-auth/cli generate`: the CLI was published at 1.4.21 against the
+  1.7.3 library this repository pinned, and a generated file arrives without
+  comments. The column list is from
+  `@better-auth/core/dist/db/get-tables.mjs` at 1.7.3.
+- **Primary keys are `text`, not `serial`.** better-auth generates its own
+  string ids; an integer key would need its `useNumberId` mode and a matching
+  adapter config. No auth table references a match table or the reverse, so
+  the inconsistency is contained.
+- **Model names are singular.** `user`, `session`, `account` and
+  `verification` are better-auth's defaults; renaming them buys a naming
+  convention at the cost of a mapping in every adapter call.
+- **camelCase properties.** The Drizzle adapter resolves a field with
+  `schemaModel[fieldName]` and throws if it is absent, so the SQL column names
+  are free to stay snake_case.
+- **`account`'s tokens.** better-auth marks all three `returned: false`, so they
+  are never serialised to the client, and nothing in this app reads them: the
+  only scopes requested are `openid email profile`, which need no API call
+  after sign-in.
+- **`verification`.** Without the table sign-in fails at the callback, not at
+  startup.

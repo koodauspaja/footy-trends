@@ -106,3 +106,39 @@ first row. Nothing was changed for it.
 - **Fixtures still to come are absent** (S12). The match page a reader arrives
   from already carries the fixture they were looking at, and a fixture list and
   a record are different claims. #333, #337 and #338 sit on this page's data.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`Meeting`.** Structural, not one of the two row types, as `form-series.ts`
+  takes `ResultMatch`: the arithmetic is the same whichever table the row came
+  from, and naming one would make the other a cast.
+- **`HeadToHeadRecord`.** Two home lines, not one home and one away: a reader
+  comparing them is comparing two teams at home, which is the question a
+  rivalry's ground record asks.
+- **`headToHeadRecord`.** It counts only what it is handed: finished meetings
+  with both scores stored, across every competition in the region, so a
+  fixture still to come cannot reach it. `null` for no meetings because a
+  record of nothing is not a record, and a caller rendering
+  `0 ottelua, NaN–NaN` is what makes zeroes worse than nothing.
+- **`meetingsLinkCount`.** Two reasons for the same answer, decided in one
+  place: a `null` count is a read that failed, and a link promising a number
+  it does not have is worse than no link; a count of zero is a pair with
+  nothing to open, where the block above already shows everything.
+- **`meetingsLink`.** The href sits beside the rule that decides whether to
+  show it, so a caller cannot build one for a pair with nothing behind it, and
+  a test reaches both directly.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`PreviousMeetings`.** `total` is the row count of the page the link leads
+  to, not a second query able to disagree with it, and a match page costs one
+  head-to-head query, not two.
+- **`getHeadToHeadHistory`.** Three differences from the match page's block,
+  each a decision. No anchor: the match page takes only meetings before its
+  own kickoff, as context for that fixture, while a history of the pair is
+  not about one fixture. No limit: `HEAD_TO_HEAD_LIMIT` is a choice about the
+  match page. No exclusion of the match linked from, which is one of the
+  meetings. What does not differ is the scope and which matches count: every
+  competition in the region, finished, both scores stored.

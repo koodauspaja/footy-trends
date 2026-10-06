@@ -50,3 +50,14 @@ Premier League and Veikkausliiga signed in, at 375 px in light and dark and at
 full label at the right edge, and on the phone Veikkausliiga's labels thinned to
 every other one from 2026. The World Cup, the men's cup and the Liigacup show no
 `Analyysit` at all.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getGoalsPerGame`.** A failed read is its own case, never "too few". A
+  TASO competition is read over every category id the registry has published
+  it under, and each season keeps only the `(competition_id, category_id)`
+  pair the registry names for it: a competition renamed or re-coded between
+  seasons is one line, and a category reused by another competition in
+  another season is not counted.
