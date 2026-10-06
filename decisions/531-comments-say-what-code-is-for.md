@@ -47,8 +47,10 @@ belongs with the feature, bug or chore that had it (Miikka, 2026-10-05).
 - An existing record is not rewritten. The text is added at its end, under
   `## Moved from comments, <date>`, with the path and the commit it was cut at,
   so `git show <commit>:<path>` gives the original.
-- The comment left behind links that record; a comment inside a function is
-  covered by the link on that function's doc comment.
+- The comment left behind links that record. The paths go on the doc comment of
+  a declaration: a function, a type, a constant. A field's comment and a
+  comment inside a function carry none, and are covered by the paths on the
+  declaration they sit in.
 
 ## The check
 
@@ -59,7 +61,7 @@ one. It fails when:
 | Rule | Why |
 |---|---|
 | A cited `decisions/…md` does not exist | a link to nowhere is a stale comment again |
-| The comment lines citing an issue or pull request number differ in count from the recorded one | above it, a new citation; below it, the record is lowered, so the count only falls |
+| A comment line cites an issue or pull request number and is not in the record, or a recorded one is gone | the record, `tests/unit/scripts/recorded-issue-citations.json`, holds a key per citing line, a hash of its file and text. A new line is named; a removed one must leave the record, so it only shrinks. A count was tried first and let a swap through: one citation out, another in |
 | A doc comment starts on the line after another ends | the upper one describes something else, or the same thing twice |
 
 Doc comments over twelve lines are reported, never failed on. A doc comment, a

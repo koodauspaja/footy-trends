@@ -118,6 +118,8 @@ function seasonLabelFor(seasons: SeasonChoice[], seasonId: number): string | nul
 /**
  * What one provider answered for one season, with the ids its rows are stored
  * under. A union, because only TASO has group standings.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 type Snapshot =
   | {
@@ -191,7 +193,11 @@ function dedupedGroupTeams(snapshot: Extract<Snapshot, { source: "taso" }>) {
   return dedupeByIdentity(snapshot.groupTeams);
 }
 
-/** The TASO rows we hold, through the database or the write's transaction. */
+/**
+ * The TASO rows we hold, through the database or the write's transaction.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 async function readStoredTaso(
   executor: Executor,
   snapshot: Extract<Snapshot, { source: "taso" }>,
@@ -231,6 +237,8 @@ async function readStoredForeign(executor: Executor, competitionCode: string, se
 /**
  * What we hold for this season, through whichever executor is given. No
  * `groupTeams` for football-data: no table is not the same as an empty one.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 async function readStored(
   executor: Executor,
@@ -344,6 +352,8 @@ type Resolved = {
 /**
  * Validates the competition and season against the registries and the freshly
  * resolved range. The apply re-runs it, as a server action's arguments are public.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 async function resolve(
   choice: CompetitionChoice,
@@ -437,6 +447,8 @@ export async function previewRefresh(
 /**
  * Writes the diff, and only the diff the admin was shown: a hash that moved
  * since the preview refuses and hands back the new preview.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 export async function applyRefresh(
   choice: CompetitionChoice,

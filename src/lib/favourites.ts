@@ -29,10 +29,16 @@ export const NO_FAVOURITES: Favourites = { teams: [], competitions: [] };
 /**
  * The favourite's state after the write, or why there was none: "is it one
  * now", so an insert that lost a race to an identical one is still `true`.
+ *
+ * decisions/026-favourites.md
  */
 export type FavouriteWrite = { ok: true; favorite: boolean } | { ok: false; reason: "limit" };
 
-/** Both lists as keys for the session payload: the client only asks whether one is there. */
+/**
+ * Both lists as keys for the session payload: the client only asks whether one is there.
+ *
+ * decisions/026-favourites.md
+ */
 export async function getFavouriteKeys(userId: string): Promise<Favourites> {
   const [teams, competitions] = await Promise.all([
     db
@@ -232,7 +238,11 @@ const TASO_NATIONAL_BUCKET_PREFIX = "maajp";
 const MENS_FRIENDLIES_CATEGORY = "Miehet-A";
 const WOMENS_FRIENDLIES_CATEGORY = "Naiset-A";
 
-/** A team's id route in its region, or null without a region. */
+/**
+ * A team's id route in its region, or null without a region.
+ *
+ * decisions/325-taso-finland-links.md
+ */
 function idRouteFor(region: RegionSegment | null, teamProviderId: number): string | null {
   return region === null ? null : `/${region}/joukkue/${teamProviderId}`;
 }
@@ -253,6 +263,8 @@ function nationalTeamPathFor(categories: Set<string>): string | null {
 /**
  * Every category a TASO national-team id has played in: one query, asked only
  * when there is a candidate, as this runs on every session read.
+ *
+ * decisions/325-taso-finland-links.md
  */
 async function nationalCategoriesFor(ids: number[]): Promise<Map<string, Set<string>>> {
   const found = new Map<string, Set<string>>();

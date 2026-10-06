@@ -58,7 +58,11 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
   };
 }
 
-/** The transaction handle drizzle hands `db.transaction`. */
+/**
+ * The transaction handle drizzle hands `db.transaction`.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ */
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**

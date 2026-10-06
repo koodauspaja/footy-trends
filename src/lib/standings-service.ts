@@ -289,6 +289,8 @@ export function getTeamStreakRecords(
 /**
  * Which of the club's seasons belong beside this one: its league seasons across
  * divisions, or for a cup only that cup's (specs/040, S5).
+ *
+ * decisions/040-cup-analytics.md
  */
 function seasonsBeside(competitionCode: string): (code: string) => boolean {
   return getCompetitionFormat(competitionCode) === "cup"
@@ -348,6 +350,8 @@ async function readSeasonFor(
 /**
  * A team's full match list for a season, by kickoff. With no teams table, an id
  * in no stored match is `"not_found"`. `cache()`d for the metadata and the page.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
  */
 export const getTeamMatches = cache(async function getTeamMatches(
   competitionCode: string,
@@ -382,6 +386,8 @@ export const getTeamMatches = cache(async function getTeamMatches(
 /**
  * Every match of one round of a season, through the same sync; without a
  * `round`, the season's current one.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export async function getRoundMatches(
   competitionCode: string,
@@ -466,6 +472,8 @@ export async function getMaxMatchday(
 /**
  * Whether to ask the provider: a season with nothing stored, or a stale active
  * one. `storedMatches` must be ordered newest `updatedAt` first.
+ *
+ * decisions/002-season-selector-and-backfill.md
  */
 export function needsRefresh(
   seasonId: number,
@@ -482,6 +490,8 @@ export function needsRefresh(
 /**
  * Each completed season's table movement in one foreign competition, from
  * stored rows only, never asking the provider (specs/050, S4).
+ *
+ * decisions/050-table-volatility.md
  */
 export async function getSeasonMovements(
   competitionCode: string,
@@ -504,7 +514,11 @@ function toResult(standings: TeamStanding[]): StandingsResult {
   return standings.length > 0 ? { status: "ok", standings } : { status: "empty", standings: [] };
 }
 
-/** Every season we hold matches for in one foreign competition, asked here as this owns `matches`. */
+/**
+ * Every season we hold matches for in one foreign competition, asked here as this owns `matches`.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export async function storedForeignSeasons(competitionCode: string): Promise<Set<number>> {
   const rows = await db
     .selectDistinct({ seasonId: matches.seasonId })

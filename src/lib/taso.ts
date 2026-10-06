@@ -435,6 +435,8 @@ const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 /**
  * The newest published Finnish football season, or `null` when TASO
  * publishes none this call can recognize. Callers decide how to fall back.
+ *
+ * decisions/011-current-season-discovery.md
  */
 export async function getCurrentSeason(signal?: AbortSignal): Promise<number | null> {
   const response = await request<CompetitionsResponse>("/getCompetitions", signal);
@@ -498,6 +500,8 @@ export async function getSeasonCategoryNames(
  * field except `matches_played` there rather than sending `null` for it,
  * so `=== null` alone never detects such a group. That absence is what
  * `keepsATable` keys on — see specs/010-playoff-group-match-list.md.
+ *
+ * decisions/010-playoff-group-match-list.md
  */
 export type TasoGroupTeam = {
   team_id?: string;

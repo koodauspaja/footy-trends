@@ -1519,6 +1519,8 @@ function seasonsBeside(competitionCode: string): (code: string) => boolean {
 /**
  * A domestic competition the registry knows to be a league: `isDomesticCup` is
  * `false` for an unknown code, and stored rows can outlive their registry entry.
+ *
+ * decisions/038-season-against-history.md
  */
 function isDomesticLeague(competitionCode: string): boolean {
   return (

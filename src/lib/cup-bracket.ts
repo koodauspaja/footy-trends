@@ -141,6 +141,8 @@ type TieTotals = {
 /**
  * Sums the legs from the tie's home side, flipping a leg played the other way
  * round. An unscored or unfinished leg leaves the tie incomplete, not 0-0.
+ *
+ * decisions/014-champions-league.md
  */
 function accumulate(legs: BracketSourceMatch[], tieHomeTeamId: number): TieTotals {
   const totals: TieTotals = {
@@ -165,7 +167,11 @@ function accumulate(legs: BracketSourceMatch[], tieHomeTeamId: number): TieTotal
   return totals;
 }
 
-/** One tie from one pairing's legs. A single leg is normal: World Cup and Euro knockouts. */
+/**
+ * One tie from one pairing's legs. A single leg is normal: World Cup and Euro knockouts.
+ *
+ * decisions/014-champions-league.md
+ */
 function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatch[]]): BracketTie {
   const ordered = legs.toSorted(
     (left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime()
@@ -266,6 +272,8 @@ function resolveWinner({
 /**
  * The team the provider says went through, or null when it does not say. The
  * last leg that declares one decides, flipped to the tie's home side.
+ *
+ * decisions/015-finnish-cups.md
  */
 function declaredWinnerId(
   legs: BracketSourceMatch[],
@@ -287,6 +295,8 @@ type TieScore = { home: number; away: number };
 /**
  * The shootout from the tie's home side, which the deciding leg's own home side
  * need not be. Null when there was none or only one side was recorded.
+ *
+ * decisions/014-champions-league.md
  */
 function shootoutScore(
   shootout: BracketSourceMatch | undefined,
@@ -320,6 +330,8 @@ function pairLegs(
 /**
  * One round's ties, earliest first. A pairing of more than two matches becomes
  * one tie per match, so a provider oddity stays visible.
+ *
+ * decisions/014-champions-league.md
  */
 function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketRound {
   const ties = pairLegs(stageMatches).flatMap((legs) =>
@@ -333,6 +345,8 @@ function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketR
 /**
  * A season's knockout rounds as ties, in progression order, read from the
  * matches so a new stage appears unasked. `stages` lets a test pick one round.
+ *
+ * decisions/014-champions-league.md
  */
 export function buildBracket(
   matches: BracketSourceMatch[],
