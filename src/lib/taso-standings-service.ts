@@ -1417,7 +1417,7 @@ async function teamLeagueMatches(
   const tableGroupIds = new Set(
     classified.groups.filter((group) => group.kind !== "match-list").map((group) => group.groupId)
   );
-  // Only the matches of the groups that keep a table.
+  // This team's matches in the groups that keep a table.
   const leagueMatches = classified.matches.filter(
     (match) =>
       tableGroupIds.has(match.groupId) &&

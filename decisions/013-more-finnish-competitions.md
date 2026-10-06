@@ -328,11 +328,11 @@ Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
 Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
 
-- **The `category_id` on a category-scoped request.** Confirmed live: Veikkausliiga, Miesten
-  Kakkonen and Ykkönen each have their own `group_id: "1"` in `spljp26`.
-  Omitting it silently mixes other categories' groups and matches in under
-  colliding ids. A parameter, not a constant, since more than one category is
-  served.
+- **The `category_id` on a category-scoped request.** Confirmed live:
+  Veikkausliiga, Miesten Kakkonen and Ykkönen each have their own
+  `group_id: "1"` in `spljp26`. Omitting it silently mixes other categories'
+  groups and matches in under colliding ids. A parameter, not a constant,
+  since more than one category is served.
 - **`normalizeStatus`.** A forfeited row carries the awarded result (3-0 in
   every case observed) and the team's `matches_played` includes it. Mapping it
   to anything but `FINISHED` drops it from the table while TASO's numbers

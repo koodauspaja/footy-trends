@@ -23,11 +23,8 @@ const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 const GROUPS_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * The Redis key one category's season of matches is cached under. `competitionId`
- * (`spljp26`) is a whole season of Finnish football and `group_id`s collide
- * across its categories, so a request scoped to a category passes both.
+ * The Redis key one category's season of matches is cached under.
  *
- * decisions/013-more-finnish-competitions.md
  * decisions/029-forced-season-refresh.md
  */
 export function tasoMatchesCacheKey(competitionId: string, categoryId: string): string {
@@ -232,7 +229,7 @@ function normalizeStatus(status: string): string {
 
 /**
  * One TASO match normalized for storage, or `null` for a row that cannot be
- * stored: an unusable id, or no kickoff.
+ * stored: a missing field, an unusable id, or no kickoff.
  *
  * decisions/009-veikkausliiga.md
  * decisions/010-playoff-group-match-list.md
@@ -322,9 +319,11 @@ export function normalizeTasoMatch(
 
 /**
  * Every match TASO has for one category's season, whatever its group or status.
- * `seasonId` is passed in, never derived from `competitionId`.
+ * `seasonId` is passed in, never derived from `competitionId`. The category is
+ * part of the request: `group_id`s collide across a season's categories.
  *
  * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
  * decisions/017-huuhkajat.md
  * decisions/200-taso-read-cache.md
  */
@@ -595,9 +594,11 @@ export function normalizeGroupTeams(
 
 /**
  * Every group TASO returns for one category's season, with its own precomputed
- * standings. Read from `getCategory`: TASO refuses `getGroups`.
+ * standings. Read from `getCategory`: TASO refuses `getGroups`. The category is
+ * part of the request, as for `getSeasonMatches`.
  *
  * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
  * decisions/272-group-standings-endpoint.md
  */
 export async function getSeasonGroups(

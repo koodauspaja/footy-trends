@@ -119,8 +119,8 @@ for word, not rewritten, and are trimmed with the batch their file belongs to.
 
 ## The second batch, 2026-10-06
 
-`taso.ts` and `taso-standings-service.ts` in full: 292 comments became 161, and
-58 300 characters of comment became 25 500. Every doc comment on a declaration
+`taso.ts` and `taso-standings-service.ts` in full: 292 comments became 165, and
+58 300 characters of comment became 27 100. Every doc comment on a declaration
 is one to three lines and lists its records, each file has a header comment, and
 neither cites a spec or an issue.
 
