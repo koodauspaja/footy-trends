@@ -62,9 +62,9 @@ function analyticsFor(resolved: ResolvedContext) {
 }
 
 /**
- * A cup's standings: one table per group of the season's table-producing
- * phase, then the closing knockout rounds as a bracket. No round selector: a
- * cup's matchdays are leg numbers, not rounds.
+ * A cup's standings: a table per group of the table-producing phase, then the
+ * knockout rounds as a bracket. No round selector: its knockout matchdays are
+ * leg numbers, and each phase table is always the full one.
  *
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md

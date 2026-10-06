@@ -273,9 +273,10 @@ against the issue's label.
 The last 76 files of `src/` that broke the rule: 22 pages and routes under
 `src/app`, 35 components, `src/db/connection-string.ts` and
 `src/db/migrate.ts`, and 17 modules in `src/lib`. 42 224 characters of comment
-became 31 244, measured after the hand review's fixes. With this batch no file under `src/` has a comment over three
-lines, a doc comment on a declaration without a record path, a spec or issue
-citation, or a doc comment on a statement inside a function.
+became 31 244, measured after the hand review's fixes. With this batch no file
+under `src/` has a comment over three lines, a doc comment on a declaration
+without a record path, a spec or issue citation, or a doc comment on a
+statement inside a function.
 
 Five records are new: `179` (the loading state names no table), `182` (the
 national team pages are never prerendered), `416` (the team page's folds),
