@@ -1,35 +1,33 @@
 /**
- * Which page shape a competition uses.
+ * Which page shape a competition uses. `league` is one table over the whole
+ * season; `cup` has a table phase followed by knockout rounds.
  *
- * `league` is a single table over the whole season. `cup` has phases: a
- * league or group phase that still produces tables, followed by knockout
- * rounds that do not. The discriminator lives here rather than being derived
- * from the code so a second cup needs a registry entry, not a new branch —
- * see specs/014-champions-league.md.
+ * decisions/014-champions-league.md
  */
 export type CompetitionFormat = "league" | "cup";
 
 /**
- * Which section of the site a competition belongs to. `/ulkomaat` holds the
- * foreign leagues and Champions League; `/maajoukkueet` holds competitions
- * between national teams. See specs/016-world-cup-and-euro.md.
+ * Which section of the site a competition belongs to: `/ulkomaat` for the
+ * foreign leagues and the Champions League, `/maajoukkueet` for national teams.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 export type CompetitionRegion = "foreign" | "national-teams";
 
+/**
+ * One football-data competition as the registry holds it.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/006-other-competitions.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
 export type Competition = {
   code: string;
   name: string;
   /**
-   * The area's flag, or a local asset where the provider has none.
-   *
-   * football-data returns `flag: null` for the World area, so the World Cup
-   * carries FIFA's own wordmark from `public/fifa.svg` instead. That file is
-   * Wikimedia Commons' `PD-textlogo`: too simple to attract copyright, and
-   * used here only to identify FIFA's own competition.
-   *
-   * Not football-data's competition emblem, which their terms would require
-   * separate consent for — a different question from this one, and the reason
-   * no club crest appears anywhere in this app.
+   * The area's flag, or a local asset where the provider has none. Never a club
+   * or competition emblem.
    */
   flagUrl: string;
   /** Finnish country name, for the flag's alt text — the flag represents the country, not the league. */
@@ -37,34 +35,23 @@ export type Competition = {
   format: CompetitionFormat;
   region: CompetitionRegion;
   /**
-   * The oldest season this competition can be asked for, when that is later
-   * than the plan-wide floor.
-   *
-   * A league has a season every year, so the configured floor answers for it.
-   * A tournament does not: our plan reaches the 2026 World Cup and the 2024
-   * Euro and nothing else — every other season 403s. Offering them would put a
-   * guaranteed error behind the selector. Omitted means the plan-wide floor.
+   * The oldest season this competition can be asked for, when later than the
+   * plan-wide floor. Omitted means the plan-wide floor.
    */
   earliestSeason?: number;
 };
 
 /**
- * The competitions our football-data.org plan grants access to. Originally
- * limited to plain league-table formats (specs/006-other-competitions.md);
- * `CL` joined as the first cup in specs/014-champions-league.md, which is why
- * every entry now carries an explicit `format`.
+ * The competition `/ulkomaat` falls back to.
  *
- * Flags are the competition's national flag (`area.flag`), not a club/league
- * crest: football-data.org's own terms require separate consent from the
- * clubs/leagues to use their logos, which we don't have. Champions League
- * uses the Europe area flag for the same reason.
+ * decisions/006-other-competitions.md
  */
 export const DEFAULT_COMPETITION_CODE = "PL";
 
 /**
  * The competition a region falls back to when `kilpailu` is absent or invalid.
- * Per region, so a bad value on `/maajoukkueet` lands on the World Cup rather
- * than bouncing the reader to a Premier League page in another section.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 const REGION_DEFAULTS: Record<CompetitionRegion, string> = {
   foreign: DEFAULT_COMPETITION_CODE,
@@ -75,6 +62,14 @@ export function defaultCompetitionFor(region: CompetitionRegion): string {
   return REGION_DEFAULTS[region];
 }
 
+/**
+ * The competitions the football-data.org plan grants access to. Each flag is
+ * the area's, or a federation's wordmark; never a club or league crest.
+ *
+ * decisions/006-other-competitions.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
 export const SUPPORTED_COMPETITIONS: Competition[] = [
   {
     code: "PL",
@@ -171,10 +166,8 @@ export const SUPPORTED_COMPETITIONS: Competition[] = [
   {
     code: "EC",
     name: "EM-kisat",
-    // UEFA's own wordmark, from Wikimedia Commons under the same PD-textlogo
-    // terms as FIFA's. It also tells the Euro apart from Champions League,
-    // which carries the plain Europe flag — the two would otherwise look
-    // identical in a picker.
+    // UEFA's own wordmark, which also tells the Euro apart from the Champions
+    // League's plain Europe flag.
     flagUrl: "/uefa.svg",
     country: "Eurooppa",
     format: "cup",
@@ -186,17 +179,19 @@ export const SUPPORTED_COMPETITIONS: Competition[] = [
 
 /**
  * Which registry a competition code belongs to, or null when nothing has it.
+ * The inverse of `competitionsInRegion`.
  *
- * The inverse of `competitionsInRegion`, and specs/026 needs it: a favourite
- * carries `(source, teamProviderId)` and no region, so the only way to know
- * whether a football-data team is a club or a national side is the competition
- * its stored matches were played in.
+ * decisions/026-favourites.md
  */
 export function regionOfCompetition(code: string): CompetitionRegion | null {
   return SUPPORTED_COMPETITIONS.find((competition) => competition.code === code)?.region ?? null;
 }
 
-/** The competitions one region offers, in registry order. */
+/**
+ * The competitions one region offers, in registry order.
+ *
+ * decisions/016-world-cup-and-euro.md
+ */
 export function competitionsInRegion(region: CompetitionRegion): Competition[] {
   return SUPPORTED_COMPETITIONS.filter((competition) => competition.region === region);
 }
@@ -207,13 +202,11 @@ export type CompetitionParamResult =
   | { kind: "invalid" };
 
 /**
- * Validates the `kilpailu` query parameter against **one region's** competition
- * list. An unvalidated value must never reach the provider URL, a cache key,
- * or a query — same rule as `parseSeasonParam`.
+ * The `kilpailu` query parameter, accepted only when it names a competition of
+ * this one region.
  *
- * Scoped to a region rather than the whole list, so `?kilpailu=PL` on
- * `/maajoukkueet` is rejected rather than rendering a Premier League page under
- * a heading that says national teams.
+ * decisions/006-other-competitions.md
+ * decisions/016-world-cup-and-euro.md
  */
 export function parseCompetitionParam(
   rawValue: string | string[] | undefined,
@@ -232,10 +225,9 @@ export function getCompetitionName(code: string): string {
 }
 
 /**
- * An unknown code answers `"league"`: the league path is the one that has
- * always existed, so a bad `kilpailu` value cannot route a request into the
- * newer cup rendering. `parseCompetitionParam` rejects unknown codes before
- * this is reached in practice.
+ * A competition's format. An unknown code answers `"league"`.
+ *
+ * decisions/014-champions-league.md
  */
 export function getCompetitionFormat(code: string): CompetitionFormat {
   return (
@@ -246,6 +238,8 @@ export function getCompetitionFormat(code: string): CompetitionFormat {
 /**
  * The oldest season a competition can be asked for: its own floor where it has
  * one, otherwise the plan-wide floor the caller supplies.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 export function earliestSeasonFor(code: string, planFloor: number): number {
   return (

@@ -357,3 +357,23 @@ Cut from `src/components/settings-page.tsx` at `a86c1cb` by #531.
   the setting do nothing. A rejected refetch must not escape the transition:
   the save did succeed, and saying it takes effect on reload is more use than
   a silent stale header.
+
+Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
+
+- **`AccountMenu`.** `Kirjaudu ulos` moved in from beside the name: three
+  controls in the header row is what overflowed a 320px viewport, and account
+  actions are where a reader looks for them. Click, not hover: a hover menu is
+  unreachable on a phone.
+- **Focus when the menu closes.** A keyboard reader who tabs into the menu and
+  then clicks empty space leaves focus on an element about to unmount, and it
+  falls to `<body>`. Forcing focus back on every outside click would fight a
+  reader who clicked a different control: the click is itself a focus
+  request. Asking afterwards needs no "was focus inside" bookkeeping and no
+  guard for a ref that cannot be null while the menu is open. A timeout and
+  not a microtask, because the browser moves focus as part of the click's
+  default action, which has not happened when the handler runs.
+- **A disclosure, not `role="menu"`.** Real menu semantics promise arrow-key
+  navigation and typeahead that this does not implement, and claiming them is
+  worse for a screen reader than not claiming them. The label contains the
+  visible name in the text branch, which is what WCAG 2.5.3 (Label in Name)
+  asks for.

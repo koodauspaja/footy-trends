@@ -253,3 +253,10 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   column, gets the safe value and not a null nobody checks for. There is no
   bootstrap path in the app: the first admin is made by one documented
   `UPDATE`, in `docs/setup/023-admin-access.md`.
+
+Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
+
+- **`AccountMenu`'s `isAdmin`.** Nothing is reachable by finding the URL.
+  Anyone refused, a stranger or a demoted admin whose session still says
+  otherwise, gets the generic not-found page with a 200 status, because Next
+  cannot change a status a stream has already committed.

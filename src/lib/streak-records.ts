@@ -1,22 +1,21 @@
 /**
- * A club's longest runs across every stored season — the data behind the team
- * page's `Ennätykset` panel (specs/039).
+ * A club's longest runs across every stored season. Pure: the services pass the
+ * seasons in. A run may cross a season boundary only between consecutive
+ * seasons of the same competition.
  *
- * **Pure.** The services decide which seasons count and pass their matches in,
- * exactly as they do for `Putket` and for the comparison panel.
- *
- * The rule that shapes everything here: **a run may cross a season boundary,
- * but only between consecutive seasons of the same competition** (S1). Stated
- * that way rather than as "the same competition", it rejects three things with
- * one test — a relegation, a promotion, and a season the app never fetched,
- * whose absence would otherwise let the seasons either side of it look adjacent
- * (S2).
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/041-national-team-analytics.md
  */
 import { type ResultMatch, teamMatchesInOrder } from "./form-series";
 import { leagueSeasons, type SeasonKey, type SeasonReadResult } from "./season-comparison";
 import { type StreakKind, streaksOf } from "./streaks";
 
-/** One stored league season's finished matches, and how the page names it. */
+/**
+ * One stored league season's finished matches, and how the page names it.
+ *
+ * decisions/039-streak-records.md
+ */
 export type RecordSeason = {
   competitionCode: string;
   seasonId: number;
@@ -26,11 +25,10 @@ export type RecordSeason = {
 };
 
 /**
- * A record, and the seasons it spans.
+ * A record, and the seasons it spans. `from` and `to` are equal when it sits
+ * inside one season.
  *
- * Named by season rather than by match number (S3): match 37 of a run spanning
- * three seasons is not something a reader can find. `from` and `to` are equal
- * when a record sits inside one season.
+ * decisions/039-streak-records.md
  */
 export type StreakRecord = { length: number; from: string; to: string };
 
@@ -40,15 +38,8 @@ export type StreakRecordsSeries =
   | ({ status: "ok" } & {
       records: StreakRecords;
       /**
-       * What the records cover, as the panel prints it (specs/040 S9, specs/041
-       * S12). The panel says so because it never did on any page — a reader on a
-       * club's cup page could otherwise take its records for the club's own.
-       *
-       * **One line, built by the caller**, because what identifies the run
-       * differs by page: a club page names the competitions, and a
-       * national-team page names the span of years its records reach across.
-       * A field holding competition names that sometimes held years instead
-       * would be two meanings in one place.
+       * What the records cover, as the panel prints it: one line, built by the
+       * caller.
        */
       scope: string;
     })
@@ -56,22 +47,25 @@ export type StreakRecordsSeries =
   | { status: "unavailable" }
   | { status: "error" };
 
-/** One period the records were read from, for the line that says what they cover. */
+/**
+ * One period the records were read from, for the line that says what they cover.
+ *
+ * decisions/041-national-team-analytics.md
+ */
 export type Covered = { competition: string; seasonId: number };
 
-/** A match tagged with the season it was played in, so a record can name it. */
+/**
+ * A match tagged with the season it was played in, so a record can name it.
+ *
+ * decisions/039-streak-records.md
+ */
 type PlacedMatch = ResultMatch & { label: string };
 
 /**
- * The seasons split into runs that a streak may cross, oldest block last.
+ * The seasons split into runs a streak may cross: same competition,
+ * consecutive years. Ordered by each block's newest season, most recent last.
  *
- * Two seasons join only when they are the same competition and consecutive
- * years. A club promoted mid-history therefore keeps one block per spell in
- * each division, which is what a supporter means by "our best run in
- * Veikkausliiga".
- *
- * Blocks come back ordered by their newest season, so a caller walking them in
- * order sees the most recent last — which is how S7's tie-break is decided.
+ * decisions/039-streak-records.md
  */
 export function seasonBlocks(seasons: readonly RecordSeason[]): RecordSeason[][] {
   const ordered = [...seasons].sort(
@@ -104,13 +98,10 @@ export function seasonBlocks(seasons: readonly RecordSeason[]): RecordSeason[][]
 }
 
 /**
- * The season a match of a run was played in.
+ * The season a match of a run was played in. Throws for an index outside the
+ * run's own sequence.
  *
- * **Throws for an index outside the run's own sequence**, rather than returning
- * a label that would print as `Kausi ` and read as a season. `streaksOf` numbers
- * its runs over exactly the array passed here, so the state is unreachable in
- * production; the services catch the throw and report an error rather than a
- * record that names no season.
+ * decisions/039-streak-records.md
  */
 export function labelAt(placed: readonly { label: string }[], position: number): string {
   const match = placed[position - 1];
@@ -121,12 +112,10 @@ export function labelAt(placed: readonly { label: string }[], position: number):
 }
 
 /**
- * The club's records over every season it has stored.
+ * The club's records over every season it has stored. A longer record wins; an
+ * equal one is taken from the most recent block.
  *
- * Each block's matches are counted as one sequence, so a run that ends a season
- * and continues into the next is one run. A longer record always wins; an equal
- * one is taken from the **most recent** block (S7), which is the record a reader
- * remembers and the only one that can still be extended.
+ * decisions/039-streak-records.md
  */
 export function streakRecords(seasons: readonly RecordSeason[], teamId: number): StreakRecords {
   const records: StreakRecords = { wins: null, unbeaten: null, defeats: null, winless: null };
@@ -160,25 +149,20 @@ export function streakRecords(seasons: readonly RecordSeason[], teamId: number):
   return records;
 }
 
-/** Whether the club has any record at all — a club with no finished match has none. */
+/**
+ * Whether the club has any record at all: a club with no finished match has none.
+ *
+ * decisions/039-streak-records.md
+ */
 export function hasAnyRecord(records: StreakRecords): boolean {
   return Object.values(records).some((record) => record !== null);
 }
 
 /**
- * The whole panel for one club, from a reader the caller supplies.
+ * The whole panel for one club, from a reader the caller supplies: one
+ * orchestrator for both providers. Any failed read fails the panel.
  *
- * **One orchestrator, both providers**, as specs/038's `comparisonFor` is: they
- * differ in how a season is found and in what counts as a league, and in
- * nothing else. `label` comes from the page rather than from here, because how
- * a season is written differs by provider — plain years domestically,
- * `2024/25` abroad — and it must be the wording the page's own season selector
- * already uses.
- *
- * Any failed read fails the panel (S9). A record is not an average, so a
- * missing season could only make one too small rather than wrong in kind — but
- * the comparison beside it fails for the same reason, and one rule across both
- * beats a defensible difference.
+ * decisions/039-streak-records.md
  */
 export async function recordsFor<T extends SeasonKey>(
   teamId: number,
@@ -222,10 +206,10 @@ export async function recordsFor<T extends SeasonKey>(
 
 /**
  * What a club page's records cover: the competitions, each named once, in the
- * order met (specs/040, S9).
+ * order met.
  *
- * Shared by both providers rather than written at each call site — they differ
- * in how a season is read and in nothing about how it is named.
+ * decisions/040-cup-analytics.md
+ * decisions/041-national-team-analytics.md
  */
 export function competitionScope(covered: readonly Covered[]): string {
   return [...new Set(covered.map(({ competition }) => competition))].join(", ");

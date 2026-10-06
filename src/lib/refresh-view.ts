@@ -1,15 +1,16 @@
 /**
  * Types and validation shared by the forced-refresh page, its client
- * components and its server actions, from specs/029-forced-season-refresh.md.
+ * components and its server actions. Client-safe: no database, provider or
+ * `node:crypto` import.
  *
- * Client-safe on purpose: no database import, no provider import, no
- * `node:crypto`. `refresh-form.tsx` and `refresh-confirm.tsx` are browser
- * bundles, and the modules that do the work — `refresh-diff.ts`,
- * `force-refresh.ts`, `refresh-runs.ts` — must not travel with them. The same
- * boundary `admin-user-view.ts` and `favourite-keys.ts` exist for.
+ * decisions/029-forced-season-refresh.md
  */
 
-/** The providers a season can be refreshed from. */
+/**
+ * The providers a season can be refreshed from.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export const REFRESH_SOURCES = ["taso", "football-data"] as const;
 
 export type RefreshSource = (typeof REFRESH_SOURCES)[number];
@@ -19,14 +20,10 @@ export function isRefreshSource(value: unknown): value is RefreshSource {
 }
 
 /**
- * How the competition `<select>` encodes one option, and how an action reads
- * it back.
+ * The separator inside one competition `<select>` value, between the source and
+ * the code. No competition code contains one.
  *
- * One control rather than a provider radio plus a competition list: which
- * provider a competition belongs to is a fact about the competition, not a
- * question to put to an admin. `:` is safe as the separator because no
- * competition code contains one — both registries use upper-case letters and
- * digits.
+ * decisions/029-forced-season-refresh.md
  */
 export const CHOICE_SEPARATOR = ":";
 
@@ -41,11 +38,9 @@ export function encodeChoice(choice: CompetitionChoice): string {
 
 /**
  * Reads a `<select>` value back into a source and a code, or `null` when it is
- * not one this app produced.
+ * not one this app produced. Shape only: the caller checks the registries.
  *
- * Shape only — that the code names a real competition is checked against the
- * registries by the caller, which is where the registries live. This function
- * stays client-safe so the form can use it too.
+ * decisions/029-forced-season-refresh.md
  */
 export function decodeChoice(value: unknown): CompetitionChoice | null {
   if (typeof value !== "string") return null;
@@ -60,20 +55,32 @@ export function decodeChoice(value: unknown): CompetitionChoice | null {
   return { source, code };
 }
 
-/** One option in the competition `<select>`, grouped by region in the markup. */
+/**
+ * One option in the competition `<select>`, grouped by region in the markup.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type CompetitionOption = {
   value: string;
   label: string;
   source: RefreshSource;
 };
 
-/** One option in the season `<select>`. Mirrors `SeasonOption` in seasons.ts. */
+/**
+ * One option in the season `<select>`. Mirrors `SeasonOption` in seasons.ts.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type SeasonChoice = {
   seasonId: number;
   label: string;
 };
 
-/** Rows added, rows changed, rows removed — for one table, in one run. */
+/**
+ * Rows added, rows changed, rows removed: for one table, in one run.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type RowCounts = {
   inserted: number;
   updated: number;
@@ -87,8 +94,10 @@ export function isEmptyCounts(counts: RowCounts): boolean {
 }
 
 /**
- * A team whose `starting_points` would move — the field this whole feature
- * exists for, since it is where TASO carries a points deduction.
+ * A team whose `starting_points` would move, which is where TASO carries a
+ * points deduction.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 export type DeductionChange = {
   teamName: string;
@@ -98,11 +107,10 @@ export type DeductionChange = {
 };
 
 /**
- * A stored match the provider no longer returns.
+ * A stored match the provider no longer returns, carried by name and not
+ * counted.
  *
- * Carried by name rather than counted, because a removal is the only
- * irreversible thing this tool does and a number alone is not enough to judge
- * it by — see the spec's note on partial provider answers.
+ * decisions/029-forced-season-refresh.md
  */
 export type RemovedMatch = {
   providerMatchId: number;
@@ -112,15 +120,25 @@ export type RemovedMatch = {
   awayTeamName: string;
 };
 
-/** How many removed matches the confirmation lists before it truncates. */
+/**
+ * How many removed matches the confirmation lists before it truncates.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export const REMOVED_MATCHES_SHOWN = 20;
 
-/** How many past runs the page lists. */
+/**
+ * How many past runs the page lists.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export const RUN_LIST_LIMIT = 20;
 
 /**
  * What would change, computed before anything is written and shown to the
  * admin for approval.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 export type RefreshPreview = {
   source: RefreshSource;
@@ -134,26 +152,16 @@ export type RefreshPreview = {
   deductionChanges: DeductionChange[];
   removedMatches: RemovedMatch[];
   /**
-   * A stable fingerprint of the provider rows this preview was built from.
-   *
-   * The apply recomputes it and refuses if it no longer matches, so "what you
-   * saw is what you applied" is a checked fact rather than an assumption about
-   * timing.
+   * A stable fingerprint of the provider rows this preview was built from. The
+   * apply recomputes it and refuses when it no longer matches.
    */
   snapshotHash: string;
 };
 
 /**
- * Whether there is anything to apply.
+ * Whether there is anything to apply: any row count, or any deduction.
  *
- * Deductions are named explicitly even though a moved `starting_points` also
- * moves the group row's `updated` count today, so the third clause is
- * unreachable as the diff currently works. It is here because this predicate
- * decides whether the admin is offered a `Päivitä` **button**, and the dialog
- * lists deductions separately: leaving them out would make the button's
- * condition and the dialog's contents two different ideas of "something
- * changed", free to drift the moment the diff does. The one thing this feature
- * exists to apply must not be the thing the button forgets.
+ * decisions/029-forced-season-refresh.md
  */
 export function previewHasChanges(preview: RefreshPreview): boolean {
   return (
@@ -164,10 +172,10 @@ export function previewHasChanges(preview: RefreshPreview): boolean {
 }
 
 /**
- * Why a preview or an apply refused.
+ * Why a preview or an apply refused. `empty`: a provider answering with
+ * nothing, for a season we hold rows for, never writes and never deletes.
  *
- * `empty` is the one that carries the feature's core rule: a provider answering
- * with nothing, for a season we hold rows for, never writes and never deletes.
+ * decisions/029-forced-season-refresh.md
  */
 export type RefreshFailureReason =
   | "input"
@@ -192,7 +200,11 @@ export type SeasonsResult =
   | { ok: true; seasons: SeasonChoice[] }
   | { ok: false; reason: RefreshFailureReason };
 
-/** One row of the run list, as the page hands it to the client component. */
+/**
+ * One row of the run list, as the page hands it to the client component.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type RefreshRunView = {
   id: number;
   source: RefreshSource;

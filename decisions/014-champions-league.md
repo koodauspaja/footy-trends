@@ -299,3 +299,14 @@ Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
   penalties 1-4, which is why the breakdown is carried through and not
   dropped. The provider omits it for every league match and any cup match
   decided in normal time.
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`CompetitionFormat`.** The discriminator lives in the registry and is not
+  derived from the code, so a second cup needs a registry entry and not a new
+  branch. The Champions League joined as the first cup, which is why every
+  entry carries an explicit `format`.
+- **`getCompetitionFormat`.** The league path is the one that has always
+  existed, so a bad `kilpailu` value cannot route a request into the newer cup
+  rendering. `parseCompetitionParam` rejects unknown codes before this is
+  reached in practice.

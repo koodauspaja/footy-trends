@@ -11,26 +11,11 @@ import type { RegionSegment } from "@/lib/regions";
 import { favouriteKeysOf } from "@/lib/session-extras";
 
 /**
- * The one control for favouriting anything, from specs/026-favourites.md.
+ * The one control for favouriting anything, on every surface. A client
+ * component reading the session the browser already has. A unit test that
+ * renders it must mock `@/lib/auth-client`.
  *
- * **One component, not one per surface.** It renders in a standings row, on a
- * team page, on a competition page and in the region picker — and the picker
- * lives on the four pages `tests/unit/app/rendering-mode.test.ts` keeps
- * prerendered (#182). A server-rendered variant would cost those pages their
- * prerendering, so this reads the session the browser already has and there is
- * nothing to keep in step between two versions.
- *
- * It imports `favourite-keys.ts` rather than `favourites.ts`: the latter
- * reaches the database, and this is a client bundle — the same boundary
- * `avatar-limits.ts` exists for, learned the expensive way in #268.
- *
- * **A unit test that renders a tree containing this must mock
- * `@/lib/auth-client`.** The real client opens a broadcast channel whose
- * nanostores cleanup runs a second after the last unsubscribe, by which point
- * the file's jsdom is gone — it then throws `window is not defined` as an
- * uncaught exception inside whichever file is running at the time, which is a
- * flake with no relation to the file that caused it. The eight files that
- * render a standings table or a region picker already do this.
+ * decisions/026-favourites.md
  */
 
 type Props = Readonly<
@@ -43,34 +28,21 @@ type Props = Readonly<
 const LABEL_ADD = "Lisää suosikkeihin";
 const LABEL_REMOVE = "Poista suosikeista";
 
-/** At the cap. The reader has to remove one, so the notice has to say which limit. */
+/**
+ * At the cap. The reader has to remove one, so the notice has to say which limit.
+ *
+ * decisions/026-favourites.md
+ */
 const LIMIT_NOTICE = "Suosikkeja voi olla enintään 50.";
 
 export function FavouriteToggle(props: Props) {
   const { data: session, refetch } = useSession();
   const [pending, startTransition] = useTransition();
-  /**
-   * `null` means "no answer of our own yet, use the session".
-   *
-   * The session is refetched after a write, but not instantly, and a star that
-   * springs back for a moment reads as a failure. Local state answers until the
-   * session catches up, and the session is the truth on every other render.
-   */
+  // `null` means no answer of our own yet: use the session.
   const [own, setOwn] = useState<boolean | null>(null);
   const [limit, setLimit] = useState(false);
-  /**
-   * Rendered only after hydration, and this is not cosmetic.
-   *
-   * Every page this appears on is server-rendered — four of them prerendered
-   * (#182) — where there is no session and the star is nothing. better-auth's
-   * client can answer from its own cache on the *first* client render, which
-   * would then disagree with that HTML: a real hydration mismatch, which React
-   * reports and recovers from by throwing the server's markup away.
-   *
-   * `isPending` is not enough on its own for the same reason — a cached
-   * session is not pending. Mounting is the only state that is false during
-   * server rendering by construction.
-   */
+  // Rendered only after hydration: the server has no session, and the client's
+  // cached one would otherwise disagree with the server's HTML.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -79,25 +51,11 @@ export function FavouriteToggle(props: Props) {
       ? teamKey(props.source, props.teamProviderId)
       : competitionKey(props.region, props.code);
 
-  // Computed before the early return below, because the effect that follows is
-  // a hook and hooks cannot run conditionally. `favouriteKeysOf` answers `[]`
-  // for a session that is null, which is the right answer for a signed-out
-  // reader anyway.
+  // Computed before the early return below, because the effect that follows is a
+  // hook. A null session answers `[]`.
   const stored = favouriteKeysOf(session, props.kind).includes(key);
 
-  /**
-   * Hand the state back to the session the moment it agrees.
-   *
-   * The local answer exists to cover the gap between a write and the refetch
-   * that reflects it. Kept past that, it would outrank the session for as long
-   * as this component stays mounted, so a change made in another tab would
-   * never appear — the star would be right once and then frozen.
-   *
-   * Only when they agree: a session that still disagrees has not caught up, and
-   * dropping our answer there would show an empty star for a favourite the
-   * reader just added, which is the failure this local state was added to
-   * prevent.
-   */
+  // Hand the state back to the session the moment the two agree, and not before.
   useEffect(() => {
     if (own !== null && own === stored) setOwn(null);
   }, [own, stored]);
@@ -125,10 +83,8 @@ export function FavouriteToggle(props: Props) {
 
               if (result.ok) {
                 setOwn(result.favorite);
-                // The other stars on this page read the same session payload —
-                // a competition can be favourited from the picker and shown
-                // again on its own page — so the write is not finished until
-                // the session catches up. `own` covers the gap until it does.
+                // The write is not finished until the session catches up: other stars on the
+                // page read the same payload.
                 await refetch();
               } else if (result.reason === "limit") {
                 setLimit(true);

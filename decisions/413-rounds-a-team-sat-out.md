@@ -9,3 +9,9 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
 
 - **`ChartPoint.open`.** For the position chart, a round the team sat out: its
   position is on the line, but it did not play for it.
+
+Cut from `src/lib/position-series.ts` at `94397a8` by #531.
+
+- **`PositionPoint.played`.** A round sat out is a bye, a match of the team's
+  own still to come, or a round TASO numbered out of calendar order. The
+  chart draws it as an open circle.

@@ -119,3 +119,34 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
   number because both axes count things, rounds and places. The last regular
   tick is dropped when it would crowd `max`, so the axis never prints 37 and
   38 side by side.
+
+Cut from `src/lib/position-series.ts` at `94397a8` by #531.
+
+- **`position-series.ts`.** Because every table is the calculation the
+  standings page uses for that provider, a plotted position always equals the
+  one the standings page shows for that round, the property the feature
+  rests on, and a change to how a table is ranked cannot make the two
+  disagree.
+- **`PositionSeries.teamCount`.** The whole league, also after a split.
+- **`PositionSeries.endsAtSplit`.** The page says so beneath the chart.
+- **`unavailable`.** The standings page shows no round selector for such a
+  season either, so there is nothing the chart could equal.
+- **`roundsToPlot`.** A bye in an odd-sized league, or a match of the team's
+  still to be played: the table moved when the others played, so where it
+  stood is still a point on the line.
+- **`positionsAfterEachRound`.** The row's own `position` is used and not its
+  index, so the chart shows exactly the number the standings page displays,
+  whatever rule produced it. It throws where it could return something a
+  caller must check: both callers' tables include every team with a match in
+  the season, since `calculateStandings` adds each match's participants to
+  the roster, so the state is unreachable and a branch for it in each caller
+  would be a condition no test could take. A missing team must still never
+  become a plausible position: the services catch the throw and report an
+  error.
+- **`singleTableSeries`.** Finished matches up to the round, and the whole
+  season as the roster, so a team that has not played yet is still in the
+  table at the position the standings page gives it.
+- **`teamsInGroupsAbove`.** Not by group id or group name, neither of which
+  records the order: the lower group's leader is 7th when the upper group has
+  six teams, whatever the ids say. Group sizes come from the data: six is
+  Veikkausliiga's current shape, not a constant.
