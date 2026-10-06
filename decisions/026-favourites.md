@@ -293,3 +293,45 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
 - **`favoriteCompetition`.** A team is a provider and a number, a competition a
   region and a code. One table holding both would need four nullable columns
   plus a constraint saying which pair is legal: a check where a type will do.
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`regionOfCompetition`.** A favourite carries `(source, teamProviderId)` and
+  no region, so the only way to know whether a football-data team is a club
+  or a national side is the competition its stored matches were played in.
+
+Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
+
+- **`Suosikit` in the account menu.** Above `Asetukset`, so the one the reader
+  opens most is first.
+
+Cut from `src/components/favourite-toggle.tsx` at `94397a8` by #531.
+
+- **`FavouriteToggle`, one component.** It renders in a standings row, on a
+  team page, on a competition page and in the region picker, and the picker
+  lives on the four pages `tests/unit/app/rendering-mode.test.ts` keeps
+  prerendered. A server-rendered variant would cost those pages their
+  prerendering, and there would be two versions to keep in step. It imports
+  `favourite-keys.ts` and not `favourites.ts`, which reaches the database: the
+  boundary `avatar-limits.ts` exists for.
+- **Why a test must mock `@/lib/auth-client`.** The real client opens a
+  broadcast channel whose nanostores cleanup runs a second after the last
+  unsubscribe, by which point the file's jsdom is gone. It then throws
+  `window is not defined` as an uncaught exception inside whichever file is
+  running, a flake with no relation to the file that caused it.
+- **`own`.** The session is refetched after a write, but not instantly, and a
+  star that springs back for a moment reads as a failure. Local state answers
+  until the session catches up; the session is the truth on every other
+  render.
+- **`mounted`.** Not cosmetic. Every page this appears on is server-rendered,
+  four of them prerendered, where there is no session and the star is
+  nothing. better-auth's client can answer from its cache on the first client
+  render, a real hydration mismatch that React recovers from by throwing the
+  server's markup away. `isPending` is not enough: a cached session is not
+  pending. Mounting is the only state false during server rendering by
+  construction.
+- **Handing the state back.** Kept past the refetch, the local answer would
+  outrank the session for as long as the component stays mounted, so a change
+  made in another tab would never appear. Only when they agree: dropping it
+  while the session still disagrees would show an empty star for a favourite
+  the reader just added.

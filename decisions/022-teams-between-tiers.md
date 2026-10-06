@@ -156,3 +156,41 @@ flattened into absent data. It is worth stating as a rule rather than a fix:
 | `/kotimaa/joukkue/60561?kilpailu=VL&kausi=2026` | `Joukkuetta ei löytynyt.` | `FC Haka – Veikkausliiga 2026`, the message, and `Kaudella 2026: Ykkösliiga, Ykkösliigacup, Miesten Suomen Cup` |
 | `/kotimaa/joukkue/60808?kilpailu=VL&kausi=2018` | the same | `HIFK`, the message, `Kaudella 2018: Ykkönen, Miesten Suomen Cup`, and a selector stopping at 2023 — HIFK's last stored season |
 | `/ulkomaat/joukkue/328?kilpailu=PL&kausi=2024` | the same | `Burnley FC`, the message, `Kaudella 2024: Championship` |
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/team-seasons.ts` at `94397a8` by #531.
+
+- **`loadTeamSeasons`.** A club's seasons are spread across tiers, since
+  promotion and relegation are ordinary, while a team page's season selector
+  offered the competition's seasons. Measured 2026-09-02: 120 of the 264
+  (club, season) options on Veikkausliiga's team pages ended at the
+  team-not-found message, and 28 of 108 on the Premier League's. This is what
+  lets the selector offer the seasons the club played, and lets a page that
+  finds nothing say where it did play.
+- **`footballDataScope`, `tasoScope`.** Two copies of a predicate is two
+  chances for the seasons a club played and the name to call it by to
+  disagree about what a club's matches are.
+- **`TeamNameResult`.** A separate question from the seasons, and a rarer one:
+  a page that renders matches reads the name off the first of them, so this
+  runs only on the cross-tier page. Keeping it out of `getTeamSeasons` leaves
+  the common page at one added query and not two. A page that cannot tell
+  `error` from `not_found` renders an explanation with a blank where the club
+  should be.
+- **`competitionForSeason`.** A 27-game league beats a 2-game cup run, so the
+  reader lands where the club spent the year. Read from stored rows and not
+  from a ranking of tiers, which the data does not carry.
+- **`TeamSeasonsView.seasonCompetitions`.** Derived from the filtered set so
+  the selector cannot be sent to a competition-season the page would reject.
+  Computing it from the raw list is a real bug: a season whose busiest
+  competition is unreachable would map to that one.
+- **`teamSeasonsView`.** The pages differ only in how they label a season and
+  name a competition: `2026` against `2025/26`, the domestic registry against
+  the football-data one.
+- **`selectable`.** A club can have stored rows the app no longer offers,
+  since a raised season floor leaves them behind. Offering one sends a `kausi`
+  the page rejects, landing the reader on a fallback season with a notice and
+  not where they clicked. Filtered here because both pages need the rule.
+- **The season being shown.** A dropdown that omits it has nothing selected,
+  so the browser displays its first option and the control claims a different
+  season from the page.

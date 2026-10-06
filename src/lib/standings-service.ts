@@ -57,9 +57,8 @@ export type StandingsRequest = {
   /** The newest started season, used to decide whether `seasonId` is still being played. */
   activeSeasonId: number;
   /**
-   * Restricts standings to matches with `matchday <= round`. Bypasses the
-   * season-level cache, which only stores the full-season result — see
-   * specs/003-standings-after-selected-round.md.
+   * Restricts standings to matches with `matchday <= round`, and bypasses the
+   * season-level cache, which stores only the full-season result.
    */
   round?: number;
 };
@@ -76,10 +75,18 @@ export type RoundMatchesResult =
   | { status: "error" };
 
 type StoredMatch = typeof matches.$inferSelect;
-/** A match from either the DB or a fresh provider fetch — see football-data.ts. */
+/**
+ * A match from either the database or a fresh provider fetch.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ */
 type MatchRow = NormalizedProviderMatch;
 
-/** Matches with no known matchday are excluded once a round filter applies. */
+/**
+ * Matches with no known matchday are excluded once a round filter applies.
+ *
+ * decisions/003-standings-after-selected-round.md
+ */
 function filterByRound<T extends { matchday: number | null }>(
   matchList: T[],
   round: number | undefined
@@ -457,7 +464,11 @@ export const getCupSeason = cache(async function getCupSeason(
   }
 });
 
-/** The highest matchday with at least one stored match for the season, or null if none. */
+/**
+ * The highest matchday with at least one stored match for the season, or null if none.
+ *
+ * decisions/003-standings-after-selected-round.md
+ */
 export async function getMaxMatchday(
   competitionCode: string,
   seasonId: number

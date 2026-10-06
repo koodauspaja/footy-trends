@@ -153,3 +153,17 @@ Three records are new, for two bugs and a chore that had none: `266`, `271` and
 `413`. One comment sat on the wrong declaration: the description of the
 competition list was on `DEFAULT_DOMESTIC_COMPETITION_CODE`, the constant above
 it, and moved onto `DOMESTIC_COMPETITIONS`.
+
+## The fifth batch, 2026-10-06
+
+Twelve files in full: in `src/lib`, `competitions.ts`, `match-detail.ts`,
+`position-series.ts`, `refresh-view.ts`, `streak-records.ts`, `team-search.ts`,
+`team-seasons.ts` and what was left of `standings-service.ts`; in
+`src/components`, `account-menu.tsx`, `favourite-toggle.tsx`, `match-page.tsx`
+and `team-page.tsx`. 49 585 characters of comment became 30 495.
+
+One record is new, `269`, for the chore that gave every colour a role that
+follows the theme. Two comments sat on the wrong declaration, as one did in the
+fourth batch: the description of the competition list was on
+`DEFAULT_COMPETITION_CODE`, and the team page's own description on its
+`TEAM_HEADING` constant. Each moved to what it describes.

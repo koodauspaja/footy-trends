@@ -147,3 +147,14 @@ composed selector) now that it composes three controls (`Kilpailu`,
   switching competitions updates the heading and URL correctly; the hidden
   `kilpailu` field correctly carries a non-default competition (Bundesliga)
   onto the team page.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`SUPPORTED_COMPETITIONS`.** The competitions the football-data.org plan
+  grants access to, originally limited to plain league-table formats. Flags
+  are the competition's national flag (`area.flag`) and not a club or league
+  crest: football-data.org's terms require separate consent from the clubs
+  and leagues to use their logos, which we do not have. The Champions League
+  uses the Europe area flag for the same reason.

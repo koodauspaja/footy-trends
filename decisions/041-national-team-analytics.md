@@ -151,3 +151,14 @@ Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
   friendlies, qualifiers and a tournament at once. A year with no finished
   match is `empty` and not an empty period: counting it would let both panels
   describe a year they read nothing from.
+
+Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
+
+- **`StreakRecords.scope`.** The panel says what its records cover because a
+  reader on a club's cup page could otherwise take them for the club's own.
+  Built by the caller because what identifies the run differs by page: a club
+  page names the competitions, a national-team page the span of years. One
+  field holding names that sometimes held years would be two meanings in one
+  place.
+- **`competitionScope`.** Shared by both providers: they differ in how a
+  season is read and in nothing about how it is named.

@@ -152,3 +152,15 @@ Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
   which name belongs to which id.
 - **`playedLine`.** Finnish counts one thing differently, and a literal
   `ottelua` would make a pair that has met once read `1 ottelua`.
+
+Cut from `src/components/match-page.tsx` at `94397a8` by #531.
+
+- **`allMeetingsLink`.** A placeholder team has no identity to pair, the
+  reason the block above says `HEAD_TO_HEAD_UNAVAILABLE` and does not show an
+  empty list. A link to an empty page is worse than no link. The count is the
+  length of the history the previous meetings were taken from, the same read
+  the full page performs, so the number on the link is the number of rows
+  behind it.
+- **The link under the previous meetings.** Offered even when the block shows
+  every meeting: the full page carries a record, goals and a ground split
+  that the list does not.

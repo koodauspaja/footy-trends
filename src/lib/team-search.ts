@@ -8,35 +8,30 @@ import { resolveTeamNames } from "@/lib/favourites";
 import type { RegionSegment } from "@/lib/regions";
 
 /**
- * Finding a team by name, from specs/027-team-search.md.
+ * Finding a team by name: the ids whose any recorded name matches. What each
+ * is called now is `resolveTeamNames`' answer, a separate step.
  *
- * **Two steps, deliberately separate.** This module finds the ids whose *any*
- * recorded name matches, and `resolveTeamNames` says what each of those teams
- * is called **now**. Doing both in one query would show a club's old name
- * whenever an old name is what matched, which is the opposite of useful for
- * someone searching a club they remember under a former name.
+ * decisions/027-team-search.md
  */
 
-/** Short enough to be worth typing, long enough that one keystroke scans nothing. */
+/**
+ * Short enough to be worth typing, long enough that one keystroke scans nothing.
+ *
+ * decisions/027-team-search.md
+ */
 export const MIN_TERM_LENGTH = 2;
 
 /**
  * How many results a search returns.
  *
- * Agreed rather than measured. A reader who cannot find their team in twenty
- * should type more — and one common name fills half of that on its own, since
- * `FC Honka` alone carries nine distinct ids.
+ * decisions/027-team-search.md
  */
 export const MAX_RESULTS = 20;
 
 /**
- * Finnish letters folded to their plain forms, in SQL.
+ * Finnish letters folded to their plain forms, in SQL, with `translate`.
  *
- * `translate` rather than `unaccent`: the extension is available but **not
- * installed**, so it would need a `CREATE EXTENSION` migration and the
- * privilege to run it on the platform — for a fold that three character pairs
- * describe completely. `translate` is also `IMMUTABLE`, which `unaccent` is not,
- * so an expression index over it is possible at all.
+ * decisions/027-team-search.md
  */
 const FOLD_FROM = "äöåÄÖÅ";
 const FOLD_TO = "aoaAOA";
@@ -46,11 +41,9 @@ function foldedColumn(column: PgColumn): SQL<string> {
 }
 
 /**
- * The same fold, applied to what the reader typed.
+ * The same fold, applied to what the reader typed, so matching is symmetric.
  *
- * Applied to both sides is what makes matching symmetric: folding only the
- * stored name finds `Järvenpää` from `jarvenpaa` but not from `Järvenpää`, and
- * folding only the term does the reverse.
+ * decisions/027-team-search.md
  */
 export function foldTerm(term: string): string {
   const lowered = term.trim().toLowerCase();
@@ -63,25 +56,29 @@ export function foldTerm(term: string): string {
 }
 
 /**
- * `%` and `_` are wildcards to `LIKE`, so a reader typing either would match far
- * more than they asked for — one `%` matches every team there is.
+ * Escapes `%`, `_` and `\`, which `LIKE` reads as wildcards and its escape, in
+ * one pass.
  *
- * One pass over all three, rather than three passes. Escaping them separately
- * has to do `\` first — otherwise the escapes it inserts get escaped again by
- * the later passes — and a rule whose correctness depends on statement order is
- * one somebody reorders. `$&` is the matched character, so each is prefixed
- * with a single backslash exactly once.
+ * decisions/027-team-search.md
  */
 export function escapeLike(term: string): string {
   return term.replaceAll(/[\\%_]/g, String.raw`\$&`);
 }
 
-/** Whether a term is worth querying for at all. */
+/**
+ * Whether a term is worth querying for at all.
+ *
+ * decisions/027-team-search.md
+ */
 export function isSearchable(term: string): boolean {
   return term.trim().length >= MIN_TERM_LENGTH;
 }
 
-/** One team a search found, ready to render. */
+/**
+ * One team a search found, ready to render.
+ *
+ * decisions/027-team-search.md
+ */
 export type TeamSearchView = {
   source: FavouriteSource;
   teamProviderId: number;
@@ -94,13 +91,18 @@ export type TeamSearchView = {
   seasonId: number | null;
 };
 
-/** A team id with the newest match that matched, which is only used for ordering. */
+/**
+ * A team id with the newest match that matched, which is only used for ordering.
+ *
+ * decisions/027-team-search.md
+ */
 type Hit = { source: FavouriteSource; teamProviderId: number; kickoffAt: Date };
 
 /**
  * TASO's placeholder for a bracket slot nobody has qualified into yet, and the
- * one stored team with no name at all. Neither is a team a reader can open, and
- * spec 019 already keeps both off the match page.
+ * one stored team with no name. Neither is a team a reader can open.
+ *
+ * decisions/027-team-search.md
  */
 const PLACEHOLDER_TEAM_ID = 0;
 
@@ -109,22 +111,8 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
 
   const pattern = `%${escapeLike(foldTerm(term))}%`;
 
-  /**
-   * Four queries, one per searched column, mirroring `resolveTeamNames`.
-   * `distinct on` collapses each team to its newest matching row, so a club with
-   * two hundred matches contributes one.
-   *
-   * **Capped in the database, but not on the inner query.** `distinct on (id)`
-   * requires the sort to begin with `id`, so a `LIMIT` there keeps the twenty
-   * *lowest ids* rather than the twenty newest teams — a club that played last
-   * week dropped for one inactive since 2019, purely because its id is larger.
-   *
-   * So the `distinct on` is a subquery, and the cap sits on the outer select
-   * where the rows can be ordered by date. That keeps both properties at once:
-   * the ranking is by recency, and no more than `MAX_RESULTS` rows per query
-   * ever leave Postgres — a short common term like `ja` cannot pull every
-   * matching team into memory.
-   */
+  // Four queries, one per searched column. `distinct on` is a subquery and the cap
+  // sits on the outer select, so the cap keeps the newest teams, not the lowest ids.
   const hits = await Promise.all(
     (
       [
@@ -163,10 +151,7 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
     })
   );
 
-  /**
-   * A team appears from both its home and away rows; the newer wins, because
-   * that is what the ordering is meant to reflect.
-   */
+  // A team appears from both its home and away rows; the newer wins.
   const newest = new Map<string, Hit>();
   for (const hit of hits.flat()) {
     const key = `${hit.source}:${hit.teamProviderId}`;

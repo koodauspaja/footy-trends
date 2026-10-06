@@ -28,21 +28,30 @@ import {
 } from "@/lib/team-seasons";
 
 /**
- * A club's page, whichever provider its matches come from (#530).
+ * A club's page, whichever provider its matches come from. What differs
+ * between providers comes in as `TeamPageView`.
  *
- * `/ulkomaat` and `/maajoukkueet` shared one implementation and `/kotimaa` had
- * a copy of it, which is how the favourite star came to be missing from Finnish
- * clubs alone (#526). There is one page now. What differs between providers
- * comes in as `TeamPageView`: the names, the notices, the controls, one table
- * column and the analytics loaders. Each provider resolves its own view,
- * `competition-team-page.tsx` for football-data and the `/kotimaa` route for
- * TASO, and nothing below knows which it was given.
+ * decisions/022-teams-between-tiers.md
+ * decisions/026-favourites.md
+ * decisions/040-cup-analytics.md
+ * decisions/530-one-team-panel-builder.md
+ */
+
+/**
+ * The heading of a team page that has no team to show.
+ *
+ * decisions/020-context-free-team-page.md
+ * decisions/530-one-team-panel-builder.md
  */
 export const TEAM_HEADING = "Joukkue";
 const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 
-/** The panels a provider builds for itself. The page adds the axis and the outage guard. */
+/**
+ * The panels a provider builds for itself. The page adds the axis and the outage guard.
+ *
+ * decisions/530-one-team-panel-builder.md
+ */
 export type TeamAnalyticsLoaders = TeamPanelLoaders & {
   loadPosition: () => Promise<PositionSeries>;
   loadRecords: () => Promise<StreakRecordsSeries>;
@@ -51,13 +60,17 @@ export type TeamAnalyticsLoaders = TeamPanelLoaders & {
   loadElo: () => Promise<EloPanelData>;
 };
 
-/** Everything provider-specific about a team page that has a team to show. */
+/**
+ * Everything provider-specific about a team page that has a team to show.
+ *
+ * decisions/530-one-team-panel-builder.md
+ */
 export type TeamPageView<M extends MatchListRow> = {
   status: "ok";
   teamProviderId: number;
   /** The region's Finnish prefix, e.g. `/kotimaa`: every link on the page is under it. */
   basePath: string;
-  /** Which provider's id the favourite star stores (specs/026-favourites.md). */
+  /** Which provider's id the favourite star stores. */
   favouriteSource: FavouriteSource;
   competitionCode: string;
   /** The competition as the heading and the tab title name it. */
@@ -95,7 +108,12 @@ export type TeamPageData<M extends MatchListRow> =
   | { status: "error"; heading: string }
   | TeamPageView<M>;
 
-/** Which side of the match this team played, so its own name can be read off it. */
+/**
+ * Which side of the match this team played, so its own name can be read off it.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/530-one-team-panel-builder.md
+ */
 function nameForTeam(
   match: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string },
   teamProviderId: number
@@ -104,9 +122,10 @@ function nameForTeam(
 }
 
 /**
- * The club's own name and its seasons, which every provider's page needs.
+ * The club's own name and its seasons, which every provider's page needs. The
+ * name is asked for only when there is no match to read it off.
  *
- * The name is asked for only when there is no match to read it off.
+ * decisions/530-one-team-panel-builder.md
  */
 export async function resolveTeamIdentity(
   source: TeamPageSource,
@@ -131,7 +150,11 @@ function headingOf(
     : view.headingCompetition;
 }
 
-/** The tab title: the page's own heading, or what stands in for one. */
+/**
+ * The tab title: the page's own heading, or what stands in for one.
+ *
+ * decisions/530-one-team-panel-builder.md
+ */
 export function teamPageMetadata<M extends MatchListRow>(data: TeamPageData<M>): Metadata {
   if (data.status === "not_found") return { title: NOT_FOUND_MESSAGE };
   if (data.status === "error") return { title: data.heading };
@@ -172,14 +195,8 @@ export async function TeamPage<M extends MatchListRow>({
     names,
   } = data;
 
-  /**
-   * The toggle names the club rather than the heading, because the heading
-   * carries the competition and the season too — and a favourite follows the
-   * club across both (specs/022, specs/026-favourites.md).
-   *
-   * Nothing renders when the name is unknown: a favourite whose label cannot be
-   * resolved would be a star with nothing to say what it is following.
-   */
+  // The toggle names the club, not the heading: a favourite follows the club
+  // across competitions and seasons. Nothing renders when the name is unknown.
   const favourite =
     teamName === null ? null : (
       <FavouriteToggle
@@ -206,27 +223,18 @@ export async function TeamPage<M extends MatchListRow>({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
-  /**
-   * Every competition, league or cup (specs/040): every panel but the position
-   * chart is computed from results, which a cup has, and that one decides in
-   * its own loader whether there is a table to rank in.
-   *
-   * Only for a team with matches this season — otherwise the page already says
-   * why there is nothing to show.
-   */
+  // Every competition, league or cup, and only for a team with matches this
+  // season.
   const loaders = result.status === "ok" ? data.loaders(played) : null;
   const analyticsSection =
     loaders === null
       ? null
       : await AnalyticsSection({
           ...loaders,
-          // A club page's periods are seasons (specs/041, S13).
+          // A club page's periods are seasons.
           axis: SEASON_AXIS,
-          // A failed season lookup is `played = []`, which the comparison
-          // would read as "this club has no other seasons" and say so — a
-          // database failure dressed as a fact about the club. It reports the
-          // outage instead. `not_found` is not a failure: it means the club
-          // genuinely has no stored match under this route.
+          // A failed season lookup reports the outage: read as `played = []` it would
+          // say the club has no other seasons. `not_found` is not a failure.
           loadRecords: () =>
             seasons.status !== "error"
               ? loaders.loadRecords()

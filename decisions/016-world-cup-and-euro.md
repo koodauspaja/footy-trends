@@ -194,3 +194,24 @@ Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
   spans; a tournament played inside one summer does not, and labelling the
   2026 World Cup "2026/27" would claim a season it never had. Spanning is
   also what the app assumed before tournaments existed.
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`Competition.flagUrl`.** football-data returns `flag: null` for the World
+  area, so the World Cup carries FIFA's own wordmark from `public/fifa.svg`:
+  Wikimedia Commons' `PD-textlogo`, too simple to attract copyright, and used
+  only to identify FIFA's own competition. UEFA's, for the Euro, is under the
+  same terms; without it the Euro and the Champions League would look
+  identical in a picker.
+- **`Competition.earliestSeason`.** A league has a season every year, so the
+  configured floor answers for it. A tournament does not: the plan reaches
+  the 2026 World Cup and the 2024 Euro and nothing else, and every other
+  season answers 403. Offering them would put a guaranteed error behind the
+  selector.
+- **`REGION_DEFAULTS`.** Per region, so a bad value on `/maajoukkueet` lands on
+  the World Cup and does not bounce the reader to a Premier League page in
+  another section.
+- **`parseCompetitionParam`.** An unvalidated value must never reach the
+  provider URL, a cache key or a query, the rule `parseSeasonParam` enforces.
+  Scoped to a region, so `?kilpailu=PL` on `/maajoukkueet` is rejected and
+  does not render a Premier League page under a national-teams heading.

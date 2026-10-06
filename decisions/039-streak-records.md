@@ -85,3 +85,33 @@ Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
   season while the comparison excludes the one being looked at. "Which seasons
   are league seasons" must mean the same to both, or the two panels would
   disagree about what a club's history is.
+
+Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
+
+- **`streak-records.ts`.** The rule is stated as "consecutive seasons of the
+  same competition" and not as "the same competition" because that rejects
+  three things with one test: a relegation, a promotion, and a season the app
+  never fetched, whose absence would otherwise let the seasons either side
+  of it look adjacent.
+- **`StreakRecord`.** Named by season and not by match number: match 37 of a
+  run spanning three seasons is not something a reader can find.
+- **`seasonBlocks`.** A club promoted mid-history keeps one block per spell in
+  each division, which is what a supporter means by "our best run in
+  Veikkausliiga". The newest block coming last is how the tie-break is
+  decided.
+- **`labelAt`.** It throws where it could return a label that prints as
+  `Kausi ` and reads as a season. `streaksOf` numbers its runs over exactly
+  the array passed here, so the state is unreachable in production; the
+  services catch the throw and report an error, not a record that names no
+  season.
+- **`streakRecords`.** Each block's matches are counted as one sequence, so a
+  run that ends a season and continues into the next is one run. The most
+  recent of two equal records is the one a reader remembers, and the only one
+  that can still be extended.
+- **`recordsFor`.** The providers differ in how a season is found and in what
+  counts as a league, and in nothing else, as for `comparisonFor`. `label`
+  comes from the page because how a season is written differs by provider:
+  plain years domestically, `2024/25` abroad. A record is not an average, so
+  a missing season could only make one too small and not wrong in kind, but
+  the comparison beside it fails for the same reason, and one rule across
+  both beats a defensible difference.

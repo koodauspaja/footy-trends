@@ -276,3 +276,60 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
   that starts from a stored row and not from a `kilpailu` value: the match
   page builds a team link out of a match it has just read. `null` and not a
   fallback: a category no competition claims has no team page to link to.
+
+Cut from `src/lib/match-detail.ts` at `94397a8` by #531.
+
+- **`match-detail.ts`.** The page itself stays markup, and the rules are
+  unit-testable without a database.
+- **`PLACEHOLDER_TEAM_ID`.** Usually with an empty name. Measured 2026-09-02:
+  22 such rows in TASO's table, 21 of them finished with a real score, three
+  in Suomen Cup, which the site shows; `matches` has none. A head-to-head
+  joined on it would pair a match against every other unresolved slot that
+  faced the same opponent, and present the result as previous meetings.
+- **`formatKickoff`.** Two formatters joined by `klo` and not one
+  `dateStyle`/`timeStyle` pair: `fi-FI` renders the time as `18.30`, which is
+  correct Finnish, but supplies the connecting word only in some runtimes.
+  Stating it makes the output the same everywhere, and so testable.
+- **`bothOrNeither`.** Half a pair is unusable everywhere it appears: a sum
+  needs both sides, and a shoot-out with one total recorded is not a
+  shoot-out. One check and not three near-identical conditions.
+- **`formatScore`.** `homeGoals` and `awayGoals` are the provider's `fullTime`,
+  which includes a penalty shoot-out: printed raw, a 1–1 settled on penalties
+  becomes a "4–3" that was never the score. The same correction `BracketLeg`
+  makes, with the bracket's suffixes, so one match cannot read two ways on two
+  pages.
+- **`declaredWinnerSide`.** TASO settles a level cup tie on penalties it never
+  itemises, so the score alone leaves the tie looking drawn. Naming the winner
+  is all the data supports: an "(rp)" suffix would assert a shoot-out that is
+  not recorded.
+- **`MatchContext`.** A null `matchday` is ordinary, and "Kierros –" would
+  state an absence the reader has no use for.
+- **`roundLine`.** The same three cases the match lists distinguish
+  (`fourthColumnFor` in `competition-matches-page.tsx`), decided from one row.
+  On a knockout stage only 1 and 2 are legs. Across every stored knockout row
+  on 2026-09-02: the Champions League and Championship carry 1–2, the World
+  Cup null, and the Euro 4–7, its group-round counter running on into the
+  knockout, which is not a leg. A Finnish cup round shows nothing either:
+  TASO's `round_id` is not re-indexed per competition (round 63 exists), and
+  the series name above already names the round.
+
+Cut from `src/components/match-page.tsx` at `94397a8` by #531.
+
+- **`MatchPageOptions.teamBasePath`.** Neither Finland nor its opponents have
+  a page under `/maajoukkueet`, and the feature asks for a link to a team's
+  existing page. #246 is what would change that.
+- **`resolveSpansCalendarYears`.** The match is the page: with the provider
+  unreachable the season shows as its bare start year, where failing would
+  take the whole page down for a missing slash.
+- **`linkableTeamHref`.** A placeholder renders as `Tuntematon joukkue`, and
+  `/kotimaa/joukkue/0` is a page that cannot exist. Applied to both providers
+  and not only to TASO: `matches` has no placeholder rows today, and one rule
+  is cheaper than remembering that.
+- **`tasoCompetitionName`.** Two different questions behind one line. `null`
+  from either, an unclaimed junior category or a map that could not be read,
+  costs one line and not the page.
+- **`resolve` on the match page.** The provider's id is the value that
+  survives a re-sync, as every team link on the site uses the provider's team
+  id.
+- **`MatchPage`.** Five routes share this body, `/maajoukkueet` needing two of
+  them. A not-found inside the page shell is what the team pages already do.

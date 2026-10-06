@@ -539,3 +539,29 @@ Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
   counterpart: the forced refresh deletes exactly this key to reach the
   provider, and a key spelled out in two places would let a change silently
   stop that.
+
+Cut from `src/lib/refresh-view.ts` at `94397a8` by #531.
+
+- **`refresh-view.ts`.** `refresh-form.tsx` and `refresh-confirm.tsx` are
+  browser bundles, and the modules that do the work (`refresh-diff.ts`,
+  `force-refresh.ts`, `refresh-runs.ts`) must not travel with them: the
+  boundary `admin-user-view.ts` and `favourite-keys.ts` exist for.
+- **`CHOICE_SEPARATOR`.** One control and not a provider radio plus a
+  competition list: which provider a competition belongs to is a fact about
+  the competition, not a question to put to an admin. Both registries use
+  upper-case letters and digits, so `:` is safe.
+- **`decodeChoice`.** It stays client-safe so the form can use it too; the
+  registries live with the caller.
+- **`DeductionChange`.** The field the feature exists for.
+- **`RemovedMatch`.** A removal is the only irreversible thing the tool does,
+  and a number alone is not enough to judge it by, given that a provider can
+  answer partially.
+- **`RefreshPreview.snapshotHash`.** It makes "what you saw is what you
+  applied" a checked fact and not an assumption about timing.
+- **`previewHasChanges`.** Deductions are named although a moved
+  `starting_points` also moves the group row's `updated` count, so that
+  clause is unreachable as the diff works today. The predicate decides
+  whether the admin is offered a `Päivitä` button, and the dialog lists
+  deductions separately: leaving them out would make the button's condition
+  and the dialog's contents two ideas of "something changed", free to drift
+  when the diff does.

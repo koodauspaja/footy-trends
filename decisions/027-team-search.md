@@ -130,3 +130,34 @@ Cut from `src/db/schema.ts` at `a86c1cb` by #531.
   A leading-wildcard `LIKE '%x%'` cannot use a B-tree, which is why the
   substring query has to be measured at production scale before it is
   trusted.
+
+Cut from `src/lib/team-search.ts` at `94397a8` by #531.
+
+- **`team-search.ts`, two steps.** Doing both in one query would show a club's
+  old name whenever an old name is what matched, the opposite of useful for
+  someone searching a club they remember under a former name.
+- **`MAX_RESULTS`.** Agreed, not measured. A reader who cannot find their team
+  in twenty should type more, and one common name fills half of that on its
+  own: `FC Honka` alone carries nine distinct ids.
+- **`FOLD_FROM`.** `unaccent` is available but not installed, so it would need
+  a `CREATE EXTENSION` migration and the privilege to run it, for a fold three
+  character pairs describe completely. `translate` is also `IMMUTABLE`, which
+  `unaccent` is not, so an expression index over it is possible.
+- **`foldTerm`.** Folding only the stored name finds `Järvenpää` from
+  `jarvenpaa` but not from `Järvenpää`; folding only the term does the
+  reverse.
+- **`escapeLike`.** One `%` matches every team there is. One pass and not
+  three: escaping them separately has to do the backslash first, or the
+  escapes it inserts get escaped again, and a rule whose correctness depends
+  on statement order is one somebody reorders. `$&` is the matched character,
+  so each is prefixed exactly once.
+- **The four queries in `searchTeams`.** They mirror `resolveTeamNames`.
+  `distinct on` collapses each team to its newest matching row, so a club with
+  two hundred matches contributes one. `distinct on (id)` requires the sort to
+  begin with `id`, so a `LIMIT` on that query keeps the twenty lowest ids: a
+  club that played last week dropped for one inactive since 2019, purely
+  because its id is larger. With the cap on the outer select the ranking is
+  by recency and no more than `MAX_RESULTS` rows per query leave Postgres, so
+  a short common term like `ja` cannot pull every matching team into memory.
+- **`PLACEHOLDER_TEAM_ID` in `team-search.ts`.** The match page already keeps
+  both off: the unresolved bracket slot and the team with no name.
