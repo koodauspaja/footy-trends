@@ -4,7 +4,10 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type Comment,
+  citationKey,
+  citationRecordOf,
   commentsOf,
+  compareCitations,
   decisionCitations,
   describeFindings,
   type Finding,
@@ -15,12 +18,12 @@ import {
 } from "../../../scripts/comment-rules";
 
 /**
- * Comment lines in this repository that cite an issue or pull request number.
- * Lowered as files are trimmed, and never raised.
+ * The comment lines in this repository that cite an issue or pull request
+ * number, as keys. Entries leave as files are trimmed, and none is added.
  *
  * decisions/531-comments-say-what-code-is-for.md
  */
-const RECORDED_ISSUE_CITATIONS = 453;
+const RECORD_PATH = "tests/unit/scripts/recorded-issue-citations.json";
 
 const texts = (comments: readonly Comment[]) => comments.map((comment) => comment.text);
 
@@ -104,6 +107,57 @@ describe("issueCitations", () => {
 
     expect(issueCitations("a.ts", comments)).toEqual([
       { file: "a.ts", line: 1, text: "// owner/repo#7" },
+    ]);
+  });
+});
+
+describe("the citation record", () => {
+  const line = (file: string, text: string, at = 1): Finding => ({ file, line: at, text });
+
+  it("keys a line by its file and text, not by where in the file it sits", () => {
+    expect(citationKey(line("a.ts", "// see #12", 3))).toBe(
+      citationKey(line("a.ts", "// see #12", 90))
+    );
+    expect(citationKey(line("a.ts", "// see #12"))).not.toBe(
+      citationKey(line("a.ts", "// see #13"))
+    );
+    expect(citationKey(line("a.ts", "// see #12"))).not.toBe(
+      citationKey(line("b.ts", "// see #12"))
+    );
+    expect(citationKey(line("a.ts", "// see #12"))).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("records the keys in order, whatever order the lines come in", () => {
+    const lines = [line("b.ts", "// #2"), line("a.ts", "// #9"), line("b.ts", "// #1")];
+
+    expect(citationRecordOf(lines)).toEqual(lines.map(citationKey).toSorted());
+    expect(citationRecordOf(lines.toReversed())).toEqual(citationRecordOf(lines));
+  });
+
+  it("passes the lines it recorded, on whatever line they now sit", () => {
+    const recorded = citationRecordOf([line("a.ts", "// #1", 3), line("a.ts", "// #2", 9)]);
+
+    expect(
+      compareCitations(recorded, [line("a.ts", "// #2", 40), line("a.ts", "// #1", 41)])
+    ).toEqual({ added: [], removed: [] });
+  });
+
+  it("names a citation swapped for another, which a count would pass", () => {
+    const recorded = citationRecordOf([line("a.ts", "// #1"), line("a.ts", "// #2")]);
+
+    expect(compareCitations(recorded, [line("a.ts", "// #1"), line("a.ts", "// #77", 5)])).toEqual({
+      added: [line("a.ts", "// #77", 5)],
+      removed: [citationKey(line("a.ts", "// #2"))],
+    });
+  });
+
+  it("counts a second copy of a recorded line, and the same line in another file, as new", () => {
+    const recorded = citationRecordOf([line("a.ts", "// #1")]);
+    const now = [line("a.ts", "// #1"), line("a.ts", "// #1", 2), line("b.ts", "// #1")];
+
+    expect(compareCitations(recorded, now).added).toEqual([
+      line("a.ts", "// #1", 2),
+      line("b.ts", "// #1"),
     ]);
   });
 });
@@ -246,15 +300,19 @@ describe("this repository's comments", () => {
     expect(missing, `Cited, but not in decisions/:\n${describeFindings(missing)}`).toEqual([]);
   });
 
-  it("cites exactly the recorded number of issue and pull request numbers", () => {
-    const count = across((file, _source, comments) => issueCitations(file, comments)).length;
+  it("cites no issue or pull request number the record does not have", () => {
+    const recorded: string[] = JSON.parse(readFileSync(path.join(ROOT, RECORD_PATH), "utf8"));
+    const citations = across((file, _source, comments) => issueCitations(file, comments));
+    const { added, removed } = compareCitations(recorded, citations);
 
     expect(
-      count,
-      count > RECORDED_ISSUE_CITATIONS
-        ? "A new comment cites an issue or pull request. Move its reason into a decision record and link that instead."
-        : `Fewer comments cite a number than recorded: lower RECORDED_ISSUE_CITATIONS to ${count}.`
-    ).toBe(RECORDED_ISSUE_CITATIONS);
+      added,
+      `A comment cites an issue or pull request. Move its reason into a decision record and link that instead:\n${describeFindings(added)}`
+    ).toEqual([]);
+    expect(
+      removed,
+      `Recorded citations that are gone. Replace ${RECORD_PATH} with:\n${JSON.stringify(citationRecordOf(citations), null, 2)}`
+    ).toEqual([]);
   });
 
   it("stacks no doc comment on another", () => {

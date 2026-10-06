@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -103,6 +104,40 @@ export function issueCitations(file: string, comments: readonly Comment[]): Find
   return comments.flatMap((comment) =>
     linesOf(file, comment).filter((line) => ISSUE_NUMBER.test(line.text))
   );
+}
+
+/**
+ * A citing line's entry in the record: a short hash of its file and text, so a
+ * line that only moves keeps its key and the same words elsewhere do not.
+ */
+export function citationKey(citation: Pick<Finding, "file" | "text">): string {
+  return createHash("sha256")
+    .update(`${citation.file}\n${citation.text}`)
+    .digest("hex")
+    .slice(0, 8);
+}
+
+/** The record the tree has now, sorted, as the recorded file stores it. */
+export function citationRecordOf(citations: readonly Finding[]): string[] {
+  return citations.map(citationKey).sort((left, right) => left.localeCompare(right, "en"));
+}
+
+/**
+ * Citing lines the record does not have, and recorded keys the tree no longer
+ * has. A line counts once per recorded copy, so a second identical one is new.
+ */
+export function compareCitations(
+  recorded: readonly string[],
+  citations: readonly Finding[]
+): { added: Finding[]; removed: string[] } {
+  const removed = [...recorded];
+  const added = citations.filter((citation) => {
+    const at = removed.indexOf(citationKey(citation));
+    if (at === -1) return true;
+    removed.splice(at, 1);
+    return false;
+  });
+  return { added, removed };
 }
 
 /** Each `decisions/…md` path a comment cites, with where it is cited. */
