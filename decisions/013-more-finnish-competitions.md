@@ -313,3 +313,13 @@ them in pairs — `4→1, 7→1` for Ylempi and Alempi jatkosarja A. The old
 "lowest `group_id` is the origin" rule could express neither. Verified against
 TASO for 2024: Reipas 41 points from 23 played, matching exactly, with a seeded
 `starting_points` of 31 behind it.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **How a group's rendering is chosen.** `specs/009` chose own-calculated
+  groups by shape, the lowest `group_id` being the origin;
+  `specs/013` found Kakkonen's three parallel origins, P21 Ykkönen 2026 without a
+  group 1, and P20 Ykkönen 2024's ids 1, 2, 10, 11, 12. So every group with a
+  table is calculated and checked against TASO's points (`reproducesTasoPoints`).

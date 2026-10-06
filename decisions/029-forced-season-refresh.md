@@ -448,3 +448,35 @@ something this work may touch, and it had not had the migration applied anyway.
   and operator.
 
 Every fixture was removed afterwards and the run log left empty.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/force-refresh.ts` at `55a14fc` by #531.
+
+- **Module.** The two steps are all that stands between a truncated provider
+  answer and a deleted season: nothing in a partial answer tells it from a
+  season that lost fixtures, so a person looks at the removals.
+- **`listSeasonsFor`.** New seasons come through the ordinary sync. Per
+  competition, as resolving ten at once would turn a cold Redis into ten
+  requests against a rate-limited plan. `resolveTasoSeasonContext` would have
+  written rows on a mere preview (found in review).
+- **`storedSeasonsFor`.** A second copy of "what do we hold" is how the ceiling
+  and the season list once disagreed.
+- **`cacheKeysFor`.** `taso:season-context`, `taso:categories` and
+  `football-data:competition` stay. A key spelled out twice changes in one place,
+  and the refetch then silently answers from the cache it meant to bypass.
+- **`compare`.** Run twice so a stale bounce shows the rows there now. It was
+  two functions, and each seam cost a review round. An `&&` across the tables
+  would let matches-without-standings destroy a finished season's standings.
+- **`snapshotHashOf`.** Hashing the provider alone would accept an approval
+  built on rows that are gone, removing matches the admin never saw.
+- **`computeDiff`.** The writer is shared with the ordinary sync, where deleting
+  a dropped team is right. Within the fifteen-minute window the apply reads the
+  same bytes; past it, a changed answer becomes a refusal. A server action's
+  throw reaches the client as a generic error, hence `"read"`.
+- **`writeSnapshot`.** `synchronizeGroupTeams` deleting first is right here: it
+  runs only on a non-empty, approved answer. Removal by id, never a predicate
+  over the season, which would widen with the next row. Without `tx` a group
+  replacement could commit and a later delete fail (found in review).
+  Serializable as in `scripts/grant-admin-run.ts`: a few runs a year cost
+  nothing against overwriting someone's correction.

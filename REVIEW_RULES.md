@@ -36,13 +36,36 @@ Testing
 - New features require tests in `tests/`. Tests must cover happy paths and the
   edge cases listed in the feature spec in `specs/`.
 
+Comments
+- A comment says what the code beside it is for, in one to three lines, or a
+  constraint the code cannot show. Then the decision records behind it, the
+  original feature's first and the later ones after it, oldest first:
+
+  ```ts
+  /**
+   * Turns a cup's knockout matches into ties, one row per pairing with the legs
+   * aggregated.
+   *
+   * decisions/014-champions-league.md
+   * decisions/015-finnish-cups.md
+   */
+  ```
+
+- History lives in `decisions/`, not in comments, and no comment cites an issue
+  or pull request number. `tests/unit/scripts/comment-rules.test.ts` holds the
+  deterministic part: no new number, no cited record that does not exist, no
+  doc comment stacked on another. Block 7 judges the rest. See
+  `decisions/531-comments-say-what-code-is-for.md`.
+
 Specs and decision records
 - A decision record in `decisions/` must faithfully interpret the spec it is
-  named after; the two share a number. Drift between them is a finding — the
+  named after; the two share a number. A bug's or a chore's record carries its
+  issue's number instead, and has no spec. Drift between them is a finding — the
   spec saying "show last 5 matches" against a decision record saying "show
   last 3".
-- Every PR must reference both documents in its description (not a Sourcery
-  rule — see below).
+- A feature PR must reference both documents in its description (not a Sourcery
+  rule — see below). A bug or chore PR has no spec and marks that section not
+  applicable; it links its decision record when it wrote one.
 - Block 1 compares the two when a pull request changes them together, which a
   feature PR does: it adds both. Whether Sourcery reads the unchanged
   counterpart on a **one-sided edit** is not established — its documentation
@@ -70,6 +93,7 @@ How this maps to Sourcery
   Block 4 (paths: `**`): secrets and credentials
   Block 5 (paths: `tests/**/*.ts,tests/**/*.tsx,specs/**`): stated cache policy
   Block 6 (paths: `**`): English in every changed file
+  Block 7 (paths: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`): what a comment is for
 
 - A block's paths must cover every file its rules ask about, not only the files
   whose changes should be flagged. Each line below is a mistake #386 corrected:

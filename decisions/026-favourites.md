@@ -248,3 +248,25 @@ sees none, so the e2e suite covers what is *rendered* for a signed-in reader —
 which the intercepted session does reach, unlike `/asetukset` — and the writes
 are covered by unit and integration tests. The round trip stays a human check on
 staging, the same gap specs/023 and specs/025 document.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
+
+- **Module.** One table with a `kind` would need four nullable columns and a rule
+  about which pair is legal.
+- **`withUserLocked`.** The unique index does not object to two different
+  favourites, and under Read Committed each statement takes its own snapshot.
+- **`toggleFavouriteTeam`.** A toggle, so the client never picks add or remove
+  from state it may have wrong. The button is disabled in flight, so a double
+  flip needs two tabs.
+- **`favouritesForSession`.** It runs in better-auth's `customSession` on every
+  `/api/auth/get-session`: missing stars cost less than a missing header.
+- **`regionFor`.** For TASO, `/maajoukkueet/joukkue/[id]` is football-data's page
+  and `/kotimaa/joukkue/[id]` is scoped to the domestic bucket, so neither finds
+  a national-team id.
+- **`resolveTeamNames`.** Not stored on the row, or a renamed club keeps its old
+  name until re-favourited (pull request #254 rests on telling it from one that
+  does not exist). Unscoped by region, as `specs/022` has a team span
+  competitions: fifty ids in one `IN` beat fifty guesses. `distinct on`, as
+  unordered rows show whichever name the planner returned last.

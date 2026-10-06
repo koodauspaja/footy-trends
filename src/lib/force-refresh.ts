@@ -56,50 +56,24 @@ import {
 } from "@/lib/taso-standings-service";
 
 /**
- * Forced refresh of one competition-season, from
- * specs/029-forced-season-refresh.md.
+ * Forced refresh of one competition-season. `previewRefresh` writes nothing and
+ * `applyRefresh` only the diff an admin approved: a provider that goes silent
+ * never costs data, and one that answers corrects it only with consent.
  *
- * Two steps, deliberately. `previewRefresh` fetches and compares and writes
- * **nothing**; `applyRefresh` writes only the diff an admin approved. The split
- * is not politeness — it is the only thing standing between a truncated
- * provider response and a deleted season, because nothing in a partial answer
- * distinguishes it from a season that genuinely lost fixtures. A person looks
- * at the removals and decides.
- *
- * The rule this module is built around:
- *
- * > A provider that goes silent must never cost us data. A provider that
- * > answers may correct us, but only with a person's consent.
- *
- * So an empty answer for a season we hold rows for is refused outright, before
- * anything can touch the database, and every non-empty answer is shown before
- * it is applied.
+ * decisions/029-forced-season-refresh.md
  */
 
 /**
- * The seasons this competition offers, from the same helpers the reader-facing
- * pickers use.
+ * The seasons of this competition we hold rows for, from the helpers the
+ * reader-facing pickers use. Loaded per competition, never all at once.
  *
- * No new season-discovery machinery: new seasons arrive through the ordinary
- * sync, and this tool only ever refreshes a season the app already knows about.
- *
- * Loaded per competition rather than for all of them at once. There are ten
- * foreign competitions and `getSeasonContext` is per competition, so resolving
- * every one on page load would turn a cold Redis into ten requests against a
- * rate-limited plan.
+ * decisions/029-forced-season-refresh.md
  */
 export async function listSeasonsFor(choice: CompetitionChoice): Promise<SeasonsResult> {
   if (!isKnownCompetition(choice)) return { ok: false, reason: "input" };
 
-  // **Read separately from the provider calls below**, so its failure is
-  // reported as `"read"` rather than `"provider"`. One `try` around both would
-  // tell an operator their provider is down when their database is, sending
-  // them to the wrong system — the exact distinction `"read"` was added for.
-  //
-  // Narrowed to seasons we already hold: the provider's range includes seasons
-  // this app has never stored, and offering one would let the tool *import* a
-  // season, which the ordinary sync is for. There is also nothing to correct in
-  // a season we hold nothing for.
+  // Apart from the provider calls, so a database failure reports `"read"`. Held
+  // seasons only: importing a season is the ordinary sync's job.
   let stored: Set<number>;
   try {
     stored = await storedSeasonsFor(choice);
@@ -111,11 +85,7 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
 
   try {
     if (choice.source === "taso") {
-      // `resolveTasoSeasonCeiling`, never `resolveTasoSeasonContext`. The
-      // latter probes by synchronizing the current season, which *writes* — so
-      // merely previewing would have mutated current-season rows before an
-      // admin had approved anything, breaking this engine's one promise. Found
-      // in review, not by me.
+      // Never `resolveTasoSeasonContext`: it probes by synchronizing, which writes.
       const { currentSeason } = await resolveTasoSeasonCeiling(choice.code);
       return {
         ok: true,
@@ -131,12 +101,9 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
 }
 
 /**
- * Every season this app has rows for, in one competition.
+ * Every season we hold rows for in one competition, asked of the service owning the tables.
  *
- * Dispatches to the service that owns the tables rather than querying them
- * here. This module orchestrates a refresh; which columns answer "what do we
- * hold" is the standings services' business, and keeping a second copy of that
- * rule here is how the ceiling and the season list came to disagree.
+ * decisions/029-forced-season-refresh.md
  */
 async function storedSeasonsFor(choice: CompetitionChoice): Promise<Set<number>> {
   return choice.source === "taso"
@@ -149,13 +116,10 @@ function seasonLabelFor(seasons: SeasonChoice[], seasonId: number): string | nul
 }
 
 /**
- * What one provider answered for one season, alongside the identifiers the
- * rows are stored under.
+ * What one provider answered for one season, with the ids its rows are stored
+ * under. A union, because only TASO has group standings.
  *
- * A discriminated union rather than a common interface: the two providers do
- * not store the same things — TASO has group standings carrying
- * `starting_points` and football-data has none — and flattening that into an
- * optional field would make every read site guess.
+ * decisions/029-forced-season-refresh.md
  */
 type Snapshot =
   | {
@@ -173,18 +137,10 @@ type Snapshot =
     };
 
 /**
- * The Redis entries that have to go before a refetch.
+ * The Redis entries a refetch must clear: the answer refetched and anything
+ * computed from it, each key from its owner's builder. Season and name lists stay.
  *
- * Two rules decide the list: an entry is cleared when it caches *the answer
- * being refetched* or *a value computed from it*, and left alone when it
- * caches which seasons or names exist. So `taso:season-context`,
- * `taso:categories` and `football-data:competition` stay — a refresh does not
- * change which seasons a competition has.
- *
- * Every key comes from the builder in the module that owns it, never from a
- * literal spelled out again here: a key written in two places is a key that
- * can change in one, and the resulting failure is silent — the refetch simply
- * answers out of the cache this run exists to bypass.
+ * decisions/029-forced-season-refresh.md
  */
 export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
   if (choice.source === "taso") {
@@ -197,9 +153,7 @@ export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): strin
   }
   return [
     footballDataMatchesCacheKey(choice.code, seasonId),
-    // The *computed* table. Easy to miss and expensive to miss: the write
-    // succeeds, so without this the page serves the old standings for up to
-    // fifteen minutes after the database is already right.
+    // The computed table, or the old standings show for fifteen minutes.
     standingsCacheKey(choice.code, seasonId),
   ];
 }
@@ -211,10 +165,8 @@ async function clearCaches(keys: string[]): Promise<boolean> {
 
 async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promise<Snapshot> {
   if (choice.source === "taso") {
-    // Derived exactly as `domestic-page-context.ts` derives them, so the rows
-    // compared are the rows the page reads. The bare season umbrella would be
-    // `spljp26` for Ykkösliigacup too, and quietly compare against rows no
-    // page ever shows.
+    // Derived as `domestic-page-context.ts` does, so the rows compared are the
+    // rows the page reads.
     const competitionId = competitionIdForSeason(choice.code, seasonId);
     const categoryId = categoryIdForSeason(choice.code, seasonId);
     const [providerMatches, groups] = await Promise.all([
@@ -236,25 +188,15 @@ async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promi
   };
 }
 
-/**
- * Reads what we hold, computes the difference, and returns it — writing
- * nothing.
- *
- * Branched per source rather than unified behind a common row type. The two
- * providers genuinely store different things: TASO has group standings
- * carrying `starting_points` and football-data has none, and the two match
- * tables have different columns. A shared abstraction here would have to
- * describe the union of both, which is a shape neither provider actually has.
- */
 /** The group rows as the writer will actually store them. */
 function dedupedGroupTeams(snapshot: Extract<Snapshot, { source: "taso" }>) {
   return dedupeByIdentity(snapshot.groupTeams);
 }
 
 /**
- * The rows we currently hold, read through whichever executor is given — the
- * database when a diff is being computed, the transaction when the write is
- * about to happen.
+ * The TASO rows we hold, through the database or the write's transaction.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 async function readStoredTaso(
   executor: Executor,
@@ -293,13 +235,10 @@ async function readStoredForeign(executor: Executor, competitionCode: string, se
 }
 
 /**
- * What we currently hold for this season, through whichever executor is given
- * — the database while a diff is being computed, the transaction when the write
- * is about to happen.
+ * What we hold for this season, through whichever executor is given. No
+ * `groupTeams` for football-data: no table is not the same as an empty one.
  *
- * `groupTeams` is null for football-data, which stores no group standings:
- * "this table does not exist for this provider" is a different statement from
- * "it is empty", and every rule below reads it that way.
+ * decisions/029-forced-season-refresh.md
  */
 async function readStored(
   executor: Executor,
@@ -320,19 +259,10 @@ type StoredRows = {
 };
 
 /**
- * The whole comparison, in one pure function: is the provider silent, what
- * would change, and what fingerprint does this pairing have.
+ * The whole comparison, pure: is the provider silent, what would change, and
+ * the pairing's fingerprint. The preview and the write's transaction both run it.
  *
- * **Pure, and used twice.** The preview calls it against rows read from the
- * database; the write calls it again against rows read inside its own
- * transaction. That is what makes a stale bounce honest — the diff an admin is
- * shown afterwards describes the rows that are actually there, not the ones
- * that were there when they pressed the button.
- *
- * It was two functions with a shared shape before, and every seam between them
- * cost a review round: the silence guard was right in one and wrong in the
- * other, the dedupe was applied in one place and not the next, and the hash was
- * spelled out at each call site. One rule, one place.
+ * decisions/029-forced-season-refresh.md
  */
 function compare(
   snapshot: Snapshot,
@@ -342,11 +272,8 @@ function compare(
   const storedGroupTeams = stored.groupTeams ?? [];
   const providerGroupTeams = snapshot.source === "taso" ? dedupedGroupTeams(snapshot) : [];
 
-  // **Per table, not across both.** An `&&` reads as the same rule and is not:
-  // TASO answering with matches but no group standings would walk past it, and
-  // `synchronizeGroupTeams` deletes before it inserts — so a completed season's
-  // standings would be destroyed by a run that looked successful. Each table is
-  // silent or not on its own evidence.
+  // Per table: matches without standings is still silence, and
+  // `synchronizeGroupTeams` deletes before it inserts.
   const matchesSilent = snapshot.matches.length === 0 && stored.matches.length > 0;
   const groupsSilent =
     stored.groupTeams !== undefined &&
@@ -360,19 +287,13 @@ function compare(
     };
   }
 
-  // The type arguments are spelled out because `snapshot.matches` is a union of
-  // the two providers' row types, and inference would pick one of them and
-  // reject the other. Both satisfy `DiffableProviderMatch`, which is all the
-  // diff needs.
+  // Spelled out: inference would pick one provider's row type from the union.
   const matchDiff = diffMatches<DiffableStoredMatch, DiffableProviderMatch>(
     stored.matches,
     snapshot.matches
   );
-  // The provider's group rows are deduplicated with the writer's own rule
-  // before being diffed *and* before being hashed. A knockout group returns one
-  // row per bracket slot, so a team that advances appears several times and
-  // `synchronizeGroupTeams` keeps only the first — counting the rest would
-  // promise an admin more inserts than the apply performs.
+  // Deduplicated with the writer's rule before the diff and the hash: a knockout
+  // group repeats an advancing team, and the writer keeps only the first.
   const groupDiff =
     stored.groupTeams === undefined ? null : diffGroupTeams(storedGroupTeams, providerGroupTeams);
 
@@ -396,12 +317,10 @@ function compare(
 }
 
 /**
- * The fingerprint an approval is made of: the provider's answer **and** the
- * rows it was compared against.
+ * The fingerprint an approval is made of: the provider's answer and the rows
+ * it was compared against, so neither can move under an approval.
  *
- * Hashing only the provider would leave the stored side free to move, and the
- * apply would still accept an approval built against rows that are gone —
- * removing matches by name that the admin was never shown.
+ * decisions/029-forced-season-refresh.md
  */
 function snapshotHashOf(
   snapshot: Snapshot,
@@ -431,12 +350,10 @@ type Resolved = {
 };
 
 /**
- * Validates the competition and the season against the registries and the
- * competition's own freshly resolved range.
+ * Validates the competition and season against the registries and the freshly
+ * resolved range. The apply re-runs it, as a server action's arguments are public.
  *
- * Both entry points run this, and the apply runs it again rather than trusting
- * anything the preview handed to the browser: a server action is a public
- * endpoint, and its arguments arrive from the client whatever rendered them.
+ * decisions/029-forced-season-refresh.md
  */
 async function resolve(
   choice: CompetitionChoice,
@@ -445,11 +362,8 @@ async function resolve(
   if (!isKnownCompetition(choice)) return { reason: "input" };
   if (!Number.isInteger(seasonId)) return { reason: "input" };
 
-  // The reason is carried, not flattened. `listSeasonsFor` can fail because the
-  // provider would not say which seasons exist, or because our own database
-  // would not — and collapsing both to `"provider"` here would undo the
-  // distinction one line after making it, sending an operator to the wrong
-  // system. Its `"input"` case is already ruled out above.
+  // Carried, not flattened: `"read"` and `"provider"` send an operator to
+  // different systems. `"input"` is ruled out above.
   const seasons = await listSeasonsFor(choice);
   if (!seasons.ok) return { reason: seasons.reason === "read" ? "read" : "provider" };
 
@@ -474,30 +388,16 @@ type DiffOutcome =
     };
 
 /**
- * Clears the caches, fetches, and diffs — the shared half of both entry points.
+ * Clears the caches, fetches and diffs: the half both entry points share. The
+ * `"empty"` refusal is here, not in the writer the ordinary sync also uses.
  *
- * The `"empty"` refusal inside the per-source diffs is the feature's core rule:
- * a provider answering with nothing, for a season we hold rows for, must not
- * reach a writer. It is refused here rather than guarded inside the writer,
- * because the writer is shared with the ordinary sync — where deleting a
- * dropped team is exactly right.
+ * decisions/029-forced-season-refresh.md
  */
 async function computeDiff(resolved: Resolved, bypassCache: boolean): Promise<DiffOutcome> {
   const { choice, seasonId } = resolved;
 
-  // **The preview clears; the apply does not.**
-  //
-  // Clearing is how the preview reaches the provider at all, and a clear that
-  // failed means the refetch would come back out of the very cache this run
-  // exists to bypass — so the run stops rather than showing an admin a diff
-  // built from the data they are trying to correct.
-  //
-  // The apply then reads back through the entry the preview just warmed, which
-  // is what makes "what you saw is what you applied" the ordinary case rather
-  // than a race: inside the fifteen-minute window it is the same bytes, so the
-  // hash matches and no second provider call is made. Past the window it
-  // refetches, and the hash check turns a changed answer into a refusal
-  // instead of a surprise.
+  // The preview clears, and a failed clear stops it. The apply reads back what
+  // the preview warmed, so what was seen is what is applied.
   if (bypassCache && !(await clearCaches(cacheKeysFor(choice, seasonId)))) {
     return { ok: false, reason: "cache" };
   }
@@ -510,12 +410,7 @@ async function computeDiff(resolved: Resolved, bypassCache: boolean): Promise<Di
     return { ok: false, reason: "provider" };
   }
 
-  // Reading what we already hold can fail too, and a failure here must not
-  // escape as a 500: the caller is a server action answering a client
-  // component, so a throw arrives as a generic browser error with nothing an
-  // admin can act on. It is its own reason rather than folded into
-  // `"provider"` — the provider answered fine, our database did not — and the
-  // distinction is the one an operator needs to know which system to look at.
+  // A failed read is `"read"`: neither a 500 nor the provider's fault.
   let outcome: ReturnType<typeof compare>;
   try {
     outcome = compare(snapshot, await readStored(db, snapshot, seasonId), resolved);
@@ -550,12 +445,10 @@ export async function previewRefresh(
 }
 
 /**
- * Writes the diff — and only the diff the admin was shown.
+ * Writes the diff, and only the diff the admin was shown: a hash that moved
+ * since the preview refuses and hands back the new preview.
  *
- * The hash is recomputed from a fresh fetch and compared to the one the preview
- * issued. A mismatch means the provider's answer moved between the two steps,
- * so the apply refuses and hands back the new preview instead of writing
- * something nobody approved.
+ * decisions/029-forced-season-refresh.md
  */
 export async function applyRefresh(
   choice: CompetitionChoice,
@@ -565,10 +458,7 @@ export async function applyRefresh(
 ): Promise<ApplyResult> {
   const resolved = await resolve(choice, seasonId);
   if (!isResolved(resolved)) {
-    // A provider that cannot say which seasons exist is an attempted run that
-    // failed, so it belongs in the log. `"input"` still does not: a request
-    // naming a competition or season this app does not have is malformed
-    // rather than an event that happened to the data.
+    // A failed run is recorded; `"input"` is a malformed request, not an event.
     if (resolved.reason !== "input") {
       await recordFailure(choice, seasonId, resolved.reason, adminId);
     }
@@ -587,15 +477,8 @@ export async function applyRefresh(
   }
 
   try {
-    // The check above is against rows read *before* the transaction opens, so
-    // on its own it is a time-of-check/time-of-use gap: another writer could
-    // change the season in between and this apply would overwrite them with an
-    // approval that no longer describes anything. `writeSnapshot` re-checks
-    // inside the transaction and writes nothing when it no longer holds.
-    //
-    // It hands back the diff computed from the transaction's own rows, which is
-    // the one the admin has to see — `preview` here describes rows that are no
-    // longer stored.
+    // Re-checked inside the transaction, which on a mismatch hands back the
+    // diff of the rows stored now.
     const written = await writeSnapshot(snapshot, seasonId, removedIds, expectedHash, resolved);
     if (!written.ok) return { ok: false, reason: "stale", preview: written.preview };
   } catch (error) {
@@ -609,19 +492,10 @@ export async function applyRefresh(
 }
 
 /**
- * One transaction per run, so a half-applied season is not a state this can
- * produce.
+ * One transaction per run, so a half-applied season cannot happen. Withdrawn
+ * matches go by the ids the preview listed, as `synchronizeMatches` never deletes.
  *
- * The writers are the ordinary ones, unchanged. `synchronizeGroupTeams`
- * deletes before inserting, and that is correct *here* for the same reason it
- * is correct in the ordinary sync — it only ever runs against a non-empty
- * answer, which `computeDiff` has already established and an admin has already
- * approved.
- *
- * The match deletion is this feature's own: `synchronizeMatches` upserts and
- * never deletes, so a match the provider has withdrawn would otherwise linger.
- * It removes exactly the rows the preview listed by id — never a predicate over
- * the season, which would widen with the next row somebody inserts.
+ * decisions/029-forced-season-refresh.md
  */
 async function writeSnapshot(
   snapshot: Snapshot,
@@ -632,21 +506,8 @@ async function writeSnapshot(
 ): Promise<{ ok: true } | { ok: false; preview: RefreshPreview | undefined }> {
   return await db.transaction(
     async (tx) => {
-      // **Re-checked here, not only before the transaction.** The approval was
-      // computed from rows read outside it, so between that read and this write
-      // another forced apply — or the ordinary sync on a current season — could
-      // have moved them. Running the same comparison against rows read through
-      // `tx` closes that window: an approval that no longer describes what is
-      // stored writes nothing.
-      //
-      // It is the same `compare` the preview used, so the diff handed back on a
-      // mismatch is a real one describing the rows that are there *now* —
-      // returning the caller's obsolete preview would show an admin a diff of
-      // rows that no longer exist and invite them to approve it again.
-      //
-      // `undefined` only when the provider has meanwhile gone silent on a
-      // season we hold, which `compare` refuses outright and which no diff can
-      // describe.
+      // The same `compare`, through `tx`: an approval that no longer describes
+      // the stored rows writes nothing. `undefined` when the provider went silent.
       const current = compare(snapshot, await readStored(tx, snapshot, seasonId), resolved);
       if (!current.ok) return { ok: false, preview: undefined };
       if (current.computed.preview.snapshotHash !== expectedHash) {
@@ -654,10 +515,7 @@ async function writeSnapshot(
       }
 
       if (snapshot.source === "taso") {
-        // `tx`, not the module-level `db`. Without it each writer commits on its
-        // own connection while this function claims atomicity — so a group
-        // replacement could commit and a later deletion fail, leaving the season
-        // half applied. Caught in review, not by me.
+        // `tx`, not `db`, or each writer commits on its own connection.
         await synchronizeTasoMatches(snapshot.matches, tx);
         await synchronizeGroupTeams(
           snapshot.categoryId,
@@ -679,13 +537,7 @@ async function writeSnapshot(
       return { ok: true };
     },
     {
-      /**
-       * Serializable, like `scripts/grant-admin-run.ts`. Re-reading inside the
-       * transaction is not enough under read-committed — a concurrent commit
-       * between that read and our write would still be missed — and this runs a
-       * handful of times a year, so the cost of the strictest level is nothing
-       * against the cost of overwriting somebody's correction.
-       */
+      /** Read-committed would miss a commit between the re-read and the write. */
       isolationLevel: "serializable",
     }
   );

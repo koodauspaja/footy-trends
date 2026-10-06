@@ -57,11 +57,9 @@ import type { TeamSeason } from "./team-seasons";
 
 const FINISHED_STATUS = "FINISHED";
 /**
- * Shared by `needsRefresh` (current-season match staleness) and
- * `getCachedSeasonGroups` (current-season groups cache) — one constant,
- * not two, since `taso.ts` itself does no caching of its own; both uses
- * live here where they're actually consumed. See
- * specs/009-veikkausliiga.md's caching section.
+ * How long current-season TASO data stays fresh, in the database and in Redis.
+ *
+ * decisions/009-veikkausliiga.md
  */
 const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
@@ -258,25 +256,6 @@ function parentGroupId(categoryId: string, competitionId: string, groupId: numbe
   return carryOverEntry(categoryId, competitionId, groupId)?.parent ?? null;
 }
 
-/** Own-calculated groups always have a carry-over entry, or are the season's origin group (no group needs the entry to be own-calculated when it has no parent). */
-/**
- * Spec 009 decided "can we calculate this group ourselves?" by shape: the
- * lowest `group_id` present was the origin and everything above it was
- * pass-through. That held only because Veikkausliiga has exactly one origin
- * group per season, and spec 013 confirms three ways it does not generalise —
- * Kakkonen runs three parallel pools that are each an origin, P21 Ykkönen 2026
- * has no group 1 at all (ids run 2-5), and P20 Ykkönen 2024 is non-contiguous
- * (1, 2, 10, 11, 12).
- *
- * So there is no shape test any more. Every group with a table is calculated
- * from its own matches, plus its parent's where a carry-over entry says so,
- * and the question becomes one of *result*: `getSeasonStandings` compares the
- * finished table against TASO's own published points and falls back to TASO's
- * numbers when they disagree. That keeps spec 009's guarantee — an
- * unvalidated group never shows silently wrong points — without the
- * heuristic.
- */
-
 /**
  * A pass-through group's standing, straight from TASO's own `getCategory`
  * numbers — used whenever our own full-season calculation does not reproduce
@@ -459,26 +438,6 @@ export type TasoSeasonContext = {
 };
 
 /**
- * Replaces spec 009's hardcoded `LATEST_TASO_SEASON`. See
- * specs/011-current-season-discovery.md.
- *
- * `currentSeason` falls back through discovery → newest stored season →
- * the configured floor, so an outage degrades to stale-but-correct rather
- * than an error page.
- *
- * `defaultSeason` additionally requires the season to *have* matches. TASO
- * publishes a `competition_id` before that season kicks off, and landing on
- * a season with none would render the empty state for however long the gap
- * lasts. Unplayed fixtures are fine — spec 008's roster seeding shows every
- * team at zero stats, which is a correct pre-season table.
- *
- * That check has to sync the season to answer "does it have matches", since
- * a season absent from the database is indistinguishable from one that is
- * merely unvisited. It is the same work the page does for whatever season it
- * renders, deduplicated within a request by `cache()` and bounded across
- * requests by the 15-minute Redis TTL.
- */
-/**
  * The top of a competition's season range, and the newest season we have
  * stored for it.
  *
@@ -523,6 +482,12 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
   );
 });
 
+/**
+ * A competition's season ceiling, and the season a page lands on: the newest
+ * with matches, so a just-published season does not open empty.
+ *
+ * decisions/011-current-season-discovery.md
+ */
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
 ): Promise<TasoSeasonContext> {
@@ -1035,14 +1000,14 @@ function groupNameOf(matchList: MatchRow[], groupId: number): string {
   return matchList.find((match) => match.groupId === groupId)!.groupName;
 }
 
+/** Sorts a row TASO never ranked to the end rather than the front. */
+const UNRANKED = Number.MAX_SAFE_INTEGER;
+
 /**
  * The position TASO itself published for a row, or `null` when it published
  * neither. `current_standing` is the live one and `final_group_standing` the
  * settled one; a completed season has both, an unstarted group neither.
  */
-/** Sorts a row TASO never ranked to the end rather than the front. */
-const UNRANKED = Number.MAX_SAFE_INTEGER;
-
 function publishedPosition(team: StoredGroupTeam): number | null {
   return team.currentStanding ?? team.finalGroupStanding;
 }
@@ -1269,21 +1234,12 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
 }
 
 /**
- * Every group TASO returns for the season, each rendered own-calculated
- * (via `calculateStandings`, including the parent group's matches for a
- * carry-over continuation group), pass-through (TASO's own precomputed
- * `getCategory` numbers), or playoff (its matches, no table). Ordered by
- * `group_id` ascending — `phase_number` is confirmed unreliable for
- * ordering.
- */
-/**
- * Every group's rendering for the whole season, before any round filter.
+ * Every group of the season as it renders, before any round filter: own-calculated,
+ * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`
+ * and `listSeasonRounds`, so they agree on which groups a round applies to.
  *
- * Shared by `getSeasonStandings` and `listSeasonRounds` so the two cannot
- * disagree about which groups respond to a round — offering a round for a
- * group that ignores it is a selector that does nothing when used. Wrapped in
- * `cache()` so asking both questions in one request classifies once; the
- * underlying reads are already deduplicated the same way.
+ * decisions/010-playoff-group-match-list.md
+ * decisions/013-more-finnish-competitions.md
  */
 const classifySeasonGroups = cache(async function classifySeasonGroups(
   categoryId: string,
@@ -1413,20 +1369,12 @@ export async function getTeamPanelMatches(
 }
 
 /**
- * The selected season against this club's other stored seasons, for the team
- * page's `Tämä kausi verrattuna` panel (specs/038).
+ * The selected season against the club's others, as `seasonsBeside` picks them;
+ * a cup is measured without the ranked measures. The reads are the cached
+ * classification's, and stale rows are served.
  *
- * **League seasons only** (S6), which `otherLeagueSeasons` decides for both
- * providers so the rule has one home.
- *
- * A season's `categoryId` and `competitionId` are derived from its code and
- * year by pure lookups, so listing a club's other seasons costs no request of
- * its own; the reads below are `classifySeasonGroups`'s, already cached and
- * already the team page's for the selected season.
- *
- * **Stale stored rows are served, not refused** (specs/038, S12), for the same
- * reason the football-data service gives: erroring here alone would make this
- * panel disagree with the others on the same page about the same season.
+ * decisions/038-season-against-history.md
+ * decisions/040-cup-analytics.md
  */
 export async function getTeamSeasonComparison(
   competitionCode: string,
@@ -1561,12 +1509,6 @@ export function getTeamStreakRecords(
 }
 
 /**
- * A baseline season must be a domestic competition the registry **knows** to be
- * a league. `isDomesticCup` answers `false` for an unknown code, so testing it
- * alone would admit a competition whose stored rows outlived its registry
- * entry — see the football-data service for what that costs.
- */
-/**
  * Which of the club's seasons belong beside the one being looked at
  * (specs/040, S5) — the league ones for a league page, that cup's own for a
  * cup page.
@@ -1575,6 +1517,12 @@ function seasonsBeside(competitionCode: string): (code: string) => boolean {
   return isDomesticCup(competitionCode) ? (code) => code === competitionCode : isDomesticLeague;
 }
 
+/**
+ * A domestic competition the registry knows to be a league: `isDomesticCup` is
+ * `false` for an unknown code, and stored rows can outlive their registry entry.
+ *
+ * decisions/038-season-against-history.md
+ */
 function isDomesticLeague(competitionCode: string): boolean {
   return (
     DOMESTIC_COMPETITIONS.some((competition) => competition.code === competitionCode) &&
@@ -1582,23 +1530,6 @@ function isDomesticLeague(competitionCode: string): boolean {
   );
 }
 
-/**
- * This team's finished league matches in a season — what every result-based
- * chart on the team page counts (specs/031 Q2, specs/032).
- *
- * **League format only:** every group that renders as a table counts,
- * own-calculated or pass-through — results are what TASO publishes, so an
- * unverified table does not stop them the way it stops a position. A group that
- * renders as a match list (a playoff, a cup round) does not count. Across a
- * split the matches simply continue, as the carry-over table's own `Vire`, `TM`
- * and `PM` do.
- *
- * Reads through the same `cache()`d `classifySeasonGroups` as the position
- * chart, so on the team page it adds no read and no TASO request.
- *
- * `no-matches` is a season with nothing stored yet; `unavailable` is a team
- * that played only in match lists.
- */
 /**
  * A cup's matches for this team — every group, because a cup has no table.
  *
@@ -1675,6 +1606,15 @@ function teamPanelMatches(
   return select(categoryId, competitionId, teamProviderId, seasonId, activeSeasonId);
 }
 
+/**
+ * This team's finished matches in the season's table groups, own-calculated or
+ * pass-through, as every result chart counts them. `unavailable` when the team
+ * played only in match lists; `no-matches` when nothing is stored.
+ *
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/040-cup-analytics.md
+ */
 async function teamLeagueMatches(
   categoryId: string,
   competitionId: string,

@@ -144,3 +144,21 @@ Checked against the running app, not only tests:
 
 Unit tests: **735 passing, 100% statements, branches, functions and lines.**
 Integration 21. Nine new Playwright specs pass locally.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
+
+- **The round select.** A cup's groups are all knockout rounds, so it would offer
+  only "Koko kausi"; `MatchesControls` guards the same way.
+
+Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
+
+- **`BracketSourceMatch.declaredWinner`.** A level Finnish cup tie is settled on
+  penalties TASO never itemises, so the score alone would read as a draw.
+- **`TieDecision`.** "(rp)" on `declared` would assert a shootout the data does
+  not record; the winner is in bold instead.
+- **`orderRoundsForTree`.** In kickoff order a team can win the top
+  quarter-final and appear in the bottom semi-final, as the real MSC 2025 bracket
+  does. It works back from the last round, and is presentation only, so
+  `buildBracket` stays chronological for the round lists.

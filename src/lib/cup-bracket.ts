@@ -1,6 +1,9 @@
 /**
- * Turns a cup's knockout matches into ties — one row per pairing, with the
- * two legs aggregated. See specs/014-champions-league.md.
+ * Turns a cup's knockout matches into ties, one row per pairing with the legs
+ * aggregated.
+ *
+ * decisions/014-champions-league.md
+ * decisions/015-finnish-cups.md
  */
 
 import { listKnockoutStages } from "./cup-stages";
@@ -23,14 +26,10 @@ export type BracketSourceMatch = {
   penaltiesHome: number | null;
   penaltiesAway: number | null;
   /**
-   * The provider's own verdict on who went through, stated from *this match's*
-   * home side. Used only to break a level tie, and only when the provider
-   * supplies it.
+   * The provider's verdict on who went through, from this match's home side.
+   * Breaks a level tie only; TASO gives it, football-data does not.
    *
-   * TASO does: a Finnish cup tie level after normal time is settled on
-   * penalties it never itemises, so the score alone would leave the tie
-   * looking drawn. football-data does not, and omits this. See
-   * specs/015-finnish-cups.md.
+   * decisions/015-finnish-cups.md
    */
   declaredWinner?: "home" | "away" | null;
 };
@@ -45,10 +44,9 @@ export type BracketLeg = {
   awayTeamProviderId: number;
   awayTeamName: string;
   /**
-   * Normal time plus extra time — **not** the provider's `fullTime`, which
-   * includes the shootout. Displaying `fullTime` here would print Liverpool
-   * 1-5 Paris Saint-Germain beside an aggregate of 1-1 (rp): a leg score that
-   * contradicts the tie it belongs to.
+   * Normal time plus extra time: the provider's `fullTime` includes the shootout.
+   *
+   * decisions/014-champions-league.md
    */
   homeGoals: number | null;
   awayGoals: number | null;
@@ -58,20 +56,17 @@ export type BracketLeg = {
 };
 
 /**
- * How a decided tie was settled — drives the `(ja)` / `(rp)` suffix.
+ * How a decided tie was settled, for the `(ja)` / `(rp)` suffix. `declared`:
+ * the provider named the winner without saying how, so it has no suffix.
  *
- * `declared` means the provider named the winner without saying how, which is
- * all TASO gives for a cup tie settled on penalties. It carries no suffix: the
- * winner is shown in bold, and inventing "(rp)" would assert a shootout the
- * data does not actually record.
+ * decisions/015-finnish-cups.md
  */
 export type TieDecision = "regular" | "extra_time" | "penalties" | "declared";
 
 export type BracketTie = {
   /**
-   * Stable across renders: stage, both team ids lowest-first, and the first
-   * leg's match id. The match id is what keeps the key unique when an
-   * over-large pairing is split into one tie per match.
+   * Stage, both team ids lowest-first, and the first leg's match id, which keeps
+   * the key unique when a pairing is split into one tie per match.
    */
   key: string;
   stage: string;
@@ -84,11 +79,7 @@ export type BracketTie = {
   /** Null until every leg has a score. */
   aggregateHome: number | null;
   aggregateAway: number | null;
-  /**
-   * The shootout that settled the tie, stated from the **tie's** home side
-   * rather than the deciding leg's — the two differ whenever the second leg
-   * is the one that went to penalties. Null when there was no shootout.
-   */
+  /** The deciding shootout from the tie's home side, not the leg's. Null without one. */
   penaltiesHome: number | null;
   penaltiesAway: number | null;
   winnerTeamProviderId: number | null;
@@ -100,13 +91,10 @@ export type BracketRound = { stage: string; ties: BracketTie[] };
 const FINISHED_STATUS = "FINISHED";
 
 /**
- * A leg's score for aggregation purposes: normal time plus extra time, never
- * the provider's `fullTime`.
+ * A leg's score to aggregate: normal time plus extra time, as `fullTime`
+ * includes a shootout. Without `regularTime` there was neither, so `fullTime` is it.
  *
- * `fullTime` INCLUDES a penalty shootout — Liverpool "1-5" Paris Saint-Germain
- * (LAST_16, 2024/25) is really 0-1 with penalties 1-4 — so summing it would
- * report the tie wrongly. When `regularTime` is absent the match went to
- * neither extra time nor penalties, and `fullTime` *is* the normal-time score.
+ * decisions/014-champions-league.md
  */
 function legScore(match: BracketSourceMatch): { home: number; away: number } | null {
   if (match.regularTimeHome !== null && match.regularTimeAway !== null) {
@@ -151,10 +139,10 @@ type TieTotals = {
 };
 
 /**
- * Sums the legs from the tie's home side. Each leg is stated from its *own*
- * home team, so a second leg with the teams reversed contributes the other way
- * round. A leg with no score, or one not yet finished, leaves the tie
- * incomplete rather than counting as 0-0.
+ * Sums the legs from the tie's home side, flipping a leg played the other way
+ * round. An unscored or unfinished leg leaves the tie incomplete, not 0-0.
+ *
+ * decisions/014-champions-league.md
  */
 function accumulate(legs: BracketSourceMatch[], tieHomeTeamId: number): TieTotals {
   const totals: TieTotals = {
@@ -180,10 +168,9 @@ function accumulate(legs: BracketSourceMatch[], tieHomeTeamId: number): TieTotal
 }
 
 /**
- * Builds one tie from the legs of a single pairing. Works for one leg as well
- * as two: the World Cup and the European Championship play single-leg
- * knockouts, so an aggregate of one match is a normal case, not a half-empty
- * two-legged tie.
+ * One tie from one pairing's legs. A single leg is normal: World Cup and Euro knockouts.
+ *
+ * decisions/014-champions-league.md
  */
 function buildTie(stage: string, legs: [BracketSourceMatch, ...BracketSourceMatch[]]): BracketTie {
   const ordered = legs.toSorted(
@@ -283,11 +270,10 @@ function resolveWinner({
 }
 
 /**
- * The team the provider says went through, or null when it does not say.
+ * The team the provider says went through, or null when it does not say. The
+ * last leg that declares one decides, flipped to the tie's home side.
  *
- * Each leg states its verdict from its own home side, so a second leg with the
- * teams reversed has to be flipped — the same conversion `shootoutScore` makes
- * for penalties. The last leg that declares a winner is the deciding one.
+ * decisions/015-finnish-cups.md
  */
 function declaredWinnerId(
   legs: BracketSourceMatch[],
@@ -307,11 +293,10 @@ function declaredWinnerId(
 type TieScore = { home: number; away: number };
 
 /**
- * The shootout stated from the **tie's** home side, or null when there was
- * none or the provider recorded only one side of it.
+ * The shootout from the tie's home side, which the deciding leg's own home side
+ * need not be. Null when there was none or only one side was recorded.
  *
- * The deciding leg may be the one where the tie's away team played at home, so
- * its `penaltiesHome` is not necessarily the tie's home team's score.
+ * decisions/014-champions-league.md
  */
 function shootoutScore(
   shootout: BracketSourceMatch | undefined,
@@ -328,13 +313,6 @@ function shootoutScore(
   };
 }
 
-/**
- * Groups a season's knockout matches into rounds of ties.
- *
- * A pairing with more than two matches cannot be a two-legged tie, so each of
- * its matches becomes its own single-match tie rather than being silently
- * folded together or dropped — a provider oddity stays visible.
- */
 /** Groups one round's matches by the unordered pair of teams that played them. */
 function pairLegs(
   stageMatches: BracketSourceMatch[]
@@ -350,11 +328,10 @@ function pairLegs(
 }
 
 /**
- * One round's ties, earliest first.
+ * One round's ties, earliest first. A pairing of more than two matches becomes
+ * one tie per match, so a provider oddity stays visible.
  *
- * A pairing with more than two matches cannot be a two-legged tie, so each of
- * its matches becomes its own single-match tie rather than being silently
- * folded together or dropped — a provider oddity stays visible.
+ * decisions/014-champions-league.md
  */
 function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketRound {
   const ties = pairLegs(stageMatches).flatMap((legs) =>
@@ -366,12 +343,11 @@ function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketR
 }
 
 /**
- * A season's knockout rounds as ties, in progression order.
+ * A season's knockout rounds as ties, in progression order, read from the
+ * matches so a new stage appears unasked. `stages` overrides that order, as
+ * TASO's cups supply their own.
  *
- * The rounds are derived from the matches themselves rather than from a fixed
- * list, so a stage the provider introduces later shows up here as readily as it
- * shows up in the match list's `Vaihe` options. `stages` is an override for
- * tests that want to inspect a single round.
+ * decisions/014-champions-league.md
  */
 export function buildBracket(
   matches: BracketSourceMatch[],
@@ -384,21 +360,10 @@ export function buildBracket(
 }
 
 /**
- * Reorders each round's ties so the drawn tree actually reads as a tree.
+ * Reorders each round's ties so the drawn tree reads as one: a tie sits beside
+ * the ties that fed it, and a tie feeding nothing keeps its order at the end.
  *
- * A round's ties arrive in kickoff order, which says nothing about who plays
- * whom next. Drawn as-is, a team can win the *top* quarter-final and appear in
- * the *bottom* semi-final, so the connectors imply a pairing that never
- * happened — the real MSC 2025 bracket does exactly this.
- *
- * Works backwards from the last round, taking its order as given: for each tie
- * there, find the earlier ties its two participants came from and put them
- * next to each other, in that order. A tie whose participants are not in the
- * later round — an unplayed round, or a third-place match that feeds nothing —
- * keeps its relative order at the end rather than being dropped.
- *
- * Presentation only, so `buildBracket` stays chronological for the round lists
- * that render beside the tree.
+ * decisions/015-finnish-cups.md
  */
 export function orderRoundsForTree(rounds: BracketRound[]): BracketRound[] {
   const ordered: BracketRound[] = [];

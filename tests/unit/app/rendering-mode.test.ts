@@ -144,31 +144,6 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
 }
 
 /**
- * Next prerenders any page it can render without a request. A page reading
- * `searchParams` or `params` cannot be prerendered and is dynamic for free;
- * one taking neither is static unless it says otherwise.
- *
- * That is what broke `/maajoukkueet/huuhkajat` in production (#182). It has no
- * season selector and therefore no `searchParams`, so it was prerendered at
- * build time — where Railway's private network does not exist, because
- * `*.railway.internal` is runtime-only. Every query failed with
- * `ENOTFOUND postgres.railway.internal`, the page rendered its error state,
- * and **that error was baked into the static output** and served to everyone.
- * The build exited 0 and `/api/health` reported the database fine.
- *
- * Helmarit (#167) is the same shape — paramless and data-backed — so this
- * guards the class rather than the one file.
- */
-/**
- * Whether a page imports request-scoped state.
- *
- * `headers()`, `cookies()` and `draftMode()` each opt a page out of
- * prerendering **by being called** — no `force-dynamic` export appears, so
- * checking for one misses this entirely. It is also the exact shape of the
- * failure that matters here: reading a session is how a page meant to be
- * readable signed out stops being prerendered.
- */
-/**
  * Every module a file pulls in — static and dynamic alike.
  *
  * `await import("…")` counts. This repository uses it deliberately to keep
@@ -289,6 +264,15 @@ function isServerActionModule(source: ts.SourceFile): boolean {
   );
 }
 
+/**
+ * Whether a page imports request-scoped state.
+ *
+ * `headers()`, `cookies()` and `draftMode()` each opt a page out of
+ * prerendering **by being called** — no `force-dynamic` export appears, so
+ * checking for one misses this entirely. It is also the exact shape of the
+ * failure that matters here: reading a session is how a page meant to be
+ * readable signed out stops being prerendered.
+ */
 function reachesRequestState(entry: string): string | null {
   const seen = new Set<string>();
   const queue = [entry];
@@ -361,6 +345,22 @@ describe("a page declared static by design really is static", () => {
   });
 });
 
+/**
+ * Next prerenders any page it can render without a request. A page reading
+ * `searchParams` or `params` cannot be prerendered and is dynamic for free;
+ * one taking neither is static unless it says otherwise.
+ *
+ * That is what broke `/maajoukkueet/huuhkajat` in production (#182). It has no
+ * season selector and therefore no `searchParams`, so it was prerendered at
+ * build time — where Railway's private network does not exist, because
+ * `*.railway.internal` is runtime-only. Every query failed with
+ * `ENOTFOUND postgres.railway.internal`, the page rendered its error state,
+ * and **that error was baked into the static output** and served to everyone.
+ * The build exited 0 and `/api/health` reported the database fine.
+ *
+ * Helmarit (#167) is the same shape — paramless and data-backed — so this
+ * guards the class rather than the one file.
+ */
 describe("pages are not prerendered unless declared static", () => {
   it("every page takes request props, opts out, or is declared static by design", async () => {
     const offenders: string[] = [];

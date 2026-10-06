@@ -3,9 +3,14 @@ Closes #<!-- issue number -->
 
 ## Spec
 `specs/<!-- NNN-feature-name.md -->`
+<!-- A feature links its spec. A bug links the spec it violated, when its issue
+     named one. Otherwise: `Not applicable - chore` or `Not applicable - bug`. -->
 
 ## Decision record
-`decisions/<!-- NNN-feature-name.md -->`
+`decisions/<!-- NNN-short-name.md -->`
+<!-- A feature always has one. A chore or a bug has one when it changed
+     something meaningful. Otherwise: `Not applicable - chore` or
+     `Not applicable - bug`. -->
 
 ## Summary
 <!-- What was built? One or two sentences. Written by the coding agent. -->
@@ -16,8 +21,8 @@ Closes #<!-- issue number -->
 - [ ]
 
 ## Checklist
-- [ ] Spec file exists and is linked above
-- [ ] Decision record exists and is linked above
+- [ ] The spec is linked above, or that section says `Not applicable`
+- [ ] The decision record is linked above, or that section says `Not applicable`
 - [ ] Tests written and passing
 - [ ] UI strings are in Finnish
 - [ ] No API keys or secrets committed

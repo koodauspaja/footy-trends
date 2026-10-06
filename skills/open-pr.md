@@ -151,8 +151,14 @@ already, and #390 found two classes that had never been written down at all.
      form; write "the closing keyword lands on the follow-up" instead. GitHub
      scans the squash commit message as well as the PR body, so a clean PR
      body does not protect you.
-   - Link the spec file path
-   - Link the decisions file path
+   - Link the spec file path. A chore has no spec, and a bug links the spec it
+     violated when its issue named one; otherwise mark the section
+     `Not applicable - chore` or `Not applicable - bug`
+   - Link the decisions file path. A decision record is added, never edited
+     after it merges: a later one says which earlier record it overrides. A
+     chore or a bug writes one too, numbered by its issue, whenever it changes
+     something meaningful; one with nothing to explain marks the section
+     `Not applicable - chore` or `Not applicable - bug`
    - Write a one or two sentence summary of what was built
    - List the steps a reviewer should take to verify the feature works
 7. Verify Sourcery actually reviewed the commit that would be merged, before

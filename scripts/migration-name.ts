@@ -41,13 +41,6 @@ which says nothing to whoever reads it back during an incident.`;
 export type GenerationPlan = { ok: true; forwarded: string[] } | { ok: false; message: string };
 
 /**
- * Decides whether a `db:generate` invocation may proceed, and with what.
- *
- * Pure, and separate from the script that spawns `drizzle-kit`, so the rules
- * can be tested without running a generator — the same split
- * `grant-admin-plan.ts` uses.
- */
-/**
  * Every `--name` the command line carries, in either form the underlying CLI
  * accepts: `--name=add_thing` and `--name add_thing`.
  *
@@ -75,6 +68,13 @@ function nameOccurrences(argv: readonly string[]): { value: string | null }[] {
   return found;
 }
 
+/**
+ * Decides whether a `db:generate` invocation may proceed, and with what.
+ *
+ * Pure, and separate from the script that spawns `drizzle-kit`, so the rules
+ * can be tested without running a generator — the same split
+ * `grant-admin-plan.ts` uses.
+ */
 export function planMigrationGeneration(argv: readonly string[]): GenerationPlan {
   const forwarded = [...argv];
   const names = nameOccurrences(forwarded);

@@ -121,3 +121,12 @@ That distinction was checked separately against the live API before opening
 the PR: `getCurrentSeason()` returns `2026`, not `null`. Worth stating
 because the same class of silent no-op bit spec 010 during implementation,
 where a `=== null` check matched nothing and the feature did nothing at all.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`resolveTasoSeasonContext`.** It replaced `specs/009`'s `LATEST_TASO_SEASON`;
+  the ceiling falls back from discovery to the newest stored season to the floor.
+  Answering "does it have matches" syncs the season, bounded by `cache()` and the
+  15-minute Redis TTL.

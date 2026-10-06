@@ -48,3 +48,11 @@ decide something the spec did not.
 - **The rolling axis's evidence has no La Liga, Serie A or Ligue 1 season**, as
   the spec records; none is stored. If one is added and a five-match average
   passes 5, it is drawn at the top edge.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`teamLeagueMatches`.** Results are what TASO publishes, so an unverified
+  table does not stop them as it stops a position; across a split they
+  continue, as the table's `Vire` does.

@@ -355,3 +355,10 @@ to a `competition_id` TASO may not publish until the season is close, which
 fails worse and less visibly. Worth a follow-up issue before the 2027
 season opens.
 
+## Moved from comments, 2026-10-05
+
+Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
+
+- **`TasoStandingsControls`.** There is no `Kilpailu` select because the
+  competition is chosen on `/kotimaa` and `SeasonForm` carries it hidden, as
+  for `MatchesControls` and `TeamSeasonSelector`.

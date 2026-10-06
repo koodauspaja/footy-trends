@@ -132,3 +132,10 @@ in the app yet (unrelated, existing behavior from spec 002).
   page's own season selector works and preserves the team id, unknown team
   id shows the not-found state with the season selector still usable, no
   console errors.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getSyncedSeasonMatches`.** `refreshFailed` tells "stale but present" from
+  "nothing to show".
