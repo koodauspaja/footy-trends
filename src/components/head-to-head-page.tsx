@@ -75,7 +75,8 @@ const AVERAGES_NOTE =
   "Kotijoukkueen maalit ensin. Kilpailun keskiarvo lasketaan niiden kausien otteluista, joina joukkueet kohtasivat siinä.";
 export const AVERAGES_ERROR_MESSAGE = "Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
 /**
- * The heading over the two teams' form blocks, shown only with its sibling group.
+ * The two group headings, `FORM_GROUP_HEADING` and `HISTORY_GROUP_HEADING`,
+ * shown only together.
  *
  * decisions/047-rivalry-page.md
  */
@@ -282,7 +283,8 @@ function scorelineText(scoreline: Scoreline): string {
 }
 
 /**
- * `0–0, 1–1 ja 2–1`: Finnish lists join their last item with `ja`. Only ever given two or more.
+ * `0–0, 1–1 ja 2–1`: Finnish lists join their last item with `ja`. Only ever
+ * given two or more.
  *
  * decisions/044-scorelines-and-goal-averages.md
  */

@@ -27,7 +27,8 @@ export const GROUP_STAGE = "GROUP_STAGE";
 
 /**
  * Provider stage to Finnish. Knockout rounds are named by fraction: the round
- * of 16 is `Neljännesvälierät`. Every stage the provider emits belongs here.
+ * of 16 is `Neljännesvälierät`. Every stage the provider is known to emit
+ * belongs here.
  *
  * decisions/014-champions-league.md
  */

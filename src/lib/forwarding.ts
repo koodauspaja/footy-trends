@@ -18,7 +18,8 @@ export type CandidateShape = {
   valid: boolean;
   /**
    * Every `x-forwarded-for` entry carrying the same address; empty for none.
-   * Agreement is not provenance: a sentinel sent as this header settles it.
+   * Agreement is not provenance. Empty under the sentinel probe means the client
+   * sets this header.
    */
   matchesEntries: number[];
 };

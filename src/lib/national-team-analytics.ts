@@ -117,7 +117,7 @@ export function readYear(
 
 /**
  * The loaders `AnalyticsSection` takes, over one team's history. Each computes
- * when it is called and not before.
+ * when called, so the sign-in gate decides whether any of it runs.
  *
  * decisions/041-national-team-analytics.md
  * decisions/045-bogey-teams.md
