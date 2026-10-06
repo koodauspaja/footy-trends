@@ -437,6 +437,7 @@ export function competitionGroups(meetings: readonly AnalysedMeeting[]): Competi
  * Whether this region's seasons cross a calendar year, for the window sentence.
  * Decided from the region, never asked of the provider.
  *
+ * decisions/042-head-to-head-view.md
  * decisions/045-bogey-teams.md
  */
 export function spansCalendarYears(source: MatchSource): boolean {

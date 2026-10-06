@@ -38,8 +38,8 @@ function matchTeamColumns() {
     // Nullable: a not-yet-played match has no final score.
     homeGoals: integer("home_goals"),
     awayGoals: integer("away_goals"),
-    // Null for an unplayed match, and for a played one the provider reports no
-    // half-time score for. Never 0, which is a score.
+    // Null, not 0, for an unplayed match and for a played one the provider
+    // reports no half-time score for: 0 is a score.
     halfTimeHome: integer("half_time_home"),
     halfTimeAway: integer("half_time_away"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -116,6 +116,8 @@ export const matches = pgTable(
  * decisions/009-veikkausliiga.md
  * decisions/013-more-finnish-competitions.md
  * decisions/015-finnish-cups.md
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
  * decisions/027-team-search.md
  */
 export const tasoMatches = pgTable(
@@ -493,7 +495,7 @@ export const predictions = pgTable(
     /** `"football-data"` or `"taso"`: the two id spaces never meet. */
     source: text("source").notNull(),
     providerMatchId: integer("provider_match_id").notNull(),
-    /** The competition the match is filed under, so a reader needs no second lookup. */
+    /** The competition the match is filed under, so a prediction needs no second lookup. */
     competitionCode: text("competition_code").notNull(),
     /** The model's name; a rule change is a new name. */
     model: text("model").notNull(),

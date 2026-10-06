@@ -10,8 +10,8 @@ import { redisRateLimitStorage } from "@/lib/rate-limit-storage";
 import { signInRefusal } from "@/lib/sign-in-allowlist";
 
 /**
- * Reads a variable sign-in cannot work without, and names the one that is
- * missing where the OAuth flow would fail later.
+ * Reads a variable sign-in cannot work without, and throws naming it when it is
+ * missing, so the module fails to load and not the OAuth flow, later.
  *
  * decisions/023-google-oauth-login.md
  */
@@ -24,9 +24,9 @@ function required(name: string): string {
 }
 
 /**
- * The header names in one environment variable, as a list. Which headers carry
- * the client's address, and which hops to skip, is configuration: only a header
- * the edge is measured to overwrite is read.
+ * A comma-separated variable as a list: the headers that carry the client's
+ * address, or the proxy hops to skip. Name only a header the edge is measured
+ * to overwrite: one a client can set is not an address.
  *
  * decisions/309-client-ip-resolution.md
  */
@@ -129,7 +129,8 @@ export const auth = betterAuth({
       ...(await getSessionExtrasFor(user.id)),
     })),
     /**
-     * Must be last in the plugin list.
+     * Writes better-auth's cookies through Next's cookie API, so a server action
+     * persists the session. Must be last in the plugin list.
      */
     nextCookies(),
   ],

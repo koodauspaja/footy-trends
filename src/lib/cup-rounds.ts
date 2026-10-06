@@ -8,8 +8,8 @@
 import { type BracketRound, type BracketSourceMatch, buildBracket } from "./cup-bracket";
 
 /**
- * The two round names TASO spells inconsistently across eras, normalised.
- * Keyed on the whole name, never a substring.
+ * One of the two round names TASO spells inconsistently across eras; the
+ * other is `NUMBERED_ROUND`. Keyed on the whole name, never a substring.
  *
  * decisions/015-finnish-cups.md
  */
@@ -17,6 +17,12 @@ const ROUND_NAME_OVERRIDES = new Map([["Finaali", "Loppuottelu"]]);
 
 const NUMBERED_ROUND = /^(\d+)\.\s*Kierros$/;
 
+/**
+ * A round's name as the app shows it: `N. Kierros` becomes `Kierros N` and
+ * `Finaali` becomes `Loppuottelu`; every other name is TASO's own.
+ *
+ * decisions/015-finnish-cups.md
+ */
 export function normaliseRoundName(groupName: string): string {
   const numbered = NUMBERED_ROUND.exec(groupName);
   if (numbered) return `Kierros ${numbered[1]}`;
@@ -25,7 +31,7 @@ export function normaliseRoundName(groupName: string): string {
 
 /**
  * A knockout group, as far as bracket selection cares. `teamCount` is the
- * distinct teams in the group's own matches.
+ * number of distinct teams in the group's own matches.
  *
  * decisions/015-finnish-cups.md
  */
@@ -212,7 +218,7 @@ function bracketFrom(chosen: CupKnockoutGroup[]): BracketRound[] {
     round.matches.map((match) => ({
       ...match,
       stage: normaliseRoundName(round.groupName),
-      // TASO publishes only the final score, so there is no breakdown to fill in.
+      // TASO publishes only the final score, so the breakdown is null.
       regularTimeHome: null,
       regularTimeAway: null,
       extraTimeHome: null,

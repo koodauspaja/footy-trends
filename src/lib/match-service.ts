@@ -715,6 +715,12 @@ const loadMatchPageData = cache(async function loadMatchPageData(
   }
 });
 
+/**
+ * One match page's data, or `not_found` for an id no stored match can have.
+ *
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ */
 export function getMatchPageData(
   source: MatchSource,
   providerMatchId: number
