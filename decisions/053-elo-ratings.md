@@ -98,3 +98,9 @@ Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
 
 - **`LineSeries.dots`.** A team's rating after each of hundreds of matches
   would be a row of dots.
+
+Cut from `src/lib/elo.ts` at `dc74e3e` by #531.
+
+- **`replayElo`.** Of two matches sharing a kickoff, neither is evidence for
+  the other, as in the predictions log. `onPredict` is the backtest's view of
+  what was known at kickoff. The two providers' id spaces never meet.

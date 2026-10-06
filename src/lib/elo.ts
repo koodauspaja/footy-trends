@@ -1,32 +1,61 @@
 /**
- * Elo ratings (specs/053): a strength for every team, replayed from stored
- * results, and a three-way prediction from two of them.
+ * Elo ratings: a strength for every team, replayed from stored results, and a
+ * three-way prediction from two of them. Pure: the services read the finished
+ * matches.
  *
- * Pure: the services read the finished matches; the replay, the season
- * regression and the prediction are decided here.
+ * decisions/053-elo-ratings.md
  */
 
 import type { MatchSource } from "./match-source";
 
-/** The model's name in the predictions log; a change to any constant is a new one (S2). */
+/**
+ * The model's name in the predictions log; a change to any constant is a new one.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_MODEL = "elo-v1";
 
-/** Every team's first rating (S3). */
+/**
+ * Every team's first rating.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_START = 1500;
 
-/** How far one result moves a rating (S2). */
+/**
+ * How far one result moves a rating.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_K = 20;
 
-/** Rating points added to the home side's before the expectation is taken (S2). */
+/**
+ * Rating points added to the home side's before the expectation is taken.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_HOME_ADVANTAGE = 60;
 
-/** How far back to 1500 a rating moves at a team's first match of a new season (S3). */
+/**
+ * How far back to 1500 a rating moves at a team's first match of a new season.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const ELO_REGRESSION = 1 / 3;
 
-/** TASO's unresolved bracket slot: not a team, never rated (specs/053, Edge Cases). */
+/**
+ * TASO's unresolved bracket slot: not a team, never rated.
+ *
+ * decisions/053-elo-ratings.md
+ */
 const PLACEHOLDER_TEAM = 0;
 
-/** One finished match, its score after extra time (specs/049 S3). */
+/**
+ * One finished match, its score after extra time.
+ *
+ * decisions/053-elo-ratings.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export type EloMatch = {
   source: MatchSource["kind"];
   code: string;
@@ -39,10 +68,18 @@ export type EloMatch = {
   awayGoals: number;
 };
 
-/** A team's rating, and the season it was last rated in. */
+/**
+ * A team's rating, and the season it was last rated in.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export type TeamRating = { rating: number; seasonId: number };
 
-/** A team's rating after one of its matches. */
+/**
+ * A team's rating after one of its matches.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export type EloHistoryPoint = {
   providerMatchId: number;
   kickoffAt: Date;
@@ -55,17 +92,27 @@ export type EloReplay = {
   history: Map<number, EloHistoryPoint[]>;
 };
 
-/** Home win, draw and away win, 0–1, summing to 1. */
+/**
+ * Home win, draw and away win, 0–1, summing to 1.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export type ThreeWay = { home: number; draw: number; away: number };
 
-/** The home side's expected score (win 1, draw ½), its 60 points included (S2). */
+/**
+ * The home side's expected score (win 1, draw ½), its 60 points included.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export function expectedHome(homeRating: number, awayRating: number): number {
   return 1 / (1 + 10 ** ((awayRating - (homeRating + ELO_HOME_ADVANTAGE)) / 400));
 }
 
 /**
- * The three outcomes (S4): the draw is the competition's draw share, and home
+ * The three outcomes: the draw is the competition's draw share, and home
  * and away split the rest by the Elo expectation.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function threeWay(homeRating: number, awayRating: number, drawShare: number): ThreeWay {
   const expected = expectedHome(homeRating, awayRating);
@@ -79,7 +126,9 @@ export function threeWay(homeRating: number, awayRating: number, drawShare: numb
 /**
  * A team's rating going into a match of `seasonId`: 1500 for a team never
  * rated, and a third of the way back to 1500 at its first match of a later
- * season (S3, S14).
+ * season.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function ratingFor(
   ratings: ReadonlyMap<number, TeamRating>,
@@ -103,12 +152,11 @@ function homeScore(match: EloMatch): number {
 
 /**
  * Every match in kickoff order. Matches sharing a kickoff are all rated from
- * the ratings before any of them, then all update — neither is evidence for
- * the other (as specs/052 S14). `onPredict`, when given, sees each match with
- * the two ratings it was played at, before it updates them: the backtest's
- * view of what was known at kickoff.
+ * the ratings before any of them, then all update. `onPredict` sees each match
+ * with the ratings it was played at. Feed one provider at a time.
  *
- * Feed one provider at a time: the two id spaces never meet (S1).
+ * decisions/053-elo-ratings.md
+ * decisions/052-predictions-log.md
  */
 export function replayElo(
   matches: readonly EloMatch[],
@@ -163,7 +211,7 @@ export function replayElo(
   }
   return { ratings, history };
 
-  /** A team's rating after a match, in its history; the rating itself is already set. */
+  // A team's rating after a match, in its history; the rating itself is already set.
   function record(team: number, rating: number, match: EloMatch) {
     const point = {
       providerMatchId: match.providerMatchId,
@@ -179,7 +227,9 @@ export function replayElo(
 
 /**
  * An upcoming match's prediction from the current ratings, or null when a
- * side is a placeholder (S4, S16 is the caller's: no draw share, no call).
+ * side is a placeholder. A missing draw share is the caller's: it does not call.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function predictElo(
   ratings: ReadonlyMap<number, TeamRating>,

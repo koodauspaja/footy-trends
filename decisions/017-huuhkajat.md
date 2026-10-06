@@ -373,3 +373,12 @@ Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
   asks which seasons it publishes, so nothing has to name a competition and
   guess wrong in January. A health endpoint that hangs until the probe times
   out is worse than one reporting a provider as unreachable.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **`INCOMPLETE_MESSAGE`.** A failed bucket's matches were never read, and a
+  bucket is not one year, `maajp18` spans 2018 to 2021. Saying that some may
+  be missing beats naming a year that might be complete.
+- **`YearSection`.** `<details>` and not client-side state, the same shape
+  the Finnish cups use for rounds, and open by default for the same reason:
+  nothing is hidden until the reader chooses to hide it.

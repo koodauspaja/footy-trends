@@ -9,3 +9,7 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
 
 - **`CupRoundSection`'s summary.** It shows the `FoldMarker` every fold
   shares.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **`YearSection`'s summary.** It shows the `FoldMarker` every fold shares.

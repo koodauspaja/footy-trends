@@ -117,3 +117,21 @@ Cut from `src/components/data-table.tsx` at `dc74e3e` by #531.
   The flexible column absorbs the rest, so a wide screen still gives the team
   name the room and the numbers stay grouped. A long name wraps inside its
   column.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **The match list's widths.** A phase without a round number still lines up
+  with one that has it, and a list's width does not depend on how long its
+  team names are: the same component rendered 217px apart on `/kotimaa` and
+  the Champions League page.
+- **`Tulos` is left-aligned.** Right-aligning a score would line up the away
+  goals, which means nothing.
+
+Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
+
+- **`StandingsTable`'s alignment.** The stats are right-aligned so digits
+  line up by place value, which is most of what a standings table is for;
+  `Sija` stays left, where it reads as a label beside the team name and not a
+  quantity to compare. With `Joukkue` flexible the numbers stay grouped on a
+  wide screen and are not strung across it, and every table on the page has
+  the same columns as its siblings.

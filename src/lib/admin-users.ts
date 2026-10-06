@@ -14,7 +14,11 @@ import { logger } from "@/lib/logger";
 
 export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
 
-/** One page of users, and how many pages there are. */
+/**
+ * One page of users, and how many pages there are.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ */
 export type UserPage = { users: AdminUser[]; page: number; pages: number; total: number };
 
 /**

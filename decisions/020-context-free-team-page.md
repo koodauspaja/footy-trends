@@ -236,3 +236,19 @@ Cut from `src/lib/team-context.ts` at `dc74e3e` by #531.
   slot and not a team; 22 stored rows carry it, and a page for it could only
   ever be empty. An id the column cannot hold would otherwise fail at bind
   time and reach the reader as an error and not a not-found.
+
+Cut from `src/lib/team-page-context.ts` at `dc74e3e` by #531.
+
+- **`seasonCandidate`.** Selectable seasons depend on the competition, and on
+  a bare URL the competition is what is still being resolved, so the filter
+  uses the value's shape and the page's existing validation still decides
+  whether it earns a notice.
+- **`resolveTeamDefaults`.** Two questions, because they have different
+  answers. A `no` to the first means the page has nothing to offer: not a
+  season selector, and not a standings link for a competition the team has
+  never played in. A season the team never played says nothing about which
+  competition the reader wanted, and falling back to the region's default
+  competition, which is what happened before, is the answer that serves 12 of
+  1,315 Finnish teams. The season itself is still honoured downstream, so an
+  unplayed season still ends at the team-not-found message, under the team's
+  own competition.

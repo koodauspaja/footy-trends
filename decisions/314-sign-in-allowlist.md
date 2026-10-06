@@ -32,3 +32,27 @@ Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
   `?error=auth`, and better-auth's `appendQueryParams` concatenates its own
   `error=<code>`, so the reader lands on `/?error=auth&error=<code>`. With
   `get`, a named cause would have been silently unreachable.
+
+Cut from `src/lib/sign-in-allowlist.ts` at `dc74e3e` by #531.
+
+- **Why the allowlist exists.** Sign-in was believed to be limited to
+  Google's Testing mode test-user list. Measured on 2026-09-09, that was
+  false: Google enforces the list only for apps asking for more than
+  `openid`, `email` and `profile`, and this app asks for exactly those three.
+  Staging accepted any Google account, and nothing anywhere said otherwise.
+- **Unset means unrestricted.** Production's consent screen is published and
+  open on purpose, and local development has no list either. An environment
+  that says nothing gets the behaviour it had and not a lockout.
+- **`allowedSignInEmails` reads the variable on every call.** This does not
+  save a restart on Railway, which redeploys the service whenever a variable
+  changes; an earlier comment claimed it did. It makes the function answer
+  from the environment as it is when asked, so nothing depends on when the
+  module happened to be imported, and a test can change the variable between
+  cases. The cost is a string split per sign-in.
+- **`refusesSignIn`.** An identity the provider gave no email for cannot be
+  checked against a list, and admitting what cannot be checked is the
+  opposite of an allowlist.
+- **`signInRefusal`.** Running on every sign-in is what makes this a
+  restriction and not a bouncer that only checks new faces. An account
+  created before the list existed is refused on its next sign-in, and no
+  `user` row is written for one that never got in.

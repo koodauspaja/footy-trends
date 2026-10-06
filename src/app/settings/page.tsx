@@ -17,26 +17,25 @@ const HEADING = "Asetukset";
 export const metadata: Metadata = { title: HEADING };
 
 /**
- * Per-user by definition, so it can never be prerendered. Unlike the header,
- * this page reads its session on the server: everything it shows is server
- * data, and one render beats a client endpoint per section. See
- * specs/024-account-settings.md.
+ * Per-user, so it can never be prerendered. Unlike the header, this page reads
+ * its session on the server.
+ *
+ * decisions/024-account-settings.md
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * `/asetukset`: the reader's preferences, devices and picture, each read on
+ * the server and each with its own failure state.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ */
 export default async function Settings() {
   const requestHeaders = await headers();
 
-  /**
-   * The session lookup needs its own guard, not just the two below it. It
-   * reads request headers and hits the database, and an unhandled failure here
-   * rejects the whole route — an error page where the reader expected their
-   * settings.
-   *
-   * A failure is not "signed out": prompting them to sign in would be a claim
-   * we cannot make, and they may already be signed in. So it gets its own
-   * state, like every other failure on this page.
-   */
+  // The session lookup has its own guard and its own state: a failure is not
+  // "signed out".
   let session: Awaited<ReturnType<typeof auth.api.getSession>> = null;
   try {
     session = await auth.api.getSession({ headers: requestHeaders });
@@ -59,12 +58,8 @@ export default async function Settings() {
 
   const row = await currentPreferencesRow();
 
-  /**
-   * A failed lookup is not "no preferences". Rendering defaults here would show
-   * a reader their settings apparently reset, and a save would then overwrite
-   * the real ones — losing settings because a query briefly failed. So the form
-   * is withheld entirely rather than shown with wrong values.
-   */
+  // A failed lookup is not "no preferences": the form is withheld, not shown
+  // with defaults a save would then write over the real ones.
   if (row === "error") {
     return (
       <PageShell heading={HEADING}>
@@ -75,12 +70,8 @@ export default async function Settings() {
 
   const preferences = row === null ? NO_PREFERENCES : toPreferences(row);
 
-  /**
-   * `null` means the list could not be read, which is **not** the same as "one
-   * device". Reporting an empty list would tell the reader nothing else is
-   * signed in — a claim about their account security that we cannot back, and
-   * that hides the very sessions the section exists to reveal.
-   */
+  // `null` means the list could not be read, which is not the same as "one
+  // device".
   let devices: Device[] | null = null;
   try {
     const sessions = await auth.api.listSessions({ headers: requestHeaders });
@@ -113,11 +104,8 @@ export default async function Settings() {
     options: competitionOptionsFor(region),
   }));
 
-  /**
-   * Which picture the reader is on, from specs/025-custom-avatar.md. Read on
-   * the server like everything else here — the version is what the preview URL
-   * carries, and a failure costs the section its picture rather than the page.
-   */
+  // Which picture the reader is on. A failure costs the section its picture,
+  // not the page.
   let avatarVersion: string | null = null;
   try {
     avatarVersion = (await getAvatar(session.user.id))?.version ?? null;

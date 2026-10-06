@@ -456,3 +456,40 @@ Cut from `src/lib/viewer.ts` at `dc74e3e` by #531.
   environment at all. Deferring it past the cookie check also means a
   signed-out request constructs neither the auth instance nor the database
   client.
+
+Cut from `src/lib/competition-preferences.ts` at `dc74e3e` by #531.
+
+- **`competition-preferences.ts`.** `domestic-competitions.ts` transitively
+  reaches ioredis, so a client component importing any of this fails the
+  build on `dns`, `net` and `tls`. The settings form receives its option
+  lists as props from the server page.
+- **`footballDataRegionFor`.** `CompetitionRegion` only spans the two
+  football-data regions, and pretending otherwise would make the callers
+  silently check the wrong registry. Total and not a `Partial<Record<…>>`
+  lookup: every caller already returns early for Kotimaa, so TypeScript
+  narrows the argument and there is no "missing entry" case left to guard. A
+  guard for an unreachable state is a second source of truth and an
+  untestable branch.
+- **`isStillValid`.** A stored preference and a `?kilpailu=` value have to
+  agree about what exists, and two implementations of "is this a real
+  competition" would eventually disagree.
+- **`preferredCompetitionFor`.** Null lets each caller keep its own hardcoded
+  fallback, so this module need not know what that is. A competition can be
+  retired long after someone chose it, and stranding a reader on a dead page
+  is worse than ignoring their preference.
+
+Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
+
+- **The settings page reads its session on the server.** Everything it shows
+  is server data, and one render beats a client endpoint per section.
+- **The session lookup's guard.** It reads request headers and hits the
+  database, and an unhandled failure rejects the whole route: an error page
+  where the reader expected their settings. Prompting them to sign in would
+  be a claim we cannot make, and they may already be signed in.
+- **A failed preferences lookup.** Rendering defaults would show a reader
+  their settings apparently reset, and a save would lose the real ones
+  because a query briefly failed.
+- **A failed device list.** Reporting an empty list would tell the reader
+  nothing else is signed in, a claim about their account security that we
+  cannot back, and one that hides the very sessions the section exists to
+  reveal.

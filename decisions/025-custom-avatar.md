@@ -224,3 +224,8 @@ Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
   on a path that is the same for every reader, so the token does two jobs: a
   new upload has to be a new URL, and one reader's cached picture must never
   be reachable at another's URL. See `src/app/api/avatar/me/route.ts`.
+
+Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
+
+- **`avatarVersion` on the settings page.** Read on the server like
+  everything else there; the version is what the preview URL carries.
