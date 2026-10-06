@@ -53,5 +53,6 @@ decide something the spec did not.
 
 Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
-- **`teamLeagueMatches`.** Results are what TASO publishes, so an unverified table does not stop them as it stops a
-  position; across a split they continue, as the table's `Vire` does.
+- **`teamLeagueMatches`.** Results are what TASO publishes, so an unverified
+  table does not stop them as it stops a position; across a split they
+  continue, as the table's `Vire` does.

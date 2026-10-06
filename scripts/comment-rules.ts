@@ -13,6 +13,8 @@ export type Comment = {
   endLine: number;
   text: string;
   doc: boolean;
+  /** The file's first doc comment, above its first declaration: what a file header is. */
+  header: boolean;
   start: number;
   end: number;
 };
@@ -34,6 +36,11 @@ export function sourceFilesAmong(paths: readonly string[]): string[] {
 
 function scriptKind(file: string): ts.ScriptKind {
   return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
+/** `"use server"`, `"use client"`: a string on its own at the top of a file. */
+function isDirective(statement: ts.Statement): boolean {
+  return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
 }
 
 /**
@@ -62,15 +69,25 @@ export function commentsOf(file: string, source: string): Comment[] {
   };
   visit(tree);
 
+  const firstDeclaration = tree.statements.find(
+    (statement) => !ts.isImportDeclaration(statement) && !isDirective(statement)
+  );
+  const headerEnd = firstDeclaration?.getStart(tree) ?? source.length;
+  let docSeen = false;
+
   return [...ranges.values()]
     .sort((left, right) => left.pos - right.pos)
     .map((range) => {
       const text = source.slice(range.pos, range.end);
+      const doc = text.startsWith("/**") && text !== "/**/";
+      const header = doc && !docSeen && range.end <= headerEnd;
+      docSeen ||= doc;
       return {
         line: tree.getLineAndCharacterOfPosition(range.pos).line + 1,
         endLine: tree.getLineAndCharacterOfPosition(range.end).line + 1,
         text,
-        doc: text.startsWith("/**") && text !== "/**/",
+        doc,
+        header,
         start: range.pos,
         end: range.end,
       };
@@ -133,34 +150,21 @@ export function decisionCitations(file: string, comments: readonly Comment[]): F
   );
 }
 
-/** `"use server"`, `"use client"`: a string on its own at the top of a file. */
-function isDirective(statement: ts.Statement): boolean {
-  return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
-}
-
 /**
  * A doc comment directly under another: the upper one sits on something it does
- * not describe. A blank line between them marks a file header, and only above
- * the file's first declaration.
+ * not describe. A blank line under a file's header is the one exception.
  */
 export function stackedDocComments(
   file: string,
   source: string,
   comments: readonly Comment[]
 ): Finding[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
-  const firstDeclaration = tree.statements.find(
-    (statement) => !ts.isImportDeclaration(statement) && !isDirective(statement)
-  );
-  const headerEnd = firstDeclaration?.getStart(tree) ?? source.length;
-
   return comments.flatMap((comment, index) => {
     const previous = comments[index - 1];
     if (previous === undefined || !previous.doc || !comment.doc) return [];
     const between = source.slice(previous.end, comment.start);
     if (between.trim() !== "") return [];
-    const isHeader = between.split("\n").length > 2 && previous.end <= headerEnd;
-    if (isHeader) return [];
+    if (previous.header && between.split("\n").length > 2) return [];
     return [{ file, line: comment.line, text: comment.text.replace(/\n[\s\S]*/, "") }];
   });
 }

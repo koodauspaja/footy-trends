@@ -10,7 +10,7 @@ import { executablePath, looksRunnable, overrideNameFor } from "../../../scripts
  * ones that would hand the decision back.
  */
 
-/**
+/*
  * Every call below passes `env: {}`.
  *
  * Omitting it reads the real environment, so a developer with `GIT_EXECUTABLE`

@@ -89,9 +89,10 @@ fails when:
 | A doc comment starts on the line after another ends | the upper one describes something else, or the same thing twice |
 
 Doc comments over twelve lines are reported, never failed on. A doc comment, a
-blank line and another is a file header, and passes only above the file's first
-declaration: imports and a `"use server"` line may come before it. Further down,
-a blank line does not excuse a doc comment that sits on nothing.
+blank line and another is a file header, and passes only when it is the file's
+first doc comment and sits above the first declaration: imports and a
+`"use server"` line may come before it. A second one up there is what a deleted
+declaration leaves behind, and further down a blank line excuses nothing.
 
 ## The batches
 
@@ -109,4 +110,9 @@ five test files. Each comment moved, unchanged, onto what it describes, or a
 blank line now marks it as the file header it is. Hand review found one that
 was neither: a comment in `rendering-mode.test.ts`, 150 lines into the file,
 about a `describe` 200 lines below it. It moved onto that `describe`, and the
-header exemption was narrowed to the top of a file so the next one fails.
+header exemption was narrowed to a file's first doc comment so the next one
+fails. Two notes that describe a stretch of a test file and no declaration,
+in `settings.spec.ts` and `executable.test.ts`, became plain `/*` comments.
+
+These moved comments still tell history and cite issues: they were moved word
+for word, not rewritten, and are trimmed with the batch their file belongs to.

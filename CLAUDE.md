@@ -43,8 +43,9 @@
   pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
   citation, on a cited record that does not exist, and on a doc comment stacked
   on another. Comments not yet in this shape are trimmed file by file, by the
-  next pull request that touches the file or in batches of at most 150 000 diff
-  characters. `decisions/531-comments-say-what-code-is-for.md` has the reasons.
+  next pull request that rewrites them or in batches of at most 150 000 diff
+  characters. A comment a pull request only moves, word for word, onto the
+  thing it describes is not rewritten, and waits for its batch. `decisions/531-comments-say-what-code-is-for.md` has the reasons.
 - **What does not vary by work type are the gates.** Feature, chore or bug, the
   same three points belong to a human: agreeing the work, authorising the start,
   and merging. Steps 2, 4 and 7 of the Required workflow below state them for

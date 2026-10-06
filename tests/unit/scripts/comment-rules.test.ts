@@ -16,7 +16,7 @@ import {
   sourceFilesAmong,
   stackedDocComments,
 } from "../../../scripts/comment-rules";
-import { executablePath } from "../../../scripts/executable";
+import { executablePath, overrideNameFor } from "../../../scripts/executable";
 
 /**
  * The comment lines in this repository that cite an issue or pull request
@@ -222,6 +222,21 @@ describe("stackedDocComments", () => {
     ).toEqual([]);
   });
 
+  it("finds a second doc comment above the first declaration, where only the first is a header", () => {
+    const source = [
+      'import a from "a";',
+      "",
+      "/** The module. */",
+      "",
+      "/** For a declaration that was deleted. */",
+      "",
+      "/** For b. */",
+      "const b = 2;",
+    ].join("\n");
+
+    expect(stacked(source)).toEqual([{ file: "a.ts", line: 7, text: "/** For b. */" }]);
+  });
+
   it("finds one behind a blank line once the file's first declaration has begun", () => {
     const source =
       "const a = 1;\n\n/** For something far below. */\n\n/** For f. */\nfunction f() {}";
@@ -289,8 +304,11 @@ describe("this repository's comments", () => {
   beforeAll(() => {
     // What git tracks or would: an ignored or generated file is not the repository's.
     const git = executablePath("git");
-    if (git === null)
-      throw new Error("git was not found, so the repository's files cannot be listed");
+    if (git === null) {
+      throw new Error(
+        `git not found, so the repository's files cannot be listed. Set ${overrideNameFor("git")} to its absolute path if it is installed somewhere unusual.`
+      );
+    }
     const listed = execFileSync(git, ["ls-files", "--cached", "--others", "--exclude-standard"], {
       cwd: ROOT,
       encoding: "utf8",
