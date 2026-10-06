@@ -160,4 +160,4 @@ Cut from `src/lib/team-search.ts` at `94397a8` by #531.
   by recency and no more than `MAX_RESULTS` rows per query leave Postgres, so
   a short common term like `ja` cannot pull every matching team into memory.
 - **`PLACEHOLDER_TEAM_ID` in `team-search.ts`.** The match page already keeps
-  both off.
+  both off: the unresolved bracket slot and the team with no name.

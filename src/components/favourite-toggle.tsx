@@ -13,7 +13,7 @@ import { favouriteKeysOf } from "@/lib/session-extras";
 /**
  * The one control for favouriting anything, on every surface. A client
  * component reading the session the browser already has. A unit test that
- * renders it must mock `@/lib/auth-client`.
+ * renders anything containing it must mock `@/lib/auth-client`.
  *
  * decisions/026-favourites.md
  */

@@ -127,7 +127,6 @@ Cut from `src/lib/position-series.ts` at `94397a8` by #531.
   one the standings page shows for that round, the property the feature
   rests on, and a change to how a table is ranked cannot make the two
   disagree.
-- **`PositionSeries.teamCount`.** The whole league, also after a split.
 - **`PositionSeries.endsAtSplit`.** The page says so beneath the chart.
 - **`unavailable`.** The standings page shows no round selector for such a
   season either, so there is nothing the chart could equal.

@@ -138,8 +138,7 @@ export function formatScore(match: ScoreBreakdown): string {
   if (score === "–") return score;
 
   // Half a shootout is not a shootout: one total without the other would print
-  // "(rp 4–null)". `formatLeg` in the bracket has always required both, which
-  // is what `bothOrNeither` states once for all three pairs here.
+  // "(rp 4–null)".
   if (penalties !== null) return `${score} (rp ${penalties[0]}–${penalties[1]})`;
   return extra !== null ? `${score} (ja)` : score;
 }

@@ -22,8 +22,8 @@ export type PositionSeries =
       status: "ok";
       points: PositionPoint[];
       /**
-       * The y-axis extent: every team the plotted positions rank. In a league played
-       * in parallel pools, the team's pool.
+       * The y-axis extent: every team the plotted positions rank. The whole league,
+       * also after a split; in a league played in parallel pools, the team's pool.
        */
       teamCount: number;
       /**
@@ -87,8 +87,9 @@ export function roundsToPlot(finished: readonly PlayedMatch[], last: number): nu
 }
 
 /**
- * This team's position after each round it has reached, plus `offset`, and
- * whether it played in that round. Throws when a table lacks the team.
+ * This team's position after each round it has reached, plus `offset`: the
+ * teams in groups ranked above it after a split, 0 otherwise. Also whether it
+ * played in that round. Throws when a table lacks the team.
  *
  * decisions/030-league-position-by-matchday.md
  * decisions/413-rounds-a-team-sat-out.md

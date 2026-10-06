@@ -317,7 +317,7 @@ Cut from `src/components/match-page.tsx` at `94397a8` by #531.
 
 - **`MatchPageOptions.teamBasePath`.** Neither Finland nor its opponents have
   a page under `/maajoukkueet`, and the feature asks for a link to a team's
-  existing page.
+  existing page. #246 is what would change that.
 - **`resolveSpansCalendarYears`.** The match is the page: with the provider
   unreachable the season shows as its bare start year, where failing would
   take the whole page down for a missing slash.
