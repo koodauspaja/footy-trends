@@ -23,11 +23,20 @@ export type Finding = { file: string; line: number; text: string };
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
 
-/** An issue or pull request number, this repository's or another's, but not `&#123;`. */
+/**
+ * An issue or pull request number, this repository's or another's, but not `&#123;`.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
 const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
 
-/** The TypeScript sources among `paths`, in order: the caller lists what git tracks or would. */
+/**
+ * The TypeScript sources among `paths`, in order: the caller lists what git
+ * tracks or would.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 export function sourceFilesAmong(paths: readonly string[]): string[] {
   return paths
     .filter((file) => SOURCE_EXTENSIONS.some((extension) => file.endsWith(extension)))
@@ -38,15 +47,21 @@ function scriptKind(file: string): ts.ScriptKind {
   return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
 }
 
-/** `"use server"`, `"use client"`: a string on its own at the top of a file. */
+/**
+ * `"use server"`, `"use client"`: a string on its own at the top of a file.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 function isDirective(statement: ts.Statement): boolean {
   return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
 }
 
 /**
- * Every comment in a file, in order, read from the parsed tree rather than a
+ * Every comment in a file, in order, read from the parsed tree and not a
  * regex: a `//` inside a string, a template, JSX text or a doc comment's own
  * text is not a comment.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export function commentsOf(file: string, source: string): Comment[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
@@ -100,7 +115,11 @@ function linesOf(file: string, comment: Comment): Finding[] {
     .map((text, offset) => ({ file, line: comment.line + offset, text: text.trim() }));
 }
 
-/** Comment lines that cite an issue or pull request by number. */
+/**
+ * Comment lines that cite an issue or pull request by number.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 export function issueCitations(file: string, comments: readonly Comment[]): Finding[] {
   return comments.flatMap((comment) =>
     linesOf(file, comment).filter((line) => ISSUE_NUMBER.test(line.text))
@@ -110,6 +129,8 @@ export function issueCitations(file: string, comments: readonly Comment[]): Find
 /**
  * A citing line's entry in the record: a short hash of its file and text, so a
  * line that only moves keeps its key and the same words elsewhere do not.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export function citationKey(citation: Pick<Finding, "file" | "text">): string {
   return createHash("sha256")
@@ -118,7 +139,11 @@ export function citationKey(citation: Pick<Finding, "file" | "text">): string {
     .slice(0, 16);
 }
 
-/** The record the tree has now, sorted, as the recorded file stores it. */
+/**
+ * The record the tree has now, sorted, as the recorded file stores it.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 export function citationRecordOf(citations: readonly Finding[]): string[] {
   return citations.map(citationKey).sort((left, right) => left.localeCompare(right, "en"));
 }
@@ -126,6 +151,8 @@ export function citationRecordOf(citations: readonly Finding[]): string[] {
 /**
  * Citing lines the record does not have, and recorded keys the tree no longer
  * has. A line counts once per recorded copy, so a second identical one is new.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export function compareCitations(
   recorded: readonly string[],
@@ -141,7 +168,11 @@ export function compareCitations(
   return { added, removed };
 }
 
-/** Each `decisions/…md` path a comment cites, with where it is cited. */
+/**
+ * Each `decisions/…md` path a comment cites, with where it is cited.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 export function decisionCitations(file: string, comments: readonly Comment[]): Finding[] {
   return comments.flatMap((comment) =>
     linesOf(file, comment).flatMap((line) =>
@@ -153,6 +184,8 @@ export function decisionCitations(file: string, comments: readonly Comment[]): F
 /**
  * A doc comment directly under another: the upper one sits on something it does
  * not describe. A blank line under a file's header is the one exception.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
  */
 export function stackedDocComments(
   file: string,
@@ -169,7 +202,11 @@ export function stackedDocComments(
   });
 }
 
-/** Doc comments running past `limit` lines: reported, never failed on. */
+/**
+ * Doc comments running past `limit` lines: reported, never failed on.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ */
 export function longDocComments(file: string, comments: readonly Comment[], limit = 12): Finding[] {
   return comments
     .filter((comment) => comment.doc && comment.endLine - comment.line + 1 > limit)

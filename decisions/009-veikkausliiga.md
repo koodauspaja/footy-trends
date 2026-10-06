@@ -458,3 +458,11 @@ Cut from `src/components/use-season-round-navigation.ts` at `48ebab4` by #531.
 - **`useSeasonRoundNavigation`.** Reading `window.location.search`, and not
   rebuilding the query from props, is what preserves any parameter neither
   control owns.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **`tests/` is outside coverage.** Without the exclusion a JSON fixture is
+  reported as a permanently 0%-covered file, which adds noise and drags the
+  totals down, hiding a real regression in `src/`.

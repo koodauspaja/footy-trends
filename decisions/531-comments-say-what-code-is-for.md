@@ -288,3 +288,47 @@ declaration to sit on: `Domestic`, the `/kotimaa` picker, and the front page's
 `REGIONS`. From the review of the ninth batch, a record path goes on the
 comment of the function a reason was cut from, and a measurement left in a
 comment the script only touched is moved with the others.
+
+## The eleventh batch, 2026-10-07
+
+Everything outside `src/` and `tests/`, in one batch at Miikka's word
+(2026-10-07), so that it is verified and reviewed once: all 46 files of
+`scripts/`, the six TypeScript configuration files at the root and in
+`.railway/`, and ten configuration files that are not TypeScript. In
+`scripts/`, 142 475 characters of comment became 80 439; in the TypeScript
+configuration files, 21 486 became 10 521; in the others, 474 comment lines
+became 202.
+
+Almost none of this code came from a feature, so almost none of it had a
+record. 29 are new, one for each chore or bug whose comments held its reasons:
+`084`, `217`, `220`, `227`, `230`, `242`, `290`, `292`, `293`, `357`, `361`,
+`371`, `376`, `384`, `385`, `390`, `399`, `400`, `401`, `403`, `404`, `406`,
+`463`, `467`, `471`, `521`, `525`, `527` and `551`. `376`, `385` and `471` are
+numbered by their pull request, the one number a chore without an issue has.
+
+The files that are not TypeScript are done differently, also at Miikka's word:
+`sonar-project.properties`, the four workflows, `.env.example`,
+`docker-compose.yml`, `.gitignore` and the two hooks. Their long comments were
+written a paragraph at a time by many small changes, so each is cut to what a
+reader of the file needs, a constraint the file cannot show included, and moved
+whole, as written, to one record, `decisions/531-configuration-files.md`, which
+the file's first line cites. `scripts/comment-rules.ts` reads TypeScript only,
+so nothing checks these files' comments. The comment above
+`sonar.coverage.exclusions` keeps its four `exclusion-count` lines, which
+`tests/unit/scripts/coverage-exclusions.test.ts` reads; its prose moved like
+the rest.
+
+Two records created by earlier batches were misnamed and are renamed here, with
+their citations. `132-carry-over-config-validation.md` was numbered by its pull
+request, which closes #127, and is `127-carry-over-config-validation.md`.
+`085-running-commit-at-health.md` was named for one commit of #85, whose
+subject is the release workflow, and is `085-release-workflow.md`. A commit
+subject's single `(#N)` is often the pull request, so each new record's number
+is checked against the issue the pull request closes.
+Renaming a record is an exception to "added, not edited"; Miikka approved these
+two on 2026-10-07, as corrections of a wrong name.
+
+Usage lines stay where they fit in three lines (`review-findings.ts`,
+`release-pr.ts`, `backfill.ts`, `grant-admin.ts`, `issue-boxes.ts`,
+`predictions.ts`); the six modes of `release-version.ts` do not fit, and are in
+record 085.

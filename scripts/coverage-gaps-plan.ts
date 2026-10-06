@@ -1,22 +1,17 @@
 /**
  * Which source files the coverage report does not mention, and what to say
- * about them.
+ * about them. Pure, so the rule can be tested without running a coverage pass.
  *
- * Pure, so the rule can be tested without running a coverage pass — the split
- * `grant-admin-plan.ts` established.
+ * decisions/385-untested-source-files-fail.md
  */
 
 export type GapReport = { ok: true; measured: number } | { ok: false; message: string };
 
 /**
- * `vitest --coverage` only measures files some test imports. A file no test
- * touches is not reported as 0% — it is **absent**, so the summary still says
- * 100% and the gate stays green while Sonar, which indexes the source tree,
- * scores it 0%.
+ * The source files no test imports. `vitest --coverage` leaves such a file out
+ * of its report where one would expect 0%, so the summary still says 100%.
  *
- * This has caught the repository out three times: `admin-user-table.tsx` and
- * `app/admin/page.tsx` in #370, `generate-migration.ts` in #376, and
- * `refresh-actions.ts` in #381.
+ * decisions/385-untested-source-files-fail.md
  */
 export function findCoverageGaps(
   sourceFiles: readonly string[],
@@ -36,10 +31,8 @@ export function findCoverageGaps(
     // `refresh-diff.ts` — so locale collation is the right one here.
     .sort((left, right) => left.localeCompare(right));
 
-  // The count is of the files this guard *required* to be measured, not of
-  // every entry in the coverage report: a coverage-excluded file that some test
-  // happens to import appears there too, and counting it would overstate what
-  // was checked in the one line a reader takes at face value.
+  // The count is of the files this guard required to be measured, not of every
+  // entry in the coverage report.
   if (missing.length === 0) return { ok: true, measured: required.length };
 
   const listed = missing.map((file) => `  ${file}`).join("\n");
@@ -62,14 +55,7 @@ export function findCoverageGaps(
 /**
  * One comma-separated property, read from Sonar's own configuration file.
  *
- * General rather than one function per key, because the guard needs three of
- * them — `sonar.sources`, `sonar.exclusions` and `sonar.coverage.exclusions` —
- * and its whole purpose is to fail for the reasons Sonar fails. Any list it
- * kept separately would be free to drift from the one Sonar reads.
- *
- * Sliced rather than split on `=`: the line begins with the key, so this is
- * total. `split("=")[1] ?? ""` needed a fallback that could never run, which
- * lcov duly reported as an uncovered condition.
+ * decisions/385-untested-source-files-fail.md
  */
 export function parseSonarProperty(properties: string, key: string): string[] {
   const prefix = `${key}=`;
@@ -84,17 +70,10 @@ export function parseSonarProperty(properties: string, key: string): string[] {
 }
 
 /**
- * Branches that lcov records as never taken.
+ * Branches that lcov records as never taken. Not the same as vitest's branch
+ * percentage: lcov is what Sonar consumes.
  *
- * **Not the same as vitest's branch percentage.** vitest's v8 provider and
- * lcov's `BRDA` records model branches differently, so the text summary can
- * read `Branches: 100%` while lcov — which is what Sonar consumes — still has
- * conditions with a hit count of zero. That is precisely how #381 reached Sonar
- * showing `refresh-actions.ts` at 94.4% with two uncovered conditions while the
- * local suite reported everything green.
- *
- * The two that were hiding were real: three actions each decode the competition
- * independently, and only one of them had been exercised.
+ * decisions/385-untested-source-files-fail.md
  */
 export function findUncoveredBranches(
   lcov: string,
@@ -129,24 +108,20 @@ export function findUncoveredBranches(
 }
 
 /**
- * Separators as the exclusion list and lcov write them.
+ * Separators as the exclusion list and lcov write them: forward slashes, also
+ * on Windows.
  *
- * `path.join` and `path.relative` answer with backslashes on Windows, while
- * `sonar.coverage.exclusions` and lcov both use forward slashes — so without
- * this the guard would match nothing there and report every excluded file as a
- * coverage gap. `scripts/executable.ts` documents the neighbouring trap.
+ * decisions/385-untested-source-files-fail.md
  */
 export function toPosixPath(file: string): string {
   return file.replaceAll("\\", "/");
 }
 
 /**
- * lcov writes absolute paths; the exclusion list is repository-relative.
+ * A path made repository-relative: lcov writes absolute paths. A plain prefix
+ * check, not a regex built from the root.
  *
- * A plain prefix check rather than a regex built from the root: a checkout under
- * a directory containing `.`, `+` or `(` would make that pattern match the
- * wrong thing, and the failure would look like a coverage gap rather than like
- * a path bug.
+ * decisions/385-untested-source-files-fail.md
  */
 function relativeTo(root: string, file: string): string {
   const normalised = toPosixPath(file);
@@ -154,18 +129,9 @@ function relativeTo(root: string, file: string): string {
   // No root supplied: the paths are already relative.
   if (normalisedRoot === "") return normalised;
 
-  /**
-   * A trailing separator is stripped before one is added, because a checkout at
-   * `/` or at a Windows drive root normalises to `/` or `C:/` and appending
-   * another would build `//` — a prefix no lcov path starts with, so nothing
-   * would be made relative and every excluded file would read as uncovered.
-   *
-   * Stripping it can leave nothing at all, which is the root directory itself
-   * rather than "no root": that case is a prefix of one separator.
-   */
-  // A loop rather than `/\/+$/`, which backtracks over a run of separators,
-  // retrying from each one — quadratic on a path made of them. `breadcrumb.ts`
-  // already documents that trap, and this is the same one.
+  // A trailing separator is stripped before one is added, so a root of `/` or
+  // `C:/` does not become `//`; nothing left means the root itself. A loop,
+  // not `/\/+$/`, which backtracks over a run of separators.
   let base = normalisedRoot;
   while (base.endsWith("/")) base = base.slice(0, -1);
   const prefix = base === "" ? "/" : `${base}/`;
@@ -187,14 +153,15 @@ export function describeUncoveredBranches(entries: readonly string[]): string {
  * Every extension the coverage provider can instrument, so a file it would
  * measure cannot slip past the guard by being named something else.
  *
- * Only `.ts` and `.tsx` exist under `src/` and `scripts/` today. The rest are
- * here because the guard's value is that it cannot be quietly wrong: a `.mjs`
- * added later would be indexed by Sonar and scored, and a guard that did not
- * look at it would report all clear while the gate failed.
+ * decisions/385-untested-source-files-fail.md
  */
 const SOURCE_SUFFIXES = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
-/** Declaration files compile to nothing, so no coverage report mentions them. */
+/**
+ * Declaration files compile to nothing, so no coverage report mentions them.
+ *
+ * decisions/385-untested-source-files-fail.md
+ */
 const DECLARATION = /\.d\.(ts|mts|cts)$/;
 
 export function isSourceFile(name: string): boolean {
@@ -203,24 +170,11 @@ export function isSourceFile(name: string): boolean {
 }
 
 /**
- * One Sonar path pattern, as a regular expression.
+ * What a Sonar path pattern escapes on its way to a regular expression: `**`
+ * spans directories, `*` characters within one segment, `?` one character,
+ * and everything else is literal.
  *
- * Sonar's exclusion entries are **patterns, not literals**: `tests/**` and
- * `**‌/*.ico` are both in this repository's `sonar.exclusions` today, and
- * `sonar.coverage.exclusions` is read with the same syntax even though every
- * entry there happens to be a literal path. Comparing them as strings meant the
- * guard and Sonar disagreed about which files are excluded — the guard failing
- * the build for files Sonar deliberately ignores.
- *
- * The syntax is small: `**` spans directories, `*` spans characters within one
- * segment, `?` is a single character. Everything else is literal, which is why
- * the escape below comes first — `drizzle.config.ts` must not match
- * `drizzleXconfig.ts`.
- *
- * Hand-written rather than reaching for `minimatch`: it is present in
- * `node_modules` only as somebody else's transitive dependency, and a build
- * gate should not rest on a package that can vanish when an unrelated tree
- * changes.
+ * decisions/385-untested-source-files-fail.md
  */
 const REGEXP_METACHARACTERS = new Set([
   ".",
@@ -275,11 +229,10 @@ export function matchesAnyPattern(file: string, patterns: readonly string[]): bo
 }
 
 /**
- * Whether Sonar would prune a whole directory, so the walk can skip it.
+ * Whether Sonar would prune a whole directory, so the walk can skip it. Asked
+ * by testing a sentinel path inside it against the patterns themselves.
  *
- * Asked by testing a sentinel path inside it rather than by looking for a
- * `dir/**` entry: that keeps one rule — the patterns themselves — instead of a
- * second, simpler rule that would drift from it.
+ * decisions/385-untested-source-files-fail.md
  */
 export function isPrunedDirectory(directory: string, patterns: readonly string[]): boolean {
   return matchesAnyPattern(`${directory}/__any__`, patterns);

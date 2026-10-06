@@ -1,19 +1,9 @@
 /**
- * Grant or remove admin, for one account — entry point and guard.
+ * Grant or remove admin, for one account: entry point and guard, as
+ * `DATABASE_URL=<production> npm run admin:role -- --email=… [--role=user]`.
+ * `DATABASE_URL` must come from the environment, not `.env`.
  *
- *   DATABASE_URL=<production> npm run admin:role -- --email=someone@example.fi
- *   DATABASE_URL=<production> npm run admin:role -- --email=someone@example.fi --role=user
- *
- * This file deliberately imports nothing that touches the database, so the
- * target is settled before anything that could connect is loaded. The work
- * lives in `grant-admin-run.ts`, imported dynamically once it is. The same
- * shape as `scripts/backfill.ts`.
- *
- * **`DATABASE_URL` must come from the environment.** The one in `.env` is
- * deliberately ignored: this script exists to write to production, and picking
- * up a local default when the operator forgot to pass one is the failure worth
- * designing out — granting admin on a laptop while believing it was granted in
- * production is worse than an error message.
+ * decisions/371-grant-admin-script.md
  */
 import { parseArgs } from "./grant-admin-plan";
 
@@ -25,9 +15,7 @@ function err(line = ""): void {
 }
 
 // Captured before `.env` could be loaded, so `.env` cannot supply it. Blank
-// counts as missing: `DATABASE_URL= npm run admin:role` otherwise passes a null
-// check and fails deep inside the Postgres client, where the message says
-// nothing about the variable the operator forgot to fill in.
+// counts as missing.
 const raw = process.env.DATABASE_URL ?? "";
 const connectionString = raw.trim() === "" ? null : raw;
 

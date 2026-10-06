@@ -99,3 +99,13 @@ Cut from `src/lib/comebacks.ts` at `dc74e3e` by #531.
   half must not look the same, so the panel says how many it could not read.
   Counted over exactly the matches the other result panels count; the
   services pass them in.
+
+## Moved from comments, 2026-10-07
+
+Cut from `scripts/backfill.ts` at `5b180e0` by #531.
+
+- **`--refetch`.** It exists for a column added after production was
+  filled, the half-time score, where every stored row is complete by the old
+  definition and empty by the new one; without it such a column stays null
+  until each season happens to become the active one again. `--reset` is the
+  other way to the same place, and throws the rows away first.

@@ -86,3 +86,12 @@ Cut from `src/lib/prediction-backtest.ts` at `ef99862` by #531.
 
 - **`backtestRows`.** Of two matches sharing a kickoff, neither is evidence
   for the other. A competition's first kickoff has nothing before it.
+
+## Moved from comments, 2026-10-07
+
+Cut from `scripts/predictions.ts` at `5b180e0` by #531.
+
+- **`predictions.ts` ignores `.env`.** As `backfill.ts` does, so a forgotten
+  variable cannot write predictions into a development database. Nothing
+  touching the database is imported until the target is settled: `src/db`
+  reads the variable when it is first used.

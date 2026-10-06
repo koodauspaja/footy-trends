@@ -1,24 +1,33 @@
 /**
- * The decisions behind the pre-push e2e freshness check, kept free of the
- * filesystem, git and `docker` so they can be unit-tested directly — the same
- * split as `backfill-plan.ts` and its entry point.
+ * The decisions behind the pre-push e2e freshness check, free of the
+ * filesystem, git and `docker` so they can be unit-tested directly.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 
-/** Written by the Playwright reporter, read by the pre-push hook. Gitignored. */
+/**
+ * Written by the Playwright reporter, read by the pre-push hook. Gitignored.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ */
 export const MARKER_PATH = ".e2e-freshness";
 
 /**
- * How long a passing run stays good for on its own.
+ * How long a passing run stays good for on its own: the backstop for what the
+ * file comparison cannot see.
  *
- * The load-bearing check is the file comparison below — a run is stale the
- * moment the code it exercised changes. This window is the backstop for what
- * that comparison cannot see: a dependency bump, a `.env` edit, a provider
- * changing its data underneath us. Twelve hours means a morning's run does not
- * nag all morning, but yesterday's does not vouch for today.
+ * decisions/084-e2e-freshness-before-push.md
  */
 export const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
-/** The trees whose contents a passing e2e run is taken to have exercised. */
+/**
+ * The trees whose contents a passing e2e run is taken to have exercised.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ */
 export const WATCHED_DIRECTORIES = ["src", "tests/e2e"];
 
 export const RUN_COMMAND = "npm run test:e2e";
@@ -38,8 +47,9 @@ export type Verdict = {
 
 /**
  * Names what e2e needs locally and does not have. A contributor missing any of
- * these cannot run the suite at all, so the check must not stand between them
- * and a push — see `decideFreshness`.
+ * these cannot run the suite at all: see `decideFreshness`.
+ *
+ * decisions/084-e2e-freshness-before-push.md
  */
 export function missingPrerequisites(prerequisites: Prerequisites): string[] {
   const missing: string[] = [];
@@ -51,13 +61,10 @@ export function missingPrerequisites(prerequisites: Prerequisites): string[] {
 
 /**
  * What a passing run recorded: when it finished, and the content of the watched
- * trees at that moment.
+ * trees at that moment. Content, not where git keeps it.
  *
- * Content, not location. An earlier version stored `HEAD` plus the working-tree
- * status, which describes *where* content lives — so committing moved a file
- * from one half of that pair to the other and read as a change even though
- * nothing had been edited (#242). Hashes have no such cases: identical content
- * is identical, wherever git is keeping it.
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/242-freshness-compares-content.md
  */
 export type Marker = {
   finishedAt: Date;
@@ -66,9 +73,11 @@ export type Marker = {
 };
 
 /**
- * Anything that is not a complete marker — a truncated write, a hand-edit, or
- * an older format — is treated as no marker at all, so a corrupt or outdated
- * one fails closed rather than vouching for a run it cannot describe.
+ * Reads a marker. Anything that is not a complete one (a truncated write, a
+ * hand-edit, an older format) is treated as no marker at all.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/220-freshness-notices-deletions.md
  */
 export function parseMarker(raw: string | null): Marker | null {
   if (raw === null) return null;
@@ -93,33 +102,47 @@ export function parseMarker(raw: string | null): Marker | null {
   return { finishedAt: at, files: files as string[] };
 }
 
-/** How a watched path differs from what the last passing run covered. */
+/**
+ * How a watched path differs from what the last passing run covered.
+ *
+ * decisions/220-freshness-notices-deletions.md
+ */
 export type ChangeKind = "added" | "modified" | "deleted";
 
 /**
  * Names the kind in the blocking message, so a deletion is not mistaken for an
- * edit — the two need different responses, and "3 file(s) changed" hid that.
+ * edit.
+ *
+ * decisions/220-freshness-notices-deletions.md
  */
 export function describeChange(path: string, kind: ChangeKind): string {
   return `${path} (${kind})`;
 }
 
-/** The path in a `hash<TAB>path` entry. */
+/**
+ * The path in a `hash<TAB>path` entry.
+ *
+ * decisions/242-freshness-compares-content.md
+ */
 export function pathFromEntry(entry: string): string {
   return entry.slice(entry.indexOf("\t") + 1);
 }
 
-/** The hash in a `hash<TAB>path` entry. */
+/**
+ * The hash in a `hash<TAB>path` entry.
+ *
+ * decisions/242-freshness-compares-content.md
+ */
 export function hashFromEntry(entry: string): string {
   return entry.slice(0, entry.indexOf("\t"));
 }
 
 /**
- * What changed between two fingerprints.
+ * What changed between two fingerprints: a path present in one and not the
+ * other, or one whose hash differs.
  *
- * Three cases and no more, which is the point of comparing content: a path is
- * present in one and not the other, or its hash differs. Where git was keeping
- * the bytes — working tree, index, or a commit — never enters into it.
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
  */
 export function changedBetweenFingerprints(
   before: string[],
@@ -140,7 +163,11 @@ export function changedBetweenFingerprints(
   return changed.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-/** `3 h 5 min`, `12 min`, `40 s` — enough precision to see why it is stale. */
+/**
+ * `3 h 5 min`, `12 min`, `40 s`: enough precision to see why it is stale.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ */
 export function describeAge(ms: number): string {
   if (ms < 60_000) return `${Math.max(0, Math.round(ms / 1000))} s`;
   const minutes = Math.floor(ms / 60_000);
@@ -150,13 +177,10 @@ export function describeAge(ms: number): string {
 }
 
 /**
- * Whether a Playwright run covered the whole suite.
+ * Whether a Playwright run covered the whole suite: no `--grep`, and no spec
+ * named on the command line.
  *
- * A marker written by a filtered run would claim a freshness it did not earn,
- * which is worse than no marker: the hook would wave through a push whose
- * changes were never exercised. Both halves matter — `--grep` narrows without
- * dropping a file, and naming a spec on the command line drops files without
- * touching `grep`.
+ * decisions/084-e2e-freshness-before-push.md
  */
 export function isFullRun(run: {
   /** `config.grep.source`; Playwright's default is `.*`. */
@@ -176,9 +200,9 @@ export function isFullRun(run: {
 
 /**
  * Either the single reason the push should stop, or the marker that vouches
- * for it. A discriminated result rather than `string | null`, so that the
- * caller reaching the passing branch has the marker in hand — the alternative
- * needed a `marker === null` guard there that nothing could ever satisfy.
+ * for it.
+ *
+ * decisions/084-e2e-freshness-before-push.md
  */
 type Assessment = { blocking: string } | { vouchedBy: Date };
 
@@ -195,10 +219,9 @@ function assess(input: {
   }
 
   const age = input.now.getTime() - input.marker.getTime();
-  // A marker dated ahead of now cannot record a run that has finished. Clock
-  // skew or a hand-edit would otherwise sail past the staleness check below,
-  // since a negative age is never greater than the window — so this fails
-  // closed, the same way an unparseable marker does.
+  // A marker dated ahead of now cannot record a run that has finished, so it
+  // fails closed, as an unparseable marker does: a negative age would
+  // otherwise pass the staleness check below.
   if (age < 0) {
     return {
       blocking: `The marker is dated ${describeAge(-age)} in the future, so no completed run stands behind it. Delete ${MARKER_PATH} and run the suite again.`,
@@ -225,11 +248,11 @@ function assess(input: {
 }
 
 /**
- * Blocks a push whose changes no passing e2e run covers — except when the
- * suite could not have been run here at all, which downgrades every block to a
- * warning. A contributor without Docker or the provider keys is not choosing to
- * skip e2e; blocking them would only teach them to pass `--no-verify` always,
- * and a gate everyone routinely bypasses stops being a gate.
+ * Blocks a push whose changes no passing e2e run covers, except when the suite
+ * could not have been run here at all, which downgrades every block to a
+ * warning.
+ *
+ * decisions/084-e2e-freshness-before-push.md
  */
 export function decideFreshness(input: {
   marker: Date | null;
@@ -275,17 +298,11 @@ export function decideFreshness(input: {
 
 /**
  * The fingerprint's entries in a fixed order, so the same working tree always
- * produces the same list.
+ * produces the same list. By code unit: not `entries.sort()`, and not
+ * `localeCompare`, which depends on the machine.
  *
- * **Not `entries.sort()`, and not `localeCompare` either.** The bare sort was
- * the CRITICAL Sonar finding; `localeCompare` — the fix it suggests — would be
- * worse than the bug, because it orders by locale and ICU version. This list is
- * compared against one written by an earlier run, possibly on another machine
- * in CI, so an ordering that depends on the machine would report a clean tree
- * as stale and send someone re-running e2e for nothing.
- *
- * Code-unit comparison is the same on every platform, which is the only
- * property this needs.
+ * decisions/242-freshness-compares-content.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 export function inFixedOrder(entries: string[]): string[] {
   return [...entries].sort((left, right) => {

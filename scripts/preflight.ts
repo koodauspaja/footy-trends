@@ -1,10 +1,9 @@
 /**
- * What the preflight *does* once `services-plan.ts` has decided — the order of
+ * What the preflight does once `services-plan.ts` has decided: the order of
  * the steps, which message comes out of which failure, and the exit code.
+ * Every action is injected.
  *
- * Separate from `ensure-services.ts` so that it can be tested: every action is
- * injected, so a test drives the whole sequence without a container, a daemon
- * or a clock. The entry point is left holding nothing but the wiring.
+ * decisions/399-local-commands-start-the-database.md
  */
 import {
   daemonNotStartedMessage,
@@ -29,7 +28,11 @@ export type PreflightActions = {
   err: (line: string) => void;
 };
 
-/** The process exit code: 0 lets the guarded command run, 1 stops it. */
+/**
+ * The process exit code: 0 lets the guarded command run, 1 stops it.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
 export async function runPreflight(actions: PreflightActions): Promise<number> {
   const decision = await actions.decide();
 
@@ -54,15 +57,7 @@ export async function runPreflight(actions: PreflightActions): Promise<number> {
   if (decision.kind === "start-daemon") {
     actions.out("The Docker daemon is not running.");
 
-    /**
-     * **Nothing was launched, so there is nothing to wait for.**
-     *
-     * `startDaemon` reports false on Linux and anywhere else the daemon needs
-     * root, and on macOS when the launch itself failed. Entering the wait loop
-     * there spent the full 90s polling for a process nobody had started, and
-     * then printed a message about it not coming up in time. Caught in review
-     * on #402.
-     */
+    // Nothing was launched, so there is nothing to wait for.
     if (!actions.startDaemon()) {
       actions.err(daemonNotStartedMessage());
       return 1;
@@ -80,12 +75,8 @@ export async function runPreflight(actions: PreflightActions): Promise<number> {
     }
   }
 
-  /**
-   * Reached from both `start-daemon` and `start-containers`: once the daemon is
-   * up, a daemon that was down means the containers are down too. Falling
-   * through rather than deciding again is what makes "start Docker, then start
-   * the containers" one path instead of two that can disagree.
-   */
+  // Reached from both `start-daemon` and `start-containers`: a daemon that was
+  // down means the containers are down too.
   actions.out("Starting the project's containers…");
   if (!actions.startContainers()) {
     actions.err("`docker compose up -d` failed. Its output is above.");

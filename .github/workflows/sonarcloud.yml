@@ -1,3 +1,4 @@
+# Why each setting is as it is: decisions/531-configuration-files.md
 name: SonarCloud analysis
 
 on:
@@ -6,13 +7,13 @@ on:
       - main
   # Scoped to main deliberately. Without a branch filter this also runs on pull
   # requests targeting `release`, re-checking commits already reviewed on their
-  # way into main. release.yml covers those, and adds e2e. See #85.
+  # way into main. release.yml covers those, and adds e2e.
   pull_request:
     branches:
       - main
     types: [opened, synchronize, reopened]
 
-# The token every job gets unless it asks for more (#537).
+# The token every job gets unless it asks for more.
 permissions:
   contents: read
 
@@ -49,51 +50,25 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        # `--ignore-scripts` blocks dependency lifecycle scripts, which are how a
-        # compromised package runs code on a runner holding our tokens
-        # (githubactions:S6505). Nothing here needs them: the only script in
-        # package.json is husky, which installs git hooks no CI job uses, and
-        # the two dependencies that fetch binaries — esbuild and @sentry/cli —
-        # resolve them from optional platform packages instead. Verified in #258
-        # by installing this way and running typecheck, lint, the full unit
-        # suite and a production build.
+        # `--ignore-scripts` blocks dependency lifecycle scripts, which are how
+        # a compromised package runs code on a runner holding our tokens
+        # (githubactions:S6505).
         run: npm ci --ignore-scripts
 
       - name: Run unit tests with coverage
         run: npm run test:unit
 
-      # The new-code definition is "previous version", and every analysis so far
-      # recorded the version as "not provided" — so the boundary never moved and
-      # `main`'s new-code view meant nothing. The releases are tagged, so the
-      # newest tag is the boundary this project actually has.
-      #
-      # Not `git describe`: a release tag sits on the merge commit created on
-      # `release`, which is a descendant of `main` rather than an ancestor, so
-      # nothing on `main` can reach it. The newest tag by version is what we
-      # want, reachable or not.
-      #
-      # Pull requests are unaffected either way — they are measured against
-      # their target branch. See #258.
+      # The newest release tag is the new-code boundary. By version, not
+      # `git describe`: a release tag sits on `release`'s merge commit, which
+      # nothing on `main` can reach.
       - name: Read the last release tag
         id: version
         run: |
           tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
           echo "value=${tag:-0.0.0}" >> "$GITHUB_OUTPUT"
 
-      # `skipNodeProvisioning` stops the scanner downloading its own Node for the
-      # JS/TS analyzer: the step above installed Node 24 and it is on PATH. This
-      # belongs to the workflow rather than the properties file, because that
-      # guarantee is the workflow's — a scan run anywhere else should still be
-      # allowed to fetch a Node of its own.
-      #
-      # `sonarcloud-github-action` is archived: "Deprecated. Use
-      # sonarqube-scan-action instead." Same scanner, current name.
-      #
-      # SonarQube Cloud needs only SONAR_TOKEN — SONAR_HOST_URL is for
-      # self-hosted Server. The project key and organization come from
-      # sonar-project.properties, where they are plain text because they are not
-      # secret; passing them again from secrets was one value in two places, and
-      # the copy in git is the one the scanner reads.
+      # `skipNodeProvisioning` stops the scanner downloading its own Node for
+      # the JS/TS analyzer.
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         with:
