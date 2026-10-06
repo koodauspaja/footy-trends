@@ -65,3 +65,18 @@ Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
   outlive its era. The outcome counts and an upcoming match are filed by the
   same rule, so a match and the history it is predicted from are the same
   competition.
+
+Cut from `src/lib/home-baseline.ts` at `ef99862` by #531.
+
+- **`home-baseline.ts`.** The baseline is the answer every later model has
+  to beat. The counts are the ones the comparison of competitions reads, and
+  this decides which matches get a prediction and sums the counts into one.
+- **`baselineCompetition`.** The pair is the rule the history is counted by,
+  so the prediction and its history are the same competition. A
+  national-team match matches no pair and gets none.
+
+Cut from `src/components/match-prediction.tsx` at `ef99862` by #531.
+
+- **`MatchPrediction`'s gate.** A signed-out page carries no probability.
+  Awaited by the page and not rendered, as `CompetitionAnalyticsSection`
+  is.

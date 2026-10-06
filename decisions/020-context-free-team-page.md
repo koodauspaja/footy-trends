@@ -252,3 +252,22 @@ Cut from `src/lib/team-page-context.ts` at `dc74e3e` by #531.
   1,315 Finnish teams. The season itself is still honoured downstream, so an
   unplayed season still ends at the team-not-found message, under the team's
   own competition.
+
+Cut from `src/app/domestic/team/[id]/page.tsx` at `ef99862` by #531.
+
+- **`resolveTeamPage` on the Finnish club page.** Both context calls are
+  `cache()`d, so Next.js invoking the metadata and the page separately costs
+  one of each.
+
+Cut from `src/lib/provider-ids.ts` at `ef99862` by #531.
+
+- **`MAX_STORED_INTEGER`.** A larger value is not merely absent from the
+  table: `postgres.js` binds the parameter as an `int4`, so the query fails
+  at bind time with "integer out of range" and the page shows its error
+  state, telling a reader that something broke when they asked for a team,
+  match or season that cannot exist. Measured on
+  `/kotimaa/joukkue/99999999999`, `/kotimaa/ottelu/99999999999` and
+  `?kausi=9007199254740991`, all three of which rendered the
+  match-loading-failed message. Raw SQL is fine, as Postgres promotes the
+  column to `bigint` when it compares against a literal that large; only the
+  bound parameter fails, which is why this cannot be left to the database.

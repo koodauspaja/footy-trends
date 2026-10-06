@@ -304,3 +304,28 @@ registrations, and removals are mirrored — so the same callback registered fro
 two places reports both, a handler Next reuses across requests never reports a
 site belonging to an earlier response, and one detached and reattached
 elsewhere reports where it is now rather than where it used to be.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/instrumentation.ts` at `ef99862` by #531.
+
+- **`SERVER_RESPONSE_MAX_LISTENERS`.** Node warns once a single emitter
+  passes ten listeners of one type, as a rough leak heuristic. Next and
+  Sentry together attach enough `close` listeners to every `ServerResponse`
+  to cross it: eleven on Next 16.3.0, where this was diagnosed in #129.
+  Nothing accumulates, since the listeners belong to one response object
+  that is discarded when the request ends, so the warning was a false
+  positive throughout. The count is Next's to decide and it moves between
+  releases: on 16.3.2 it fell to eight in dev and seven in production, below
+  Node's default, re-measured in #176. Raising the limit on
+  `ServerResponse.prototype` covers every response without touching any
+  other emitter, so a genuine listener leak elsewhere still warns at Node's
+  default. Node's limit is per emitter, not per event name, so this raises
+  the threshold for every event a `ServerResponse` emits; Node offers no
+  per-event limit, and the alternatives (a global default, or
+  `--no-warnings`) give up more. The cost is that a leak of 11 to 20
+  listeners of some other response event would go unwarned; past 20 it still
+  warns.
+- **The imports inside `register`.** A static import of a Node builtin makes
+  the edge bundle warn on every request, which is the same noise this is
+  meant to remove.

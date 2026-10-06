@@ -1,9 +1,8 @@
 /**
  * A cup's table-producing phase, rendered as one standings table per group.
+ * Pure and database-free: the cup pages call it with a match list they hold.
  *
- * Pure and database-free on purpose: the cup pages call it with a match list
- * they already hold, and it stays testable without mocking the DB.
- * See specs/014-champions-league.md.
+ * decisions/014-champions-league.md
  */
 
 import {
@@ -34,7 +33,11 @@ type PhaseMatch = {
   awayGoals: number | null;
 };
 
-/** One standings table on a cup page, with the heading it renders under. */
+/**
+ * One standings table on a cup page, with the heading it renders under.
+ *
+ * decisions/014-champions-league.md
+ */
 export type CupPhaseTable = {
   /** The provider group this table covers, or null for a single league phase. */
   group: string | null;
@@ -44,13 +47,10 @@ export type CupPhaseTable = {
 
 /**
  * A single `LEAGUE_STAGE` yields one table; a `GROUP_STAGE` yields one per
- * group, sorted alphabetically by group rather than by the order the provider
- * happened to return matches in — the two coincide today, and sorting makes
- * the page deterministic if that ever stops being true.
+ * group, sorted alphabetically by group. Only the phase's own matches are
+ * counted, never knockout matches.
  *
- * Knockout matches never reach `calculateStandings`: only the phase's own
- * matches are passed, so a team's knockout results cannot leak into the table
- * it earned its place in.
+ * decisions/014-champions-league.md
  */
 export function buildCupPhaseStandings(seasonMatches: PhaseMatch[]): CupPhaseTable[] {
   const shape = resolvePhaseShape(seasonMatches);

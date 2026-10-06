@@ -493,3 +493,37 @@ Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
   nothing else is signed in, a claim about their account security that we
   cannot back, and one that hides the very sessions the section exists to
   reveal.
+
+Cut from `src/lib/regions.ts` at `ef99862` by #531.
+
+- **`regions.ts`.** Both exclusions are load-bearing. `@/db` pulls in the
+  Postgres driver, and `domestic-competitions.ts` reaches `taso.ts`,
+  `cache.ts` and `redis.ts` and so pulls in ioredis; either one in a browser
+  bundle fails the build on `dns`, `net` and `tls`. Database access lives in
+  `preferences.ts` and registry-aware helpers in
+  `competition-preferences.ts`, and neither is reachable from the header,
+  the front page or the settings form.
+- **`resolveRegion`.** The column is plain text, and a value that no longer
+  means anything must leave the reader on the picker and not redirect them
+  somewhere that does not exist.
+
+Cut from `src/lib/settings-actions.ts` at `ef99862` by #531.
+
+- **`currentPreferencesRow`.** Collapsing `null` and `"error"` would show a
+  reader their preferences reset to defaults and let them overwrite the real
+  ones with a save, losing settings because a query briefly failed.
+
+Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
+
+- **`SHOW_PICKER_PARAM`.** It is what makes the redirect safe to have at
+  all. Without it a reader with a default region could reach `/` only by
+  having no preference: the picker would be unreachable by clicking, and the
+  `Etusivu` crumb would bounce them straight back where they came from. No
+  setting may make a page unreachable.
+- **`StartRedirect` runs in the browser.** `/` is one of the four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN`. The
+  constraint shaped the sign-in feature, where a prerendered page baked a
+  build-time database error into static output. So the page ships static and
+  the redirect happens after hydration. The competition defaults are
+  resolved server-side, because those pages are already `force-dynamic` and
+  lose nothing by it.

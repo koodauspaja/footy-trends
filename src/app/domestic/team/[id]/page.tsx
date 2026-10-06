@@ -43,7 +43,11 @@ type DomesticTeamPageProps = {
 
 type TasoMatch = Extract<TeamMatchesResult, { status: "ok" }>["matches"][number];
 
-/** What the URL already said, and so what the team's own context must not contradict. */
+/**
+ * What the URL already said, and so what the team's own context must not contradict.
+ *
+ * decisions/020-context-free-team-page.md
+ */
 function filterFrom(params: Record<string, string | string[] | undefined>): TeamContextFilter {
   const competitionParam = parseDomesticCompetitionParam(params.kilpailu);
   const season = seasonCandidate(params.kausi);
@@ -54,16 +58,18 @@ function filterFrom(params: Record<string, string | string[] | undefined>): Team
 }
 
 /**
- * A Finnish club's page, as the shared `TeamPage` takes it (#530). This file
- * was a copy of that page until then; what is left here is what TASO does
- * differently: its own context resolver, a season that is a plain year, the
- * renamed-competition notice, the `Sarja` column, and loaders that take a
- * category and a competition id where football-data takes a competition code.
+ * A Finnish club's page, as the shared `TeamPage` takes it: what TASO does
+ * differently. The team's own context is resolved before the season context,
+ * because it decides which competition that context is fetched for.
  *
- * The team's own context is resolved *before* the season context, because it
- * decides which competition that context is fetched for. Both calls are
- * `cache()`d, so Next.js invoking the metadata and the page separately costs
- * one of each. See specs/020-context-free-team-page.md.
+ * decisions/020-context-free-team-page.md
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/038-season-against-history.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/530-one-team-panel-builder.md
  */
 async function resolveTeamPage({
   params,
@@ -139,12 +145,11 @@ async function resolveTeamPage({
       loadRecords: () =>
         getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String),
       // By competition code, not by TASO category: the comparison reads many
-      // seasons, and a category id belongs to one (specs/038).
+      // seasons, and a category id belongs to one.
       loadComparison: () =>
         getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
-      // A cup has no table to rank a position in, so the panel is absent
-      // rather than empty (specs/040, S2). League competitions only
-      // (specs/030 and specs/031, Q2).
+      // A cup has no table to rank a position in, so the panel is absent, not
+      // empty. League competitions only.
       loadPosition: () =>
         isDomesticCup(competitionCode)
           ? Promise.resolve({ status: "unavailable" as const })
@@ -159,10 +164,10 @@ async function resolveTeamPage({
       ...teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
         getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, currentSeason)
       ),
-      // Every competition in /kotimaa and every stored season, whatever
-      // season is shown (specs/045, S4).
+      // Every competition in /kotimaa and every stored season, whatever season is
+      // shown.
       loadOpponents: () => getWorstOpponents(SOURCE, teamProviderId, BASE_PATH),
-      // A club's strength across every stored season (specs/053 S9).
+      // A club's strength across every stored season.
       loadElo: async () => ({
         series: await getTeamElo("taso", teamProviderId),
         seasonLabel: String,

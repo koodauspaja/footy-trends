@@ -382,3 +382,12 @@ Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
 - **`YearSection`.** `<details>` and not client-side state, the same shape
   the Finnish cups use for rounds, and open by default for the same reason:
   nothing is hidden until the reader chooses to hide it.
+
+Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
+
+- **`PickerEntry`.** A region is not necessarily one provider's:
+  `/maajoukkueet` holds two football-data tournaments and TASO-backed
+  Huuhkajat, which has no football-data code and so cannot live in
+  `SUPPORTED_COMPETITIONS`. That list also feeds `kilpailu` validation, and
+  an entry there would let `?kilpailu=…` resolve on a standings page that
+  cannot serve it. So the region page concatenates.

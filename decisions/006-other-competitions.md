@@ -158,3 +158,9 @@ Cut from `src/lib/competitions.ts` at `94397a8` by #531.
   crest: football-data.org's terms require separate consent from the clubs
   and leagues to use their logos, which we do not have. The Champions League
   uses the Europe area flag for the same reason.
+
+Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
+
+- **`kilpailu` in `TeamSeasonSelector`.** There is no competition selector
+  on the team page, so the value must survive both the JS-driven navigation
+  and the plain GET form fallback.

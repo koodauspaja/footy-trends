@@ -247,3 +247,17 @@ Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
   useful. The World Cup and the European Championship are separate
   tournaments reached from the region picker, and a dropdown between them
   reads as if one were a variant of the other.
+
+Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
+
+- **`object-contain` in `CompetitionPicker`.** Not every icon is a flag: the
+  World area has none, so the World Cup carries a 3:1 wordmark that must not
+  be stretched into a 3:2 slot.
+
+Cut from `src/lib/seasons.ts` at `ef99862` by #531.
+
+- **`formatSeasonLabel`.** A league runs autumn to spring; a tournament is
+  played inside one summer. Verified against the provider's own dates: the
+  World Cup runs 2026-06-11 to 2026-07-19 and the Euro 2024-06-14 to
+  2024-07-14, while Champions League runs 2025-09-16 to 2026-05-30.
+  Labelling a World Cup "2026/27" claims a season it never had.

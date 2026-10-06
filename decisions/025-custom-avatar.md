@@ -229,3 +229,37 @@ Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
 
 - **`avatarVersion` on the settings page.** Read on the server like
   everything else there; the version is what the preview URL carries.
+
+Cut from `src/lib/avatar-limits.ts` at `ef99862` by #531.
+
+- **`avatar-limits.ts`.** The exclusion is the same shape as the one at the
+  top of `regions.ts`. `avatar-image.ts` imports `sharp`, which reaches `fs`
+  and `child_process`; pulling any value out of it from `settings-page.tsx`,
+  a `"use client"` module, fails the build on those two modules. Measured:
+  importing `MAX_UPLOAD_BYTES` from `avatar-image.ts` took every page on the
+  site to a 500. Types are erased and could have stayed, but the value could
+  not, and a rule with an exception is one nobody can apply at a glance.
+- **`MAX_UPLOAD_BYTES`.** A 12-megapixel phone photograph is 3 to 5 MB as
+  JPEG, and the commonest upload there is must not bounce. Next's limit is
+  1 MB by default, which would make the number decorative; it is raised to
+  10 MB.
+
+Cut from `src/app/api/avatar/me/route.ts` at `ef99862` by #531.
+
+- **`/api/avatar/me`.** The same rule the write actions follow: there is no
+  id to guess and no ownership check to get wrong. It reads a session and
+  the database, and neither belongs on an edge runtime.
+- **`CACHE_CONTROL`.** A new upload produces a new URL, so the old one is
+  never requested again; without the version parameter this would pin a
+  stale picture for a year. The token is random and not a timestamp for a
+  second reason: the path is the same for every reader, so the parameter is
+  the only thing keeping one reader's cached image off another's URL, and
+  two timestamps landing in the same millisecond would have shared one. See
+  `avatar.ts`. The response is scoped to one reader's session.
+
+Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
+
+- **`defaultRegion` in `Redirect`.** The browser client is not typed
+  for server-side plugins, so the field `customSession` adds (see
+  `src/lib/auth.ts`) is narrowed by `defaultRegionOf`, the check wanted
+  regardless.

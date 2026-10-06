@@ -1,10 +1,10 @@
 /**
- * The backtest (specs/052, S2, S10, S14): what a model would have predicted for
- * every stored finished match, from the matches of its competition that kicked
- * off strictly before it.
+ * The backtest: what a model would have predicted for every stored finished
+ * match, from the matches of its competition that kicked off strictly before
+ * it. Pure: the service reads and writes.
  *
- * Pure: `prediction-log-service.ts` reads every finished match and writes
- * the rows; which rows, and from what, is decided here.
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
@@ -13,9 +13,12 @@ import type { MatchSource } from "./match-source";
 import type { PredictionRow } from "./prediction-log";
 
 /**
- * One finished match, its score after extra time — a shoot-out already taken
- * out, as specs/049 S3 counts it — with the two teams and the season, which
- * Elo needs (specs/053).
+ * One finished match, its score after extra time with a shoot-out taken out,
+ * with the two teams and the season, which Elo needs.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 export type FinishedMatch = EloMatch;
 
@@ -30,7 +33,12 @@ function add(tally: Tally, match: FinishedMatch): Tally {
   };
 }
 
-/** The baseline from a tally, through specs/051's own rule. */
+/**
+ * The baseline from a tally, through the baseline's own rule.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/052-predictions-log.md
+ */
 function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
   return homeBaseline([
     { kind: source, code, seasonId: 0, leftToPlay: 0, spansCalendarYears: false, ...tally },
@@ -40,8 +48,9 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 /**
  * One `backtest` row per match with an earlier finished match in its
  * competition. Matches sharing a kickoff are predicted from the same tally and
- * added to it together, so neither is evidence for the other (S14); a
- * competition's first kickoff has nothing before it and gets no row.
+ * added to it together; a competition's first kickoff gets no row.
+ *
+ * decisions/052-predictions-log.md
  */
 export function backtestRows(
   finished: readonly FinishedMatch[],
@@ -91,11 +100,11 @@ export function backtestRows(
 }
 
 /**
- * One `elo-v1` backtest row per match the baseline backtest also predicts
- * (specs/053 S7, S15, S16): the ratings the match was played at, and the
- * draw share of the strictly earlier matches — read from `baseline`, the
- * baseline backtest's rows, so the two models know exactly the same about
- * draws. A competition's first kickoff has no baseline row and so no Elo row.
+ * One `elo-v1` backtest row per match the baseline backtest also predicts: the
+ * ratings the match was played at, and the draw share of the strictly earlier
+ * matches, read from `baseline`.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function eloBacktestRows(
   finished: readonly FinishedMatch[],

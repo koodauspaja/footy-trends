@@ -431,3 +431,10 @@ Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
   and `/ulkomaat/joukkue/:id` and `/kotimaa`'s equivalents. Only the
   team-name link behaviour and the fourth column, `Kierros`' matchday against
   `Sarja`'s group name, differ between them.
+
+Cut from `src/components/taso-season-only-controls.tsx` at `ef99862` by #531.
+
+- **`TasoSeasonOnlyControls`.** The season's full match list is shown at
+  once: the acceptance criteria describe both pages as listing a season's
+  matches, not a round-paginated view. `actionPath` follows the reasoning of
+  `TeamSeasonSelector`.

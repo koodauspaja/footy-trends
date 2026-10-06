@@ -9,17 +9,10 @@ import {
 } from "@/lib/refresh-view";
 
 /**
- * "This is how the data would change — do you still want to?", from
- * specs/029-forced-season-refresh.md.
+ * "This is how the data would change: do you still want to?" The dialog is
+ * the control, not a courtesy, and removals are listed by name (the first 20), not only counted.
  *
- * **This dialog is the control, not a courtesy.** A truncated provider answer
- * is indistinguishable from a season that genuinely lost fixtures — nothing in
- * the response separates them, so nothing in the code can. What separates them
- * is a person seeing `Poistuvia otteluita: 180` and declining.
- *
- * Which is why removals are **listed by name** rather than counted. A number is
- * not enough to judge a deletion by, and deletion is the only irreversible
- * thing this tool does.
+ * decisions/029-forced-season-refresh.md
  */
 
 const HEADING = "Näin tiedot muuttuisivat";
@@ -51,7 +44,11 @@ const kickoffFormatter = new Intl.DateTimeFormat("fi-FI", {
   year: "numeric",
 });
 
-/** A line per non-zero count. A zero is not news and would bury what is. */
+/**
+ * A line per non-zero count. A zero is not news and would bury what is.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 function CountLines({
   counts,
   labels,
@@ -82,14 +79,9 @@ export function RefreshConfirm({ preview, pending, onConfirm, onCancel }: Props)
   const hidden = preview.removedMatches.length - shown.length;
 
   return (
-    // A real `<dialog>` rather than `role="dialog"`: the element carries the
-    // semantics natively and behaves consistently across assistive technology,
-    // which the role alone does not guarantee.
-    //
-    // `open` rather than `showModal()`, because this is rendered inline under
-    // the form rather than over the page — the admin can still see the choices
-    // that produced it — and a top-layer modal would need focus management this
-    // does not otherwise require.
+    // A real `<dialog>`, not `role="dialog"`, and `open`, not `showModal()`: it
+    // is rendered inline under the form, where the admin can still see the
+    // choices that produced it.
     <dialog
       aria-labelledby="refresh-confirm-heading"
       className="mt-6 block w-full rounded border p-4"

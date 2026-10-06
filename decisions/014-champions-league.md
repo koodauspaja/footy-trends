@@ -326,3 +326,13 @@ Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
   `LAST_16` is eight ties across and `LAST_32` sixteen, which no tree
   survives on a phone; from the quarter-finals the tree is three columns and
   shows what a list cannot: who plays whom next.
+
+Cut from `src/lib/cup-standings.ts` at `ef99862` by #531.
+
+- **`cup-standings.ts`.** Database-free so it stays testable without
+  mocking the DB.
+- **`buildCupPhaseStandings`.** Sorting by group and not by the order the
+  provider happened to return matches in: the two coincide today, and
+  sorting makes the page deterministic if that ever stops being true. A
+  team's knockout results cannot leak into the table it earned its place
+  in.

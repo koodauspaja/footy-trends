@@ -69,3 +69,18 @@ Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
 
 - **`teamMatchesInOrder`.** Shared with the goals charts, so "the team's
   fifth match" is the same match on every chart.
+
+Cut from `src/components/charts/goals-chart.tsx` at `ef99862` by #531.
+
+- **`GoalsChart`.** Both lines are in the foreground colour, with a legend
+  beneath. Only the rolling chart has a fixed top to meet.
+- **`ROLLING_TOP`.** Measured over 118 top-tier team-seasons, no five-match
+  average passed 4.4; averaging 5 takes 25 goals in five matches.
+- **`totalsTicks`.** The most goals in the stored top-tier seasons was 99:
+  an axis to 100, eleven labels, which the chart's height holds.
+
+Cut from `src/lib/goals-series.ts` at `ef99862` by #531.
+
+- **`goals-series.ts`.** Using `teamMatchesInOrder` means the three charts
+  agree on which match is which. The services decide which matches count,
+  and pass them in.
