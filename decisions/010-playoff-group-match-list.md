@@ -108,3 +108,14 @@ entirely was the alternative. Kept because it is the only ordering signal
 the group exposes, and because the season-wide `/ottelut` list and the team
 page both already carry a fourth column — a playoff list without one would
 be the odd shape out. A null `matchday` falls back to `–`.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso.ts` at `55a14fc` by #531.
+
+- **`TasoGroupTeam`.** Named `isPlayoffGroup`, which was deleted; it is `keepsATable`
+  now.
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`UNRANKED`.** Carried `publishedPosition`'s doc comment; each now has its own.

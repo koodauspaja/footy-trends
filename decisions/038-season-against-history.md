@@ -124,3 +124,23 @@ Two mutations earned their place by failing first:
   other panels. If measurement later says it hurts, a single `inArray` query is
   the cheaper fix than a cache that would need an invalidation story for the
   active season.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getTeamSeasonComparison`.** Said "league seasons only", untrue since
+  `specs/040`. A past season makes no provider request: `needsRefresh` is
+  `false` for any stored season but the active one.
+- **`seasonsBeside`, `isLeagueCompetition`.** The latter's doc comment sat on the
+  former. An unknown code would add its matches to every pooled rate and name
+  itself `PL` in the Finnish `Verrattuna` line.
+- **`readSeasonFor`.** Erroring on stale rows here alone would make this panel
+  disagree with the eight beside it, from the same read.
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`getTeamSeasonComparison`.** Said "league seasons only" and named
+  `otherLeagueSeasons` as the rule's home, neither true since `specs/040`.
+- **`seasonsBeside`, `isDomesticLeague`.** The latter's doc comment sat on the
+  former.

@@ -67,3 +67,10 @@ them.
   The gate runs before the series is computed, so the signed-out page cannot
   know. Rare — it needs an unverified regular season — and noted rather than
   worked around.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getTeamPositionSeries`.** Not `getStandings({ round })`, which re-reads the
+  season per call.

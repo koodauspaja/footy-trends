@@ -4,7 +4,6 @@
  *
  * decisions/014-champions-league.md
  * decisions/015-finnish-cups.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 
 import { listKnockoutStages } from "./cup-stages";
@@ -30,7 +29,7 @@ export type BracketSourceMatch = {
    * The provider's verdict on who went through, from this match's home side.
    * Breaks a level tie only; TASO gives it, football-data does not.
    *
-   * decisions/531-comments-say-what-code-is-for.md
+   * decisions/015-finnish-cups.md
    */
   declaredWinner?: "home" | "away" | null;
 };
@@ -47,7 +46,7 @@ export type BracketLeg = {
   /**
    * Normal time plus extra time: the provider's `fullTime` includes the shootout.
    *
-   * decisions/531-comments-say-what-code-is-for.md
+   * decisions/014-champions-league.md
    */
   homeGoals: number | null;
   awayGoals: number | null;
@@ -60,7 +59,7 @@ export type BracketLeg = {
  * How a decided tie was settled, for the `(ja)` / `(rp)` suffix. `declared`:
  * the provider named the winner without saying how, so it has no suffix.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/015-finnish-cups.md
  */
 export type TieDecision = "regular" | "extra_time" | "penalties" | "declared";
 
@@ -95,7 +94,7 @@ const FINISHED_STATUS = "FINISHED";
  * A leg's score to aggregate: normal time plus extra time, as `fullTime`
  * includes a shootout. Without `regularTime` there was neither, so `fullTime` is it.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/014-champions-league.md
  */
 function legScore(match: BracketSourceMatch): { home: number; away: number } | null {
   if (match.regularTimeHome !== null && match.regularTimeAway !== null) {
@@ -349,7 +348,7 @@ export function buildBracket(
  * Reorders each round's ties so the drawn tree reads as one: a tie sits beside
  * the ties that fed it, and a tie feeding nothing keeps its order at the end.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/015-finnish-cups.md
  */
 export function orderRoundsForTree(rounds: BracketRound[]): BracketRound[] {
   const ordered: BracketRound[] = [];

@@ -10,7 +10,6 @@ import { logger } from "@/lib/logger";
  * every caller passes `requireAdmin()` first and hands in the acting admin's id.
  *
  * decisions/028-admin-tools-and-roles.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 
 export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
@@ -22,7 +21,7 @@ export type UserPage = { users: AdminUser[]; page: number; pages: number; total:
  * One page of users, newest first. Counted before it is read, so a page past
  * the last shows the last rather than an empty table.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/028-admin-tools-and-roles.md
  */
 export async function listUsers(requestedPage: number): Promise<UserPage> {
   const [counted] = await db.select({ n: sql<number>`count(*)::int` }).from(user);
@@ -66,7 +65,7 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * Runs `run` with every admin row locked, so two admins demoting each other at
  * once cannot leave none: the second waits, re-counts and refuses.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/028-admin-tools-and-roles.md
  */
 async function withAdminsLocked<T>(
   run: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
@@ -81,7 +80,7 @@ async function withAdminsLocked<T>(
  * What both writes share: refuse self, lock the admin set, find the target,
  * and refuse to remove the last admin.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/028-admin-tools-and-roles.md
  */
 async function guardedWrite(
   actingAdminId: string,
@@ -119,7 +118,7 @@ async function guardedWrite(
  * Promote or demote. Self is refused either way: demoting yourself locks you
  * out, and promoting yourself means nothing.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/028-admin-tools-and-roles.md
  */
 export async function changeRole(
   actingAdminId: string,
@@ -148,7 +147,7 @@ export async function changeRole(
  * Removes an account and everything it owns, its sessions included: every
  * table referencing `user` cascades, so one `DELETE` is the whole of it.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/028-admin-tools-and-roles.md
  */
 export async function deleteUser(
   actingAdminId: string,

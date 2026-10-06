@@ -236,3 +236,17 @@ Checked against the running app, not only against tests:
 
 Unit tests are at **100% statements, branches, functions and lines**
 (673 tests); integration 21; the five new Playwright specs pass locally.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
+
+- **`BracketLeg.homeGoals`, `legScore`.** Liverpool "1-5" Paris Saint-Germain
+  (LAST_16, 2024/25) was 0-1, penalties 1-4; `fullTime` beside a 1-1 (rp)
+  aggregate contradicts the tie.
+- **`pairLegs`.** Carried a stale copy of `buildRound`'s doc comment; deleted.
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getCupSeason`.** The tables, stage list and bracket ask about one season,
+  which the provider returns in one response.

@@ -97,8 +97,6 @@ type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
  *
  * decisions/004-listing-matches-for-selected-team.md
  * decisions/030-league-position-by-matchday.md
- *
- * decisions/531-comments-say-what-code-is-for.md
  */
 const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   competitionCode: string,
@@ -171,7 +169,6 @@ export async function getStandings({
  * read; each table is the standings page's for that round.
  *
  * decisions/030-league-position-by-matchday.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 export async function getTeamPositionSeries(
   competitionCode: string,
@@ -205,7 +202,7 @@ export async function getTeamPositionSeries(
  * cached read. Nothing stored is empty, unless the refresh failed: an error.
  *
  * decisions/031-rolling-form-trend.md
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/530-one-team-panel-builder.md
  */
 export async function getTeamPanelMatches(
   competitionCode: string,
@@ -237,7 +234,6 @@ export async function getTeamPanelMatches(
  *
  * decisions/038-season-against-history.md
  * decisions/040-cup-analytics.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 export async function getTeamSeasonComparison(
   competitionCode: string,
@@ -304,7 +300,7 @@ function seasonsBeside(competitionCode: string): (code: string) => boolean {
  * A competition the registry knows to be a league: `getCompetitionFormat` calls
  * an unknown code one, and stored rows can outlive their registry entry.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/038-season-against-history.md
  */
 function isLeagueCompetition(competitionCode: string): boolean {
   return (
@@ -317,7 +313,7 @@ function isLeagueCompetition(competitionCode: string): boolean {
  * One season as `compareSeasons` needs it: nothing stored is `empty`, a failed
  * refresh with nothing stored `error`, and stale rows are served (specs/038, S12).
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/038-season-against-history.md
  */
 async function readSeasonFor(
   competitionCode: string,
@@ -431,7 +427,7 @@ export type CupSeasonResult =
  * A cup season's full match list, every stage, from which its page derives
  * everything. `cache()`d for the metadata and the page.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/014-champions-league.md
  */
 export const getCupSeason = cache(async function getCupSeason(
   competitionCode: string,

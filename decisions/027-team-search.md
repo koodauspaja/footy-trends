@@ -110,3 +110,12 @@ Thirteen mutations, all caught: eleven by the unit suite, and two only by the
 integration suite — *folding one side instead of both*, and *not escaping `%`*.
 Those two are exactly the SQL-semantics ones, so the split is the point rather
 than a gap.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
+
+- **`TASO_NATIONAL_BUCKET_PREFIX`.** A list of ids would silently send next
+  season's teams to the wrong place.
+- **`FavouriteTeamView`.** The competition and season serve `specs/027`, where
+  `FC Honka` is nine teams.

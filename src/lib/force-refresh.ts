@@ -61,14 +61,13 @@ import {
  * never costs data, and one that answers corrects it only with consent.
  *
  * decisions/029-forced-season-refresh.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 
 /**
  * The seasons of this competition we hold rows for, from the helpers the
  * reader-facing pickers use. Loaded per competition, never all at once.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 export async function listSeasonsFor(choice: CompetitionChoice): Promise<SeasonsResult> {
   if (!isKnownCompetition(choice)) return { ok: false, reason: "input" };
@@ -104,7 +103,7 @@ export async function listSeasonsFor(choice: CompetitionChoice): Promise<Seasons
 /**
  * Every season we hold rows for in one competition, asked of the service owning the tables.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 async function storedSeasonsFor(choice: CompetitionChoice): Promise<Set<number>> {
   return choice.source === "taso"
@@ -139,7 +138,7 @@ type Snapshot =
  * The Redis entries a refetch must clear: the answer refetched and anything
  * computed from it, each key from its owner's builder. Season and name lists stay.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
   if (choice.source === "taso") {
@@ -255,7 +254,7 @@ type StoredRows = {
  * The whole comparison, pure: is the provider silent, what would change, and
  * the pairing's fingerprint. The preview and the write's transaction both run it.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 function compare(
   snapshot: Snapshot,
@@ -313,7 +312,7 @@ function compare(
  * The fingerprint an approval is made of: the provider's answer and the rows
  * it was compared against, so neither can move under an approval.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 function snapshotHashOf(
   snapshot: Snapshot,
@@ -382,7 +381,7 @@ type DiffOutcome =
  * Clears the caches, fetches and diffs: the half both entry points share. The
  * `"empty"` refusal is here, not in the writer the ordinary sync also uses.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 async function computeDiff(resolved: Resolved, bypassCache: boolean): Promise<DiffOutcome> {
   const { choice, seasonId } = resolved;
@@ -484,7 +483,7 @@ export async function applyRefresh(
  * One transaction per run, so a half-applied season cannot happen. Withdrawn
  * matches go by the ids the preview listed, as `synchronizeMatches` never deletes.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/029-forced-season-refresh.md
  */
 async function writeSnapshot(
   snapshot: Snapshot,

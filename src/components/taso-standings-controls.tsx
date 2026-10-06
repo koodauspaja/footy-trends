@@ -19,7 +19,7 @@ type TasoStandingsControlsProps = {
  * value for every group on the page.
  *
  * decisions/009-veikkausliiga.md
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/015-finnish-cups.md
  */
 export function TasoStandingsControls({
   competitionCode,

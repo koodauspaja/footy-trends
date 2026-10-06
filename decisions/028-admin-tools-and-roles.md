@@ -222,3 +222,21 @@ thing to leave in.
 and is tested from both sides — `"0x10"`, `"1e3"`, `"2abc"`, a repeated
 parameter arriving as an array. It reads a query string, which is
 attacker-controlled.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/admin-users.ts` at `55a14fc` by #531.
+
+- **Module.** Apart from `admin-actions.ts` so the rules are tested without a
+  `"use server"` boundary. The acting admin's id is a parameter, so a caller that
+  skipped the gate cannot spoof it.
+- **`listUsers`.** Newest first, as the list's usual question is "who is new".
+  It replaced a hard cap of 500 that made the oldest accounts unreachable.
+- **`withAdminsLocked`.** Locking the admin set, not the target row, makes the
+  second of two demotions wait and re-count. A row becoming admin meanwhile only
+  raises the count, which refuses less often, never more dangerously.
+- **`guardedWrite`.** Both writes had it verbatim (Sonar: 18.1% duplicated
+  lines), and a guard written twice eventually differs.
+- **`changeRole`.** An admin who wants to leave is removed by another.
+- **`deleteUser`.** Avatar bytes live in Postgres, so the cascade covers them;
+  sign-out through the cascade, not a separate revocation, is relied on.

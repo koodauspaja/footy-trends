@@ -19,8 +19,9 @@
   numbered steps.
 - **Decision records are added, not edited.** A later record says which earlier
   one it overrides, and the earlier one stays as it was. The one addition an
-  existing record takes is a reason cut from a comment, under a dated heading
-  naming where it came from.
+  existing record takes is a reason cut from a comment: it goes to the record of
+  the change that last wrote that comment, found with `git blame`, under a
+  dated heading naming the file and the commit it was cut at.
 - **A comment says what a thing is for**: one to three lines about the thing
   itself, or a constraint the code cannot show. Then the decision records behind
   it, the original feature's first and the later ones after it, oldest first:
@@ -32,7 +33,6 @@
    *
    * decisions/014-champions-league.md
    * decisions/015-finnish-cups.md
-   * decisions/531-comments-say-what-code-is-for.md
    */
   ```
 

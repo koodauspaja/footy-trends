@@ -487,7 +487,6 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
  * with matches, so a just-published season does not open empty.
  *
  * decisions/011-current-season-discovery.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
@@ -1239,7 +1238,7 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
  * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`
  * and `listSeasonRounds`, so they agree on which groups a round applies to.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/013-more-finnish-competitions.md
  */
 const classifySeasonGroups = cache(async function classifySeasonGroups(
   categoryId: string,
@@ -1375,7 +1374,6 @@ export async function getTeamPanelMatches(
  *
  * decisions/038-season-against-history.md
  * decisions/040-cup-analytics.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 export async function getTeamSeasonComparison(
   competitionCode: string,
@@ -1611,8 +1609,8 @@ function teamPanelMatches(
  * played only in match lists; `no-matches` when nothing is stored.
  *
  * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
  * decisions/040-cup-analytics.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 async function teamLeagueMatches(
   categoryId: string,

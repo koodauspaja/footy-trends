@@ -48,7 +48,6 @@ Comments
    *
    * decisions/014-champions-league.md
    * decisions/015-finnish-cups.md
-   * decisions/531-comments-say-what-code-is-for.md
    */
   ```
 

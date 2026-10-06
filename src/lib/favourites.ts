@@ -17,7 +17,6 @@ import type { RegionSegment } from "@/lib/regions";
  * a competition are identified differently.
  *
  * decisions/026-favourites.md
- * decisions/531-comments-say-what-code-is-for.md
  */
 
 /** The transaction handle drizzle hands `db.transaction`. */
@@ -65,7 +64,7 @@ export async function getFavouriteKeys(userId: string): Promise<Favourites> {
  * Runs a toggle with this reader's `user` row locked, so two tabs at the cap
  * cannot both count 49 and insert. It waits only for the same reader's writes.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/026-favourites.md
  */
 async function withUserLocked<T>(userId: string, run: (tx: Transaction) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
@@ -90,7 +89,7 @@ async function countFor(
  * Adds the team if it is missing, removes it if it is there. Two concurrent
  * toggles flip it twice, and each caller is told what its own write did.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/026-favourites.md
  */
 export async function toggleFavouriteTeam(
   userId: string,
@@ -191,7 +190,7 @@ export async function removeFavouriteCompetition(
  * The favourites for the session payload, or none when the lookup fails: it
  * runs on every session read, and a throw would take the header down with it.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/026-favourites.md
  */
 export async function favouritesForSession(userId: string): Promise<Favourites> {
   try {
@@ -220,7 +219,7 @@ type TeamSide = {
 /**
  * TASO's national-team season buckets, matched by prefix as one is added every year.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/027-team-search.md
  */
 const TASO_NATIONAL_BUCKET_PREFIX = "maajp";
 
@@ -294,7 +293,7 @@ async function nationalCategoriesFor(ids: number[]): Promise<Map<string, Set<str
  * Which region owns a team's page, decided by the competition, as one provider
  * spans regions. Null for a competition the registry no longer has.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/026-favourites.md
  */
 function regionFor(
   source: FavouriteSource,
@@ -321,7 +320,7 @@ export type FavouriteTeamView = {
   /**
    * The latest appearance's competition and season, which tell same-named teams apart.
    *
-   * decisions/531-comments-say-what-code-is-for.md
+   * decisions/027-team-search.md
    */
   competitionCode: string | null;
   seasonId: number | null;
@@ -337,7 +336,7 @@ export type FavouriteTeamView = {
  * The names for a set of favourited teams, read from the matches rather than
  * stored, so a renamed club shows its current name. Not scoped by region.
  *
- * decisions/531-comments-say-what-code-is-for.md
+ * decisions/026-favourites.md
  */
 export async function resolveTeamNames(
   teams: { source: FavouriteSource; teamProviderId: number }[]
