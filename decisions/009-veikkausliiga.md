@@ -359,12 +359,6 @@ season opens.
 
 Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
 
-- **`TasoStandingsControls`.** Said only one Finnish competition existed, untrue
-  since `specs/013`. There is no `Kilpailu` select because the competition is
-  chosen on `/kotimaa` and `SeasonForm` carries it hidden, as for
-  `MatchesControls` and `TeamSeasonSelector`.
-
-Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
-
-- **`CURRENT_SEASON_CACHE_TTL_SECONDS`.** Named the deleted
-  `getCachedSeasonGroups`, and said `taso.ts` does no caching, which it now does.
+- **`TasoStandingsControls`.** There is no `Kilpailu` select because the
+  competition is chosen on `/kotimaa` and `SeasonForm` carries it hidden, as
+  for `MatchesControls` and `TeamSeasonSelector`.

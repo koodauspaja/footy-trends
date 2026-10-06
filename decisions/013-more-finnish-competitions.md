@@ -318,11 +318,8 @@ TASO for 2024: Reipas 41 points from 23 played, matching exactly, with a seeded
 
 Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
-- **Two doc comments above `TasoTeamStanding`,** attached to nothing. `specs/009`
-  chose own-calculated groups by shape, the lowest `group_id` being the origin;
+- **How a group's rendering is chosen.** `specs/009` chose own-calculated
+  groups by shape, the lowest `group_id` being the origin;
   `specs/013` found Kakkonen's three parallel origins, P21 Ykkönen 2026 without a
   group 1, and P20 Ykkönen 2024's ids 1, 2, 10, 11, 12. So every group with a
   table is calculated and checked against TASO's points (`reproducesTasoPoints`).
-  Deleted.
-- **`classifySeasonGroups`.** Two doc comments, merged. `phase_number` is
-  unreliable for ordering, hence `group_id`.

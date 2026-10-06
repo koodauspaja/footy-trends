@@ -111,11 +111,7 @@ be the odd shape out. A null `matchday` falls back to `–`.
 
 ## Moved from comments, 2026-10-05
 
-Cut from `src/lib/taso.ts` at `55a14fc` by #531.
-
-- **`TasoGroupTeam`.** Named `isPlayoffGroup`, which was deleted; it is `keepsATable`
-  now.
-
 Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
-- **`UNRANKED`.** Carried `publishedPosition`'s doc comment; each now has its own.
+- **`classifySeasonGroups`.** `phase_number` is unreliable for ordering, hence
+  `group_id`.

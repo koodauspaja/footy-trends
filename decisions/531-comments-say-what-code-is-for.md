@@ -36,6 +36,27 @@ it was. A bug or a chore writes one whenever it changes something meaningful,
 `318` already are; one with nothing to explain writes none, and placeholder files
 stay banned. This overrides "chores and bugs have neither, by design".
 
+## What the first batch corrected
+
+History of this change, kept here and not in the records the reasons went to:
+
+- **Doc comments on the wrong declaration,** each moved onto its own:
+  `resolveTasoSeasonContext`'s on `resolveTasoSeasonCeiling`,
+  `publishedPosition`'s on `UNRANKED`, `teamLeagueMatches`' on `teamCupMatches`,
+  `isDomesticLeague`'s on `seasonsBeside` (and `isLeagueCompetition`'s likewise
+  in `standings-service.ts`), `nationalTeamPathFor`'s on `idRouteFor`.
+- **Stale copies, deleted:** `buildRound`'s doc comment on `pairLegs`, one left
+  on `dedupedGroupTeams` from the per-source diff functions `compare` replaced,
+  and two above `TasoTeamStanding` attached to nothing.
+- **Two comments on one thing, merged:** `classifySeasonGroups`,
+  `resolveTeamNames`.
+- **Names of deleted functions:** `getCachedSeasonGroups` (in a comment that
+  also said `taso.ts` does no caching, which it does), `resolveCurrentTasoSeason`,
+  and `isPlayoffGroup`, which is `keepsATable` now.
+- **Statements the code contradicted:** "league seasons only" on both
+  `getTeamSeasonComparison` functions, with `otherLeagueSeasons` named as the
+  rule's home; and "only one Finnish competition" on `TasoStandingsControls`.
+
 ## Where a reason cut from a comment goes
 
 Into the record of the change that last wrote the comment, found with
@@ -57,8 +78,9 @@ belongs with the feature, bug or chore that had it (Miikka, 2026-10-05).
 ## The check
 
 `tests/unit/scripts/comment-rules.test.ts`, in `npm run test:unit`, reads every
-comment through the TypeScript parser, so a `//` in a string or JSX text is not
-one. It fails when:
+comment of every file git tracks or would, through the TypeScript parser, so a
+`//` in a string, in JSX text or inside a doc comment's own text is not one. It
+fails when:
 
 | Rule | Why |
 |---|---|
@@ -67,7 +89,9 @@ one. It fails when:
 | A doc comment starts on the line after another ends | the upper one describes something else, or the same thing twice |
 
 Doc comments over twelve lines are reported, never failed on. A doc comment, a
-blank line and another is a file header above a declaration, and passes.
+blank line and another is a file header, and passes only above the file's first
+declaration: imports and a `"use server"` line may come before it. Further down,
+a blank line does not excuse a doc comment that sits on nothing.
 
 ## The batches
 
@@ -82,4 +106,7 @@ stacked doc comments. Their full trim is the next batch.
 Nine files outside the batch had eleven stacked doc comments: `backfill-run.ts`,
 `migration-name.ts`, `next-version.ts` and `services-plan.ts` in `scripts/`, and
 five test files. Each comment moved, unchanged, onto what it describes, or a
-blank line now marks it as the file header it is.
+blank line now marks it as the file header it is. Hand review found one that
+was neither: a comment in `rendering-mode.test.ts`, 150 lines into the file,
+about a `describe` 200 lines below it. It moved onto that `describe`, and the
+header exemption was narrowed to the top of a file so the next one fails.

@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { readdirSync } from "node:fs";
-import path from "node:path";
 import ts from "typescript";
 
 /**
@@ -22,30 +20,15 @@ export type Comment = {
 export type Finding = { file: string; line: number; text: string };
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
-const PRUNED = new Set([
-  ".git",
-  ".next",
-  "node_modules",
-  "coverage",
-  "out",
-  "playwright-report",
-  "test-results",
-]);
 
 /** An issue or pull request number, this repository's or another's, but not `&#123;`. */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
 const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
 
-/** Every TypeScript source under `root`, relative and with forward slashes. */
-export function listSourceFiles(root: string, directory = "."): string[] {
-  return readdirSync(path.join(root, directory), { withFileTypes: true })
-    .flatMap((entry) => {
-      const relative = directory === "." ? entry.name : `${directory}/${entry.name}`;
-      if (entry.isDirectory()) return PRUNED.has(entry.name) ? [] : listSourceFiles(root, relative);
-      return SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))
-        ? [relative]
-        : [];
-    })
+/** The TypeScript sources among `paths`, in order: the caller lists what git tracks or would. */
+export function sourceFilesAmong(paths: readonly string[]): string[] {
+  return paths
+    .filter((file) => SOURCE_EXTENSIONS.some((extension) => file.endsWith(extension)))
     .sort((left, right) => left.localeCompare(right, "en"));
 }
 
@@ -150,20 +133,34 @@ export function decisionCitations(file: string, comments: readonly Comment[]): F
   );
 }
 
+/** `"use server"`, `"use client"`: a string on its own at the top of a file. */
+function isDirective(statement: ts.Statement): boolean {
+  return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression);
+}
+
 /**
- * A doc comment starting on the line after another ends: the upper one sits on
- * something it does not describe. A blank line between marks a file header.
+ * A doc comment directly under another: the upper one sits on something it does
+ * not describe. A blank line between them marks a file header, and only above
+ * the file's first declaration.
  */
 export function stackedDocComments(
   file: string,
   source: string,
   comments: readonly Comment[]
 ): Finding[] {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const firstDeclaration = tree.statements.find(
+    (statement) => !ts.isImportDeclaration(statement) && !isDirective(statement)
+  );
+  const headerEnd = firstDeclaration?.getStart(tree) ?? source.length;
+
   return comments.flatMap((comment, index) => {
     const previous = comments[index - 1];
     if (previous === undefined || !previous.doc || !comment.doc) return [];
     const between = source.slice(previous.end, comment.start);
-    if (between.trim() !== "" || between.split("\n").length > 2) return [];
+    if (between.trim() !== "") return [];
+    const isHeader = between.split("\n").length > 2 && previous.end <= headerEnd;
+    if (isHeader) return [];
     return [{ file, line: comment.line, text: comment.text.replace(/\n[\s\S]*/, "") }];
   });
 }

@@ -148,8 +148,8 @@ export async function changeRole(
 }
 
 /**
- * Removes an account and everything it owns, its sessions included: every
- * table referencing `user` cascades, so one `DELETE` is the whole of it.
+ * Removes an account and everything it owns, its sessions included, in one
+ * `DELETE`: what a user owns cascades, and a refresh run's `run_by` is set null.
  *
  * decisions/028-admin-tools-and-roles.md
  */

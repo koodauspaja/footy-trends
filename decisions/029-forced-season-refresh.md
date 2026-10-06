@@ -465,8 +465,6 @@ Cut from `src/lib/force-refresh.ts` at `55a14fc` by #531.
 - **`cacheKeysFor`.** `taso:season-context`, `taso:categories` and
   `football-data:competition` stay. A key spelled out twice changes in one place,
   and the refetch then silently answers from the cache it meant to bypass.
-- **`dedupedGroupTeams`.** Carried a doc comment left from the per-source diff
-  functions `compare` replaced; deleted.
 - **`compare`.** Run twice so a stale bounce shows the rows there now. It was
   two functions, and each seam cost a review round. An `&&` across the tables
   would let matches-without-standings destroy a finished season's standings.

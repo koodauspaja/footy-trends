@@ -269,5 +269,4 @@ Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
   name until re-favourited (pull request #254 rests on telling it from one that
   does not exist). Unscoped by region, as `specs/022` has a team span
   competitions: fifty ids in one `IN` beat fifty guesses. `distinct on`, as
-  unordered rows show whichever name the planner returned last. Its two stacked
-  doc comments are merged.
+  unordered rows show whichever name the planner returned last.

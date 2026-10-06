@@ -21,5 +21,3 @@ Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
   `/${region}/joukkue/${id}` independently, so Finland's pages, which are
   `/maajoukkueet/huuhkajat` and `/maajoukkueet/helmarit` rather than id routes,
   would have needed the same exception twice.
-- **`idRouteFor`.** Carried `nationalTeamPathFor`'s doc comment; each now has
-  its own.

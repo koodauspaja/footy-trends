@@ -344,7 +344,8 @@ function buildRound(stage: string, stageMatches: BracketSourceMatch[]): BracketR
 
 /**
  * A season's knockout rounds as ties, in progression order, read from the
- * matches so a new stage appears unasked. `stages` lets a test pick one round.
+ * matches so a new stage appears unasked. `stages` overrides that order, as
+ * TASO's cups supply their own.
  *
  * decisions/014-champions-league.md
  */

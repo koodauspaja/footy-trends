@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -12,10 +12,11 @@ import {
   describeFindings,
   type Finding,
   issueCitations,
-  listSourceFiles,
   longDocComments,
+  sourceFilesAmong,
   stackedDocComments,
 } from "../../../scripts/comment-rules";
+import { executablePath } from "../../../scripts/executable";
 
 /**
  * The comment lines in this repository that cite an issue or pull request
@@ -208,8 +209,24 @@ describe("stackedDocComments", () => {
     expect(stacked("/** One. */ /** Two. */\nfunction f() {}")).toHaveLength(1);
   });
 
-  it("passes a file header separated by a blank line", () => {
+  it("passes a file header separated by a blank line, before or after the imports", () => {
     expect(stacked("/** The module. */\n\n/** For f. */\nfunction f() {}")).toEqual([]);
+    expect(
+      stacked('import a from "a";\n\n/** The module. */\n\n/** For f. */\nfunction f() {}')
+    ).toEqual([]);
+    expect(stacked('/** The module. */\n\nimport a from "a";\n')).toEqual([]);
+    expect(
+      stacked(
+        '"use server";\n\nimport a from "a";\n\n/** The module. */\n\n/** For f. */\nfunction f() {}'
+      )
+    ).toEqual([]);
+  });
+
+  it("finds one behind a blank line once the file's first declaration has begun", () => {
+    const source =
+      "const a = 1;\n\n/** For something far below. */\n\n/** For f. */\nfunction f() {}";
+
+    expect(stacked(source)).toEqual([{ file: "a.ts", line: 5, text: "/** For f. */" }]);
   });
 
   it("passes doc comments with code between them, on lines of its own or the same one", () => {
@@ -244,38 +261,11 @@ describe("longDocComments", () => {
   });
 });
 
-describe("listSourceFiles", () => {
-  let root: string;
-
-  beforeAll(() => {
-    root = mkdtempSync(path.join(tmpdir(), "comment-rules-"));
-    for (const directory of ["src/lib", "node_modules/pkg", ".git"]) {
-      mkdirSync(path.join(root, directory), { recursive: true });
-    }
-    for (const file of [
-      "src/lib/b.ts",
-      "src/lib.ts",
-      "src/a.tsx",
-      "src/c.mts",
-      "config.mjs",
-      "README.md",
-      "node_modules/pkg/index.ts",
-      ".git/hook.ts",
-    ]) {
-      writeFileSync(path.join(root, file), "");
-    }
-  });
-
-  afterAll(() => rmSync(root, { recursive: true, force: true }));
-
-  it("lists TypeScript sources sorted, and skips dependencies and git", () => {
-    expect(listSourceFiles(root)).toEqual([
-      "config.mjs",
-      "src/a.tsx",
-      "src/c.mts",
-      "src/lib.ts",
-      "src/lib/b.ts",
-    ]);
+describe("sourceFilesAmong", () => {
+  it("keeps the TypeScript sources, sorted", () => {
+    expect(
+      sourceFilesAmong(["src/lib/b.ts", "README.md", "src/lib.ts", "src/a.tsx", "c.mts", "d.mjs"])
+    ).toEqual(["c.mts", "d.mjs", "src/a.tsx", "src/lib.ts", "src/lib/b.ts"]);
   });
 });
 
@@ -297,7 +287,19 @@ describe("this repository's comments", () => {
     scanned.flatMap(({ file, source, comments }) => rule(file, source, comments));
 
   beforeAll(() => {
-    scanned = listSourceFiles(ROOT).map((file) => {
+    // What git tracks or would: an ignored or generated file is not the repository's.
+    const git = executablePath("git");
+    if (git === null)
+      throw new Error("git was not found, so the repository's files cannot be listed");
+    const listed = execFileSync(git, ["ls-files", "--cached", "--others", "--exclude-standard"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const files = sourceFilesAmong(listed.split("\n")).filter((file) =>
+      existsSync(path.join(ROOT, file))
+    );
+    scanned = files.map((file) => {
       const source = readFileSync(path.join(ROOT, file), "utf8");
       return { file, source, comments: commentsOf(file, source) };
     });

@@ -1238,6 +1238,7 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
  * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`
  * and `listSeasonRounds`, so they agree on which groups a round applies to.
  *
+ * decisions/010-playoff-group-match-list.md
  * decisions/013-more-finnish-competitions.md
  */
 const classifySeasonGroups = cache(async function classifySeasonGroups(

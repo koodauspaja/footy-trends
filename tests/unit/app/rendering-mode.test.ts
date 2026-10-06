@@ -144,23 +144,6 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
 }
 
 /**
- * Next prerenders any page it can render without a request. A page reading
- * `searchParams` or `params` cannot be prerendered and is dynamic for free;
- * one taking neither is static unless it says otherwise.
- *
- * That is what broke `/maajoukkueet/huuhkajat` in production (#182). It has no
- * season selector and therefore no `searchParams`, so it was prerendered at
- * build time — where Railway's private network does not exist, because
- * `*.railway.internal` is runtime-only. Every query failed with
- * `ENOTFOUND postgres.railway.internal`, the page rendered its error state,
- * and **that error was baked into the static output** and served to everyone.
- * The build exited 0 and `/api/health` reported the database fine.
- *
- * Helmarit (#167) is the same shape — paramless and data-backed — so this
- * guards the class rather than the one file.
- */
-
-/**
  * Every module a file pulls in — static and dynamic alike.
  *
  * `await import("…")` counts. This repository uses it deliberately to keep
@@ -362,6 +345,22 @@ describe("a page declared static by design really is static", () => {
   });
 });
 
+/**
+ * Next prerenders any page it can render without a request. A page reading
+ * `searchParams` or `params` cannot be prerendered and is dynamic for free;
+ * one taking neither is static unless it says otherwise.
+ *
+ * That is what broke `/maajoukkueet/huuhkajat` in production (#182). It has no
+ * season selector and therefore no `searchParams`, so it was prerendered at
+ * build time — where Railway's private network does not exist, because
+ * `*.railway.internal` is runtime-only. Every query failed with
+ * `ENOTFOUND postgres.railway.internal`, the page rendered its error state,
+ * and **that error was baked into the static output** and served to everyone.
+ * The build exited 0 and `/api/health` reported the database fine.
+ *
+ * Helmarit (#167) is the same shape — paramless and data-backed — so this
+ * guards the class rather than the one file.
+ */
 describe("pages are not prerendered unless declared static", () => {
   it("every page takes request props, opts out, or is declared static by design", async () => {
     const offenders: string[] = [];

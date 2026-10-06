@@ -244,7 +244,6 @@ Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
 - **`BracketLeg.homeGoals`, `legScore`.** Liverpool "1-5" Paris Saint-Germain
   (LAST_16, 2024/25) was 0-1, penalties 1-4; `fullTime` beside a 1-1 (rp)
   aggregate contradicts the tie.
-- **`pairLegs`.** Carried a stale copy of `buildRound`'s doc comment; deleted.
 
 Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
 

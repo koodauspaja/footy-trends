@@ -53,7 +53,7 @@ test.describe("Settings, signed out", () => {
   });
 });
 
-/**
+/*
  * **The signed-in page body is not covered here, deliberately.**
  *
  * `/asetukset` reads its session on the *server*, so intercepting the browser's

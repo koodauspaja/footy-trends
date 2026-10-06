@@ -124,14 +124,9 @@ where a `=== null` check matched nothing and the feature did nothing at all.
 
 ## Moved from comments, 2026-10-05
 
-Cut from `src/lib/taso.ts` at `55a14fc` by #531.
-
-- **`getCurrentSeason`.** Named `resolveCurrentTasoSeason`, which was deleted.
-
 Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
 
-- **`resolveTasoSeasonContext`.** Its doc comment sat on
-  `resolveTasoSeasonCeiling`. It replaced `specs/009`'s `LATEST_TASO_SEASON`;
+- **`resolveTasoSeasonContext`.** It replaced `specs/009`'s `LATEST_TASO_SEASON`;
   the ceiling falls back from discovery to the newest stored season to the floor.
   Answering "does it have matches" syncs the season, bounded by `cache()` and the
   15-minute Redis TTL.
