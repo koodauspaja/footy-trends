@@ -23,3 +23,16 @@ Cut from `src/app/terms/page.tsx` at `48ebab4` by #531.
   permission the app meets, while the TASO arrangement is an open question
   recorded on #303. Asserting a permission that has not been established
   would be worse than saying nothing.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/terms/page.test.tsx` at `c12c30a` by #531.
+
+- **What the terms page's tests were corrected for.** The first version of
+  the page credited football-data.org with the national teams;
+  `national-team.ts` says otherwise. Review caught the refresh wording: a
+  season that has ended but is still the newest keeps refreshing on the
+  interval, so "päättyneen kauden" claimed a limit the app does not have.
+  A stem list built from `luvalla` alone lets "Meillä on lupa" straight
+  through, and exact strings would miss `luvan`, `lisenssin` and
+  `sopimuksella`.

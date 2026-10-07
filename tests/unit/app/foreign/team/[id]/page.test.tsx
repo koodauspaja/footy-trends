@@ -20,13 +20,36 @@ import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * A foreign club's page: which team, competition and season it resolves, what
+ * it tells a reader about a club it cannot show, and what it asks the Analyysit
+ * panels for.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/006-other-competitions.md
+ * decisions/007-back-navigation.md
+ * decisions/020-context-free-team-page.md
+ * decisions/022-teams-between-tiers.md
+ * decisions/026-favourites.md
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/034-clean-sheets.md
+ * decisions/035-streaks.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/416-team-page-folds.md
+ * decisions/529-one-whole-number-parser.md
+ * decisions/530-one-team-panel-builder.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out unless a test signs in.
 const { session } = vi.hoisted(() => ({ session: { data: null as unknown } }));
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch: vi.fn() }),
@@ -34,11 +57,9 @@ vi.mock("@/lib/auth-client", () => ({
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
-/**
- * The matches the six result panels count. The panels themselves are
- * `team-panels.test.ts`'s; what this file owns is that the page asks for the
- * right team's matches.
- */
+// The matches the six result panels count. The panels themselves are
+// `team-panels.test.ts`'s; what this file owns is that the page asks for the
+// right team's matches.
 const getTeamPanelMatchesMock = vi.fn(
   async (..._args: unknown[]): Promise<TeamPanelMatches> => ({ status: "ok", finished: [] })
 );
@@ -52,12 +73,9 @@ const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
 );
 
-/**
- * The Analyysit section stands in here with a marker: its panels and its
- * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
- * page's side — whether the section is asked for at all, and with which
- * series.
- */
+// The Analyysit section stands in here with a marker: its panels and its
+// sign-in gate are `analytics-section.test.tsx`'s. This file owns the page's
+// side: whether the section is asked for at all, and with which series.
 const analyticsSectionMock = vi.fn(
   async (_props: {
     loadPosition: () => Promise<PositionSeries>;
@@ -106,7 +124,7 @@ vi.mock("@/lib/logger", () => ({
 
 const TEAM_CONTEXT_COMPETITION = "PL";
 const TEAM_CONTEXT_SEASON = 2025;
-/** The team exists, in the competition these tests already assume. */
+// The team exists, in the competition these tests already assume.
 async function defaultTeamContext(
   _source: unknown,
   teamProviderId: number
@@ -121,14 +139,9 @@ async function defaultTeamContext(
 
 const getTeamContextMock = vi.fn(defaultTeamContext);
 
-// The team's own newest stored context, which the page resolves before it knows
-// which competition to ask about. Mocked at the database boundary, so
-// `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
-/**
- * The club's other seasons, which most of these tests do not describe: an
- * unanswered lookup leaves the page on its previous behaviour, and the tests
- * that care about it set a value. See specs/022-teams-between-tiers.md.
- */
+// The team's newest stored context is mocked above at the database boundary, so
+// `resolveTeamDefaults`' own logic still runs. The club's other seasons, here, answer
+// not-found unless a test sets a value: most of these tests do not describe them.
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
 const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
@@ -451,8 +464,8 @@ describe("Team page", () => {
   });
 
   it("shows the team's own competition when the URL names none", async () => {
-    // A bare URL used to mean "Premier League, active season", which served 20
-    // of 315 stored football-data team ids. See specs/020.
+    // A bare URL resolves from the team's own newest match, not to
+    // "Premier League, active season".
     getTeamContextMock.mockResolvedValue({
       status: "ok",
       context: { competitionCode: "BL1", seasonId: 2024 },
@@ -579,7 +592,7 @@ describe("Team page", () => {
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
   });
 
-  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  // `Number()` alone reads the first two as teams 16 and 1000.
   it.each([
     ["a word", "abc"],
     ["hexadecimal, which Number() reads as 16", "0x10"],
@@ -592,8 +605,8 @@ describe("Team page", () => {
     async (_name, id) => {
       await renderTeamPage(id);
 
-      // The page used to name Valioliiga and offer its standings link to a team
-      // that does not exist. See specs/020-context-free-team-page.md.
+      // A team that does not exist is shown no competition name and no
+      // standings link.
       expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
       expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
       expect(getTeamMatchesMock).not.toHaveBeenCalled();
@@ -605,7 +618,6 @@ describe("Team page", () => {
 
   it("shows the same reduced page for a well-formed id no stored match has", async () => {
     // The other way to "not found": the id is a number, and the lookup says no.
-    // Until #529 the malformed-id case above was the only test of this branch.
     getTeamContextMock.mockResolvedValue({ status: "not_found" });
     await renderTeamPage("424242");
 
@@ -834,7 +846,7 @@ describe("Team page league position (specs/030)", () => {
   });
 
   // One read behind all six: `teamPanelLoaders` builds them from the same
-  // matches (specs/031 to specs/036), so each asks for the same thing.
+  // matches, so each asks for the same thing.
   it.each([
     "loadForm",
     "loadGoals",
@@ -857,7 +869,7 @@ describe("Team page league position (specs/030)", () => {
 
     await loadOpponents?.();
 
-    // Not the selected season or competition: the panel covers every one (S4).
+    // Not the selected season or competition: the panel covers every one.
     expect(getWorstOpponentsMock).toHaveBeenCalledWith(
       { kind: "football-data", region: "foreign" },
       1,

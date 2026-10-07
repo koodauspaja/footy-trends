@@ -3,10 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../support/warm-module";
 
 /**
- * The settings route itself. Without this file it has no test, which vitest
- * scores as 100% — it only measures files a test imports — while Sonar
- * correctly reports 0%.
+ * The settings route itself. A route file nothing imports is absent from the
+ * coverage report, so it has a test of its own.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
  */
+
 const { getSession, listSessions, currentPreferencesRow, getAvatar, logger, state } = vi.hoisted(
   () => {
     const state = {
@@ -187,13 +190,9 @@ describe("the settings route", () => {
   });
 
   it("keeps the page when the avatar cannot be read", async () => {
-    /**
-     * A failed lookup costs the reader their picture, not their settings. The
-     * section still renders — with the Google image, or the fallback text —
-     * because "no custom picture" and "we could not tell" look the same to
-     * someone who has none, and withholding the whole page would be a much
-     * larger loss than the one that happened.
-     */
+    // A failed lookup costs the reader their picture, not their settings. The section still renders
+    // with the Google image or the fallback text: "no custom picture" and "could not tell" look the
+    // same to someone who has none, and withholding the page would be the larger loss.
     state.avatarThrows = true;
 
     await renderPage();

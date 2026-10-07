@@ -3,21 +3,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NationalTeamResult, NationalTeamYear } from "@/lib/national-team-service";
 import { warmModules } from "../../../support/warm-module";
 
+/**
+ * Huuhkajat's page: the year list, what a failed bucket costs, and that it is
+ * rendered per request.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/041-national-team-analytics.md
+ * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/419-shared-fold-marker.md
+ */
+
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
 vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 
-/**
- * The `Analyysit` section stands in with a marker, as it does on the club
- * pages: what it renders is `analytics-section.test.tsx`'s, and how this page
- * asks for it is `national-team-page.test.tsx`'s. This file owns the year list.
- *
- * Not only separation — rendering the real section pulls ten panels and their
- * charts into every test here, which took the first render past the five
- * second budget in a full run and left its DOM behind for the next test.
- */
+// The `Analyysit` section stands in with a marker: what it renders is
+// `analytics-section.test.tsx`'s, and how this page asks for it `national-team-page.test.tsx`'s.
+// Not only separation: the real one is ten panels and their charts in every test here.
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: async () => <p>analytics section placeholder</p>,
 }));
@@ -55,11 +59,9 @@ async function renderPage() {
 
 warmModules(() => import("@/app/national-teams/mens-team/page"));
 
-/**
- * The year folds, told apart from the `Analyysit` fold above them (specs/041).
- * A year's summary is headed by the year itself, so that is what selects them
- * — counting every `<details>` on the page would now count the section too.
- */
+// The year folds, told apart from the `Analyysit` fold above them. A year's
+// summary is headed by the year itself, so that selects them: every `<details>`
+// on the page would count the section too.
 function yearSections(): HTMLElement[] {
   return screen
     .getAllByRole("heading", { level: 2, name: /^\d{4}$/ })
@@ -188,7 +190,7 @@ describe("Huuhkajat page", () => {
 
     await renderPage();
 
-    // The years that loaded still render — the point of #180.
+    // The years that loaded still render.
     expect(yearSections()).toHaveLength(1);
     expect(
       screen.getByText("Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.")
@@ -221,14 +223,9 @@ describe("Huuhkajat page", () => {
     expect(document.querySelectorAll("details")).toHaveLength(0);
   });
 
-  /**
-   * The bug in #182. This page takes no `searchParams`, so nothing makes it
-   * dynamic implicitly the way every other data-backed page is. Next
-   * prerendered it, the build container could not resolve
-   * `postgres.railway.internal` — Railway's private network is runtime-only —
-   * and the error page was baked into the static output and served to
-   * everyone.
-   */
+  // This page takes no `searchParams`, so nothing makes it dynamic implicitly,
+  // and at build time the database cannot be reached: prerendered, its error
+  // page would be baked into the static output.
   it("is rendered per request, never prerendered", async () => {
     const { dynamic } = await import("@/app/national-teams/mens-team/page");
 

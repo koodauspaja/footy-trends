@@ -1,29 +1,28 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+/**
+ * The boundary Next renders when the app itself has failed: the one page that
+ * cannot rely on anything else working. It renders its own page, in Finnish,
+ * and nothing of Next's.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/533-finnish-error-pages.md
+ */
+
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-/**
- * The boundary Next renders when the app itself has failed — the last thing a
- * reader sees, and the one page that cannot rely on anything else working.
- * Nothing asserted that it rendered at all until #403.
- *
- * It renders its own page, in Finnish, and nothing of Next's: the default it
- * used to hand over to is in English (#533).
- */
 import GlobalError from "@/app/global-error";
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
-/**
- * Mounted as the whole document, which is what it is: Next renders it in place
- * of the root layout, `<html>` and all. Testing Library's default container is
- * a `<div>`, and an `<html>` inside one makes React warn on every run (#503).
- */
+// Mounted as the whole document, which is what it is: Next renders it in place
+// of the root layout, `<html>` and all. In Testing Library's default `<div>`
+// container, an `<html>` makes React warn on every run.
 function renderDocument(error: Error) {
   return render(<GlobalError error={error} />, { container: document });
 }

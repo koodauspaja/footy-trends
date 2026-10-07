@@ -14,3 +14,11 @@ Cut from `src/lib/provider-ids.ts` at `ef99862` by #531.
   that parse to `Infinity` included. A repeated query parameter arrives as an
   array and is no number either. A caller that needs at least 1, a round or
   a page, says so itself.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/foreign/team/[id]/page.test.tsx` at `c12c30a` by #531.
+
+- **The not-found branch of the foreign team page.** Until this change the
+  malformed-id case was the only test of it; a numeric id the lookup refuses
+  has its own test now.

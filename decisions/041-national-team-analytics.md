@@ -205,3 +205,13 @@ Cut from `src/components/season-comparison-section.tsx` at `48ebab4` by #531.
 
 - **The comparison panel's strings.** The ones naming a period are a season
   on a club page and a calendar year on a national-team page.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/national-teams/mens-team.test.tsx` at `c12c30a` by #531.
+
+- **Why the national-team page tests mock the section.** Not only
+  separation: rendering the real section pulled ten panels and their charts
+  into every test, which took the first render past the five second budget
+  in a full run and left its DOM behind for the next test. The same holds in
+  `womens-team.test.tsx` and `pages.test.tsx`.

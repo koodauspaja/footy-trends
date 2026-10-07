@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
- * The `/yllapito/data` route itself, from specs/029-forced-season-refresh.md.
+ * The `/yllapito/data` route itself. A route file nothing imports is absent
+ * from the coverage report, so it has a test of its own.
  *
- * Without this file the route has no test, which vitest scores as 100% — it
- * only measures files a test imports — while Sonar correctly reports 0%. That
- * trap failed #370's gate at 70.1%.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { requireAdmin, listRuns, notFound, logger, state } = vi.hoisted(() => {
   const state = { adminId: "admin-1" as string | null, runsThrow: false };
   return {

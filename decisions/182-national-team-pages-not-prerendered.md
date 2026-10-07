@@ -26,3 +26,20 @@ Cut from `src/app/national-teams/womens-team/page.tsx` at `48ebab4` by #531.
   the error page into the static output, which was then served to every
   visitor regardless of runtime health. `/api/health` reported the database
   as fine throughout, because it is dynamic and was fine.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/rendering-mode.test.ts` at `c12c30a` by #531.
+
+- **Why the guard is a list of static pages.** An earlier version asked
+  "does this page import a data module?" and skipped anything that did not
+  match a filename whitelist, so a new page importing a differently named
+  module would pass unexamined: the failure direction that costs a
+  production outage.
+- **`takesRequestProps` reads the signature.** The previous version matched
+  `searchParams` anywhere in the file, and a page's own comment mentioning
+  the word was enough to make the guard skip it.
+- **Only two exports opt out.** Accepting any `revalidate` would let the
+  original bug straight through.
+- **The class, not the one file.** Helmarit is the same shape, paramless and
+  data-backed.

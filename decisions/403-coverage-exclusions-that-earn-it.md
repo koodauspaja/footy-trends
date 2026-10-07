@@ -40,3 +40,8 @@ Cut from `scripts/with-test-db-plan.ts` at `5b180e0` by #531.
   Windows, which `spawn` cannot execute without a shell, the trap
   `scripts/executable.ts` documents; handing the runtime an `.mjs` entry
   sidesteps shims and `PATH` lookup together.
+
+Cut from `tests/unit/app/global-error.test.tsx` at `c12c30a` by #531.
+
+- **`global-error.tsx` has a test.** Nothing asserted that it rendered at
+  all until this change.
