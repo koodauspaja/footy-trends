@@ -2,10 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * `next/link`'s prefetch setting leaves no mark in the DOM, so the link is
- * replaced by one that shows what it was given.
- * `decisions/189-same-route-links.md`
+ * `SameRouteLink`: prefetching is off, and every other prop passes through.
+ *
+ * decisions/189-same-route-links.md
  */
+
+// `next/link`'s prefetch setting leaves no mark in the DOM, so the link is
+// replaced by one that shows what it was given.
 vi.mock("next/link", () => ({
   default: ({
     prefetch,

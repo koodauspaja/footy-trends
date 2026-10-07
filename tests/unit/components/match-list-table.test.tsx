@@ -3,6 +3,15 @@ import { describe, expect, it } from "vitest";
 import { COLUMN_WIDTHS } from "@/components/data-table";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 
+/**
+ * The match list table: the link to each match, and the score as the match page
+ * prints it.
+ *
+ * decisions/019-match-page.md
+ * decisions/021-table-consistency.md
+ * decisions/498-match-list-score.md
+ */
+
 const rows: MatchListRow[] = [
   {
     providerMatchId: 4036979,
@@ -117,7 +126,7 @@ describe("MatchListTable match links", () => {
 });
 
 describe("MatchListTable scores (#498)", () => {
-  /** Manchester City – Real Madrid, 17.04.2024, as football-data stores it. */
+  // Manchester City – Real Madrid, 17.04.2024, as football-data stores it.
   const shootout: MatchListRow = {
     providerMatchId: 438512,
     kickoffAt: new Date("2024-04-17T19:00:00Z"),

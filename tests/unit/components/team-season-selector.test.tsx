@@ -2,6 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
 
+/**
+ * The season selector of a team page.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/006-other-competitions.md
+ * decisions/012-finnish-urls-english-code.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

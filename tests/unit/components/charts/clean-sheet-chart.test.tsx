@@ -4,6 +4,12 @@ import { CleanSheetChart, cleanSheetSentence } from "@/components/charts/clean-s
 import { CHART, MARGIN } from "@/components/charts/line-chart";
 import type { CleanSheetPoint } from "@/lib/clean-sheets";
 
+/**
+ * The clean-sheet chart and its text alternative.
+ *
+ * decisions/034-clean-sheets.md
+ */
+
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
 

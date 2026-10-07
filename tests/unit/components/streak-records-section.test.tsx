@@ -15,6 +15,14 @@ import {
 import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
 import type { StreakRecords } from "@/lib/streak-records";
 
+/**
+ * The `Ennätykset` panel.
+ *
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/041-national-team-analytics.md
+ */
+
 const none: StreakRecords = { wins: null, unbeaten: null, defeats: null, winless: null };
 
 function ok(records: Partial<StreakRecords> = {}, scope = "Veikkausliiga") {
@@ -98,8 +106,8 @@ describe("streakRecordsPanel", () => {
   });
 
   it("names the competition its records cover", () => {
-    // The panel said nothing about its scope before specs/040: on a club's cup
-    // page, its records would otherwise read as the club's own.
+    // The panel names its scope: on a club's cup page, its records would
+    // otherwise read as the club's own.
     ok({ wins: { length: 3, from: "2024", to: "2024" } }, "Suomen Cup");
 
     expect(screen.getByText("Suomen Cup")).toBeInTheDocument();

@@ -4,13 +4,16 @@ import { COLUMN_WIDTHS } from "@/components/data-table";
 import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components/standings-table";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * The standings table.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/021-table-consistency.md
+ * decisions/026-favourites.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
@@ -137,7 +140,7 @@ describe("StandingsLegend", () => {
 
   it("right-aligns the statistics and leaves Sija with the text columns", () => {
     // Digits line up by place value; the position reads as a label beside the
-    // team name. See specs/021-table-consistency.md.
+    // team name.
     render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
 
     for (const stat of ["O", "V", "T", "H", "TM", "PM", "ME", "P"]) {

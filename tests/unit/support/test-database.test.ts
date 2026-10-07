@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { databaseNameFor, testDatabaseUrl } from "../../support/test-database";
 
 /**
- * How the test database's URL is derived, from #304.
+ * How the test database's URL is derived. It decides which database every suite
+ * writes to: wrong, the suites run against the developer's data or quietly
+ * create something nobody expects.
  *
- * Worth testing on its own: it decides which database every suite writes to, so
- * getting it wrong means either the suites run against the developer's data —
- * the bug this was written to remove — or they quietly create something nobody
- * expects.
+ * decisions/304-test-database.md
+ * decisions/399-local-commands-start-the-database.md
  */
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -22,12 +23,9 @@ describe("testDatabaseUrl", () => {
   });
 
   it("treats a blank override as unset rather than as a URL", () => {
-    /**
-     * `TEST_DATABASE_URL="   "` used to reach `new URL()` and throw before a
-     * single test ran, while the preflight had already fallen back to
-     * DATABASE_URL and reported the database ready — the two disagreed about
-     * what blank meant. Caught in review on #402.
-     */
+    // A blank `TEST_DATABASE_URL` is no override: `" "` must not reach
+    // `new URL()` while the preflight has fallen back to DATABASE_URL, or the
+    // two disagree about what blank means.
     vi.stubEnv("TEST_DATABASE_URL", "   ");
     vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
 
@@ -35,8 +33,8 @@ describe("testDatabaseUrl", () => {
   });
 
   it("treats a blank DATABASE_URL as unset too, not only the override", () => {
-    // The same class as the override above. Review on #402 caught the two
-    // halves separately; without this, "   " reached `new URL()` and threw.
+    // The same class as the override above: without this, `" "` reaches
+    // `new URL()` and throws.
     vi.stubEnv("TEST_DATABASE_URL", undefined);
     vi.stubEnv("DATABASE_URL", "   ");
 
@@ -96,12 +94,9 @@ describe("testDatabaseUrl", () => {
 
 describe("databaseNameFor", () => {
   it("decodes the name, because `create database` takes an identifier", () => {
-    /**
-     * The URL half and the identifier half genuinely differ here.
-     * `postgres://…/footy%20trends_test` connects to a database called
-     * `footy trends_test`; creating one literally named `footy%20trends_test`
-     * leaves the suite connecting to something that still does not exist.
-     */
+    // The URL half and the identifier half differ here. `postgres://…/footy%20trends_test`
+    // connects to a database called `footy trends_test`; creating one literally named
+    // `footy%20trends_test` leaves the suite connecting to something that does not exist.
     expect(databaseNameFor("postgresql://postgres@localhost:5432/footy%20trends_test")).toBe(
       "footy trends_test"
     );

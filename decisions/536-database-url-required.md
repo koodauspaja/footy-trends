@@ -37,3 +37,13 @@ Cut from `src/db/migrate.ts` at `48ebab4` by #531.
   migrate `localhost` or whatever `PGHOST` names. One line and a non-zero
   exit, where an uncaught error would bury the variable's name under a stack
   trace in the deploy log.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/db/migrate.test.ts` at `e4b182f` by #531.
+
+- **The migration runner's test.** The empty journal in the test's
+  directory is what makes its listener mean something: without one the
+  runner returns before its first query, and postgres.js connects only when
+  it has one. The listener accepts a connection only to count it and hang
+  up.

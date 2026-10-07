@@ -724,3 +724,13 @@ Cut from `src/lib/refresh-competitions.ts` at `48ebab4` by #531.
 - **`isKnownCompetition`.** `decodeChoice` in `refresh-view.ts` validates
   the shape and stays client-safe; this is the half that needs the
   registries.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/components/refresh-form.test.tsx` at `e4b182f` by #531.
+
+- **Two tests of `refresh-form.test.tsx` that were wrong first.** Waiting
+  for the dialog and then reaching for `Päivitä` was a race, and failed
+  about one run in four. The earlier stale-response test unmounted the
+  component and asserted nothing was thrown, which passed with the guard
+  removed (verified).

@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QualityReport } from "@/lib/prediction-quality";
 import type { QualityResult } from "@/lib/prediction-quality-service";
 
+/**
+ * The `/ennusteet` page: its switches, its tables and the calibration chart.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/050-table-volatility.md
+ */
+
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getPredictionQuality: vi.fn<(source: string, kind: string) => Promise<QualityResult>>(),
@@ -188,7 +195,7 @@ describe("PredictionQualityPage (specs/054)", () => {
       )
     ).toBeInTheDocument();
     expect(panel.querySelectorAll("[data-part=line]")).toHaveLength(2);
-    // A long caption breaks onto two lines (specs/050), so read its lines together.
+    // A long caption breaks onto two lines, so read its lines together.
     const caption = [...panel.querySelectorAll("tspan")].map((line) => line.textContent).join(" ");
     expect(caption).toContain("Osuma-% (200 viimeisintä)");
     expect(

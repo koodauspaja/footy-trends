@@ -2,14 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MISSING_DATABASE_URL } from "@/db/connection-string";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The database client: made on first use, once, from a `DATABASE_URL` that must
+ * be there.
+ *
+ * decisions/196-concurrent-group-syncs.md
+ * decisions/536-database-url-required.md
+ */
+
 const end = vi.fn(() => Promise.resolve());
 const postgresMock = vi.fn((_url: string) => ({ end }));
 
-/**
- * What drizzle hands back, as far as these tests need one: state, a method
- * that reads it, and `$client`, which the real one holds as its own property:
- * postgres.js's `sql`, a function that carries properties of its own.
- */
+// What drizzle hands back, as far as these tests need one: state, a method that
+// reads it, and `$client`, which the real one holds as its own property:
+// postgres.js's `sql`, a function that carries properties of its own.
 class FakeDatabase {
   readonly dialect = "postgres";
   readonly $client = Object.assign(() => "a query", { options: { max: 10 } });
@@ -24,7 +30,7 @@ vi.mock("drizzle-orm/postgres-js", () => ({ drizzle: drizzleMock }));
 
 const URL = "postgres://user:secret@db.example.com:5432/app";
 
-/** `db` as these tests use it: the stand-in, typed as the fake behind it. */
+// `db` as these tests use it: the stand-in, typed as the fake behind it.
 async function load() {
   const { db, closeDatabase } = await import("@/db");
   return { db: db as unknown as FakeDatabase, closeDatabase };
@@ -42,11 +48,9 @@ afterEach(() => {
 
 warmModules(() => import("@/db"));
 
-/**
- * The client is made when the database is first used, not when this module is
- * imported (#536): `next build` imports every route with no `DATABASE_URL` to
- * read, and a client made from nothing falls back to `localhost` or `PGHOST`.
- */
+// The client is made when the database is first used, not when this module is
+// imported: `next build` imports every route with no `DATABASE_URL` to read,
+// and a client made from nothing falls back to `localhost` or `PGHOST`.
 describe("the database client", () => {
   it("connects nowhere when it is only imported", async () => {
     await load();

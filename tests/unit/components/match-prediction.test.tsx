@@ -4,6 +4,15 @@ import type { EloRatings } from "@/lib/elo-service";
 import type { HomeBaseline } from "@/lib/home-baseline";
 import type { StoredMatch } from "@/lib/match-service";
 
+/**
+ * The `Ennuste` panel: the baseline, Elo's row beside it, and the link to the
+ * models' track record.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/053-elo-ratings.md
+ * decisions/054-prediction-quality.md
+ */
+
 const { canSeeAnalytics, getHomeBaseline, getEloRatings } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getHomeBaseline: vi.fn<() => Promise<HomeBaseline>>(),
@@ -64,7 +73,7 @@ function upcoming(status = "SCHEDULED", overrides: Record<string, unknown> = {})
   } as StoredMatch;
 }
 
-/** HJK and KuPS even, once HJK's 60 home points are counted. */
+// HJK and KuPS even, once HJK's 60 home points are counted.
 const ratings: EloRatings = {
   status: "ok",
   ratings: new Map([
@@ -78,7 +87,7 @@ async function renderPanel(stored: StoredMatch = upcoming()) {
   return render(<div>{panel}</div>);
 }
 
-/** Each body row of the predictions table, as its cells read. */
+// Each body row of the predictions table, as its cells read.
 function tableRows() {
   return screen
     .getAllByRole("row")
@@ -133,7 +142,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     await renderPanel();
 
     expect(screen.getByRole("heading", { level: 2, name: PREDICTION_HEADING })).toBeInTheDocument();
-    // The model column's heading is for screen readers only (decisions/053).
+    // The model column's heading is for screen readers only.
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
       "Malli",
       "Kotivoitto",
@@ -161,7 +170,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
       ROUNDING_NOTE,
       QUALITY_LINK,
     ]);
-    // specs/054 S13: the models' track record, from every `Ennuste`.
+    // The models' track record, from every `Ennuste`.
     expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute("href", "/ennusteet");
     expect(getHomeBaseline).toHaveBeenCalledWith("taso", "VL");
   });

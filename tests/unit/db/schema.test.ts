@@ -16,12 +16,30 @@ import {
   verification,
 } from "@/db/schema";
 
+/**
+ * The schema: the tables, indexes, constraints and cascades the queries and the
+ * account's deletion rely on.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/014-champions-league.md
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ * decisions/023-google-oauth-login.md
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/536-database-url-required.md
+ */
+
 describe("matches table", () => {
   it("declares a unique index on the provider match id and six lookup indexes", () => {
     const { indexes } = getTableConfig(matches);
 
-    // Six, not four: specs/027 adds one folded-name index per team column, so
-    // team search can match `jarvenpaa` against `Järvenpää` without a scan.
+    // One folded-name index per team column, so team search can match
+    // `jarvenpaa` against `Järvenpää` without a scan.
     expect(indexes).toHaveLength(7);
     expect(
       indexes.find((index) => index.config.name === "matches_provider_match_id_idx")?.config
@@ -40,7 +58,7 @@ describe("matches table", () => {
       unique: false,
     });
     // The match page's head-to-head pair lookup. One index serves both
-    // orientations — see specs/019-match-page.md.
+    // orientations.
     const headToHead = indexes.find(
       (index) => index.config.name === "matches_head_to_head_idx"
     )?.config;
@@ -50,7 +68,7 @@ describe("matches table", () => {
       "away_team_provider_id",
     ]);
     // The away half of "every match this team played", which the composite
-    // above cannot serve on its own. See specs/020-context-free-team-page.md.
+    // above cannot serve on its own.
     const awaySide = indexes.find((index) => index.config.name === "matches_away_team_idx")?.config;
     expect(awaySide).toMatchObject({ unique: false });
     expect(awaySide?.columns.map((column) => (column as { name: string }).name)).toEqual([
@@ -83,7 +101,7 @@ describe("taso_matches table", () => {
   it("declares a unique index on the taso match id and five lookup indexes", () => {
     const { indexes } = getTableConfig(tasoMatches);
 
-    // The TASO half of specs/027's folded-name indexes.
+    // The TASO half of the folded-name indexes.
     expect(indexes).toHaveLength(6);
     expect(
       indexes.find((index) => index.config.name === "taso_matches_taso_match_id_idx")?.config
@@ -126,7 +144,7 @@ describe("taso_matches table", () => {
 describe("better-auth tables", () => {
   it("names the four models better-auth asks for", () => {
     // The Drizzle adapter resolves a model by name; a renamed table fails at
-    // the OAuth callback, not at startup. See specs/023-google-oauth-login.md.
+    // the OAuth callback, not at startup.
     expect([user, session, account, verification].map((t) => getTableConfig(t).name)).toEqual([
       "user",
       "session",
@@ -201,8 +219,8 @@ describe("better-auth tables", () => {
 
 describe("user_preferences table", () => {
   it("holds one row per reader", () => {
-    // Unique, not merely indexed: a second row would make "the reader's
-    // preferences" ambiguous. See specs/024-account-settings.md.
+    // Unique, not merely indexed: a second row would make
+    // "the reader's preferences" ambiguous.
     const userId = getTableConfig(userPreferences).columns.find(
       (column) => column.name === "user_id"
     );
@@ -235,11 +253,9 @@ describe("user_preferences table", () => {
 
 describe("user_avatar table", () => {
   it("stores the image as bytea, not as text", () => {
-    // drizzle has no built-in `bytea`, so this column is a `customType` whose
-    // whole job is that one word. Encoded as text, a WebP would come back
-    // corrupt — and the round trip is only proved against a real database in
-    // tests/integration/avatar.test.ts, which cannot say what the *declared*
-    // type is.
+    // drizzle has no built-in `bytea`, so this column is a `customType` whose whole job is that
+    // one word: encoded as text, a WebP would come back corrupt. The round trip is proved in
+    // tests/integration/avatar.test.ts, which cannot say what the declared type is.
     const { columns } = getTableConfig(userAvatar);
     const bytes = columns.find((column) => column.name === "bytes");
 
@@ -251,8 +267,8 @@ describe("user_avatar table", () => {
     const { columns, foreignKeys } = getTableConfig(userAvatar);
 
     expect(columns.find((column) => column.name === "user_id")?.primary).toBe(true);
-    // The cascade is what makes account deletion complete without a second
-    // code path — specs/024 promises it is irreversible and total.
+    // The cascade is what makes account deletion complete without a second code
+    // path: it is promised irreversible and total.
     expect(foreignKeys[0]?.onDelete).toBe("cascade");
     // Resolved rather than read off the config: which table it cascades *from*
     // is the whole guarantee, and a reference pointing somewhere else would
@@ -336,19 +352,11 @@ describe("favorite_competition table", () => {
 });
 
 describe("refresh_runs table", () => {
-  /**
-   * The audit trail behind the forced refresh, from
-   * specs/029-forced-season-refresh.md.
-   */
+  // The audit trail behind the forced refresh.
   it("sets run_by to null rather than deleting the run with its operator", () => {
-    // **The one exception to the cascade rule every other test above asserts.**
-    // `decisions/028-admin-tools-and-roles.md` relies on cascade so that one
-    // `DELETE` removes everything a *reader owns*. An operational log is not
-    // something a reader owns: the record of what was done to the data outlives
-    // the account, while the link to the person does not.
-    //
-    // Asserted rather than trusted, because "make it consistent with the
-    // others" is exactly the change someone would make here in good faith.
+    // The one exception among the cascades asserted above: a reader owns their rows, but not
+    // the record of what was done to the data. Asserted, because
+    // "make it consistent with the others" is the change someone would make here in good faith.
     const [foreignKey] = getTableConfig(refreshRuns).foreignKeys;
 
     expect(foreignKey?.onDelete).toBe("set null");
@@ -385,11 +393,9 @@ describe("refresh_runs table", () => {
   });
 });
 
-/**
- * These two had no test of their own: their definitions were executed only
- * because the database client used to be built, schema and all, wherever
- * `@/db` was imported. #536 made the client on first use, and coverage said so.
- */
+// These two have a test of their own because nothing else executes their
+// definitions: the database client is made on first use, not wherever `@/db` is
+// imported.
 describe("taso_group_teams table", () => {
   it("makes a team's row in a group unique, by the group and the team together", () => {
     // TASO gives a standings row no id of its own, so a second sync of the

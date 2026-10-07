@@ -4,16 +4,14 @@ import { describe, expect, it } from "vitest";
 import config from "../../next.config";
 
 /**
- * Public URLs are Finnish and the App Router folders are English
- * (specs/012-finnish-urls-english-code.md): a rewrite takes each URL to its
- * folder, and a redirect takes the folder's own path back to the URL, because
- * a rewrite does not block its target.
+ * Public URLs are Finnish and the App Router folders are English: a rewrite takes each URL to
+ * its folder, and a redirect takes the folder's own path back, because a rewrite does not block
+ * its target. This compares what `next.config.ts` returns, whatever the lists are built from.
  *
- * The two lists were kept by hand, nothing compared them, and eight pages
- * answered on their English path as well (#527). This file compares what
- * `next.config.ts` actually returns, so it holds whatever the lists are built
- * from.
+ * decisions/527-one-route-table.md
+ * decisions/012-finnish-urls-english-code.md
  */
+
 type Rewrite = { source: string; destination: string };
 type Redirect = Rewrite & { permanent?: boolean };
 
@@ -27,7 +25,8 @@ async function evaluated(): Promise<{ rewrites: Rewrite[]; redirects: Redirect[]
   };
 }
 
-/** Every `page.tsx` under `src/app` but the home page, as the path its folder answers on. */
+// Every `page.tsx` under `src/app` but the home page, as the path its folder
+// answers on.
 function pageFolders(directory = path.join(process.cwd(), "src", "app"), prefix = ""): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     if (entry.isDirectory()) {
@@ -75,8 +74,7 @@ describe("next.config.ts, Finnish URLs over English folders (specs/012)", () => 
     expect(sources).toEqual([...new Set(sources)]);
   });
 
-  // The eight folders that answered on their own path: the seven of #527, and
-  // `/predictions`, added while that issue was open.
+  // The eight folders that had the rewrite alone.
   it.each([
     ["/national-teams/mens-team", "/maajoukkueet/huuhkajat"],
     ["/national-teams/womens-team", "/maajoukkueet/helmarit"],

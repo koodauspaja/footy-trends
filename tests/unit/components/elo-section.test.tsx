@@ -10,6 +10,12 @@ import {
   eloSeasonSentence,
 } from "@/components/elo-section";
 
+/**
+ * The Elo panel: its axis, its line and its explanation of 1500.
+ *
+ * decisions/053-elo-ratings.md
+ */
+
 const seasonLabel = (seasonId: number) => `${seasonId}/${String((seasonId + 1) % 100)}`;
 
 function renderPanel(series: Parameters<typeof eloPanel>[0]["series"]) {

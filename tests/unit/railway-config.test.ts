@@ -4,18 +4,17 @@ import { describe, expect, it } from "vitest";
 import program, { partial } from "../../.railway/railway";
 
 /**
- * `.railway/railway.ts` (#521). Railway's CLI ignores a key it does not know
- * without a word, so a typo would silently drop a setting — the migrations
- * before traffic among them. Every value is pinned here, as the file evaluates
- * for each environment.
+ * `.railway/railway.ts`, as it evaluates for each environment. Railway's CLI
+ * ignores a key it does not know without a word, so a typo would silently drop
+ * a setting, the migrations before traffic among them: every value is pinned.
+ *
+ * decisions/521-railway-infrastructure-as-code.md
+ * decisions/551-staging-sleeps-when-idle.md
  */
 
-/**
- * Every variable each environment's web service holds, by name; RAILWAY_* are
- * Railway's own. Written out here rather than imported from the file, on
- * purpose: this is the record of what Railway holds, so a change to the file's
- * lists has to be made here too, deliberately.
- */
+// Every variable each environment's web service holds, by name; RAILWAY_* are
+// Railway's own. Written out here, not imported from the file, on purpose: a
+// change to the file's lists has to be made here too, deliberately.
 const SHARED = [
   "AXIOM_DATASET",
   "AXIOM_TOKEN",

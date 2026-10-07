@@ -16,3 +16,8 @@ Cut from `next.config.ts` at `5b180e0` by #531.
   CLAUDE.md's.
 - **The national teams' match routes in `ROUTES`.** 317 ids already exist
   in both match tables.
+
+Cut from `tests/unit/next-config.test.ts` at `e4b182f` by #531.
+
+- **The eight in `next-config.test.ts`.** The seven folders of the issue,
+  and `/predictions`, added while the issue was open.

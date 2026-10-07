@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRACES_SAMPLE_RATE } from "@/lib/sentry-config";
 
+/**
+ * The browser half of the Sentry wiring, which runs at import, so the test is the import with
+ * the environment stubbed first. `@/lib/sentry-config` is not mocked: how a blank variable is
+ * read is the difference between tracing 10% in production and tracing everything.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ */
+
 const { init, captureRouterTransitionStart } = vi.hoisted(() => ({
   init: vi.fn(),
   captureRouterTransitionStart: vi.fn(),
@@ -8,14 +16,6 @@ const { init, captureRouterTransitionStart } = vi.hoisted(() => ({
 
 vi.mock("@sentry/nextjs", () => ({ init, captureRouterTransitionStart }));
 
-/**
- * The browser half of the Sentry wiring, which runs at import — so the test is
- * the import, with the environment stubbed first.
- *
- * `@/lib/sentry-config` is deliberately **not** mocked: how a blank variable is
- * read is the thing worth asserting end to end, and it is the difference between
- * production tracing at 10% and tracing everything.
- */
 async function load(): Promise<void> {
   await import("@/instrumentation-client");
 }
@@ -55,15 +55,9 @@ describe("instrumentation-client", () => {
   });
 
   it("does not read the server-only spellings, which are undefined in a browser", async () => {
-    /**
-     * A server-only variable is not inlined into the bundle, so reading one here
-     * would mean the client silently kept the development defaults in
-     * production — the failure docs/setup/021 documents.
-     *
-     * Asserted positively as well as negatively: a test that only says "not
-     * 0.05" passes when `init` is never called at all, which review on #411
-     * caught it doing.
-     */
+    // A server-only variable is not inlined into the bundle, so reading one here
+    // would leave the client on the development defaults in production. Asserted
+    // positively too: "not 0.05" alone passes when `init` is never called.
     vi.stubEnv("SENTRY_TRACES_SAMPLE_RATE", "0.05");
     vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "");
 
@@ -79,12 +73,9 @@ describe("instrumentation-client", () => {
   });
 
   it("passes no `integrations` at all, rather than an empty list", async () => {
-    /**
-     * The distinction the comment in the file is about: `integrations: []`
-     * *replaces* Sentry's defaults rather than removing Replay from them, taking
-     * the global error handlers, breadcrumbs and request context with it. Omitting
-     * the option keeps every default, and Replay is not among them.
-     */
+    // `integrations: []` replaces Sentry's defaults and does not remove Replay from
+    // them, taking the global error handlers, breadcrumbs and request context with
+    // it. Omitting the option keeps every default, and Replay is not among them.
     await load();
 
     const options = init.mock.calls[0]?.[0] as Record<string, unknown> | undefined;

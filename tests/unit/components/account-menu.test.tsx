@@ -2,6 +2,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu } from "@/components/account-menu";
 
+/**
+ * The account menu: what it lists, how it opens and closes, and where focus
+ * goes.
+ *
+ * decisions/024-account-settings.md
+ * decisions/026-favourites.md
+ * decisions/028-admin-tools-and-roles.md
+ */
+
 const onSignOut = vi.fn();
 
 function renderMenu(overrides: { name?: string; image?: string | null; isAdmin?: boolean } = {}) {
@@ -37,8 +46,7 @@ describe("AccountMenu", () => {
 
     fireEvent.click(trigger());
 
-    // Above `Asetukset`, so the reader's own things sit together
-    // (specs/026-favourites.md).
+    // Above `Asetukset`, so the reader's own things sit together.
     expect(screen.getByRole("link", { name: "Suosikit" })).toHaveAttribute("href", "/suosikit");
     expect(screen.getByRole("link", { name: "Asetukset" })).toHaveAttribute("href", "/asetukset");
     expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
@@ -158,15 +166,9 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("link", { name: "Asetukset" })).toBeInTheDocument();
   });
 
-  /**
-   * The rescue runs on a zero-delay timer, so these three flush it
-   * deterministically rather than sleeping.
-   *
-   * A sleep would be a race — and `waitFor` would be worse here than a sleep:
-   * "focus was *not* stolen" is already true before the timer fires, so it
-   * would pass without ever observing the settled state. Running the timer is
-   * the only way to assert on what happens after it.
-   */
+  // The rescue runs on a zero-delay timer, so these three flush it. A sleep would
+  // be a race, and `waitFor` worse: "focus was not stolen" is already true before
+  // the timer fires, so it would pass without observing the settled state.
   function flushFocusRescue() {
     act(() => {
       vi.runAllTimers();

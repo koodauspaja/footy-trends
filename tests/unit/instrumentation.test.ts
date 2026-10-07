@@ -4,26 +4,25 @@ import { Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../support/warm-module";
 
+/**
+ * The server's `register`: it raises the listener limit for HTTP responses, and
+ * for nothing but responses.
+ *
+ * decisions/174-max-listeners-warning.md
+ */
+
 vi.mock("@sentry/nextjs", () => ({ captureRequestError: vi.fn() }));
 vi.mock("../../sentry.server.config", () => ({}));
 vi.mock("../../sentry.edge.config", () => ({}));
 
-/** A real response object, which is what carries the raised limit. */
+// A real response object, which is what carries the raised limit.
 function serverResponse(): ServerResponse {
   return new ServerResponse(new IncomingMessage(new Socket()));
 }
 
-/**
- * `register` raises the listener limit for HTTP responses, because Next and
- * Sentry together attach enough `close` listeners to every one of them to pass
- * Node's default — eleven on Next 16.3.0, which is what #174 silenced. The
- * count is Next's and it moves: 16.3.2 attaches eight, re-measured in #176.
- * The limit is pinned for headroom over a moving number, not to match one.
- *
- * `register` mutates `ServerResponse.prototype`, which is global to the
- * worker. Every test restores it, so a later test in the same worker still
- * sees Node's default and would still fail on a genuine listener leak.
- */
+// `register` raises the listener limit for HTTP responses: Next and Sentry together attach
+// more `close` listeners than Node's default, and the count is Next's and moves. It mutates
+// `ServerResponse.prototype`, global to the worker, so every test restores it.
 warmModules(() => import("@/instrumentation"));
 
 describe("instrumentation", () => {
@@ -32,10 +31,9 @@ describe("instrumentation", () => {
 
   beforeEach(() => {
     original = Object.getOwnPropertyDescriptor(ServerResponse.prototype, "_maxListeners");
-    // Captured before `register` runs. Asserting against the live
-    // `EventEmitter.defaultMaxListeners` would read the same global the
-    // assertion is meant to protect, and would still pass if `register` raised
-    // it globally instead of scoping the change to responses.
+    // Captured before `register` runs. The live `EventEmitter.defaultMaxListeners`
+    // is the global the assertion protects: read after, the assertion would still
+    // pass if `register` raised the limit globally and not for responses only.
     nodeDefault = EventEmitter.defaultMaxListeners;
     vi.resetModules();
     vi.unstubAllEnvs();
@@ -77,10 +75,8 @@ describe("instrumentation", () => {
     expect(new EventEmitter().getMaxListeners()).toBe(nodeDefault);
   });
 
-  /**
-   * Node's limit is per emitter, not per event name. Pinned rather than fixed:
-   * there is no per-event API, and this is the accepted cost of the trade.
-   */
+  // Node's limit is per emitter, not per event name. Pinned, not fixed: there
+  // is no per-event API, and this is the accepted cost of the trade.
   it("raises the limit for every response event, not only close", async () => {
     const limit = await register("nodejs");
     const response = serverResponse();
