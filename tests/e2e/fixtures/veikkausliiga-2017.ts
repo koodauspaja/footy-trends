@@ -1,27 +1,21 @@
 /**
- * A Veikkausliiga season, seeded rather than fetched — from #304.
+ * A Veikkausliiga season, seeded and not fetched: a knockout group without points
+ * is a shape no live season produces. Stored rows of a completed season are never
+ * refetched, so any database renders these. 2017, as nothing else asserts on it.
  *
- * **Why a fixture and not a real season.** These assertions are about *how a
- * group renders*, and that depends on a shape TASO no longer produces. Before
- * #272 the app read `getGroups`, which omitted `points` for a knockout group and
- * returned one row per bracket slot; `keepsATable` saw no points and rendered
- * the group as a match list. `getCategory`, which #272 moved to because TASO had
- * started refusing `getGroups`, sends points for those groups — so every real
- * season now renders them as tables, and the match-list path has no live data
- * left to exercise it.
- *
- * Seeding it keeps that path covered for good, and costs **no provider request
- * at all**: a completed season with stored rows is never refetched, so the page
- * renders from exactly these rows on any database, empty or not.
- *
- * 2017 is chosen because nothing else in the suite asserts on it.
+ * decisions/304-test-database.md
+ * decisions/036-halftime-comebacks.md
  */
 
 export const SEASON = 2017;
 export const CATEGORY_ID = "VL";
 export const COMPETITION_ID = "spljp17";
 
-/** Group ids and the headings they render under. */
+/**
+ * Group ids and the headings they render under.
+ *
+ * decisions/304-test-database.md
+ */
 export const GROUPS = {
   league: { id: 1, name: "Runkosarja" },
   /** A knockout: TASO reports no points for it, so it renders as its matches. */
@@ -30,7 +24,12 @@ export const GROUPS = {
   final: { id: 3, name: "Eurolopputurnausfinaali" },
 } as const;
 
-/** Ids well outside anything TASO uses, so a fixture can never collide with real data. */
+/**
+ * Ids well outside anything TASO uses, so a fixture can never collide with real
+ * data.
+ *
+ * decisions/304-test-database.md
+ */
 const TEAM = {
   hjk: { id: 990_001, name: "Fixture HJK" },
   kups: { id: 990_002, name: "Fixture KuPS" },
@@ -48,7 +47,7 @@ type MatchRow = {
   away: { id: number; name: string };
   home_goals: number;
   away_goals: number;
-  /** `null` for a match TASO gave no half-time score for (specs/036). */
+  /** `null` for a match TASO gave no half-time score for. */
   half_time_home: number | null;
   half_time_away: number | null;
 };
@@ -79,15 +78,12 @@ function match(
 }
 
 /**
- * Six league matches — every pair once — so the table has four teams with
- * genuinely different points, and three knockout matches across two groups.
+ * Six league matches, every pair once, so the table has four teams with different
+ * points, and three knockout matches across two groups. The half-time scores are
+ * chosen for the comebacks panel, and comebacks.spec.ts says what each club shows.
  *
- * **The half-time scores are chosen for the comebacks panel** (specs/036).
- * Fixture HJK, in the league: trailed and won, led, and one match with no
- * half-time score at all — so the page must show the figures *and* say one is
- * missing. Fixture KuPS: led and lost, trailed and won, trailed and drew.
- * The knockout's HJK match is a comeback too, and must not be counted: it is a
- * match list, not a league.
+ * decisions/304-test-database.md
+ * decisions/036-halftime-comebacks.md
  */
 export const MATCHES: MatchRow[] = [
   match(9_900_101, GROUPS.league, 1, TEAM.hjk, TEAM.kups, [2, 0], 1, [0, 1]),
@@ -117,20 +113,12 @@ type TeamRow = {
 };
 
 /**
- * The league group carries points; the knockout groups do not.
+ * The league group carries points; the knockout groups do not. That is the
+ * whole rule `keepsATable` applies: a group whose rows have no points is not a
+ * points competition, so the app shows its matches.
  *
- * That is the whole rule `keepsATable` applies, and the reason it is worth
- * fixing in place: a group whose rows have no points is not a points
- * competition, so the app shows its matches instead of a meaningless table.
- *
- * **No repeated team here, and that is a finding rather than an omission.**
- * specs/010-playoff-group-match-list.md was written against TASO returning one
- * row per bracket slot, so an advancing team repeated and produced duplicate
- * React keys. `taso_group_teams` has a unique index on
- * `(category, competition, season, group, team_provider_id)`, so that state
- * cannot be stored at all — the schema already prevents it, whatever TASO
- * sends. What remains, and what this fixture covers, is the classification
- * rule: a group whose rows carry no points is not a points competition.
+ * decisions/010-playoff-group-match-list.md
+ * decisions/304-test-database.md
  */
 export const TEAM_ROWS: TeamRow[] = [
   { group_id: GROUPS.league.id, team: TEAM.hjk, points: 9, matches_played: 3, current_standing: 1 },

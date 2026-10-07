@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * An English folder path is not a URL (specs/012-finnish-urls-english-code.md):
- * it redirects to the Finnish one. `tests/unit/next-config.test.ts` compares
- * the whole table; this asks a running server for the eight that answered on
- * their own path until #527.
+ * An English folder path is not a URL: it redirects to the Finnish one.
+ * `tests/unit/next-config.test.ts` compares the whole table; this asks a
+ * running server for the eight pages that had the rewrite alone.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/527-one-route-table.md
  */
+
 const REDIRECTS = [
   ["/national-teams/mens-team", "/maajoukkueet/huuhkajat"],
   ["/national-teams/womens-team", "/maajoukkueet/helmarit"],

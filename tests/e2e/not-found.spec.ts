@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * The Finnish not-found page (#533). Next's default, "404 – This page could not
- * be found.", is what an unknown address showed until then.
+ * The Finnish not-found page, in place of Next's default,
+ * "404 – This page could not be found."
+ *
+ * decisions/533-finnish-error-pages.md
+ * decisions/028-admin-tools-and-roles.md
  */
+
 test.describe("Not-found page", () => {
   test("an unknown address answers 404 with a Finnish page inside the site's own frame", async ({
     page,
@@ -29,8 +33,8 @@ test.describe("Not-found page", () => {
   });
 
   test("the admin area shows a stranger the very same page", async ({ page }) => {
-    // `notFound()` on purpose (specs/028): what a signed-out visitor sees at
-    // `/yllapito` must not differ from an address that does not exist.
+    // `notFound()` on purpose: what a signed-out visitor sees at `/yllapito`
+    // must not differ from an address that does not exist.
     await page.goto("/ei-ole-olemassa");
     const unknown = await page.getByRole("main").innerText();
 

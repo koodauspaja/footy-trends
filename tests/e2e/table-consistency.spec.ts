@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Whether sibling tables line up is a browser question, so it is asked as
- * numbers rather than screenshots: the width of every column, per table, on
- * pages that render several of them.
+ * Whether sibling tables line up is a browser question, asked as numbers and
+ * not screenshots: the width of every column, per table, on pages that render
+ * several.
  *
- * Before specs/021, two match lists on one page were 20, 47, 12 and 14 pixels
- * apart column by column, and twelve World Cup group tables spread their name
- * column across 663–669px.
+ * decisions/021-table-consistency.md
  */
+
 type Layout = { headers: string; widths: string };
 
 async function layouts(page: import("@playwright/test").Page): Promise<Layout[]> {
@@ -26,7 +25,8 @@ async function layouts(page: import("@playwright/test").Page): Promise<Layout[]>
   );
 }
 
-/** Groups tables by their headers, so the bracket is never compared to a match list. */
+// Groups tables by their headers, so the bracket is never compared to a match
+// list.
 function byShape(found: Layout[]): Map<string, Set<string>> {
   const shapes = new Map<string, Set<string>>();
   for (const layout of found) {

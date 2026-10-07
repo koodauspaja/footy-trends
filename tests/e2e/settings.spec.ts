@@ -2,13 +2,15 @@ import { expect, type Page, test } from "@playwright/test";
 import { openAccountMenu, signedInAs, waitForSession } from "./session";
 
 /**
- * The account settings page, from specs/024-account-settings.md.
+ * The account settings page. The signed-in cases intercept `/api/auth/get-session`,
+ * which reaches the header and the account menu and not the page body. The round
+ * trip through Google stays a human check on staging.
  *
- * A real Google sign-in still cannot be automated, so the signed-in cases
- * intercept `/api/auth/get-session` — the same technique specs/023 established.
- * That covers what the page renders and how it behaves; it does not cover the
- * round trip through Google, which stays a human check on staging.
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/269-colour-roles.md
  */
+
 test.describe("Settings, signed out", () => {
   test("explains itself instead of redirecting", async ({ page }) => {
     await page.goto("/asetukset");
@@ -27,7 +29,7 @@ test.describe("Settings, signed out", () => {
   });
 
   test("offers no profile picture controls", async ({ page }) => {
-    // specs/025-custom-avatar.md. There is no identity to attach a picture to.
+    // There is no identity to attach a picture to.
     await page.goto("/asetukset");
 
     await expect(page.getByRole("heading", { name: "Profiilikuva" })).toHaveCount(0);
@@ -35,12 +37,9 @@ test.describe("Settings, signed out", () => {
   });
 
   test("will not serve an avatar to nobody", async ({ request }) => {
-    /**
-     * The handler reads the session and nothing else — there is no id in the
-     * URL to guess, so this is the whole of its unauthenticated surface.
-     * Asserted end to end rather than only in a unit test, because the answer
-     * depends on real middleware and real cookies.
-     */
+    // The handler reads the session and nothing else: there is no id in the URL
+    // to guess. Asserted end to end, because the answer depends on real
+    // middleware and real cookies.
     const response = await request.get("/api/avatar/me");
 
     expect(response.status()).toBe(401);
@@ -53,31 +52,13 @@ test.describe("Settings, signed out", () => {
   });
 });
 
-/*
- * **The signed-in page body is not covered here, deliberately.**
- *
- * `/asetukset` reads its session on the *server*, so intercepting the browser's
- * `/api/auth/get-session` — the technique that works for the header — does not
- * reach it: the server sees no cookie and renders the prompt. A test written
- * that way would assert against the signed-out page while claiming to test the
- * signed-in one, which is worse than no test.
- *
- * Forging a signed session cookie is possible but would encode better-auth's
- * cookie-signing internals into the suite. So the form, the device list and the
- * deletion control are covered by
- * `tests/unit/components/settings-page.test.tsx`, and the real thing is a human
- * check on staging — the same gap specs/023 documented.
- *
- * What follows is everything that genuinely can be driven end to end: the
- * signed-out page, the account menu, and the client-side start-page redirect.
- */
+// The signed-in page body is not covered here: `/asetukset` reads its session on the server,
+// beyond the browser-side interception, so `tests/unit/components/settings-page.test.tsx`
+// covers it. What follows is what can be driven end to end.
 
-/**
- * Reads the contrast of an element against what is actually painted behind it,
- * walking up for the first non-transparent background — the panel, not the
- * page. jsdom has no layout or computed colours, so this can only be measured
- * in a real browser.
- */
+// The contrast of an element against what is painted behind it, walking up for
+// the first non-transparent background: the panel, not the page. Only a real
+// browser has layout and computed colours.
 async function contrastOf(page: Page, name: string): Promise<number> {
   return page.getByRole("link", { name }).evaluate((element) => {
     const toRgb = (css: string) => {
@@ -119,8 +100,8 @@ for (const scheme of ["light", "dark"] as const) {
     test.use({ colorScheme: scheme });
 
     test("renders its items legibly against the panel behind them", async ({ page }) => {
-      // #273: the panel hardcoded `bg-white` while the text followed the theme,
-      // which put these at 1.17:1 in dark mode — present, but invisible.
+      // The panel's surface must follow the theme as its text does: a pinned
+      // white behind themed text is present, but invisible, in dark mode.
       await signedInAs(page, "Matti Meikäläinen");
       await page.goto("/ulkomaat");
       await openAccountMenu(page);
@@ -131,12 +112,9 @@ for (const scheme of ["light", "dark"] as const) {
 }
 
 test.describe("The account menu", () => {
-  /**
-   * Outside-click dismissal is only ever driven with a synthesised
-   * `pointerdown` in jsdom. A real browser fires pointerdown, then mousedown,
-   * then a focus change, then click — and the focus rescue runs on a timer in
-   * the middle of that sequence. This is the only place that ordering is real.
-   */
+  // jsdom only ever drives outside-click dismissal with a synthesised `pointerdown`. A
+  // real browser fires pointerdown, mousedown, a focus change, then click, and the
+  // focus rescue runs on a timer in the middle: only here is it real.
   test("closes when the reader clicks the page behind it", async ({ page }) => {
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto("/ulkomaat");

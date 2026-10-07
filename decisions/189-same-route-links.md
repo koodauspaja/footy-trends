@@ -50,3 +50,11 @@ been seen failing, and both have the same shape.
 - `tests/e2e/prediction-quality.spec.ts`, "the switches keep each other's
   choice", and `tests/e2e/matches.spec.ts`, the round step: both fail against a
   production build (`E2E_TARGET=build`) without the component.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/matches.spec.ts` at `0fe724f` by #531.
+
+- **Why the round step asserts that a link exists.** With neither link
+  present the test clicked nothing and failed on the unchanged heading, and
+  that ambiguity cost real time while this bug was being diagnosed.

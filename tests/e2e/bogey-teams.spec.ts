@@ -2,12 +2,11 @@ import { expect, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Vaikeimmat vastustajat`, end to end (specs/045). Signed in the way
- * league-position.spec.ts explains.
+ * `Vaikeimmat vastustajat`, end to end. Signed in the way league-position.spec.ts
+ * explains. What real data can prove: a row's record is the head-to-head page's
+ * record for the same pair, so following the link never shows different numbers.
  *
- * The property worth proving against real data is S4: a row's record is the
- * head-to-head page's record for the same pair, so following the link never
- * shows different numbers.
+ * decisions/045-bogey-teams.md
  */
 
 // FC Inter, a Veikkausliiga club with years of stored seasons behind it.
@@ -53,10 +52,9 @@ test.describe("Bogey teams, signed in", () => {
   });
 
   test("shows the same opponents whichever season the page shows", async ({ page }) => {
-    // Opening a season stores it, and the panel reads every stored season —
-    // so on a fresh database the first read can see fewer meetings than a
-    // read made after 2022 was opened (#485). Both seasons are stored first,
-    // then compared: the panel's rule is "the same for the same data".
+    // Opening a season stores it, and the panel reads every stored season, so
+    // on a fresh database the first read can see fewer meetings than a later
+    // one. Both seasons are stored first, then compared.
     const rows = async (url: string) => {
       await page.goto(url);
       const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });

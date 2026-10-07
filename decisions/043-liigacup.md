@@ -142,3 +142,13 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
   standings table to lead with, so burying the bracket under as many as ten
   round lists, one of them 248 teams wide, would hide the most useful part
   of the page. Each drawn round still keeps its own list below.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/cup-domestic.spec.ts` at `0fe724f` by #531.
+
+- **The 2026 playoff in `cup-domestic.spec.ts`.** KTP and KäPa won the
+  semi-finals and met in the final.
+- **The group-table test asserts tables.** It checked only headings before,
+  and so passed through the whole time #272 had turned the group tables into
+  lists.

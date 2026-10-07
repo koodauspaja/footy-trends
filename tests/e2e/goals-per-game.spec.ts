@@ -2,12 +2,11 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Maaleja ottelua kohden` on a competition's standings page (specs/048), end
- * to end. Signed in the way league-position.spec.ts explains.
+ * `Maaleja ottelua kohden` on a competition's standings page, end to end.
+ * Signed in the way league-position.spec.ts explains. The stored seasons are
+ * not fixed, so no value is named: only rules that hold whatever the data.
  *
- * The seasons stored locally are not fixed, so nothing here names a value: the
- * rules asserted are the ones that hold whatever the data — a point per season
- * described, one ring, the same line under every season.
+ * decisions/048-league-goals-per-game-trend.md
  */
 
 const PL = "/ulkomaat/sarjataulukko?kilpailu=PL";
@@ -22,7 +21,7 @@ function panel(page: Page) {
   return page.getByRole("region", { name: HEADING });
 }
 
-/** Each drawn point's `cx`, in order, and the one ringed. */
+// Each drawn point's `cx`, in order, and the one ringed.
 async function drawn(page: Page) {
   const points = panel(page).locator("[data-part=points] circle:not([data-marked])");
   const ring = panel(page).locator("[data-marked]");

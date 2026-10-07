@@ -5,12 +5,11 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 import { COMPETITIONS } from "../../src/lib/goals-per-game";
 
 /**
- * `Kotietu ja tasapelit` on a competition's standings page (specs/049), end to
- * end. Signed in the way league-position.spec.ts explains.
+ * `Kotietu ja tasapelit` on a competition's standings page, end to end. Signed in
+ * the way league-position.spec.ts explains. Which competitions have completed
+ * seasons here is not fixed, so no value is named: only rules that hold.
  *
- * Which competitions have completed seasons stored here is not fixed, so
- * nothing names a value: the rules asserted hold whatever the data — both
- * providers in one table, this page's row marked, the order by `Kotietu`.
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 
 const HEADING = "Kotietu ja tasapelit";
@@ -25,7 +24,7 @@ function panel(page: Page) {
   return page.getByRole("region", { name: HEADING });
 }
 
-/** `+16`, `0` or `−3` as a number. */
+// `+16`, `0` or `−3` as a number.
 function points(text: string): number {
   return Number(text.replace("−", "-"));
 }
@@ -52,7 +51,7 @@ test.describe("Home advantage, signed in", () => {
       expect(names.some((row) => TASO_NAMES.has(row))).toBe(true);
       await expect(rows.and(page.locator("[aria-current=true]"))).toHaveCount(1);
       await expect(panel(page).locator("tr[aria-current=true] th")).toHaveText(name);
-      // Strongest first (S11).
+      // Strongest first.
       const values = advantages.map(points);
       expect(values).toEqual(values.toSorted((left, right) => right - left));
       await expect(

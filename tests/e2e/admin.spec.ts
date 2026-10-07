@@ -1,26 +1,21 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * `/yllapito` from the outside, from specs/028-admin-tools-and-roles.md.
+ * The admin area from the outside: signed out, `/yllapito` answers with the generic
+ * not-found page, whose body names nothing. The suite forges no session, so what is
+ * behind the gate is covered by the unit and integration tests.
  *
- * **One test, deliberately.** The suite cannot forge a session — the same
- * limitation `favourite-actions.ts` notes — so everything behind the gate is
- * covered by unit and integration tests instead. Asserting that a page a
- * signed-out visitor cannot reach does not contain some string would prove
- * nothing, which is the first defect class in `skills/self-review.md`.
- *
- * What this *can* prove is the thing that matters to a stranger: the body of
- * the refusal names nothing. It is not a 403 and it is not the admin page; it
- * is the same generic not-found page any missing URL renders.
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/029-forced-season-refresh.md
  */
+
 test.describe("the admin area", () => {
   test("gives a signed-out visitor the not-found page, naming nothing", async ({ page }) => {
     await page.goto("/yllapito");
 
-    // The **body** is what has to give nothing away. The status is 200 rather
-    // than 404 — Next commits it before `notFound()` is caught whenever the
-    // response streams — so the route is identifiable as real, which the spec
-    // accepts and explains rather than working around.
+    // The body is what has to give nothing away. The status is 200, not 404:
+    // Next commits it before `notFound()` is caught whenever the response
+    // streams.
     const body = await page.content();
     expect(body).not.toContain("Ylläpito");
     expect(body).not.toContain("Käyttäjät");
@@ -37,14 +32,8 @@ test.describe("the admin area", () => {
   });
 });
 
-/**
- * `/yllapito/data` from the outside, from specs/029-forced-season-refresh.md.
- *
- * Same limitation and same reasoning as above: the suite cannot forge a
- * session, so everything behind the gate is covered by unit and integration
- * tests. Driving the signed-in path here would also call both providers for
- * real from a test run.
- */
+// `/yllapito/data`, from the outside only, for the same reason. Driving the
+// signed-in path would also call both providers for real from a test run.
 test.describe("the forced season refresh", () => {
   test("gives a signed-out visitor the not-found page, naming nothing", async ({ page }) => {
     await page.goto("/yllapito/data");

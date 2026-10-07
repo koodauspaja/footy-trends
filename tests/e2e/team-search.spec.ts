@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Team search, from specs/027-team-search.md.
+ * Team search, signed out throughout: the search is offered only to a signed-in
+ * reader, and the suite forges no session. What is checked is that the field is
+ * absent, not merely disabled or refusing on submit.
  *
- * **Signed out throughout, and that is the whole feature this suite can reach.**
- * The search is offered only to a signed-in reader, and the suite cannot forge
- * a session — the same limit `favourite-actions.ts` records. So what is checked
- * here is the half that matters for everyone else: the field is *absent*, not
- * merely disabled or refusing on submit, which is what #247 asks for.
+ * decisions/027-team-search.md
  */
+
 test.describe("Team search", () => {
   test("is not offered to a signed-out reader anywhere", async ({ page }) => {
     for (const path of ["/", "/kotimaa/sarjataulukko", "/ulkomaat/sarjataulukko"]) {
@@ -31,19 +30,9 @@ test.describe("Team search", () => {
   });
 
   test("the front page still serves its content without JavaScript", async ({ browser }) => {
-    /**
-     * The previous version of this test asserted only that the served HTML did
-     * **not** contain `Hae joukkuetta` — which `TeamSearch` guarantees by
-     * returning null before hydration. It passed with the component deleted, and
-     * with the page turned dynamic. It proved nothing, which is the largest
-     * class in `skills/self-review.md`, and review caught it.
-     *
-     * This asserts the thing that can actually break: with JavaScript disabled,
-     * the page still arrives complete. A component that read the session on the
-     * server would not fail *this* — but `tests/unit/app/rendering-mode.test.ts`
-     * and the build's route table do distinguish that, and they are where that
-     * guard belongs.
-     */
+    // With JavaScript disabled the page still arrives complete. That the HTML lacks
+    // `Hae joukkuetta` would prove nothing: `TeamSearch` returns null before hydration.
+    // Whether the page stayed static is `tests/unit/app/rendering-mode.test.ts`'s to guard.
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
     await page.goto("/");

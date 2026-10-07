@@ -1,20 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * `SiteHeader` is a client component that decides its crumb from
- * `usePathname()`, and every public URL here is a rewrite — `/ulkomaat/ottelut`
- * is served from `/foreign/matches`. If the server rendered the header from the
- * internal destination while the browser resolved the public path, the crumb
- * would be missing from the server HTML and appear only after hydration, with a
- * mismatch in between.
+ * Every public URL here is a rewrite, and `SiteHeader` decides its crumb from
+ * `usePathname()`: the crumb must be in the server HTML, with no hydration
+ * mismatch. A test that only waits for the element cannot see one.
  *
- * It does not: `usePathname()` reports the public path on both sides. These
- * specs hold that, because it is the kind of thing a Next upgrade could change
- * quietly, and a hydration mismatch is invisible to a test that merely waits
- * for the element to appear.
- *
- * Raised in review on #207.
+ * decisions/207-region-breadcrumb.md
  */
+
 const hardLoads = [
   "/ulkomaat/ottelut",
   "/kotimaa/sarjataulukko",
