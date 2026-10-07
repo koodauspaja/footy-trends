@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { goalsPerGameSeries, halfStepAxis, hasGoalsPerGame } from "@/lib/goals-per-game";
 
+/**
+ * Goals per game across a competition's seasons: which competitions have it,
+ * the axis and the series.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
+
 describe("hasGoalsPerGame (S5)", () => {
   it.each([
     ["football-data", "PL"],

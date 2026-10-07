@@ -492,3 +492,32 @@ citation counts when a comment writes "spec 011" as well as `specs/011`.
 One record is left off by hand: `next-version.test.ts` named #309 only as
 an example of a squash subject's shape, and 309 says nothing about release
 versioning.
+
+## The seventeenth batch, 2026-10-08: the first forty of the library's unit tests
+
+Forty of the 93 test files under `tests/unit/lib`: the fourteen with the most
+comment to cut, and the 26 that needed only a header. 77 790 characters
+of comment became 73 882. `taso-standings-service.test.ts` alone had 48
+comments over the rule.
+
+Most of what was cut is a citation: these tests named the spec section each
+assertion came from, and the header's record list carries that now. Where a
+comment told a story, the record's own text was read against it, and an
+entry holds only what the record lacked. One change had no record and has
+one now: #316, why `current-user.test.ts` sets its own timeout, with the
+measurements. Five existing records took entries, each from the file it was
+cut from: 028, 284 (two), 299, 363 (two) and 530 (three). Stories were cut
+without an entry where their record tells them already: 013, 025, 026, 027,
+029, 030, 038, 043, 200, 272, 281, 284, 304 and 363. One citation was cut
+with nothing moved, as the thirteenth batch did where a comment said only
+the issue's own title: #529 in `provider-request.test.ts`.
+
+`logger.test.ts` carried a record path in a line comment inside a test. The
+path is in the file's header, and the comment keeps its reason.
+
+Before opening, the checks that the reviews of the last four batches each
+asked for were put into one script and run: a record not cited by the file
+its entry was cut from, a cited record that does not exist, a code span or
+quoted string split across lines, a line over 100 columns, a second doc
+comment at the top level, a record path outside the header, a citation, and
+the phrases history is told in.

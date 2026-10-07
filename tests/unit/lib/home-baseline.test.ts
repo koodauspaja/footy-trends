@@ -3,6 +3,13 @@ import { baselineCompetition, HOME_BASELINE_MODEL, homeBaseline } from "@/lib/ho
 import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-service";
 import type { SeasonOutcomes } from "@/lib/outcome-shares";
 
+/**
+ * The home-win baseline: its model name, which competitions have one, and the
+ * prediction.
+ *
+ * decisions/051-home-win-baseline.md
+ */
+
 function season(overrides: Partial<SeasonOutcomes> = {}): SeasonOutcomes {
   return {
     kind: "taso",

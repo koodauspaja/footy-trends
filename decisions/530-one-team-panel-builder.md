@@ -64,3 +64,20 @@ Cut from `src/app/domestic/team/[id]/page.tsx` at `ef99862` by #531.
   that is a plain year, the renamed-competition notice, the `Sarja` column,
   and loaders that take a category and a competition id where football-data
   takes a competition code.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/taso-standings-service.test.ts` at `ec04260` by #531.
+
+- **The panels' tests stayed where they were.** The file keeps the tests of
+  the deleted wrappers, asked through the shared builders.
+
+Cut from `tests/unit/lib/standings-service.test.ts` at `ec04260` by #531.
+
+- **The same on the football-data side.** Its tests of the deleted wrappers
+  are kept too, asked through the shared builders.
+
+Cut from `tests/unit/lib/national-team-analytics.test.ts` at `ec04260` by #531.
+
+- **A row no panel can read.** Before the shared builder the throw escaped
+  and took the whole national-team page with it.

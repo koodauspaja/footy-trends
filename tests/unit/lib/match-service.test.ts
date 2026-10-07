@@ -4,11 +4,19 @@ import type { MatchSource } from "@/lib/match-source";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The queries themselves are exercised against a real Postgres in
- * `tests/integration/match.test.ts` — that is where the SQL is proved. These
- * cover the decisions made *around* the queries in TypeScript: the scope
- * predicate applied to a returned row, the placeholder short-circuit, and the
- * two failure paths, which no integration test can trigger on demand.
+ * The decisions made around the match queries in TypeScript: the scope predicate applied to a
+ * returned row, the placeholder short-circuit, and the two failure paths, which no integration
+ * test can trigger on demand. The SQL is proved in `tests/integration/match.test.ts`.
+ *
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
  */
 
 const selectMock = vi.fn();
@@ -21,14 +29,12 @@ vi.mock("@/db", () => ({
         where: (...args: unknown[]) => {
           const builder = {
             limit: () => selectMock(...args),
-            /** Goals per game (specs/048) is one aggregate, ending at `.groupBy(...)`. */
+            // Goals per game is one aggregate, ending at `.groupBy(...)`.
             groupBy: () => Promise.resolve().then(() => selectMock(...args)),
-            /**
-             * Every head-to-head read — the full history, and the match page's
-             * five taken from it (specs/042) — ends at `.orderBy(...)`.
-             */
+            // Every head-to-head read, the full history and the match page's
+            // five taken from it, ends at `.orderBy(...)`.
             orderBy: () => ({
-              /** A team's latest five (specs/047) end at `.orderBy(...).limit(...)`. */
+              // A team's latest five end at `.orderBy(...).limit(...)`.
               limit: () => Promise.resolve().then(() => selectMock(...args)),
               // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
               then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -36,7 +42,8 @@ vi.mock("@/db", () => ({
                   .then(() => selectMock(...args))
                   .then(resolve, reject),
             }),
-            /** The competition averages (specs/044) are awaited straight after `.where(...)`. */
+            // The competition averages are awaited straight after
+            // `.where(...)`.
             // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
             then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
               Promise.resolve()
@@ -144,7 +151,7 @@ describe("getMatchPageData", () => {
 
   it("lists five meetings before kickoff and counts the whole history they came from", async () => {
     // One read serves both: the link's count is the length of the history the
-    // full page lists (specs/042, S10), and the five are taken from it.
+    // full page lists, and the five are taken from it.
     const at = (month: number) => new Date(Date.UTC(2026, month, 1, 15));
     const later = tasoRow({ providerMatchId: 4000009, kickoffAt: at(9) });
     const itself = tasoRow();
@@ -278,10 +285,8 @@ describe("getMatchPageData", () => {
   });
 });
 
-/**
- * The full history behind specs/042. Its SQL is proved in
- * `tests/integration/match.test.ts`; these are the decisions made around it.
- */
+// The full history. Its SQL is proved in `tests/integration/match.test.ts`;
+// these are the decisions made around it.
 describe("getHeadToHeadHistory", () => {
   it("has no history for a team against itself, and asks nothing", async () => {
     const { getHeadToHeadHistory } = await import("@/lib/match-service");
@@ -404,7 +409,7 @@ describe("getWorstOpponents (specs/045)", () => {
   const CLUB = 60901;
   const KUPS = 60969;
 
-  /** Three meetings with one opponent, the club losing each: enough to count (S2). */
+  // Three meetings with one opponent, the club losing each: enough to count.
   function lostThree() {
     return [1, 2, 3].map((n) =>
       tasoRow({
@@ -488,7 +493,8 @@ describe("getTeamForm (specs/047)", () => {
 
   const TEAM = 60901;
 
-  /** Five results for TEAM, newest first as the read returns them: W D L W W, oldest first. */
+  // Five results for TEAM, newest first as the read returns them: W D L W W,
+  // oldest first.
   function five() {
     const scores: Array<[number, number]> = [
       [2, 0],

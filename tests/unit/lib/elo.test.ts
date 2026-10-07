@@ -13,6 +13,14 @@ import {
   threeWay,
 } from "@/lib/elo";
 
+/**
+ * The Elo arithmetic: the constants, the expected score, the three-way
+ * probabilities, a team's rating, the replay over a history, and the
+ * prediction.
+ *
+ * decisions/053-elo-ratings.md
+ */
+
 let nextId = 1;
 function played(
   day: number,

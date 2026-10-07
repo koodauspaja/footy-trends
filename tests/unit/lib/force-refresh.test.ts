@@ -2,19 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The forced refresh engine, from specs/029-forced-season-refresh.md.
+ * The forced refresh engine. Two assertions carry its safety rule: a preview calls no writer, and
+ * an empty provider answer for a season we hold rows for calls none either. No real database: the
+ * writers are mocked and their call counts asserted, so "wrote nothing" is checked.
  *
- * Two assertions here carry the feature's safety rule and everything else is
- * detail around them:
- *
- * 1. **A preview calls no writer**, whatever the provider answered.
- * 2. **An empty provider answer, for a season we hold rows for, calls no
- *    writer either** — a provider going silent must never cost us data.
- *
- * No real database: the CI unit job has no service containers, deliberately.
- * The writers are mocked and their call counts asserted, so "wrote nothing"
- * is checked rather than inferred from a return value.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { state, logger } = vi.hoisted(() => ({
   state: {
     storedMatches: [] as Record<string, unknown>[],
@@ -58,7 +52,7 @@ const synchronizeGroupTeams = vi.fn(async () => undefined);
 const synchronizeForeignMatches = vi.fn(async () => undefined);
 const recordSuccess = vi.fn(async () => undefined);
 const recordFailure = vi.fn(async () => undefined);
-/** The probing resolver. Nothing in this engine may call it — it writes. */
+// The probing resolver. Nothing in this engine may call it: it writes.
 const resolveTasoSeasonContext = vi.fn(async () => ({
   currentSeason: 2026,
   defaultSeason: 2026,
@@ -120,7 +114,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   };
 });
 
-/** Drizzle stores a table's SQL name under this symbol. */
+// Drizzle stores a table's SQL name under this symbol.
 const DRIZZLE_NAME = Symbol.for("drizzle:Name");
 
 function tableName(table: unknown): string {
@@ -295,10 +289,9 @@ describe("previewRefresh", () => {
   });
 
   it("refuses when TASO returns matches but no group standings", async () => {
-    // The hole review found. An `&&` across both tables walks straight past
-    // this, and `synchronizeGroupTeams` deletes before it inserts — so a
-    // completed season's standings would be destroyed by a run that reported
-    // success.
+    // An `&&` across both tables walks straight past this, and
+    // `synchronizeGroupTeams` deletes before it inserts: a completed season's
+    // standings would be destroyed by a run that reported success.
     state.storedGroupTeams = [groupTeam()];
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [];
@@ -323,10 +316,9 @@ describe("previewRefresh", () => {
   });
 
   it("counts a knockout group's repeated team once, as the writer will store it", async () => {
-    // A knockout group returns one row per bracket slot, so a team that
-    // advances appears several times. `synchronizeGroupTeams` keeps the first
-    // and drops the rest, so counting the raw rows would promise an admin more
-    // inserts than the apply performs — and write that promise to the log.
+    // A knockout group returns one row per bracket slot, so a team that advances appears
+    // several times. `synchronizeGroupTeams` keeps the first, so counting the raw rows would
+    // promise an admin more inserts than the apply performs, and write that to the log.
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam(), groupTeam(), groupTeam({ teamProviderId: 20 })];
 
@@ -488,10 +480,9 @@ describe("applyRefresh", () => {
   });
 
   it("deletes only when the preview listed a removal", async () => {
-    // *Which* rows go is proven against a real Postgres in
-    // `tests/integration/refresh.test.ts` — a mocked `where` cannot show that a
-    // delete was scoped to two ids rather than to the whole season, and that is
-    // the part worth proving.
+    // Which rows go is proven against a real Postgres in
+    // `tests/integration/refresh.test.ts`: a mocked `where` cannot show that a
+    // delete was scoped to two ids and not to the whole season.
     state.storedMatches = [match(1)];
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam()];
@@ -543,10 +534,9 @@ describe("applyRefresh", () => {
   });
 
   it("refuses when the stored rows moved, even though the provider's answer did not", async () => {
-    // The approval is over *both* sides. Hashing only the provider would let
-    // another admin's apply — or the ordinary sync on a current season — change
-    // what we hold, and this apply would still accept an approval built against
-    // rows that are gone, removing matches by name that nobody saw listed.
+    // The approval is over both sides. Hashing only the provider would let another
+    // apply, or the ordinary sync on a current season, change what we hold, and
+    // this apply would still accept an approval built against rows that are gone.
     state.storedMatches = [match(1), match(7)];
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam()];
@@ -586,11 +576,9 @@ describe("applyRefresh", () => {
   });
 
   it("writes nothing when the provider turns out to be silent on rows that appeared", async () => {
-    // The snapshot is fetched once and reused by the write, so the provider
-    // cannot change underneath it — but the *stored* side can. Group rows
-    // appearing between the preview and the write turn an answer that was
-    // merely empty into one that is silent about rows we now hold, and the
-    // silence rule is absolute: nothing is written.
+    // The snapshot is fetched once and reused by the write, so the provider cannot change
+    // underneath it, but the stored side can. Group rows appearing between preview and
+    // write make an empty answer silent about rows we now hold, and silence writes nothing.
     state.storedMatches = [match(1)];
     state.providerMatches = [match(1, { status: "POSTPONED" })];
     state.storedGroupTeams = [];
@@ -610,10 +598,9 @@ describe("applyRefresh", () => {
   });
 
   it("writes nothing when the stored rows move after the approval is checked", async () => {
-    // The check before the transaction reads rows outside it, so on its own it
-    // is a time-of-check/time-of-use gap: another apply — or the ordinary sync
-    // on a current season — could commit in between, and this apply would
-    // overwrite them with an approval that no longer describes anything.
+    // The check before the transaction reads rows outside it, so on its own it is a
+    // time-of-check/time-of-use gap: another apply could commit in between, and this
+    // one would overwrite it with an approval that no longer describes anything.
     state.storedMatches = [match(1), match(7)];
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam()];
@@ -659,10 +646,9 @@ describe("applyRefresh", () => {
 
 describe("listSeasonsFor", () => {
   it("never calls the resolver that probes by synchronizing", async () => {
-    // `resolveTasoSeasonContext` decides its default season by *syncing* the
+    // `resolveTasoSeasonContext` decides its default season by syncing the
     // current one, which writes. Reaching for it here would mean a preview
-    // mutated current-season rows before an admin approved anything — the one
-    // thing this engine promises not to do.
+    // mutated current-season rows before an admin approved anything.
     const { listSeasonsFor, previewRefresh } = await import("@/lib/force-refresh");
 
     await listSeasonsFor(VEIKKAUSLIIGA);
@@ -672,10 +658,9 @@ describe("listSeasonsFor", () => {
   });
 
   it("offers only the seasons the app already holds rows for", async () => {
-    // The provider's range is the wrong list on its own: it includes seasons
-    // never stored here, and offering one would let the tool *import* a season.
-    // New seasons arrive through the ordinary sync, and there is nothing to
-    // correct in a season we hold nothing for.
+    // The provider's range is the wrong list on its own: it includes seasons never stored
+    // here, and offering one would let the tool import a season. New seasons arrive through
+    // the ordinary sync, and there is nothing to correct in a season we hold nothing for.
     state.storedSeasons = [2026, 2016];
     const { listSeasonsFor } = await import("@/lib/force-refresh");
 
@@ -869,13 +854,9 @@ describe("the foreign provider", () => {
 
 describe("a database that will not answer", () => {
   it("refuses rather than throwing out of the engine", async () => {
-    // The caller is a server action answering a client component, so a throw
-    // reaches the admin as a generic browser error with nothing to act on. It
-    // is its own reason, not `"provider"`: the provider answered fine.
-    //
-    // The season list read succeeds here and the season's own rows fail, which
-    // is the path through `computeDiff` — a different one from the season-list
-    // failure above, and reachable on its own.
+    // The caller is a server action answering a client component, so a throw reaches the admin as a
+    // generic browser error. Its own reason, not `"provider"`. Here the season list read succeeds
+    // and the season's rows fail: the path through `computeDiff`, reachable on its own.
     state.storedReadThrows = true;
 
     const { previewRefresh } = await import("@/lib/force-refresh");

@@ -2,6 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { integrationDatabaseRefusal, namesTestDatabase } from "@/lib/test-database-name";
 import guardIntegrationDatabase from "../../support/integration-database-guard";
 
+/**
+ * Which database names count as a test database, and what the integration suite
+ * refuses to run against.
+ *
+ * decisions/479-integration-suite-database-guard.md
+ */
+
 const TEST = "postgresql://postgres:secret@localhost:5432/footy-trends_test";
 const DEV = "postgresql://postgres:secret@localhost:5432/footy-trends";
 

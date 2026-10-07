@@ -10,6 +10,15 @@ import {
   SUPPORTED_COMPETITIONS,
 } from "@/lib/competitions";
 
+/**
+ * The competition registry: what is supported, each competition's format, and
+ * how the `kilpailu` parameter is read.
+ *
+ * decisions/006-other-competitions.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 describe("SUPPORTED_COMPETITIONS", () => {
   it("lists 12 competitions with a code, name, flag, country, format and region", () => {
     expect(SUPPORTED_COMPETITIONS).toHaveLength(12);

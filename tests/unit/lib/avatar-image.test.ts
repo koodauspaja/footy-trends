@@ -6,13 +6,11 @@ import { processAvatar } from "@/lib/avatar-image";
 import { AVATAR_SIZE, MAX_UPLOAD_BYTES } from "@/lib/avatar-limits";
 
 /**
- * The upload pipeline from specs/025-custom-avatar.md, driven with real files
- * through the real encoder.
+ * The upload pipeline, driven with real files through the real encoder. `sharp`
+ * is not mocked: that the output is square, the orientation applied, the EXIF
+ * gone and a corrupt body refused are claims about what the encoder does.
  *
- * `sharp` is deliberately not mocked. Every claim this module makes — the
- * output is square, the orientation is applied, the EXIF is gone, a corrupt
- * body is refused — is a claim about what the encoder does, and a mock would
- * assert only that the code calls the functions the code calls.
+ * decisions/025-custom-avatar.md
  */
 
 const FIXTURES = path.join(process.cwd(), "tests", "fixtures", "avatar");
@@ -21,7 +19,7 @@ function fileFrom(name: string, type = "image/png"): File {
   return new File([new Uint8Array(readFileSync(path.join(FIXTURES, name)))], name, { type });
 }
 
-/** A file of a given size whose bytes are never read, for the cap. */
+// A file of a given size whose bytes are never read, for the cap.
 function sizedFile(bytes: number): File {
   return new File([new Uint8Array(bytes)], "big.png", { type: "image/png" });
 }
@@ -44,7 +42,7 @@ describe("processAvatar", () => {
     expect(metadata.height).toBe(AVATAR_SIZE);
   });
 
-  /** One channel of one pixel, for reading which way a gradient runs. */
+  // One channel of one pixel, for reading which way a gradient runs.
   async function grey(bytes: Buffer, x: number, y: number): Promise<number> {
     const [value] = await sharp(bytes)
       .extract({ left: x, top: y, width: 1, height: 1 })
@@ -54,18 +52,9 @@ describe("processAvatar", () => {
   }
 
   it("applies EXIF orientation, which is visible in the pixels", async () => {
-    /**
-     * The fixture is stored 400×200 with a **horizontal** gradient and
-     * orientation 6 — "rotate to display" — so displayed correctly its gradient
-     * runs top to bottom.
-     *
-     * The assertion is the gradient's *direction*, not a colour at a position.
-     * `position: "attention"` chooses the crop by saliency, so where the square
-     * lands is not fixed; which way the gradient runs inside it is. An earlier
-     * version of this test used a solid-colour fixture and passed with
-     * `.rotate()` deleted, which is worse than having no test: measured with
-     * the encoder, the vertical delta is 107 with the rotation and 1 without.
-     */
+    // 400×200 with a horizontal gradient and orientation 6, so displayed correctly it runs top to
+    // bottom. The direction is asserted because the crop is by saliency, and a gradient because a
+    // solid colour passes with `.rotate()` deleted: the delta is 107 with it, 1 without.
     const source = await sharp(readFileSync(path.join(FIXTURES, "rotated.jpg"))).metadata();
     expect(source.orientation).toBe(6);
 
@@ -113,10 +102,9 @@ describe("processAvatar", () => {
   });
 
   it("produces bytes small enough that the storage arithmetic holds", async () => {
-    // The spec's capacity table is built on ~21 kB an avatar, measured from
-    // incompressible noise. A change that blew past that — a larger size, a
-    // higher quality, a format without compression — would invalidate the
-    // threshold in `avatar.ts` silently.
+    // The capacity table is built on about 21 kB an avatar. A change that blew
+    // past that (a larger size, a higher quality, a format without compression)
+    // would invalidate the threshold in `avatar.ts` silently.
     const result = await processAvatar(fileFrom("landscape.png"));
 
     expect(result.ok).toBe(true);

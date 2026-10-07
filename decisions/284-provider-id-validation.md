@@ -27,3 +27,16 @@ Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
   `Number.isInteger` accepts and no TASO entity has.
 - **The scores in `normalizeTasoMatch`.** They read the same fields the same way,
   so a second copy of the rule only gave them their own `Number` traps.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/taso-standings-service.test.ts` at `ec04260` by #531.
+
+- **Unusable group ids, at the reporting end.** Staying quiet about a group
+  whose id is unusable was all the first fix did.
+
+Cut from `tests/unit/lib/taso.test.ts` at `ec04260` by #531.
+
+- **The same ids, at the storing end.** A group the service says nothing
+  about must not then be stored under that id, which is what happened while
+  only the diagnostic checked.

@@ -48,3 +48,17 @@ Cut from `src/lib/provider-request.ts` at `ef7eb13` by #531.
   spanning the whole call would abort every retry before it completed,
   turning a recoverable rate limit into the "could not be loaded" page the
   retry exists to prevent. So the bound applies to the request.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/taso-standings-service.test.ts` at `ec04260` by #531.
+
+- **The timeout tests pass by construction.** They are kept because "by
+  construction" is an argument, and the acceptance criterion asked for the
+  behaviour to be verified.
+
+Cut from `tests/unit/lib/provider-request.test.ts` at `ec04260` by #531.
+
+- **The per-attempt test in `provider-request.test.ts`.** It first compared
+  the signals, and a mutation that hoisted the budget out of the loop
+  survived it.

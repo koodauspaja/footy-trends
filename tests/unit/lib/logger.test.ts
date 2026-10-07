@@ -4,6 +4,13 @@ import pino from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The logger: its level, its redaction and its transport.
+ *
+ * decisions/278-quiet-test-logs.md
+ * decisions/574-pino-transport-target.md
+ */
+
 vi.mock("pino", () => {
   const pinoMock = vi.fn();
   Object.assign(pinoMock, { transport: vi.fn() });
@@ -116,7 +123,7 @@ describe("logger", () => {
     });
 
     // The path pino is given, not a name it has to find: inside Next's bundle it
-    // cannot. decisions/574-pino-transport-target.md
+    // cannot.
     const [{ target }] = mockedPino.transport.mock.calls[0] as [{ target: string }];
     expect(path.isAbsolute(target)).toBe(true);
     expect(target).toContain(path.join("node_modules", "@axiomhq", "pino"));

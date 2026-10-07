@@ -7,6 +7,14 @@ import {
   resolveEarliestSeason,
 } from "@/lib/seasons";
 
+/**
+ * Seasons: their labels, the earliest one, and which are selectable.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 describe("formatSeasonLabel", () => {
   it("renders the start year and the following year's last two digits", () => {
     expect(formatSeasonLabel(2024)).toBe("2024/25");
