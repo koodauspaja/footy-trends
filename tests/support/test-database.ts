@@ -107,7 +107,8 @@ export async function ensureTestDatabase(): Promise<string> {
   const client = postgres(url, { max: 1 });
   try {
     // Migrating is the other half of the race. A session lock, not a transaction
-    // one, because `migrate` opens its own transactions.
+    // one, because `migrate` opens its own transactions. The second process waits,
+    // then finds the migrations applied and does nothing.
     await client`select pg_advisory_lock(${MIGRATION_LOCK_KEY})`;
     try {
       await migrate(drizzle(client), { migrationsFolder: "./drizzle/migrations" });

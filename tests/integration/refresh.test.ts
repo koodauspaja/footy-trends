@@ -171,8 +171,8 @@ beforeEach(async () => {
   state.groupWriteThrows = false;
   probingResolver.calls = 0;
   await clearFixtures();
-  // Left at the default role: a second admin would change the count
-  // `admin.test.ts`'s last-admin guard asserts on.
+  // Left at the default role: nothing here reads one, and a second admin would
+  // change the count `admin.test.ts`'s last-admin guard asserts on.
   await db.insert(user).values({
     id: ADMIN_ID,
     name: "Refresh Admin",

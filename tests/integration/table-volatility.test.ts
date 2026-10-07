@@ -6,9 +6,9 @@ import { getSeasonMovements } from "@/lib/standings-service";
 import { getTasoSeasonMovements } from "@/lib/taso-standings-service";
 
 /**
- * The season reads behind `Sijoitusten vaihtelu` against a real Postgres: only
- * completed seasons and stored rows, and on TASO only each season's own
- * competition and category. Codes no provider issues: the reads span a history.
+ * The season reads behind `Sijoitusten vaihtelu` against a real Postgres: only completed
+ * seasons and stored rows, and on TASO only each season's own competition and category.
+ * Codes no provider issues, because the reads span a competition's whole history.
  *
  * decisions/050-table-volatility.md
  */
