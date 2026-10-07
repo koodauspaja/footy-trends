@@ -18,11 +18,15 @@ import { expectedHome } from "@/lib/elo";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
 
 /**
- * The predictions log against a real Postgres (specs/052). The hourly run is
- * set in 2099 and the backtest in 1990, so each reads only this suite's rows
- * near its own dates. Every predictions row this suite causes is deleted
- * either side of each test.
+ * The predictions log against a real Postgres. The hourly run is set in 2099
+ * and the backtest in 1990, so each reads only this suite's rows; every
+ * predictions row it causes is deleted either side of each test.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
+
 const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
 const NOW = new Date("2099-06-01T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
@@ -98,12 +102,8 @@ function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v
 }
 
 describe("the hourly run (specs/052)", () => {
-  /**
-   * One finished match in each competition, well before the run and outside
-   * its 24-hour result window, so the baseline has history to predict from
-   * whatever else the database holds. CI's starts empty; a run with no
-   * history rightly writes nothing (specs/051 S9).
-   */
+  // One finished match in each competition, well before the run and outside its
+  // 24-hour result window, so the baseline has history whatever else is stored.
   beforeEach(async () => {
     await db.insert(matches).values(
       footballDataRow({
@@ -246,8 +246,8 @@ describe("the backtest (specs/052, S10, S14)", () => {
       expect.objectContaining({ homeProbability: 0.5, drawProbability: 0.5, awayProbability: 0 }),
     ]);
 
-    // elo-v1 (specs/053): the same two teams every time, so the ratings can be
-    // followed by hand. The draw is the baseline's: none, then a half.
+    // elo-v1: the same two teams every time, so the ratings can be followed by
+    // hand. The draw is the baseline's: none, then a half.
     const first = 20 * (1 - expectedHome(1500, 1500));
     const [home1, away1] = [1500 + first, 1500 - first];
     const second = 20 * (0.5 - expectedHome(home1, away1));

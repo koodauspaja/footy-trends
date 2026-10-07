@@ -13,12 +13,13 @@ import {
 import { getSessionExtrasFor } from "@/lib/preferences";
 
 /**
- * Favourites against a real Postgres, from specs/026-favourites.md.
+ * Favourites against a real Postgres: the unique index makes a repeat a no-op,
+ * the cascade removes both kinds with the user, and the two providers'
+ * identical ids coexist as separate rows.
  *
- * Three things here cannot be tested anywhere else: the unique index really
- * makes a repeat a no-op rather than a second row, the cascade really removes
- * both kinds with the user — specs/024 promises account deletion is complete —
- * and the two providers' identical ids really coexist as separate rows.
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
  */
 
 const USER_ID = "itest-fav-user";
@@ -117,16 +118,8 @@ describe("favourite teams", () => {
   });
 
   it("flips twice when two tabs toggle the same team at once, ending where it started", async () => {
-    /**
-     * What a toggle means, made honest by the row lock. Before it, both
-     * transactions found nothing to delete and both inserted, and the unique
-     * index quietly turned the second into a no-op — so a double press left the
-     * team favourited by accident rather than by design.
-     *
-     * Each caller is still told what its own write did, so no tab shows a state
-     * the database does not have. Two tabs are required: the button is disabled
-     * while its own request is in flight.
-     */
+    // What a toggle means under the row lock: each caller is told what its own
+    // write did. Two tabs, as the button is disabled while its request is in flight.
     const results = await Promise.all([
       toggleFavouriteTeam(USER_ID, "taso", 60731),
       toggleFavouriteTeam(USER_ID, "taso", 60731),
@@ -139,15 +132,9 @@ describe("favourite teams", () => {
   });
 
   it("does not let two concurrent toggles both pass the cap", async () => {
-    /**
-     * The race the row lock exists for, run for real: at forty-nine, two tabs
-     * each count forty-nine and each insert, and the unique index does not
-     * object because they are different teams. Without the lock this ends at
-     * fifty-one; with it, one of the two is refused.
-     *
-     * Both toggles are started before either is awaited — awaiting the first
-     * would serialise them and assert nothing.
-     */
+    // The race the row lock exists for: at forty-nine, two tabs each count
+    // forty-nine and each insert. Started together: awaiting the first would
+    // serialise them and assert nothing.
     await db.insert(favoriteTeam).values(
       Array.from({ length: MAX_FAVOURITES_PER_KIND - 1 }, (_unused, index) => ({
         userId: USER_ID,
@@ -194,7 +181,7 @@ describe("favourite competitions", () => {
 });
 
 describe("resolving a team's name", () => {
-  /** A provider id nothing else in the suite uses, so these rows stand alone. */
+  // A provider id nothing else in the suite uses, so these rows stand alone.
   const RENAMED = 987_654;
   const PROVIDER_MATCH_IDS = [997_001, 997_002];
 
@@ -229,12 +216,8 @@ describe("resolving a team's name", () => {
   });
 
   it("gives the newest name a club played under, not whichever row came back last", async () => {
-    /**
-     * Only a real database can check this: the ordering lives in the SQL, so a
-     * mock returns the rows it was handed whatever the query says. A club that
-     * renamed has matches stored under both names, and resolving names on read
-     * exists precisely so the current one shows.
-     */
+    // Only a real database can check this: the ordering lives in the SQL. A club
+    // that renamed has matches stored under both names.
     await db.insert(matches).values([
       matchRow({ providerMatchId: 997_001, kickoffAt: new Date("2024-08-01T15:00:00Z") }),
       matchRow({
@@ -250,10 +233,10 @@ describe("resolving a team's name", () => {
         teamProviderId: RENAMED,
         name: "New Name FC",
         region: "ulkomaat",
-        // Carried since specs/027, from the same row the name comes from.
+        // From the same row the name comes from.
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
-        // Built centrally since #325, so Finland's national sides can differ.
+        // Built centrally, so Finland's national sides can differ.
         href: `/ulkomaat/joukkue/${RENAMED}`,
       },
     ]);
@@ -281,10 +264,10 @@ describe("resolving a team's name", () => {
         teamProviderId: RENAMED,
         name: "New Name FC",
         region: "ulkomaat",
-        // Carried since specs/027, from the same row the name comes from.
+        // From the same row the name comes from.
         competitionCode: expect.any(String),
         seasonId: expect.any(Number),
-        // Built centrally since #325, so Finland's national sides can differ.
+        // Built centrally, so Finland's national sides can differ.
         href: `/ulkomaat/joukkue/${RENAMED}`,
       },
     ]);
@@ -293,8 +276,8 @@ describe("resolving a team's name", () => {
 
 describe("deleting the account", () => {
   it("takes both kinds of favourite with it", async () => {
-    // specs/024 promises account deletion is complete. An orphaned favourite
-    // would make that false, and the row would outlive the user it names.
+    // Account deletion is complete: an orphaned favourite would outlive the user
+    // it names.
     await toggleFavouriteTeam(USER_ID, "taso", 60731);
     await toggleFavouriteCompetition(USER_ID, "kotimaa", "VL");
 

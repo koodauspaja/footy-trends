@@ -171,3 +171,11 @@ Cut from `scripts/services-run.ts` at `5b180e0` by #531.
   `postgres` database always exists, so a refusal there means the server is
   not up and not that the database has not been created yet: two states with
   very different fixes.
+
+Cut from `tests/support/test-database.ts` at `79f2c6a` by #531.
+
+- **A blank `TEST_DATABASE_URL`.** The rule `grant-admin.ts` applies to its
+  own connection string. Without the trim the preflight fell back to
+  `DATABASE_URL` and reported the database ready, while this passed "   " to
+  `new URL()`, which throws before a single test runs. Review on #402 caught
+  the override and the base separately: one class, two halves.

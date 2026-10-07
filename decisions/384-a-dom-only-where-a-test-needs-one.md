@@ -33,3 +33,45 @@ Cut from `playwright.config.ts` at `5b180e0` by #531.
   reason that had nothing to do with the page: the whole of the e2e
   flakiness seen then. 15 s is derived from the render timeout and not
   chosen for comfort.
+
+Cut from `tests/support/unit-env.ts` at `79f2c6a` by #531.
+
+- **`unit-env.ts`.** `vitest.config.ts` loads `.env` so the integration
+  suite can reach Postgres and Redis, and that file is unavoidably in scope
+  for the unit suite too. A unit test that reads a variable from it passes
+  on a laptop and fails on a runner, where nothing sets it: a `beforeAll`
+  imported `@/lib/auth`, which refuses to construct without
+  `BETTER_AUTH_SECRET`, passed locally and skipped twenty tests in CI.
+  `vi.stubEnv` is explicit and behaves the same in both places. The list is
+  read from `.env.example`, because a copy would drift the moment somebody
+  adds a variable, silently, in the direction that lets a test depend on a
+  laptop again.
+- **`LOG_LEVEL` under `unit-env.ts`.** The config deletes the value `.env`
+  supplies while keeping one the developer exported, so
+  `LOG_LEVEL=debug npm run test:unit` still works. Removing it here would
+  take that away for no gain, since CI sets it no more than it sets the
+  rest.
+
+Cut from `tests/support/warm-module.ts` at `79f2c6a` by #531.
+
+- **`warmModules`.** `vi.resetModules()` clears module instances before
+  every test, but not Vite's transform cache, so the first import of a
+  page's graph costs seconds while every later one costs tens of
+  milliseconds. Left in the test body, that one-off consumed most of a five
+  second budget and timed out at random, on a test that had done nothing
+  slow. A helper and not fifteen hand-written hooks, because both halves are
+  easy to get wrong, and one already was.
+- **The warming hook swallows a failure.** Only the transform is wanted.
+  Without the `catch`, `@/lib/auth` took twenty tests down with it in CI,
+  where no `.env` exists. A hook that silently succeeds is correct; a test
+  that needs the module to load will say so itself.
+- **`WARM_HOOK_TIMEOUT_MS`.** This is the one place in the suite that
+  legitimately spends seconds, as setup. Raising the global `hookTimeout`
+  would hand the same allowance to every other hook, including ones written
+  later for unrelated reasons, which is how a genuine hang stops being
+  visible. Twenty seconds is measured: a reporter on `onHookStart` and
+  `onHookEnd` put the slowest hook at 6.2 s on a developer machine, with
+  every file warming, itself the peak, since the hooks contend with each
+  other; the same hook measured 3.3 s when only fifteen files had one. The
+  10 s default leaves 1.6x over that, which a slower runner can eat; 20 s
+  leaves about 3x. If the numbers drift, measure again.

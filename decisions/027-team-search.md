@@ -198,3 +198,12 @@ Cut from `src/lib/team-search-actions.ts` at `48ebab4` by #531.
   module is imported by name from a client component, and a static import
   of `@/lib/auth` would put better-auth into that bundle's graph, the
   failure that cost 114 CI tests.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/integration/team-search.test.ts` at `79f2c6a` by #531.
+
+- **The fixture ids in `team-search.test.ts`.** The cap test inserts
+  twenty-five rows of its own. Listing ids separately meant a failure before
+  its manual cleanup left them in the shared database, to contaminate every
+  later test and every later run.

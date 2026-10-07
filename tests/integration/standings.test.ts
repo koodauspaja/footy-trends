@@ -6,6 +6,19 @@ import type { NormalizedProviderMatch } from "@/lib/football-data";
 import { redis } from "@/lib/redis";
 import { calculateStandings } from "@/lib/standings";
 
+/**
+ * The football-data sync and the reads over its rows, against a real Postgres.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ */
+
 vi.mock("@/lib/football-data", () => ({
   getSeasonMatches: vi.fn(),
 }));
@@ -13,7 +26,7 @@ vi.mock("@/lib/football-data", () => ({
 const competitionCode = "PL";
 const otherCompetitionCode = "BL1";
 const seasonId = 900901;
-/** Makes `seasonId` a completed past season rather than the one being played. */
+// Makes `seasonId` a completed past season, not the one being played.
 const laterActiveSeasonId = seasonId + 1;
 const cacheKey = `standings:${competitionCode}:${seasonId}`;
 
@@ -45,7 +58,7 @@ function buildMatch(overrides: Partial<NormalizedProviderMatch> = {}): Normalize
   };
 }
 
-/** Narrows to matches with a final score, mirroring standings-service.ts's own filter. */
+// Narrows to matches with a final score, mirroring standings-service.ts's own filter.
 function toPlayedMatches<T extends { homeGoals: number | null; awayGoals: number | null }>(
   rows: T[]
 ): Array<T & { homeGoals: number; awayGoals: number }> {
@@ -55,14 +68,8 @@ function toPlayedMatches<T extends { homeGoals: number | null; awayGoals: number
   );
 }
 
-/**
- * Both fixture seasons, for both fixture competitions.
- *
- * `seasonId - 1` is cleared as well as `seasonId`: the multi-season panels
- * (specs/038, specs/039) store a second season, and leaving it behind let one
- * test's rows reach the next one's baseline. Found when a records test made a
- * comparison test read 1,5 points a match where it expected 0.
- */
+// Both fixture seasons, for both fixture competitions. `seasonId - 1` is
+// cleared too: the multi-season panels store a second season.
 async function clearFixtures() {
   for (const code of [competitionCode, otherCompetitionCode]) {
     for (const season of [seasonId, seasonId - 1]) {
@@ -137,8 +144,8 @@ describe("standings integration", () => {
   });
 
   it("fills in a half-time score a later sync brings, which is what the backfill does", async () => {
-    // Every row stored before specs/036 has `null` here; `--refetch` re-reads
-    // the season so the sync can write what the provider gives now.
+    // Rows stored before the half-time columns have `null` here; `--refetch`
+    // re-reads the season so the sync can write what the provider gives now.
     const { synchronizeMatches } = await import("@/lib/standings-service");
     const providerMatch = buildMatch({ halfTimeHome: null, halfTimeAway: null });
 
@@ -429,10 +436,8 @@ describe("standings integration", () => {
     vi.mocked(getSeasonMatches).mockResolvedValue(upcomingMatches);
 
     const { getRoundMatches, getStandings } = await import("@/lib/standings-service");
-    // The season being requested is newer than the "active" one passed in,
-    // mirroring how a not-yet-started season (widened into the selector by
-    // spec 005) is still just an ordinary season sync from the data layer's
-    // point of view — see specs/005-listing-matches-for-selected-season.md.
+    // The season requested is newer than the "active" one passed in: a
+    // not-yet-started season is an ordinary season sync to the data layer.
     const earlierActiveSeasonId = seasonId - 1;
 
     const result = await getRoundMatches(
