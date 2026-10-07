@@ -65,7 +65,8 @@ test.describe("Tab title follows the selected season", () => {
       await expect(page).toHaveURL(new RegExp(`kausi=${newSeason.split("/")[0]}`));
       await expectTitleToMatchHeading(page);
       await expect(page).not.toHaveTitle(titleBefore);
-      // The season the title names is the one the selector now shows.
+      // The season the title names is the one the selector now shows: a title a
+      // navigation behind is the staleness that was reported.
       expect(await page.title()).toContain(newSeason);
     });
   }

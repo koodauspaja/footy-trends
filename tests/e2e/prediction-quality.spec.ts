@@ -4,9 +4,9 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Two
- * judged predictions are seeded, on a finished match in 2098, a season nothing else
- * stores. Whatever else is stored joins them, so no figure is named, only rules.
+ * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Whether
+ * judged predictions are stored depends on what ran before, so two are seeded, on a
+ * finished match in 2098. Whatever else is stored joins them, so no figure is named.
  *
  * decisions/054-prediction-quality.md
  */

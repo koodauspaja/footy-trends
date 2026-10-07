@@ -15,3 +15,10 @@ Cut from `src/lib/position-series.ts` at `94397a8` by #531.
 - **`PositionPoint.played`.** A round sat out is a bye, a match of the team's
   own still to come, or a round TASO numbered out of calendar order. The
   chart draws it as an open circle.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/league-position.spec.ts` at `0fe724f` by #531.
+
+- **Veikkausliiga 2026 in the open-point test.** KuPS's first two matches
+  after the split are rounds 31 and 24.

@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 /**
  * Team search, signed out throughout: the search is offered only to a signed-in
- * reader, and the suite cannot forge a session. What is checked is that the
- * field is absent, not merely disabled or refusing on submit.
+ * reader, and the suite forges no session. What is checked is that the field is
+ * absent, not merely disabled or refusing on submit.
  *
  * decisions/027-team-search.md
  */
@@ -30,9 +30,9 @@ test.describe("Team search", () => {
   });
 
   test("the front page still serves its content without JavaScript", async ({ browser }) => {
-    // What can break: with JavaScript disabled, the page still arrives complete. A
-    // component reading the session on the server would not fail this;
-    // `tests/unit/app/rendering-mode.test.ts` and the build's route table guard that.
+    // With JavaScript disabled the page still arrives complete. That the HTML lacks
+    // `Hae joukkuetta` would prove nothing: `TeamSearch` returns null before hydration.
+    // Whether the page stayed static is `tests/unit/app/rendering-mode.test.ts`'s to guard.
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
     await page.goto("/");

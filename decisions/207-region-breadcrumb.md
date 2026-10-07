@@ -34,3 +34,8 @@ Cut from `tests/e2e/breadcrumb-hydration.spec.ts` at `0fe724f` by #531.
   and appear only after hydration. It does not: `usePathname()` reports the
   public path on both sides. The spec holds that, because it is the kind of
   thing a Next upgrade could change quietly.
+
+Cut from `tests/e2e/breadcrumb.spec.ts` at `0fe724f` by #531.
+
+- **What the crumb is for.** From a competition page the only way out used
+  to be `Etusivu` and the front page.

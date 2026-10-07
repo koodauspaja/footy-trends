@@ -5,8 +5,8 @@ import { testDatabaseUrl } from "../support/test-database";
 
 /**
  * `Ennuste` on an upcoming match's page, end to end. Signed in the way league-position.spec.ts
- * explains. The upcoming match is seeded, in 2099, a season nothing else stores. Its history is
- * whatever the database holds, so no value is named, only the rules.
+ * explains. Whether a real league has a match to play depends on the time of year, so one is
+ * seeded, in 2099, a season nothing else stores. No value is named.
  *
  * decisions/051-home-win-baseline.md
  * decisions/049-home-advantage-and-draw-rate.md

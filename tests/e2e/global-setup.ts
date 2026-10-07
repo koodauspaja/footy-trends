@@ -22,6 +22,7 @@ const FIXTURE_LOCK_KEY = 3_040_026;
  * `postgres` directly, so the setup pulls in no application module.
  *
  * decisions/304-test-database.md
+ * decisions/036-halftime-comebacks.md
  */
 async function seedFixtureSeason(url: string): Promise<void> {
   const sql = postgres(url);

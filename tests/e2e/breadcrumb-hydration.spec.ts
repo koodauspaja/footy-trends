@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Every public URL is a rewrite, and `SiteHeader` decides its crumb from
+ * Every public URL here is a rewrite, and `SiteHeader` decides its crumb from
  * `usePathname()`: the crumb must be in the server HTML, with no hydration
  * mismatch. A test that only waits for the element cannot see one.
  *

@@ -1,9 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 
 /**
- * A signed-in browser without a real Google sign-in, by intercepting
- * `/api/auth/get-session`. It reaches what the client renders from the session,
- * and not a page that reads the session on the server, which sees no cookie.
+ * A signed-in browser without a real Google sign-in, which Google blocks for an
+ * automated browser: `/api/auth/get-session` is intercepted. That reaches what the
+ * client renders from the session, and not a page that reads it on the server.
  *
  * decisions/023-google-oauth-login.md
  * decisions/024-account-settings.md

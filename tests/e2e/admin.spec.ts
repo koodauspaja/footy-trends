@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 /**
  * The admin area from the outside: signed out, `/yllapito` answers with the generic
- * not-found page, whose body names nothing. The suite cannot forge a session, so
- * what is behind the gate is covered by the unit and integration tests.
+ * not-found page, whose body names nothing. The suite forges no session, so what is
+ * behind the gate is covered by the unit and integration tests.
  *
  * decisions/028-admin-tools-and-roles.md
  * decisions/029-forced-season-refresh.md

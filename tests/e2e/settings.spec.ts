@@ -2,9 +2,9 @@ import { expect, type Page, test } from "@playwright/test";
 import { openAccountMenu, signedInAs, waitForSession } from "./session";
 
 /**
- * The account settings page. The signed-in cases intercept
- * `/api/auth/get-session`, which covers what the page renders and how it
- * behaves; the round trip through Google stays a human check on staging.
+ * The account settings page. The signed-in cases intercept `/api/auth/get-session`,
+ * which reaches the header and the account menu and not the page body. The round
+ * trip through Google stays a human check on staging.
  *
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
@@ -52,9 +52,9 @@ test.describe("Settings, signed out", () => {
   });
 });
 
-// The signed-in page body is not covered here: `/asetukset` reads its session on the
-// server, which the browser-side interception does not reach. What follows is what can
-// be driven: the signed-out page, the account menu, the start-page redirect.
+// The signed-in page body is not covered here: `/asetukset` reads its session on the server,
+// beyond the browser-side interception, so `tests/unit/components/settings-page.test.tsx`
+// covers it. What follows is what can be driven end to end.
 
 // The contrast of an element against what is painted behind it, walking up for
 // the first non-transparent background: the panel, not the page. Only a real

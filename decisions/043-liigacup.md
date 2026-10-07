@@ -147,7 +147,8 @@ Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
 
 Cut from `tests/e2e/cup-domestic.spec.ts` at `0fe724f` by #531.
 
-- **The 2026 playoff in `cup-domestic.spec.ts`.** Checked 2026-09-29: KTP
-  and KäPa won the semi-finals and met in the final, so `1-4` has the shape
-  that is drawn. The test checked only headings before, and so passed through
-  the whole time #272 had turned the group tables into lists.
+- **The 2026 playoff in `cup-domestic.spec.ts`.** KTP and KäPa won the
+  semi-finals and met in the final.
+- **The group-table test asserts tables.** It checked only headings before,
+  and so passed through the whole time #272 had turned the group tables into
+  lists.

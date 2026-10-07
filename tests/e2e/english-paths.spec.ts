@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 /**
  * An English folder path is not a URL: it redirects to the Finnish one.
  * `tests/unit/next-config.test.ts` compares the whole table; this asks a
- * running server for eight of them.
+ * running server for the eight pages that had the rewrite alone.
  *
  * decisions/012-finnish-urls-english-code.md
  * decisions/527-one-route-table.md

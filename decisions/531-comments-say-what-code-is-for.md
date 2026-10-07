@@ -369,10 +369,10 @@ name is a string in the code, and this chore changes comments only.
 
 ## The thirteenth batch, 2026-10-07: the end-to-end tests
 
-51 of the 52 TypeScript files under `tests/e2e`: 48 specs, `session.ts`,
-`global-setup.ts` and the seeded fixture. 56 007 characters of comment became
-44 560. `dark-mode.spec.ts` waits for the next batch, because with it the diff
-passed 150 000 characters.
+49 of the 52 TypeScript files under `tests/e2e`: 46 specs, `session.ts`,
+`global-setup.ts` and the seeded fixture. 51 736 characters of comment became
+41 257. `dark-mode.spec.ts`, `mens-team.spec.ts` and `womens-team.spec.ts`
+wait for the next batch, because with them the diff passed 150 000 characters.
 
 Done the way the twelfth batch settled, with three things specific to these
 files.
@@ -391,13 +391,14 @@ files.
 Three changes had no record and have one now, for the reasons their tests'
 comments carried: #170 (what the tab-title specs pin, and the measurements
 behind it), #178 (why the cup page is measured only after its rounds arrive)
-and #441 (the sizes the axis-text spec expects). Five existing records took an
-entry: 024, 027, 043, 207 and 269. Before each entry the record was searched
-for the story, and thirteen stories were cut without an entry because their
-record tells them already: 020, 021, 023, 026, 028, 030, 036, 133, 189, 304,
-424, 527 and 529.
+and #441 (the sizes the axis-text spec expects). Seven existing records took an
+entry: 024, 027, 043, 189, 207, 269 and 413. Before each entry the record was
+searched for the story, and stories were cut without an entry where one of
+nineteen records tells them already: 020, 021, 023, 024, 026, 028, 030, 041,
+043, 045, 046, 133, 189, 266, 269, 304, 424, 527 and 529.
 
 Four citations were cut with nothing moved, because all they said was the
 issue's own title: #256 in `domestic-team.spec.ts`, #485 in
 `bogey-teams.spec.ts` and `national-team-analytics.spec.ts`, #501 in
-`table-volatility.spec.ts` and #526 in `favourites.spec.ts`. The reason beside each stays in its comment.
+`table-volatility.spec.ts` and #526 in `favourites.spec.ts`. The reason beside
+each stays in its comment.

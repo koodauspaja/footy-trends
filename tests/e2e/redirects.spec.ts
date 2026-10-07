@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Only Finnish URLs exist: the old top-level foreign paths, the English paths and
- * the English App Router folder paths redirect into them. Asserted on a running
- * server, hop count included: a chain that ends in the right place is still a bug.
+ * Only Finnish URLs exist. Redirecting into them: the old top-level foreign paths, the English
+ * paths that answered before the folder rename, and the English App Router folder paths. Asked
+ * of a running server, hops counted: a chain that ends in the right place is still a bug.
  *
  * decisions/012-finnish-urls-english-code.md
  * decisions/019-match-page.md
