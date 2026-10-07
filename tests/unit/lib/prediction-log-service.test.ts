@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HomeBaseline } from "@/lib/home-baseline";
 
 /**
- * The run's decisions around its queries: what it refreshes and through what,
- * that a failure in one competition does not stop the rest, and what it
- * writes. The SQL is proved against Postgres in
- * `tests/integration/predictions.test.ts`.
+ * The run's decisions around its queries: what it refreshes and through what, that
+ * a failure in one competition does not stop the rest, and what it writes. The SQL
+ * is proved against Postgres in `tests/integration/predictions.test.ts`.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -102,11 +104,9 @@ function tasoRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/**
- * The run's reads, in order: the candidates before and after refreshing, then
- * the finished matches its Elo replay reads (none here unless given) —
- * football-data, then TASO, each time.
- */
+// The run's reads, in order: the candidates before and after refreshing, then
+// the finished matches its Elo replay reads (none here unless given) —
+// football-data, then TASO, each time.
 function stored(footballData: unknown[], taso: unknown[], finished: unknown[][] = [[], []]) {
   mocks.select
     .mockResolvedValueOnce(footballData)
@@ -119,7 +119,7 @@ function stored(footballData: unknown[], taso: unknown[], finished: unknown[][] 
 
 const immediate = { "football-data": vi.fn((work) => work()), taso: vi.fn((work) => work()) };
 
-/** The rows written under one model; the baseline's unless another is named. */
+// The rows written under one model; the baseline's unless another is named.
 function written(model = "home-baseline-v1") {
   return mocks.insertValues.mock.calls
     .flatMap(([rows]) => rows as Array<Record<string, unknown>>)

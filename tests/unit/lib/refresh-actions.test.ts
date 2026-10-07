@@ -2,15 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The `"use server"` boundary for the forced refresh, from
- * specs/029-forced-season-refresh.md.
+ * The `"use server"` boundary for the forced refresh. A server action is a public endpoint: neither
+ * the missing link nor the page's not-found keeps a caller out. So `requireAdmin()` runs first in
+ * every one, and a value the browser sent is checked before it reaches the engine.
  *
- * **A server action is a public network endpoint.** Neither the missing link
- * nor the page's not-found response keeps a caller out, so the only thing these
- * tests really have to establish is that `requireAdmin()` runs first in every
- * one of them — before the arguments are even looked at — and that a value the
- * browser sent is checked before it reaches the engine.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { requireAdmin, listSeasonsFor, previewRefresh, applyRefresh, revalidatePath, state } =
   vi.hoisted(() => {
     const state = { adminId: "admin-1" as string | null };
@@ -78,12 +76,8 @@ describe("the gate", () => {
 });
 
 describe("the competition a browser sent", () => {
-  /**
-   * Every action, not just the preview. Each one decodes the value
-   * independently, so testing one leaves the other two unproven — lcov reported
-   * exactly that as two uncovered conditions after the first version of this
-   * file tested only `previewRefreshAction`.
-   */
+  // Every action, not just the preview: each one decodes the value
+  // independently, so testing one leaves the other two unproven.
   const CALLS = ["seasons", "preview", "apply"] as const;
 
   async function callWith(which: (typeof CALLS)[number], competition: string) {

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildCupPhaseStandings, type CupPhaseTable } from "@/lib/cup-standings";
 
+/**
+ * A cup's tables: the league phase and the group stage.
+ *
+ * decisions/014-champions-league.md
+ */
+
 let nextMatchId = 1;
 
 type MatchOptions = {
@@ -31,7 +37,7 @@ function match(options: MatchOptions) {
   };
 }
 
-/** Narrows away the index-access undefined that strict mode adds. */
+// Narrows away the index-access undefined that strict mode adds.
 function tableAt(tables: CupPhaseTable[], index: number): CupPhaseTable {
   const table = tables[index];
   if (table === undefined) throw new Error(`expected a table at index ${index}`);

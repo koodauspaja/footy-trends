@@ -8,6 +8,12 @@ import {
   volatilitySeries,
 } from "@/lib/table-volatility";
 
+/**
+ * Table volatility: how far a league's table moves after mid-season.
+ *
+ * decisions/050-table-volatility.md
+ */
+
 describe("hasTableVolatility (S10)", () => {
   it.each([
     ["football-data", "PL"],
@@ -59,7 +65,7 @@ describe("movementBetween (S6, S12)", () => {
 });
 
 describe("singleTableMovement", () => {
-  /** Four teams, two rounds each way: rounds 1–2 then 3–4. */
+  // Four teams, two rounds each way: rounds 1–2 then 3–4.
   function game(matchday: number | null, home: number, away: number, score: [number, number]) {
     return {
       providerMatchId: (matchday ?? 0) * 100 + home * 10 + away,

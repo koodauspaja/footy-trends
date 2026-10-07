@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { headToHeadRecord } from "@/lib/head-to-head";
 import { calculateStandings, type NormalizedMatch, toFinishedMatches } from "@/lib/standings";
 
+/**
+ * The standings calculation, and how a match settled on penalties is read.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/008-winless-teams-in-standings.md
+ * decisions/495-score-after-extra-time.md
+ */
+
 const match = (overrides: Partial<NormalizedMatch>): NormalizedMatch => ({
   providerMatchId: 1,
   competitionCode: "PL",
@@ -149,7 +157,8 @@ describe("calculateStandings", () => {
       ]
     );
 
-    // Chelsea lost (0 points, -1 goal difference), so it ties on points but not goal difference with the unplayed teams.
+    // Chelsea lost (0 points, -1 goal difference), so it ties on points but not
+    // on goal difference with the unplayed teams.
     expect(standings.map((team) => team.teamName)).toEqual([
       "Arsenal FC",
       "Brighton FC",
@@ -167,10 +176,8 @@ describe("calculateStandings", () => {
 });
 
 describe("toFinishedMatches and a penalty shoot-out (#495)", () => {
-  /**
-   * The Anfield leg as football-data stores it: `fullTime` 1–5, which is 0–1
-   * after extra time and a 1–4 shoot-out.
-   */
+  // The Anfield leg as football-data stores it: `fullTime` 1–5, which is 0–1
+  // after extra time and a 1–4 shoot-out.
   const stored = {
     ...match({ homeTeamProviderId: 64, homeTeamName: "Liverpool FC", awayTeamProviderId: 524 }),
     awayTeamName: "Paris Saint-Germain FC",

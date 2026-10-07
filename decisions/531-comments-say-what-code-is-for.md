@@ -521,3 +521,35 @@ its entry was cut from, a cited record that does not exist, a code span or
 quoted string split across lines, a line over 100 columns, a second doc
 comment at the top level, a record path outside the header, a citation, and
 the phrases history is told in.
+
+## The eighteenth batch, 2026-10-08: the rest of the library's unit tests, and the last
+
+The other 53 test files under `tests/unit/lib`. 52 373 characters of
+comment became 54 158: more, not fewer, because 53 headers were added and
+little here was long. With this batch every file the chore set out to do is
+done: `src/`, `scripts/`, the configuration files and `tests/`.
+
+These were the lighter half. Most of the comments over the rule were a
+helper's one-line doc comment, which is a line comment now with its words
+unchanged, or a header that named its spec. 35 comments inside the files
+and 25 existing headers were rewritten by hand; the rest were converted word
+for word.
+
+Two records took an entry: 029 (why every action's decode is tested) and 309
+(two faults of the first address classification). One record is new: 288,
+the pull request that updated vitest, for why two tests instantiate what
+they assert on. Stories were cut without an entry where their record tells
+them already: 017, 018, 024, 028, 314, 384 and 530. The first version of
+this batch gave 028 an entry that repeated lines 303 to 306 of the record;
+it is removed.
+
+`tests/unit/scripts/recorded-issue-citations.json` is empty. It listed every
+comment line that cited an issue or pull request number, 225 of them when
+this chore began, and `comment-rules.test.ts` fails on a new one.
+
+Two test files keep a column of short trailing comments beside the rows of a
+fixture (`comebacks.test.ts`, `head-to-head.test.ts`). Each labels its own
+row, and they are left as they are.
+
+Citations inside a test's name are still there, by the twelfth batch's
+decision: a name is a string in the code. #584 is the chore for them.

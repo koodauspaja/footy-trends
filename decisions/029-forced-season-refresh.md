@@ -734,3 +734,11 @@ Cut from `tests/unit/components/refresh-form.test.tsx` at `e4b182f` by #531.
   about one run in four. The earlier stale-response test unmounted the
   component and asserted nothing was thrown, which passed with the guard
   removed (verified).
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/refresh-actions.test.ts` at `ec04260` by #531.
+
+- **Every action's decode is tested.** The first version of
+  `refresh-actions.test.ts` tested only `previewRefreshAction`, and lcov
+  reported the other two decodes as two uncovered conditions.

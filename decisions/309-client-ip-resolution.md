@@ -205,3 +205,12 @@ Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
   wrote: better-auth refuses to resolve a client IP from a multi-hop header
   unless `trustedProxies` says which to skip, and resolves a single-value
   header with no proxy list at all.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/forwarding.test.ts` at `ec04260` by #531.
+
+- **Two faults of the first classification.** Colons alone were enough for
+  a hop to be called public. And a valid IPv6 with a dotted tail was
+  rejected as invalid until the address was expanded and not
+  pattern-matched.

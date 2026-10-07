@@ -32,6 +32,18 @@ import {
 } from "@/lib/head-to-head";
 import type { MatchSource } from "@/lib/match-source";
 
+/**
+ * Head-to-head between two teams: the window, its limit and its sentence, the record and
+ * summary, the meetings' links and whether seasons span calendar years, the scoreline grid
+ * and averages by competition, whether a rivalry is current, and the hardest opponents.
+ *
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
+ */
+
 const DOMESTIC: MatchSource = { kind: "taso", bucket: "domestic" };
 const NATIONAL: MatchSource = { kind: "taso", bucket: "national" };
 const FOREIGN: MatchSource = { kind: "football-data", region: "foreign" };
@@ -107,7 +119,7 @@ describe("headToHeadRecord (specs/042, S9)", () => {
   const HJK = 1;
   const KUPS = 2;
 
-  /** A meeting, named from the home side as a row stores it. */
+  // A meeting, named from the home side as a row stores it.
   function meeting(
     year: number,
     home: number,
@@ -124,7 +136,7 @@ describe("headToHeadRecord (specs/042, S9)", () => {
     };
   }
 
-  /** Four meetings: HJK win and draw at home, KuPS win and HJK win at KuPS. */
+  // Four meetings: HJK win and draw at home, KuPS win and HJK win at KuPS.
   const MEETINGS: Meeting[] = [
     meeting(2025, HJK, KUPS, 2, 1),
     meeting(2024, HJK, KUPS, 0, 0),
@@ -287,7 +299,8 @@ describe("scoreGrid (specs/044, #337)", () => {
     };
   }
 
-  /** The count in the cell for the first team's `first` goals against the second's `second`. */
+  // The count in the cell for the first team's `first` goals against the
+  // second's `second`.
   function cell(grid: ScoreGrid, first: number, second: number): number | undefined {
     return grid.rows[first]?.cells[second]?.count;
   }
@@ -563,7 +576,7 @@ describe("worstOpponents (specs/045)", () => {
     6: "Inter",
   };
 
-  /** A meeting on `day` of 2025, named from the home side as a row stores it. */
+  // A meeting on `day` of 2025, named from the home side as a row stores it.
   function game(
     day: number,
     home: number,
@@ -582,7 +595,8 @@ describe("worstOpponents (specs/045)", () => {
     };
   }
 
-  /** `count` meetings against `opponent`, all ending `clubGoals`–`theirGoals` at home. */
+  // `count` meetings against `opponent`, all ending `clubGoals`–`theirGoals` at
+  // home.
   function series(
     opponent: number,
     count: number,

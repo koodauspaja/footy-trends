@@ -3,9 +3,15 @@ import { FORM_WINDOW, formSeries, latestForm, type ResultMatch } from "@/lib/for
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
 /**
- * A finished match on `day` of September. `home` scores `homeGoals`. The day
- * is what orders them — deliberately not the order they are listed in.
+ * The rolling form series, and a team's latest form.
+ *
+ * decisions/031-rolling-form-trend.md
+ * decisions/047-rivalry-page.md
+ * decisions/413-rounds-a-team-sat-out.md
  */
+
+// A finished match on `day` of September. `home` scores `homeGoals`. The day is
+// what orders them — deliberately not the order they are listed in.
 function result(
   day: number,
   home: number,
@@ -29,7 +35,7 @@ function result(
   };
 }
 
-/** Team 1's results, W W D L W L D W: 3 3 1 0 3 0 1 3 points. */
+// Team 1's results, W W D L W L D W: 3 3 1 0 3 0 1 3 points.
 const season = [
   result(1, 1, 2, 2, 0),
   result(2, 3, 1, 0, 1),
@@ -75,7 +81,7 @@ describe("formSeries", () => {
 
   it("orders by kickoff, not by the order given or by round", () => {
     // Listed backwards, with rounds numbered against the calendar, as TASO's
-    // Mestaruussarja is (#413): kickoff alone decides.
+    // Mestaruussarja is: kickoff alone decides.
     const scrambled = season.map((match, index) => ({ ...match, matchday: 40 - index })).reverse();
 
     expect(formOf(formSeries(scrambled, 1))).toEqual(formOf(formSeries(season, 1)));

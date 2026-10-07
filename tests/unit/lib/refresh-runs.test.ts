@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The forced refresh's audit trail, from specs/029-forced-season-refresh.md.
+ * The forced refresh's audit trail. No real database: the CI unit job has no
+ * service containers. The mock records what was inserted, so the counts an
+ * admin approved can be checked for reaching the row unchanged.
  *
- * No real database: the CI unit job has no service containers, deliberately.
- * The mock records what was inserted so the counts an admin approved can be
- * checked for reaching the row unchanged.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { state, logger } = vi.hoisted(() => ({
   state: {
     inserted: [] as Record<string, unknown>[],
