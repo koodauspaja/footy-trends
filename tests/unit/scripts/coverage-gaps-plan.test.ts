@@ -14,11 +14,11 @@ import {
 } from "../../../scripts/coverage-gaps-plan";
 
 /**
- * The guard that stops a source file having no test at all.
+ * The guard that stops a source file having no test at all. `vitest --coverage`
+ * cannot report such a file as 0%: it never sees it, so the summary says 100%
+ * while Sonar scores it 0%.
  *
- * It exists because `vitest --coverage` cannot report such a file as 0% — it
- * never sees it, so the summary says 100% while Sonar scores it 0%. Three
- * pull requests were caught by Sonar that way before this existed.
+ * decisions/385-untested-source-files-fail.md
  */
 
 describe("findCoverageGaps", () => {
@@ -135,13 +135,9 @@ describe("parseSonarProperty", () => {
   });
 });
 
-/**
- * The half of the guard that reads lcov rather than the JSON summary.
- *
- * It exists because vitest's v8 provider and lcov model branches differently:
- * the text summary can say `Branches: 100%` while lcov — which is what Sonar
- * consumes — still records conditions never taken. #381 shipped exactly that.
- */
+// The half of the guard that reads lcov, not the JSON summary: vitest's v8 provider
+// and lcov model branches differently, so the summary can say `Branches: 100%`
+// while lcov, which Sonar consumes, still records conditions never taken.
 describe("findUncoveredBranches", () => {
   const lcov = (body: string) => `TN:\n${body}\nend_of_record\n`;
 
@@ -326,11 +322,9 @@ describe("a checkout at a filesystem root", () => {
   });
 });
 
-/**
- * Sonar's exclusion entries are patterns, not literals. Comparing them as
- * strings made the guard and Sonar disagree about which files are excluded —
- * the guard failing a build for files Sonar deliberately ignores.
- */
+// Sonar's exclusion entries are patterns, not literals. Compared as strings,
+// the guard and Sonar disagree about which files are excluded, and the guard
+// fails a build for files Sonar deliberately ignores.
 describe("sonarPatternToRegExp", () => {
   const matches = (pattern: string, file: string) => sonarPatternToRegExp(pattern).test(file);
 
@@ -387,8 +381,7 @@ describe("sonarPatternToRegExp", () => {
 
 describe("matchesAnyPattern", () => {
   it("excludes a file covered by a wildcard entry, as Sonar would", () => {
-    // The case that made this necessary: `scripts/**` excluded nothing at all
-    // when entries were compared as strings.
+    // Compared as a string, `scripts/**` would exclude nothing at all.
     expect(matchesAnyPattern("scripts/runner.ts", ["scripts/**"])).toBe(true);
   });
 

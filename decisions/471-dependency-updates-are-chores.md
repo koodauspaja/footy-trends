@@ -20,3 +20,10 @@ Cut from `scripts/next-version.ts` at `5b180e0` by #531.
   statements by whoever wrote them, not a type copied from an upstream
   changelog, and an upgrade that breaks this application is what they are
   for.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/next-version.test.ts` at `a15a9f9` by #531.
+
+- **What the `deps` tests answer.** v1.9.0 listed three library bumps under
+  `Bugs`.

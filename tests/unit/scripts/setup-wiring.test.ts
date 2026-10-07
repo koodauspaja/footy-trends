@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+
 // A type, so this import is erased rather than reaching the mocked module.
 import type { SetupActions } from "../../../scripts/setup-steps";
 import {
@@ -19,17 +20,22 @@ import {
 } from "../../../scripts/setup-wiring";
 
 /**
- * The sequence itself is `setup-steps.ts`'s to test. Mocked here so that
- * `startSetup` — the one function that reaches for the real repository — can be
- * exercised without running setup on the machine running the suite.
+ * Setup's real actions: the prompt, the `.env` file's permissions, and how npm
+ * is run.
+ *
+ * decisions/400-one-command-setup.md
  */
+
+// The sequence itself is `setup-steps.ts`'s to test. Mocked here so that
+// `startSetup`, the one function that reaches for the real repository, can be
+// exercised without running setup on the machine running the suite.
 const { runSetup } = vi.hoisted(() => ({
   runSetup: vi.fn<(actions: SetupActions) => Promise<number>>(async () => 0),
 }));
 
 vi.mock("../../../scripts/setup-steps", () => ({ runSetup }));
 
-/** A prompt that answers as told, and records what it was asked and its closing. */
+// A prompt that answers as told, and records what it was asked and its closing.
 function prompt(answer: () => Promise<string>): Prompt & { asked: string[]; closes: string[] } {
   const asked: string[] = [];
   const closes: string[] = [];
@@ -67,11 +73,9 @@ describe("makeAsk", () => {
   });
 
   it("reports no answer when input ends, rather than throwing", async () => {
-    /**
-     * Node's readline rejects a pending question on end of input —
-     * `AbortError: Aborted with Ctrl+D`. Uncaught, that ended setup with a stack
-     * trace where the prompt had just said "press Enter to skip".
-     */
+    // Node's readline rejects a pending question on end of input,
+    // `AbortError: Aborted with Ctrl+D`. Uncaught, that would end setup with a
+    // stack trace where the prompt had just said "press Enter to skip".
     const ask = makeAsk(() =>
       prompt(async () => {
         throw new Error("Aborted with Ctrl+D");
@@ -128,7 +132,7 @@ describe("npmCliFrom", () => {
 });
 
 describe("nodeSetupActions", () => {
-  /** A throwaway directory, so every file this touches is its own. */
+  // A throwaway directory, so every file this touches is its own.
   function options(overrides: Partial<NodeActions> = {}): NodeActions {
     const dir = mkdtempSync(path.join(tmpdir(), "footy-wiring-"));
     writeFileSync(path.join(dir, ".env.example"), "FOOTBALL_DATA_API_KEY=\n");
@@ -186,12 +190,9 @@ describe("nodeSetupActions", () => {
   });
 
   it("tightens an .env that already existed with looser permissions", () => {
-    /**
-     * `writeFileSync`'s `mode` applies only when the file is created, so a
-     * `cp .env.example .env` — 0644 under a normal umask — kept world-readable
-     * permissions while setup added the password and the auth secret to it.
-     * Raised in review on #409.
-     */
+    // `writeFileSync`'s `mode` applies only when the file is created, so a
+    // `cp .env.example .env`, 0644 under a normal umask, would stay
+    // world-readable while setup added the password and the auth secret to it.
     const o = options();
     writeFileSync(o.files.env, "OLD=1\n", { mode: 0o644 });
 
@@ -215,12 +216,9 @@ describe("nodeSetupActions", () => {
   it("runs an npm script through npm's own path, not through PATH", {
     timeout: 30_000,
   }, async () => {
-    /**
-     * Spawned for real, with a stand-in for npm that records its arguments and
-     * exits 0 — the way `docker.test.ts` exercises its spawn with a harmless
-     * command. What is being pinned is that npm is run as an argument to this
-     * Node, rather than resolved from `PATH`.
-     */
+    // Spawned for real, with a stand-in for npm that records its arguments and
+    // exits 0. What is being pinned is that npm is run as an argument to this
+    // Node, not resolved from `PATH`.
     const dir = mkdtempSync(path.join(tmpdir(), "footy-npm-"));
     const fakeNpm = path.join(dir, "fake-npm.js");
     const log = path.join(dir, "argv.json");

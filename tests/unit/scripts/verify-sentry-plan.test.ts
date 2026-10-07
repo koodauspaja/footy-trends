@@ -6,6 +6,13 @@ import {
   describeSettings,
 } from "../../../scripts/verify-sentry-plan";
 
+/**
+ * What the Sentry delivery check prints: the DSN without its secret, the marker
+ * it sends, the settings it found, and the outcome.
+ *
+ * decisions/230-sentry-delivery-check.md
+ */
+
 describe("describeDsn", () => {
   it("keeps the host and project id, which say where the event went", () => {
     expect(

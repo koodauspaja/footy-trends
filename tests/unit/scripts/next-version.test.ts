@@ -13,6 +13,16 @@ import {
   selectPreviousTag,
 } from "../../../scripts/next-version";
 
+/**
+ * How a release's version and notes are decided from the commits since the last
+ * one.
+ *
+ * decisions/085-release-workflow.md
+ * decisions/217-release-notes-format.md
+ * decisions/357-release-domains.md
+ * decisions/471-dependency-updates-are-chores.md
+ */
+
 const c = (subject: string, body?: string) =>
   body === undefined ? { subject } : { subject, body };
 
@@ -198,12 +208,9 @@ describe("decideVersion", () => {
   });
 
   it("files a dependency update as a chore, whichever type Renovate gave it", () => {
-    /**
-     * Renovate writes `fix(deps):` when the *upstream* release called itself a
-     * fix — a fact about someone else's library. Nothing here was broken, and
-     * a reader looking under `Bugs` for what went wrong should not find three
-     * library bumps. v1.9.0 listed exactly that.
-     */
+    // Renovate writes `fix(deps):` when the upstream release called itself a fix, a
+    // fact about someone else's library. Nothing here was broken, and a reader
+    // looking under `Bugs` for what went wrong should not find library bumps.
     const d = decideVersion(
       [
         c("fix(deps): update dependency next to v16.3.6 (#455)"),
@@ -221,12 +228,9 @@ describe("decideVersion", () => {
   });
 
   it("does not let a dependency update reach the minor as a feature", () => {
-    /**
-     * The case worth naming, because a feature moves the *minor*: a library's
-     * own release being a feature says nothing about whether this application
-     * gained one. The first version of this rule excluded `deps` from the
-     * fixes and not from the features, which #471's review caught.
-     */
+    // The case worth naming, because a feature moves the minor: a library's own
+    // release being a feature says nothing about whether this application
+    // gained one.
     const d = decideVersion([c("feat(deps): update dependency next to v17")], "v1.8.0");
 
     expect(d.features).toEqual([]);
@@ -307,11 +311,9 @@ describe("labelsOfIssueResponse", () => {
   });
 
   it("ignores a pull request, which GitHub answers from the same endpoint", async () => {
-    /**
-     * `/issues/{n}` returns pull requests too, with a 200. This repository's
-     * squash commits name both — `fix: a thing (#309) (#315)` — so a labelled
-     * pull request would otherwise contribute domains the issue never had.
-     */
+    // `/issues/{n}` returns pull requests too, with a 200. This repository's
+    // squash commits name both, issue then pull request, so a labelled pull
+    // request would otherwise contribute domains the issue never had.
     expect(
       labelsOfIssueResponse({ pull_request: { url: "…" }, labels: [{ name: "auth" }] })
     ).toEqual([]);
@@ -346,7 +348,7 @@ describe("issueRefsIn", () => {
   });
 
   it("takes both refs when a squash carries the issue and the pull request", async () => {
-    // `fix: ... (#309) (#315)` is this repository's usual shape.
+    // An issue and then its pull request: this repository's usual shape.
     const decision = decideVersion([c("fix: a thing (#309) (#315)")], "v1.0.0");
 
     expect(issueRefsIn(decision).sort((a, b) => a - b)).toEqual([309, 315]);
@@ -387,8 +389,8 @@ describe("formatReleaseNotes", () => {
     expect(notes).toContain("# release: v1.1.0");
     expect(notes).toContain("Changes since v1.0.0 — 1 feature, 1 bug, 1 chore.");
     expect(notes).toContain("## Features\n\n| | |\n|---|---|\n|  | A thing |");
-    // `fix:` is a bug and everything else is a chore. "Fixes"/"Other" named the
-    // classification rather than the work.
+    // `fix:` is a bug and everything else is a chore: the headings name the
+    // work, not the classification.
     expect(notes).toContain("## Bugs\n\n| | |\n|---|---|\n|  | Another |");
     expect(notes).toContain("## Chores\n\n| | |\n|---|---|\n|  | Tidy |");
   });
@@ -444,9 +446,8 @@ describe("formatReleaseNotes", () => {
 
   it("does not present the promotion range as a first release's contents", () => {
     // `release` is branched from `main` and already carries everything before
-    // the branch point, so the range is a tail rather than a changelog. Listing
-    // it under a bare "Features" heading understated the first release by two
-    // orders of magnitude — 5 commits shown for 243 deployed.
+    // the branch point, so the range is a tail and not a changelog: under a
+    // bare "Features" heading it understates a first release.
     const notes = formatReleaseNotes(decideVersion([c("feat: a")], null));
     expect(notes).toContain("the whole application reaching production");
     expect(notes).toContain("**not** the contents of this release");

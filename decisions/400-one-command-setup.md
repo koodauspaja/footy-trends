@@ -149,3 +149,10 @@ Cut from `vitest.config.ts` at `5b180e0` by #531.
   Sonar deliberately ignores. `scripts/coverage-gaps.ts` still fails on any
   source file that is missing from the report without being excluded
   there.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/setup-plan.test.ts` at `a15a9f9` by #531.
+
+- **The version drift the setup plan's test records.** README.md said
+  12.0.1 while package.json pinned 12.0.2.

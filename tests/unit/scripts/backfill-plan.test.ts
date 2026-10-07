@@ -8,6 +8,15 @@ import {
   tasoSeasonsFor,
 } from "../../../scripts/backfill-plan";
 
+/**
+ * The backfill's pure decisions: which seasons to fetch and which to skip,
+ * which database a run targets and how that and an error are said, and what a
+ * reset needs first.
+ *
+ * decisions/169-production-backfill.md
+ * decisions/196-concurrent-group-syncs.md
+ */
+
 describe("tasoSeasonsFor", () => {
   it("lists every season from the competition's own floor, newest first", () => {
     expect(tasoSeasonsFor(2024, 2026)).toEqual([2026, 2025, 2024]);

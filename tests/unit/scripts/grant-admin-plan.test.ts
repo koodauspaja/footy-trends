@@ -9,12 +9,13 @@ import {
 } from "../../../scripts/grant-admin-plan";
 
 /**
- * The decisions behind granting and removing admin, from #371.
+ * The decisions behind granting and removing admin. `parseArgs` earns its
+ * tests: it reads a command line that writes to production, and an address that
+ * matches nothing must not look like success.
  *
- * `parseArgs` earns its tests: it reads a command line that writes to
- * production, and the failure it exists to prevent — an address that matches
- * nothing looking exactly like success — is the one the hand-written SQL had.
+ * decisions/371-grant-admin-script.md
  */
+
 describe("normaliseEmail", () => {
   it("lower-cases and trims, because the column holds what Google sent", () => {
     // An operator retyping an address will not match its case, and
@@ -179,9 +180,7 @@ describe("ambiguousAccount", () => {
   it("names every account it found, and says nothing was changed", () => {
     // `user.email` is unique on the raw text, which is case-sensitive, while
     // this script matches on `lower(email)` so an operator's typing finds a row
-    // stored as Google sent it. Both spellings can therefore exist — verified
-    // against Postgres, where the two inserted successfully and one predicate
-    // matched them both.
+    // stored as Google sent it. Both spellings can therefore exist.
     expect(ambiguousAccount("dup@example.fi", ["Dup@Example.fi", "dup@example.fi"])).toBe(
       [
         "More than one account matches dup@example.fi, differing only in case:",

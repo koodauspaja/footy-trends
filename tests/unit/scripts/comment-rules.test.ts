@@ -19,11 +19,14 @@ import {
 import { executablePath, overrideNameFor } from "../../../scripts/executable";
 
 /**
- * The comment lines in this repository that cite an issue or pull request
- * number, as keys. Entries leave as files are trimmed, and none is added.
+ * The comment rules: what counts as a citation, a stacked doc comment and a cited record
+ * that does not exist, and that this repository's own comments keep to them.
  *
  * decisions/531-comments-say-what-code-is-for.md
  */
+
+// The comment lines in this repository that cite an issue or pull request
+// number, as keys. Entries leave as files are trimmed, and none is added.
 const RECORD_PATH = "tests/unit/scripts/recorded-issue-citations.json";
 
 const texts = (comments: readonly Comment[]) => comments.map((comment) => comment.text);

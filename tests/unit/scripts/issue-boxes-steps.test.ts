@@ -8,17 +8,16 @@ import {
 } from "../../../scripts/issue-boxes-steps";
 
 /**
- * The sequence behind `npm run check:boxes` (#463), with the reading injected
- * so the whole command is exercised without a network.
+ * The sequence behind `npm run check:boxes`, with the reading injected so the
+ * whole command runs without a network: which bodies are fetched, what happens
+ * when one cannot be, and the exit code, which is the only thing CI reads.
  *
- * What this file owns is the part `issue-boxes-plan.test.ts` cannot see: which
- * bodies are fetched, what happens when one cannot be, and the exit code —
- * which is the only thing CI reads.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 
 const REPOSITORY = "koodauspaja/footy-trends";
 
-/** A reader over a map of path to body, failing loudly on anything unexpected. */
+// A reader over a map of path to body, failing loudly on anything unexpected.
 function reading(bodies: Record<string, string>): ReadBody {
   return (path) => {
     const body = bodies[path];
