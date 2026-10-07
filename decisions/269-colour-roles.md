@@ -38,3 +38,10 @@ Cut from `tests/shared/hardcoded-colour.ts` at `79f2c6a` by #531.
   is how the arbitrary-colour case came to be missing from one of them.
   Tailwind escapes `:` and `/` in a selector; the class underneath is what
   it is about.
+
+Cut from `tests/e2e/session.ts` at `0fe724f` by #531.
+
+- **`tests/e2e/session.ts` is shared, not copied.** The fake session was
+  already written twice, in `auth.spec.ts` and `settings.spec.ts`, and a third
+  copy landed in the dark-mode sweep: three chances for it to drift from what
+  better-auth actually answers.

@@ -2,14 +2,14 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's `Ennätykset` panel (specs/039), end to end. Signed in the way
- * league-position.spec.ts explains.
+ * The team page's `Ennätykset` panel, end to end. Signed in the way league-position.spec.ts
+ * explains. A record is never shorter than the same run inside one season, so it is
+ * asserted against `Putket` above it, not against a number typed into the test.
  *
- * The property worth checking here is the one a record rests on: **a record is
- * never shorter than the same run inside a single season**. `Putket` shows this
- * season's longest run, and the record book looks at every stored season, so
- * the record must be at least as long — asserted against the panel above it
- * rather than against a number typed into the test.
+ * decisions/039-streak-records.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Ennätykset";
@@ -20,14 +20,14 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** The figure named `label` in a panel, as `[value, when]`. */
+// The figure named `label` in a panel, as `[value, when]`.
 async function figure(page: Page, panel: string, label: string): Promise<string> {
   const region = page.getByRole("region", { name: panel });
   const value = region.locator("dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
   return (await value.textContent()) ?? "";
 }
 
-/** The leading number of a figure, e.g. `9 voittoa Kaudet 2023/24–2024/25` → 9. */
+// The leading number of a figure, e.g. `9 voittoa Kaudet 2023/24–2024/25` → 9.
 function lengthOf(text: string): number {
   return Number(/^(\d+)/.exec(text.trim())?.[1]);
 }
@@ -65,10 +65,8 @@ test.describe("Streak records, signed in", () => {
   });
 
   test("follows the season comparison in Muut kaudet, ahead of the Elo chart", async ({ page }) => {
-    // Placed within its #424 group rather than counted from the end of
-    // Analyysit: a later group (`Vastustajat`, specs/045) moves the end, and
-    // counting from it broke five tests at once. The Elo chart (specs/053 S9)
-    // now closes the group.
+    // Placed within its group, not counted from the end of Analyysit, which a
+    // later group moves. The Elo chart closes the group.
     await page.goto(TEAM);
     const headings = page
       .getByRole("region", { name: "Muut kaudet", exact: true })

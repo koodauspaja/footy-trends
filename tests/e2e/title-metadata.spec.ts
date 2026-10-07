@@ -1,28 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 
 /**
- * Guards #170: the browser tab title must follow a selector-driven change, not
- * lag a navigation behind it.
+ * The browser tab title follows a selector-driven change, and does not lag a
+ * navigation behind it. These pin the behaviour as it is, so a Next upgrade or
+ * a Suspense boundary that widens the blank-title window fails here.
  *
- * The reported symptom — a title stuck on the previous season until a reload —
- * did not reproduce on Next 16.3.2 in nine measurements across the dev server,
- * a production build and production itself, warm and cold, including at 400ms
- * RTT. What exists is a 7–17ms window in which the title is briefly blank while
- * the streamed metadata catches up with the body, which is imperceptible.
- *
- * So these specs are not a failing-then-fixed regression test; there was no fix
- * to make. They pin the behaviour that was measured, so that if a future Next
- * upgrade or a Suspense boundary around the page body widens that window into
- * the reported bug, something fails here rather than in someone's tab.
+ * decisions/170-tab-title-follows-the-season.md
  */
 
-/**
- * Every page's `generateMetadata` returns `${seasonCompetitionName} ${seasonLabel}`
- * and its `PageShell` heading starts with the same string — the matches pages
- * append `, kierros N`, the standings pages append nothing. Asserting the
- * prefix relationship rather than equality therefore covers all four pages
- * without encoding which of them carry a suffix.
- */
+// The title is `generateMetadata`'s season name and label, and the `PageShell`
+// heading starts with the same string; the matches pages append `, kierros N`.
+// So the prefix is asserted, not equality, which covers all four pages.
 async function expectTitleToMatchHeading(page: Page) {
   await expect
     .poll(async () => {
@@ -33,16 +21,14 @@ async function expectTitleToMatchHeading(page: Page) {
     .toBe(true);
 }
 
-/** The label of the currently selected option, e.g. `2021` or `2024/25`. */
+// The label of the currently selected option, e.g. `2021` or `2024/25`.
 function selectedLabel(page: Page, selectId: string) {
   return page.locator(`#${selectId} option:checked`).textContent();
 }
 
-/**
- * Switches `select` to its first option that is not already selected, and
- * returns that option's label. Choosing dynamically keeps the spec working as
- * seasons roll over, rather than pinning a year that stops being offered.
- */
+// Switches `select` to its first option that is not already selected, and
+// returns that option's label. Choosing dynamically keeps the spec working as
+// seasons roll over.
 async function changeToAnotherOption(page: Page, selectId: string): Promise<string> {
   const current = await selectedLabel(page, selectId);
   const options = page.locator(`#${selectId} option`);
@@ -79,8 +65,7 @@ test.describe("Tab title follows the selected season", () => {
       await expect(page).toHaveURL(new RegExp(`kausi=${newSeason.split("/")[0]}`));
       await expectTitleToMatchHeading(page);
       await expect(page).not.toHaveTitle(titleBefore);
-      // The season the title names is the one the selector now shows, which is
-      // the specific staleness #170 reported.
+      // The season the title names is the one the selector now shows.
       expect(await page.title()).toContain(newSeason);
     });
   }

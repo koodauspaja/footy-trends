@@ -207,3 +207,11 @@ Cut from `tests/integration/team-search.test.ts` at `79f2c6a` by #531.
   twenty-five rows of its own. Listing ids separately meant a failure before
   its manual cleanup left them in the shared database, to contaminate every
   later test and every later run.
+
+Cut from `tests/e2e/team-search.spec.ts` at `0fe724f` by #531.
+
+- **The no-JavaScript test in `team-search.spec.ts`.** The previous version
+  asserted only that the served HTML did not contain `Hae joukkuetta`, which
+  `TeamSearch` guarantees by returning null before hydration. It passed with
+  the component deleted, and with the page turned dynamic, and review caught
+  it.

@@ -366,3 +366,38 @@ path on each declaration.
 
 Issue and spec citations inside a test's name, `it("… (#528)")`, are left: a
 name is a string in the code, and this chore changes comments only.
+
+## The thirteenth batch, 2026-10-07: the end-to-end tests
+
+51 of the 52 TypeScript files under `tests/e2e`: 48 specs, `session.ts`,
+`global-setup.ts` and the seeded fixture. 56 007 characters of comment became
+44 560. `dark-mode.spec.ts` waits for the next batch, because with it the diff
+passed 150 000 characters.
+
+Done the way the twelfth batch settled, with three things specific to these
+files.
+
+- **Ten specs had no header at all.** Each has one now, a line or two saying
+  which page it drives, with the record of the feature the file was first
+  written for and of each later change that added tests to it.
+- **A header also cites the record of a spec a cut comment named**, so a
+  reader of `comebacks.spec.ts` still finds the half-time coverage rule the
+  comment used to point at.
+- **A helper's doc comment became a line comment**, and so did a doc comment
+  on a `test(...)` or a `test.describe(...)`, which is a statement and not a
+  declaration. The three modules that are not tests keep doc comments, with a
+  path on each declaration.
+
+Three changes had no record and have one now, for the reasons their tests'
+comments carried: #170 (what the tab-title specs pin, and the measurements
+behind it), #178 (why the cup page is measured only after its rounds arrive)
+and #441 (the sizes the axis-text spec expects). Five existing records took an
+entry: 024, 027, 043, 207 and 269. Before each entry the record was searched
+for the story, and thirteen stories were cut without an entry because their
+record tells them already: 020, 021, 023, 026, 028, 030, 036, 133, 189, 304,
+424, 527 and 529.
+
+Four citations were cut with nothing moved, because all they said was the
+issue's own title: #256 in `domestic-team.spec.ts`, #485 in
+`bogey-teams.spec.ts` and `national-team-analytics.spec.ts`, #501 in
+`table-volatility.spec.ts` and #526 in `favourites.spec.ts`. The reason beside each stays in its comment.

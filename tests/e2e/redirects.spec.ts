@@ -1,14 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Only Finnish URLs exist. Three families of address redirect into them:
- * the top-level paths the foreign pages used to live at, the English paths
- * that answered 200 before the folder rename, and the English App Router
- * folder paths, which a Next rewrite does not block on its own.
+ * Only Finnish URLs exist: the old top-level foreign paths, the English paths and
+ * the English App Router folder paths redirect into them. Asserted on a running
+ * server, hop count included: a chain that ends in the right place is still a bug.
  *
- * Asserted against a running server rather than the config, and the hop
- * count is asserted too — a chain that happens to end in the right place is
- * still a bug. See specs/012-finnish-urls-english-code.md.
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/019-match-page.md
  */
 
 const MOVED = [
@@ -31,10 +29,8 @@ const LEGACY = [
   ["/ulkomaat/team/57", "/ulkomaat/joukkue/57"],
 ] as const;
 
-/**
- * The match pages added in specs/019, on both spellings. `/maajoukkueet` has
- * two shapes because it is fed by two providers — see that spec.
- */
+// The match pages, on both spellings. `/maajoukkueet` has two shapes because it
+// is fed by two providers.
 const MATCH_PAGES = [
   ["/domestic/match/4036979", "/kotimaa/ottelu/4036979"],
   ["/kotimaa/match/4036979", "/kotimaa/ottelu/4036979"],

@@ -2,10 +2,14 @@ import { expect, test } from "@playwright/test";
 import { NATIONAL_TEAM_YEARS } from "@/lib/national-team";
 
 /**
- * Structure and labels only — scores and future fixtures change with the real
- * season, so asserting on them would make these brittle. See
- * specs/018-helmarit.md.
+ * Helmarit's page, end to end. Structure and labels only: scores and future
+ * fixtures change with the real season, so asserting on them would be brittle.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/041-national-team-analytics.md
  */
+
 test.describe("Helmarit", () => {
   test("reaches the page from the region picker", async ({ page }) => {
     await page.goto("/maajoukkueet");
@@ -21,23 +25,16 @@ test.describe("Helmarit", () => {
 
     await expect(page.getByLabel("Kausi")).toHaveCount(0);
     await expect(page.getByLabel("Kilpailu")).toHaveCount(0);
-    // Exact on the finished seasons, which cannot gain or lose matches: a
-    // missing 2022, or an unexpected extra section, both fail here. The
-    // current year is filtered out rather than pinned, because the page omits
-    // a year with no matches and January would otherwise fail an application
-    // behaving exactly as specified.
-    // Year folds only: the `Analyysit` fold above them is a `<details>` with an
-    // `h2` of its own since specs/041, and a section that is not a year is no
-    // longer an unexpected one.
+    // Exact on the finished years, which cannot gain or lose matches. The current
+    // year is filtered out, because the page omits a year with no matches. Year
+    // folds only: `Analyysit` above them is a `<details>` with an `h2` of its own.
     const years = (await page.locator("details h2").allTextContents())
       .filter((heading) => /^\d{4}$/.test(heading))
       .map(Number);
 
-    // The only year that may legitimately be absent is the newest *configured*
-    // bucket, whose season may not have started. That is deliberately not
-    // `new Date().getFullYear()`: the buckets are added by hand, so in 2027
-    // the newest configured year is still 2026, and filtering on the clock
-    // would leave 2026 in the list below and fail a correct page.
+    // The only year that may be absent is the newest configured bucket, whose season
+    // may not have started. Not `new Date().getFullYear()`: buckets are added by hand,
+    // so in 2027 the newest is still 2026 and the clock would fail a correct page.
     const newestConfigured = Math.max(...NATIONAL_TEAM_YEARS);
     expect(years.filter((year) => year !== newestConfigured)).toEqual([
       2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018,
@@ -50,8 +47,8 @@ test.describe("Helmarit", () => {
   test("orders the years newest first", async ({ page }) => {
     await page.goto("/maajoukkueet/helmarit");
 
-    // Filtered to years: `Analyysit` is a fold too since specs/041, and
-    // `Number("Analyysit")` is `NaN`, which no comparison sorts.
+    // Filtered to years: `Analyysit` is a fold too, and `Number("Analyysit")`
+    // is `NaN`, which no comparison sorts.
     const years = (await page.locator("details h2").allTextContents())
       .filter((heading) => /^\d{4}$/.test(heading))
       .map(Number);
@@ -61,8 +58,8 @@ test.describe("Helmarit", () => {
 
   test("folds a year away and back", async ({ page }) => {
     await page.goto("/maajoukkueet/helmarit");
-    // The first *year*, not the first fold: `Analyysit` sits above them since
-    // specs/041, and folding it would prove nothing about a year.
+    // The first year, not the first fold: `Analyysit` sits above them, and
+    // folding it would prove nothing about a year.
     const first = page
       .locator("details")
       .filter({ has: page.getByRole("heading", { level: 2, name: /^\d{4}$/ }) })
@@ -83,11 +80,9 @@ test.describe("Helmarit", () => {
     await expect(page.getByText(/ Helmarit/)).toHaveCount(0);
   });
 
-  /**
-   * `maajp18` holds four calendar years of Helmarit matches — one more than it
-   * holds of Huuhkajat's — so 2018 exists only if the page files a match by
-   * its own date. See specs/018-helmarit.md.
-   */
+  // `maajp18` holds four calendar years of Helmarit matches, one more than it
+  // holds of Huuhkajat's, so 2018 exists only if the page files a match by its
+  // own date.
   test("reaches back to 2018, the earliest year maajp18 spans", async ({ page }) => {
     await page.goto("/maajoukkueet/helmarit");
 
@@ -97,10 +92,8 @@ test.describe("Helmarit", () => {
     await expect(section).toHaveCount(1);
   });
 
-  /**
-   * `maajp18` is one provider bucket holding 2019, 2020 and 2021 matches, so
-   * these two years only appear if the page files a match by its own date.
-   */
+  // `maajp18` is one provider bucket holding 2019, 2020 and 2021 matches, so
+  // these two years only appear if the page files a match by its own date.
   test("files a bucket's matches under the year they were played", async ({ page }) => {
     await page.goto("/maajoukkueet/helmarit");
 
@@ -108,10 +101,8 @@ test.describe("Helmarit", () => {
     for (const year of ["2018", "2019", "2020", "2021"]) expect(years).toContain(year);
   });
 
-  /**
-   * TASO renames one competition between buckets and carries a campaign year
-   * in the older ones. Both are normalised, so a reader sees one name.
-   */
+  // TASO renames one competition between buckets and carries a campaign year in
+  // the older ones. Both are normalised, so a reader sees one name.
   test("names a competition the same way in every year", async ({ page }) => {
     await page.goto("/maajoukkueet/helmarit");
     const rendered = await page.locator("main").innerText();
@@ -121,10 +112,8 @@ test.describe("Helmarit", () => {
     expect(rendered).toContain("A-maaottelut");
   });
 
-  /**
-   * TASO names opponents in English in the 2019 and 2020 categories only, so
-   * these rows are the ones that regress if the mapping is dropped.
-   */
+  // TASO names opponents in English in the 2019 and 2020 categories only, so
+  // these rows are the ones that regress if the mapping is dropped.
   test("names every opponent in Finnish, including the English ones TASO sends", async ({
     page,
   }) => {

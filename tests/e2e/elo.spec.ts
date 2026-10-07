@@ -2,12 +2,11 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Joukkueen vahvuus (Elo)` on a club's page (specs/053 S9, S10), end to end.
- * Signed in the way league-position.spec.ts explains.
+ * `Joukkueen vahvuus (Elo)` on a club's page, end to end. Signed in the way
+ * league-position.spec.ts explains. The club is read off the standings and no
+ * rating is named: only what holds whatever the data is.
  *
- * The club is read off the standings rather than named, and no rating is: what
- * holds whatever the data is that the panel sits in `Muut kaudet`, draws a
- * line, explains 1500 and lists a rating per season.
+ * decisions/053-elo-ratings.md
  */
 
 const HEADING = "Joukkueen vahvuus (Elo)";

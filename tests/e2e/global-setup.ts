@@ -9,35 +9,26 @@ import {
   TEAM_ROWS,
 } from "./fixtures/veikkausliiga-2017";
 
-/** Names this fixture's seeding, so two of them serialise and nothing else does. */
+/**
+ * Names this fixture's seeding, so two of them serialise and nothing else does.
+ *
+ * decisions/304-test-database.md
+ */
 const FIXTURE_LOCK_KEY = 3_040_026;
 
 /**
- * Writes the seeded season from #304, replacing whatever is there for it.
+ * Writes the seeded season, replacing whatever is there for it: a developer's
+ * database may hold rows for it from an earlier run or an accidental sync. Uses
+ * `postgres` directly, so the setup pulls in no application module.
  *
- * Deleting first is the point: a developer's database may already hold rows for
- * this season from an earlier run or an accidental sync, and a test that renders
- * *those* is back to depending on local contents. After this the season is
- * exactly the fixture, on any database.
- *
- * Uses `postgres` directly rather than the app's `db`, so the setup pulls in no
- * application module and cannot be affected by one.
+ * decisions/304-test-database.md
  */
 async function seedFixtureSeason(url: string): Promise<void> {
   const sql = postgres(url);
   try {
-    /**
-     * One transaction, holding a lock, because atomicity alone is not enough.
-     *
-     * `taso_match_id` is globally unique. Two transactions can both delete the
-     * fixture and then both insert, and the second takes a duplicate-key error
-     * — a transaction makes each *all-or-nothing*, which is not the same as
-     * making them take turns. The advisory lock is what makes them take turns:
-     * it is held to the end of the transaction and released with it, so the
-     * second seeder waits and then finds exactly what the first wrote.
-     *
-     * The key is an arbitrary constant, private to this fixture.
-     */
+    // One transaction, holding a lock: `taso_match_id` is globally unique, and two
+    // transactions that both delete and then both insert collide. The advisory lock
+    // makes them take turns, and is released with the transaction.
     await sql.begin(async (tx) => {
       await tx`select pg_advisory_xact_lock(${FIXTURE_LOCK_KEY})`;
       await tx`
@@ -95,10 +86,12 @@ async function seedFixtureSeason(url: string): Promise<void> {
 }
 
 /**
- * Fails fast with a clear message when a provider API key is missing,
- * instead of letting every test time out waiting on pages that silently
- * render the generic error state. This suite runs against the real
- * football-data.org and TASO APIs, not mocks — see tests/e2e/README.md.
+ * Fails fast with a clear message when a provider API key is missing: this
+ * suite runs against the real football-data.org and TASO APIs, not mocks. See
+ * tests/e2e/README.md.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/304-test-database.md
  */
 export default async function globalSetup() {
   if (existsSync(".env")) {

@@ -2,9 +2,14 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's form chart (specs/031), end to end. Signed in the way
- * league-position.spec.ts explains: the override header, honoured only by this
- * `_test`-database server.
+ * The team page's form chart, end to end, and the order of the Analyysit
+ * panels. Signed in the way league-position.spec.ts explains: the override
+ * header, honoured only by this `_test`-database server.
+ *
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/040-cup-analytics.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Vire otteluittain";
@@ -15,7 +20,7 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** The standings row's Vire letters, e.g. "VTHVV", as points per match. */
+// The standings row's Vire letters, e.g. "VTHVV", as points per match.
 async function vireOf(row: Locator): Promise<number> {
   const letters = ((await row.locator("td").last().textContent()) ?? "").replaceAll(/\s/g, "");
   expect(letters).toMatch(/^[VTH]{5}$/);
@@ -26,7 +31,7 @@ async function vireOf(row: Locator): Promise<number> {
   return total / 5;
 }
 
-/** Every text row of the chart, as [match, form]. */
+// Every text row of the chart, as [match, form].
 async function plotted(page: Page): Promise<Array<[number, number]>> {
   await expect(page.getByRole("img", { name: HEADING })).toBeVisible();
   const rows = await page.getByText(SENTENCE).allTextContents();
@@ -59,11 +64,9 @@ test.describe("Form chart, signed in", () => {
   test("ends at the Vire the standings table shows — across a Veikkausliiga split", async ({
     page,
   }) => {
-    /**
-     * KuPS, 2026: the Mestaruussarja table counts the regular season too, so
-     * its Vire and its O span the split, as the chart does. Read from the
-     * standings page rather than hardcoded, so it holds as the season goes on.
-     */
+    // KuPS, 2026: the Mestaruussarja table counts the regular season too, so
+    // its Vire and its O span the split, as the chart does. Read from the
+    // standings page, not hardcoded, so it holds as the season goes on.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
     const row = page
       .getByRole("heading", { name: "Mestaruussarja", level: 2 })
@@ -84,7 +87,7 @@ test.describe("Form chart, signed in", () => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const section = page.getByRole("region", { name: "Analyysit" });
 
-    // The goals charts follow it (specs/032).
+    // The goals charts follow it.
     await expect(section.getByRole("heading", { level: 4 })).toHaveText([
       "Sijoitus kierroksittain",
       HEADING,
@@ -102,9 +105,8 @@ test.describe("Form chart, signed in", () => {
   });
 
   test("offers Analyysit for a cup, without a position chart (specs/040)", async ({ page }) => {
-    // A cup carried no analytics at all until specs/040. It has them now —
-    // every panel but `Sijoitus kierroksittain`, which needs a table a
-    // knockout has not got.
+    // A cup has every panel but `Sijoitus kierroksittain`, which needs a table
+    // a knockout has not got.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 

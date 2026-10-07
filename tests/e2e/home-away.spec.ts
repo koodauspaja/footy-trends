@@ -2,8 +2,11 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's `Koti- ja vierastilastot` panel (specs/033), end to end.
- * Signed in the way league-position.spec.ts explains.
+ * The team page's `Koti- ja vierastilastot` panel, end to end. Signed in the
+ * way league-position.spec.ts explains.
+ *
+ * decisions/033-home-vs-away.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Koti- ja vierastilastot";
@@ -12,7 +15,8 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** A standings row's `O`, `TM`, `PM` and `P` — Sija, Joukkue, O, V, T, H, TM, PM, ME, P. */
+// A standings row's `O`, `TM`, `PM` and `P`: Sija, Joukkue, O, V, T, H, TM, PM,
+// ME, P.
 async function tableFigures(
   row: Locator
 ): Promise<Record<"played" | "scored" | "conceded" | "points", number>> {
@@ -26,11 +30,9 @@ async function tableFigures(
   };
 }
 
-/**
- * The panel's figures turned back into season totals: each side's per-match
- * value times its match count, summed. The printed values have two decimals,
- * so over 19 matches a side is off by under 0,1 — rounding recovers the total.
- */
+// The panel's figures turned back into season totals: each side's per-match
+// value times its match count, summed. The printed values have two decimals, so
+// over 19 matches a side is off by under 0,1, and rounding recovers the total.
 async function panelTotals(page: Page) {
   const panel = page.getByRole("region", { name: HEADING });
   await expect(panel.getByRole("img", { name: HEADING })).toBeVisible();
@@ -97,9 +99,9 @@ test.describe("Home and away panel, signed in", () => {
   });
 
   test("heads the Kausi kokonaisuutena group in Analyysit", async ({ page }) => {
-    // #424 grouped the panels: this one summarises the season rather than
-    // tracking it match by match, so it starts the second group and
-    // `Nollapelit` now precedes it. Asserted in full in form-trend.spec.ts.
+    // This panel summarises the season and does not track it match by match, so
+    // it starts the second group, after `Nollapelit`. Asserted in full in
+    // form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const headings = page
       .getByRole("region", { name: "Analyysit" })

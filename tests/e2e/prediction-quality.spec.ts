@@ -4,15 +4,11 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * `/ennusteet` (specs/054), end to end. Signed in the way
- * league-position.spec.ts explains.
+ * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Two
+ * judged predictions are seeded, on a finished match in 2098, a season nothing else
+ * stores. Whatever else is stored joins them, so no figure is named, only rules.
  *
- * Whether the suite's database holds judged predictions depends on what ran
- * against it, so two are seeded: a finished Veikkausliiga match in 2098, a
- * season nothing else stores, with a backtest row from each model, all deleted
- * again afterwards. Whatever else is there joins them, so no figure is named —
- * only the rules: the window line, a percentage per model, both tables with
- * the models in order, and the calibration drawn against its diagonal.
+ * decisions/054-prediction-quality.md
  */
 
 const HEADING = "Ennusteiden osuvuus";

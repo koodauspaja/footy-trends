@@ -4,14 +4,13 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * `Ennuste` on an upcoming match's page (specs/051), end to end. Signed in the
- * way league-position.spec.ts explains.
+ * `Ennuste` on an upcoming match's page, end to end. Signed in the way league-position.spec.ts
+ * explains. The upcoming match is seeded, in 2099, a season nothing else stores. Its history is
+ * whatever the database holds, so no value is named, only the rules.
  *
- * Whether a real league has a match still to play depends on the time of year,
- * so the upcoming match is seeded: one Veikkausliiga fixture in 2099, a season
- * nothing else stores, deleted again afterwards. The history it is predicted
- * from is whatever the suite's database holds, so no value is named — only the
- * rules: three whole percentages, and a line naming what they rest on.
+ * decisions/051-home-win-baseline.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/053-elo-ratings.md
  */
 
 const HEADING = "Ennuste";
@@ -58,7 +57,8 @@ test.beforeAll(async () => {
     await sql`insert into taso_matches ${sql([
       fixture(UPCOMING_ID, "SCHEDULED", null),
       fixture(FINISHED_ID, "FINISHED", 1),
-      // Suomen Cup: upcoming, but not a competition specs/049 compares (S5).
+      // Suomen Cup: upcoming, but not a competition the home-advantage table
+      // compares.
       fixture(CUP_ID, "SCHEDULED", null, "MSC"),
     ])}`;
   });
@@ -88,7 +88,7 @@ test.describe("Home-win baseline, signed in", () => {
       "Tasapeli",
       "Vierasvoitto",
     ]);
-    // specs/053 S8, S13: the baseline first, then Elo, three whole percentages each.
+    // The baseline first, then Elo, three whole percentages each.
     const rows = panel(page).getByRole("row");
     await expect(rows).toHaveCount(3);
     for (const [index, model] of [
@@ -109,7 +109,7 @@ test.describe("Home-win baseline, signed in", () => {
         /^Elo: E2E Koti \d{4}, E2E Vieras \d{4}\. Kotijoukkueelle lisätään 60 pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus\.$/
       )
     ).toBeVisible();
-    // Between the match's details and its meetings (S6).
+    // Between the match's details and its meetings.
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
     const at = headings.indexOf(HEADING);
     expect(at).toBeGreaterThanOrEqual(0);

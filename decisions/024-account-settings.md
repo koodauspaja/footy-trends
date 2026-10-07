@@ -534,3 +534,15 @@ Cut from `src/components/sign-in-prompt.tsx` at `48ebab4` by #531.
   earlier version swallowed the failure and claimed the header would report
   it; the header only reports its own sign-in call, so the reader was left
   with a button that appeared to do nothing.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/settings.spec.ts` at `0fe724f` by #531.
+
+- **Why `settings.spec.ts` forges no cookie.** Forging a signed session
+  cookie is possible but would encode better-auth's cookie-signing internals
+  into the suite. A test that intercepted the browser's session call instead
+  would assert against the signed-out page while claiming to test the
+  signed-in one, which is worse than no test. So the form, the device list
+  and the deletion control are covered by
+  `tests/unit/components/settings-page.test.tsx`.

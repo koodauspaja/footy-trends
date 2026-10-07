@@ -2,8 +2,11 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's `Nollapelit` panel (specs/034), end to end. Signed in the way
+ * The team page's `Nollapelit` panel, end to end. Signed in the way
  * league-position.spec.ts explains.
+ *
+ * decisions/034-clean-sheets.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Nollapelit";
@@ -13,7 +16,7 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** The last text row, as [match, percent, kept, of]. */
+// The last text row, as [match, percent, kept, of].
 async function lastRow(page: Page): Promise<number[]> {
   const panel = page.getByRole("region", { name: HEADING });
   await expect(panel.getByRole("img", { name: HEADING })).toBeVisible();
@@ -60,10 +63,9 @@ test.describe("Clean sheets, signed in", () => {
   });
 
   test("ends the Ottelu ottelulta group, before Koti- ja vierastilastot", async ({ page }) => {
-    // #424 grouped the panels: a running share plotted match by match belongs
-    // with the other per-match series, and `Koti- ja vierastilastot` heads the
-    // next group. That swapped the two. The order is asserted in full in
-    // form-trend.spec.ts.
+    // A running share plotted match by match belongs with the other per-match
+    // series, and `Koti- ja vierastilastot` heads the next group. The order is
+    // asserted in full in form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const headings = page
       .getByRole("region", { name: "Analyysit" })

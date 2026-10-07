@@ -2,17 +2,19 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The full head-to-head, end to end (specs/042).
+ * The full head-to-head, its analysis sections and the rivalry, end to end.
+ * Driven from a real match page, not a typed URL: the link is the feature's way
+ * in, and a page nothing reaches is not reachable however well it renders.
  *
- * Driven from a real match page rather than by typing the URL, because the
- * link *is* the feature's way in (S1) — a page nothing reaches is not reachable
- * however well it renders.
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/047-rivalry-page.md
  */
 
 const MATCHES = "/kotimaa/ottelut";
 const ALL_MEETINGS = /Kaikki kohtaamiset \((\d+)\)/;
 
-/** A match page that has a head-to-head, found the way a reader would. */
+// A match page that has a head-to-head, found the way a reader would.
 async function openAMatch(page: Page): Promise<void> {
   await page.goto(MATCHES);
   const first = page.locator('a[href*="/kotimaa/ottelu/"]').first();
@@ -33,7 +35,7 @@ test.describe("Head-to-head", () => {
     await link.click();
     await page.getByRole("heading", { level: 1, name: /^Kohtaamiset: / }).waitFor();
 
-    // S10: the number on the link is the number of rows behind it.
+    // The number on the link is the number of rows behind it.
     await expect(page.locator("tbody tr")).toHaveCount(promised);
   });
 
@@ -59,8 +61,8 @@ test.describe("Head-to-head", () => {
 
     const labels = await page.locator("tbody tr td:nth-child(4)").allTextContents();
     expect(labels.length).toBeGreaterThan(0);
-    // S2 puts every competition in one list, so the column is the only thing
-    // saying which one a meeting belonged to — an empty cell says nothing.
+    // Every competition is in one list, so the column is the only thing saying
+    // which one a meeting belonged to: an empty cell says nothing.
     expect(labels.every((label) => label.trim() !== "")).toBe(true);
   });
 
@@ -91,15 +93,13 @@ test.describe("Head-to-head", () => {
   });
 });
 
-/**
- * The two analysis sections (specs/044), on a pair with meetings in more than
- * one competition: FC Inter and AC Oulu have met in Veikkausliiga and in
- * Liigacup. Signed in the way league-position.spec.ts explains.
- */
+// The two analysis sections, on a pair with meetings in more than one
+// competition: FC Inter and AC Oulu have met in Veikkausliiga and in Liigacup.
+// Signed in the way league-position.spec.ts explains.
 test.describe("Head-to-head analysis", () => {
   const INTER_OULU = "/kotimaa/kohtaamiset/60987/60493";
 
-  /** The rows of the meeting list, not of the grid or the averages table. */
+  // The rows of the meeting list, not of the grid or the averages table.
   function meetingRows(page: Page) {
     return page.getByRole("region", { name: "Kohtaamiset" }).locator("tbody tr");
   }
@@ -108,9 +108,8 @@ test.describe("Head-to-head analysis", () => {
     test.beforeEach(async ({ page }) => {
       await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
       await page.goto(INTER_OULU);
-      // Under `Keskinäinen historia` since specs/047: FC Inter and AC Oulu
-      // met in 2026, so the page carries the form group and the history's
-      // sections are `h3`.
+      // FC Inter and AC Oulu met in 2026, so the page carries the form group
+      // and the history's sections are `h3`, under `Keskinäinen historia`.
       await page.getByRole("heading", { level: 3, name: "Tulokset" }).waitFor();
     });
 
@@ -138,7 +137,7 @@ test.describe("Head-to-head analysis", () => {
     test("splits the meetings by competition, each with both averages", async ({ page }) => {
       const table = page.getByRole("region", { name: "Maalit kilpailuittain" }).getByRole("table");
       const rows = table.locator("tbody tr");
-      // Veikkausliiga and Liigacup, never one blended row (S4).
+      // Veikkausliiga and Liigacup, never one blended row.
       expect(await rows.count()).toBeGreaterThanOrEqual(2);
       await expect(table).toContainText("Liigacup");
 
@@ -160,11 +159,8 @@ test.describe("Head-to-head analysis", () => {
   });
 });
 
-/**
- * The rivalry (specs/047): both teams' current form above their shared
- * history, on a pair still playing each other — FC Inter and AC Oulu met in
- * 2026.
- */
+// The rivalry: both teams' current form above their shared history, on a pair
+// still playing each other. FC Inter and AC Oulu met in 2026.
 test.describe("The rivalry, signed in", () => {
   const INTER_OULU = "/kotimaa/kohtaamiset/60987/60493";
 

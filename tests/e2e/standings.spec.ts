@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * The standings page, end to end.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/006-other-competitions.md
+ * decisions/007-back-navigation.md
+ */
+
 test.describe("Standings page", () => {
   test("loads the standings table for the default season", async ({ page }) => {
     await page.goto("/ulkomaat/sarjataulukko");
