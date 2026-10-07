@@ -433,3 +433,35 @@ each prove) and #299 (why two page tests arrange their mocks at file level).
 Seven existing records took entries, 269 two of them: 041, 113, 182, 269,
 303, 403 and 529. Stories were cut without an entry where their record tells
 them already: 020, 026, 042, 179, 182, 385 and 533.
+
+## The fifteenth batch, 2026-10-07: the components' unit tests, and twelve others
+
+The 56 test files under `tests/unit/components`, and the twelve unit test
+files that sit outside `app`, `components`, `lib` and `scripts`: the
+database, the configuration files, the setup documents, the instrumentation
+and the test database's own test. 57 233 characters of comment became
+55 998.
+
+Done as the fourteenth batch was. Twenty-six of the component tests had
+nothing to cut and only gained a header: one line naming the component, and
+the records its history gives.
+
+Three changes had no record and have one now. #408 holds the long story from
+`admin-user-table.test.tsx`: why the refusal-cleared test waits for the
+button and not the alert, what #388 measured before it, and why the race
+could not be forced. #461 says why Renovate's custom manager has a test, and
+#524 what was wrong with the setup chain before it had one. Three existing
+records took an entry: 029, 527 and 536. Stories were cut without an entry
+where their record tells them already: 023, 024, 026, 027, 042, 174, 271,
+303, 304, 314, 376, 399 and 441.
+
+Before this commit, each record changed was checked to begin with its whole
+content on `main`: the thirteenth batch emptied three records while adding
+to them, and the gate did not notice. The header record lists are made by
+the rule the fourteenth batch's section states, where "a test under a new
+name" counts a rewritten test as well as a new one. That reading applies to
+the earlier batches too: the page tests of the fourteenth batch were checked
+against it, and the foreign club page's test regains 012, which that batch
+took off as a rename. One list is set by hand:
+the setup chain's test cites 524 and not 174, because the change that
+created it also moved record 174 into place.

@@ -2,6 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 
+/**
+ * The controls above a Finnish competition's standings.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/015-finnish-cups.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

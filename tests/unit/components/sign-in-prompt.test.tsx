@@ -2,6 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 
+/**
+ * The prompt a signed-out reader gets, and where signing in returns them.
+ *
+ * decisions/024-account-settings.md
+ * decisions/030-league-position-by-matchday.md
+ */
+
 const { socialSignIn, pathname, search, replace } = vi.hoisted(() => ({
   socialSignIn: vi.fn(() => Promise.resolve()),
   pathname: { current: "/asetukset" },
@@ -43,8 +50,8 @@ describe("SignInPrompt", () => {
   });
 
   it("returns the reader to the same competition and season of a team page", () => {
-    // The chart's prompt (specs/030). Without the query the reader came back to
-    // the bare team URL, which resolves a competition of its own.
+    // The chart's prompt. Without the query the reader would come back to the
+    // bare team URL, which resolves a competition of its own.
     pathname.current = "/kotimaa/joukkue/123";
     search.current = "kilpailu=VL&kausi=2024";
     render(<SignInPrompt />);

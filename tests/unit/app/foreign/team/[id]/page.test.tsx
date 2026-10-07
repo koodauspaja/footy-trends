@@ -27,6 +27,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/004-listing-matches-for-selected-team.md
  * decisions/006-other-competitions.md
  * decisions/007-back-navigation.md
+ * decisions/012-finnish-urls-english-code.md
  * decisions/020-context-free-team-page.md
  * decisions/022-teams-between-tiers.md
  * decisions/026-favourites.md
@@ -592,7 +593,7 @@ describe("Team page", () => {
     expect(screen.queryByText("Joukkuetta ei löytynyt.")).not.toBeInTheDocument();
   });
 
-  // `Number()` alone reads the first two as teams 16 and 1000.
+  // `Number()` alone would accept two of these: `0x10` as 16 and `1e3` as 1000.
   it.each([
     ["a word", "abc"],
     ["hexadecimal, which Number() reads as 16", "0x10"],

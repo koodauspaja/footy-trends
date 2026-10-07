@@ -3,14 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 
 /**
- * The one star, from specs/026-favourites.md.
+ * The favourite star. It is on prerendered pages, so it reads the session the
+ * browser already has and does not ask the server: these tests are mostly about
+ * what it does when that answer and the truth disagree.
  *
- * It renders in a standings row, on a team page, on a competition page and in
- * the region picker — and the picker is on the four pages #182 keeps
- * prerendered. So it reads the session the browser already has rather than
- * asking the server, and these tests are mostly about what it does when that
- * answer and the truth disagree.
+ * decisions/026-favourites.md
+ * decisions/024-account-settings.md
+ * decisions/182-national-team-pages-not-prerendered.md
  */
+
 const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
   session: { data: null as unknown },
   refetch: vi.fn(async () => {}),
@@ -34,14 +35,9 @@ vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch }),
 }));
 
-/**
- * A refetch that actually brings back what the server now holds.
- *
- * The default mock returns a session frozen at render time, which would let the
- * component look right for the wrong reason: it clears its local answer after a
- * refetch, so a session that never changes would snap the star back and the
- * test would be asserting the bug.
- */
+// A refetch that brings back what the server now holds. The default mock's
+// session is frozen at render time: the component clears its local answer after
+// a refetch, so a session that never changes would snap the star back.
 function serverNowSays(favourites: { teams?: string[]; competitions?: string[] }) {
   refetch.mockImplementation(async () => {
     session.data = {
@@ -77,8 +73,8 @@ beforeEach(() => {
 
 describe("signed out", () => {
   it("renders nothing at all", () => {
-    // Not a disabled star: on the picker pages this is the difference between
-    // an empty control on every row and no control, and #024 already has one
+    // Not a disabled star: on the picker pages that is the difference between
+    // an empty control on every row and no control, and the app already has one
     // place that asks people to sign in.
     const { container } = render(team());
 
@@ -142,12 +138,9 @@ describe("writing", () => {
   });
 
   it("hands the state back to the session once it has caught up", async () => {
-    /**
-     * The local answer covers the gap until the refetch lands, and must not
-     * outlive it. Left in place it would outrank the session for as long as
-     * this component stays mounted — so a change made in another tab would
-     * never appear here, and the star would be right once and then frozen.
-     */
+    // The local answer covers the gap until the refetch lands, and must not outlive
+    // it: left in place it would outrank the session for as long as the component
+    // stays mounted, and a change made in another tab would never appear.
     signedIn();
     serverNowSays({ teams: ["taso:60731"] });
     render(team());
@@ -282,13 +275,9 @@ describe("an unusable session payload", () => {
 
 describe("hydration", () => {
   it("renders nothing on the server, even for a signed-in reader", async () => {
-    /**
-     * The star appears on pages that are server-rendered, four of them
-     * prerendered (#182). If the first client render disagreed with that HTML,
-     * React would throw the server's markup away and re-render the page —
-     * which is what it did before the mount gate, because better-auth answers
-     * from its own cache on the first render.
-     */
+    // The star waits for mount. It is on server-rendered pages, four of them prerendered,
+    // and better-auth answers from its own cache on the first render: a first client render
+    // that disagreed with that HTML would make React throw the server's markup away.
     const { renderToStaticMarkup } = await import("react-dom/server");
     signedIn({ favoriteTeams: ["taso:60731"] });
 

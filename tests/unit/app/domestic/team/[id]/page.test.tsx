@@ -495,7 +495,7 @@ describe("Domestic team page", () => {
     ).not.toBeInTheDocument();
   });
 
-  // `Number()` alone reads the first two as teams 16 and 1000.
+  // `Number()` alone would accept two of these: `0x10` as 16 and `1e3` as 1000.
   it.each([
     ["a word", "not-a-number"],
     ["hexadecimal, which Number() reads as 16", "0x10"],

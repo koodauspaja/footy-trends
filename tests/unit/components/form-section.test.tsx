@@ -8,6 +8,12 @@ import {
 } from "@/components/form-section";
 import type { FormSeries } from "@/lib/form-series";
 
+/**
+ * The form panel.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
+
 const series: FormSeries = {
   status: "ok",
   points: [

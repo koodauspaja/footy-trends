@@ -19,6 +19,15 @@ import {
 } from "@/components/comebacks-section";
 import type { ComebacksSeries } from "@/lib/comebacks";
 
+/**
+ * The `Kääntyneet ottelut` panel: deficits rescued, leads given away, and the
+ * note on missing half-time scores.
+ *
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
+ * decisions/046-comebacks-half-time-coverage.md
+ */
+
 const series: ComebacksSeries = {
   status: "ok",
   trailed: { matches: 5, won: 2, drew: 1, lost: 2 },
@@ -85,11 +94,9 @@ describe("comebacksPanel", () => {
   });
 
   it("shows neither direction's third outcome, which is implied", () => {
-    /**
-     * The fixture has `trailed.lost` 2 and `led.won` 5, both deliberately
-     * different from every figure shown, so a leak would be visible. Six
-     * labels, and no row carrying either value.
-     */
+    // The fixture has `trailed.lost` 2 and `led.won` 5, both deliberately
+    // different from every figure shown, so a leak would be visible. Six
+    // labels, and no row carrying either value.
     const container = renderPanel();
     const labels = [...container.querySelectorAll("dl > div dt")].map((dt) => dt.textContent);
 
@@ -151,7 +158,7 @@ describe("comebacksPanel", () => {
   it("says how many are missing once, not once per direction", () => {
     renderPanel({ ...series, missing: 3 });
 
-    // Two lines would read as two separate gaps (specs/037, Q1).
+    // Two lines would read as two separate gaps.
     expect(screen.getAllByText("Puoliaikatulos puuttuu 3 ottelusta.")).toHaveLength(1);
   });
 

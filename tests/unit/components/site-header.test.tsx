@@ -2,6 +2,17 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "@/components/site-header";
 
+/**
+ * The site header: the home link, the region crumb, the sign-in control and the
+ * team search's row.
+ *
+ * decisions/007-back-navigation.md
+ * decisions/023-google-oauth-login.md
+ * decisions/024-account-settings.md
+ * decisions/207-region-breadcrumb.md
+ * decisions/373-team-search-header-row.md
+ */
+
 const { pathname, session } = vi.hoisted(() => ({
   pathname: { current: "/" },
   session: { current: { data: null as unknown, isPending: false } },
@@ -26,12 +37,9 @@ function renderAt(path: string) {
   render(<SiteHeader />);
 }
 
-/**
- * Both of these are module-level state that individual tests write to, so
- * without a reset a test inherits whatever the one before it left behind — and
- * then passes or fails depending on the order they are declared in. Signed out,
- * on the front page, is the state each test starts from unless it says otherwise.
- */
+// Both of these are module-level state that tests write to, so without a reset
+// a test inherits what the one before it left. Signed out, on the front page,
+// is where each test starts unless it says otherwise.
 beforeEach(() => {
   pathname.current = "/";
   session.current = { data: null, isPending: false };
@@ -102,7 +110,7 @@ describe("SiteHeader", () => {
 
     expect(screen.getByText("Matti Meikäläinen")).toBeInTheDocument();
 
-    // `Kirjaudu ulos` lives in the account menu as of specs/024.
+    // `Kirjaudu ulos` lives in the account menu.
     fireEvent.click(screen.getByRole("button", { name: "Tili: Matti Meikäläinen" }));
 
     expect(screen.getByRole("button", { name: "Kirjaudu ulos" })).toBeInTheDocument();
@@ -112,7 +120,7 @@ describe("SiteHeader", () => {
   it("points Etusivu at the picker for a reader with a start page", () => {
     // Without the parameter this crumb would redirect straight back to the
     // region they are already in, and the picker would be unreachable by
-    // clicking. See specs/024-account-settings.md.
+    // clicking.
     session.current = {
       data: { user: { name: "Matti", image: null }, defaultRegion: "kotimaa" },
       isPending: false,
@@ -178,10 +186,9 @@ describe("SiteHeader", () => {
     });
 
     it("leaves no empty strip for a signed-out reader", () => {
-      // `TeamSearch` returns null for them, and it owns its row's padding — so
-      // there is no wrapper left behind. A header that grew a blank 12px band
-      // for someone who cannot use the search would be a visible regression for
-      // the reader least able to explain it.
+      // `TeamSearch` returns null for them, and it owns its row's padding, so
+      // no wrapper is left behind: a blank band in the header for someone who
+      // cannot use the search would be a visible regression.
       renderAt("/");
 
       expect(screen.queryByRole("searchbox", { name: "Hae joukkuetta" })).toBeNull();

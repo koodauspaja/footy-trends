@@ -2,6 +2,17 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthControls, AuthNotice } from "@/components/auth-controls";
 
+/**
+ * The sign-in control and the signed-in header: what each state shows, the
+ * errors a failed sign-in can land on, and the picture.
+ *
+ * decisions/023-google-oauth-login.md
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/266-spent-sign-in-error.md
+ * decisions/314-sign-in-allowlist.md
+ */
+
 const { sessionState, socialSignIn, signOut, searchParams, pathname, replace } = vi.hoisted(() => ({
   sessionState: { current: { data: null as unknown, isPending: false } },
   socialSignIn: vi.fn(() => Promise.resolve()),
@@ -40,10 +51,8 @@ function signedInAs(
   };
 }
 
-/**
- * `Kirjaudu ulos` moved inside the account menu in specs/024-account-settings.md,
- * so reaching it now takes a click on the trigger first.
- */
+// `Kirjaudu ulos` is inside the account menu, so reaching it takes a click on
+// the trigger first.
 function openAccountMenu() {
   fireEvent.click(screen.getByRole("button", { name: /^Tili:/ }));
 }
@@ -217,10 +226,9 @@ const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
 
 describe("a sign-in the allowlist refused, from #314", () => {
   it("names the cause when it arrives behind the one the app already set", () => {
-    // The real shape of the URL, and the reason this reads `getAll`.
-    // `errorCallbackURL` is `/?error=auth`, and better-auth's
-    // `appendQueryParams` concatenates rather than replaces — so the reader
-    // lands on both, and `get("error")` would answer the least specific one.
+    // The real shape of the URL, and the reason this reads `getAll`: `errorCallbackURL`
+    // is `/?error=auth`, and better-auth's `appendQueryParams` concatenates, so the
+    // reader lands on both and `get("error")` would answer the least specific one.
     searchParams.current = new URLSearchParams("error=auth&error=sign_in_not_allowed");
 
     render(<AuthNotice />);
@@ -260,10 +268,9 @@ describe("a sign-in the allowlist refused, from #314", () => {
 });
 
 describe("an error code taken straight off the query string", () => {
-  // `MESSAGES` is a Map for this reason: as an object literal, each of these
-  // keys resolves to an inherited member — `Object.prototype`, or a function —
-  // which `??` does not treat as absent, so it would reach `Notice` as a
-  // non-string child and throw during render.
+  // `MESSAGES` is a Map for this reason: as an object literal each of these
+  // keys resolves to an inherited member, which `??` does not treat as absent,
+  // so it would reach `Notice` as a non-string child and throw during render.
   it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"])(
     "falls back to the sign-in message for %s instead of throwing",
     (code) => {
@@ -275,11 +282,9 @@ describe("an error code taken straight off the query string", () => {
   );
 });
 
-/**
- * #266: after a cancelled sign-in the reader sits on `?error=auth`, and
- * `returnPath` carried that straight into Google's `callbackURL` — so a
- * *successful* sign-in returned them to their own error message.
- */
+// After a cancelled sign-in the reader sits on `?error=auth`, and `returnPath`
+// must not carry that into Google's `callbackURL`: a successful sign-in would
+// return them to their own error message.
 describe("a spent error does not survive the next attempt", () => {
   it("does not ask Google to return the reader to the error they just cleared", () => {
     pathname.current = "/";
@@ -365,12 +370,9 @@ describe("a URL rewrite that itself fails", () => {
 describe("Which picture the account menu shows", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
 
-  /**
-   * The chain specs/025-custom-avatar.md extends by one: the reader's own
-   * picture, then Google's, then their name. The version rides on the session
-   * the browser already fetches, so preferring the custom one costs no extra
-   * request.
-   */
+  // The chain: the reader's own picture, then Google's, then their name. The
+  // version rides on the session the browser already fetches, so preferring the
+  // custom one costs no extra request.
   it("prefers the reader's own picture over Google's", () => {
     signedInAs("Matti", { image: GOOGLE, avatarVersion: "avatar-token" });
 

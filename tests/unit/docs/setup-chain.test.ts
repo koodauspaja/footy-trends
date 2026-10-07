@@ -3,17 +3,18 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * `docs/setup/` is a procedure followed in one order (#524). Its numbers are
- * names, not the order, because other documents cite them: the order is the
- * index's table and each document's **Next** pointer. Before #524 the chain
- * ended at 022, four documents could not be reached by following it, and one
- * pointed back at a feature spec. Nothing failed, so nobody noticed.
+ * `docs/setup/` is a procedure followed in one order. Its numbers are names, not
+ * the order, because other documents cite them: the order is the index's table and
+ * each document's Next pointer, and every document must be reached by it.
+ *
+ * decisions/524-setup-docs-for-two-readers.md
  */
+
 const SETUP = path.join(process.cwd(), "docs", "setup");
 const INDEX = "README.md";
-/** A whole filename, so `backup001-old.md` is not taken for a document. */
+// A whole filename, so `backup001-old.md` is not taken for a document.
 const DOCUMENT = /^\d{3}-[a-z0-9-]+\.md$/;
-/** A Next pointer names its document whole, in backticks. */
+// A Next pointer names its document whole, in backticks.
 const POINTER = /`(\d{3}-[a-z0-9-]+\.md)`/;
 
 const files = readdirSync(SETUP).sort();
@@ -84,7 +85,8 @@ describe("docs/setup (#524)", () => {
     expect(indexOrder()).toEqual(chainFrom("001-github-repo-setup.md"));
   });
 
-  /** Every Markdown file under the given roots, as paths from the repository root. */
+  // Every Markdown file under the given roots, as paths from the repository
+  // root.
   function markdownUnder(target: string): string[] {
     const full = path.join(process.cwd(), target);
     if (!existsSync(full)) return [];

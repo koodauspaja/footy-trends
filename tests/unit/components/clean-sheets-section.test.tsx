@@ -8,6 +8,12 @@ import {
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 
+/**
+ * The `Nollapelit` panel.
+ *
+ * decisions/034-clean-sheets.md
+ */
+
 const series: CleanSheetSeries = {
   status: "ok",
   points: [

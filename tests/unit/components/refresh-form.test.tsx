@@ -4,13 +4,13 @@ import { RefreshForm } from "@/components/refresh-form";
 import { NO_CHANGES, type RefreshPreview } from "@/lib/refresh-view";
 
 /**
- * The forced refresh as an admin drives it, from
- * specs/029-forced-season-refresh.md.
+ * The forced refresh as an admin drives it. The actions are mocked: what
+ * matters is that nothing applies without a confirmation, and that every
+ * refusal the engine can report reaches the admin in Finnish.
  *
- * The actions are mocked: what matters here is that **nothing applies without a
- * confirmation**, and that every refusal the engine can report reaches the
- * admin in Finnish rather than as silence.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
   const state = {
     seasons: { ok: true, seasons: [{ seasonId: 2026, label: "2026" }] } as unknown,
@@ -59,19 +59,14 @@ function renderForm() {
   return render(<RefreshForm domestic={DOMESTIC} foreign={FOREIGN} />);
 }
 
-/**
- * Waits until the confirmation is ready to be acted on.
- *
- * Waiting for the dialog alone is not enough: `startTransition` keeps `pending`
- * true for a moment after the preview lands, and while it is the button reads
- * `Päivitetään…`. Waiting for the dialog and then reaching for `Päivitä` is a
- * race, and it duly failed about one run in four.
- */
+// Waits until the confirmation is ready to be acted on. The dialog alone is not
+// enough: `startTransition` keeps `pending` true for a moment after the preview
+// lands, and while it is the button reads `Päivitetään…`.
 async function confirmButton() {
   return await waitFor(() => screen.getByRole("button", { name: "Päivitä" }));
 }
 
-/** The season list loads on mount; most assertions need it settled first. */
+// The season list loads on mount; most assertions need it settled first.
 async function renderLoaded() {
   renderForm();
   await waitFor(() => expect(screen.getByLabelText("Kausi")).toBeEnabled());
@@ -206,11 +201,9 @@ describe("a slow season list", () => {
   });
 
   it("does not report a failure belonging to the competition you left", async () => {
-    // The previous version of this unmounted the component and asserted nothing
-    // was thrown. That proved nothing: React silently drops state updates after
-    // unmount, so the test passed with the guard removed — verified. This one
-    // is observable: without the guard the *new* competition's picker shows a
-    // failure that belongs to the old one.
+    // Observable, where unmounting and asserting nothing was thrown is not:
+    // React silently drops state updates after unmount. Without the guard the
+    // new competition's picker shows a failure that belongs to the old one.
     let rejectFirst: (reason: unknown) => void = () => undefined;
     seasonsAction.mockImplementationOnce(
       () =>
@@ -339,11 +332,9 @@ describe("a request that rejects rather than refuses", () => {
 });
 
 describe("changing the selection", () => {
-  /**
-   * A notice describes one competition and season. Left standing beside another
-   * it reads as a statement about that one — and after an apply it reads as a
-   * statement that something was written to it.
-   */
+  // A notice describes one competition and season. Left standing beside another
+  // it reads as a statement about that one, and after an apply as a statement
+  // that something was written to it.
   async function noticeThenChange(change: () => void) {
     state.apply = { ok: true, applied: preview() };
     await renderLoaded();

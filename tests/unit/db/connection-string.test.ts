@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { MISSING_DATABASE_URL, requireDatabaseUrl } from "@/db/connection-string";
 
 /**
- * The one place that decides whether there is a database to connect to (#536).
- * Without it postgres.js falls back to `localhost` or `PGHOST`, so "missing"
- * has to be refused here and by name.
+ * The one place that decides whether there is a database to connect to. Without
+ * it postgres.js falls back to `localhost` or `PGHOST`, so "missing" has to be
+ * refused here and by name.
+ *
+ * decisions/536-database-url-required.md
  */
+
 describe("requireDatabaseUrl", () => {
   it("returns the connection string it was given", () => {
     const url = "postgres://user:secret@db.example.com:5432/app";

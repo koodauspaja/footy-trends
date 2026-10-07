@@ -4,6 +4,15 @@ import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
 import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
+/**
+ * A competition's Analyysit: its gate, which competitions have it, and its
+ * panels.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/050-table-volatility.md
+ */
+
 const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares, getTableVolatility } = vi.hoisted(
   () => ({
     canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
@@ -156,7 +165,7 @@ describe("the strings the spec agreed", () => {
 });
 
 describe("CompetitionAnalyticsSection, signed in", () => {
-  /** Goals per game's own panel: the section holds another chart since specs/050. */
+  // Goals per game's own panel: the section holds another chart.
   function goalsPanel() {
     return screen.getByRole("region", { name: GOALS_PER_GAME_HEADING });
   }

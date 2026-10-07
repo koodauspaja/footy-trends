@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
 
+/**
+ * The settings page a signed-in reader sees: preferences, the picture, devices
+ * and account deletion.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/271-saved-value-in-settings-dropdowns.md
+ */
+
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
 
 const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
@@ -323,9 +332,8 @@ describe("deleting the account", () => {
 
 describe("a server action that rejects before returning anything", () => {
   // The actions return `{ ok: false }` for their own failures, but the
-  // invocation can reject on its own — a dropped connection never reaches
-  // their `try`. Uncaught, that leaves a dead control and an unhandled
-  // rejection.
+  // invocation can reject on its own: a dropped connection never reaches their
+  // `try`. Uncaught, that leaves a dead control and an unhandled rejection.
   const typeConfirmation = (value: string) =>
     fireEvent.change(screen.getByLabelText("Vahvistus"), { target: { value } });
 
@@ -367,12 +375,9 @@ describe("a server action that rejects before returning anything", () => {
 });
 
 describe("a dropdown after the server sends the saved value back", () => {
-  /**
-   * #271: the selects were uncontrolled, so `defaultValue` applied on mount and
-   * was ignored on every later render. After a save the server revalidates and
-   * sends the stored preferences back as new props — and the dropdown kept
-   * showing the old value beside `Asetukset tallennettu.`
-   */
+  // After a save the server revalidates and sends the stored preferences back
+  // as new props, and the dropdown must show them: an uncontrolled select
+  // applies `defaultValue` on mount only.
   it("shows a newly saved competition", () => {
     const { rerender } = renderPage();
     expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("");
@@ -391,7 +396,7 @@ describe("a dropdown after the server sends the saved value back", () => {
   });
 
   it("shows a newly saved start region", () => {
-    // All four selects had the same defect, not only the one reported.
+    // All four selects show what was saved, not only the competition's.
     const { rerender } = renderPage();
 
     rerender(
@@ -434,14 +439,9 @@ describe("a dropdown after the server sends the saved value back", () => {
   });
 
   it("does not discard an edit the reader has not saved yet", () => {
-    // The other half of the fix: a re-render that does not change the *stored*
-    // value must leave a half-made choice alone. Otherwise picking a
-    // competition and then having the page re-render for any reason would
-    // silently undo it.
-    //
-    // `rerender`, not a second `renderPage()`. Mounting a second component
-    // would leave the first one untouched and assert on that — which passes
-    // whatever the component does on re-render, and so tests nothing.
+    // A re-render that does not change the stored value must leave a half-made
+    // choice alone. `rerender`, not a second `renderPage()`: mounting a second
+    // component would leave the first untouched and assert on that.
     const { rerender } = renderPage();
     fireEvent.change(screen.getByLabelText("Kotimaan oletussarja"), { target: { value: "M1L" } });
 
@@ -465,7 +465,7 @@ describe("Profiilikuva", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
   const VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
 
-  /** A file of a given size, whose bytes never matter — the server decodes. */
+  // A file of a given size, whose bytes never matter: the server decodes.
   function imageOf(bytes: number): File {
     return new File([new Uint8Array(bytes)], "kuva.png", { type: "image/png" });
   }
@@ -561,11 +561,9 @@ describe("Profiilikuva", () => {
   });
 
   it("refuses an oversized file in the browser, before the upload starts", async () => {
-    /**
-     * Not validation — the server decides what is stored. This exists so the
-     * reader is told *which* rule they hit: past Next's configured body limit
-     * the action is rejected before it runs, and a rejection carries no reason.
-     */
+    // Not validation: the server decides what is stored. This tells the reader
+    // which rule they hit, because past Next's configured body limit the action
+    // is rejected before it runs, and a rejection carries no reason.
     renderPicture(null);
     chooseFile(imageOf(9 * 1024 * 1024));
 
@@ -598,12 +596,9 @@ describe("Profiilikuva", () => {
     ["a dropped connection", new Error("Failed to fetch")],
     ["Next's body limit", new Error("Body exceeded 10mb limit.")],
   ])("reports %s as a save failure, not as a wrong diagnosis", async (_case, error) => {
-    /**
-     * A rejected invocation cannot be told apart from here — the message is
-     * redacted in production, so a dropped connection and a body limit arrive
-     * identically. Naming one of them would be wrong more often than right,
-     * and the size case is already caught before anything is sent.
-     */
+    // A rejected invocation cannot be told apart from here: the message is redacted in
+    // production, so a dropped connection and a body limit arrive identically. Naming one would
+    // be wrong more often than right, and the size case is caught before anything is sent.
     saveAvatarAction.mockRejectedValue(error);
     renderPicture(null);
     chooseFile(imageOf(1024));
