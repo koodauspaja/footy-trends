@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { describeRun, exitCodeFor, parseCommand, USAGE } from "../../../scripts/predictions-plan";
 
+/**
+ * The predictions script's command line, and how a run is described and what it
+ * exits with.
+ *
+ * decisions/052-predictions-log.md
+ */
+
 describe("parseCommand", () => {
   it("accepts log and backtest", () => {
     expect(parseCommand(["log"])).toBe("log");

@@ -54,3 +54,13 @@ Cut from `scripts/review-findings.ts` at `5b180e0` by #531.
   per-pull fetches outside, so a token expiring mid-run printed a stack
   trace and no table: the "failure path dropped" class the command exists to
   count.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/review-findings-plan.test.ts` at `a15a9f9` by #531.
+
+- **Two corrections from review of the first version.** It matched on bare
+  keywords and took the first hit, which filed a parser finding under tests.
+  And it used `gh pr list` unsorted: #250 was created long before #291 and
+  merged after it, so the API's own order counted the wrong window. It also
+  printed internal class names, which disagreed with `skills/self-review.md`.

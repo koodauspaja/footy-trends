@@ -115,3 +115,11 @@ Cut from `scripts/release-version.ts` at `5b180e0` by #531.
 - **`release-version.ts` throws without git.** A release built by whatever
   `git` happened to be first in someone's path is not a release anyone
   should trust.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/executable.test.ts` at `a15a9f9` by #531.
+
+- **`env: {}` in every call of `executable.test.ts`.** Found by setting
+  `GIT_EXECUTABLE` and watching two tests that were not about overrides at
+  all go red.

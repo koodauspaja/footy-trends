@@ -13,9 +13,19 @@ import {
   pathFromEntry,
 } from "../../../scripts/e2e-freshness-plan";
 
+/**
+ * The pre-push decision: whether the last passing e2e run still covers what is
+ * about to be pushed.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/220-freshness-notices-deletions.md
+ * decisions/242-freshness-compares-content.md
+ * decisions/292-sonar-zero-open-issues.md
+ */
+
 const NOW = new Date("2026-08-30T12:00:00.000Z");
 
-/** A run that finished `minutes` ago, relative to `NOW`. */
+// A run that finished `minutes` ago, relative to `NOW`.
 function minutesAgo(minutes: number): Date {
   return new Date(NOW.getTime() - minutes * 60_000);
 }
@@ -71,11 +81,12 @@ describe("parseMarker", () => {
     expect(parseMarker(`${MARKER_JSON}\n`)).not.toBeNull();
   });
 
-  // The timestamp-only format predates #220. It carries no tree state, so the
-  // hook could not tell whether anything had changed — failing closed makes the
-  // next run write a usable one.
+  // A timestamp-only marker carries no tree state, so the hook could not tell
+  // whether anything had changed: failing closed makes the next run write a
+  // usable one.
   it("rejects an older-format marker rather than half-trusting it", () => {
-    // The head+status shape #220 wrote, and the timestamp-only one before it.
+    // Neither older shape holds content hashes, so neither can be compared: the
+    // head-and-status one, and the timestamp-only one.
     expect(parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z"}')).toBeNull();
     expect(
       parseMarker('{"finishedAt":"2026-08-30T11:00:00.000Z","head":"abc","status":[]}')
@@ -270,23 +281,17 @@ describe("changedBetweenFingerprints", () => {
     ]);
   });
 
-  // #220: a deleted file simply stops appearing, which the modification-time
-  // walk this replaced could not see at all.
+  // A deleted file simply stops appearing, which a walk of modification times
+  // cannot see at all.
   it("catches a deletion, as an entry that disappeared", () => {
     expect(changedBetweenFingerprints([entry("aaa", "src/gone.ts")], [])).toEqual([
       { path: "src/gone.ts", kind: "deleted" },
     ]);
   });
 
-  /**
-   * #242, and the whole reason this compares content.
-   *
-   * Committing moves bytes from the working tree into a commit and changes
-   * nothing about them. The earlier `HEAD`-plus-status pair described *where*
-   * content lived, so that move read as a change and blocked a push the run had
-   * already covered. A hash cannot tell the difference, which is the property
-   * wanted.
-   */
+  // The whole reason this compares content. Committing moves bytes from the working tree
+  // into a commit and changes nothing about them: a `HEAD`-plus-status pair describes where
+  // content lives, so that move reads as a change. A hash cannot tell the difference.
   it("sees nothing when content is committed rather than edited", () => {
     const before = [entry("aaa", "src/a.ts")];
     const afterCommitting = [entry("aaa", "src/a.ts")];
@@ -315,13 +320,9 @@ describe("describeChange", () => {
 
 describe("inFixedOrder", () => {
   it("orders by code unit, which is the same on every machine", () => {
-    /**
-     * The distinguishing case, and the reason `localeCompare` — what Sonar
-     * suggests for the bare `sort()` this replaced — would be wrong: in an
-     * English locale "a" sorts before "B", while by code unit "B" (66) comes
-     * before "a" (97). This list is compared against one an earlier run wrote,
-     * possibly on another machine, so it must not depend on a locale.
-     */
+    // Why `localeCompare`, which Sonar suggests for a bare `sort()`, would be wrong: an English
+    // locale sorts "a" before "B", while by code unit "B" (66) comes before "a" (97). The list
+    // is compared with one written on another machine, so no locale may decide.
     expect(inFixedOrder(["a\tsrc/a.ts", "B\tsrc/b.ts"])).toEqual(["B\tsrc/b.ts", "a\tsrc/a.ts"]);
   });
 

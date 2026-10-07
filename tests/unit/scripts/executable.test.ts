@@ -3,23 +3,19 @@ import { describe, expect, it } from "vitest";
 import { executablePath, looksRunnable, overrideNameFor } from "../../../scripts/executable";
 
 /**
- * Where the scripts find `git`, `docker` and `gh`, from #292 and #361.
+ * Where the scripts find `git`, `docker` and `gh`. The answer never comes from
+ * `PATH`, so every case is about which absolute path is chosen, and about
+ * refusing the ones that would hand the decision back.
  *
- * The point of the module is that the answer never comes from `PATH`, so every
- * case here is about which absolute path is chosen — and about refusing the
- * ones that would hand the decision back.
+ * decisions/292-sonar-zero-open-issues.md
+ * decisions/361-release-domains-on-the-pr.md
  */
 
-/*
- * Every call below passes `env: {}`.
- *
- * Omitting it reads the real environment, so a developer with `GIT_EXECUTABLE`
- * set — the escape hatch this module documents — would fail tests about code
- * that is working. Found by setting it and watching two tests that were not
- * about overrides at all go red.
- */
+// Every call below passes `env: {}`. Omitting it reads the real environment, so
+// a developer with `GIT_EXECUTABLE` set, the escape hatch this module
+// documents, would fail tests about code that is working.
 
-/** A filesystem where only these paths exist. */
+// A filesystem where only these paths exist.
 function present(...paths: string[]) {
   return (candidate: string) => paths.includes(candidate);
 }
@@ -47,9 +43,9 @@ describe("executablePath", () => {
   });
 
   it("finds gh where Homebrew puts it", () => {
-    // Added for #361: opening the release pull request shells out to `gh`, and
-    // a release carried out by whichever binary was first in somebody's path is
-    // not one to trust.
+    // Opening the release pull request shells out to `gh`, and a release
+    // carried out by whichever binary was first in somebody's path is not one
+    // to trust.
     const exists = present("/opt/homebrew/bin/gh");
 
     expect(executablePath("gh", { exists, env: {} })).toBe("/opt/homebrew/bin/gh");
@@ -77,11 +73,9 @@ describe("executablePath", () => {
   });
 
   it("refuses a relative override, which would put PATH back in charge", () => {
-    /**
-     * The case the whole module exists for. `GIT_EXECUTABLE=git` looks like a
-     * configuration and is a way back to name resolution — and one that would
-     * be trusted more than the default, because someone set it deliberately.
-     */
+    // The case the whole module exists for. `GIT_EXECUTABLE=git` looks like a
+    // configuration and is a way back to name resolution, one that would be
+    // trusted more than the default because someone set it deliberately.
     const exists = present("git", "/usr/bin/git");
 
     expect(executablePath("git", { exists, env: { GIT_EXECUTABLE: "git" } })).toBeNull();
@@ -110,11 +104,9 @@ describe("executablePath", () => {
 });
 
 describe("what counts as runnable", () => {
-  /**
-   * The default check is `looksRunnable`, which is not exported — these drive the
-   * real one through `executablePath`'s default, using paths this machine
-   * genuinely has. Existence alone is not the question: a directory exists.
-   */
+  // The default check is `looksRunnable`, driven here through
+  // `executablePath`'s default with paths this machine has. Existence alone is
+  // not the question: a directory exists.
   it("refuses a directory that happens to be named like the tool", () => {
     expect(executablePath("git", { env: { GIT_EXECUTABLE: "/usr" } })).toBeNull();
   });
@@ -127,16 +119,9 @@ describe("what counts as runnable", () => {
   });
 
   it("accepts the real git, which is an executable file", () => {
-    /**
-     * A sanity check on the other three: if this returned null, they would pass
-     * for the wrong reason.
-     *
-     * `env: {}` rather than the ambient environment, and an assertion about the
-     * *shape* rather than the name. A developer with `GIT_EXECUTABLE` set to a
-     * wrapper called something else would otherwise fail a test about code that
-     * is working — and the suffix would have to be repeated here every time
-     * `WINDOWS_SUFFIXES` changed.
-     */
+    // A sanity check on the other three: if this returned null, they would pass for the
+    // wrong reason. `env: {}` keeps a developer's own `GIT_EXECUTABLE` out of it, and
+    // asserting the shape, not the name, keeps the suffix list from being repeated here.
     const resolved = executablePath("git", { env: {} });
 
     expect(resolved).not.toBeNull();
@@ -145,15 +130,9 @@ describe("what counts as runnable", () => {
 });
 
 describe("what Windows counts as runnable-looking", () => {
-  /**
-   * `accessSync(path, X_OK)` means nothing on Windows: it succeeds for any
-   * readable file, so the permission check that works on POSIX would accept a
-   * text file named `git.exe`. The name is what Windows actually goes on.
-   *
-   * The fixture is exactly that — a text file with an `.exe` name and no
-   * execute bit — so the same path answers differently on the two platforms,
-   * which is the whole of the rule.
-   */
+  // `accessSync(path, X_OK)` means nothing on Windows: it succeeds for any readable file,
+  // so the name is what Windows goes on. The fixture is a text file with an `.exe` name and
+  // no execute bit, so the same path answers differently on the two platforms.
   const FIXTURE = path.join(process.cwd(), "tests", "fixtures", "executable", "tool.exe");
 
   it("accepts an .exe by its name, where POSIX would refuse it", () => {
@@ -162,16 +141,9 @@ describe("what Windows counts as runnable-looking", () => {
   });
 
   it("cannot promise the file will start, and does not claim to", () => {
-    /**
-     * The fixture is a text file with an `.exe` name, and `win32` accepts it.
-     * That is the documented limit rather than a defect: reading a PE header
-     * would only move the line, since a truncated binary passes that too, and
-     * POSIX's execute bit says nothing about a corrupt binary either.
-     *
-     * The screen exists for the failures that actually happen — a directory, a
-     * data file, an override pointing at the wrong thing — and the name says
-     * `looks` so nobody reads it as a guarantee.
-     */
+    // `win32` accepts the fixture, a text file with an `.exe` name. That is the documented
+    // limit: a PE header check would only move the line, as a truncated binary passes it
+    // too. The screen is for the failures that happen, and the name says `looks`.
     expect(looksRunnable(FIXTURE, "win32")).toBe(true);
   });
 

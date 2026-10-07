@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The entry point, imported — which is why it is shaped this way. See
- * `entry-point.ts`: nothing runs unless Node was pointed at this file, so the
- * check's own entry is a tested, unexcluded source file rather than another
- * line in `sonar.coverage.exclusions`.
+ * The check's entry point, imported: nothing runs unless Node was pointed at
+ * the file, so it is a tested source file and not a line in
+ * `sonar.coverage.exclusions`.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
  */
 
 const { runWhenMain, startCheck } = vi.hoisted(() => ({
@@ -29,13 +30,9 @@ describe("scripts/issue-boxes.ts", () => {
   });
 
   it("names the path npm actually runs, so the guard can recognise it", async () => {
-    /**
-     * `package.json` says `tsx scripts/issue-boxes.ts`, and `runWhenMain`
-     * compares that spelling against `argv[1]`. A rename in one place and not
-     * the other would leave the check doing nothing at all, silently — and a
-     * check that silently does nothing is the state this whole issue exists to
-     * get out of.
-     */
+    // `package.json` says `tsx scripts/issue-boxes.ts`, and `runWhenMain` compares
+    // that spelling against `argv[1]`. A rename in one place and not the other
+    // would leave the check silently doing nothing, the state it exists to end.
     const { default: packageJson } = await import("../../../package.json");
     await import("../../../scripts/issue-boxes");
 

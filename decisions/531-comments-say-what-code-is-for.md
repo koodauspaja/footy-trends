@@ -465,3 +465,30 @@ against it, and the foreign club page's test regains 012, which that batch
 took off as a rename. One list is set by hand:
 the setup chain's test cites 524 and not 174, because the change that
 created it also moved record 174 into place.
+
+## The sixteenth batch, 2026-10-08: the scripts' unit tests
+
+The 34 test files under `tests/unit/scripts`. 55 261 characters of comment
+became 49 918.
+
+These tests carried more review history than any others: about forty
+comments ended "raised in review on" a pull request, or said what the code
+did before a fix. Each keeps the reason, stated as what must hold, and loses
+the story.
+
+The first version of this batch added an entry to twelve records, and seven
+of the twelve repeated what the record already said. Each record was then
+read against the story cut, entry by entry, and eight records keep one: 220,
+290, 292, 376, 400, 403, 467 and 471, each with only what it lacked. One
+record is new: #219, the bug `backfill-run.test.ts` was written for, which
+had none. Nothing was added where the record already tells the story: 084,
+085, 242, 357, 361, 371, 385, 390, 399, 401, 404, 406 and 463.
+
+The header record lists are made by the rule the fourteenth and fifteenth
+batches' sections state. A squash commit that names only its pull request
+is read as the issue that pull request closed, taken from the pull
+request's body: #407 as 406, #409 as 400, #410 as 401, #411 as 403. A
+citation counts when a comment writes "spec 011" as well as `specs/011`.
+One record is left off by hand: `next-version.test.ts` named #309 only as
+an example of a squash subject's shape, and 309 says nothing about release
+versioning.

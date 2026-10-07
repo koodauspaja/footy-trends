@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { type PreflightActions, runPreflight } from "../../../scripts/preflight";
 import type { Preflight } from "../../../scripts/services-plan";
 
+/**
+ * The preflight every local command runs first: what it probes, what it starts,
+ * and what it says when it cannot.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
+
 const URL = "postgresql://postgres:secret@localhost:5432/footy-trends";
 
-/**
- * Every action recorded, nothing real. `steps` is the order things happened in,
- * which is most of what this module is: two failures can produce the same exit
- * code and still be different bugs.
- */
+// Every action recorded, nothing real. `steps` is the order things happened in,
+// which is most of what this module is: two failures can produce the same exit
+// code and still be different bugs.
 function actions(
   decision: Preflight,
   overrides: Partial<PreflightActions> = {}
@@ -92,12 +97,9 @@ describe("runPreflight", () => {
   });
 
   it("does not wait at all when the daemon could not be launched", async () => {
-    /**
-     * Linux, and macOS when `open` fails. Before this, `startDaemon` returning
-     * false still entered the wait loop and spent the full 90s polling for a
-     * process nobody had started — then reported that it had not come up in
-     * time, which was not what happened.
-     */
+    // Linux, and macOS when `open` fails: with nothing started there is nothing
+    // to wait for, and reporting that the daemon "had not come up in time"
+    // would not be what happened.
     let waits = 0;
     const a = actions(
       { kind: "start-daemon" },

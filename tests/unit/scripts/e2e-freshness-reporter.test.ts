@@ -9,16 +9,17 @@ import E2eFreshnessReporter, {
 } from "../../../scripts/e2e-freshness-reporter";
 
 /**
- * The half of the freshness mechanism that *writes* the marker the pre-push
- * hook reads. What matters is when it stays silent: a marker from a narrowed
- * run would claim a freshness it did not earn, and the hook would then wave
- * through a push whose changes were never exercised (#403).
+ * The half of the freshness mechanism that writes the marker the pre-push hook
+ * reads. What matters is when it stays silent: a marker from a narrowed run
+ * would claim a freshness it did not earn.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 
 const TEST_DIR = path.resolve("tests/e2e");
 const SPECS = ["one.spec.ts", "two.spec.ts"];
 
-/** Playwright hands the reporter its config; only these fields are read. */
+// Playwright hands the reporter its config; only these fields are read.
 function config(overrides: Partial<FullConfig> = {}): FullConfig {
   return {
     projects: [{ testDir: TEST_DIR }],
@@ -29,7 +30,7 @@ function config(overrides: Partial<FullConfig> = {}): FullConfig {
   } as unknown as FullConfig;
 }
 
-/** A suite that "ran" the given spec files. */
+// A suite that "ran" the given spec files.
 function suite(files: string[]): Suite {
   return {
     allTests: () =>
@@ -127,10 +128,8 @@ describe("E2eFreshnessReporter", () => {
   );
 
   it("writes nothing when git could not produce a fingerprint", () => {
-    /**
-     * A marker the hook cannot check is worse than none: the hook would have to
-     * trust it, which is the one thing the fingerprint exists to avoid.
-     */
+    // A marker the hook cannot check is worse than none: the hook would have to
+    // trust it, which is the one thing the fingerprint exists to avoid.
     const { instance, written } = reporter({ fingerprint: () => null });
 
     instance.onBegin(config(), suite(SPECS));

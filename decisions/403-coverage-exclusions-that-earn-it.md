@@ -45,3 +45,13 @@ Cut from `tests/unit/app/global-error.test.tsx` at `c12c30a` by #531.
 
 - **`global-error.tsx` has a test.** Nothing asserted that it rendered at
   all until this change.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/coverage-exclusions.test.ts` at `a15a9f9` by #531.
+
+- **Why the counts are tested.** #389 got the same count wrong twice, and
+  review on #411 read the counts as wrong when they were right, which is the
+  same problem from the other side. That review also raised that counts
+  alone let one entry be swapped for another in the same group. #258 had
+  removed two exclusions for files deleted long before.

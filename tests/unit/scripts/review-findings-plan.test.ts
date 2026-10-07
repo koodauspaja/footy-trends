@@ -12,11 +12,12 @@ import {
 } from "../../../scripts/review-findings-plan";
 
 /**
- * The classifier behind `npm run review:findings`, from #290.
+ * The classifier behind `npm run review:findings`. Every body below is a real
+ * Sourcery finding, shortened: the classes were derived from these, so invented
+ * text would test the patterns against an idea of how reviews are worded.
  *
- * Every body below is a real Sourcery finding, shortened — the classes were
- * derived from these, so inventing new sample text would test the patterns
- * against my idea of how reviews are worded rather than how they are.
+ * decisions/290-review-finding-classes.md
+ * decisions/390-review-classes-remeasured.md
  */
 
 const REAL: { body: string; expected: string }[] = [
@@ -54,11 +55,9 @@ const REAL: { body: string; expected: string }[] = [
     body: "**issue (review_instructions):** The device list exposes English browser labels in the Finnish UI.",
     expected: "English reaching a Finnish UI",
   },
-  /**
-   * The three below were added in #390, from the 35 findings sitting in
-   * `unclassified` on 2026-09-14. The first two are classes the document did
-   * not have; the third is one it did, worded in a way the patterns missed.
-   */
+  // The three below came from findings that sat in `unclassified`. The first
+  // two are classes the document did not have; the third is one it did, worded
+  // in a way the patterns missed.
   {
     body:
       "**issue (bug_risk):** The approval hash is checked against rows read before `writeSnapshot`, " +
@@ -99,12 +98,9 @@ describe("classify", () => {
   });
 
   it("weighs a finding by how much it talks about each class, not by which is checked first", () => {
-    /**
-     * The case review raised against the first version, which matched on bare
-     * keywords and took the first hit: this body mentions a test once and
-     * parsing three times — `accepts invalid`, `does not reject`, `Number(` —
-     * and is a parser finding.
-     */
+    // Bare keywords and the first hit would misfile this: the body mentions a
+    // test once and parsing three times (`accepts invalid`, `does not reject`,
+    // `Number(`), and is a parser finding.
     const body =
       "**issue:** `parseId` accepts invalid ids and does not reject them, because " +
       "Number( ) coerces them; the test asserts the wrong one.";
@@ -114,19 +110,15 @@ describe("classify", () => {
 
   it("falls to the earlier class on a tie, so the ordering still decides", () => {
     // One phrase each: "the test" and "the comment". Documentation drift comes
-    // first in the list as of #390, having overtaken tests — so this body,
-    // which filed under tests on 2026-09-08, files under documentation now.
-    // The assertion is the ordering, not the sentence.
+    // first in the list, ahead of tests, so this body files under
+    // documentation. The assertion is the ordering, not the sentence.
     expect(classify("**issue:** The test and the comment disagree.")).toBe("doc contradicts code");
   });
 
   it("keeps a failure turned into a wrong value out of the class it merely resembles", () => {
-    /**
-     * The `listSeasonsFor` finding above reports a *database* failure as
-     * `reason: "provider"`. It mentions neither a transaction nor a
-     * normalisation, so the two classes added in #390 must not claim it —
-     * their patterns were written against bodies from the same pull request.
-     */
+    // The `listSeasonsFor` finding above reports a database failure as `reason: "provider"`. It
+    // mentions neither a transaction nor a normalisation, so the two newer classes must not
+    // claim it: their patterns were written against bodies from the same pull request.
     const body =
       "**issue (bug_risk):** Database failures while determining which seasons are stored are " +
       'caught by `listSeasonsFor` and returned as `reason: "provider"`.';
@@ -136,8 +128,7 @@ describe("classify", () => {
 
   it("gives every class the label the skill uses, so the table can be compared with it", () => {
     // The command's output is meant to be read beside `skills/self-review.md`.
-    // Printing internal names there would make the two documents disagree,
-    // which review caught on the first version.
+    // Printing internal names there would make the two documents disagree.
     expect(labelFor("test proves nothing")).toBe("a test that proves nothing");
     expect(labelFor("unclassified")).toBe("unclassified");
   });
@@ -152,9 +143,8 @@ describe("mergedPullNumbers", () => {
   ];
 
   it("orders by merge date, not by number or by the order given", () => {
-    // #250 was created long before #291 and merged after it. Taking the API's
-    // own order would count the wrong window — the review finding against the
-    // first version, which used `gh pr list` unsorted.
+    // A pull request created long before another and merged after it: the API's
+    // own order would count the wrong window, so the merge time decides.
     expect(mergedPullNumbers(pulls, 3)).toEqual([250, 288, 291]);
   });
 

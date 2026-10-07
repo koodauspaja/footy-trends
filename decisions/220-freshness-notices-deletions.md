@@ -34,3 +34,10 @@ Cut from `scripts/e2e-freshness-git.ts` at `5b180e0` by #531.
 - **`fingerprint`.** `HEAD` plus working-tree status also forced special
   cases for a rebase or a branch switch; a content fingerprint has none.
   Cheap: 94 files in about 37ms.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/e2e-freshness-plan.test.ts` at `a15a9f9` by #531.
+
+- **The marker's shapes, in order.** A timestamp-only marker came first; this
+  change wrote a head-and-status one; the content hashes replaced that.

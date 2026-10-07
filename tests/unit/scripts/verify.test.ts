@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The entry point, imported — which is why it is shaped this way. See
- * `entry-point.ts`: nothing runs unless Node was pointed at this file, so the
- * gate's own entry is a tested, unexcluded source file.
+ * The gate's entry point, imported: nothing runs unless Node was pointed at the
+ * file, so it is a tested, unexcluded source file.
+ *
+ * decisions/401-one-command-for-the-gate.md
  */
 
 const { runWhenMain, startVerify } = vi.hoisted(() => ({
@@ -28,11 +29,9 @@ describe("scripts/verify.ts", () => {
   });
 
   it("names the path npm actually runs, so the guard can recognise it", async () => {
-    /**
-     * `package.json` says `tsx scripts/verify.ts`, and `runWhenMain` compares
-     * that spelling against `argv[1]`. A rename in one place and not the other
-     * would leave `npm run verify` doing nothing at all, silently.
-     */
+    // `package.json` says `tsx scripts/verify.ts`, and `runWhenMain` compares
+    // that spelling against `argv[1]`. A rename in one place and not the other
+    // would leave `npm run verify` doing nothing at all, silently.
     const { default: packageJson } = await import("../../../package.json");
     await import("../../../scripts/verify");
 

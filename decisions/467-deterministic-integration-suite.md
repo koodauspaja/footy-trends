@@ -18,3 +18,10 @@ Cut from `vitest.config.ts` at `5b180e0` by #531.
   keeps them apart; sharing a database is the coupling, and an id is only
   the way it showed up first. It costs seconds: the suite is 154 tests and
   runs in about ten.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/integration-fixtures.test.ts` at `a15a9f9` by #531.
+
+- **Ownership is by block.** Raised in review on #469: comparing literal
+  ids would record `993200` and miss everything generated from it.

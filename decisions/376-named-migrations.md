@@ -39,3 +39,13 @@ Cut from `scripts/generate-migration.ts` at `5b180e0` by #531.
   another route; stopping it being created is the better of the two places.
   The decisions live in `migration-name.ts` so they can be tested without
   spawning anything; this file is the side effect.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/scripts/migration-name.test.ts` at `a15a9f9` by #531.
+
+- **Why the documents' examples are executed.** The documentation and the
+  rule drifted apart twice in the one change:
+  `docs/setup/015-database-setup.md` told a reader to wire up the unguarded
+  command, and `README.md` gave an example name the guard rejects. Both were
+  found in review, not by running anything.
