@@ -13,3 +13,11 @@ Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
   healthy on a response that contained no data at all. Either way there is
   nothing usable behind the key, which is what the probe is being asked
   about.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/api/health/route.test.ts` at `c12c30a` by #531.
+
+- **The provider check looks at what came back.** Awaiting
+  `getCurrentSeason` without looking is the failure a scheduled check would
+  have slept through.

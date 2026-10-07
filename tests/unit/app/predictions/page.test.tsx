@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+/**
+ * The `/ennusteet` route: what it reads and what it hands the page.
+ *
+ * decisions/054-prediction-quality.md
+ */
+
 const { PredictionQualityPage } = vi.hoisted(() => ({
   PredictionQualityPage: vi.fn(async () => "page"),
 }));

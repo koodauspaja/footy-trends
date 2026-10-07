@@ -5,6 +5,14 @@ import type { HomeBaseline } from "@/lib/home-baseline";
 import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
+/**
+ * A foreign match's page: its details, its earlier meetings and the prediction
+ * for a match still to play.
+ *
+ * decisions/019-match-page.md
+ * decisions/051-home-win-baseline.md
+ */
+
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getHomeBaselineMock = vi.fn<() => Promise<HomeBaseline>>();

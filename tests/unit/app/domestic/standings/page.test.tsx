@@ -5,13 +5,23 @@ import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-sta
 import { warmModules } from "../../../../support/warm-module";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * A Finnish competition's standings page: league tables, split groups, the
+ * cups' rounds and bracket, and where the competition's Analyysit sits.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/026-favourites.md
+ * decisions/043-liigacup.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/299-unit-suite-independent-of-order.md
+ * decisions/419-shared-fold-marker.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
@@ -20,11 +30,9 @@ const listSeasonRoundsMock = vi.fn<() => Promise<number[]>>();
 const getSeasonCategoryNameMock = vi.fn<() => Promise<string | null>>();
 const getSeasonStandingsMock = vi.fn<() => Promise<SeasonStandingsResult>>();
 
-/**
- * Season discovery is mocked so these page tests stay pure unit tests: the
- * real `resolveTasoSeasonContext` queries `taso_matches` for its fallback,
- * which would make them depend on a live database.
- */
+// Season discovery is mocked so these stay unit tests: the real
+// `resolveTasoSeasonContext` queries `taso_matches` for its fallback, which
+// would need a live database.
 const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
@@ -44,12 +52,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-/**
- * The competition's Analyysit (specs/048) stands in here with a marker: its
- * panel, its gate and which competitions have it are
- * `competition-analytics.test.tsx`'s. What this file owns is the page's side —
- * what it asks the section for, and where the section sits.
- */
+// The competition's Analyysit stands in here with a marker: its panel, its gate
+// and which competitions have it are `competition-analytics.test.tsx`'s. This
+// file owns what the page asks the section for, and where the section sits.
 const competitionAnalyticsMock = vi.fn(
   async (_props: {
     kind: string;
@@ -119,15 +124,9 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
 
-/**
- * At file level, not inside the first `describe`.
- *
- * Mock implementations live on the module, not on the block that set them, so
- * the two `describe`s below this one used to inherit whatever the last test of
- * the first one happened to leave — and passed only because they are declared
- * in that order. Every test now starts from the same arrangement wherever it
- * sits.
- */
+// At file level, not inside the first `describe`: mock implementations live on
+// the module, not on the block that set them, so every test starts from the
+// same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
   listSeasonRoundsMock.mockResolvedValue([1, 2]);
@@ -488,7 +487,7 @@ describe("Domestic standings page competition naming", () => {
 });
 
 describe("Domestic standings page, cup competitions", () => {
-  /** One knockout match, TASO-shaped. */
+  // One knockout match, TASO-shaped.
   function cupMatch(
     id: number,
     home: [number, string],
@@ -527,7 +526,7 @@ describe("Domestic standings page, cup competitions", () => {
     };
   }
 
-  /** The closing rounds of MSC 2025. */
+  // The closing rounds of MSC 2025.
   const closingRounds = [
     knockoutGroup(2, "Puolivälierät", [
       cupMatch(1, [1, "HJK Klubi 04"], [2, "HJK"], [0, 4], "away", 11),
@@ -650,7 +649,8 @@ describe("Domestic standings page, cup competitions", () => {
   });
 
   describe("a cup of groups then a playoff (specs/043)", () => {
-    /** Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the winners. */
+    // Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the
+    // winners.
     function liigacupSeason(final = cupMatch(33, [1, "HJK"], [3, "KuPS"], [2, 1], "home", 22)) {
       return [
         { ...ownCalculatedGroup, groupId: 1, groupName: "Lohko A" },

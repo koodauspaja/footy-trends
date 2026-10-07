@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../support/warm-module";
 
+/**
+ * The route that serves a reader their own uploaded picture.
+ *
+ * decisions/025-custom-avatar.md
+ */
+
 const { getSession, getAvatar, logger } = vi.hoisted(() => ({
   getSession: vi.fn(),
   getAvatar: vi.fn(),
@@ -36,12 +42,9 @@ describe("GET /api/avatar/me", () => {
   });
 
   it("caches for a year, privately, and refuses to be sniffed", async () => {
-    /**
-     * `immutable` is only safe because the URL carries `?v=<random token>`: a
-     * new upload is a new URL, and no two readers share one. `private` because
-     * the response is scoped to one reader's session and a shared cache must
-     * never hold it.
-     */
+    // `immutable` is only safe because the URL carries `?v=<random token>`: a new
+    // upload is a new URL, and no two readers share one. `private` because the response
+    // is scoped to one reader's session, and a shared cache must never hold it.
     const response = await GET();
 
     expect(response.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");

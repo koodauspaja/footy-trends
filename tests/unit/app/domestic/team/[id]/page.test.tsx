@@ -21,10 +21,35 @@ import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
- * The favourite star in this tree reads the session through `useSession`, and
- * the real client must not be loaded in a unit test (see
- * `favourite-toggle.tsx`). Signed out unless a test signs in.
+ * A Finnish club's page: which team, competition and season it resolves, what
+ * it tells a reader about a club it cannot show, and what it asks the Analyysit
+ * panels for.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/020-context-free-team-page.md
+ * decisions/022-teams-between-tiers.md
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/034-clean-sheets.md
+ * decisions/035-streaks.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/299-unit-suite-independent-of-order.md
+ * decisions/416-team-page-folds.md
+ * decisions/529-one-whole-number-parser.md
+ * decisions/530-one-team-panel-builder.md
  */
+
+// The favourite star in this tree reads the session through `useSession`, and
+// the real client must not be loaded in a unit test. Signed out unless a test
+// signs in.
 const { session, toggleFavouriteTeamActionMock } = vi.hoisted(() => ({
   session: { data: null as unknown },
   toggleFavouriteTeamActionMock: vi.fn(async (_source: string, _teamProviderId: number) => ({
@@ -43,11 +68,9 @@ vi.mock("@/lib/favourite-actions", () => ({
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const loggerErrorMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
-/**
- * The matches the six result panels count. The panels themselves are
- * `team-panels.test.ts`'s; what this file owns is that the page asks for the
- * right team's matches.
- */
+// The matches the six result panels count. The panels themselves are
+// `team-panels.test.ts`'s; what this file owns is that the page asks for the
+// right team's matches.
 const getTeamPanelMatchesMock = vi.fn(
   async (..._args: unknown[]): Promise<TeamPanelMatches> => ({ status: "ok", finished: [] })
 );
@@ -61,12 +84,9 @@ const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
 );
 
-/**
- * The Analyysit section stands in here with a marker: its panels and its
- * sign-in gate are `analytics-section.test.tsx`'s. What this file owns is the
- * page's side — whether the section is asked for at all, and with which
- * series.
- */
+// The Analyysit section stands in here with a marker: its panels and its
+// sign-in gate are `analytics-section.test.tsx`'s. This file owns the page's
+// side: whether the section is asked for at all, and with which series.
 const analyticsSectionMock = vi.fn(
   async (_props: {
     loadPosition: () => Promise<PositionSeries>;
@@ -96,21 +116,16 @@ vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
 
-/**
- * Season discovery is mocked so these page tests stay pure unit tests: the
- * real `resolveTasoSeasonContext` queries `taso_matches` for its fallback,
- * which would make them depend on a live database.
- */
+// Season discovery is mocked so these stay unit tests: the real
+// `resolveTasoSeasonContext` queries `taso_matches` for its fallback, which
+// would need a live database.
 const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
 
-/**
- * Mocked for the same reason: the real one reads TASO's per-season category
- * names through Redis, which a unit test must not depend on. Returning null is
- * the "TASO could not be asked" path, so the page falls back to the configured
- * competition name — what these tests already assert.
- */
+// Mocked for the same reason: the real one reads TASO's category names through
+// Redis. Null is the "TASO could not be asked" path, so the page falls back to
+// the configured competition name.
 const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
@@ -129,7 +144,7 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
 
 const TEAM_CONTEXT_COMPETITION = "VL";
 const TEAM_CONTEXT_SEASON = 2026;
-/** The team exists, in the competition these tests already assume. */
+// The team exists, in the competition these tests already assume.
 async function defaultTeamContext(
   _source: unknown,
   teamProviderId: number
@@ -144,14 +159,9 @@ async function defaultTeamContext(
 
 const getTeamContextMock = vi.fn(defaultTeamContext);
 
-// The team's own newest stored context, which the page resolves before it knows
-// which competition to ask about. Mocked at the database boundary, so
-// `resolveTeamDefaults`' own logic still runs. See specs/020-context-free-team-page.md.
-/**
- * The club's other seasons, which most of these tests do not describe: an
- * unanswered lookup leaves the page on its previous behaviour, and the tests
- * that care about it set a value. See specs/022-teams-between-tiers.md.
- */
+// The team's newest stored context is mocked above at the database boundary, so
+// `resolveTeamDefaults`' own logic still runs. The club's other seasons, here, answer
+// not-found unless a test sets a value: most of these tests do not describe them.
 const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ status: "not_found" }));
 
 const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
@@ -204,14 +214,9 @@ async function renderTeam(
   );
 }
 
-/**
- * At file level, not inside the first `describe`.
- *
- * Mock implementations live on the module rather than on the block that set
- * them, so the `describe`s below used to start from whatever the previous one's
- * last test left behind — a failed match lookup, a competition renamed for one
- * assertion — and passed only because they are declared in that order.
- */
+// At file level, not inside the first `describe`: mock implementations live on
+// the module, not on the block that set them, so every test starts from the
+// same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
   session.data = null;
@@ -219,13 +224,9 @@ beforeEach(() => {
   getTeamNameMock.mockResolvedValue({ status: "not_found" });
   getTeamContextMock.mockImplementation(defaultTeamContext);
   getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: [buildMatch()] });
-  /**
-   * These two are set at hoist time and one test replaces them for good —
-   * `clearAllMocks` clears calls, not implementations. Restored here so a
-   * test inherits nothing from the one before it: without this, everything
-   * declared after the Naisten Liiga case is named by that case rather than
-   * by its own arrangement.
-   */
+  // These two are set at hoist time and one test replaces them for good:
+  // `clearAllMocks` clears calls, not implementations. Restored here so a test
+  // inherits nothing from the one before it.
   getSeasonCategoryNameMock.mockResolvedValue(null);
   resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
 });
@@ -297,8 +298,8 @@ describe("Domestic team page", () => {
   });
 
   it("shows the team's own competition and season when the URL names neither", async () => {
-    // Before this, a bare URL meant "Veikkausliiga, current season", which
-    // served 12 of 1,315 stored Finnish team ids. See specs/020.
+    // A bare URL resolves from the team's own newest match, not to
+    // "Veikkausliiga, current season".
     getTeamContextMock.mockResolvedValue({
       status: "ok",
       context: { competitionCode: "M2", seasonId: 2019 },
@@ -366,8 +367,8 @@ describe("Domestic team page", () => {
   });
 
   it("says where a relegated club played instead of calling it unknown", async () => {
-    // FC Haka, Ykkönen 2015–19, Veikkausliiga 2020–25, Ykkösliiga 2026. Asking
-    // for its Veikkausliiga 2026 page used to answer "Joukkuetta ei löytynyt."
+    // FC Haka, Ykkönen 2015–19, Veikkausliiga 2020–25, Ykkösliiga 2026: its
+    // Veikkausliiga 2026 page has no matches to show.
     getTeamMatchesMock.mockResolvedValue({ status: "not_found" });
     getTeamNameMock.mockResolvedValue({ status: "ok", name: "FC Haka" });
     getTeamSeasonsMock.mockResolvedValue({
@@ -494,7 +495,7 @@ describe("Domestic team page", () => {
     ).not.toBeInTheDocument();
   });
 
-  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  // `Number()` alone reads the first two as teams 16 and 1000.
   it.each([
     ["a word", "not-a-number"],
     ["hexadecimal, which Number() reads as 16", "0x10"],
@@ -507,8 +508,7 @@ describe("Domestic team page", () => {
     async (_name, id) => {
       await renderTeam(id);
 
-      // No competition to name, so no season selector and no standings link: the
-      // page used to offer both for Veikkausliiga. See specs/020.
+      // No competition to name, so no season selector and no standings link.
       expect(screen.getByRole("heading", { level: 1, name: "Joukkue" })).toBeInTheDocument();
       expect(screen.getByText("Joukkuetta ei löytynyt.")).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Sarjataulukkoon" })).not.toBeInTheDocument();
@@ -731,7 +731,7 @@ describe("Domestic team page league position (specs/030)", () => {
   });
 
   // One read behind all six: `teamPanelLoaders` builds them from the same
-  // matches (specs/031 to specs/036), so each asks for the same thing.
+  // matches, so each asks for the same thing.
   it.each([
     "loadForm",
     "loadGoals",
@@ -823,7 +823,7 @@ describe("Domestic team page league position (specs/030)", () => {
 
     await loadOpponents?.();
 
-    // Not the selected season or competition: the panel covers every one (S4).
+    // Not the selected season or competition: the panel covers every one.
     expect(getWorstOpponentsMock).toHaveBeenCalledWith(
       { kind: "taso", bucket: "domestic" },
       1,

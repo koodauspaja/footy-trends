@@ -402,3 +402,34 @@ issue's own title: #256 in `domestic-team.spec.ts`, #485 in
 `bogey-teams.spec.ts` and `national-team-analytics.spec.ts`, #501 in
 `table-volatility.spec.ts` and #526 in `favourites.spec.ts`. The reason beside
 each stays in its comment.
+
+## The fourteenth batch, 2026-10-07: the pages' unit tests
+
+The 34 test files under `tests/unit/app`, and the three end-to-end specs the
+thirteenth batch held back: `dark-mode.spec.ts`, `mens-team.spec.ts` and
+`womens-team.spec.ts`. 57 295 characters of comment became 46 450.
+
+Every file has a header now; none of the 34 had a record path before. Its
+record list is read off the file's history: the record of the change that
+created the file, then by number the record of each later change that added
+a test under a new name, of any change whose spec or issue a cut comment
+named, and of any record that took an entry from the file. A file git shows
+as copied from another counts as created by the change that copied it, so
+`womens-team.test.tsx` begins with 018 and not with the record of the men's
+page it was copied from. A change that only renamed a test, or only wrote a
+comment, is not listed. For the two club pages the list is long, because
+every Analyysit panel added a test to them.
+
+Three comments stood in several files word for word and are one sentence
+now, the same in each: the favourite star's `useSession` (seven files, one of
+which signs in and says so), the mocked season discovery, and the reason a
+route file has a test of its own (five files). The Analyysit marker's comment
+is shortened the same way, in the wording each page needs. The stories behind
+the first and the last are in 026 and 385 already.
+
+Two changes had no record and have one now: #264 (how
+`rendering-mode.test.ts` decides a page is static, and what its three checks
+each prove) and #299 (why two page tests arrange their mocks at file level).
+Seven existing records took entries, 269 two of them: 041, 113, 182, 269,
+303, 403 and 529. Stories were cut without an entry where their record tells
+them already: 020, 026, 042, 179, 182, 385 and 533.

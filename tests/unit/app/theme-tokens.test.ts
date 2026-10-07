@@ -5,34 +5,25 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { HARDCODED_COLOUR_CLASS, paintsWithShade } from "../../shared/hardcoded-colour";
 
+/**
+ * No class the app writes names a shade: every colour is a role that follows
+ * the theme.
+ *
+ * decisions/269-colour-roles.md
+ */
+
 const SRC_DIR = path.join(process.cwd(), "src");
 
-/**
- * `hover:bg-surface` is a variant of `bg-surface`; the rule is about the
- * utility. A utility never contains a colon, so the last one always ends the
- * variants — including an arbitrary variant that carries colons of its own,
- * like `supports-[display:grid]:`.
- */
+// `hover:bg-surface` is a variant of `bg-surface`; the rule is about the
+// utility. A utility never contains a colon, so the last one always ends the
+// variants, an arbitrary variant like `supports-[display:grid]:` included.
 function withoutVariants(className: string): string {
   return className.slice(className.lastIndexOf(":") + 1);
 }
 
-/**
- * Every hardcoded colour any string in one file could contribute as a class.
- *
- * **Every** string literal, not only the initializer of a `className`
- * attribute. A component that factors its classes into a constant —
- * `const PANEL = "bg-zinc-50"`, rendered as `className={PANEL}` — puts the
- * shade one hop away from the attribute, and a scan that followed only the
- * attribute would report the file clean. Nothing else in `src` writes a string
- * shaped like a painting utility, so widening the net costs nothing and closes
- * every indirection at once: constants, `clsx` arguments, ternaries, maps.
- *
- * Read off the AST rather than grepped, for the reason `rendering-mode.test.ts`
- * parses too: a text search reads prose as code. The account menu's comment
- * quotes `bg-white` while explaining why the panel must not use it, and a grep
- * would have to be taught to ignore the very sentence that documents the rule.
- */
+// Every hardcoded colour any string in one file could contribute as a class. Every string literal,
+// not only a `className` initializer: a class in a constant sits one hop away, and nothing else in
+// `src` is shaped like a painting utility. Read off the AST: a text search reads prose as code.
 function hardcodedColoursIn(source: string, fileName = "snippet.tsx"): string[] {
   const parsed = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
@@ -50,7 +41,7 @@ function hardcodedColoursIn(source: string, fileName = "snippet.tsx"): string[] 
   return found.filter((name) => name !== "" && HARDCODED_COLOUR_CLASS.test(withoutVariants(name)));
 }
 
-/** Every class name any string in one file could contribute, offending or not. */
+// Every class name any string in one file could contribute, offending or not.
 function classNamesIn(source: string): string[] {
   const parsed = ts.createSourceFile("scan.tsx", source, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
@@ -76,15 +67,9 @@ async function sourceFiles(dir: string): Promise<string[]> {
 }
 
 describe("theme tokens", () => {
-  /**
-   * The guard #269 asked for, at the source rather than at the pixel.
-   *
-   * `tests/e2e/dark-mode.spec.ts` measures what is painted, which is the
-   * stronger check — but only on the pages and states it visits. A component
-   * added to a page nobody thought to add there would keep its shade
-   * indefinitely. This one cannot be outrun that way: every `.ts` and `.tsx`
-   * under `src` is read, so a new file is covered by existing.
-   */
+  // The guard at the source, not at the pixel. `tests/e2e/dark-mode.spec.ts`
+  // measures what is painted, but only on the pages and states it visits; this
+  // reads every `.ts` and `.tsx` under `src`, so a new file is covered by existing.
   it("names a role in every class the app writes, never a shade", async () => {
     const offenders: string[] = [];
 
@@ -112,16 +97,14 @@ describe("theme tokens", () => {
     expect(classes).toContain("hover:bg-surface");
   });
 
-  /**
-   * The rule itself, driven through the same function the scan uses. A clean
-   * repository proves the rule matched nothing today; these prove it would
-   * have matched something.
-   */
+  // The rule itself, driven through the same function the scan uses. A clean
+  // repository proves the rule matched nothing today; these prove it would have
+  // matched something.
   describe("catches a shade", () => {
     it.each([
       ["written straight into the attribute", '<div className="bg-white" />'],
       ["with a numeric shade", '<div className="text-zinc-600" />'],
-      // The class the account menu actually carried before #269.
+      // The class the account menu carried.
       ["with an opacity modifier", '<div className="hover:bg-zinc-500/15" />'],
       ["with an arbitrary opacity", '<div className="border-zinc-500/[0.4]" />'],
       ["as a literal colour", '<div className="bg-[#fafafa]" />'],
@@ -144,14 +127,9 @@ describe("theme tokens", () => {
     });
   });
 
-  /**
-   * The selector half of the same rule, which `tests/e2e/dark-mode.spec.ts`
-   * applies to the stylesheet the running app serves. Covered here because a
-   * browser run is slow and this is where a gap gets noticed: the variant
-   * prefix was missing, and Tailwind writes `hover:bg-zinc-500/15` as
-   * `.hover\:bg-zinc-500\/15:hover`, where the dot sits before `hover` — so
-   * every variant of every shade walked past the bundle guard.
-   */
+  // The selector half of the same rule, which `tests/e2e/dark-mode.spec.ts` applies to the served
+  // stylesheet. Tailwind writes `hover:bg-zinc-500/15` as `.hover\:bg-zinc-500\/15:hover`, with the
+  // dot before `hover`, so the variant prefix has to be allowed for.
   describe("in a stylesheet selector", () => {
     it.each([
       [".text-zinc-600"],
@@ -161,10 +139,9 @@ describe("theme tokens", () => {
       [".disabled\\:text-gray-400:disabled"],
       [".dark\\:bg-slate-100"],
       [".sm\\:hover\\:border-zinc-200:hover"],
-      // These four are copied from a build rather than written by hand: each
-      // was put into a component, `npm run build` run, and the selector read
-      // out of the emitted CSS. A guessed fixture proves the guard matches
-      // what I imagined Tailwind writes.
+      // These four are copied from a build, not written by hand: each was put into a
+      // component, `npm run build` run, and the selector read out of the emitted CSS. A
+      // guessed fixture proves only that the guard matches what its author imagined.
       [".data-\\[state\\=open\\]\\:bg-zinc-500[data-state=open]"],
       [".\\[\\&\\>svg\\]\\:text-red-500>svg"],
       [".bg-zinc-500\\!"],
