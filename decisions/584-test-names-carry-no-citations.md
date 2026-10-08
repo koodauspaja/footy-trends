@@ -47,7 +47,7 @@ name, so all 263 changed in one pull request.
 
 The renames removed and merged no test: 5014 names before and after them, and
 no two tests in a file came to share a title that did not already. The only
-tests added are the six for the check below, in `tests/unit`.
+tests added are the twelve for the check below, in `tests/unit`.
 
 ## Where each citation went
 
@@ -90,6 +90,26 @@ shrink: the tree had none left when the check was added.
 
 A fixture string that contains a test call is not a name, which is why this is
 read from the tree and not searched for.
+
+Sourcery's review of the first version found two ways past it, and both are
+closed as a class:
+
+- **A test function under another name.** The check knows a file's test
+  functions from its imports, whatever the module and whatever the local name
+  (`import { it as spec }`), and from a constant assigned from one
+  (`const serial = test.describe.serial`). A function that is only called
+  `describe` and is not imported is not one: `src/lib/test-database-name.ts`
+  has such a function, and it takes a database address.
+- **A name that is not a string.** `computedTestNames` reports a name given as
+  a variable, a call or a sum when a test's body follows it, and the same test
+  fails on any. Working out what such a name would say was the other choice;
+  the tree had none, so the rule that a name is written where the test is
+  costs nothing and needs no evaluator.
+
+What the check does not read: the values put into a template name
+(`${team}`), which come from the rows a test loops over, and a test function
+reached through a namespace import or a destructured constant. The tree has
+neither of the last two.
 
 ## Nothing selects a test by its name
 

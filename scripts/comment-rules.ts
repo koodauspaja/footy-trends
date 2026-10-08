@@ -256,7 +256,7 @@ function testNamesOf(file: string, source: string): TestName[] {
       const [name, ...rest] = node.arguments;
       if (name !== undefined) {
         const written = ts.isStringLiteralLike(name) || ts.isTemplateExpression(name);
-        if (written || (!isFunction(name) && rest.some(isFunction))) {
+        if (written || rest.some(isFunction)) {
           const line = tree.getLineAndCharacterOfPosition(name.getStart(tree)).line + 1;
           names.push({ line, text: name.getText(tree), written });
         }
@@ -276,7 +276,7 @@ function testNamesOf(file: string, source: string): TestName[] {
  */
 export function testNameCitations(file: string, source: string): Finding[] {
   return testNamesOf(file, source)
-    .filter((name) => name.written && NAME_CITATIONS.some((citation) => citation.test(name.text)))
+    .filter((name) => NAME_CITATIONS.some((citation) => citation.test(name.text)))
     .map(({ line, text }) => ({ file, line, text }));
 }
 
