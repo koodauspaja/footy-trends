@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { backtestRows, type FinishedMatch } from "@/lib/prediction-backtest";
 
+/**
+ * The rows a backtest writes.
+ *
+ * decisions/052-predictions-log.md
+ */
+
 const NOW = new Date("2026-10-03T12:00:00Z");
 const day = (n: number) => new Date(Date.UTC(2026, 3, n, 15));
 

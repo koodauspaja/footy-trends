@@ -393,3 +393,12 @@ Cut from `tests/integration/admin.test.ts` at `79f2c6a` by #531.
   role, because `requireAdmin()` does that a layer up. The race between
   count and page is inherent to reading a live table and harmless for a list
   refetched on every request, but the test must not claim otherwise.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/admin-users.test.ts` at `ec04260` by #531.
+
+- **The sort-key assertion in `admin-users.test.ts`.** Demonstrating the
+  page-boundary fault needs fifty-one accounts sharing a timestamp. Removing
+  the second key survived every other test in the file, which is why the
+  check exists and was not left to review.

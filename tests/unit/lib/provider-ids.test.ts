@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { isStoredInteger, MAX_STORED_INTEGER, parseWholeNumber } from "@/lib/provider-ids";
 
+/**
+ * Provider ids: what can be stored as an integer, and the one parser for whole
+ * numbers in URLs.
+ *
+ * decisions/020-context-free-team-page.md
+ * decisions/529-one-whole-number-parser.md
+ */
+
 describe("isStoredInteger", () => {
   it("accepts the ids and seasons our columns actually hold", () => {
     expect(isStoredInteger(0)).toBe(true);

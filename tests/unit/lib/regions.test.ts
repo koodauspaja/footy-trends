@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { isRegionSegment, resolveRegion, toPreferences } from "@/lib/regions";
 
+/**
+ * The regions: their URL segments, how a region is resolved, and a reader's
+ * preferences for them.
+ *
+ * decisions/024-account-settings.md
+ */
+
 describe("isRegionSegment", () => {
   it.each(["kotimaa", "ulkomaat", "maajoukkueet"])("accepts %s", (value) => {
     expect(isRegionSegment(value)).toBe(true);

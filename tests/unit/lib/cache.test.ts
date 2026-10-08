@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The cache helpers.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
+
 const getMock = vi.fn();
 const setexMock = vi.fn();
 const delMock = vi.fn();

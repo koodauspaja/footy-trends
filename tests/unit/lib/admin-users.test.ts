@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The rules behind promoting, demoting and deleting, from
- * specs/028-admin-tools-and-roles.md.
+ * The rules behind promoting, demoting and deleting. No real database: the CI unit job
+ * has no service containers. The mock answers the four shapes `admin-users.ts` uses and
+ * records what was written, so a refusal can be checked for having written nothing.
  *
- * No real database: the CI unit job has no service containers, deliberately.
- * The chain below answers the four shapes `admin-users.ts` uses and records
- * what was written, so a refusal can be checked for having written **nothing**
- * rather than merely having returned `ok: false`.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 const { state, logger } = vi.hoisted(() => ({
   state: {
     target: undefined as { role: string } | undefined,
@@ -350,13 +349,9 @@ describe("listUsers", () => {
 });
 
 describe("when a count query comes back empty", () => {
-  /**
-   * Postgres `count(*)` always returns a row, so these are defensive rather
-   * than reachable today. They are tested because each fallback decides
-   * something: two of them decide an authorisation, and reading "no rows" as
-   * zero admins refuses — the safe direction — while the alternative is a crash
-   * inside a transaction.
-   */
+  // Postgres `count(*)` always returns a row, so these are defensive. They are tested
+  // because each fallback decides something: reading "no rows" as zero admins refuses,
+  // the safe direction, where the alternative is a crash inside a transaction.
   it("treats it as no admins and refuses the demotion", async () => {
     state.countMissing = true;
     state.target = { role: "admin" };
@@ -391,18 +386,9 @@ describe("when a count query comes back empty", () => {
 
 describe("the page ordering", () => {
   it("sorts by a second key, so rows cannot swap between pages", async () => {
-    /**
-     * `created_at` is not unique. Two accounts created in the same millisecond
-     * have no defined order between them, so Postgres may return them either
-     * way on each query — which across a page boundary means one is rendered
-     * twice and the other never appears. `id desc` beside it makes the order
-     * total.
-     *
-     * Asserted structurally, on the number of sort keys, because demonstrating
-     * the behaviour needs fifty-one accounts sharing a timestamp and a real
-     * database. Removing the second key survived every other test in this file,
-     * which is why the check exists at all rather than being left to review.
-     */
+    // `created_at` is not unique: two accounts created in the same millisecond have no defined
+    // order, so across a page boundary one is rendered twice and the other never. `id desc` makes
+    // the order total. Asserted on the number of sort keys: the behaviour needs a real database.
     const { listUsers } = await import("@/lib/admin-users");
 
     await listUsers(1);

@@ -14,6 +14,12 @@ import {
   rollingOf,
 } from "@/lib/prediction-quality";
 
+/**
+ * How a prediction is judged: the pick, Brier score, log-loss and calibration.
+ *
+ * decisions/054-prediction-quality.md
+ */
+
 const day = (n: number) => new Date(Date.UTC(2024, 0, 1) + n * 86_400_000);
 
 function judged(overrides: Partial<JudgedPrediction> = {}): JudgedPrediction {

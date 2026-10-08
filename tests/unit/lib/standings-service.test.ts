@@ -19,10 +19,34 @@ import { teamPanelLoaders } from "@/lib/team-panels";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The six result panels as the team page builds them: this service's one read
- * of the season, then the shared builders (#530). Each used to be a function of
- * its own here, and their tests are kept as they were, asked through this.
+ * The football-data standings service: what it caches, stores and refreshes,
+ * and the reads the foreign team page's panels are built from.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/003-standings-after-selected-round.md
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/008-winless-teams-in-standings.md
+ * decisions/014-champions-league.md
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/034-clean-sheets.md
+ * decisions/035-streaks.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/050-table-volatility.md
+ * decisions/299-unit-suite-independent-of-order.md
+ * decisions/530-one-team-panel-builder.md
  */
+
+// The six result panels as the team page builds them: this service's one read
+// of the season, then the shared builders. The panels' tests ask through this.
 function panels(
   competitionCode: string,
   teamProviderId: number,
@@ -62,30 +86,13 @@ vi.mock("@/lib/standings", async (importOriginal) => {
   return { ...actual, calculateStandings: calculateStandingsMock };
 });
 
-/**
- * Puts `calculateStandings` back to the real implementation before every test.
- *
- * One test below queues a `mockReturnValueOnce` to force a case the real
- * function's invariants forbid. `clearAllMocks` clears *calls*, not queued
- * one-shot results — so an unconsumed one is inherited by whatever test runs
- * next, and which test that is depends on declaration order. `mockReset`
- * drains the queue; the implementation then has to be set again, because
- * resetting removes that too.
- */
+// Puts `calculateStandings` back to the real implementation before every test. One test
+// queues a `mockReturnValueOnce`, and `clearAllMocks` clears calls, not queued results:
+// `mockReset` drains the queue, and the implementation then has to be set again.
 beforeEach(async () => {
-  /**
-   * Every shared mock back to "not configured" before each test.
-   *
-   * `clearAllMocks` clears *calls*, not implementations or queued one-shot
-   * results, and several tests below set a permanent one — a Redis cache hit,
-   * a stored-match list. Inherited, those decide the next test's answer: a
-   * leftover cache hit makes `getStandings` return early, so an assertion about
-   * what reached `calculateStandings` fails with "never called" and does so
-   * only in some orders.
-   */
-  // The logger spies too: several tests assert that a path warned or errored,
-  // and calls left by an earlier test would satisfy a bare `toHaveBeenCalled`
-  // whether or not this one logged anything.
+  // Every shared mock back to "not configured" before each test: `clearAllMocks` clears calls,
+  // not implementations, and a leftover cache hit makes `getStandings` return early. The logger
+  // spies too, or calls left by an earlier test satisfy a bare `toHaveBeenCalled`.
   loggerWarnMock.mockClear();
   loggerErrorMock.mockClear();
 
@@ -171,12 +178,9 @@ warmModules(() => import("@/lib/standings-service"));
 
 describe("needsRefresh", () => {
   beforeEach(async () => {
-    // The clock is frozen because these assertions sit *on* the threshold.
-    // `storedAt` reads `Date.now()` to build the timestamp and `needsRefresh`
-    // reads it again to compare, so on a live clock a case one millisecond
-    // below the interval flips to `true` whenever those two reads land in
-    // different milliseconds — which the `vi.resetModules()` and dynamic
-    // `import()` below make entirely possible.
+    // The clock is frozen because these assertions sit on the threshold. `storedAt`
+    // reads `Date.now()` to build the timestamp and `needsRefresh` reads it again to
+    // compare, so on a live clock a case one millisecond below the interval can flip.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-08-15T12:00:00Z"));
 
@@ -1096,7 +1100,7 @@ describe("getCupSeason", () => {
 });
 
 describe("getTeamPositionSeries", () => {
-  /** A finished match of a completed season, which is never refetched. */
+  // A finished match of a completed season, which is never refetched.
   function playedIn(
     matchday: number,
     home: number,
@@ -1118,7 +1122,7 @@ describe("getTeamPositionSeries", () => {
     });
   }
 
-  /** Four teams, a round each for team 1 to climb. */
+  // Four teams, a round each for team 1 to climb.
   const season = [
     playedIn(1, 2, 1, 2, 0),
     playedIn(1, 3, 4, 1, 0),
@@ -1146,11 +1150,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("equals the position `getStandings({ round })` gives for every round", async () => {
-    /**
-     * The property the whole feature rests on: the chart and the standings
-     * page's round selector must never disagree. Checked against the real
-     * `getStandings`, not against a restatement of its arguments.
-     */
+    // The property the whole feature rests on: the chart and the standings
+    // page's round selector must never disagree. Checked against the real
+    // `getStandings`, not against a restatement of its arguments.
     mockStoredMatches(season);
     const series = await getTeamPositionSeries(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON);
     if (series.status !== "ok") throw new Error("expected a series");
@@ -1172,11 +1174,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("reads the season once, however many rounds it has, and asks no provider", async () => {
-    /**
-     * #331's constraint: ranking per round must not become a fetch per round.
-     * Ten rounds here, and still one read — the in-memory tables are the only
-     * thing that grows with the season.
-     */
+    // Ranking per round must not become a fetch per round. Ten rounds here, and
+    // still one read: the in-memory tables are the only thing that grows with
+    // the season.
     const tenRounds = Array.from({ length: 10 }, (_, index) => [
       playedIn(index + 1, 1, 2, index % 3, 1),
       playedIn(index + 1, 3, 4, 1, index % 2),
@@ -1227,7 +1227,7 @@ describe("getTeamPositionSeries", () => {
   });
 });
 
-/** Team 1's match on `day` of a completed season, which is never refetched. */
+// Team 1's match on `day` of a completed season, which is never refetched.
 function playedOn(day: number, opponent: number, own: number, other: number, home = true) {
   return storedMatch({
     providerMatchId: day,
@@ -1246,7 +1246,7 @@ function playedOn(day: number, opponent: number, own: number, other: number, hom
   });
 }
 
-/** W D L W W L, home and away: 3 1 0 3 3 0. */
+// W D L W W L, home and away: 3 1 0 3 3 0.
 const season = [
   playedOn(1, 2, 2, 0),
   playedOn(2, 3, 1, 1, false),
@@ -1746,7 +1746,7 @@ describe("the streaks panel (getTeamPanelMatches)", () => {
   });
 });
 
-/** The same match with a half-time score, given from team 1's own side. */
+// The same match with a half-time score, given from team 1's own side.
 function withHalfTime<T extends { homeTeamProviderId: number }>(
   match: T,
   halfTime: readonly [number, number] | null
@@ -1757,12 +1757,9 @@ function withHalfTime<T extends { homeTeamProviderId: number }>(
   return { ...match, halfTimeHome: home ? own : other, halfTimeAway: home ? other : own };
 }
 
-/**
- * The same six matches, with half-time scores from team 1's own side: trailed
- * and won, trailed and drew, trailed and lost, led and won, level — and one
- * match the provider gave no half-time score for. A seventh is added for the
- * case the six cannot supply: a lead given away (specs/037).
- */
+// The same six matches, with half-time scores from team 1's own side: trailed and
+// won, trailed and drew, trailed and lost, led and won, level, and one with no
+// half-time score. A seventh supplies what the six cannot: a lead given away.
 const halfTimeSeason = [
   ...season.map((match, index) =>
     withHalfTime(match, ([[0, 1], [0, 1], [0, 1], [1, 0], [0, 0], null] as const)[index] ?? null)
@@ -1770,7 +1767,7 @@ const halfTimeSeason = [
   withHalfTime(playedOn(7, 2, 1, 2), [1, 0]),
 ];
 
-/** No match trailed or led: `trailed` and `led` are the directions' totals. */
+// No match trailed or led: `trailed` and `led` are the directions' totals.
 const NO_DIRECTION = { matches: 0, won: 0, drew: 0, lost: 0 };
 
 describe("the comebacks panel (getTeamPanelMatches)", () => {
@@ -1893,7 +1890,7 @@ describe("the comebacks panel (getTeamPanelMatches)", () => {
 describe("getTeamSeasonComparison", () => {
   const OLDER_SEASON = 2023;
 
-  /** A finished match of `seasonId`, in `matchday`, between two teams. */
+  // A finished match of `seasonId`, in `matchday`, between two teams.
   function playedIn(
     seasonId: number,
     matchday: number,
@@ -1916,7 +1913,7 @@ describe("getTeamSeasonComparison", () => {
     });
   }
 
-  /** Each season's rows in the order the service reads them: selected first. */
+  // Each season's rows in the order the service reads them: selected first.
   function mockSeasonReads(...seasons: unknown[][]) {
     const orderBy = vi.fn();
     for (const rows of seasons) orderBy.mockResolvedValueOnce(rows);
@@ -1927,9 +1924,9 @@ describe("getTeamSeasonComparison", () => {
     return orderBy;
   }
 
-  /** Team 1 wins both its matches; team 2 loses both. */
+  // Team 1 wins both its matches; team 2 loses both.
   const strongSeason = [playedIn(PAST_SEASON, 1, 1, 2, 3, 0), playedIn(PAST_SEASON, 2, 1, 2, 2, 0)];
-  /** Team 1 loses both. */
+  // Team 1 loses both.
   const weakSeason = [playedIn(OLDER_SEASON, 1, 1, 2, 0, 3), playedIn(OLDER_SEASON, 2, 1, 2, 0, 2)];
 
   const seasons = [
@@ -1975,10 +1972,9 @@ describe("getTeamSeasonComparison", () => {
   });
 
   it("leaves out a cup, which has no table and would distort a per-match rate", async () => {
-    // Four seasons' worth of rows are available, so a service that filtered
-    // nothing would read the selected season and the cup as well, and report
-    // three baseline seasons rather than one. Without this the test passes for
-    // the wrong reason: the mock simply runs out of rows.
+    // Four seasons' worth of rows are available, so a service that filtered nothing
+    // would read the selected season and the cup as well, and report three baseline
+    // seasons. Without this the test would pass because the mock ran out of rows.
     mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
 
     const comparison = await getTeamSeasonComparison(
@@ -2050,10 +2046,9 @@ describe("getTeamSeasonComparison", () => {
   });
 
   it("leaves out a competition the registry no longer carries", async () => {
-    // `getCompetitionFormat` answers "league" for an unknown code by design, so
-    // a stored season whose competition has left the registry would otherwise
-    // join the baseline — adding its matches to every rate, and its raw code to
-    // a Finnish sentence that would read "Verrattuna 2 muuhun kauteen: ZZZ".
+    // `getCompetitionFormat` answers "league" for an unknown code by design, so a stored
+    // season whose competition has left the registry would otherwise join the baseline,
+    // adding its matches to every rate and its raw code to a Finnish sentence.
     getSeasonMatchesMock.mockResolvedValue([]);
     mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
 
@@ -2104,7 +2099,7 @@ describe("getTeamSeasonComparison", () => {
     const comparison = await getTeamSeasonComparison(CUP, 1, PAST_SEASON, ACTIVE_SEASON, [
       { competitionCode: CUP, seasonId: PAST_SEASON, matches: 8 },
       { competitionCode: CUP, seasonId: OLDER_SEASON, matches: 8 },
-      // A league season of the same club is never a cup baseline (S1).
+      // A league season of the same club is never a cup baseline.
       { competitionCode: COMPETITION_CODE, seasonId: OLDER_SEASON, matches: 38 },
     ]);
 
@@ -2112,7 +2107,7 @@ describe("getTeamSeasonComparison", () => {
     if (comparison.status !== "ok") return;
     expect(comparison.seasons).toBe(1);
     expect(comparison.competitions).toEqual(["Mestarien liiga"]);
-    // Dropped, not `–`: a cup has no table to rank a position in (S7).
+    // Dropped, not `–`: a cup has no table to rank a position in.
     expect(comparison.rows.map((row) => row.measure)).not.toContain("position");
   });
 
@@ -2178,7 +2173,7 @@ describe("getTeamSeasonComparison", () => {
 });
 
 describe("getSeasonMovements (specs/050)", () => {
-  /** A round-robin of three teams over `rounds` rounds, one match a round. */
+  // A round-robin of three teams over `rounds` rounds, one match a round.
   function season(seasonId: number, results: Array<[number, number, number, [number, number]]>) {
     return results.map(([matchday, home, away, [homeGoals, awayGoals]]) =>
       storedMatch({
