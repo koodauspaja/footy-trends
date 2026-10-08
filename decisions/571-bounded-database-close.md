@@ -46,13 +46,13 @@ a run which failed to connect ends up to two seconds later.
 A close without a bound waits for every query in flight; a bounded one drops
 those still running when the time is up. Cleanup follows the work, but a
 `Promise.all` rejects on its first failure and leaves its siblings running, so
-on a failed run something can still be in flight when the close starts.
+something can still be in flight when the close starts.
 
 | Started together | In flight when one fails | Dropped by the bound |
 |---|---|---|
-| the reads in `readFinished`, `readCandidates` and the baselines | other reads | harmless: the run has failed and a read stores nothing |
-| the refreshes | none: each catches its own failure | nothing |
-| the write batches in `writePredictions` | other batches | rows that would have been stored |
+| the two reads in `readCandidates` and in `readFinished` | the other read | harmless: a read stores nothing. In `runPredictionLog` a failed `readFinished` is caught and the run goes on to write the baseline's rows |
+| the refreshes and the baseline reads | none: each catches its own failure | nothing |
+| the write batches in `writePredictions` | other batches | a batch not yet sent is not stored |
 
 So `writePredictions` waits for every batch it started with
 `Promise.allSettled`, then fails the run with the first failure. A failed
@@ -60,8 +60,13 @@ write still fails the run (`decisions/052-predictions-log.md`); the batches
 that could be stored are, as they were before the bound. Sourcery raised this
 on the pull request.
 
-The backfill writes one competition-season at a time, each awaited, so it has
-no batch to cut off.
+How much the bound would have dropped is narrower than "every batch in flight":
+when the time is up the driver ends each socket with a Terminate message, and a
+server that has already received an insert should finish it first. That part is
+from the protocol, not measured here, and the fix does not rest on it.
+
+The backfill awaits every query in turn, so it has nothing in flight when it
+closes.
 
 `scripts/predictions.ts` also takes the reason out of the driver's error with
 `describeError`, as the backfill does. Without it the line was drizzle's
@@ -78,7 +83,7 @@ no batch to cut off.
 
 | Where | Close | Affected |
 |---|---|---|
-| `scripts/backfill-run.ts` | `closeDatabase()` | fixed with it. Its first query is a single reachability probe, so an unreachable database was already reported (measured: `Cannot reach the database: …`, exit 1); a connection lost mid-run with queries in flight could have hung the same way |
+| `scripts/backfill-run.ts` | `closeDatabase()` | no: it awaits every query in turn, the first a single reachability probe, so no connection is still opening when it closes (measured: `Cannot reach the database: …`, exit 1). It gets the bound only because the close is shared |
 | `scripts/grant-admin-run.ts` | its own client, `end()` | no: one transaction, one connection (measured: `Error: connect ECONNREFUSED`, exit 1). Left as it is |
 | `src/db/migrate.ts` | its own client, `max: 1`, `end()` | no: one connection. Left as it is |
 | `scripts/services-run.ts` | `end({ timeout: 1 })` | already bounded |
@@ -95,9 +100,11 @@ Both commands, each of the issue's three cases:
 
 ## Not shown by a test
 
-The test runs the script against a listener it holds, which drops every
+The test runs the script against a listener it holds, which resets every
 connection (measured by hand: `Predictions failed: read ECONNRESET`, exit 1,
-and nothing printed with exit 0 without the fix). It holds the port because one
+and nothing printed with exit 0 without the fix). A reset and not a plain
+close: the driver answers a connection closed without an error while it is
+opening by connecting again, and the script would never fail. It holds the port because one
 opened and closed could be taken by another process before the script
 connects. The issue's three cases were run by hand; the never-answering one
 takes the driver's 30-second connect timeout, too long for the unit suite.

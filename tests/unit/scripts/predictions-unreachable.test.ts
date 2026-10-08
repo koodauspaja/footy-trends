@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 /**
  * `npm run predictions` against a database that cannot be connected to, run as
  * the process it is. The port belongs to a listener this file holds, which
- * drops every connection, and the working directory is empty, so no `.env` is
+ * resets every connection, and the working directory is empty, so no `.env` is
  * read.
  *
  * decisions/571-bounded-database-close.md
@@ -24,7 +24,8 @@ let directory = "";
 
 beforeAll(async () => {
   directory = mkdtempSync(path.join(tmpdir(), "predictions-test-"));
-  listener = createServer((socket) => socket.destroy());
+  // A reset, since the driver connects again after a plain close.
+  listener = createServer((socket) => socket.resetAndDestroy());
   await new Promise<void>((resolve) => listener.listen(0, "127.0.0.1", resolve));
   const address = listener.address();
   port = typeof address === "object" && address !== null ? address.port : 0;
@@ -63,7 +64,7 @@ function predictions(
   });
 }
 
-describe("the predictions script when the database drops the connection", () => {
+describe("the predictions script when the database resets the connection", () => {
   it.concurrent.each(["backtest", "log"])(
     "says so on stderr in one line and exits non-zero, for %s",
     async (command) => {

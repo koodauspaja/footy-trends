@@ -415,21 +415,21 @@ describe("runPredictionBacktest", () => {
     ]);
   });
 
+  // 1 501 finished matches: 1 500 rows under each model, three batches of a thousand.
+  const threeBatchesOfFinished = () =>
+    Array.from({ length: 1_501 }, (_, index) => ({
+      code: "PL",
+      seasonId: 2024,
+      providerMatchId: index,
+      homeTeam: 1 + (index % 20),
+      awayTeam: 21 + (index % 20),
+      kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
+      homeGoals: 1,
+      awayGoals: 0,
+    }));
+
   it("writes in batches of a thousand", async () => {
-    mocks.select
-      .mockResolvedValueOnce(
-        Array.from({ length: 1_501 }, (_, index) => ({
-          code: "PL",
-          seasonId: 2024,
-          providerMatchId: index,
-          homeTeam: 1 + (index % 20),
-          awayTeam: 21 + (index % 20),
-          kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
-          homeGoals: 1,
-          awayGoals: 0,
-        }))
-      )
-      .mockResolvedValueOnce([]);
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
 
     // 1 500 rows under each model: 3 000, written a thousand at a time.
     await expect(runPredictionBacktest(NOW)).resolves.toBe(3_000);
@@ -439,28 +439,17 @@ describe("runPredictionBacktest", () => {
   });
 
   it("lets every batch it started settle before a failed one fails the run", async () => {
-    // Three batches, as above: the first fails at once, the second is still writing.
-    mocks.select
-      .mockResolvedValueOnce(
-        Array.from({ length: 1_501 }, (_, index) => ({
-          code: "PL",
-          seasonId: 2024,
-          providerMatchId: index,
-          homeTeam: 1 + (index % 20),
-          awayTeam: 21 + (index % 20),
-          kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
-          homeGoals: 1,
-          awayGoals: 0,
-        }))
-      )
-      .mockResolvedValueOnce([]);
+    // Three batches: the first fails at once, the second is still writing, and
+    // the third fails too.
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
     let finishSecond = () => {};
     const second = new Promise<void>((resolve) => {
       finishSecond = resolve;
     });
     mocks.onConflictDoUpdate
       .mockRejectedValueOnce(new Error("connection reset"))
-      .mockReturnValueOnce(second);
+      .mockReturnValueOnce(second)
+      .mockRejectedValueOnce(new Error("a later failure"));
     const settled = vi.fn();
 
     const run = runPredictionBacktest(NOW);
