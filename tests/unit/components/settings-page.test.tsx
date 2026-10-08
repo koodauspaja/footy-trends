@@ -37,7 +37,9 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
 
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
 vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch }) }));
+// Wrapped, so the component gets a promise of its own: a mock handles the
+// rejection of the one it returns, which would hide one the component ignored.
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {
@@ -464,6 +466,7 @@ describe("a dropdown after the server sends the saved value back", () => {
 describe("Profiilikuva", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
   const VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
+  const STALE_PICTURE = "Päivitä sivu, jotta muutos näkyy tilivalikossa.";
 
   // A file of a given size, whose bytes never matter: the server decodes.
   function imageOf(bytes: number): File {
@@ -534,6 +537,7 @@ describe("Profiilikuva", () => {
     // The header reads the version off the session, so it only changes once
     // the session is refetched.
     expect(refetch).toHaveBeenCalled();
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
   });
 
   it("clears a chosen file when the reader empties the input", async () => {
@@ -624,6 +628,48 @@ describe("Profiilikuva", () => {
     expect(container.querySelector("img")).toHaveAttribute("src", GOOGLE);
     expect(screen.getByText("Käytössä Google-tilisi kuva.")).toBeInTheDocument();
     expect(refetch).toHaveBeenCalled();
+  });
+
+  // The save or removal stood, so a session that cannot be re-read is neither
+  // a failed write nor an error nobody handles: the reader is told to reload.
+  it.each([
+    ["saving a picture", null, "Tallenna kuva", "Profiilikuva päivitetty."],
+    ["removing one", VERSION, "Poista oma kuva", "Oma kuva poistettu."],
+  ])(
+    "reports %s as done and asks for a reload when the session refresh fails",
+    async (_case, current, button, notice) => {
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      refetch.mockRejectedValue(new Error("network"));
+      renderPicture(current);
+      if (current === null) chooseFile(imageOf(1024));
+
+      try {
+        fireEvent.click(screen.getByRole("button", { name: button }));
+
+        await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+        expect(screen.getByText(notice)).toBeInTheDocument();
+        // Node reports a rejection nobody handled once the current tasks are done.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+    }
+  );
+
+  it("asks for a reload only after a refresh failed, and no longer once one worked", async () => {
+    refetch.mockRejectedValueOnce(new Error("network"));
+    renderPicture(null);
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
+    expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });
 
   it("keeps the picture when removal fails", async () => {

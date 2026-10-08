@@ -226,7 +226,8 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`. `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
+`TASO_API_KEY`, and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
 
@@ -257,7 +258,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | Tool | Configured in | Constraints |
 |---|---|---|
 | Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and the check still passes. A later push gets a lighter re-check; a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
-| SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md) |
+| SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
 | Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run for changed files) | the stages are checked against the workflows by a unit test |
 
