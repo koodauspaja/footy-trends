@@ -216,22 +216,11 @@ const AVATAR_ERRORS = {
 type AvatarError = keyof typeof AVATAR_ERRORS;
 
 /**
- * What a failed session refetch gets after a picture was saved or removed:
- * nothing. The write stood, and the header shows the old picture until the
- * session is next read.
- *
- * decisions/025-custom-avatar.md
- * decisions/592-sonar-zero-open-issues-again.md
- */
-function ignoreStaleSession(): void {
-  // Deliberately empty.
-}
-
-/**
  * The reader's own profile picture. `version` is held in state, so an upload
  * replaces the picture without a reload.
  *
  * decisions/025-custom-avatar.md
+ * decisions/592-sonar-zero-open-issues-again.md
  */
 function ProfilePicture({
   version,
@@ -244,6 +233,9 @@ function ProfilePicture({
   const [error, setError] = useState<AvatarError | null>(null);
   const [saved, setSaved] = useState<null | "saved" | "removed">(null);
   const [removeFailed, setRemoveFailed] = useState(false);
+  // The write stood but the session could not be re-read, so the header still
+  // shows the picture as it was.
+  const [stale, setStale] = useState(false);
   const [pending, startTransition] = useTransition();
   const { refetch } = useSession();
 
@@ -253,6 +245,7 @@ function ProfilePicture({
     setSaved(outcome);
     setError(failure);
     setRemoveFailed(false);
+    setStale(false);
   }
 
   return (
@@ -315,7 +308,7 @@ function ProfilePicture({
                   // The header reads the avatar version off the session, so it
                   // only changes once the session is refetched. Not awaited: the
                   // save is already reported.
-                  refetch().catch(ignoreStaleSession);
+                  refetch().catch(() => setStale(true));
                 } else {
                   announce(null, outcome.reason);
                 }
@@ -344,7 +337,7 @@ function ProfilePicture({
                     setCurrent(null);
                     setChosen(null);
                     announce("removed", null);
-                    refetch().catch(ignoreStaleSession);
+                    refetch().catch(() => setStale(true));
                   } else {
                     announce(null, null);
                     setRemoveFailed(true);
@@ -364,6 +357,7 @@ function ProfilePicture({
 
       {saved === "saved" && <Notice>Profiilikuva päivitetty.</Notice>}
       {saved === "removed" && <Notice>Oma kuva poistettu.</Notice>}
+      {stale && <Notice>Päivitä sivu, jotta muutos näkyy tilivalikossa.</Notice>}
       {error !== null && <Notice>{AVATAR_ERRORS[error]}</Notice>}
       {removeFailed && <Notice>Kuvan poistaminen epäonnistui. Yritä uudelleen.</Notice>}
     </section>

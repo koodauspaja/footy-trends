@@ -466,6 +466,7 @@ describe("a dropdown after the server sends the saved value back", () => {
 describe("Profiilikuva", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
   const VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
+  const STALE_PICTURE = "Päivitä sivu, jotta muutos näkyy tilivalikossa.";
 
   // A file of a given size, whose bytes never matter: the server decodes.
   function imageOf(bytes: number): File {
@@ -536,6 +537,7 @@ describe("Profiilikuva", () => {
     // The header reads the version off the session, so it only changes once
     // the session is refetched.
     expect(refetch).toHaveBeenCalled();
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
   });
 
   it("clears a chosen file when the reader empties the input", async () => {
@@ -629,12 +631,12 @@ describe("Profiilikuva", () => {
   });
 
   // The save or removal stood, so a session that cannot be re-read is neither
-  // a failed write nor an error nobody handles.
+  // a failed write nor an error nobody handles: the reader is told to reload.
   it.each([
     ["saving a picture", null, "Tallenna kuva", "Profiilikuva päivitetty."],
     ["removing one", VERSION, "Poista oma kuva", "Oma kuva poistettu."],
   ])(
-    "reports %s as done when the session refresh fails, and leaves no rejection unhandled",
+    "reports %s as done and asks for a reload when the session refresh fails",
     async (_case, current, button, notice) => {
       const unhandled = vi.fn();
       process.on("unhandledRejection", unhandled);
@@ -645,8 +647,8 @@ describe("Profiilikuva", () => {
       try {
         fireEvent.click(screen.getByRole("button", { name: button }));
 
-        await waitFor(() => expect(screen.getByText(notice)).toBeInTheDocument());
-        expect(refetch).toHaveBeenCalled();
+        await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+        expect(screen.getByText(notice)).toBeInTheDocument();
         // Node reports a rejection nobody handled once the current tasks are done.
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(unhandled).not.toHaveBeenCalled();
