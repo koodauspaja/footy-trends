@@ -38,9 +38,30 @@ the close settles, the original rejection reaches `main().catch(...)`, and the
 run prints one line and exits 1. The timer is also what holds the event loop
 open until then.
 
-Two seconds because cleanup runs after the work has been awaited: nothing is
-in flight to lose, and a healthy close finishes long before it. The cost is
-that a run which failed to connect ends up to two seconds later.
+Two seconds because a healthy close finishes long before it. The cost is that
+a run which failed to connect ends up to two seconds later.
+
+## What the bound may cut off
+
+A close without a bound waits for every query in flight; a bounded one drops
+those still running when the time is up. Cleanup follows the work, but a
+`Promise.all` rejects on its first failure and leaves its siblings running, so
+on a failed run something can still be in flight when the close starts.
+
+| Started together | In flight when one fails | Dropped by the bound |
+|---|---|---|
+| the reads in `readFinished`, `readCandidates` and the baselines | other reads | harmless: the run has failed and a read stores nothing |
+| the refreshes | none: each catches its own failure | nothing |
+| the write batches in `writePredictions` | other batches | rows that would have been stored |
+
+So `writePredictions` waits for every batch it started with
+`Promise.allSettled`, then fails the run with the first failure. A failed
+write still fails the run (`decisions/052-predictions-log.md`); the batches
+that could be stored are, as they were before the bound. Sourcery raised this
+on the pull request.
+
+The backfill writes one competition-season at a time, each awaited, so it has
+no batch to cut off.
 
 `scripts/predictions.ts` also takes the reason out of the driver's error with
 `describeError`, as the backfill does. Without it the line was drizzle's
@@ -74,6 +95,9 @@ Both commands, each of the issue's three cases:
 
 ## Not shown by a test
 
-The test runs the script against a refused port only. The other two cases were
-run by hand; the never-answering one takes the driver's 30-second connect
-timeout, too long for the unit suite.
+The test runs the script against a listener it holds, which drops every
+connection (measured by hand: `Predictions failed: read ECONNRESET`, exit 1,
+and nothing printed with exit 0 without the fix). It holds the port because one
+opened and closed could be taken by another process before the script
+connects. The issue's three cases were run by hand; the never-answering one
+takes the driver's 30-second connect timeout, too long for the unit suite.

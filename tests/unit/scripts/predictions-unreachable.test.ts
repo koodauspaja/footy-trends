@@ -1,14 +1,15 @@
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
+import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
- * `npm run predictions` against a database that refuses the connection, run as
- * the process it is. The port is one this file opened and closed, and the
- * working directory is empty, so no `.env` is read.
+ * `npm run predictions` against a database that cannot be connected to, run as
+ * the process it is. The port belongs to a listener this file holds, which
+ * drops every connection, and the working directory is empty, so no `.env` is
+ * read.
  *
  * decisions/571-bounded-database-close.md
  */
@@ -17,19 +18,20 @@ const REPOSITORY = process.cwd();
 const TSX = path.join(REPOSITORY, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = path.join(REPOSITORY, "scripts", "predictions.ts");
 
+let listener: Server;
 let port = 0;
 let directory = "";
 
 beforeAll(async () => {
   directory = mkdtempSync(path.join(tmpdir(), "predictions-test-"));
-  const listener = createServer();
+  listener = createServer((socket) => socket.destroy());
   await new Promise<void>((resolve) => listener.listen(0, "127.0.0.1", resolve));
   const address = listener.address();
   port = typeof address === "object" && address !== null ? address.port : 0;
-  await new Promise((resolve) => listener.close(resolve));
 });
 
-afterAll(() => {
+afterAll(async () => {
+  await new Promise((resolve) => listener.close(resolve));
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -61,13 +63,14 @@ function predictions(
   });
 }
 
-describe("the predictions script when the database refuses the connection", () => {
+describe("the predictions script when the database drops the connection", () => {
   it.concurrent.each(["backtest", "log"])(
     "says so on stderr in one line and exits non-zero, for %s",
     async (command) => {
       const result = await predictions(command);
 
-      expect(result.stderr).toBe(`Predictions failed: connect ECONNREFUSED 127.0.0.1:${port}\n`);
+      // One line; the reason's wording is the operating system's.
+      expect(result.stderr).toMatch(/^Predictions failed: [^\n]+\n$/);
       expect(result.stdout).toBe("");
       expect(result.code).toBe(1);
     },

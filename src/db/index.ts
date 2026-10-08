@@ -53,7 +53,11 @@ export const db: Database = new Proxy({} as Database, {
  */
 export type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-// How long a close may take before the driver drops what is left.
+/**
+ * How long a close may take before the driver drops what is left.
+ *
+ * decisions/571-bounded-database-close.md
+ */
 export const CLOSE_TIMEOUT_SECONDS = 2;
 
 /**

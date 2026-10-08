@@ -437,6 +437,43 @@ describe("runPredictionBacktest", () => {
       1_000, 1_000, 1_000,
     ]);
   });
+
+  it("lets every batch it started settle before a failed one fails the run", async () => {
+    // Three batches, as above: the first fails at once, the second is still writing.
+    mocks.select
+      .mockResolvedValueOnce(
+        Array.from({ length: 1_501 }, (_, index) => ({
+          code: "PL",
+          seasonId: 2024,
+          providerMatchId: index,
+          homeTeam: 1 + (index % 20),
+          awayTeam: 21 + (index % 20),
+          kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
+          homeGoals: 1,
+          awayGoals: 0,
+        }))
+      )
+      .mockResolvedValueOnce([]);
+    let finishSecond = () => {};
+    const second = new Promise<void>((resolve) => {
+      finishSecond = resolve;
+    });
+    mocks.onConflictDoUpdate
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockReturnValueOnce(second);
+    const settled = vi.fn();
+
+    const run = runPredictionBacktest(NOW);
+    run.then(settled, settled);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(3));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(settled).not.toHaveBeenCalled();
+
+    finishSecond();
+
+    await expect(run).rejects.toThrow("connection reset");
+  });
 });
 
 describe("readFinished", () => {
