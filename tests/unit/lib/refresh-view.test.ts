@@ -11,12 +11,11 @@ import {
 } from "@/lib/refresh-view";
 
 /**
- * The client-safe half of the forced refresh, from
- * specs/029-forced-season-refresh.md.
+ * The client-safe half of the forced refresh. `decodeChoice` reads a value that arrives
+ * from the browser, so it is tested from both sides: a server action is a public
+ * endpoint, and the `<select>` that normally produces the value guarantees nothing.
  *
- * `decodeChoice` reads a value that arrives from the browser, so it is tested
- * from both sides: a server action is a public endpoint, and the `<select>`
- * that normally produces this value is not a guarantee of anything.
+ * decisions/029-forced-season-refresh.md
  */
 
 function preview(overrides: Partial<RefreshPreview> = {}): RefreshPreview {

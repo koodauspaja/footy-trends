@@ -6,19 +6,21 @@ import { goalsSeries } from "@/lib/goals-series";
 import { homeAwayStats } from "@/lib/home-away";
 import { streaksOf } from "@/lib/streaks";
 
+/**
+ * The one builder of a team's six result panels: the builder's own contract.
+ * The panels' own tests run through it, in `standings-service.test.ts` and
+ * `taso-standings-service.test.ts`.
+ *
+ * decisions/530-one-team-panel-builder.md
+ */
+
 const loggerErrorMock = vi.fn();
 vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
 
 const { teamPanelLoaders } = await import("@/lib/team-panels");
 
-/**
- * The one builder of a team's six result panels (#530). Each provider's
- * service used to have six wrappers of its own; their tests still run, through
- * this, in `standings-service.test.ts` and `taso-standings-service.test.ts`.
- * What is here is the builder's own contract.
- */
 const TEAM = 1;
-/** As a provider passes it: the team, and what places it. */
+// As a provider passes it: the team, and what places it.
 const CONTEXT = { teamProviderId: TEAM, competitionCode: "PL", seasonId: 2025 };
 const LOADERS = [
   "loadForm",

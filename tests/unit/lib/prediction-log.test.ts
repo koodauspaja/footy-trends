@@ -12,11 +12,19 @@ import {
   refreshTargets,
 } from "@/lib/prediction-log";
 
+/**
+ * The predictions log: its windows, which matches are logged and refreshed, and
+ * the rows written.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
+ */
+
 const NOW = new Date("2026-10-03T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
 const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
 
-/** A football-data match unless the overrides make it a TASO one, pair and all. */
+// A football-data match unless the overrides make it a TASO one, pair and all.
 function candidate(overrides: Record<string, unknown> = {}): LogCandidate {
   return {
     source: "football-data",

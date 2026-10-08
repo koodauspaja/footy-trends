@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { outcomeShares, roundedAdvantage, type SeasonOutcomes } from "@/lib/outcome-shares";
 
+/**
+ * Home wins, draws and away wins as shares of a season.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
+
 const FLOOR = 2023;
 
-/** A completed season of 100 matches: 45 home wins, 25 draws, 30 away wins. */
+// A completed season of 100 matches: 45 home wins, 25 draws, 30 away wins.
 function season(overrides: Partial<SeasonOutcomes> = {}): SeasonOutcomes {
   return {
     kind: "football-data",

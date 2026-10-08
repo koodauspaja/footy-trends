@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * Counting requests in Redis rather than in one instance's memory, from #318.
+ * Counting requests in Redis, not in one instance's memory. `@/lib/redis` is
+ * mocked because these assert the decision made from what Redis answers, not
+ * that Redis works, and the CI unit job has no services.
  *
- * `@/lib/redis` is mocked because these assert the decision made from what
- * Redis answers, not that Redis works — and the CI unit job has no services.
+ * decisions/318-rate-limit-storage.md
+ * decisions/309-client-ip-resolution.md
  */
+
 const { evalMock } = vi.hoisted(() => ({ evalMock: vi.fn() }));
 const { error: logError, info: logInfo } = vi.hoisted(() => ({
   error: vi.fn(),
@@ -143,8 +146,8 @@ describe("redisRateLimitStorage", () => {
   });
 
   it("counts each client separately while unreachable", async () => {
-    // A per-instance limiter is still a per-client one; sharing a bucket here
-    // would reintroduce the very bug #309 fixed.
+    // A per-instance limiter is still a per-client one: sharing a bucket here
+    // would put every client back behind one counter.
     evalMock.mockRejectedValue(new Error("ECONNREFUSED"));
     const store = await storage();
 

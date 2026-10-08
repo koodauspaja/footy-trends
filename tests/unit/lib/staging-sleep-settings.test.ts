@@ -5,14 +5,16 @@ import postgres from "postgres";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
- * Staging sleeps when idle only because two query strings on its addresses
- * silence the clients' keepalives (docs/infrastructure.md, *Staging sleeps*).
- * Both rest on how the pinned libraries behave, and Renovate upgrades them
- * unasked, so that behaviour is pinned here: what each reads from an address,
- * and for Redis what it then does to the socket. What postgres.js does to a
- * live connection needs a server, and is in
- * `tests/integration/staging-sleep-settings.test.ts`.
+ * Staging sleeps when idle only because two query strings on its addresses silence the clients'
+ * keepalives (docs/infrastructure.md, *Staging sleeps*). Renovate upgrades the pinned libraries
+ * unasked, so what each reads from an address, and what Redis then does to the socket, is pinned.
+ *
+ * decisions/551-staging-sleeps-when-idle.md
  */
+
+// The other half, what postgres.js does to a live connection, needs a real database
+// server: it is in `tests/integration/staging-sleep-settings.test.ts`.
+
 let server: Server;
 let port = 0;
 const accepted: Socket[] = [];
@@ -37,7 +39,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Connects as the app does, and returns every keepalive setting put on a socket meanwhile. */
+// Connects as the app does, and returns every keepalive setting put on a socket
+// meanwhile.
 async function keepAlivesSetBy(address: string): Promise<unknown[][]> {
   const setKeepAlive = vi.spyOn(Socket.prototype, "setKeepAlive");
   const client = new Redis(address, {

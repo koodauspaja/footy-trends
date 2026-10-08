@@ -11,7 +11,15 @@ import {
   splitCombinedKnockout,
 } from "@/lib/cup-rounds";
 
-/** Builds a season's knockout groups in TASO's own order. */
+/**
+ * A Finnish cup's rounds: their order and names, which are drawn as a bracket,
+ * and Liigacup's combined playoff group.
+ *
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ */
+
+// Builds a season's knockout groups in TASO's own order.
 function groups(...shape: Array<[string, number]>): CupRoundGroup[] {
   return shape.map(([groupName, teamCount], index) => ({
     groupId: index + 1,
@@ -183,7 +191,7 @@ describe("buildCupBracket", () => {
     };
   }
 
-  /** The real closing rounds of MSC 2025. */
+  // The real closing rounds of MSC 2025.
   function mscGroups() {
     return [
       {
@@ -320,7 +328,7 @@ describe("buildCupBracket", () => {
   });
 });
 
-/** A played or scheduled playoff match, `day` of March 2026. */
+// A played or scheduled playoff match, `day` of March 2026.
 function playoffMatch(
   home: number,
   away: number,
@@ -342,7 +350,7 @@ function playoffMatch(
   };
 }
 
-/** Every pairing of `teams` once — a single round-robin. */
+// Every pairing of `teams` once — a single round-robin.
 function roundRobin(teams: number[]) {
   return teams.flatMap((team, index) =>
     teams.slice(index + 1).map((other) => ({
@@ -352,10 +360,8 @@ function roundRobin(teams: number[]) {
   );
 }
 
-/**
- * Liigacup's `1-4` group: A1 (1) v B2 (4) and B1 (3) v A2 (2) in the
- * semi-finals, then the winners. Listed out of kickoff order on purpose.
- */
+// Liigacup's `1-4` group: A1 (1) v B2 (4) and B1 (3) v A2 (2) in the
+// semi-finals, then the winners. Listed out of kickoff order on purpose.
 function liigacupPlayoff(
   final: CupKnockoutMatch = playoffMatch(1, 3, [2, 1], "home", 22)
 ): CupKnockoutGroup {

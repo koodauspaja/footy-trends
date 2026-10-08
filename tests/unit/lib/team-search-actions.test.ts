@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The `"use server"` boundary for team search, from specs/027-team-search.md.
+ * The `"use server"` boundary for team search. The gate is the point: a server
+ * action is a public endpoint whether or not anything renders a control for it,
+ * so hiding the field is not what keeps a signed-out caller out.
  *
- * The gate is the point of these: a server action is a public endpoint whether
- * or not anything renders a control for it, so hiding the field is not what
- * keeps a signed-out caller out.
+ * decisions/027-team-search.md
  */
+
 const { currentUserId, searchTeams, logger } = vi.hoisted(() => ({
   currentUserId: vi.fn(),
   searchTeams: vi.fn(),

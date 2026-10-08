@@ -10,6 +10,22 @@ import {
   selectUpcomingSeason,
 } from "@/lib/football-data";
 
+/**
+ * The football-data client: what it asks, how a response is normalised, which season is
+ * active or upcoming and how far back seasons go, the cache lifetimes, what a failure
+ * logs, that each request carries a signal, and which seasons span two calendar years.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/363-render-timeouts.md
+ */
+
 const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
   getCachedMock: vi.fn(),
   loggerInfoMock: vi.fn(),
@@ -349,7 +365,7 @@ describe("football-data mapping", () => {
         awayTeamName: "Chelsea FC",
         homeGoals: 2,
         awayGoals: 1,
-        // A comeback: behind at the break, won by full time (specs/036).
+        // A comeback: behind at the break, won by full time.
         halfTimeHome: 0,
         halfTimeAway: 1,
         stage: null,
@@ -460,7 +476,7 @@ describe("football-data mapping", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://api.football-data.org/v4/competitions/PL", {
       headers: { "X-Auth-Token": "test-api-key" },
-      // Bounded per attempt since #363; the signal itself is not assertable.
+      // Bounded per attempt; the signal itself is not assertable.
       signal: expect.any(AbortSignal),
     });
     expect(loggerInfoMock).toHaveBeenCalledWith(

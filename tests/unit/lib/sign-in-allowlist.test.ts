@@ -3,11 +3,13 @@ import { allowedSignInEmails, refusesSignIn, signInRefusal } from "@/lib/sign-in
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
 /**
- * Who may sign in, from #314.
+ * Who may sign in. The variable is read on every call, not at import, so these
+ * stub it per test: that property is the point of the design, and one of the
+ * tests.
  *
- * The variable is read on every call rather than at import, so these stub it
- * per test — that property is the point of the design and one of the tests.
+ * decisions/314-sign-in-allowlist.md
  */
+
 beforeEach(() => {
   // Stubbed empty rather than trusted to be absent: a developer with this set
   // locally to exercise the feature would otherwise fail every unrestricted
@@ -108,9 +110,8 @@ describe("signInRefusal", () => {
 
   it("reflects a variable changed after the module was imported", () => {
     // The environment as it is when asked, not as it was when the module was
-    // imported. On Railway this saves no restart — a variable change redeploys
-    // the service either way — but it is what lets these tests change the
-    // variable between cases, and it removes import order from the answer.
+    // imported: that lets these tests change the variable between cases, and
+    // removes import order from the answer.
     expect(signInRefusal("kalle@example.fi")).toBeUndefined();
 
     vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");

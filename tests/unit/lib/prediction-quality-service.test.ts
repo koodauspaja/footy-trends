@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The service's decisions around its query: the outcome from the scores, the
- * models judged, the cache key and lifetime, and failure as its own case. The
- * join itself is proved against Postgres in
- * `tests/integration/prediction-quality.test.ts`.
+ * The service's decisions around its query: the outcome from the scores, the models
+ * judged, the cache key and lifetime, and failure as its own case. The join itself
+ * is proved against Postgres in `tests/integration/prediction-quality.test.ts`.
+ *
+ * decisions/054-prediction-quality.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -88,7 +89,7 @@ describe("getPredictionQuality (specs/054)", () => {
       row("elo-v1", 2, 1, 1),
       row("home-baseline-v1", 3, 0, 1),
       row("elo-v1", 3, 0, 1),
-      // Only one model predicted it: not judged (S4).
+      // Only one model predicted it: not judged.
       row("home-baseline-v1", 4, 3, 0),
     ]);
 
