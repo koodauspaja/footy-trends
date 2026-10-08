@@ -53,7 +53,7 @@ asks for `Promise.all`, which is wrong for each:
 
 | File | Why the loop is sequential |
 |---|---|
-| `scripts/backfill-run.ts`, five | every request goes through a pacer set to the provider's requests per minute, and the output is one line per season in order. Together they would be queued by the pacer anyway, and a failure would no longer name the season it stopped at |
+| `scripts/backfill-run.ts`, five | every request goes through a pacer set to the provider's requests per minute, and the output is one line per season, in order, with a failure on the line of the season it happened in |
 | `scripts/review-findings.ts` | one request per merged pull request to GitHub, which limits bursts; the error names the pull request being read |
 | `scripts/services-plan.ts`, `waitFor` | a poll: probe, sleep, probe again until a deadline. There is nothing to run together |
 | `src/lib/provider-request.ts` | a retry: the next attempt exists only because the last one was rate limited, after the wait the provider asked for |
