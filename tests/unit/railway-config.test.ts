@@ -78,7 +78,7 @@ const EXPECTED_WEB = {
   },
 };
 
-describe(".railway/railway.ts (#521)", () => {
+describe(".railway/railway.ts", () => {
   it("is a named partial, so an apply cannot delete what it does not declare", () => {
     expect(partial).toBe("footy-trends");
   });
@@ -128,7 +128,7 @@ describe(".railway/railway.ts (#521)", () => {
     expect(web?.deploy).not.toHaveProperty("restartPolicyType");
   });
 
-  it("lets staging sleep when idle (#551)", async () => {
+  it("lets staging sleep when idle", async () => {
     const [web] = (await resourcesFor("staging")) as Array<{ deploy?: object }>;
 
     expect(web?.deploy).toHaveProperty("sleepApplication", true);

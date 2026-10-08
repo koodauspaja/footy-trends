@@ -41,8 +41,9 @@
   sit in, or by the header. History (how it used to work, which pull request
   found it, what a reviewer said) goes in the record, never the comment, and no comment cites an issue or
   pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
-  citation, on a cited record that does not exist, and on a doc comment stacked
-  on another. Comments not yet in this shape are trimmed file by file, by the
+  citation, on a cited record that does not exist, on a doc comment stacked
+  on another, and on a test name that cites an issue, a spec or a spec section or is
+  not written as a string (`decisions/584-test-names-carry-no-citations.md`). Comments not yet in this shape are trimmed file by file, by the
   next pull request that rewrites them or in batches of at most 150 000 diff
   characters. A comment a pull request only moves, word for word, onto the
   thing it describes is not rewritten, and waits for its batch. `decisions/531-comments-say-what-code-is-for.md` has the reasons.

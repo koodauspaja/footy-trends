@@ -48,7 +48,7 @@ function indexOrder(): string[] {
   );
 }
 
-describe("docs/setup (#524)", () => {
+describe("docs/setup", () => {
   it("holds nothing but numbered documents and the index", () => {
     expect(files.filter((file) => !DOCUMENT.test(file))).toEqual([INDEX]);
   });

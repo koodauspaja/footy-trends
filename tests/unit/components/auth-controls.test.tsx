@@ -224,7 +224,7 @@ const RESTRICTED =
   "Kirjautuminen on rajoitettu tässä ympäristössä. Pyydä käyttöoikeutta ylläpidolta.";
 const SIGN_IN_FAILED = "Kirjautuminen epäonnistui. Yritä uudelleen.";
 
-describe("a sign-in the allowlist refused, from #314", () => {
+describe("a sign-in the allowlist refused", () => {
   it("names the cause when it arrives behind the one the app already set", () => {
     // The real shape of the URL, and the reason this reads `getAll`: `errorCallbackURL`
     // is `/?error=auth`, and better-auth's `appendQueryParams` concatenates, so the

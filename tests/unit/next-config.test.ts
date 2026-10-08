@@ -37,7 +37,7 @@ function pageFolders(directory = path.join(process.cwd(), "src", "app"), prefix 
   });
 }
 
-describe("next.config.ts, Finnish URLs over English folders (specs/012)", () => {
+describe("next.config.ts, Finnish URLs over English folders", () => {
   it("redirects every rewrite target to the URL that reaches it, permanently", async () => {
     const { rewrites, redirects } = await evaluated();
 

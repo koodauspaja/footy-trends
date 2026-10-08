@@ -36,7 +36,7 @@ async function clear() {
 beforeEach(clear);
 afterEach(clear);
 
-describe("a foreign competition's completed seasons (specs/050)", () => {
+describe("a foreign competition's completed seasons", () => {
   function row(id: number, seasonId: number, [round, home, away, score]: (typeof RESULTS)[number]) {
     return {
       providerMatchId: id,
@@ -75,7 +75,7 @@ describe("a foreign competition's completed seasons (specs/050)", () => {
   });
 });
 
-describe("a domestic competition's completed seasons (specs/050)", () => {
+describe("a domestic competition's completed seasons", () => {
   function row(
     id: number,
     seasonId: number,

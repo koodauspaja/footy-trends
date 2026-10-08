@@ -53,7 +53,7 @@ function row(
   };
 }
 
-describe("getPredictionQuality (specs/054)", () => {
+describe("getPredictionQuality", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -64,12 +64,12 @@ describe("getPredictionQuality (specs/054)", () => {
       );
   });
 
-  it("judges the baseline and Elo, from 2016 domestically and 2023 for football-data (S2, S4)", () => {
+  it("judges the baseline and Elo, from 2016 domestically and 2023 for football-data", () => {
     expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1"]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
   });
 
-  it("caches each provider and kind apart for 15 minutes (S11)", async () => {
+  it("caches each provider and kind apart for 15 minutes", async () => {
     mocks.select.mockResolvedValue([]);
 
     await getPredictionQuality("taso", "backtest");

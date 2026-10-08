@@ -52,7 +52,7 @@ function renderPanel(series: OpponentsSeries) {
 }
 
 describe("opponentsPanel", () => {
-  it("is no panel at all where it does not apply (S5)", () => {
+  it("is no panel at all where it does not apply", () => {
     expect(opponentsPanel({ status: "unavailable" })).toBeNull();
   });
 

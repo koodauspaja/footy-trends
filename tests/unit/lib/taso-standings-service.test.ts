@@ -597,7 +597,7 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
-  describe("a cup of groups then a playoff (specs/043)", () => {
+  describe("a cup of groups then a playoff", () => {
     // A three-team round-robin in group 1, played over rounds 1-3 as TASO
     // numbers a group stage, and a semi-finals-and-final group 2.
     function groupsThenPlayoff(categoryId: string) {
@@ -2897,7 +2897,7 @@ describe("getTeamPositionSeries", () => {
     expect(getCachedMock).not.toHaveBeenCalled();
   });
 
-  describe("a season's table movement (specs/050)", () => {
+  describe("a season's table movement", () => {
     // The split fixture, filed under the season its competition id names.
     const inSeason = <T extends { seasonId: number }>(rows: T[], seasonId = 2025) =>
       rows.map((row) => ({ ...row, seasonId }));
@@ -2955,7 +2955,7 @@ describe("getTeamPositionSeries", () => {
       );
     }
 
-    it("sets every team's position after round ⌈R / 2⌉ against its combined final one (S1, S7, S8)", async () => {
+    it("sets every team's position after round ⌈R / 2⌉ against its combined final one", async () => {
       // Three regular rounds and one after the split: R = 4, halfway is round 2.
       // Team 3 wins the lower group, so it ends 3rd only by counting the upper
       // group's two teams above it.
@@ -2972,7 +2972,7 @@ describe("getTeamPositionSeries", () => {
       expect(expected).toBe(2);
     });
 
-    it("counts the continuation's rounds, renumbered, in R (S7)", async () => {
+    it("counts the continuation's rounds, renumbered, in R", async () => {
       // A second round after the split, which TASO numbers 2 in each split group
       // and the standings page renumbers 5: R = 5, halfway is round 3.
       const matches = [
@@ -3025,7 +3025,7 @@ describe("getTeamPositionSeries", () => {
       expect(expected).toBe(2);
     });
 
-    it("has no figure when the continuation does not reconcile, or the regular season has no table (S9)", async () => {
+    it("has no figure when the continuation does not reconcile, or the regular season has no table", async () => {
       const matches = splitSeason(SPLIT_SEASON);
       const unreconciled = verifiedRows(matches, SPLIT_SEASON).map((row) =>
         row.groupId === 3 ? { ...row, points: (row.points ?? 0) + 5 } : row
@@ -3052,7 +3052,7 @@ describe("getTeamPositionSeries", () => {
       ).toEqual([{ seasonId: 2025, movement: null }]);
     });
 
-    it("adds Kakkonen's pools into one season, each team measured in its own pool (S10)", async () => {
+    it("adds Kakkonen's pools into one season, each team measured in its own pool", async () => {
       const KAKKONEN = "M2";
       const POOLS_SEASON = "spljp26";
       const parents = new Map([
@@ -3094,7 +3094,7 @@ describe("getTeamPositionSeries", () => {
       });
     });
 
-    it("keeps each season to its own competition and category, and asks TASO nothing (S4)", async () => {
+    it("keeps each season to its own competition and category, and asks TASO nothing", async () => {
       const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
       const rows = verifiedRows(matches, SPLIT_SEASON);
       const cup = matches.map((row) => ({
@@ -3180,7 +3180,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     );
   }
 
-  describe("a cup, which has no table (specs/040)", () => {
+  describe("a cup, which has no table", () => {
     const CUP = "MSC";
     const SEASON = "spljp25";
     // Two knockout ties: `points: null` makes the group a match list.
@@ -3491,7 +3491,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
     });
 
-    it("reads the club's records across its league seasons (specs/039)", async () => {
+    it("reads the club's records across its league seasons", async () => {
       mockStoredMatches(matches, rows);
 
       const selected = ownSeason();

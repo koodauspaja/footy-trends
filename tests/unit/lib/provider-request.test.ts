@@ -160,7 +160,7 @@ const stalls = () =>
       })
   );
 
-describe("fetchProviderJson attempt bound (#363)", () => {
+describe("fetchProviderJson attempt bound", () => {
   it("aborts an attempt that stalls past the bound", async () => {
     stalls();
 

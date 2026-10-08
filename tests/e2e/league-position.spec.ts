@@ -130,7 +130,7 @@ test.describe("League position chart, rounds a team sat out", () => {
     await signedIn(page);
   });
 
-  test("fills a point only for a round the team played in (#413)", async ({ page }) => {
+  test("fills a point only for a round the team played in", async ({ page }) => {
     // Veikkausliiga 2026's Mestaruussarja is numbered out of calendar order, so a
     // line reaches rounds not yet played. Checked against the standings page, not
     // hardcoded rounds: each match played fills one point, and the legend follows.

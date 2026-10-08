@@ -198,7 +198,7 @@ describe("comebacksPanel", () => {
     expect(screen.queryByText(/Puoliaikatulos puuttuu/)).toBeNull();
   });
 
-  it("shows the note, not the figures, below 40 % known (specs/046)", () => {
+  it("shows the note, not the figures, below 40 % known", () => {
     // Huuhkajat on production: about 8 of 84 matches with a half-time score.
     const container = renderPanel({ ...series, known: 8, missing: 76 });
 
@@ -217,7 +217,7 @@ describe("comebacksPanel", () => {
     expect(screen.queryByText(/Puoliaikatulos on tiedossa/)).toBeNull();
   });
 
-  it("says not yet, rather than the note, before any match is played (S6)", () => {
+  it("says not yet, rather than the note, before any match is played", () => {
     const container = renderPanel({
       status: "ok",
       trailed: NONE,
@@ -250,7 +250,7 @@ describe("comebacksPanel", () => {
   });
 });
 
-describe("enoughHalfTimeKnown (specs/046, S1)", () => {
+describe("enoughHalfTimeKnown", () => {
   it.each([
     [6, 9, true, "exactly 40 %"],
     [2, 3, true, "exactly 40 %, small"],
@@ -265,7 +265,7 @@ describe("enoughHalfTimeKnown (specs/046, S1)", () => {
   });
 });
 
-describe("coverageNote (specs/046, S5)", () => {
+describe("coverageNote", () => {
   it("states the sample, with no case ending on either numeral", () => {
     expect(coverageNote(8, 76)).toBe(
       "Puoliaikatulos on tiedossa vain 8 ottelusta, kun otteluita on 84. Kääntyneitä otteluita ei lasketa."

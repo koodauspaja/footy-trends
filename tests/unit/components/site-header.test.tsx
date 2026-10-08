@@ -137,7 +137,7 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/");
   });
 
-  describe("where the search sits (#373)", () => {
+  describe("where the search sits", () => {
     const signedIn = () => {
       session.current = {
         data: { user: { name: "Matti Meikäläinen", image: null } },

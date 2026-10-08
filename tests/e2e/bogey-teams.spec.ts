@@ -30,7 +30,7 @@ test.describe("Bogey teams, signed in", () => {
     await expect(panel.getByText(/^Vähintään 3 kohtaamista\. Perustuu kaudesta/)).toBeVisible();
   });
 
-  test("a row's record is the head-to-head page's record for that pair (S4)", async ({ page }) => {
+  test("a row's record is the head-to-head page's record for that pair", async ({ page }) => {
     await page.goto(INTER);
     const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
     const first = panel.locator("tbody tr").first();
@@ -71,7 +71,7 @@ test.describe("Bogey teams, signed in", () => {
   });
 });
 
-test("the national-team pages have no opponents panel (S5)", async ({ page }) => {
+test("the national-team pages have no opponents panel", async ({ page }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto("/maajoukkueet/huuhkajat");
   await page.getByRole("heading", { level: 2, name: "Analyysit" }).waitFor();

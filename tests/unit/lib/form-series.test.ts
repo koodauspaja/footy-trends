@@ -141,7 +141,7 @@ describe("formSeries", () => {
   });
 });
 
-describe("latestForm (specs/047)", () => {
+describe("latestForm", () => {
   it("takes the team's last five, oldest first, from its own side", () => {
     // Team 1's last five of the eight: D L W L... read from `season` above.
     const form = latestForm(season, 1);
@@ -160,7 +160,7 @@ describe("latestForm (specs/047)", () => {
     );
   });
 
-  it("agrees with formSeries' last point over the same matches (S2)", () => {
+  it("agrees with formSeries' last point over the same matches", () => {
     const series = formSeries(season, 1);
     const form = latestForm(season, 1);
 
@@ -193,7 +193,7 @@ describe("latestForm (specs/047)", () => {
     expect(form.status === "ok" ? form.latest.getTime() : 0).toBe(newest);
   });
 
-  it("is too few below five matches (S9)", () => {
+  it("is too few below five matches", () => {
     expect(latestForm(season.slice(0, 4), 1)).toEqual({ status: "too-few" });
   });
 });

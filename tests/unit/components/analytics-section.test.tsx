@@ -161,7 +161,7 @@ beforeEach(() => {
   canSeeAnalytics.mockResolvedValue(true);
 });
 
-describe("the groups a page's axis names (specs/041, S13)", () => {
+describe("the groups a page's axis names", () => {
   it("names the middle group for the history it covers, and the last for years", async () => {
     const { container } = await renderSection(
       undefined,
@@ -282,7 +282,7 @@ describe("AnalyticsSection, signed in", () => {
     ]);
   });
 
-  it("puts each panel under its agreed group (#424)", async () => {
+  it("puts each panel under its agreed group", async () => {
     await renderSection();
     const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
@@ -320,7 +320,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.queryByText(SEASON_AXIS.otherHeading)).toBeNull();
   });
 
-  it("sits in a fold that starts open, like the match list (#416)", async () => {
+  it("sits in a fold that starts open, like the match list", async () => {
     const { container } = await renderSection();
     const details = container.querySelector("details");
 
@@ -349,7 +349,7 @@ describe("AnalyticsSection, signed in", () => {
   });
 });
 
-describe("the Vastustajat group (specs/045, S6)", () => {
+describe("the Vastustajat group", () => {
   const opponents: OpponentsSeries = {
     status: "ok",
     rows: [
@@ -413,7 +413,7 @@ describe("the Vastustajat group (specs/045, S6)", () => {
   });
 });
 
-describe("Joukkueen vahvuus (Elo) (specs/053 S9)", () => {
+describe("Joukkueen vahvuus (Elo)", () => {
   beforeEach(() => {
     canSeeAnalytics.mockReset().mockResolvedValue(true);
   });

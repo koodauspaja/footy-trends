@@ -228,7 +228,7 @@ describe("National-teams team page", () => {
     getTeamMatchesMock.mockResolvedValue({ status: "ok", matches: worldCupMatches.slice(0, 1) });
   });
 
-  it("has no Elo panel: a national team is not rated (specs/053 S5)", async () => {
+  it("has no Elo panel: a national team is not rated", async () => {
     const { default: Page } = await import("@/app/national-teams/team/[id]/page");
     render(
       await Page({

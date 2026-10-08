@@ -115,7 +115,7 @@ describe("taso integration", () => {
     expect(stored[0]).toMatchObject({ homeGoals: 1, awayGoals: 1 });
   });
 
-  it("round-trips the half-time score, a goalless first half included (specs/036)", async () => {
+  it("round-trips the half-time score, a goalless first half included", async () => {
     const { synchronizeMatches } = await import("@/lib/taso-standings-service");
     const goalless = buildMatch({ providerMatchId: 901011, halfTimeHome: 0, halfTimeAway: 0 });
     const behind = buildMatch({ providerMatchId: 901012, halfTimeHome: 0, halfTimeAway: 1 });

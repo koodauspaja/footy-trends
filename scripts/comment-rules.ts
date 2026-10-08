@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import ts from "typescript";
 
 /**
- * The rules a comment is held to: what it may cite, and how it may sit.
+ * The rules a comment is held to: what it may cite, and how it may sit. A
+ * test's name is held to the first of them.
  *
  * decisions/531-comments-say-what-code-is-for.md
+ * decisions/584-test-names-carry-no-citations.md
  */
 
 export type Comment = {
@@ -30,6 +32,15 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
  */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
 const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
+
+/**
+ * What a test's name may not carry: an issue number, a spec by path or number,
+ * or a spec section such as `S4`.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+const NAME_CITATIONS = [ISSUE_NUMBER, /\bspecs?[/ ]\d+/, /\bS\d+\b/];
+const TEST_FUNCTIONS = new Set(["it", "test", "describe", "suite"]);
 
 /**
  * The TypeScript sources among `paths`, in order: the caller lists what git
@@ -179,6 +190,106 @@ export function decisionCitations(file: string, comments: readonly Comment[]): F
       [...line.text.matchAll(DECISION_PATH)].map((match) => ({ ...line, text: match[0] }))
     )
   );
+}
+
+/**
+ * The name a call starts from: `it` for `it.each(rows)(…)` and `test` for
+ * `test.describe(…)`.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+function calledFrom(expression: ts.Expression): string | null {
+  let current = expression;
+  while (!ts.isIdentifier(current)) {
+    if (ts.isPropertyAccessExpression(current) || ts.isCallExpression(current)) {
+      current = current.expression;
+    } else if (ts.isTaggedTemplateExpression(current)) {
+      current = current.tag;
+    } else {
+      return null;
+    }
+  }
+  return current.text;
+}
+
+/**
+ * The names a file calls its test functions by: `it`, `test`, `describe` and
+ * Vitest's `suite` as it imports them, under another name or not, and a constant assigned from one.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+function testFunctionsOf(tree: ts.SourceFile): Set<string> {
+  const names = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if (ts.isImportSpecifier(node)) {
+      if (TEST_FUNCTIONS.has((node.propertyName ?? node.name).text)) names.add(node.name.text);
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const from = node.initializer === undefined ? null : calledFrom(node.initializer);
+      if (from !== null && names.has(from)) names.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return names;
+}
+
+function isFunction(node: ts.Node): boolean {
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+}
+
+type TestName = { line: number; text: string; written: boolean };
+
+/**
+ * Each test's and suite's name, read from the parsed tree: the same words in a
+ * fixture string are not a name. `written` is false for one that is not a
+ * string where the test is, which is a name only when a test's body follows it.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+function testNamesOf(file: string, source: string): TestName[] {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const functions = testFunctionsOf(tree);
+  const names: TestName[] = [];
+
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && functions.has(calledFrom(node.expression) ?? "")) {
+      const [name, ...rest] = node.arguments;
+      if (name !== undefined) {
+        const written = ts.isStringLiteralLike(name) || ts.isTemplateExpression(name);
+        if (written || rest.some(isFunction)) {
+          const line = tree.getLineAndCharacterOfPosition(name.getStart(tree)).line + 1;
+          names.push({ line, text: name.getText(tree), written });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return names;
+}
+
+/**
+ * Each `it`, `test` and `describe` name that cites an issue, a spec or a spec
+ * section.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+export function testNameCitations(file: string, source: string): Finding[] {
+  return testNamesOf(file, source)
+    .filter((name) => NAME_CITATIONS.some((citation) => citation.test(name.text)))
+    .map(({ line, text }) => ({ file, line, text }));
+}
+
+/**
+ * Each test name that is a variable, a call or a sum and not a string: the
+ * check cannot read what it will say, so it is not allowed to say it.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+export function computedTestNames(file: string, source: string): Finding[] {
+  return testNamesOf(file, source)
+    .filter((name) => !name.written)
+    .map(({ line, text }) => ({ file, line, text }));
 }
 
 /**

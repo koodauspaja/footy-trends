@@ -2064,7 +2064,7 @@ describe("getTeamSeasonComparison", () => {
     expect(comparison.status === "ok" && comparison.competitions).toEqual(["Valioliiga"]);
   });
 
-  it("reads the club's records across its league seasons (specs/039)", async () => {
+  it("reads the club's records across its league seasons", async () => {
     mockSeasonReads(strongSeason, strongSeason);
 
     const result = await getTeamStreakRecords(COMPETITION_CODE, 1, ACTIVE_SEASON, seasons, String);
@@ -2091,7 +2091,7 @@ describe("getTeamSeasonComparison", () => {
     );
   });
 
-  it("compares a cup season only with that cup's other seasons (specs/040)", async () => {
+  it("compares a cup season only with that cup's other seasons", async () => {
     const CUP = "CL";
     getSeasonMatchesMock.mockResolvedValue([]);
     mockSeasonReads(strongSeason, weakSeason, weakSeason, weakSeason);
@@ -2111,7 +2111,7 @@ describe("getTeamSeasonComparison", () => {
     expect(comparison.rows.map((row) => row.measure)).not.toContain("position");
   });
 
-  it("names the cup in the records it covers (specs/040)", async () => {
+  it("names the cup in the records it covers", async () => {
     const CUP = "CL";
     getSeasonMatchesMock.mockResolvedValue([]);
     mockSeasonReads(strongSeason, weakSeason);
@@ -2172,7 +2172,7 @@ describe("getTeamSeasonComparison", () => {
   });
 });
 
-describe("getSeasonMovements (specs/050)", () => {
+describe("getSeasonMovements", () => {
   // A round-robin of three teams over `rounds` rounds, one match a round.
   function season(seasonId: number, results: Array<[number, number, number, [number, number]]>) {
     return results.map(([matchday, home, away, [homeGoals, awayGoals]]) =>
@@ -2191,7 +2191,7 @@ describe("getSeasonMovements (specs/050)", () => {
     );
   }
 
-  it("measures each stored season from its own rows, and asks no provider (S1, S4)", async () => {
+  it("measures each stored season from its own rows, and asks no provider", async () => {
     const first = season(2023, [
       [1, 1, 2, [1, 0]],
       [2, 2, 3, [1, 0]],

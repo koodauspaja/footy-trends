@@ -607,7 +607,7 @@ describe("resolveTeamNames", () => {
     expect(team?.region).toBe(expected);
   });
 
-  describe("Finland's own pages, from #325", () => {
+  describe("Finland's own pages", () => {
     const suomi = (bucket = "maajp2026") => {
       state.sides.set("taso_matches:home", [
         {

@@ -374,7 +374,7 @@ describe("the head-to-head history", () => {
   });
 });
 
-describe("a football-data score without its shoot-out (#528, specs/049 S3)", () => {
+describe("a football-data score without its shoot-out", () => {
   it("is the same from SQL as from the tables' own rule, half a shoot-out included", async () => {
     const rows = [
       // Both sides stored: 0–0 after extra time.
@@ -444,7 +444,7 @@ describe("a football-data score without its shoot-out (#528, specs/049 S3)", () 
   });
 });
 
-describe("the competition averages (specs/044)", () => {
+describe("the competition averages", () => {
   it("averages exactly the football-data seasons given, finished matches only", async () => {
     await db.insert(matches).values([
       footballDataRow({ providerMatchId: 991001, homeGoals: 3, awayGoals: 1 }),
@@ -541,7 +541,7 @@ describe("the competition averages (specs/044)", () => {
   });
 });
 
-describe("a club's worst opponents (specs/045)", () => {
+describe("a club's worst opponents", () => {
   it("reads both orientations, finished matches only, inside the club's own bucket", async () => {
     await db.insert(tasoMatches).values([
       // Three losses to AWAY, two at home and one away: one opponent, 0 points.
@@ -581,7 +581,7 @@ describe("a club's worst opponents (specs/045)", () => {
     });
   });
 
-  it("agrees with the head-to-head page for the same pair (S4)", async () => {
+  it("agrees with the head-to-head page for the same pair", async () => {
     await db.insert(tasoMatches).values([
       tasoRow({ providerMatchId: 991013, homeGoals: 2, awayGoals: 2 }),
       tasoRow({ providerMatchId: 991014, homeGoals: 0, awayGoals: 1 }),
@@ -617,7 +617,7 @@ describe("a club's worst opponents (specs/045)", () => {
   });
 });
 
-describe("a team's latest form (specs/047)", () => {
+describe("a team's latest form", () => {
   // A finished match for HOME on `day` of September 2026, home or away.
   function played(
     id: number,
@@ -685,7 +685,7 @@ describe("a team's latest form (specs/047)", () => {
   });
 });
 
-describe("a competition's goals per game (specs/048)", () => {
+describe("a competition's goals per game", () => {
   // Codes no provider uses, because this reads a competition's whole stored
   // history and the real ones hold other suites' fixtures. A code the registry
   // does not know reads as the `spljp{YY}` umbrella under its own category.
@@ -828,7 +828,7 @@ describe("a competition's goals per game (specs/048)", () => {
   });
 });
 
-describe("the competitions' home advantage (specs/049)", () => {
+describe("the competitions' home advantage", () => {
   // The read spans every compared competition, which other suites' fixtures
   // share, so each test measures what its own rows add, in seasons nothing
   // else stores.
@@ -946,7 +946,7 @@ describe("the competitions' home advantage (specs/049)", () => {
   });
 });
 
-describe("a competition's home-win baseline (specs/051)", () => {
+describe("a competition's home-win baseline", () => {
   // The read spans a competition's whole stored history, which other suites'
   // fixtures share, so each test measures what its own rows add, in seasons
   // nothing else stores.

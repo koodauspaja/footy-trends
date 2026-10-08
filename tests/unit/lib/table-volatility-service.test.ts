@@ -31,7 +31,7 @@ beforeEach(() => {
   getTasoSeasonMovements.mockResolvedValue(seasons);
 });
 
-describe("getTableVolatility (specs/050)", () => {
+describe("getTableVolatility", () => {
   it.each([
     ["football-data", "PL", getSeasonMovements, getTasoSeasonMovements],
     ["taso", "VL", getTasoSeasonMovements, getSeasonMovements],

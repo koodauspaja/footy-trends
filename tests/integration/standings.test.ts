@@ -122,7 +122,7 @@ describe("standings integration", () => {
     expect(stored[0]).toMatchObject({ homeGoals: 1, awayGoals: 1 });
   });
 
-  it("round-trips the half-time score, a goalless first half included (specs/036)", async () => {
+  it("round-trips the half-time score, a goalless first half included", async () => {
     const { synchronizeMatches } = await import("@/lib/standings-service");
     const goalless = buildMatch({ providerMatchId: 900011, halfTimeHome: 0, halfTimeAway: 0 });
     const behind = buildMatch({ providerMatchId: 900012, halfTimeHome: 0, halfTimeAway: 1 });
@@ -203,7 +203,7 @@ describe("standings integration", () => {
     expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
-  it("compares a season with the club's others, asking the provider nothing (specs/038)", async () => {
+  it("compares a season with the club's others, asking the provider nothing", async () => {
     const { getSeasonMatches } = await import("@/lib/football-data");
     const { synchronizeMatches, getTeamSeasonComparison } = await import("@/lib/standings-service");
 
@@ -235,7 +235,7 @@ describe("standings integration", () => {
     expect(getSeasonMatches).not.toHaveBeenCalled();
   });
 
-  it("reads streak records across stored seasons, asking the provider nothing (specs/039)", async () => {
+  it("reads streak records across stored seasons, asking the provider nothing", async () => {
     const { getSeasonMatches } = await import("@/lib/football-data");
     const { synchronizeMatches, getTeamStreakRecords } = await import("@/lib/standings-service");
 

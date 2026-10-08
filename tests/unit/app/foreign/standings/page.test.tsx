@@ -119,7 +119,7 @@ describe("Standings page", () => {
     getCupSeasonMock.mockResolvedValue({ status: "empty" });
   });
 
-  it("asks for the competition's Analyysit, labelling seasons as its selector does (specs/048)", async () => {
+  it("asks for the competition's Analyysit, labelling seasons as its selector does", async () => {
     await renderStandings({ kilpailu: "PL", kausi: "2024" });
 
     expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
@@ -133,7 +133,7 @@ describe("Standings page", () => {
     expect(props?.seasonLabel(2024)).toBe("2024/25");
   });
 
-  it("places the Analyysit under the table and its legend (specs/048)", async () => {
+  it("places the Analyysit under the table and its legend", async () => {
     await renderStandings();
 
     const legend = screen.getByText(/^O = ottelut/);
@@ -604,7 +604,7 @@ describe("Standings page, cup competitions", () => {
     expect(screen.queryByRole("heading", { name: "Liigavaihe" })).not.toBeInTheDocument();
   });
 
-  it("asks for the Champions League's Analyysit and places it under the tables (specs/048)", async () => {
+  it("asks for the Champions League's Analyysit and places it under the tables", async () => {
     getCupSeasonMock.mockResolvedValue({
       status: "ok",
       matches: [

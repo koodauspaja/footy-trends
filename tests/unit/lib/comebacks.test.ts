@@ -47,7 +47,7 @@ describe("comebacksOf", () => {
     });
   });
 
-  it("counts what became of the matches it led at half-time (specs/037)", () => {
+  it("counts what became of the matches it led at half-time", () => {
     const season = [
       match(1, [1, 0], [1, 1]), // ahead, drew — a lead given away
       match(2, [2, 0], [2, 3]), // ahead, lost — a lead given away

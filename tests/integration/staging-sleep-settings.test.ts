@@ -37,7 +37,7 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.end({ timeout: 1 })));
 });
 
-describe("an idle timeout on the database address (#551)", () => {
+describe("an idle timeout on the database address", () => {
   it("closes the connection once it has sat idle, where a plain address keeps it open", async () => {
     const observer = connect(`${NAME}-observer`);
     const quiet = connect(`${NAME}-quiet`, 1);

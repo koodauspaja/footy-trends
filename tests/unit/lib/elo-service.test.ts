@@ -41,7 +41,7 @@ async function throughJson(_key: string, _ttl: number, fetcher: () => Promise<un
   return JSON.parse(JSON.stringify(await fetcher()));
 }
 
-describe("the Elo service (specs/053 S11)", () => {
+describe("the Elo service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCached.mockReset().mockImplementation(throughJson);

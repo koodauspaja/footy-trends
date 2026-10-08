@@ -34,7 +34,7 @@ describe("isStoredInteger", () => {
   });
 });
 
-describe("parseWholeNumber (#529)", () => {
+describe("parseWholeNumber", () => {
   it("reads decimal digits as the number they spell", () => {
     expect(parseWholeNumber("16")).toBe(16);
     expect(parseWholeNumber("0")).toBe(0);

@@ -94,7 +94,7 @@ test.describe("Goals per game, signed out", () => {
   });
 });
 
-test.describe("Goals per game where the spec has none (S5)", () => {
+test.describe("Goals per game where the spec has none", () => {
   test.beforeEach(async ({ page }) => {
     await signedIn(page);
   });

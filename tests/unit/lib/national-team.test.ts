@@ -234,7 +234,7 @@ describe("groupByPlayedYear", () => {
   });
 });
 
-describe("normalizeFinlandId (specs/041, S1)", () => {
+describe("normalizeFinlandId", () => {
   const base = {
     homeTeamName: "Suomi",
     homeTeamProviderId: 4321,

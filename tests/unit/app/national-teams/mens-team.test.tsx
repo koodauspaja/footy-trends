@@ -131,7 +131,7 @@ describe("Huuhkajat page", () => {
     for (const section of sections) expect(section).toHaveAttribute("open");
   });
 
-  it("marks each year's summary as something to press (#419)", async () => {
+  it("marks each year's summary as something to press", async () => {
     await renderPage();
 
     for (const section of yearSections()) {

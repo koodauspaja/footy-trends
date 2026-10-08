@@ -110,12 +110,12 @@ describe("headToHeadWindow", () => {
 });
 
 describe("HEAD_TO_HEAD_LIMIT", () => {
-  it("is five, per #71", () => {
+  it("is five", () => {
     expect(HEAD_TO_HEAD_LIMIT).toBe(5);
   });
 });
 
-describe("headToHeadRecord (specs/042, S9)", () => {
+describe("headToHeadRecord", () => {
   const HJK = 1;
   const KUPS = 2;
 
@@ -209,7 +209,7 @@ describe("headToHeadRecord (specs/042, S9)", () => {
   });
 });
 
-describe("the summary's lines (specs/042, S9)", () => {
+describe("the summary's lines", () => {
   const RECORD: HeadToHeadRecord = {
     played: 24,
     from: 1998,
@@ -250,7 +250,7 @@ describe("the summary's lines (specs/042, S9)", () => {
   });
 });
 
-describe("meetingsLink (specs/042, S10)", () => {
+describe("meetingsLink", () => {
   it("builds the pair's href, in the order it was given them", () => {
     expect(meetingsLink("/kotimaa", 1, 2, 24)).toEqual({
       href: "/kotimaa/kohtaamiset/1/2",
@@ -270,7 +270,7 @@ describe("meetingsLink (specs/042, S10)", () => {
   });
 });
 
-describe("meetingsLinkCount (specs/042, S10)", () => {
+describe("meetingsLinkCount", () => {
   it("is the count when there is a history to open", () => {
     expect(meetingsLinkCount(24)).toBe(24);
   });
@@ -285,7 +285,7 @@ describe("meetingsLinkCount (specs/042, S10)", () => {
   });
 });
 
-describe("scoreGrid (specs/044, #337)", () => {
+describe("scoreGrid", () => {
   const HJK = 1;
   const KUPS = 2;
 
@@ -383,7 +383,7 @@ describe("scoreGrid (specs/044, #337)", () => {
     ]);
   });
 
-  it("names none when every scoreline occurred once — one meeting included (S8)", () => {
+  it("names none when every scoreline occurred once — one meeting included", () => {
     expect(scoreGrid([meeting(HJK, KUPS, 2, 1), meeting(HJK, KUPS, 1, 0)], HJK).mostCommon).toEqual(
       []
     );
@@ -402,7 +402,7 @@ describe("scoreGrid (specs/044, #337)", () => {
   });
 });
 
-describe("the Tulokset section's text (specs/044)", () => {
+describe("the Tulokset section's text", () => {
   const grid = (mostCommon: ScoreGrid["mostCommon"], mostCommonCount: number): ScoreGrid => ({
     rows: [],
     largest: 0,
@@ -429,7 +429,7 @@ describe("the Tulokset section's text (specs/044)", () => {
     );
   });
 
-  it("says nothing when there is no most common scoreline (S8)", () => {
+  it("says nothing when there is no most common scoreline", () => {
     expect(mostCommonSentence(grid([], 0))).toBeNull();
   });
 
@@ -459,7 +459,7 @@ describe("the Tulokset section's text (specs/044)", () => {
   });
 });
 
-describe("competitionGroups (specs/044, #338)", () => {
+describe("competitionGroups", () => {
   function fd(
     code: string,
     label: string,
@@ -497,7 +497,7 @@ describe("competitionGroups (specs/044, #338)", () => {
     };
   }
 
-  it("makes one row per competition, never one blended average (S4)", () => {
+  it("makes one row per competition, never one blended average", () => {
     const groups = competitionGroups([
       fd("PL", "Valioliiga", 2024, 3, 1),
       fd("CL", "Mestarien liiga", 2024, 0, 0),
@@ -532,7 +532,7 @@ describe("competitionGroups (specs/044, #338)", () => {
     expect(group?.label).toBe("Valioliiga");
   });
 
-  it("scopes a football-data competition to the seasons the pair met in it (S7)", () => {
+  it("scopes a football-data competition to the seasons the pair met in it", () => {
     const [group] = competitionGroups([
       fd("PL", "Valioliiga", 2024, 1, 0),
       fd("PL", "Valioliiga", 2016, 1, 0),
@@ -565,7 +565,7 @@ describe("competitionGroups (specs/044, #338)", () => {
   });
 });
 
-describe("worstOpponents (specs/045)", () => {
+describe("worstOpponents", () => {
   const CLUB = 1;
   const NAMES: Record<number, string> = {
     1: "HJK",
@@ -630,7 +630,7 @@ describe("worstOpponents (specs/045)", () => {
     expect(row?.pointsPerMatch).toBeCloseTo(1 / 3);
   });
 
-  it("agrees with the head-to-head record for the same pair (S4)", () => {
+  it("agrees with the head-to-head record for the same pair", () => {
     const meetings = [game(5, 2, CLUB, 3, 3), game(4, CLUB, 2, 2, 0), game(1, CLUB, 2, 0, 4)];
     const [row] = worstOpponents(meetings, CLUB);
     const record = headToHeadRecord(meetings, CLUB);
@@ -640,11 +640,11 @@ describe("worstOpponents (specs/045)", () => {
     );
   });
 
-  it("counts an opponent only from its third meeting (S2)", () => {
+  it("counts an opponent only from its third meeting", () => {
     expect(ids([...series(2, 2, 0, 5), ...series(3, 3, 1, 1, 10)])).toEqual([3]);
   });
 
-  it("ranks by points per match, worst first, and keeps three (S1, S3)", () => {
+  it("ranks by points per match, worst first, and keeps three", () => {
     const meetings = [
       ...series(2, 3, 2, 0, 1), // 3,0
       ...series(3, 3, 0, 1, 10), // 0,0
@@ -656,11 +656,11 @@ describe("worstOpponents (specs/045)", () => {
     expect(ids(meetings)).toEqual([5, 3, 4]);
   });
 
-  it("breaks a tie by more meetings first (S7)", () => {
+  it("breaks a tie by more meetings first", () => {
     expect(ids([...series(2, 3, 0, 1, 20), ...series(3, 4, 0, 1, 1)])).toEqual([3, 2]);
   });
 
-  it("then by the most recent meeting (S7)", () => {
+  it("then by the most recent meeting", () => {
     expect(ids([...series(2, 3, 0, 1, 1), ...series(3, 3, 0, 1, 20)])).toEqual([3, 2]);
   });
 
@@ -672,7 +672,7 @@ describe("worstOpponents (specs/045)", () => {
     expect(row?.lastMet).toEqual(new Date(Date.UTC(2025, 0, 9)));
   });
 
-  it("never counts the club as its own opponent (Sourcery, on #478)", () => {
+  it("never counts the club as its own opponent", () => {
     // A stored row naming the club on both sides would otherwise become a row
     // linking to a head-to-head of the club against itself, which is not found.
     const self = (day: number) => game(day, CLUB, CLUB, 0, 1);
@@ -700,7 +700,7 @@ describe("meetingsHref and spansCalendarYears", () => {
   });
 });
 
-describe("isCurrentRivalry (specs/047, S8, S13)", () => {
+describe("isCurrentRivalry", () => {
   // Midday on 29 September 2026: `current year − 2` is 2024.
   const TODAY = new Date("2026-09-29T12:00:00Z");
 

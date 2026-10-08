@@ -125,7 +125,7 @@ describe("MatchListTable match links", () => {
   });
 });
 
-describe("MatchListTable scores (#498)", () => {
+describe("MatchListTable scores", () => {
   // Manchester City – Real Madrid, 17.04.2024, as football-data stores it.
   const shootout: MatchListRow = {
     providerMatchId: 438512,

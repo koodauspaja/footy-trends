@@ -17,7 +17,7 @@ vi.mock("@/components/prediction-quality-page", () => ({
 
 import Page, { dynamic, metadata } from "@/app/predictions/page";
 
-describe("/ennusteet (specs/054)", () => {
+describe("/ennusteet", () => {
   it("passes the page's parameters through, rendered per request", async () => {
     await Page({ searchParams: Promise.resolve({ alue: "ulkomaat", tyyppi: "ennakkoon" }) });
 

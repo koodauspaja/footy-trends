@@ -19,6 +19,7 @@ import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
  * team's years.
  *
  * decisions/038-season-against-history.md
+ * decisions/032-goals-scored-vs-conceded.md
  * decisions/033-home-vs-away.md
  * decisions/041-national-team-analytics.md
  */
@@ -110,7 +111,7 @@ describe("the axis's baseline line", () => {
     );
   });
 
-  it("counts years instead on a page whose periods are years (specs/041, S11)", () => {
+  it("counts years instead on a page whose periods are years", () => {
     expect(HISTORY_AXIS.baselineLine(8, ["2018", "2019"])).toBe(
       "Verrattuna 8 muuhun vuoteen: 2018, 2019"
     );
@@ -164,7 +165,7 @@ describe("seasonComparisonPanel", () => {
     expect(screen.queryByText(SEASON_AXIS.selectedLabel)).not.toBeInTheDocument();
   });
 
-  it("uses specs/032's line before the season's first match", () => {
+  it("uses the goals panel's line before the season's first match", () => {
     ok({ rows: rowsWith(null, 0.5) });
 
     expect(screen.getByText(NO_MATCHES_MESSAGE)).toBeInTheDocument();

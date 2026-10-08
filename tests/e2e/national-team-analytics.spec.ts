@@ -93,9 +93,7 @@ test.describe("National-team analytics, signed in", () => {
     ["Huuhkajat", HUUHKAJAT],
     ["Helmarit", HELMARIT],
   ] as const) {
-    test(`shows ${team}'s comebacks as the note or the figures, never both (specs/046)`, async ({
-      page,
-    }) => {
+    test(`shows ${team}'s comebacks as the note or the figures, never both`, async ({ page }) => {
       // Which one depends on how many half-time scores TASO holds for these
       // internationals, which is not this test's to know. The 40 % rule is pinned
       // by the unit tests; this proves the page shows one outcome of it, whole.
