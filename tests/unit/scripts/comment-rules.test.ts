@@ -475,6 +475,9 @@ describe("describeFindings", () => {
 describe("this repository's comments", () => {
   const ROOT = process.cwd();
   let scanned: { file: string; source: string; comments: Comment[] }[] = [];
+  // Read in `beforeAll`, under its longer timeout: each parses every file again.
+  let named: Finding[] = [];
+  let computed: Finding[] = [];
   const across = (rule: (file: string, source: string, comments: Comment[]) => Finding[]) =>
     scanned.flatMap(({ file, source, comments }) => rule(file, source, comments));
 
@@ -498,6 +501,8 @@ describe("this repository's comments", () => {
       const source = readFileSync(path.join(ROOT, file), "utf8");
       return { file, source, comments: commentsOf(file, source) };
     });
+    named = scanned.flatMap(({ file, source }) => testNameCitations(file, source));
+    computed = scanned.flatMap(({ file, source }) => computedTestNames(file, source));
   }, 60_000);
 
   afterAll(() => {
@@ -534,8 +539,6 @@ describe("this repository's comments", () => {
   });
 
   it("cites no issue, spec or spec section in a test's name", () => {
-    const named = scanned.flatMap(({ file, source }) => testNameCitations(file, source));
-
     expect(
       named,
       `A test's name cites an issue or a spec. Say what the test protects, and let the file's header carry the record:\n${describeFindings(named)}`
@@ -543,8 +546,6 @@ describe("this repository's comments", () => {
   });
 
   it("writes every test's name as a string, where the check can read it", () => {
-    const computed = scanned.flatMap(({ file, source }) => computedTestNames(file, source));
-
     expect(
       computed,
       `A test's name is a variable, a call or a sum. Write it as a string where the test is:\n${describeFindings(computed)}`
