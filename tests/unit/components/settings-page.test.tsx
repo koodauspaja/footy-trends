@@ -658,6 +658,20 @@ describe("Profiilikuva", () => {
     }
   );
 
+  it("asks for a reload only after a refresh failed, and no longer once one worked", async () => {
+    refetch.mockRejectedValueOnce(new Error("network"));
+    renderPicture(null);
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
+    expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
+  });
+
   it("keeps the picture when removal fails", async () => {
     removeAvatarAction.mockResolvedValue({ ok: false });
     const { container } = renderPicture(VERSION);
