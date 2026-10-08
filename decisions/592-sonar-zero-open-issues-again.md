@@ -33,7 +33,7 @@ surprise. That is a follow-up to agree.
 | `S9383`, `settings-page.tsx`, twice: `refetch()` after an avatar save and after a removal | A real defect, small. The promise was neither awaited nor caught, so a session that could not be re-read became a rejection nobody handled. It is caught and ignored: the write stood and is already reported, and the header shows the old picture until the session is next read. Not awaited, unlike the start-region save, which has a notice for exactly this and the picture has none |
 | `S7503`, `next.config.ts`, `rewrites` and `redirects` | Next wants a promise from each, and neither awaits anything: they return `Promise.resolve(…)` |
 | `S7503`, `scripts/preflight.ts` | the probe handed to `wait` wraps a synchronous answer in `Promise.resolve` |
-| `yaml:S2068`, `ci.yml` once and `release.yml` twice: `POSTGRES_PASSWORD: postgres` on the Postgres container a run starts and throws away | No workflow holds a password now. The container's password and the `DATABASE_URL` beside it are `${{ github.run_id }}`, a value made for that run. The rule still reads both files |
+| `yaml:S2068`, `ci.yml` once and `release.yml` twice: `POSTGRES_PASSWORD: postgres` on the Postgres container a run starts and throws away | No workflow holds a password now. The container's password and the `DATABASE_URL` beside it read the repository secret `CI_POSTGRES_PASSWORD`, a random value nobody needs to know (Miikka, 2026-10-09). The rule still reads both files |
 
 The test for the avatar defect needed the mocked `refetch` wrapped in a
 function of its own. A Vitest mock handles the rejection of the promise it
@@ -67,6 +67,11 @@ leaked secret is most likely to be written, to silence a placeholder. The
 record of that version named the cost and went ahead anyway; Sourcery's review
 called it high, and it was. A security rule is not ignored by file here: the
 thing it flags is removed, as above.
+
+The second version made the password the run's own id. Sonar was satisfied,
+and the review rule on credentials was not: a credential comes from the
+environment, and a value built in the workflow is still one the workflow
+holds. Hence the secret.
 
 The same version read the issues of a pull request together. The loop was not
 a defect and the change bought nothing but a closed finding, so it is back as

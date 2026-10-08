@@ -119,9 +119,7 @@ jobs:
         image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
-          # Made for this run and gone with it: the run's own id, so no
-          # workflow holds a password.
-          POSTGRES_PASSWORD: ${{ github.run_id }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: footy-trends
         ports:
           - 5432:5432
@@ -141,7 +139,7 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:${{ github.run_id }}@localhost:5432/footy-trends
+      DATABASE_URL: postgresql://postgres:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/footy-trends
       REDIS_URL: redis://localhost:6379
       # Dummy literals, not secrets.
       BETTER_AUTH_SECRET: ci-not-a-real-secret-ci-not-a-real-secret
