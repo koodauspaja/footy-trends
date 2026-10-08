@@ -213,31 +213,83 @@ function calledFrom(expression: ts.Expression): string | null {
 }
 
 /**
- * Each `it`, `test` and `describe` name that cites an issue, a spec or a spec
- * section, read from the parsed tree: the same words in a fixture string are
- * not a name.
+ * The names a file calls its test functions by: `it`, `test` and `describe` as
+ * it imports them, under another name or not, and a constant assigned from one.
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-export function testNameCitations(file: string, source: string): Finding[] {
+function testFunctionsOf(tree: ts.SourceFile): Set<string> {
+  const names = new Set<string>();
+  const visit = (node: ts.Node) => {
+    if (ts.isImportSpecifier(node)) {
+      if (TEST_FUNCTIONS.has((node.propertyName ?? node.name).text)) names.add(node.name.text);
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const from = node.initializer === undefined ? null : calledFrom(node.initializer);
+      if (from !== null && names.has(from)) names.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return names;
+}
+
+function isFunction(node: ts.Node): boolean {
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+}
+
+type TestName = { line: number; text: string; written: boolean };
+
+/**
+ * Each test's and suite's name, read from the parsed tree: the same words in a
+ * fixture string are not a name. `written` is false for one that is not a
+ * string where the test is, which is a name only when a test's body follows it.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+function testNamesOf(file: string, source: string): TestName[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
-  const findings: Finding[] = [];
+  const functions = testFunctionsOf(tree);
+  const names: TestName[] = [];
 
   const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node) && TEST_FUNCTIONS.has(calledFrom(node.expression) ?? "")) {
-      const name = node.arguments.at(0);
-      if (name !== undefined && (ts.isStringLiteralLike(name) || ts.isTemplateExpression(name))) {
-        const text = name.getText(tree);
-        if (NAME_CITATIONS.some((citation) => citation.test(text))) {
+    if (ts.isCallExpression(node) && functions.has(calledFrom(node.expression) ?? "")) {
+      const [name, ...rest] = node.arguments;
+      if (name !== undefined) {
+        const written = ts.isStringLiteralLike(name) || ts.isTemplateExpression(name);
+        if (written || (!isFunction(name) && rest.some(isFunction))) {
           const line = tree.getLineAndCharacterOfPosition(name.getStart(tree)).line + 1;
-          findings.push({ file, line, text });
+          names.push({ line, text: name.getText(tree), written });
         }
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  return findings;
+  return names;
+}
+
+/**
+ * Each `it`, `test` and `describe` name that cites an issue, a spec or a spec
+ * section.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+export function testNameCitations(file: string, source: string): Finding[] {
+  return testNamesOf(file, source)
+    .filter((name) => name.written && NAME_CITATIONS.some((citation) => citation.test(name.text)))
+    .map(({ line, text }) => ({ file, line, text }));
+}
+
+/**
+ * Each test name that is a variable, a call or a sum and not a string: the
+ * check cannot read what it will say, so it is not allowed to say it.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+export function computedTestNames(file: string, source: string): Finding[] {
+  return testNamesOf(file, source)
+    .filter((name) => !name.written)
+    .map(({ line, text }) => ({ file, line, text }));
 }
 
 /**

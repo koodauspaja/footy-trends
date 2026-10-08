@@ -8,6 +8,7 @@ import {
   citationRecordOf,
   commentsOf,
   compareCitations,
+  computedTestNames,
   decisionCitations,
   describeFindings,
   type Finding,
@@ -196,11 +197,13 @@ describe("decisionCitations", () => {
 });
 
 describe("testNameCitations", () => {
-  const cited = (source: string, file = "a.test.ts") =>
-    testNameCitations(file, source).map((finding) => finding.text);
+  const VITEST = 'import { describe, expect, it, test } from "vitest";';
+  const cited = (lines: string[], file = "a.test.ts", imports = VITEST) =>
+    testNameCitations(file, [imports, ...lines].join("\n")).map((finding) => finding.text);
 
   it("finds an issue number, a spec by path or number, and a spec section, on its line", () => {
     const source = [
+      VITEST,
       'describe("the panel (specs/049)", () => {',
       '  it("is absent (S5)", () => {});',
       '  it("adds nothing, per #71", () => {});',
@@ -210,11 +213,11 @@ describe("testNameCitations", () => {
     ].join("\n");
 
     expect(testNameCitations("a.test.ts", source)).toEqual([
-      { file: "a.test.ts", line: 1, text: '"the panel (specs/049)"' },
-      { file: "a.test.ts", line: 2, text: '"is absent (S5)"' },
-      { file: "a.test.ts", line: 3, text: '"adds nothing, per #71"' },
-      { file: "a.test.ts", line: 4, text: '"counts none (spec 003)"' },
-      { file: "a.test.ts", line: 5, text: '"names the seasons (S14, S18)"' },
+      { file: "a.test.ts", line: 2, text: '"the panel (specs/049)"' },
+      { file: "a.test.ts", line: 3, text: '"is absent (S5)"' },
+      { file: "a.test.ts", line: 4, text: '"adds nothing, per #71"' },
+      { file: "a.test.ts", line: 5, text: '"counts none (spec 003)"' },
+      { file: "a.test.ts", line: 6, text: '"names the seasons (S14, S18)"' },
     ]);
   });
 
@@ -229,7 +232,8 @@ describe("testNameCitations", () => {
       'test.describe("signed in (specs/004)", () => {});',
       "it(`shows $" + "{team} (S5)`, () => {});",
       "it(`plain (S6)`, () => {});",
-    ].join("\n");
+      'it.todo("not written yet (S7)");',
+    ];
 
     expect(cited(source)).toEqual([
       '"takes %s (S1)"',
@@ -238,7 +242,40 @@ describe("testNameCitations", () => {
       '"signed in (specs/004)"',
       "`shows $" + "{team} (S5)`",
       "`plain (S6)`",
+      '"not written yet (S7)"',
     ]);
+  });
+
+  it("knows a test function imported under another name, from any module", () => {
+    const imports = [
+      'import { it as spec, describe as suite } from "vitest";',
+      'import { test as base } from "./fixtures";',
+    ].join("\n");
+    const source = [
+      'suite("the panel (#1)", () => {',
+      '  spec("is absent (S2)", () => {});',
+      '  base("signs in (specs/003)", () => {});',
+      "});",
+    ];
+
+    expect(cited(source, "a.test.ts", imports)).toEqual([
+      '"the panel (#1)"',
+      '"is absent (S2)"',
+      '"signs in (specs/003)"',
+    ]);
+  });
+
+  it("knows a constant assigned from a test function, and one assigned from that", () => {
+    const source = [
+      "const serial = test.describe.serial;",
+      "const each = it.each([1]);",
+      "const again = serial;",
+      'serial("in order (#1)", () => {});',
+      'each("takes %s (S2)", () => {});',
+      'again("in order (specs/003)", () => {});',
+    ];
+
+    expect(cited(source)).toEqual(['"in order (#1)"', '"takes %s (S2)"', '"in order (specs/003)"']);
   });
 
   it("passes a name that only speaks of a spec, a size or an HTML entity", () => {
@@ -246,7 +283,7 @@ describe("testNameCitations", () => {
       'it("words it as the spec does", () => {});',
       'it("fits a PS5 and an XS1 label, and prints &#123;", () => {});',
       'it("allows specs/ as a folder and # as a sign", () => {});',
-    ].join("\n");
+    ];
 
     expect(cited(source)).toEqual([]);
   });
@@ -258,18 +295,74 @@ describe("testNameCitations", () => {
       'expect(titleOf("S4")).toBe("#12");',
       "test.describe.configure();",
       "it.each([[`#1`]]);",
-      'it(name, "not a name (#2)");',
       'suites[0]("an indexed call (#3)", () => {});',
       '(() => it)()("a call on a bracketed function (#4)", () => {});',
-    ].join("\n");
+      "let later: string;",
+      "const { a } = b;",
+      "const other = render;",
+      'other("not a test function (#5)", () => {});',
+    ];
 
     expect(cited(source)).toEqual([]);
   });
 
+  it("takes a function of the same name for a test only where the file imports it", () => {
+    const source = [
+      "function describe(url: string) { return url; }",
+      'describe("postgres://host/db#1");',
+    ];
+
+    expect(cited(source, "a.ts", "")).toEqual([]);
+    expect(cited(['it("is absent (S5)", () => {});'], "a.test.ts", "")).toEqual([]);
+  });
+
   it("reads TSX", () => {
-    expect(cited('it("renders (S1)", () => { render(<p>S2 #3</p>); });', "a.test.tsx")).toEqual([
+    expect(cited(['it("renders (S1)", () => { render(<p>S2 #3</p>); });'], "a.test.tsx")).toEqual([
       '"renders (S1)"',
     ]);
+  });
+});
+
+describe("computedTestNames", () => {
+  const computed = (lines: string[]) =>
+    computedTestNames(
+      "a.test.ts",
+      ['import { describe, it, test } from "vitest";', ...lines].join("\n")
+    );
+
+  it("finds a name that is a variable, a sum or a call, on its line", () => {
+    const source = [
+      'const TITLE = "the panel (S4)";',
+      "describe(TITLE, () => {",
+      '  it("is absent " + SECTION, async () => {});',
+      "  it.each(rows)(titleOf(1), function () {});",
+      "  test.skip(TITLE, () => {});",
+      "});",
+    ];
+
+    expect(computed(source)).toEqual([
+      { file: "a.test.ts", line: 3, text: "TITLE" },
+      { file: "a.test.ts", line: 4, text: '"is absent " + SECTION' },
+      { file: "a.test.ts", line: 5, text: "titleOf(1)" },
+      { file: "a.test.ts", line: 6, text: "TITLE" },
+    ]);
+  });
+
+  it("passes a written name, and a call that takes no name", () => {
+    const source = [
+      'it("is absent", () => {});',
+      "it(`shows $" + "{team}`, () => {});",
+      "it.each(rows);",
+      "it.each(rows as Row[]);",
+      "test.beforeEach(async () => {});",
+      "test.describe(() => {});",
+      "test.use({ locale: LOCALE });",
+      'test.skip(isCi, "needs a browser");',
+      "test.setTimeout(TIMEOUT);",
+      "test.describe.configure();",
+    ];
+
+    expect(computed(source)).toEqual([]);
   });
 });
 
@@ -446,6 +539,15 @@ describe("this repository's comments", () => {
     expect(
       named,
       `A test's name cites an issue or a spec. Say what the test protects, and let the file's header carry the record:\n${describeFindings(named)}`
+    ).toEqual([]);
+  });
+
+  it("writes every test's name as a string, where the check can read it", () => {
+    const computed = scanned.flatMap(({ file, source }) => computedTestNames(file, source));
+
+    expect(
+      computed,
+      `A test's name is a variable, a call or a sum. Write it as a string where the test is:\n${describeFindings(computed)}`
     ).toEqual([]);
   });
 
