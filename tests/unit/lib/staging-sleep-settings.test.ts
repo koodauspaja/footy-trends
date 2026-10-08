@@ -61,7 +61,7 @@ async function keepAlivesSetBy(address: string): Promise<unknown[][]> {
   }
 }
 
-describe("the address settings that let staging sleep (#551)", () => {
+describe("the address settings that let staging sleep", () => {
   it("ioredis puts a 30 s TCP keepalive on its connection by default", async () => {
     expect(await keepAlivesSetBy(`redis://127.0.0.1:${port}`)).toEqual([[true, 30000]]);
   });

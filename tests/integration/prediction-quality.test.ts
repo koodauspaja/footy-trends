@@ -75,7 +75,7 @@ async function clear() {
 beforeEach(clear);
 afterEach(clear);
 
-describe("getPredictionQuality against Postgres (specs/054)", () => {
+describe("getPredictionQuality against Postgres", () => {
   it("judges finished football-data matches from 2023, the shoot-out taken out", async () => {
     const [won, shootOut, unfinished, early, oneModel, otherModel] = IDS as [
       number,

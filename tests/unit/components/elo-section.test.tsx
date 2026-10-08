@@ -46,7 +46,7 @@ describe("eloSeasonSentence", () => {
   });
 });
 
-describe("eloPanel (specs/053 S9, S10)", () => {
+describe("eloPanel", () => {
   const series = {
     status: "ok" as const,
     points: [
@@ -92,7 +92,7 @@ describe("eloPanel (specs/053 S9, S10)", () => {
     expect(screen.getByText(ELO_ERROR_MESSAGE)).toBeInTheDocument();
   });
 
-  it("is absent where there is no Elo, a national team's page (S5)", () => {
+  it("is absent where there is no Elo, a national team's page", () => {
     expect(eloPanel({ series: { status: "unavailable" } })).toBeNull();
   });
 

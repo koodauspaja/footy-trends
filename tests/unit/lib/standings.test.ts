@@ -175,7 +175,7 @@ describe("calculateStandings", () => {
   });
 });
 
-describe("toFinishedMatches and a penalty shoot-out (#495)", () => {
+describe("toFinishedMatches and a penalty shoot-out", () => {
   // The Anfield leg as football-data stores it: `fullTime` 1–5, which is 0–1
   // after extra time and a 1–4 shoot-out.
   const stored = {

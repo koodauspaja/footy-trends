@@ -450,7 +450,7 @@ function seasonChart(notes: Record<number, string> = { 2026: "(kesken)" }) {
   ).container;
 }
 
-describe("LineChart season axis (specs/048)", () => {
+describe("LineChart season axis", () => {
   it("prints each tick as it is told to, and the number itself by default", () => {
     const container = seasonChart();
     const xTicks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
@@ -466,7 +466,7 @@ describe("LineChart season axis (specs/048)", () => {
     expect(chart(true).querySelector("[data-part=y-axis] text")?.textContent).toBe("1");
   });
 
-  it("writes a note on a second line under its own tick only (S15)", () => {
+  it("writes a note on a second line under its own tick only", () => {
     const container = seasonChart();
     const notes = container.querySelectorAll("[data-part=tick-note]");
     const lastTick = [...container.querySelectorAll("[data-part=x-axis] text")].at(-2);
@@ -499,7 +499,7 @@ describe("LineChart season axis (specs/048)", () => {
     expect(Number(axis?.getAttribute("y1"))).toBe(BOTTOM);
   });
 
-  it("rings a marked point, behind its dot and at its value (S11)", () => {
+  it("rings a marked point, behind its dot and at its value", () => {
     const container = seasonChart();
     const rings = container.querySelectorAll("[data-part=points] [data-marked]");
     const all = [...container.querySelectorAll("[data-part=points] circle")];
@@ -560,7 +560,7 @@ function phoneHiddenTicks(container: HTMLElement) {
     .map((text) => text.firstChild?.textContent);
 }
 
-describe("LineChart season labels on a phone (specs/048, S16)", () => {
+describe("LineChart season labels on a phone", () => {
   it("hides every other label below sm, counting back from the latest, when they would touch", () => {
     expect(phoneHiddenTicks(twelveSeasons(true))).toEqual([
       "2015",
@@ -581,7 +581,7 @@ describe("LineChart season labels on a phone (specs/048, S16)", () => {
   });
 });
 
-describe("captionLines (specs/050)", () => {
+describe("captionLines", () => {
   it("keeps a caption that fits the plot's height at a phone's font on one line", () => {
     expect(captionLines("Maaleja / ottelu", 248)).toEqual(["Maaleja / ottelu"]);
   });

@@ -12,6 +12,7 @@ import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
  * League position by matchday.
  *
  * decisions/030-league-position-by-matchday.md
+ * decisions/003-standings-after-selected-round.md
  * decisions/413-rounds-a-team-sat-out.md
  */
 
@@ -59,7 +60,7 @@ describe("lastRoundPlayedBy", () => {
     expect(lastRoundPlayedBy([played(1, 2, 3, 1, 0)], 1)).toBeNull();
   });
 
-  it("counts a match with no round towards none (spec 003)", () => {
+  it("counts a match with no round towards none", () => {
     expect(lastRoundPlayedBy([played(null, 1, 2, 1, 0)], 1)).toBeNull();
   });
 });

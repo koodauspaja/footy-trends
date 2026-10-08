@@ -126,7 +126,7 @@ function written(model = "home-baseline-v1") {
     .filter((row) => row.model === model);
 }
 
-describe("runPredictionLog (specs/052)", () => {
+describe("runPredictionLog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -266,7 +266,7 @@ describe("runPredictionLog (specs/052)", () => {
     expect(report).toEqual({ refreshed: 1, logged: 0, failures: [] });
   });
 
-  it("skips a match that kicked off while the run was refreshing, and stamps the write time (S5)", async () => {
+  it("skips a match that kicked off while the run was refreshing, and stamps the write time", async () => {
     stored(
       [
         footballDataRow({ kickoffAt: at(1) }),
@@ -371,7 +371,7 @@ describe("runPredictionLog (specs/052)", () => {
   });
 });
 
-describe("runPredictionBacktest (specs/052, S10)", () => {
+describe("runPredictionBacktest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -439,7 +439,7 @@ describe("runPredictionBacktest (specs/052, S10)", () => {
   });
 });
 
-describe("readFinished (specs/053)", () => {
+describe("readFinished", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();

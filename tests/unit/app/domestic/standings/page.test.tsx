@@ -146,7 +146,7 @@ describe("Domestic standings page", () => {
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
 
-  it("asks for the competition's Analyysit, a season named by its year (specs/048)", async () => {
+  it("asks for the competition's Analyysit, a season named by its year", async () => {
     await renderStandings({ kilpailu: "VL", kausi: "2025" });
 
     expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
@@ -160,7 +160,7 @@ describe("Domestic standings page", () => {
     expect(props?.seasonLabel(2025)).toBe("2025");
   });
 
-  it("places the Analyysit under the tables and their legend (specs/048)", async () => {
+  it("places the Analyysit under the tables and their legend", async () => {
     await renderStandings();
 
     const section = screen.getByText("competition analytics placeholder");
@@ -559,7 +559,7 @@ describe("Domestic standings page, cup competitions", () => {
     expect(headings).toContain("Loppuottelu");
   });
 
-  it("marks each cup round's summary as something to press (#419)", async () => {
+  it("marks each cup round's summary as something to press", async () => {
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
@@ -627,7 +627,7 @@ describe("Domestic standings page, cup competitions", () => {
     expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
   });
 
-  it("keeps Suomen Cup's layout for a season that had a group stage (specs/043)", async () => {
+  it("keeps Suomen Cup's layout for a season that had a group stage", async () => {
     // MSC 2018: groups, then knockout rounds. Still bracket first and every
     // group a collapsible round — the Liigacup layout never reaches it.
     getSeasonStandingsMock.mockResolvedValue({
@@ -648,7 +648,7 @@ describe("Domestic standings page, cup competitions", () => {
     expect(document.querySelectorAll("details")).toHaveLength(4);
   });
 
-  describe("a cup of groups then a playoff (specs/043)", () => {
+  describe("a cup of groups then a playoff", () => {
     // Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the
     // winners.
     function liigacupSeason(final = cupMatch(33, [1, "HJK"], [3, "KuPS"], [2, 1], "home", 22)) {

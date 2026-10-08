@@ -50,7 +50,7 @@ describe("seasonSpanText", () => {
     );
   });
 
-  it("says vuosi on a page whose periods are calendar years (specs/041, S11)", () => {
+  it("says vuosi on a page whose periods are calendar years", () => {
     expect(seasonSpanText({ length: 4, from: "2019", to: "2019" }, HISTORY_AXIS)).toBe(
       "Vuosi 2019"
     );
@@ -119,7 +119,7 @@ describe("streakRecordsPanel", () => {
     expect(screen.getByText("Veikkausliiga, Ykkönen")).toBeInTheDocument();
   });
 
-  it("prints a span of years when that is what the records cover (specs/041, S12)", () => {
+  it("prints a span of years when that is what the records cover", () => {
     // A national-team page's records cross every competition deliberately, so
     // the useful fact is how far back they reach.
     ok({ wins: { length: 4, from: "2019", to: "2019" } }, "2018–2026");

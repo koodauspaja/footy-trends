@@ -108,7 +108,7 @@ describe("getNationalTeamYears", () => {
     expect(result.years[0]?.matches.map((m) => m.providerMatchId)).toEqual([1]);
   });
 
-  it("writes the reserved Finland id on whichever side Finland played (specs/041, S1)", async () => {
+  it("writes the reserved Finland id on whichever side Finland played", async () => {
     onlyIn2026({ ECQ: "EM-karsinnat Huuhkajat" });
     getSeasonMatchListMock.mockResolvedValue({
       status: "ok",

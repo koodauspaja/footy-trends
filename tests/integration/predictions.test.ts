@@ -101,7 +101,7 @@ function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v
     );
 }
 
-describe("the hourly run (specs/052)", () => {
+describe("the hourly run", () => {
   // One finished match in each competition, well before the run and outside its
   // 24-hour result window, so the baseline has history whatever else is stored.
   beforeEach(async () => {
@@ -146,7 +146,7 @@ describe("the hourly run (specs/052)", () => {
     expect(sum).toBeCloseTo(1, 10);
   });
 
-  it("moves a rescheduled match's row to its new kickoff (S4)", async () => {
+  it("moves a rescheduled match's row to its new kickoff", async () => {
     await db.insert(matches).values(footballDataRow());
     await runPredictionLog(() => NOW, immediate);
 
@@ -161,7 +161,7 @@ describe("the hourly run (specs/052)", () => {
     expect(rows[0]?.kickoffAt).toEqual(at(30));
   });
 
-  it("logs elo-v1 beside the baseline, one row each (specs/053)", async () => {
+  it("logs elo-v1 beside the baseline, one row each", async () => {
     await db.insert(matches).values(footballDataRow());
 
     await runPredictionLog(() => NOW, immediate);
@@ -174,7 +174,7 @@ describe("the hourly run (specs/052)", () => {
     expect(total).toBeCloseTo(1, 10);
   });
 
-  it("writes nothing for a passed kickoff, even one still marked scheduled (S5)", async () => {
+  it("writes nothing for a passed kickoff, even one still marked scheduled", async () => {
     await db.insert(matches).values(footballDataRow({ kickoffAt: at(-1), status: "SCHEDULED" }));
 
     await runPredictionLog(() => NOW, immediate);
@@ -202,7 +202,7 @@ describe("the hourly run (specs/052)", () => {
   });
 });
 
-describe("the backtest (specs/052, S10, S14)", () => {
+describe("the backtest", () => {
   const kickoff = (day: number) => new Date(Date.UTC(1990, 4, day, 15));
 
   it("predicts each match from strictly earlier ones, a shoot-out draw a draw, and is idempotent", async () => {

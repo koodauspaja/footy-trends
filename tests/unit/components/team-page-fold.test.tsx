@@ -65,7 +65,7 @@ describe("TeamPageFold", () => {
     );
   });
 
-  it("names the match list as agreed on #416", () => {
+  it("names the match list as agreed", () => {
     expect(MATCHES_HEADING).toBe("Ottelut");
   });
 });

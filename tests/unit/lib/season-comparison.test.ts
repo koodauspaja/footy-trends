@@ -22,6 +22,7 @@ import {
  * compared, the pooled baseline, the rows, and the position.
  *
  * decisions/038-season-against-history.md
+ * decisions/003-standings-after-selected-round.md
  * decisions/413-rounds-a-team-sat-out.md
  */
 
@@ -208,7 +209,7 @@ describe("seasonLength", () => {
     expect(seasonLength([{ matchday: 5 }, { matchday: 27 }, { matchday: 12 }])).toBe(27);
   });
 
-  it("ignores a match with no round, as spec 003 has it", () => {
+  it("ignores a match with no round, as the standings after a round do", () => {
     expect(seasonLength([{ matchday: null }, { matchday: 3 }])).toBe(3);
   });
 

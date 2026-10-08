@@ -284,7 +284,7 @@ describe("Team page", () => {
     for (const href of hrefs) expect(href).toMatch(/^\/ulkomaat\/ottelu\/\d+$/);
   });
 
-  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+  it("puts the match list in a fold that starts open, named with its count", async () => {
     await renderTeamPage("1", { kausi: "2025" });
     const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
     const rows = details?.querySelectorAll("tbody tr").length ?? 0;
@@ -773,7 +773,7 @@ describe("Team page", () => {
   });
 });
 
-describe("Team page favourite star (specs/026-favourites.md)", () => {
+describe("Team page favourite star", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
@@ -807,7 +807,7 @@ describe("Team page favourite star (specs/026-favourites.md)", () => {
   });
 });
 
-describe("Team page league position (specs/030)", () => {
+describe("Team page league position", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
@@ -864,7 +864,7 @@ describe("Team page league position (specs/030)", () => {
     expect(getTeamPanelMatchesMock).toHaveBeenCalledWith("PL", 1, 2024, 2025);
   });
 
-  it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
+  it("asks for this club's worst opponents across its whole region, linked under its own prefix", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;
 
@@ -878,7 +878,7 @@ describe("Team page league position (specs/030)", () => {
     );
   });
 
-  it("asks for the club's football-data Elo history, its seasons labelled as the page's (specs/053 S9)", async () => {
+  it("asks for the club's football-data Elo history, its seasons labelled as the page's", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadElo = analyticsSectionMock.mock.calls[0]?.[0].loadElo;
 
@@ -888,7 +888,7 @@ describe("Team page league position (specs/030)", () => {
     expect(data && "seasonLabel" in data ? data.seasonLabel(2024) : null).toBe("2024/25");
   });
 
-  it("asks for the season comparison with the club's stored seasons (specs/038)", async () => {
+  it("asks for the season comparison with the club's stored seasons", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadComparison = analyticsSectionMock.mock.calls[0]?.[0].loadComparison;
 
@@ -928,7 +928,7 @@ describe("Team page league position (specs/030)", () => {
     expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
   });
 
-  it("asks for the records with the season wording the selector uses (specs/039)", async () => {
+  it("asks for the records with the season wording the selector uses", async () => {
     await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
     const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
 
@@ -946,7 +946,7 @@ describe("Team page league position (specs/030)", () => {
     expect(label(2024)).toBe("2024/25");
   });
 
-  it("offers the section for a cup, but never a league position (specs/040)", async () => {
+  it("offers the section for a cup, but never a league position", async () => {
     await renderTeamPage("1", { kilpailu: "CL", kausi: "2025" });
     const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 

@@ -28,6 +28,7 @@ import {
  * versions.
  *
  * decisions/400-one-command-setup.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 
 const EXAMPLE = readFileSync(".env.example", "utf8");
@@ -227,7 +228,7 @@ describe("planEnv", () => {
     expect(parseEnv(plan.text).DATABASE_URL).toBe(composeDatabaseUrl("generated1"));
   });
 
-  it("adopts the password a pre-#292 .env kept only in DATABASE_URL", () => {
+  it("adopts the password an older .env kept only in DATABASE_URL", () => {
     const existing =
       "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });

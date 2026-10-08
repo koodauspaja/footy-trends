@@ -30,7 +30,7 @@ function renderDocument(error: Error) {
 const failure = Object.assign(new Error("boom"), { digest: "abc123" });
 
 describe("GlobalError", () => {
-  it("mounts without React reporting an error, <html> nesting included (#503)", () => {
+  it("mounts without React reporting an error, <html> nesting included", () => {
     // A spy rather than reading the output: local runs do not print a test's
     // console, so the warning showed only in CI's log.
     const consoleError = vi.spyOn(console, "error");

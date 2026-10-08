@@ -44,7 +44,7 @@ function played(
   };
 }
 
-describe("the constants (S2, S3)", () => {
+describe("the constants", () => {
   it("are the classic football values, named in the model", () => {
     expect({ ELO_MODEL, ELO_START, ELO_K, ELO_HOME_ADVANTAGE, ELO_REGRESSION }).toEqual({
       ELO_MODEL: "elo-v1",
@@ -68,7 +68,7 @@ describe("expectedHome", () => {
   });
 });
 
-describe("threeWay (S4)", () => {
+describe("threeWay", () => {
   it("takes the draw share as the draw and splits the rest by the expectation", () => {
     const result = threeWay(1500, 1560, 0.25);
 
@@ -79,7 +79,7 @@ describe("threeWay (S4)", () => {
   });
 });
 
-describe("ratingFor (S3, S14)", () => {
+describe("ratingFor", () => {
   const ratings = new Map([[7, { rating: 1650, seasonId: 2025 }]]);
 
   it("starts an unknown team at 1500", () => {

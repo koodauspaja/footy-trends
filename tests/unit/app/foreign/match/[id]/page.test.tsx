@@ -107,7 +107,7 @@ describe("/ulkomaat/ottelu/:id", () => {
     });
   });
 
-  it("puts an upcoming match's prediction after its details and before the meetings (specs/051, S6)", async () => {
+  it("puts an upcoming match's prediction after its details and before the meetings", async () => {
     canSeeAnalyticsMock.mockResolvedValue(true);
     getHomeBaselineMock.mockResolvedValue({
       status: "ok",
@@ -135,7 +135,7 @@ describe("/ulkomaat/ottelu/:id", () => {
     expect(getHomeBaselineMock).toHaveBeenCalledWith("football-data", "PL");
   });
 
-  it("has no prediction on a finished match (specs/051, S3)", async () => {
+  it("has no prediction on a finished match", async () => {
     await renderPage();
 
     expect(screen.queryByRole("heading", { name: "Ennuste" })).not.toBeInTheDocument();

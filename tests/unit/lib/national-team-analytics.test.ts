@@ -207,11 +207,11 @@ describe("nationalTeamAnalytics", () => {
     expect(await nationalTeamAnalytics(given).loadPosition()).toEqual({ status: "unavailable" });
   });
 
-  it("has no opponents panel: Finland and its opponents have no id stable across categories (specs/045, S5)", async () => {
+  it("has no opponents panel: Finland and its opponents have no id stable across categories", async () => {
     expect(await nationalTeamAnalytics(given).loadOpponents()).toEqual({ status: "unavailable" });
   });
 
-  it("has no Elo: national teams are not rated (specs/053 S5)", async () => {
+  it("has no Elo: national teams are not rated", async () => {
     expect(await nationalTeamAnalytics(given).loadElo()).toEqual({
       series: { status: "unavailable" },
     });

@@ -331,7 +331,7 @@ describe("getHeadToHeadHistory", () => {
   });
 });
 
-describe("getCompetitionAverages (specs/044)", () => {
+describe("getCompetitionAverages", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -391,7 +391,7 @@ describe("getCompetitionAverages (specs/044)", () => {
     await expect(getCompetitionAverages([LC])).resolves.toEqual({ status: "error" });
   });
 
-  it("turns a database failure into its own case (S10)", async () => {
+  it("turns a database failure into its own case", async () => {
     const { getCompetitionAverages } = await import("@/lib/match-service");
     selectMock.mockRejectedValueOnce(new Error("connection reset"));
 
@@ -400,7 +400,7 @@ describe("getCompetitionAverages (specs/044)", () => {
   });
 });
 
-describe("getWorstOpponents (specs/045)", () => {
+describe("getWorstOpponents", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -428,7 +428,7 @@ describe("getWorstOpponents (specs/045)", () => {
   it.each([
     ["a TASO national-team page", NATIONAL],
     ["a football-data national-team page", { kind: "football-data", region: "national-teams" }],
-  ] as const)("has no panel on %s, and asks nothing (S5)", async (_name, source) => {
+  ] as const)("has no panel on %s, and asks nothing", async (_name, source) => {
     const { getWorstOpponents } = await import("@/lib/match-service");
 
     await expect(getWorstOpponents(source, CLUB, "/maajoukkueet")).resolves.toEqual({
@@ -485,7 +485,7 @@ describe("getWorstOpponents (specs/045)", () => {
   });
 });
 
-describe("getTeamForm (specs/047)", () => {
+describe("getTeamForm", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -552,7 +552,7 @@ describe("getTeamForm (specs/047)", () => {
   });
 });
 
-describe("getGoalsPerGame (specs/048)", () => {
+describe("getGoalsPerGame", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -574,7 +574,7 @@ describe("getGoalsPerGame (specs/048)", () => {
     });
   });
 
-  it("keeps each TASO season's own competition and category only (S2)", async () => {
+  it("keeps each TASO season's own competition and category only", async () => {
     const { getGoalsPerGame } = await import("@/lib/match-service");
     selectMock.mockResolvedValueOnce([
       // Under-21 today, under-20 before 2026: one line across the rename.
@@ -607,7 +607,7 @@ describe("getGoalsPerGame (specs/048)", () => {
   });
 });
 
-describe("getOutcomeShares (specs/049)", () => {
+describe("getOutcomeShares", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -653,7 +653,7 @@ describe("getOutcomeShares (specs/049)", () => {
     expect(result).toMatchObject({ status: "ok", rows: [{ code: "P21SM", matches: 20 }] });
   });
 
-  it("fails as a whole when either read fails, never a partial table (S15)", async () => {
+  it("fails as a whole when either read fails, never a partial table", async () => {
     const { getOutcomeShares } = await import("@/lib/match-service");
     selectMock
       .mockResolvedValueOnce([{ code: "PL", seasonId: 2024, spansCalendarYears: true, ...counts }])
@@ -667,7 +667,7 @@ describe("getOutcomeShares (specs/049)", () => {
   });
 });
 
-describe("getHomeBaseline (specs/051)", () => {
+describe("getHomeBaseline", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();

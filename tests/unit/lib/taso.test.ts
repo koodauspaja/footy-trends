@@ -97,7 +97,7 @@ describe("taso mapping", () => {
     });
   });
 
-  it("tells no half-time score from a goalless first half (specs/036)", () => {
+  it("tells no half-time score from a goalless first half", () => {
     // TASO sends `""` for a match it has no half-time score for — 1 of 132 in
     // Ykkönen 2025 — and "0" for one that really was goalless at the break.
     const played = (halfTime: string) => ({

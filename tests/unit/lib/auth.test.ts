@@ -76,7 +76,7 @@ async function loadConfig(): Promise<any> {
 
 warmModules(() => import("@/lib/auth"));
 
-describe("resolving the client IP, from #309", () => {
+describe("resolving the client IP", () => {
   it("reads the address from x-real-ip, the one header the edge overwrites", async () => {
     // Without a resolvable header better-auth falls back to one shared per-path bucket, where
     // one attacker locks everyone out. `x-real-ip` and not `x-envoy-external-address`: the edge
@@ -126,7 +126,7 @@ describe("resolving the client IP, from #309", () => {
   });
 });
 
-describe("who may sign in, from #314", () => {
+describe("who may sign in", () => {
   it("gates every identity through the allowlist", async () => {
     // `validateUserInfo` and not `databaseHooks.user.create.before`: that one
     // fires only at account creation, so anyone who signed in before a list
@@ -151,7 +151,7 @@ describe("who may sign in, from #314", () => {
   });
 });
 
-describe("where rate-limit counters live, from #318", () => {
+describe("where rate-limit counters live", () => {
   it("counts in Redis rather than in this instance's memory", async () => {
     // better-auth's default is an in-process Map: it resets on every deploy and
     // becomes one limiter per instance the moment there are two.

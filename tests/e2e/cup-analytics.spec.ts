@@ -70,7 +70,7 @@ test.describe("Cup analytics, signed in", () => {
   });
 });
 
-test.describe("Liigacup team page, signed in (specs/043)", () => {
+test.describe("Liigacup team page, signed in", () => {
   // FC Inter, Liigacup 2026's winner: a TASO cup published under its own
   // competition id, `Liigacup26`, rather than inside the `spljp26` umbrella.
   const INTER_LIIGACUP = "/kotimaa/joukkue/60987?kilpailu=LC&kausi=2026";

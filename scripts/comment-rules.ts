@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import ts from "typescript";
 
 /**
- * The rules a comment is held to: what it may cite, and how it may sit.
+ * The rules a comment is held to: what it may cite, and how it may sit. A
+ * test's name is held to the first of them.
  *
  * decisions/531-comments-say-what-code-is-for.md
+ * decisions/584-test-names-carry-no-citations.md
  */
 
 export type Comment = {
@@ -30,6 +32,15 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
  */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
 const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
+
+/**
+ * What a test's name may not carry: an issue number, a spec by path or number,
+ * or a spec section such as `S4`.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+const NAME_CITATIONS = [ISSUE_NUMBER, /\bspecs?[/ ]\d+/, /\bS\d+\b/];
+const TEST_FUNCTIONS = new Set(["it", "test", "describe"]);
 
 /**
  * The TypeScript sources among `paths`, in order: the caller lists what git
@@ -179,6 +190,54 @@ export function decisionCitations(file: string, comments: readonly Comment[]): F
       [...line.text.matchAll(DECISION_PATH)].map((match) => ({ ...line, text: match[0] }))
     )
   );
+}
+
+/**
+ * The name a call starts from: `it` for `it.each(rows)(…)` and `test` for
+ * `test.describe(…)`.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+function calledFrom(expression: ts.Expression): string | null {
+  let current = expression;
+  while (!ts.isIdentifier(current)) {
+    if (ts.isPropertyAccessExpression(current) || ts.isCallExpression(current)) {
+      current = current.expression;
+    } else if (ts.isTaggedTemplateExpression(current)) {
+      current = current.tag;
+    } else {
+      return null;
+    }
+  }
+  return current.text;
+}
+
+/**
+ * Each `it`, `test` and `describe` name that cites an issue, a spec or a spec
+ * section, read from the parsed tree: the same words in a fixture string are
+ * not a name.
+ *
+ * decisions/584-test-names-carry-no-citations.md
+ */
+export function testNameCitations(file: string, source: string): Finding[] {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const findings: Finding[] = [];
+
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && TEST_FUNCTIONS.has(calledFrom(node.expression) ?? "")) {
+      const name = node.arguments.at(0);
+      if (name !== undefined && (ts.isStringLiteralLike(name) || ts.isTemplateExpression(name))) {
+        const text = name.getText(tree);
+        if (NAME_CITATIONS.some((citation) => citation.test(text))) {
+          const line = tree.getLineAndCharacterOfPosition(name.getStart(tree)).line + 1;
+          findings.push({ file, line, text });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return findings;
 }
 
 /**

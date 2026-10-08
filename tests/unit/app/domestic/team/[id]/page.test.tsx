@@ -29,6 +29,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/013-more-finnish-competitions.md
  * decisions/020-context-free-team-page.md
  * decisions/022-teams-between-tiers.md
+ * decisions/026-favourites.md
  * decisions/030-league-position-by-matchday.md
  * decisions/031-rolling-form-trend.md
  * decisions/032-goals-scored-vs-conceded.md
@@ -268,7 +269,7 @@ describe("Domestic team page", () => {
     );
   });
 
-  it("puts the match list in a fold that starts open, named with its count (#416)", async () => {
+  it("puts the match list in a fold that starts open, named with its count", async () => {
     await renderTeam("1");
     const details = screen.getByRole("region", { name: "Ottelut" }).querySelector("details");
     const rows = details?.querySelectorAll("tbody tr").length ?? 0;
@@ -623,7 +624,7 @@ describe("Domestic team page", () => {
   });
 });
 
-describe("Domestic team page favourite star (#526, specs/026-favourites.md)", () => {
+describe("Domestic team page favourite star", () => {
   it("offers a signed-in reader the star, which favourites this club as a TASO team", async () => {
     session.data = { user: { id: "user-1" } };
     await renderTeam("1");
@@ -689,7 +690,7 @@ describe("Domestic team page competition naming", () => {
   });
 });
 
-describe("Domestic team page league position (specs/030)", () => {
+describe("Domestic team page league position", () => {
   it("shows the section for a league team with matches this season", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
 
@@ -757,7 +758,7 @@ describe("Domestic team page league position (specs/030)", () => {
     }
   );
 
-  it("asks for the season comparison by competition code, not by TASO category (specs/038)", async () => {
+  it("asks for the season comparison by competition code, not by TASO category", async () => {
     // The comparison reads many seasons, and a category id belongs to one: the
     // service derives each season's own ids from the code and the year.
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
@@ -799,7 +800,7 @@ describe("Domestic team page league position (specs/030)", () => {
     expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
   });
 
-  it("asks for the records with the season wording the selector uses (specs/039)", async () => {
+  it("asks for the records with the season wording the selector uses", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadRecords = analyticsSectionMock.mock.calls[0]?.[0].loadRecords;
 
@@ -817,7 +818,7 @@ describe("Domestic team page league position (specs/030)", () => {
     expect(label(2025)).toBe("2025");
   });
 
-  it("asks for this club's worst opponents across its whole region, linked under its own prefix (specs/045)", async () => {
+  it("asks for this club's worst opponents across its whole region, linked under its own prefix", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;
 
@@ -831,7 +832,7 @@ describe("Domestic team page league position (specs/030)", () => {
     );
   });
 
-  it("asks for the club's TASO Elo history, its seasons labelled as calendar years (specs/053 S9)", async () => {
+  it("asks for the club's TASO Elo history, its seasons labelled as calendar years", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadElo = analyticsSectionMock.mock.calls[0]?.[0].loadElo;
 
@@ -841,7 +842,7 @@ describe("Domestic team page league position (specs/030)", () => {
     expect(data && "seasonLabel" in data ? data.seasonLabel(2025) : null).toBe("2025");
   });
 
-  it("offers the section for a cup, but never a league position (specs/040)", async () => {
+  it("offers the section for a cup, but never a league position", async () => {
     await renderTeam("1", { kilpailu: "MSC", kausi: "2025" });
     const loadPosition = analyticsSectionMock.mock.calls[0]?.[0].loadPosition;
 

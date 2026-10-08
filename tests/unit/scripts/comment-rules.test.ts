@@ -15,14 +15,17 @@ import {
   longDocComments,
   sourceFilesAmong,
   stackedDocComments,
+  testNameCitations,
 } from "../../../scripts/comment-rules";
 import { executablePath, overrideNameFor } from "../../../scripts/executable";
 
 /**
  * The comment rules: what counts as a citation, a stacked doc comment and a cited record
- * that does not exist, and that this repository's own comments keep to them.
+ * that does not exist, and that this repository's own comments keep to them. A test's
+ * name is held to the first.
  *
  * decisions/531-comments-say-what-code-is-for.md
+ * decisions/584-test-names-carry-no-citations.md
  */
 
 // The comment lines in this repository that cite an issue or pull request
@@ -192,6 +195,84 @@ describe("decisionCitations", () => {
   });
 });
 
+describe("testNameCitations", () => {
+  const cited = (source: string, file = "a.test.ts") =>
+    testNameCitations(file, source).map((finding) => finding.text);
+
+  it("finds an issue number, a spec by path or number, and a spec section, on its line", () => {
+    const source = [
+      'describe("the panel (specs/049)", () => {',
+      '  it("is absent (S5)", () => {});',
+      '  it("adds nothing, per #71", () => {});',
+      '  test("counts none (spec 003)", () => {});',
+      '  it("names the seasons (S14, S18)", () => {});',
+      "});",
+    ].join("\n");
+
+    expect(testNameCitations("a.test.ts", source)).toEqual([
+      { file: "a.test.ts", line: 1, text: '"the panel (specs/049)"' },
+      { file: "a.test.ts", line: 2, text: '"is absent (S5)"' },
+      { file: "a.test.ts", line: 3, text: '"adds nothing, per #71"' },
+      { file: "a.test.ts", line: 4, text: '"counts none (spec 003)"' },
+      { file: "a.test.ts", line: 5, text: '"names the seasons (S14, S18)"' },
+    ]);
+  });
+
+  it("reads a name through each, skip and Playwright's describe, and in a template", () => {
+    const source = [
+      'it.each([1, 2])("takes %s (S1)", () => {});',
+      "it.each`",
+      "  n",
+      "  $" + "{1}",
+      '`("takes $n (S2)", () => {});',
+      'describe.skip("later (#3)", () => {});',
+      'test.describe("signed in (specs/004)", () => {});',
+      "it(`shows $" + "{team} (S5)`, () => {});",
+      "it(`plain (S6)`, () => {});",
+    ].join("\n");
+
+    expect(cited(source)).toEqual([
+      '"takes %s (S1)"',
+      '"takes $n (S2)"',
+      '"later (#3)"',
+      '"signed in (specs/004)"',
+      "`shows $" + "{team} (S5)`",
+      "`plain (S6)`",
+    ]);
+  });
+
+  it("passes a name that only speaks of a spec, a size or an HTML entity", () => {
+    const source = [
+      'it("words it as the spec does", () => {});',
+      'it("fits a PS5 and an XS1 label, and prints &#123;", () => {});',
+      'it("allows specs/ as a folder and # as a sign", () => {});',
+    ].join("\n");
+
+    expect(cited(source)).toEqual([]);
+  });
+
+  it("leaves alone what is not a test's name", () => {
+    const source = [
+      'const fixture = "it(\\"cites (#12)\\")";',
+      'render("see #12 and specs/049 (S4)");',
+      'expect(titleOf("S4")).toBe("#12");',
+      "test.describe.configure();",
+      "it.each([[`#1`]]);",
+      'it(name, "not a name (#2)");',
+      'suites[0]("an indexed call (#3)", () => {});',
+      '(() => it)()("a call on a bracketed function (#4)", () => {});',
+    ].join("\n");
+
+    expect(cited(source)).toEqual([]);
+  });
+
+  it("reads TSX", () => {
+    expect(cited('it("renders (S1)", () => { render(<p>S2 #3</p>); });', "a.test.tsx")).toEqual([
+      '"renders (S1)"',
+    ]);
+  });
+});
+
 describe("stackedDocComments", () => {
   const stacked = (source: string) =>
     stackedDocComments("a.ts", source, commentsOf("a.ts", source));
@@ -356,6 +437,15 @@ describe("this repository's comments", () => {
     expect(
       removed,
       `Recorded citations that are gone. Replace ${RECORD_PATH} with:\n${JSON.stringify(citationRecordOf(citations), null, 2)}`
+    ).toEqual([]);
+  });
+
+  it("cites no issue, spec or spec section in a test's name", () => {
+    const named = scanned.flatMap(({ file, source }) => testNameCitations(file, source));
+
+    expect(
+      named,
+      `A test's name cites an issue or a spec. Say what the test protects, and let the file's header carry the record:\n${describeFindings(named)}`
     ).toEqual([]);
   });
 

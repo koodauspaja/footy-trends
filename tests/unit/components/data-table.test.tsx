@@ -107,7 +107,7 @@ describe("DataTable", () => {
     expect(screen.queryByRole("cell")).not.toBeInTheDocument();
   });
 
-  it("marks the current row, and only it, for the eye and for a screen reader (specs/049)", () => {
+  it("marks the current row, and only it, for the eye and for a screen reader", () => {
     render(
       <DataTable
         columns={columns}

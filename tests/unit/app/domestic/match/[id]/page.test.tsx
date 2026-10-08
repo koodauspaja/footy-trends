@@ -322,7 +322,7 @@ describe("/kotimaa/ottelu/:id", () => {
   });
 });
 
-describe("the link to the full history (specs/042)", () => {
+describe("the link to the full history", () => {
   // Its own setup: this block is a sibling of the one above, so its
   // `beforeEach` does not run here, and a shuffled run would inherit whichever
   // fixture the previous test left behind.

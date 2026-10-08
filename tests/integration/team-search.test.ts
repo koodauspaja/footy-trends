@@ -241,7 +241,7 @@ describe("searching real rows", () => {
   it.each([
     ["Miehet-A", "/maajoukkueet/huuhkajat"],
     ["Naiset-A", "/maajoukkueet/helmarit"],
-  ])("links Finland to its own page from the %s category (#325)", async (category, expected) => {
+  ])("links Finland to its own page from the %s category", async (category, expected) => {
     // Finland is the one TASO national side with pages, and it has two. The
     // A-friendlies category tells them apart; the tournament ids cannot.
     await db.insert(tasoMatches).values(

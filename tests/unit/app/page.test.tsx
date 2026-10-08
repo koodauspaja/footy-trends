@@ -43,7 +43,7 @@ describe("Home page (region picker)", () => {
     expect(ulkomaat).toHaveAttribute("href", "/ulkomaat");
   });
 
-  it("offers the models' track record as a fourth tile (specs/054 S1, S13)", () => {
+  it("offers the models' track record as a fourth tile", () => {
     render(<Home />);
 
     const tile = screen.getByRole("link", { name: /Ennusteet/ });

@@ -122,7 +122,7 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     expect(consoleErrors.filter((text) => text.includes("same key"))).toEqual([]);
   });
 
-  test("a restarted-numbering season's round filter counts one stage, not two (#133)", async ({
+  test("a restarted-numbering season's round filter counts one stage, not two", async ({
     page,
   }) => {
     // The issue's repro, against live data. 2022's split groups restart at
@@ -141,7 +141,7 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     expect(played.map(Number)).toEqual([5, 5, 5, 5, 5, 5]);
   });
 
-  test("a restarted-numbering season's split rounds are reachable in the selector (#133)", async ({
+  test("a restarted-numbering season's split rounds are reachable in the selector", async ({
     page,
   }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2022");

@@ -12,9 +12,10 @@ import {
  * Table volatility: how far a league's table moves after mid-season.
  *
  * decisions/050-table-volatility.md
+ * decisions/003-standings-after-selected-round.md
  */
 
-describe("hasTableVolatility (S10)", () => {
+describe("hasTableVolatility", () => {
   it.each([
     ["football-data", "PL"],
     ["football-data", "BSA"],
@@ -35,7 +36,7 @@ describe("hasTableVolatility (S10)", () => {
   });
 });
 
-describe("midSeasonRound (S7)", () => {
+describe("midSeasonRound", () => {
   it("is halfway for an even count, and rounds up for an odd one", () => {
     expect(midSeasonRound(38)).toBe(19);
     // Veikkausliiga: 22 regular rounds and 5 after the split.
@@ -44,7 +45,7 @@ describe("midSeasonRound (S7)", () => {
   });
 });
 
-describe("movementBetween (S6, S12)", () => {
+describe("movementBetween", () => {
   const row = (teamProviderId: number, position: number) => ({ teamProviderId, position });
 
   it("sums every team's places moved, either way", () => {
@@ -106,7 +107,7 @@ describe("singleTableMovement", () => {
     expect(singleTableMovement(season, season)?.total).toBeGreaterThan(0);
   });
 
-  it("counts a match with no round in the final table only (specs/003)", () => {
+  it("counts a match with no round in the final table only", () => {
     // Team 4's big win would lift it off the bottom at halfway if it counted there.
     const unnumbered = [...season, game(null, 4, 2, [5, 0])];
     const final = calculateStandings(unnumbered, unnumbered);
@@ -118,7 +119,7 @@ describe("singleTableMovement", () => {
     expect(singleTableMovement(unnumbered, unnumbered)).toEqual(movementBetween(mid, final));
   });
 
-  it("has no figure for a season without a numbered round (S9)", () => {
+  it("has no figure for a season without a numbered round", () => {
     const rounds = season.map((match) => ({ ...match, matchday: null }));
 
     expect(singleTableMovement(rounds, rounds)).toBeNull();
@@ -144,7 +145,7 @@ describe("volatilitySeries", () => {
     });
   });
 
-  it("counts a season without per-round tables, or with no team in both, as left out (S9)", () => {
+  it("counts a season without per-round tables, or with no team in both, as left out", () => {
     const series = volatilitySeries([
       { seasonId: 2023, movement: null },
       { seasonId: 2024, movement: { total: 6, teams: 12 } },
@@ -174,7 +175,7 @@ describe("volatilitySeries", () => {
         { seasonId: 2025, movement: null },
       ],
     ],
-  ])("is too few to draw with %s (S11)", (_name, seasons) => {
+  ])("is too few to draw with %s", (_name, seasons) => {
     expect(volatilitySeries(seasons)).toEqual({ status: "too-few" });
   });
 });
