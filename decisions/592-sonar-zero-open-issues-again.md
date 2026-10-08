@@ -26,44 +26,51 @@ Sonar's API and fails when it is not zero, run on a schedule and not on a pull
 request, so that a new rule becomes an issue the day it arrives and not a
 surprise. That is a follow-up to agree.
 
-## Six fixed in the code
+## Eight fixed
 
 | Finding | Fix |
 |---|---|
 | `S9383`, `settings-page.tsx`, twice: `refetch()` after an avatar save and after a removal | A real defect, small. The promise was neither awaited nor caught, so a session that could not be re-read became a rejection nobody handled. It is caught and ignored: the write stood and is already reported, and the header shows the old picture until the session is next read. Not awaited, unlike the start-region save, which has a notice for exactly this and the picture has none |
 | `S7503`, `next.config.ts`, `rewrites` and `redirects` | Next wants a promise from each, and neither awaits anything: they return `Promise.resolve(…)` |
 | `S7503`, `scripts/preflight.ts` | the probe handed to `wait` wraps a synchronous answer in `Promise.resolve` |
-| `S9382`, `scripts/issue-boxes-steps.ts` | the issues one pull request closes are read together. There are one or two, order does not matter, and the verdicts keep the issues' order |
+| `yaml:S2068`, `ci.yml` once and `release.yml` twice: `POSTGRES_PASSWORD: postgres` on the Postgres container a run starts and throws away | No workflow holds a password now. The container's password and the `DATABASE_URL` beside it are `${{ github.run_id }}`, a value made for that run. The rule still reads both files |
 
 The test for the avatar defect needed the mocked `refetch` wrapped in a
 function of its own. A Vitest mock handles the rejection of the promise it
 returns, to record how it settled, so the component ignoring that promise went
 unseen; the first version of the test passed without the fix.
 
-## Eleven that are not defects
+## Nine loops that run in order on purpose
 
-Closed in `sonar-project.properties` with `sonar.issue.ignore.multicriteria`:
-one rule, in the files named, and nowhere else (Miikka, 2026-10-09). Accepting
-each in Sonar's interface is exact per issue, but the reason would live outside
-the repository; a comment on each line would exist for the tool. The cost of
-this way is that a new finding of the same rule in the same file will not show.
-
-**Eight loops that run in order on purpose** (`typescript:S9382`). The rule
-asks for `Promise.all`, which is wrong for each:
+`typescript:S9382` asks for `Promise.all`, which is wrong for each. Closed in
+`sonar-project.properties` with `sonar.issue.ignore.multicriteria`: that one
+rule, in the five files named, and nowhere else (Miikka, 2026-10-09).
+Accepting each in Sonar's interface is exact per issue, but the reason would
+live outside the repository; a comment on each line would exist for the tool.
+The cost is that a new loop in one of these files which could run together
+will not be pointed out.
 
 | File | Why the loop is sequential |
 |---|---|
 | `scripts/backfill-run.ts`, five | every request goes through a pacer set to the provider's requests per minute, and the output is one line per season, in order, with a failure on the line of the season it happened in |
 | `scripts/review-findings.ts` | one request per merged pull request to GitHub, which limits bursts; the error names the pull request being read |
+| `scripts/issue-boxes-steps.ts` | one request per issue a pull request closes, to the same API |
 | `scripts/services-plan.ts`, `waitFor` | a poll: probe, sleep, probe again until a deadline. There is nothing to run together |
 | `src/lib/provider-request.ts` | a retry: the next attempt exists only because the last one was rate limited, after the wait the provider asked for |
 
-**Three times the CI database's password** (`yaml:S2068`), in `ci.yml` and
-twice in `release.yml`: `POSTGRES_PASSWORD: postgres` on the service container
-a workflow run starts and throws away. It guards nothing, is reachable only
-from the runner, and a real credential in a workflow is `${{ secrets.… }}`,
-which the rule does not read. Ignoring the rule in those two files does mean a
-literal password added to them later would not be reported.
+## What the first version of this change got wrong
+
+It ignored `yaml:S2068`, the hard-coded credential rule, for the whole of
+`ci.yml` and `release.yml`, to close the three findings on the CI database's
+password. That switched off credential detection in the two files where a
+leaked secret is most likely to be written, to silence a placeholder. The
+record of that version named the cost and went ahead anyway; Sourcery's review
+called it high, and it was. A security rule is not ignored by file here: the
+thing it flags is removed, as above.
+
+The same version read the issues of a pull request together. The loop was not
+a defect and the change bought nothing but a closed finding, so it is back as
+it was and its file is in the table.
 
 ## Sonar's own suggestion, where it was not taken
 
