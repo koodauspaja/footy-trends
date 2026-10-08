@@ -263,6 +263,9 @@ describe("testNameCitations", () => {
       '"is absent (S2)"',
       '"signs in (specs/003)"',
     ]);
+    expect(
+      cited(['suite("the panel (#1)", () => {});'], "a.test.ts", 'import { suite } from "vitest";')
+    ).toEqual(['"the panel (#1)"']);
   });
 
   it("knows a constant assigned from a test function, and one assigned from that", () => {

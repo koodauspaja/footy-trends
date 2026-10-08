@@ -43,7 +43,8 @@ name, so all 263 changed in one pull request.
   older .env", `specs/049`, `specs/051` and `specs/032` are named as what they
   built (the home-advantage table, the home-win baseline, the goals panel),
   `as spec 003 has it` is "as the standings after a round do", and `per #71`
-  and `as agreed on #416` dropped the reference.
+  dropped the reference, and `names the match list as agreed on #416` names
+  the heading it checks, "Ottelut".
 
 The renames removed and merged no test: 5014 names before and after them, and
 no two tests in a file came to share a title that did not already. The only
@@ -81,8 +82,8 @@ comment may not cite an issue:
 
 ## The check
 
-`testNameCitations` in `scripts/comment-rules.ts` reads each `it`, `test` and
-`describe` call from the parsed tree, through `.each`, `.skip`, `.only` and
+`testNameCitations` in `scripts/comment-rules.ts` reads each `it`, `test`,
+`describe` and `suite` call from the parsed tree, through `.each`, `.skip`, `.only` and
 Playwright's `test.describe`, and reports a first argument that matches the
 table above. `tests/unit/scripts/comment-rules.test.ts` runs it over every file
 git tracks or would and fails on any, so there is no record of allowed ones to
@@ -107,9 +108,10 @@ closed as a class:
   costs nothing and needs no evaluator.
 
 What the check does not read: the values put into a template name
-(`${team}`), which come from the rows a test loops over, and a test function
-reached through a namespace import or a destructured constant. The tree has
-neither of the last two.
+(`${team}`), which come from the rows a test loops over, a test function
+reached through a namespace import or a destructured constant, and a computed
+name whose test body is passed by name and not written in place
+(`describe(TITLE, body)`). The tree has none of the last three.
 
 ## Nothing selects a test by its name
 

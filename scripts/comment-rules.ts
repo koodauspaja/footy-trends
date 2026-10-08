@@ -40,7 +40,7 @@ const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
  * decisions/584-test-names-carry-no-citations.md
  */
 const NAME_CITATIONS = [ISSUE_NUMBER, /\bspecs?[/ ]\d+/, /\bS\d+\b/];
-const TEST_FUNCTIONS = new Set(["it", "test", "describe"]);
+const TEST_FUNCTIONS = new Set(["it", "test", "describe", "suite"]);
 
 /**
  * The TypeScript sources among `paths`, in order: the caller lists what git
@@ -213,8 +213,8 @@ function calledFrom(expression: ts.Expression): string | null {
 }
 
 /**
- * The names a file calls its test functions by: `it`, `test` and `describe` as
- * it imports them, under another name or not, and a constant assigned from one.
+ * The names a file calls its test functions by: `it`, `test`, `describe` and
+ * Vitest's `suite` as it imports them, under another name or not, and a constant assigned from one.
  *
  * decisions/584-test-names-carry-no-citations.md
  */
