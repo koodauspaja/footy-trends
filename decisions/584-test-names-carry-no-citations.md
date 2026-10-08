@@ -45,8 +45,9 @@ name, so all 263 changed in one pull request.
   `as spec 003 has it` is "as the standings after a round do", and `per #71`
   and `as agreed on #416` dropped the reference.
 
-No test was added, removed or merged: 5014 names before and after, and no two
-tests in a file came to share a title that did not already.
+The renames removed and merged no test: 5014 names before and after them, and
+no two tests in a file came to share a title that did not already. The only
+tests added are the six for the check below, in `tests/unit`.
 
 ## Where each citation went
 
