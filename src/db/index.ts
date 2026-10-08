@@ -53,13 +53,18 @@ export const db: Database = new Proxy({} as Database, {
  */
 export type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+// How long a close may take before the driver drops what is left.
+export const CLOSE_TIMEOUT_SECONDS = 2;
+
 /**
  * Exported for command-line tools only: the server never closes this. Nothing
- * to close when the database was never used.
+ * to close when the database was never used. The close is bounded, because the
+ * driver's own never settles for a connection that failed while it was opening.
  *
  * decisions/169-production-backfill.md
  * decisions/536-database-url-required.md
+ * decisions/571-bounded-database-close.md
  */
 export const closeDatabase = async (): Promise<void> => {
-  await client?.end();
+  await client?.end({ timeout: CLOSE_TIMEOUT_SECONDS });
 };
