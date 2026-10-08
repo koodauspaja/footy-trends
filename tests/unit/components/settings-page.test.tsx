@@ -37,7 +37,9 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
 
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
 vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch }) }));
+// Wrapped, so the component gets a promise of its own: a mock handles the
+// rejection of the one it returns, which would hide one the component ignored.
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {
@@ -625,6 +627,34 @@ describe("Profiilikuva", () => {
     expect(screen.getByText("Käytössä Google-tilisi kuva.")).toBeInTheDocument();
     expect(refetch).toHaveBeenCalled();
   });
+
+  // The save or removal stood, so a session that cannot be re-read is neither
+  // a failed write nor an error nobody handles.
+  it.each([
+    ["saving a picture", null, "Tallenna kuva", "Profiilikuva päivitetty."],
+    ["removing one", VERSION, "Poista oma kuva", "Oma kuva poistettu."],
+  ])(
+    "reports %s as done when the session refresh fails, and leaves no rejection unhandled",
+    async (_case, current, button, notice) => {
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      refetch.mockRejectedValue(new Error("network"));
+      renderPicture(current);
+      if (current === null) chooseFile(imageOf(1024));
+
+      try {
+        fireEvent.click(screen.getByRole("button", { name: button }));
+
+        await waitFor(() => expect(screen.getByText(notice)).toBeInTheDocument());
+        expect(refetch).toHaveBeenCalled();
+        // Node reports a rejection nobody handled once the current tasks are done.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+    }
+  );
 
   it("keeps the picture when removal fails", async () => {
     removeAvatarAction.mockResolvedValue({ ok: false });

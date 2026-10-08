@@ -123,19 +123,21 @@ const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
 const nextConfig: NextConfig = {
   // Public URLs are Finnish; the App Router folders are English. `ROUTES` is
   // the only place the two meet — the browser always shows the Finnish path.
-  async rewrites() {
-    return ROUTES.map(([url, folder]) => ({ source: url, destination: folder }));
+  rewrites() {
+    return Promise.resolve(ROUTES.map(([url, folder]) => ({ source: url, destination: folder })));
   },
 
   // Redirects are checked before rewrites, which is what makes pairing them
   // safe. `permanent: true` emits 308 and preserves the request method; query
   // strings are forwarded automatically.
-  async redirects() {
-    return [
-      // English folder paths are not URLs.
-      ...ROUTES.map(([url, folder]) => [folder, url] as const),
-      ...OTHER_SPELLINGS,
-    ].map(([source, destination]) => ({ source, destination, permanent: true }));
+  redirects() {
+    return Promise.resolve(
+      [
+        // English folder paths are not URLs.
+        ...ROUTES.map(([url, folder]) => [folder, url] as const),
+        ...OTHER_SPELLINGS,
+      ].map(([source, destination]) => ({ source, destination, permanent: true }))
+    );
   },
 
   experimental: {

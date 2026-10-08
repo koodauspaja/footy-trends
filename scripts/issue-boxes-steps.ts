@@ -65,11 +65,12 @@ export async function checkBoxes({ pull, repository, read }: CheckOptions): Prom
   const pullBody = await read(`/repos/${repository}/issues/${pull}`);
   const issues = closedIssues(pullBody);
 
-  const verdicts: IssueVerdict[] = [];
-  for (const issue of issues) {
-    const body = await read(`/repos/${repository}/issues/${issue}`);
-    verdicts.push({ issue, bare: bareBoxes(body) });
-  }
+  const verdicts: IssueVerdict[] = await Promise.all(
+    issues.map(async (issue) => ({
+      issue,
+      bare: bareBoxes(await read(`/repos/${repository}/issues/${issue}`)),
+    }))
+  );
 
   const lines = report(verdicts);
   return lines.length === 0

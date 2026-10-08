@@ -66,7 +66,7 @@ export async function runPreflight(actions: PreflightActions): Promise<number> {
     actions.out("Starting it — this can take a while…");
 
     const daemon = await actions.wait(
-      async () => actions.dockerIsRunning(),
+      () => Promise.resolve(actions.dockerIsRunning()),
       actions.daemonTimeoutMs
     );
     if (!daemon.ok) {

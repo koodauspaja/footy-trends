@@ -216,6 +216,18 @@ const AVATAR_ERRORS = {
 type AvatarError = keyof typeof AVATAR_ERRORS;
 
 /**
+ * What a failed session refetch gets after a picture was saved or removed:
+ * nothing. The write stood, and the header shows the old picture until the
+ * session is next read.
+ *
+ * decisions/025-custom-avatar.md
+ * decisions/592-sonar-zero-open-issues-again.md
+ */
+function ignoreStaleSession(): void {
+  // Deliberately empty.
+}
+
+/**
  * The reader's own profile picture. `version` is held in state, so an upload
  * replaces the picture without a reload.
  *
@@ -301,8 +313,9 @@ function ProfilePicture({
                   setCurrent(outcome.version);
                   announce("saved", null);
                   // The header reads the avatar version off the session, so it
-                  // only changes once the session is refetched.
-                  refetch();
+                  // only changes once the session is refetched. Not awaited: the
+                  // save is already reported.
+                  refetch().catch(ignoreStaleSession);
                 } else {
                   announce(null, outcome.reason);
                 }
@@ -331,7 +344,7 @@ function ProfilePicture({
                     setCurrent(null);
                     setChosen(null);
                     announce("removed", null);
-                    refetch();
+                    refetch().catch(ignoreStaleSession);
                   } else {
                     announce(null, null);
                     setRemoveFailed(true);
