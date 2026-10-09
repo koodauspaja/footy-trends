@@ -29,6 +29,12 @@
 ## Security & Secrets
 <!-- Required env vars. Confirm no secrets are committed. -->
 
+## Logging
+<!-- What each failure logs (level, message), and one line for each action that
+     changes shared data: who did it, to what, and the outcome. Ids only: no
+     email address, name or token. "None", with the reason, if the feature only
+     reads and its failures are already logged. -->
+
 ## Acceptance Criteria
 <!-- Testable, concrete outcomes. -->
 - [ ]
