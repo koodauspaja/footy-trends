@@ -26,6 +26,9 @@ predictions run's result. Each now logs one.
 | A refused sign-in is `warn` | It is the app saying no to someone, like the forced refresh's refusals, which are `warn` already. |
 | The predictions summary is logged by the run, not by `scripts/predictions.ts` | The script is excluded from coverage as an entry point, so a line there could be removed without a test failing. It still prints the same summary to stdout for Railway's cron log. |
 | The backtest logs nothing new | It is run by hand, by someone reading its output. |
+| The log calls are not wrapped in a `try` of their own | No logger call in the repository is, the ones inside `catch` blocks included. Pino does not throw on a log call: a transport that fails does so later, on its worker. A guard on these five alone would be a second rule for the same call. |
+| A run that throws logs no summary | It has none: `runPredictionLog` rejects before there is a report. `scripts/predictions.ts` prints the error and exits 1, so Railway marks the run failed. Putting that failure in Axiom as well is a change to the run's error handling, which the issue did not ask for. |
+| Run by hand without the Axiom variables, the command prints one more line | With no transport Pino writes to stdout, so the summary appears there as JSON beside the script's own lines, as the run's `error` lines already did. The cron has the variables, so its log is unchanged. |
 
 ## Not established here
 
