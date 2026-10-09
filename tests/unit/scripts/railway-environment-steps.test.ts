@@ -300,16 +300,30 @@ describe("standUp", () => {
     // Two for the build under way, then the health check's one.
     expect(railway.steps.wait).toHaveBeenCalledTimes(3);
     expect(railway.steps.wait).toHaveBeenNthCalledWith(1, IDLE_INTERVAL_MS);
+    expect(railway.steps.wait).toHaveBeenNthCalledWith(2, IDLE_INTERVAL_MS);
+    // The web service's, in the environment being built, and no other's.
+    for (const { args } of railway.calls.filter(({ args }) => args[0] === "deployment")) {
+      expect(args).toEqual([
+        "deployment",
+        "list",
+        "--service",
+        "footy-trends",
+        "--environment",
+        "pr-123",
+        "--json",
+      ]);
+    }
   });
 
-  it("does not wait when nothing is under way", async () => {
+  it("deploys at once when nothing is under way", async () => {
     const railway = fake({ deployments: [[]] });
 
-    await standUp(REQUEST, railway.steps);
+    const outcome = await standUp(REQUEST, railway.steps);
 
+    expect(outcome.ok).toBe(true);
+    expect(railway.ran().slice(-2)).toEqual(["deployment list", "redeploy --service"]);
     // The one wait left is the health check's own.
     expect(railway.steps.wait).toHaveBeenCalledTimes(1);
-    expect(railway.ran().filter((call) => call === "deployment list")).toHaveLength(1);
   });
 
   it("starts no deploy when the first never ends, and says the environment exists", async () => {
