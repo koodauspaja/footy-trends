@@ -33,13 +33,14 @@ export const VERIFY_STAGES: readonly Stage[] = [
  * with the reason.
  *
  * decisions/401-one-command-for-the-gate.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export const NOT_A_STAGE: Readonly<Record<string, string>> = {
   "db:migrate":
     "a workflow has to migrate its own fresh service container; locally #399's preflight does it",
   "test:e2e:browser": "installs Chromium once, which `scripts/setup` already does",
   build:
-    "the release gate builds before its e2e run; CI does not build, and `verify` is not the release gate",
+    "the workflows build as a step of their own; locally `test:e2e` builds before it starts its server",
   "release:version":
     "cuts the tag once every gate is green; it is the release itself, not a check of it",
   "check:boxes":

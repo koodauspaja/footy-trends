@@ -6,6 +6,7 @@
  * decisions/220-freshness-notices-deletions.md
  * decisions/242-freshness-compares-content.md
  * decisions/292-sonar-zero-open-issues.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 
 /**
@@ -24,11 +25,19 @@ export const MARKER_PATH = ".e2e-freshness";
 export const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
- * The trees whose contents a passing e2e run is taken to have exercised.
+ * What a passing e2e run is taken to have exercised: the application, the
+ * specs, and the files that decide which server they ran against.
  *
  * decisions/084-e2e-freshness-before-push.md
+ * decisions/568-e2e-against-a-production-build.md
  */
-export const WATCHED_DIRECTORIES = ["src", "tests/e2e"];
+export const WATCHED_PATHS = [
+  "src",
+  "tests/e2e",
+  "next.config.ts",
+  "playwright.config.ts",
+  "scripts/e2e-target.ts",
+];
 
 export const RUN_COMMAND = "npm run test:e2e";
 export const ESCAPE_HATCH = "git push --no-verify";

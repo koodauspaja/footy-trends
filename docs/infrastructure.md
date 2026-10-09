@@ -181,7 +181,7 @@ from a checkout of the commit that environment runs.
   environment after its migration has deployed.
 - **The suites never touch the development database.** `npm run
   test:integration` and `npm run test:e2e` create and migrate `<name>_test`;
-  e2e serves on port 3001.
+  e2e builds the application and serves that production build on port 3001.
 
 ## GitHub
 
@@ -260,7 +260,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and its check-run reads `skipped`, which a required check accepts. A later push gets the quick check, a review whose whole body is `### Sourcery assessment` and `**Approved.**`, which is not a full review; `npm run check:sourcery -- <PR>` says which the head has, and a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
 | SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
-| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run for changed files) | the stages are checked against the workflows by a unit test |
+| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, for changed files) | the stages are checked against the workflows by a unit test |
 
 ## Observability
 
