@@ -9,25 +9,34 @@ import { warmModules } from "../../support/warm-module";
  * decisions/029-forced-season-refresh.md
  */
 
-const { requireAdmin, listSeasonsFor, previewRefresh, applyRefresh, revalidatePath, state } =
-  vi.hoisted(() => {
-    const state = { adminId: "admin-1" as string | null };
-    return {
-      state,
-      requireAdmin: vi.fn(async () => state.adminId),
-      listSeasonsFor: vi.fn(async () => ({
-        ok: true,
-        seasons: [{ seasonId: 2026, label: "2026" }],
-      })),
-      previewRefresh: vi.fn(async () => ({ ok: true, preview: { snapshotHash: "hash" } })),
-      applyRefresh: vi.fn(async () => ({ ok: true, applied: { snapshotHash: "hash" } })),
-      revalidatePath: vi.fn(),
-    };
-  });
+const {
+  requireAdmin,
+  listSeasonsFor,
+  previewRefresh,
+  applyRefresh,
+  revalidatePath,
+  logger,
+  state,
+} = vi.hoisted(() => {
+  const state = { adminId: "admin-1" as string | null };
+  return {
+    state,
+    requireAdmin: vi.fn(async () => state.adminId),
+    listSeasonsFor: vi.fn(async () => ({
+      ok: true,
+      seasons: [{ seasonId: 2026, label: "2026" }],
+    })),
+    previewRefresh: vi.fn(async () => ({ ok: true, preview: { snapshotHash: "hash" } })),
+    applyRefresh: vi.fn(async () => ({ ok: true, applied: { snapshotHash: "hash" } })),
+    revalidatePath: vi.fn(),
+    logger: { info: vi.fn() },
+  };
+});
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/admin-guard", () => ({ requireAdmin }));
 vi.mock("@/lib/force-refresh", () => ({ listSeasonsFor, previewRefresh, applyRefresh }));
+vi.mock("@/lib/logger", () => ({ logger }));
 
 const VEIKKAUSLIIGA = "taso:VL";
 
@@ -174,6 +183,43 @@ describe("showing the run that was just recorded", () => {
     await previewRefreshAction(VEIKKAUSLIIGA, 2026);
 
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("the record of an apply", () => {
+  it("says who applied which season, by id alone", async () => {
+    const { applyRefreshAction } = await import("@/lib/refresh-actions");
+
+    await applyRefreshAction(VEIKKAUSLIIGA, 2026, "hash");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { source: "taso", code: "VL", seasonId: 2026, adminId: "admin-1", outcome: "ok" },
+        "An admin asked to apply a forced refresh",
+      ],
+    ]);
+  });
+
+  it("says why the engine refused", async () => {
+    applyRefresh.mockResolvedValueOnce({ ok: false, reason: "stale" } as never);
+    const { applyRefreshAction } = await import("@/lib/refresh-actions");
+
+    await applyRefreshAction(VEIKKAUSLIIGA, 2026, "hash");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { source: "taso", code: "VL", seasonId: 2026, adminId: "admin-1", outcome: "stale" },
+        "An admin asked to apply a forced refresh",
+      ],
+    ]);
+  });
+
+  it("is not written for a preview, which changes nothing", async () => {
+    const { previewRefreshAction } = await import("@/lib/refresh-actions");
+
+    await previewRefreshAction(VEIKKAUSLIIGA, 2026);
+
+    expect(logger.info).not.toHaveBeenCalled();
   });
 });
 

@@ -237,6 +237,7 @@ export type PredictionRunReport = {
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/603-server-side-records.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -307,7 +308,13 @@ export async function runPredictionLog(
     });
 
   await writePredictions(rows);
-  return { refreshed: targets.length - refreshFailures.length, logged: rows.length, failures };
+  const report = {
+    refreshed: targets.length - refreshFailures.length,
+    logged: rows.length,
+    failures,
+  };
+  logger.info(report, "Predictions run finished");
+  return report;
 }
 
 /**

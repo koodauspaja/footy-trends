@@ -114,10 +114,20 @@ async function guardedWrite(
 }
 
 /**
+ * What a write's log line says happened: `ok`, or the reason it was refused.
+ *
+ * decisions/603-server-side-records.md
+ */
+function outcomeOf(result: AdminWriteResult): string {
+  return result.ok ? "ok" : result.reason;
+}
+
+/**
  * Promote or demote. Self is refused either way: demoting yourself locks you
  * out, and promoting yourself means nothing.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/603-server-side-records.md
  */
 export async function changeRole(
   actingAdminId: string,
@@ -125,7 +135,7 @@ export async function changeRole(
   role: Role
 ): Promise<AdminWriteResult> {
   try {
-    return await guardedWrite(
+    const result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => role === DEFAULT_ROLE && targetRole === "admin",
@@ -133,6 +143,11 @@ export async function changeRole(
         await tx.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, targetUserId));
       }
     );
+    logger.info(
+      { actingAdminId, targetUserId, role, outcome: outcomeOf(result) },
+      "An admin asked to change a user's role"
+    );
+    return result;
   } catch (error) {
     logger.error(
       { err: error, actingAdminId, targetUserId, role },
@@ -147,13 +162,14 @@ export async function changeRole(
  * `DELETE`: what a user owns cascades, and a refresh run's `run_by` is set null.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/603-server-side-records.md
  */
 export async function deleteUser(
   actingAdminId: string,
   targetUserId: string
 ): Promise<AdminWriteResult> {
   try {
-    return await guardedWrite(
+    const result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => targetRole === "admin",
@@ -161,6 +177,11 @@ export async function deleteUser(
         await tx.delete(user).where(eq(user.id, targetUserId));
       }
     );
+    logger.info(
+      { actingAdminId, targetUserId, outcome: outcomeOf(result) },
+      "An admin asked to delete a user"
+    );
+    return result;
   } catch (error) {
     logger.error({ err: error, actingAdminId, targetUserId }, "Deleting a user failed");
     return { ok: false, reason: "failed" };

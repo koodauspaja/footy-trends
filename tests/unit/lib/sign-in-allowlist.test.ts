@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allowedSignInEmails, refusesSignIn, signInRefusal } from "@/lib/sign-in-allowlist";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
+const { logger } = vi.hoisted(() => ({ logger: { warn: vi.fn() } }));
+
+vi.mock("@/lib/logger", () => ({ logger }));
+
 /**
  * Who may sign in. The variable is read on every call, not at import, so these
  * stub it per test: that property is the point of the design, and one of the
@@ -15,6 +19,7 @@ beforeEach(() => {
   // locally to exercise the feature would otherwise fail every unrestricted
   // case, and the failure would look like a bug in the code under test.
   vi.stubEnv("AUTH_ALLOWED_EMAILS", "");
+  logger.warn.mockReset();
 });
 
 afterEach(() => {
@@ -106,6 +111,24 @@ describe("signInRefusal", () => {
     vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
 
     expect(signInRefusal("stranger@example.fi")).toEqual({ error: SIGN_IN_NOT_ALLOWED });
+  });
+
+  it("logs a refusal, and the address is nowhere in the line", () => {
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
+
+    signInRefusal("stranger@example.fi");
+
+    expect(logger.warn.mock.calls).toEqual([
+      ["Sign-in refused: the address is not on the allowlist"],
+    ]);
+  });
+
+  it("logs nothing for an admitted identity", () => {
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
+
+    signInRefusal("miikka@example.fi");
+
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("reflects a variable changed after the module was imported", () => {
