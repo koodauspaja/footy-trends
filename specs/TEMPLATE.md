@@ -31,7 +31,8 @@
 
 ## Logging
 <!-- What each failure logs (level, message), and one line for each action that
-     changes shared data: who did it, to what, and the outcome. Ids only: no
+     changes shared data: who did it, to what, and the outcome, a refusal
+     included. Ids only: no
      email address, name or token. "None", with the reason, if the feature only
      reads and its failures are already logged. -->
 

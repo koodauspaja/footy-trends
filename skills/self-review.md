@@ -3,7 +3,8 @@
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
 to. Not general advice — every class below is measured from the review history,
-and each has a counter that takes minutes. The table says which to weight
+bar section 11, which comes from an audit and says so, and each has a counter
+that takes minutes. The table says which to weight
 today; it is re-measured, not maintained by hand.
 
 When to use
@@ -242,7 +243,8 @@ Not in the table above, and not from a review: from an audit on 2026-10-04 of
 every `catch` in `src/`. Failures on the server were nearly all logged. What
 left no line were the things nobody thinks of as failing: an admin changing a
 role, deleting a user or forcing a refresh, a sign-in being refused, and the
-hourly run's result.
+hourly run's result. `npm run review:findings` does not count this class, so it
+stays until a human removes it.
 
 **What it looks like.** A new server action that writes and returns `{ ok: true
 }` with no log line. A refusal returned to the caller and recorded nowhere. A
