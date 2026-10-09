@@ -11,6 +11,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/051-home-win-baseline.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const HEADING = "Ennuste";
@@ -77,7 +78,7 @@ test.describe("Home-win baseline, signed in", () => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   });
 
-  test("an upcoming league match shows the baseline and Elo rows, and what each rests on", async ({
+  test("an upcoming league match shows the baseline, Elo and Poisson rows, and what each rests on", async ({
     page,
   }) => {
     await page.goto(PATH(UPCOMING_ID));
@@ -88,12 +89,13 @@ test.describe("Home-win baseline, signed in", () => {
       "Tasapeli",
       "Vierasvoitto",
     ]);
-    // The baseline first, then Elo, three whole percentages each.
+    // The baseline first, then Elo, then Poisson, three whole percentages each.
     const rows = panel(page).getByRole("row");
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(4);
     for (const [index, model] of [
       [1, "Perustaso"],
       [2, "Elo"],
+      [3, "Poisson"],
     ] as const) {
       const cells = await rows.nth(index).locator("th, td").allTextContents();
       expect(cells[0]).toBe(model);
@@ -107,6 +109,11 @@ test.describe("Home-win baseline, signed in", () => {
     await expect(
       panel(page).getByText(
         /^Elo: E2E Koti \d{4}, E2E Vieras \d{4}\. Kotijoukkueelle lisätään 60 pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus\.$/
+      )
+    ).toBeVisible();
+    await expect(
+      panel(page).getByText(
+        /^Poisson: odotetut maalit E2E Koti \d,\d – E2E Vieras \d,\d; todennäköisin tulos \d–\d \(\d{1,2}\u00a0%\)\.$/
       )
     ).toBeVisible();
     // Between the match's details and its meetings.
@@ -144,5 +151,6 @@ test.describe("Home-win baseline, signed out", () => {
     expect(html).not.toContain("Kotivoitto");
     expect(html).not.toContain("Perustaso");
     expect(html).not.toContain("Elo:");
+    expect(html).not.toContain("Poisson");
   });
 });

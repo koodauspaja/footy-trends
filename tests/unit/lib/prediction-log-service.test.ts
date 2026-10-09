@@ -8,9 +8,11 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const mocks = vi.hoisted(() => ({
+  fitPoisson: vi.fn(),
   select: vi.fn(),
   insertValues: vi.fn(),
   onConflictDoUpdate: vi.fn(),
@@ -55,6 +57,14 @@ vi.mock("@/lib/match-service", () => ({
 vi.mock("@/lib/logger", () => ({
   logger: { error: mocks.loggerError, info: mocks.loggerInfo },
 }));
+// The real fit, behind a spy one test makes fail.
+vi.mock("@/lib/poisson", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/poisson")>();
+  mocks.fitPoisson.mockImplementation(actual.fitPoisson);
+  return { ...actual, fitPoisson: mocks.fitPoisson };
+});
+
+import { fitPoisson, predictPoisson, utcDay } from "@/lib/poisson";
 
 import {
   readFinished,
@@ -108,7 +118,7 @@ function tasoRow(overrides: Record<string, unknown> = {}) {
 }
 
 // The run's reads, in order: the candidates before and after refreshing, then
-// the finished matches its Elo replay reads (none here unless given) —
+// the finished matches its Elo replay and Poisson fit read (none here unless given) —
 // football-data, then TASO, each time.
 function stored(footballData: unknown[], taso: unknown[], finished: unknown[][] = [[], []]) {
   mocks.select
@@ -356,6 +366,119 @@ describe("runPredictionLog", () => {
     expect(written("elo-v1")).toEqual([]);
   });
 
+  it("logs poisson-v1 from a fit of the earlier days' matches, today's left out", async () => {
+    const earlier = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    // Kicked off this morning, on the run's own UTC day.
+    const today = {
+      ...earlier,
+      providerMatchId: 10,
+      kickoffAt: at(-2),
+      homeGoals: 0,
+      awayGoals: 7,
+    };
+    stored([footballDataRow()], [], [[earlier, today], []]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const fit = fitPoisson([{ source: "football-data", ...earlier }], utcDay(NOW));
+    const expected = predictPoisson(fit, "PL", 57, 61)?.prediction;
+    expect(expected?.home).toBeGreaterThan(expected?.away as number);
+    expect(written("poisson-v1")).toEqual([
+      {
+        source: "football-data",
+        providerMatchId: 1,
+        competitionCode: "PL",
+        model: "poisson-v1",
+        kind: "live",
+        homeProbability: expected?.home,
+        drawProbability: expected?.draw,
+        awayProbability: expected?.away,
+        predictedAt: NOW,
+        kickoffAt: at(5),
+      },
+    ]);
+  });
+
+  it("fits each provider apart", async () => {
+    const meeting = {
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored(
+      [footballDataRow()],
+      [tasoRow({ homeTeam: 57, awayTeam: 61 })],
+      [
+        [{ code: "PL", ...meeting }],
+        [{ competitionId: "spljp26", categoryId: "VL", ...meeting, homeGoals: 0, awayGoals: 3 }],
+      ]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const [footballData, taso] = written("poisson-v1");
+    expect(footballData?.homeProbability).toBeGreaterThan(footballData?.awayProbability as number);
+    expect(taso?.homeProbability).toBeLessThan(taso?.awayProbability as number);
+  });
+
+  it("writes no poisson-v1 row for a placeholder side or a competition the fit has no match of", async () => {
+    const meeting = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored(
+      [footballDataRow({ awayTeam: 0 }), footballDataRow({ code: "CL", providerMatchId: 3 })],
+      [],
+      [[meeting], []]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(2);
+    expect(written("poisson-v1")).toEqual([]);
+  });
+
+  it("still writes the other models' rows when the fit fails, logs it and reports it", async () => {
+    stored([footballDataRow()], []);
+    mocks.fitPoisson.mockImplementationOnce(() => {
+      throw new Error("no fit");
+    });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(1);
+    expect(written("elo-v1")).toHaveLength(1);
+    expect(written("poisson-v1")).toEqual([]);
+    expect(report.failures).toEqual(["poisson strengths"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      { err: new Error("no fit") },
+      "Unable to fit the Poisson model for predictions"
+    );
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      { refreshed: 1, logged: 2, failures: ["poisson strengths"] },
+      "Predictions run finished"
+    );
+  });
+
   it("still writes the baseline when the Elo history cannot be read, and reports it", async () => {
     mocks.select
       .mockResolvedValueOnce([footballDataRow()])
@@ -369,10 +492,16 @@ describe("runPredictionLog", () => {
 
     expect(written()).toHaveLength(1);
     expect(written("elo-v1")).toEqual([]);
-    expect(report.failures).toEqual(["elo ratings"]);
+    expect(written("poisson-v1")).toEqual([]);
+    // One read feeds both models, so each reports its own loss.
+    expect(report.failures).toEqual(["elo ratings", "poisson strengths"]);
     expect(mocks.loggerError).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
       "Unable to read the Elo history for predictions"
+    );
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to fit the Poisson model for predictions"
     );
   });
 
@@ -416,8 +545,12 @@ describe("runPredictionBacktest", () => {
 
     const count = await runPredictionBacktest(NOW);
 
-    // Two matches with history, each under both models.
-    expect(count).toBe(4);
+    // Two matches with history, each under all three models.
+    expect(count).toBe(6);
+    expect(written("poisson-v1")).toEqual([
+      expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
+      expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+    ]);
     expect(written("elo-v1")).toEqual([
       expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
       expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
@@ -428,7 +561,8 @@ describe("runPredictionBacktest", () => {
     ]);
   });
 
-  // 1 501 finished matches: 1 500 rows under each model, three batches of a thousand.
+  // 1 501 finished matches an hour apart: 1 500 rows under the baseline and under
+  // Elo, and 1 477 under Poisson, which predicts none of the first day's 24.
   const threeBatchesOfFinished = () =>
     Array.from({ length: 1_501 }, (_, index) => ({
       code: "PL",
@@ -444,16 +578,16 @@ describe("runPredictionBacktest", () => {
   it("writes in batches of a thousand", async () => {
     mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
 
-    // 1 500 rows under each model: 3 000, written a thousand at a time.
-    await expect(runPredictionBacktest(NOW)).resolves.toBe(3_000);
+    // 4 477 rows, written a thousand at a time.
+    await expect(runPredictionBacktest(NOW)).resolves.toBe(4_477);
     expect(mocks.insertValues.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([
-      1_000, 1_000, 1_000,
+      1_000, 1_000, 1_000, 1_000, 477,
     ]);
   });
 
   it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
-    // Three batches: the first is still writing and fails in the end, the second
-    // fails at once, the third is stored.
+    // Five batches: the first is still writing and fails in the end, the second
+    // fails at once, the rest are stored.
     mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
     let failFirst = (_reason: Error) => {};
     const first = new Promise<void>((_resolve, reject) => {
@@ -466,7 +600,7 @@ describe("runPredictionBacktest", () => {
 
     const run = runPredictionBacktest(NOW);
     run.then(settled, settled);
-    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(5));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(settled).not.toHaveBeenCalled();

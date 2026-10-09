@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { threeWay } from "@/lib/elo";
 import type { HomeBaseline } from "@/lib/home-baseline";
+import { type PoissonFit, type PoissonPrediction, predictPoisson } from "@/lib/poisson";
 import {
   awaitsResult,
   eloLiveRow,
@@ -8,6 +9,7 @@ import {
   LOG_WINDOW_HOURS,
   type LogCandidate,
   liveRow,
+  poissonLiveRow,
   RESULT_WINDOW_HOURS,
   refreshTargets,
 } from "@/lib/prediction-log";
@@ -18,6 +20,7 @@ import {
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -222,5 +225,44 @@ describe("eloLiveRow", () => {
     expect(eloLiveRow(match, new Map(), { status: "empty" }, NOW)).toBeNull();
     expect(eloLiveRow(match, new Map(), { status: "error" }, NOW)).toBeNull();
     expect(eloLiveRow({ ...match, homeTeam: 0 }, new Map(), baseline, NOW)).toBeNull();
+  });
+});
+
+describe("poissonLiveRow", () => {
+  const fit: PoissonFit = {
+    competitions: new Map([
+      ["PL", { base: 0.2, drawFactor: 1.1 }],
+      ["CL", { base: 0.9, drawFactor: 1 }],
+    ]),
+    home: 0.3,
+    attack: new Map([[11, 0.4]]),
+    defence: new Map([[22, 0.2]]),
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026 });
+
+  it("predicts from the fit, in the match's own competition and its sides in their places", () => {
+    const row = poissonLiveRow(match, fit, NOW);
+
+    const expected = (predictPoisson(fit, "PL", 11, 22) as PoissonPrediction).prediction;
+    expect(row).toEqual({
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      model: "poisson-v1",
+      kind: "live",
+      homeProbability: expected.home,
+      drawProbability: expected.draw,
+      awayProbability: expected.away,
+      predictedAt: NOW,
+      kickoffAt: at(10),
+    });
+    // The strong attack at home against the weak defence: a clear favourite.
+    expect(expected.home).toBeGreaterThan(0.6);
+    expect(expected.home + expected.draw + expected.away).toBeCloseTo(1, 12);
+  });
+
+  it("writes nothing for a placeholder side, or a competition the fit has no match of", () => {
+    expect(poissonLiveRow({ ...match, awayTeam: 0 }, fit, NOW)).toBeNull();
+    expect(poissonLiveRow({ ...match, code: "SA" }, fit, NOW)).toBeNull();
   });
 });

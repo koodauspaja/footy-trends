@@ -5,16 +5,17 @@ import { testDatabaseUrl } from "../support/test-database";
 
 /**
  * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Whether
- * judged predictions are stored depends on what ran before, so two are seeded, on a
+ * judged predictions are stored depends on what ran before, so one per model is seeded, on a
  * finished match in 2098. Whatever else is stored joins them, so no figure is named.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const HEADING = "Ennusteiden osuvuus";
 const SEASON = 2098;
 const MATCH_ID = 999_054_001;
-const MODELS = ["home-baseline-v1", "elo-v1"];
+const MODELS = ["home-baseline-v1", "elo-v1", "poisson-v1"];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -89,7 +90,7 @@ test.describe("Prediction quality, signed in", () => {
     await expect(page.getByRole("heading", { level: 1, name: HEADING })).toBeVisible();
   });
 
-  test("judges both models on the domestic backtest by default", async ({ page }) => {
+  test("judges all three models on the domestic backtest by default", async ({ page }) => {
     await page.goto("/ennusteet");
 
     await expect(page.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
@@ -102,12 +103,14 @@ test.describe("Prediction quality, signed in", () => {
     );
     await expect(
       page.getByText(
-        /^[\d ]+ ottelua vuo(silta \d{4}–\d{4}|delta \d{4}), joille molemmat mallit ovat antaneet ennusteen\.$/
+        /^[\d ]+ ottelua vuo(silta \d{4}–\d{4}|delta \d{4}), joille kaikki mallit ovat antaneet ennusteen\.$/
       )
     ).toBeVisible();
 
     const accuracy = region(page, "Osumatarkkuus");
-    await expect(accuracy.getByText(/^Perustaso \d{1,3} % · Elo \d{1,3} %$/)).toBeVisible();
+    await expect(
+      accuracy.getByText(/^Perustaso \d{1,3} % · Elo \d{1,3} % · Poisson \d{1,3} %$/)
+    ).toBeVisible();
     // A line per model once 200 matches are judged; before that, the count.
     const lines = await accuracy.locator("[data-part=line]").count();
     if (lines === 0) {
@@ -115,20 +118,21 @@ test.describe("Prediction quality, signed in", () => {
         accuracy.getByText(/^Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua/)
       ).toBeVisible();
     } else {
-      expect(lines).toBe(2);
+      expect(lines).toBe(3);
     }
 
     const tables = region(page, "Brier-pistemäärä ja log-loss").getByRole("table");
-    await expect(tables.nth(0).getByRole("rowheader")).toHaveText(["Perustaso", "Elo"]);
+    await expect(tables.nth(0).getByRole("rowheader")).toHaveText(["Perustaso", "Elo", "Poisson"]);
     await expect(tables.nth(1).getByRole("row").first().getByRole("columnheader")).toHaveText([
       "Kausi",
       "Ottelut",
       "Perustaso",
       "Elo",
+      "Poisson",
     ]);
 
     // The diagonal and a line per model.
-    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(3);
+    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(4);
   });
 
   test("the switches keep each other's choice", async ({ page }) => {

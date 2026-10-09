@@ -25,6 +25,7 @@ import {
  * decisions/048-league-goals-per-game-trend.md
  * decisions/050-table-volatility.md
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  * decisions/413-rounds-a-team-sat-out.md
  * decisions/441-line-chart-text-on-a-phone.md
  */
@@ -285,6 +286,40 @@ describe("LineChart", () => {
     expect(series?.querySelector("[data-part=line]")?.getAttribute("stroke-dasharray")).toBe("2 4");
   });
 
+  it("draws a dash-dotted series with its own pattern, a fourth style", () => {
+    const { container } = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[
+          {
+            name: "third",
+            dashDotted: true,
+            points: [
+              { x: 1, y: 1 },
+              { x: 3, y: 4 },
+            ],
+          },
+        ]}
+        title="Osumatarkkuus"
+        xDomain={[1, 3]}
+        xLabel="x"
+        xTicks={[1, 3]}
+        yDomain={[1, 4]}
+        yLabel="y"
+        yTicks={[1, 4]}
+      />
+    );
+    const series = container.querySelector("[data-part=series]");
+
+    expect(series?.hasAttribute("data-dash-dotted")).toBe(true);
+    expect(series?.hasAttribute("data-dashed")).toBe(false);
+    expect(series?.hasAttribute("data-dotted")).toBe(false);
+    expect(series?.querySelector("[data-part=line]")?.getAttribute("stroke-dasharray")).toBe(
+      "6 4 2 4"
+    );
+  });
+
   it("uses the theme's colour tokens, so dark mode is not a second drawing", () => {
     const line = chart(true).querySelector("[data-part=line]");
 
@@ -306,6 +341,10 @@ describe("LineLegend", () => {
     expect(items[1]?.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("6 4");
     const { container: dotted } = render(<LineLegend items={[{ label: "Ref", dotted: true }]} />);
     expect(dotted.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("2 4");
+    const { container: dashDotted } = render(
+      <LineLegend items={[{ label: "Kolmas", dashDotted: true }]} />
+    );
+    expect(dashDotted.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("6 4 2 4");
     // The sample is decoration: the label is what a screen reader reads.
     expect(items[1]?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
   });

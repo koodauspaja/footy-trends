@@ -18,10 +18,11 @@ import { getPredictionQuality } from "@/lib/prediction-quality-service";
  * are never judged, so no other suite leaves judged `live` rows.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const IDS = Array.from({ length: 8 }, (_, index) => 986_001 + index);
-const MODELS = ["home-baseline-v1", "elo-v1"] as const;
+const MODELS = ["home-baseline-v1", "elo-v1", "poisson-v1"] as const;
 
 function footballDataMatch(
   id: number,
@@ -46,7 +47,7 @@ function footballDataMatch(
   };
 }
 
-// Both models' live predictions for a match, each certain of a home win.
+// Every model's live predictions for a match, each certain of a home win.
 function predicted(
   id: number,
   source: "football-data" | "taso",
@@ -100,16 +101,15 @@ describe("getPredictionQuality against Postgres", () => {
       footballDataMatch(oneModel),
       footballDataMatch(otherModel),
     ]);
-    await db
-      .insert(predictions)
-      .values([
-        ...predicted(won, "football-data"),
-        ...predicted(shootOut, "football-data"),
-        ...predicted(unfinished, "football-data"),
-        ...predicted(early, "football-data"),
-        ...predicted(oneModel, "football-data", ["elo-v1"]),
-        ...predicted(otherModel, "football-data", ["elo-v1", "poisson-v1"]),
-      ]);
+    await db.insert(predictions).values([
+      ...predicted(won, "football-data"),
+      ...predicted(shootOut, "football-data"),
+      ...predicted(unfinished, "football-data"),
+      ...predicted(early, "football-data"),
+      ...predicted(oneModel, "football-data", ["elo-v1"]),
+      // Poisson has no row for it: judged under no model.
+      ...predicted(otherModel, "football-data", ["home-baseline-v1", "elo-v1"]),
+    ]);
 
     // A backtest row for the same match, certain of an away win: another kind, not judged here.
     await db.insert(predictions).values(
@@ -129,6 +129,7 @@ describe("getPredictionQuality against Postgres", () => {
       totals: [
         { model: "home-baseline-v1", matches: 2, accuracy: 50, brier: 1 },
         { model: "elo-v1", matches: 2, accuracy: 50, brier: 1 },
+        { model: "poisson-v1", matches: 2, accuracy: 50, brier: 1 },
       ],
     });
   });
@@ -166,6 +167,7 @@ describe("getPredictionQuality against Postgres", () => {
       totals: [
         { model: "home-baseline-v1", accuracy: 50 },
         { model: "elo-v1", accuracy: 50 },
+        { model: "poisson-v1", accuracy: 50 },
       ],
     });
     await expect(getPredictionQuality("football-data", "live")).resolves.toEqual({
