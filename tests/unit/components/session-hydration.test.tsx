@@ -49,11 +49,6 @@ const SESSION = {
   favoriteCompetitions: ["kotimaa:VL"],
 };
 
-// How long nanostores waits after the last unsubscribe before it runs a
-// store's cleanup: `STORE_UNMOUNT_DELAY`, which this project cannot import
-// without depending on a package it does not declare.
-const STORE_UNMOUNT_DELAY_MS = 1000;
-
 function Page() {
   return (
     <>
@@ -69,62 +64,61 @@ function Subscriber() {
   return <output>{data ? "signed in" : "signed out"}</output>;
 }
 
-let unmountSubscriber = () => {};
-
 beforeAll(() => {
   fetchSession.mockImplementation(async () => Response.json(SESSION));
 });
 
 afterAll(() => {
-  // The real client's cleanup needs a `window`, so it runs here, while this
-  // file's jsdom still exists, and not a second after the file has finished.
-  vi.useFakeTimers();
-  unmountSubscriber();
-  document.body.replaceChildren();
-  vi.advanceTimersByTime(STORE_UNMOUNT_DELAY_MS + 1);
-  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("a session the browser already holds when a tree hydrates", () => {
   it("hydrates from the signed-out HTML with no mismatch, then shows the signed-in tree", async () => {
     // What the server sends: no session exists there.
-    const serverHtml = renderToString(<Page />);
-    expect(serverHtml).toContain('href="/"');
-    expect(serverHtml).not.toContain("Hae joukkuetta");
-    expect(serverHtml).not.toContain("suosikeista");
-
-    // The browser gets its session before the tree below hydrates, as it does
-    // when a part of a page streams in after the header.
-    ({ unmount: unmountSubscriber } = render(<Subscriber />));
-    await waitFor(() => expect(screen.getByText("signed in")).toBeInTheDocument());
-
     const container = document.createElement("div");
-    container.innerHTML = serverHtml;
+    container.innerHTML = renderToString(<Page />);
     document.body.append(container);
+    const page = within(container);
+    expect(page.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/");
+    expect(page.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(page.queryByRole("button", { name: /suosik/i })).not.toBeInTheDocument();
+
     const recoverable: unknown[] = [];
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-
+    const subscriber = render(<Subscriber />);
     let root: ReturnType<typeof hydrateRoot> | undefined;
-    await act(async () => {
-      root = hydrateRoot(container, <Page />, {
-        onRecoverableError: (error) => recoverable.push(error),
+
+    try {
+      // The browser gets its session before the tree hydrates, as it does when
+      // a part of a page streams in after the header.
+      await waitFor(() => expect(screen.getByText("signed in")).toBeInTheDocument());
+
+      await act(async () => {
+        root = hydrateRoot(container, <Page />, {
+          onRecoverableError: (error) => recoverable.push(error),
+        });
       });
-    });
 
-    const page = within(container);
-    expect(recoverable).toEqual([]);
-    expect(consoleError).not.toHaveBeenCalled();
-    // An attribute React found different while hydrating is left as the server
-    // sent it, so the link's target is read from the DOM.
-    expect(page.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/?valitse=1");
-    expect(page.getByRole("searchbox", { name: "Hae joukkuetta" })).toBeInTheDocument();
-    expect(page.getByRole("button", { name: "Poista suosikeista: Veikkausliiga" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-
-    consoleError.mockRestore();
-    act(() => root?.unmount());
+      expect(recoverable).toEqual([]);
+      expect(consoleError).not.toHaveBeenCalled();
+      // An attribute React found different while hydrating is left as the server
+      // sent it, so the link's target is read from the DOM.
+      expect(page.getByRole("link", { name: "Etusivu" })).toHaveAttribute("href", "/?valitse=1");
+      expect(page.getByRole("searchbox", { name: "Hae joukkuetta" })).toBeInTheDocument();
+      expect(
+        page.getByRole("button", { name: "Poista suosikeista: Veikkausliiga" })
+      ).toHaveAttribute("aria-pressed", "true");
+    } finally {
+      consoleError.mockRestore();
+      // The real client cleans up some time after its last subscriber leaves, and
+      // needs a `window` to do it. Both leave here, on a clock this test can run
+      // forward, so the cleanup happens while this file's jsdom still exists.
+      vi.useFakeTimers();
+      act(() => root?.unmount());
+      subscriber.unmount();
+      container.remove();
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
   });
 });

@@ -8,8 +8,9 @@ import { searchTeamsAction } from "@/lib/team-search-actions";
 
 /**
  * Finding a team by name. A client component, rendered in the site header on
- * every page. A unit test rendering anything that contains it must mock
- * `@/lib/auth-client`.
+ * every page. A unit test rendering anything that contains it mocks
+ * `@/lib/auth-client`, or runs the real client's cleanup as
+ * `session-hydration.test.tsx` does.
  *
  * decisions/027-team-search.md
  * decisions/373-team-search-header-row.md

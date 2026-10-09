@@ -13,7 +13,8 @@ import { favouriteKeysOf } from "@/lib/session-extras";
 /**
  * The one control for favouriting anything, on every surface. A client
  * component reading the session the browser already has. A unit test that
- * renders anything containing it must mock `@/lib/auth-client`.
+ * renders anything containing it mocks `@/lib/auth-client`, or runs the real
+ * client's cleanup as `session-hydration.test.tsx` does.
  *
  * decisions/026-favourites.md
  * decisions/535-session-read-needs-no-hydration-wait.md

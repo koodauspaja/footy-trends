@@ -4,9 +4,13 @@ Bug #535, 2026-10-09. The header read `useSession()` on its first render; the
 favourite star and the team search waited for an effect first (`mounted`), to
 avoid a hydration mismatch. One of the two had to be wrong.
 
-This overrides the `mounted` entries of `decisions/026-favourites.md` ("The
-star caused a real hydration mismatch", and "`mounted`" under its moved
-comments). What they describe was true when written and is not any more.
+This overrides what earlier records say about the wait. What they describe was
+true when written and is not any more.
+
+| Record | Overridden |
+|---|---|
+| `decisions/026-favourites.md` | "The star caused a real hydration mismatch"; "`mounted`" under its moved comments; the mutation "Removing the mount gate" |
+| `decisions/027-team-search.md` | "`mounted`" under its moved comments; "returning null before hydration" in the no-JavaScript test's entry, where the server has no session to render the search for |
 
 ## The cause, and where it went
 
@@ -74,10 +78,15 @@ console error, the link at `/?valitse=1`, the search and the star. With the
 well as without. A better-auth release that changed the snapshot back would
 fail it on Renovate's pull request.
 
-It is the one test that does not mock `@/lib/auth-client`. The reason the others
-must still stands (`decisions/026-favourites.md`: the client's cleanup runs a
-second after the last unsubscribe and needs a `window`), so this test runs that
-cleanup itself before its file ends.
+It is the one test that renders these components without mocking
+`@/lib/auth-client`. The reason the others mock it still stands
+(`decisions/026-favourites.md`: the client's cleanup runs some time after the
+last unsubscribe and needs a `window`), so this test runs that cleanup itself.
+It unmounts both of its subscribers inside the test, on fake timers, and runs
+the pending timer: measured, one timer, which removes the client's `storage`,
+`online` and `offline` listeners. Doing it in `afterAll` would be too late,
+because `vitest.setup.ts` unmounts everything Testing Library rendered after
+each test, on the real clock.
 
 ## Not shown by a test
 
