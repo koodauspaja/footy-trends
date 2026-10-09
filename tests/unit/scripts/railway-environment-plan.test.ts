@@ -150,13 +150,13 @@ describe("refusal", () => {
 });
 
 describe("variablesFor", () => {
-  it("wires the addresses as references Railway resolves, and sets the secret it is given", () => {
+  it("wires the addresses as references to the environment's own databases, and sets the secret it is given", () => {
     const planned = variablesFor("pr-123", KEYS, "generated");
 
     expect(planned).toMatchObject({ ok: true });
     expect(planned.ok && planned.variables).toEqual([
-      { name: "DATABASE_URL", value: "$" + "{{Postgres.DATABASE_URL}}" },
-      { name: "REDIS_URL", value: "$" + "{{Redis.REDIS_URL}}" },
+      { name: "DATABASE_URL", value: "$" + "{{Postgres-pr-123.DATABASE_URL}}" },
+      { name: "REDIS_URL", value: "$" + "{{Redis-pr-123.REDIS_URL}}" },
       { name: "BETTER_AUTH_URL", value: "https://$" + "{{RAILWAY_PUBLIC_DOMAIN}}" },
       { name: "BETTER_AUTH_SECRET", value: "generated" },
       { name: "FOOTBALL_DATA_EARLIEST_SEASON", value: "2023" },

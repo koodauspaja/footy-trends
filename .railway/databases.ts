@@ -29,18 +29,25 @@ export const PROTECTED_ENVIRONMENT_IDS: readonly string[] = [
  */
 export const TARGET_VARIABLE = "RAILWAY_NEW_ENVIRONMENT_ID";
 
-// The short name, on purpose. Given Railway's stored name for the same place,
-// `europe-west4-drams3a`, the CLI creates another Redis: a bare image with no
-// `REDIS_URL`. This file is applied once, so the move a later plan would show
-// is never planned.
-export const REGION = "europe-west4";
+// Railway's stored name for europe-west4: the short name creates the databases
+// in the same place, and then plans a move on every later run.
+export const REGION = "europe-west4-drams3a";
+
+/**
+ * The two services' names, the environment's own. Railway builds a database
+ * only under a name the project has never held; under one it has, it adds a
+ * bare instance of that service, with no address to reach it by.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export function databaseNames(environmentName: string) {
+  return { postgres: `Postgres-${environmentName}`, redis: `Redis-${environmentName}` };
+}
 
 export default defineRailway((ctx) => {
-  const id = ctx.environmentId;
-  if (id === undefined || PROTECTED_ENVIRONMENT_IDS.includes(id)) {
-    throw new Error(
-      `.railway/databases.ts is never applied to environment "${ctx.environmentName}"`
-    );
+  const { environmentId: id, environmentName: name } = ctx;
+  if (id === undefined || name === undefined || PROTECTED_ENVIRONMENT_IDS.includes(id)) {
+    throw new Error(`.railway/databases.ts is never applied to environment "${name}"`);
   }
   if (process.env[TARGET_VARIABLE] !== id) {
     throw new Error(
@@ -48,7 +55,11 @@ export default defineRailway((ctx) => {
     );
   }
 
+  const names = databaseNames(name);
   return project(ctx.projectName ?? "footy-trends", {
-    resources: [postgres("Postgres", { region: REGION }), redis("Redis", { region: REGION })],
+    resources: [
+      postgres(names.postgres, { region: REGION }),
+      redis(names.redis, { region: REGION }),
+    ],
   });
 });

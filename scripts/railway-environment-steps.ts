@@ -47,6 +47,20 @@ function read(steps: Steps, name: string): Target | null {
 }
 
 /**
+ * Whether the site reports itself healthy within `attempts` tries, waiting
+ * before each: one after another, since each try is only worth making once
+ * the one before has failed.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+async function answers(steps: Steps, url: string, attempts: number): Promise<boolean> {
+  if (attempts === 0) return false;
+  await steps.wait(HEALTH_INTERVAL_MS);
+  if (healthy(await steps.health(url))) return true;
+  return answers(steps, url, attempts - 1);
+}
+
+/**
  * The whole command. Nothing is created until every required key is present,
  * and nothing is written to an environment that was not read as empty
  * immediately before.
@@ -105,11 +119,8 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
   steps.out(`Deploying ${domain}`);
 
   const url = `${domain}/api/health`;
-  for (let attempt = 0; attempt < HEALTH_ATTEMPTS; attempt += 1) {
-    await steps.wait(HEALTH_INTERVAL_MS);
-    if (healthy(await steps.health(url))) {
-      return { ok: true, message: `${url} reports the database and Redis ok.` };
-    }
+  if (await answers(steps, url, HEALTH_ATTEMPTS)) {
+    return { ok: true, message: `${url} reports the database and Redis ok.` };
   }
   return {
     ok: false,

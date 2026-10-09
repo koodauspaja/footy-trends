@@ -79,10 +79,12 @@ Constraints:
   shaped as staging (decisions/522).
 - **A new environment is one command**, `npm run railway:environment`
   (`docs/setup/026`), by hand or from `railway-environment.yml`. It builds only
-  into an environment that holds no service. Its Postgres and Redis come from
+  into an environment that holds no service. Its databases come from
   `.railway/databases.ts`, a partial of its own that refuses staging and
-  production by id: **theirs stay in the dashboard, and no file declares
-  them**.
+  production by id, and are services of their own, `Postgres-<name>` and
+  `Redis-<name>`: **the `Postgres` and `Redis` of staging and production stay
+  in the dashboard, no file declares them, and no other environment holds an
+  instance of them**.
 - **A red release run leaves production on the previous version**, and Railway
   marks the deployment `SKIPPED`. Re-running the workflow does not restart the
   deploy; press **Redeploy** in Railway (#215).

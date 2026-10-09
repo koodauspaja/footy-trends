@@ -1,6 +1,7 @@
 import { createRailwayContext, project } from "railway/iac";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import program, {
+  databaseNames,
   PROTECTED_ENVIRONMENT_IDS,
   partial,
   REGION,
@@ -38,19 +39,19 @@ describe(".railway/databases.ts", () => {
     expect(partial).toBe("footy-trends-databases");
   });
 
-  it("declares Postgres and Redis for the environment it is told to", async () => {
+  it("declares a Postgres and a Redis for the environment it is told to", async () => {
     vi.stubEnv(TARGET_VARIABLE, NEW_ID);
 
     const definition = await evaluate(NEW_ID);
 
     expect(definition.resources).toMatchObject([
       {
-        address: "database.Postgres",
+        address: "database.Postgres-pr-123",
         engine: "postgres",
         deploy: { multiRegionConfig: { [REGION]: { numReplicas: 1 } } },
       },
       {
-        address: "database.Redis",
+        address: "database.Redis-pr-123",
         engine: "redis",
         deploy: { multiRegionConfig: { [REGION]: { numReplicas: 1 } } },
       },
@@ -58,10 +59,16 @@ describe(".railway/databases.ts", () => {
     expect(definition.resources).toHaveLength(2);
   });
 
-  // Railway's stored name for the same place, `europe-west4-drams3a`, creates a
-  // Redis with no `REDIS_URL`: the site then answers with Redis unreachable.
-  it("names the region by its short name, which creates Railway's own Redis", () => {
-    expect(REGION).toBe("europe-west4");
+  // Under a name the project already holds, Railway adds an instance of that
+  // service instead of building a database: a Redis with no `REDIS_URL`. And a
+  // name of its own shares nothing with the databases another environment runs
+  // on.
+  it("names the two after the environment, never plain Postgres and Redis", () => {
+    expect(databaseNames("pr-123")).toEqual({ postgres: "Postgres-pr-123", redis: "Redis-pr-123" });
+  });
+
+  it("names the region as Railway stores it, so a second plan moves nothing", () => {
+    expect(REGION).toBe("europe-west4-drams3a");
   });
 
   it("protects this project's staging and production, by id", () => {
@@ -82,6 +89,15 @@ describe(".railway/databases.ts", () => {
       );
     }
   );
+
+  it("refuses when the CLI names no environment", async () => {
+    vi.stubEnv(TARGET_VARIABLE, NEW_ID);
+
+    const unnamed = async () =>
+      await program(createRailwayContext({ environmentId: NEW_ID }), project);
+
+    await expect(unnamed()).rejects.toThrow("is never applied to environment");
+  });
 
   it("refuses when the CLI names no environment id", async () => {
     vi.stubEnv(TARGET_VARIABLE, NEW_ID);

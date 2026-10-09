@@ -4,7 +4,7 @@
  *
  * decisions/522-railway-environment-from-code.md
  */
-import { PROTECTED_ENVIRONMENT_IDS } from "../.railway/databases";
+import { databaseNames, PROTECTED_ENVIRONMENT_IDS } from "../.railway/databases";
 
 /**
  * The web service, as `.railway/railway.ts` names it.
@@ -137,8 +137,9 @@ export type Variables = { ok: true; variables: Variable[] } | { ok: false; missi
 
 /**
  * Every variable the web service is given, or the required ones that are
- * missing. The two addresses and the site's own are references Railway
- * resolves; `secret` is this environment's own `BETTER_AUTH_SECRET`.
+ * missing. The two addresses, of this environment's own databases, and the
+ * site's own are references Railway resolves; `secret` is this environment's
+ * own `BETTER_AUTH_SECRET`.
  *
  * decisions/522-railway-environment-from-code.md
  */
@@ -154,6 +155,7 @@ export function variablesFor(
   const missing = required.filter((key) => !held(key));
   if (missing.length > 0) return { ok: false, missing };
 
+  const databases = databaseNames(name);
   const fromEnv = [...required, ...OPTIONAL_SECRETS]
     .filter(held)
     .map((key) => ({ name: key, value: env[key] as string }));
@@ -161,8 +163,8 @@ export function variablesFor(
   return {
     ok: true,
     variables: [
-      { name: "DATABASE_URL", value: reference("Postgres.DATABASE_URL") },
-      { name: "REDIS_URL", value: reference("Redis.REDIS_URL") },
+      { name: "DATABASE_URL", value: reference(`${databases.postgres}.DATABASE_URL`) },
+      { name: "REDIS_URL", value: reference(`${databases.redis}.REDIS_URL`) },
       { name: "BETTER_AUTH_URL", value: `https://${reference("RAILWAY_PUBLIC_DOMAIN")}` },
       { name: "BETTER_AUTH_SECRET", value: secret },
       { name: "FOOTBALL_DATA_EARLIEST_SEASON", value: "2023" },

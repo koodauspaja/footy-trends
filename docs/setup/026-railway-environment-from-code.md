@@ -8,7 +8,9 @@ Redis, the web service, its variables, and a first deploy that answers
 for a branch. Why it is built this way, and what keeps it away from an
 environment that exists: `decisions/522-railway-environment-from-code.md`.
 
-It only builds into an environment that **holds nothing**. It replaces the
+It creates an environment in a project that exists, and only builds into one
+that **holds nothing**: a new project's own empty `production` qualifies. Its
+databases are named after it, `Postgres-<name>` and `Redis-<name>`. It replaces the
 dashboard steps of 005, 016 and 021 for that environment; the manual steps
 below remain.
 
@@ -33,6 +35,7 @@ One left out is set in Railway afterwards. The command sets `DATABASE_URL`,
 ## Step 2 — Run it, from your machine
 
 ```bash
+railway init            # once, in a new organisation: an empty project
 railway link            # your project, any environment
 FOOTBALL_DATA_API_KEY=… GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… \
   AUTH_ALLOWED_EMAILS=… npm run railway:environment -- --name=staging
@@ -49,9 +52,9 @@ Once, in the repository's settings:
 1. **Environments** → **New environment** → `railway-provisioning`. Add
    **Required reviewers**, and limit deployment branches to the default branch.
 2. In that environment, the secret `RAILWAY_API_TOKEN`: a Railway **workspace**
-   token (Railway → workspace settings → Tokens). It can change every project
-   in the workspace, which is why it lives behind the reviewers and not among
-   the repository's secrets.
+   token (Railway → Account Settings → Tokens, with your workspace chosen). It
+   can change every project in the workspace, which is why it lives behind the
+   reviewers and not among the repository's secrets.
 3. In that environment, the secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    and `AUTH_ALLOWED_EMAILS`. The two provider keys are repository secrets
    already (013).
@@ -81,6 +84,8 @@ a branch. A reviewer approves the run before it starts.
 - **Rotating a key** is two places: the GitHub secret, which only new
   environments read, and the variable in each Railway environment that holds
   it.
+- **A run that failed part-way** leaves an environment that holds something,
+  and the next run refuses it. Delete the environment and run again.
 - **Removing one:** `railway environment delete <name>`. Its databases and
   their data go with it.
 
