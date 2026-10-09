@@ -244,8 +244,10 @@ Workflows from forks need approval for all outside contributors.
 `railway-environment.yml` reads more, all of it secrets of the GitHub
 Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 and `AUTH_ALLOWED_EMAILS`, copied from staging on 2026-10-09, and
-`RAILWAY_PROJECT_ID` and `RAILWAY_API_TOKEN`, stored the same day. **The
-workflow has never run** (decisions/522).
+`RAILWAY_PROJECT_ID` and `RAILWAY_API_TOKEN`, stored the same day. **A
+workspace token cannot `railway link`**: that command asks who the token
+belongs to and answers Unauthorized. The job names the project to the CLI in
+`RAILWAY_PROJECT_ID` instead, which needs no link.
 That environment requires a review by the owner or the collaborator and
 deploys from `main` only. **`RAILWAY_API_TOKEN` is a workspace token: it can
 change production.** It is the only credential in GitHub that can, which is
