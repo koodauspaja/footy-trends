@@ -1,7 +1,8 @@
 # 055 — Poisson goal model: expected goals, every scoreline, and a fairer draw
 
-> **Status: all questions (Q1–Q15) answered in chat on 2026-10-01; S1, S2, S4, S5 and
-> S11 revised the same day after #515's measurement.** Written for #345 (Poisson goal
+> **Status: all questions (Q1–Q20) answered in chat; Q1–Q15 on 2026-10-01, with S1,
+> S2, S4, S5 and S11 revised the same day after #515's measurement, and Q16–Q20 on
+> 2026-10-09, read against the code specs/053 and specs/054 left.** Written for #345 (Poisson goal
 > model) and #348 (a draw-specific model), joined: the draw correction is a
 > part of the Poisson model, not a model of its own. Release 3 in the
 > predictions plan, after Elo (specs/053) and prediction quality
@@ -54,10 +55,15 @@ specs/054's page measures all three on the same matches.
 | S9 | More scorelines | **Only the most likely score**; a scoreline grid is #514 | Miikka, 2026-10-01 (Q9). |
 | S10 | Team page | **No panel** | Miikka, 2026-10-01 (Q10). |
 | S11 | Computing | **Fitted in memory, cached per provider 15 minutes; the hourly run and the backtest fit for themselves.** A fit takes milliseconds; the backtest refits once per calendar day of matches | Miikka, 2026-10-01 (Q11, revised after #515). As specs/053 S11, S17. #515 measured 8–30 ms a fit, about 12 s for a provider's whole backtest. |
-| S12 | Backtest | **Strengths from matches on strictly earlier days; base rates and the draw factor from strictly earlier matches** | Miikka, 2026-10-01 (Q12). specs/052 S14. A day's matches share one fit, which uses none of them. |
+| S12 | Backtest | **Strengths from matches on strictly earlier days; base rates and the draw factor from strictly earlier matches** (the draw factor's source is S16's) | Miikka, 2026-10-01 (Q12). specs/052 S14. A day's matches share one fit, which uses none of them. |
 | S13 | The strings | **As in UX / UI**; a failed replay shows `Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.` under the table, the other rows kept | Miikka, 2026-10-01 (Q13): "suggestions are good". |
 | S14 | No draw factor | **A competition with no draws ever, or only draws, uses the plain Poisson grid** | Miikka, 2026-10-01 (S14). Possible only with very little history. |
 | S15 | A placeholder side | **No `Poisson` row**, as specs/053 | Miikka, 2026-10-01 (S15). |
+| S16 | The draw factor, with a fit | **From the fit itself: the factor that makes the fit's average draw probability over the competition's matches in the 1 500-day window equal the draw share of those same matches**; the same rule live and backtested | Miikka, 2026-10-09 (Q16). S6 was written for averages, where every earlier match had a prediction of its own. A fit has none without the whole day-by-day replay, about 12 s on a cache miss. |
+| S17 | A live fit's matches | **Matches on strictly earlier UTC days, as the backtest** | Miikka, 2026-10-09 (Q17). Live and backtested are then one function of the day. |
+| S18 | `/ennusteet` with three models | **`Poisson` after `Elo` everywhere, the strings as in UX / UI, its line dash-dotted, and only matches all three models predicted are judged** | Miikka, 2026-10-09 (Q18): "strings good". specs/054 S16 said a later model adds a line and a row; its strings named two. |
+| S19 | Logging | **As in Logging** | Miikka, 2026-10-09 (Q19). The section did not exist when this spec was written. |
+| S20 | The most likely score, tied | **The fewer total goals, then the fewer home goals** | Miikka, 2026-10-09 (Q20). |
 
 ## UX / UI (Finnish strings)
 
@@ -74,19 +80,29 @@ After the Elo line:
 — expected goals to one decimal with a comma, the score's probability a whole
 percentage.
 
+`/ennusteet` (specs/054) gains the third model (S18):
+
+- Under the heading: `Kuinka usein perustaso, Elo ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.`
+- Under the Brier and log-loss tables: `Kummassakin pienempi on parempi: malli on sitä parempi, mitä pienempi sen luku on.`
+- The totals, both charts' legends, the `Malli` table and the per-season table
+  gain `Poisson` after `Elo`. Its line is dash-dotted: `Perustaso` stays
+  dashed, `Elo` solid, and the calibration diagonal dotted.
+- The window line counts the matches all three models predicted; a sentence
+  that says "both models" says the same of all three.
+
 ## API & Data
 
 **No new table, no provider request.**
 
 | Needed | Where |
 |---|---|
-| Finished matches | specs/052's `readFinished`, with teams and season (specs/053) |
+| Finished matches | specs/052's `readFinished`, with teams and season (specs/053); a fit uses those of strictly earlier UTC days, live as backtested (S12, S17) |
 | The fit | Every covered match of the provider in the 1 500 days before the moment asked, each weighted by e^(−0.0019 × its age in days) (S2): the competition base rates, the home advantage and each team's attack and defence that make the scores most likely, a one-match prior towards average on each strength (S1, S3, S4) |
-| The draw factor | From the competition's stored history (S6) |
+| The draw factor | Per competition, from the fit: the factor that makes its average scaled draw probability over the competition's matches in the fit's window equal their draw share (S6, S16) |
 | Expected goals | S5 |
 | Scoreline grid | Independent Poisson probabilities 0–10 × 0–10, the remainder spread back (S7); draw cells × the competition's factor, renormalised (S6) |
 | The three outcomes | Sums of the grid's cells below, on and above the diagonal |
-| Most likely score | The grid's largest cell; a tie goes to the fewer total goals, then the home side's |
+| Most likely score | The grid's largest cell; a tie goes to the fewer total goals, then the fewer home goals (S20) |
 | Log | `poisson-v1`, live (hourly run) and backtest, beside the other two models |
 | Cache | The page's replay per provider, 15 minutes (S11) |
 
@@ -102,6 +118,8 @@ percentage.
 | A shoot-out | A draw, its goals after extra time (specs/049 S3) |
 | A placeholder side | No Poisson row, as specs/053 (S15) |
 | Matches at one kickoff | Each from strengths before any of them (S12) |
+| An earlier match of the same day, live | Not in the fit until the next UTC day (S17) |
+| A match a model has no row for | Not judged on `/ennusteet` under any model (S18, specs/054 S4) |
 | The replay fails | `Ennuste` keeps its other rows and shows the S13 failure line |
 | Signed out | No probability in the HTML (specs/051 S4) |
 
@@ -116,14 +134,27 @@ grid. Measured against staging again before review (S11).
 
 No new environment variable or secret.
 
+## Logging
+
+| Event | Level | Line |
+|---|---|---|
+| The page's fit fails | `error` | `Unable to fit the Poisson model`, with the provider |
+| The hourly run's fit fails | `error` | `Unable to fit the Poisson model for predictions`; the run reports `poisson strengths` among its failures, writes no `poisson-v1` row and still writes the other two models' |
+
+No new line for a write: the run's own `Predictions run finished` line
+(specs/052) counts the rows, `poisson-v1`'s among them. Ids only; nothing
+personal is read or logged.
+
 ## Acceptance Criteria
 
 - [ ] Attack, defence, the competition base rates and the home advantage are fitted by weighted maximum likelihood over the last 1 500 days, a half-life of about a year, with a one-match prior towards average
-- [ ] Expected goals follow S5; the grid covers 0–10 a side, its draw cells scaled by the competition's factor so its average draw probability equals the competition's draw share
+- [ ] Expected goals follow S5; the grid covers 0–10 a side, its draw cells scaled by the competition's factor: the one that makes the fit's average draw probability over the competition's matches in the 1 500-day window equal their draw share (S16)
 - [ ] The three outcomes sum the grid, and the most likely score is its largest cell
-- [ ] Everything a backtest prediction uses comes from strictly earlier matches
+- [ ] Everything a prediction uses, backtested or live, comes from matches on strictly earlier UTC days (S17)
 - [ ] The backtest's `poisson-v1` figures on specs/054's measures are within rounding of #515's `dc-strengths` prototype (Brier 0.5624 TASO, 0.6003 football-data, on specs/054's window), or the difference is explained in the decision record
 - [ ] `poisson-v1` is logged beside the other two models, live and backtested
+- [ ] `/ennusteet` judges three models on the matches all three predicted: a `Poisson` total, line, table row and per-season column, and the two reworded sentences (S18)
+- [ ] A fit that fails is logged at `error`, on the page and in the hourly run; the run reports `poisson strengths`, writes no `poisson-v1` row and still writes the other two models' (S19)
 - [ ] Signed in, `Ennuste` shows a `Poisson` row after `Elo`, and the line with expected goals and the most likely score
 - [ ] A failed replay keeps the other rows and shows the Finnish failure line; signed out, no probability is in the HTML
 - [ ] No provider request; cached per provider for 15 minutes; its cost measured and written down
@@ -137,6 +168,7 @@ No new environment variable or secret.
 | `tests/unit/lib/poisson.test.ts` | The fit recovers known strengths from generated scores; the weights, the 1 500-day horizon and the prior; expected goals; the grid and its remainder; the draw factor; the three sums; the most likely score and its tie rule |
 | `tests/unit/lib/prediction-*.test.ts` | `poisson-v1` live and backtest rows; strictly-earlier history |
 | `tests/unit/components/match-prediction.test.tsx` | The third row and the line; a failed replay; a placeholder |
+| `tests/unit/components/prediction-quality-page.test.tsx`, `tests/unit/lib/prediction-quality*.test.ts` | Three models: the strings, the `Poisson` row, column and line; a match one model lacks is judged under none |
 | `tests/integration/…` | The backtest's `poisson-v1` rows against Postgres, a shoot-out a draw |
 | By hand, before review | The backtest on staging, read-only, scored with specs/054's module and compared with #515's figures |
 | `tests/e2e/…` | The seeded upcoming match shows three rows and the Poisson line |
@@ -152,7 +184,8 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-**None.** Q1–Q15 were answered in chat on 2026-10-01 and are recorded as
+**None.** Q16–Q20 were answered in chat on 2026-10-09 and are recorded as
+S16–S20. Q1–Q15 were answered in chat on 2026-10-01 and are recorded as
 S1–S15. #514 and #515 were filed from them. #515 measured the alternatives the
 same day, and Miikka took its recommendation: fitted strengths, no ρ (S1, S2,
 S4, S5, S6, S11).
