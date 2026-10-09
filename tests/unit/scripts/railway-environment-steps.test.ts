@@ -28,8 +28,9 @@ const OK = { checks: { database: "ok", redis: "ok" } };
 
 type Environment = { id: string; name: string; services: string[] };
 
-function statusOf(environments: Environment[]): string {
+function statusOf(environments: Environment[], services: string[] = []): string {
   return JSON.stringify({
+    services: { edges: services.map((name) => ({ node: { name } })) },
     environments: {
       edges: environments.map(({ id, name, services }) => ({
         node: {
@@ -49,12 +50,14 @@ function statusOf(environments: Environment[]): string {
 function fake({
   environments = [],
   statuses,
+  services = [],
   domain = { domain: DOMAIN },
   health = [OK],
   env = KEYS,
 }: {
   environments?: Environment[];
   statuses?: Environment[][];
+  services?: string[];
   domain?: unknown;
   health?: unknown[];
   env?: Record<string, string | undefined>;
@@ -72,7 +75,7 @@ function fake({
       if (command === "status") {
         const scripted = statuses?.[reads];
         reads += 1;
-        return statusOf(scripted ?? held);
+        return statusOf(scripted ?? held, services);
       }
       if (command === "environment" && action === "new") {
         held.push({ id: NEW_ID, name: String(name), services: [] });
@@ -115,7 +118,7 @@ describe("standUp", () => {
 
   // The databases file evaluates only for the id it is handed here, and that id
   // is the one just read as empty.
-  it("names the environment it read as empty to the databases file, and the branch to the web file", async () => {
+  it("names the environment it read as empty to both files, and the branch to the web file", async () => {
     const railway = fake();
 
     await standUp(REQUEST, railway.steps);
@@ -127,7 +130,7 @@ describe("standUp", () => {
     });
     expect(applies[1]).toMatchObject({
       args: ["config", "apply", "--file", ".railway/railway.ts", "--yes"],
-      env: { [BRANCH_VARIABLE]: "feature/099-something" },
+      env: { [TARGET_VARIABLE]: NEW_ID, [BRANCH_VARIABLE]: "feature/099-something" },
     });
   });
 
@@ -222,6 +225,20 @@ describe("standUp", () => {
     expect(railway.ran()).toEqual(["status --json", "environment new", "status --json"]);
   });
 
+  // Railway would add an instance of that service, not build a database, and
+  // the site would come up unable to reach it.
+  it("creates nothing when the project already holds a service under the new databases' names", async () => {
+    const railway = fake({ services: ["Postgres", "Redis", "Redis-pr-123"] });
+
+    const outcome = await standUp(REQUEST, railway.steps);
+
+    expect(outcome).toEqual({
+      ok: false,
+      message: "The project already holds Redis-pr-123: remove it, or choose another name.",
+    });
+    expect(railway.ran()).toEqual(["status --json"]);
+  });
+
   it("creates nothing when a required key is missing", async () => {
     const railway = fake({ env: { ...KEYS, GOOGLE_CLIENT_SECRET: "" } });
 
@@ -265,7 +282,7 @@ describe("standUp", () => {
     expect(railway.steps.health).toHaveBeenCalledTimes(HEALTH_ATTEMPTS);
   });
 
-  it("allows fifteen minutes for the first deploy", () => {
+  it("waits fifteen minutes in all between its questions", () => {
     expect(HEALTH_ATTEMPTS * HEALTH_INTERVAL_MS).toBe(15 * 60 * 1000);
   });
 });

@@ -105,7 +105,22 @@ function environmentFor(ctx: RailwayContext) {
   return { ...ENVIRONMENTS.staging, branch };
 }
 
+/**
+ * The variable an apply may be told its one environment in, by id. The command
+ * that builds a new environment sets it, so a link that moved since it looked
+ * stops the apply. The same name `.railway/databases.ts` requires.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export const TARGET_VARIABLE = "RAILWAY_NEW_ENVIRONMENT_ID";
+
 export default defineRailway((ctx) => {
+  const target = process.env[TARGET_VARIABLE];
+  if (target && target !== ctx.environmentId) {
+    throw new Error(
+      `.railway/railway.ts was told to apply to ${target}, and the linked environment is "${ctx.environmentName}"`
+    );
+  }
   const environment = environmentFor(ctx);
   const names = [...SHARED_VARIABLES, ...environment.variables];
   const web = service("footy-trends", {

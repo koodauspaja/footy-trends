@@ -45,6 +45,12 @@ FOOTBALL_DATA_API_KEY=… GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… \
 `staging` and `production` have their own. The directory is left linked to the
 new environment.
 
+- **In your own organisation,** do 025's Step 1 first: `.railway/railway.ts`
+  names the repository the site deploys from.
+- **The CLI is looked for** in `/usr/bin`, `/usr/local/bin` and
+  `/opt/homebrew/bin`. Installed elsewhere:
+  `RAILWAY_EXECUTABLE=<its absolute path>`.
+
 ## Step 3 — Or run it from GitHub
 
 Once, in the repository's settings:
@@ -57,12 +63,14 @@ Once, in the repository's settings:
    reviewers and not among the repository's secrets.
 3. In that environment, the secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    and `AUTH_ALLOWED_EMAILS`. The two provider keys are repository secrets
-   already (013).
+   already (013). **Before a run that creates `production`,** store the
+   production Google project's pair (014): the secrets hold one client.
 4. In that environment, the secret `RAILWAY_PROJECT_ID`: the project the new
    environment is created in (`railway status --json`, `id`).
 
 Then **Actions** → **Railway environment** → **Run workflow**, with a name and
-a branch. A reviewer approves the run before it starts.
+a branch. A reviewer approves the run before it starts, and with it that
+branch's code holding these keys.
 
 ## Step 4 — What remains by hand
 
@@ -95,7 +103,8 @@ a branch. A reviewer approves the run before it starts.
 ## Done when
 
 - [ ] The command ended with `… reports the database and Redis ok.`
-- [ ] `railway config plan` reports no changes in the new environment
+- [ ] `railway config plan` reports no changes in the new environment (with
+      its branch, for a name other than `staging` or `production`: *Later*)
 - [ ] Sign-in works there with an address on the list
 
 ## Next

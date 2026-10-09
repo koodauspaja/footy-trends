@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PROTECTED_ENVIRONMENT_IDS } from "../../../.railway/databases";
 import {
+  collision,
   domainFrom,
   findTarget,
   healthy,
@@ -124,6 +125,37 @@ describe("findTarget", () => {
   ])("throws on an environment with %s", (_, environment) => {
     expect(() => findTarget(status([environment]), "pr-123")).toThrow("it does not describe");
   });
+});
+
+describe("collision", () => {
+  const holding = (names: unknown[]) => ({
+    services: { edges: names.map((name) => ({ node: { name } })) },
+  });
+
+  it("allows a project that holds neither name, plain Postgres and Redis included", () => {
+    expect(collision(holding(["Postgres", "Redis", "footy-trends"]), "pr-123")).toBeNull();
+    expect(collision(holding([]), "pr-123")).toBeNull();
+  });
+
+  it("names each service the project already holds under the new databases' names", () => {
+    expect(collision(holding(["Postgres-pr-123"]), "pr-123")).toBe(
+      "The project already holds Postgres-pr-123: remove it, or choose another name."
+    );
+    expect(collision(holding(["Redis-pr-123", "Postgres-pr-123"]), "pr-123")).toBe(
+      "The project already holds Postgres-pr-123 and Redis-pr-123: remove it, or choose another name."
+    );
+  });
+
+  it("is not caught by another environment's databases", () => {
+    expect(collision(holding(["Postgres-pr-1234", "Redis-pr-12"]), "pr-123")).toBeNull();
+  });
+
+  it.each([null, {}, { services: {} }, { services: { edges: "none" } }])(
+    "throws on %j, which lists no services",
+    (answer) => {
+      expect(() => collision(answer, "pr-123")).toThrow("no list of services");
+    }
+  );
 });
 
 describe("refusal", () => {

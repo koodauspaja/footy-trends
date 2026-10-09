@@ -32,11 +32,14 @@ jobs:
   create:
     name: Create ${{ inputs.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Every secret below belongs to this environment, not to the repository:
-    # the Railway token reaches the whole workspace, so a run waits here for a
-    # required reviewer, and a workflow on another branch cannot read it
-    # unasked.
+    # The command waits fifteen minutes in all for the site, and each of its
+    # sixty questions may itself take twenty seconds: thirty-five at the worst,
+    # after the install and the applies.
+    timeout-minutes: 45
+    # The Railway token reaches the whole workspace, so it belongs to this
+    # environment, not to the repository: a run waits here for a required
+    # reviewer, and only `main` may use it. Approving a run also hands the
+    # branch named in it the keys below: its code runs with them.
     environment: railway-provisioning
     env:
       RAILWAY_CLI_VERSION: 5.62.1

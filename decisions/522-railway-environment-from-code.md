@@ -23,10 +23,23 @@ its own.
 | The databases are in a file of their own, `.railway/databases.ts`, under their own partial | the file | `.railway/railway.ts`, the file staging and production are applied from, declares no database on any path, so no apply of it can plan one's deletion |
 | The databases file throws for this project's staging and production, by environment id | the file | An apply by hand, linked to either, whatever variables are set |
 | The databases file throws unless `RAILWAY_NEW_ENVIRONMENT_ID` is the linked environment's id | the file | An apply by hand anywhere, and a script whose link points somewhere other than the environment it checked |
+| `.railway/railway.ts` throws when `RAILWAY_NEW_ENVIRONMENT_ID` is set and is not the linked environment's id | the file | The command tells both files the one id. A link that moved between its two applies, to production included, stops the second |
 | The command stops unless the environment holds no service | `refusal`, `scripts/railway-environment-plan.ts` | Building into anything that exists: production holds four services, staging three |
+| The command stops when the project already holds a service named `Postgres-<name>` or `Redis-<name>` | `collision`, same plan file | The bare instance described below, before anything is created |
 | The environment is read twice: before it is linked, and again before the first write | `standUp`, `scripts/railway-environment-steps.ts` | An environment that gained a service in between |
 | No argument list carries `--confirm-destructive` | `railway`, same plan file | The CLI refuses a deletion in a non-interactive run without it; an empty environment has nothing to delete |
 | The Railway token is a secret of the `railway-provisioning` GitHub Environment, with required reviewers | GitHub settings (`docs/setup/026`) | A run that nobody approved reading the token |
+
+**An empty environment is a target, whatever it is called.** If this
+project's production were deleted and made again, it would have a new id and
+hold nothing, and the command would build into it, as it would into a fork's
+first `production`. The ids protect the two environments that exist; nothing
+protects a name.
+
+**Approving a run gives a branch the keys.** An environment for a branch runs
+that branch's code with the Google client, the provider keys and the sign-in
+list. The reviewer who approves the run is approving that, as merging to `main`
+approves it for staging.
 
 **What no guard covers: the token itself.** A Railway project token is tied to
 one environment and cannot create another, so the workflow holds a workspace
@@ -47,12 +60,13 @@ Environment is the only thing between the token and a workflow somebody edited.
 | An environment named `production` gets no `AUTH_ALLOWED_EMAILS` | `.railway/railway.ts` does not declare it there, so the next apply would delete it. A fork's production is open, as this one is |
 | The branch is a variable read by the file, not an argument | `railway config apply` takes none. A later plan or apply of that environment needs the same variable, or the file throws |
 | `staging` and `production` ignore the branch | Theirs are in the file (`main`, `release`), for a fork as for this project |
+| A branch is checked for shape only, not for existing | A name Git would refuse and a branch nobody pushed end the same way: the deploy finds nothing, the site never answers, and the command says so. Neither is told apart before the environment exists |
 | Variables are set with `railway variable set --stdin`, not declared with values | `.railway/railway.ts` declares each by name with `preserve()`, so no value is in the repository. Measured: `preserve()` on a variable that does not exist creates nothing and plans clean, and a value set afterwards is kept |
 | `DATABASE_URL`, `REDIS_URL` and `BETTER_AUTH_URL` are references | `${{Postgres-<name>.DATABASE_URL}}`, `${{Redis-<name>.REDIS_URL}}` and `https://${{RAILWAY_PUBLIC_DOMAIN}}`: Railway resolves them inside the environment, so the script reads no address and no password |
 | `BETTER_AUTH_SECRET` is `randomBytes(32)`, made by the script | `ctx.randomString` answered the same value twice for one label. Not shown to be a secret, so not used as one |
 | Google's two are required; TASO's key, Axiom's two and Sentry's DSN are optional | The build fails without `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and Google's pair: `src/lib/auth.ts` throws at load. The others are read when used. Setting them up is manual work per environment (`docs/setup/026`) |
 | Every required key is checked before anything is created | A run that fails on a missing key leaves nothing behind |
-| The command ends by asking `/api/health`, for up to fifteen minutes | "The environment exists" is not the claim; "its site reaches its database and Redis" is. It is what found the Redis with no address: the deploy had succeeded |
+| The command ends by asking `/api/health`, sixty times, fifteen seconds apart | "The environment exists" is not the claim; "its site reaches its database and Redis" is. It is what found the Redis with no address: the deploy had succeeded. Each question may take twenty seconds to fail, so the worst case is thirty-five minutes, and the workflow's timeout is forty-five |
 | The runner sets `_` to the CLI's path | The SDK checks the CLI's version by running whatever `_` names. A shell sets that to the command it ran; under `npm run` it names `npx`, and the SDK then reports the CLI as too old |
 | The workflow checks out the default branch | The scripts and config files that run with the token are the reviewed ones. The `branch` input is only a name handed to Railway |
 | The CLI is the release binary at a pinned version | The npm package fetches its binary in a lifecycle script, and the workflows install with `--ignore-scripts` |

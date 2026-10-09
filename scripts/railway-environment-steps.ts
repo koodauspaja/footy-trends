@@ -8,13 +8,13 @@
 import { TARGET_VARIABLE } from "../.railway/databases";
 import { BRANCH_VARIABLE } from "../.railway/railway";
 import {
+  collision,
   domainFrom,
   findTarget,
   healthy,
   type Request,
   railway,
   refusal,
-  type Target,
   variablesFor,
 } from "./railway-environment-plan";
 
@@ -42,8 +42,8 @@ export type Outcome = { ok: boolean; message: string };
 export const HEALTH_ATTEMPTS = 60;
 export const HEALTH_INTERVAL_MS = 15_000;
 
-function read(steps: Steps, name: string): Target | null {
-  return findTarget(JSON.parse(steps.railway(railway.status())), name);
+function status(steps: Steps): unknown {
+  return JSON.parse(steps.railway(railway.status()));
 }
 
 /**
@@ -76,7 +76,11 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
     };
   }
 
-  const existing = read(steps, name);
+  const first = status(steps);
+  const taken = collision(first, name);
+  if (taken !== null) return { ok: false, message: taken };
+
+  const existing = findTarget(first, name);
   if (existing !== null) {
     const reason = refusal(name, existing);
     if (reason !== null) return { ok: false, message: reason };
@@ -87,7 +91,7 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
   steps.out(existing === null ? `Created   ${name}` : `Using     ${name}, which holds nothing`);
 
   // Read again, after the link and before the first write.
-  const target = read(steps, name);
+  const target = findTarget(status(steps), name);
   if (target === null)
     return {
       ok: false,
@@ -96,13 +100,13 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
   const reason = refusal(name, target);
   if (reason !== null) return { ok: false, message: reason };
 
-  // The databases file evaluates only for this id, so a link that points
-  // anywhere else stops here, before anything is planned.
-  steps.railway(railway.applyDatabases(), {
-    env: { [TARGET_VARIABLE]: target.id },
-  });
+  // Both files are told this id, and neither evaluates for another: a link
+  // that points anywhere else, or moves between the two, stops the apply
+  // before anything is planned.
+  const env = { [TARGET_VARIABLE]: target.id, [BRANCH_VARIABLE]: branch };
+  steps.railway(railway.applyDatabases(), { env });
   steps.out("Applied   Postgres and Redis");
-  steps.railway(railway.applyWeb(), { env: { [BRANCH_VARIABLE]: branch } });
+  steps.railway(railway.applyWeb(), { env });
   steps.out(`Applied   the web service, from ${branch}`);
 
   const domain = domainFrom(JSON.parse(steps.railway(railway.domain(name))));

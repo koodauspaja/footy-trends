@@ -87,6 +87,24 @@ export function findTarget(status: unknown, name: string): Target | null {
 }
 
 /**
+ * Why the new databases cannot be built, or `null` when they can: the project
+ * already holds a service under one of their names, which Railway would add an
+ * instance of instead of building a database. Throws on an answer that lists
+ * no services: unreadable is not none.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export function collision(status: unknown, name: string): string | null {
+  const edges = (status as { services?: { edges?: unknown } } | null)?.services?.edges;
+  if (!Array.isArray(edges)) throw new Error("railway status answered no list of services");
+
+  const held = new Set((edges as { node?: { name?: unknown } }[]).map((edge) => edge.node?.name));
+  const taken = Object.values(databaseNames(name)).filter((wanted) => held.has(wanted));
+  if (taken.length === 0) return null;
+  return `The project already holds ${taken.join(" and ")}: remove it, or choose another name.`;
+}
+
+/**
  * Why an environment must not be built into, or `null` when it may: it is
  * this project's staging or production, or it already holds a service.
  *
