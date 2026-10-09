@@ -77,14 +77,13 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
   }
 
   const first = status(steps);
-  const taken = collision(first, name);
-  if (taken !== null) return { ok: false, message: taken };
-
   const existing = findTarget(first, name);
   if (existing !== null) {
     const reason = refusal(name, existing);
     if (reason !== null) return { ok: false, message: reason };
   }
+  const taken = collision(first, name);
+  if (taken !== null) return { ok: false, message: taken };
   // Either leaves the CLI linked to the environment, which is what an apply
   // reads: it takes no environment of its own.
   steps.railway(existing === null ? railway.create(name) : railway.link(name));

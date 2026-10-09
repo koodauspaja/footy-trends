@@ -60,7 +60,7 @@ Environment is the only thing between the token and a workflow somebody edited.
 | An environment named `production` gets no `AUTH_ALLOWED_EMAILS` | `.railway/railway.ts` does not declare it there, so the next apply would delete it. A fork's production is open, as this one is |
 | The branch is a variable read by the file, not an argument | `railway config apply` takes none. A later plan or apply of that environment needs the same variable, or the file throws |
 | `staging` and `production` ignore the branch | Theirs are in the file (`main`, `release`), for a fork as for this project |
-| A branch is checked for shape only, not for existing | A name Git would refuse and a branch nobody pushed end the same way: the deploy finds nothing, the site never answers, and the command says so. Neither is told apart before the environment exists |
+| A branch is checked for shape only, not for existing | Measured: Railway accepts `foo..bar` and a branch nobody pushed alike when the file is applied, and starts no deployment for either. So both end the same way, with a site that never answers and the command saying so, and no check of the name's shape tells the second apart |
 | Variables are set with `railway variable set --stdin`, not declared with values | `.railway/railway.ts` declares each by name with `preserve()`, so no value is in the repository. Measured: `preserve()` on a variable that does not exist creates nothing and plans clean, and a value set afterwards is kept |
 | `DATABASE_URL`, `REDIS_URL` and `BETTER_AUTH_URL` are references | `${{Postgres-<name>.DATABASE_URL}}`, `${{Redis-<name>.REDIS_URL}}` and `https://${{RAILWAY_PUBLIC_DOMAIN}}`: Railway resolves them inside the environment, so the script reads no address and no password |
 | `BETTER_AUTH_SECRET` is `randomBytes(32)`, made by the script | `ctx.randomString` answered the same value twice for one label. Not shown to be a secret, so not used as one |
@@ -86,10 +86,11 @@ variable applies.
 
 ## What was run
 
-In a project made for the purpose, `footy-trends-scratch`, from a laptop: the
-command created an environment beside three others that already held a
-`Postgres` and a `Redis`, and ended with `/api/health` reporting the database
-and Redis ok. Afterwards both files planned clean there, and the web
+In two projects made for the purpose and since deleted, from a laptop. In the
+first the command created an environment beside three others that already held
+a `Postgres` and a `Redis`; in the second, an empty project, it created
+`staging`, as a fork would. Both ended with `/api/health` reporting the
+database and Redis ok, and a second run into the second was refused. Afterwards both files planned clean there, and the web
 service's file threw without its branch variable. Deleting that environment
 removed its two database services from the project within half a minute and
 left the other environments' services as they were.

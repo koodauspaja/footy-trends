@@ -239,6 +239,19 @@ describe("standUp", () => {
     expect(railway.ran()).toEqual(["status --json"]);
   });
 
+  // A second run into what the first built: the reason is the environment, not
+  // the names it took.
+  it("says an environment already holds its services before it says their names are taken", async () => {
+    const railway = fake({
+      environments: [{ id: NEW_ID, name: "pr-123", services: ["Postgres-pr-123", "Redis-pr-123"] }],
+      services: ["Postgres-pr-123", "Redis-pr-123"],
+    });
+
+    const outcome = await standUp(REQUEST, railway.steps);
+
+    expect(outcome).toMatchObject({ ok: false, message: /"pr-123" already holds Postgres-pr-123/ });
+  });
+
   it("creates nothing when a required key is missing", async () => {
     const railway = fake({ env: { ...KEYS, GOOGLE_CLIENT_SECRET: "" } });
 
