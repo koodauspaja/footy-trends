@@ -182,9 +182,11 @@ here. Steps 4, 6 and 7 read the same for all three.
    work rather than showing it appearing in `In Progress` from nowhere.
 
 6. Implement autonomously within the spec: decision record in
-   `decisions/NNN-feature-name.md`, tests, the pass in `skills/self-review.md`,
-   then a PR per `skills/open-pr.md`, tick the issue's boxes, and move the card
-   to `In Review`. The target is **zero** Sourcery and Sonar findings — findings
+   `decisions/NNN-feature-name.md`, tests, then the author's own review
+   before the first push — the pass in `skills/self-review.md` and the
+   `code-review` skill, with what they find fixed — then a PR per
+   `skills/open-pr.md`, tick the issue's boxes, and move the card to
+   `In Review`. The target is **zero** Sourcery and Sonar findings — findings
    answered after the fact are not the same thing.
 
 7. The human checks the result and merges, **or tells Claude to merge**. However
