@@ -556,7 +556,7 @@ describe("runPredictionBacktest", () => {
     await expect(runPredictionBacktest(NOW)).resolves.toBe(0);
   });
 
-  it("drops no cached report when the write fails", async () => {
+  it("drops the cached reports when the write fails too: some batches may have been stored", async () => {
     mocks.select
       .mockResolvedValueOnce([
         { code: "PL", ...played(1, 2, 0) },
@@ -566,7 +566,10 @@ describe("runPredictionBacktest", () => {
     mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
 
     await expect(runPredictionBacktest(NOW)).rejects.toThrow("connection reset");
-    expect(mocks.invalidateCache).not.toHaveBeenCalled();
+    expect(mocks.invalidateCache.mock.calls).toEqual([
+      ["quality:v2:football-data:backtest"],
+      ["quality:v2:taso:backtest"],
+    ]);
   });
 
   const played = (day: number, home: number, away: number, overrides = {}) => ({

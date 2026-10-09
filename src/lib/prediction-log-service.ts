@@ -443,8 +443,8 @@ export async function readFinished(
 /**
  * The backtest: one `backtest` row for every stored finished match with
  * history, written idempotently. Stored rows only, no provider request. The
- * cached reports of the backtest are dropped, so `/ennusteet` shows the new
- * rows at once.
+ * cached reports of the backtest are dropped whether or not every row was
+ * written, so `/ennusteet` shows what is stored.
  *
  * decisions/052-predictions-log.md
  * decisions/055-poisson-goal-model.md
@@ -457,13 +457,17 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
     ...eloBacktestRows(finished, baseline, now),
     ...poissonBacktestRows(finished, now),
   ];
-  await writePredictions(rows);
-  // A report cached before these rows would hide them for up to 15 minutes.
-  // A failure to drop it is logged by the cache, and the rows are written.
-  await Promise.all(
-    (["football-data", "taso"] as const).map((source) =>
-      invalidateCache(qualityCacheKey(source, "backtest"))
-    )
-  );
+  try {
+    await writePredictions(rows);
+  } finally {
+    // A report cached before these rows would hide them for up to 15 minutes,
+    // and a write that failed part-way has stored some of them. A failure to
+    // drop it is logged by the cache, and changes nothing else.
+    await Promise.all(
+      (["football-data", "taso"] as const).map((source) =>
+        invalidateCache(qualityCacheKey(source, "backtest"))
+      )
+    );
+  }
   return rows.length;
 }

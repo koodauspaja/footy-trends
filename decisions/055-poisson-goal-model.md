@@ -27,7 +27,8 @@ implementation had to decide something the spec did not.
 | `/ennusteet`'s third line | A fourth style, `dashDotted` (`6 4 2 4`), on `LineSeries` and `LineLegend` | S18. Lines are told apart by dash, never colour (specs/032 Q5); dashed, dotted and solid were taken. |
 | `/ennusteet`'s window line | `…, joille kaikki mallit ovat antaneet ennusteen.` | It said `molemmat mallit`. "All" stays true when a fourth model is judged. |
 | `/ennusteet`'s cache key | `quality:v2:<provider>:<kind>` | A report cached under `v1` has two models; the page would show it for up to 15 minutes after a deploy. |
-| A backtest and the cached reports | `runPredictionBacktest` drops `quality:v2:<provider>:backtest` for both providers once its rows are written | Sourcery on #613: a report cached before the rows would hide them for up to 15 minutes, on the one occasion someone is looking for them. A failure to drop is logged by the cache and does not fail the backtest. |
+| A backtest and the cached reports | `runPredictionBacktest` drops `quality:v2:<provider>:backtest` for both providers once its write has ended, failed or not | Sourcery on #613: a report cached before the rows would hide them for up to 15 minutes, on the one occasion someone is looking for them, and a write that fails part-way has stored some batches. A failure to drop is logged by the cache and does not fail the backtest. A page whose read began before the rows and ends after the drop can still cache the older report for 15 minutes; nothing coordinates the two, and the cache's lifetime is the bound, as it was before. |
+| The match page's cold reads | `getEloRatings` and `getPoissonFit` each read the provider's finished matches on a cache miss | Sourcery on #613 asked for one shared read. Each service caches its own result for 15 minutes, so the two reads happen together at most once in that time, in parallel, 450 ms from a laptop for both providers. A shared cached history would be the largest thing in Redis to save that. |
 | `/ennusteet` right after a deploy | Shows `Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.` until the backtest has been run in that environment | Only matches all three models predicted are judged (S18), and `poisson-v1` has no rows until `npm run predictions -- backtest` has run. The same step as after specs/053. |
 | `Ennakkoon tehdyt` after this ships | Judges only matches kicked off since `poisson-v1` began logging | The same rule: an earlier live match has no `poisson-v1` row. The backtested figures are unaffected. |
 
@@ -115,6 +116,7 @@ implementation had to decide something the spec did not.
   | 75 | Backtest: live report dropped instead |
   | 76 | Backtest: only one provider's report dropped |
   | 77 | Replay: same-day matches inform, against the backtest's own test |
+  | 78 | Backtest: cached report kept when the write fails |
 
 - **Two first survived and were closed with a test**: the replay sorted by
   match id alone (61: the test's ids happened to follow its kickoffs; they now

@@ -6,6 +6,10 @@
 > #352 (model against model) and #353 (per competition) are named in Q2 and
 > Q10.
 
+> **A third model since:** specs/055 S18 adds `poisson-v1` to this page. Where
+> this spec says "both models", names two in a string or counts two lines,
+> specs/055's UX / UI section is what the page does now.
+
 ## Summary
 
 Two models now predict every upcoming match — the home-win baseline

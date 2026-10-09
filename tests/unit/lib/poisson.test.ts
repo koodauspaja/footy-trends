@@ -136,8 +136,27 @@ describe("scoreGrid", () => {
 
     expect(total(grid.map(total))).toBeCloseTo(1, 12);
     expect(cell(0, 0)).toBeGreaterThan(Math.exp(-16) * 1.4);
-    // In proportion: the ratios between cells are the untruncated ones.
-    expect(cell(1, 0) / cell(0, 0)).toBeCloseTo(8, 10);
+    // In proportion: every cell is its untruncated probability over the mass
+    // the grid kept, so the ratios between any two cells are the untruncated ones.
+    const kept = (expected: number) => {
+      let mass = 0;
+      let probability = Math.exp(-expected);
+      for (let goals = 0; goals <= 10; goals += 1) {
+        mass += probability;
+        probability = (probability * expected) / (goals + 1);
+      }
+      return mass;
+    };
+    const factorial = (n: number): number => (n <= 1 ? 1 : n * factorial(n - 1));
+    const untruncated = (goals: number) => (Math.exp(-8) * 8 ** goals) / factorial(goals);
+    for (let home = 0; home <= 10; home += 1) {
+      for (let away = 0; away <= 10; away += 1) {
+        expect(cell(home, away)).toBeCloseTo(
+          (untruncated(home) * untruncated(away)) / kept(8) ** 2,
+          12
+        );
+      }
+    }
   });
 
   it("scales the draws by the factor and nothing else, then sums to 1 again", () => {
