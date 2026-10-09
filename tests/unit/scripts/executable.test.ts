@@ -51,6 +51,12 @@ describe("executablePath", () => {
     expect(executablePath("gh", { exists, env: {} })).toBe("/opt/homebrew/bin/gh");
   });
 
+  it("finds railway where Homebrew puts it", () => {
+    const exists = present("/opt/homebrew/bin/railway");
+
+    expect(executablePath("railway", { exists, env: {} })).toBe("/opt/homebrew/bin/railway");
+  });
+
   it("answers null when gh is nowhere the list knows", () => {
     expect(executablePath("gh", { exists: () => false, env: {} })).toBeNull();
   });

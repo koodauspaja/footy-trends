@@ -3,8 +3,8 @@ import { isAbsolute } from "node:path";
 
 /**
  * Where the command-line tools these scripts run actually live: named places,
- * never a name resolved through `PATH`. `GIT_EXECUTABLE` and
- * `DOCKER_EXECUTABLE` override them, and must be absolute.
+ * never a name resolved through `PATH`. `GIT_EXECUTABLE`, `DOCKER_EXECUTABLE`
+ * and the like override them, and must be absolute.
  *
  * decisions/292-sonar-zero-open-issues.md
  */
@@ -24,6 +24,7 @@ const CANDIDATES = {
     "/opt/homebrew/bin/gh",
     String.raw`C:\Program Files\GitHub CLI\gh.exe`,
   ],
+  railway: ["/usr/bin/railway", "/usr/local/bin/railway", "/opt/homebrew/bin/railway"],
   docker: [
     "/usr/bin/docker",
     "/usr/local/bin/docker",

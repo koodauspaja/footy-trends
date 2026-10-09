@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { createRailwayContext, project } from "railway/iac";
-import { describe, expect, it } from "vitest";
-import program, { partial } from "../../.railway/railway";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { TARGET_VARIABLE as DATABASES_TARGET_VARIABLE } from "../../.railway/databases";
+import program, { BRANCH_VARIABLE, partial, TARGET_VARIABLE } from "../../.railway/railway";
 
 /**
  * `.railway/railway.ts`, as it evaluates for each environment. Railway's CLI
@@ -10,7 +11,12 @@ import program, { partial } from "../../.railway/railway";
  *
  * decisions/521-railway-infrastructure-as-code.md
  * decisions/551-staging-sleeps-when-idle.md
+ * decisions/522-railway-environment-from-code.md
  */
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // Every variable each environment's web service holds, by name; RAILWAY_* are
 // Railway's own. Written out here, not imported from the file, on purpose: a
@@ -149,6 +155,85 @@ describe(".railway/railway.ts", () => {
     await expect(resourcesFor("pr-123")).rejects.toThrow(
       '.railway/railway.ts has no configuration for environment "pr-123"'
     );
+  });
+
+  it("refuses a new environment whose branch variable is empty", async () => {
+    vi.stubEnv(BRANCH_VARIABLE, "");
+
+    await expect(resourcesFor("pr-123")).rejects.toThrow(`a new one needs ${BRANCH_VARIABLE}`);
+  });
+
+  // The web service alone, as everywhere: a new environment's databases are in
+  // their own file, so this one can never plan a database's deletion.
+  it("shapes a new environment as staging, on the branch it is given", async () => {
+    vi.stubEnv(BRANCH_VARIABLE, "feature/099-something");
+
+    const resources = (await resourcesFor("pr-123")) as Array<{ variables?: object }>;
+
+    expect(resources).toHaveLength(1);
+    expect(resources[0]).toMatchObject({ ...EXPECTED_WEB, deploy: { sleepApplication: true } });
+    expect(resources[0]).toHaveProperty("source", {
+      type: "github",
+      repo: "koodauspaja/footy-trends",
+      branch: "feature/099-something",
+    });
+    expect(Object.keys(resources[0]?.variables ?? {}).sort()).toEqual([...HELD.staging].sort());
+  });
+
+  it.each([
+    ["staging", "main"],
+    ["production", "release"],
+  ])(
+    "keeps %s on its own branch whatever the branch variable says",
+    async (environment, branch) => {
+      vi.stubEnv(BRANCH_VARIABLE, "feature/099-something");
+
+      const [web] = await resourcesFor(environment);
+
+      expect(web).toHaveProperty("source.branch", branch);
+    }
+  );
+
+  // The command names one id to both files. A link that moved to production
+  // between its two applies must stop this one, not apply to production.
+  it.each(["staging", "production", "pr-123"])(
+    "refuses %s when told to apply to another environment's id",
+    async (environment) => {
+      vi.stubEnv(BRANCH_VARIABLE, "main");
+      vi.stubEnv(TARGET_VARIABLE, "00000000-0000-4000-8000-000000000001");
+
+      const told = async () =>
+        await program(
+          createRailwayContext({
+            environmentName: environment,
+            environmentId: "00000000-0000-4000-8000-000000000002",
+          }),
+          project
+        );
+
+      await expect(told()).rejects.toThrow(
+        `was told to apply to 00000000-0000-4000-8000-000000000001, and the linked environment is "${environment}"`
+      );
+    }
+  );
+
+  it("evaluates for the environment whose id it is told", async () => {
+    vi.stubEnv(BRANCH_VARIABLE, "main");
+    vi.stubEnv(TARGET_VARIABLE, "00000000-0000-4000-8000-000000000001");
+
+    const definition = await program(
+      createRailwayContext({
+        environmentName: "pr-123",
+        environmentId: "00000000-0000-4000-8000-000000000001",
+      }),
+      project
+    );
+
+    expect(definition.resources).toHaveLength(1);
+  });
+
+  it("is told its environment through the variable the databases file requires", () => {
+    expect(TARGET_VARIABLE).toBe(DATABASES_TARGET_VARIABLE);
   });
 
   it("names the project after Railway's own, falling back to footy-trends", async () => {

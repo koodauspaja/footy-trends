@@ -74,8 +74,17 @@ Constraints:
   and every variable are declared for that reason. **A variable added in the
   dashboard must be added to the file before the next apply**, or that apply
   deletes it. Always `railway config plan` first; stop on any deletion (#521).
-- **Only `staging` and `production` evaluate.** Any other environment name
-  throws. A new environment is #522.
+- **Only `staging` and `production` evaluate by themselves.** Any other name
+  throws unless `RAILWAY_NEW_ENVIRONMENT_BRANCH` names its branch, and is then
+  shaped as staging (decisions/522).
+- **A new environment is one command**, `npm run railway:environment`
+  (`docs/setup/026`), by hand or from `railway-environment.yml`. It builds only
+  into an environment that holds no service. Its databases come from
+  `.railway/databases.ts`, a partial of its own that refuses staging and
+  production by id, and are services of their own, `Postgres-<name>` and
+  `Redis-<name>`: **the `Postgres` and `Redis` of staging and production stay
+  in the dashboard, no file declares them, and no other environment holds an
+  instance of them**.
 - **A red release run leaves production on the previous version**, and Railway
   marks the deployment `SKIPPED`. Re-running the workflow does not restart the
   deploy; press **Redeploy** in Railway (#215).
@@ -213,6 +222,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1` whether TASO still answers | #113 |
+| `railway-environment.yml` | by hand, with a name and a branch | `npm run railway:environment`: a new Railway environment, from nothing to a site that answers `/api/health` | runs in the GitHub Environment `railway-provisioning`, so it waits for a required reviewer; one run at a time (decisions/522) |
 
 - **Every workflow's token is `contents: read`**, and a job widens only what it
   needs: the issue-checkbox job reads issues and pull requests, the Sonar job
@@ -230,6 +240,16 @@ Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
+
+`railway-environment.yml` reads more, all of it secrets of the GitHub
+Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+and `AUTH_ALLOWED_EMAILS`, copied from staging on 2026-10-09, and
+`RAILWAY_PROJECT_ID` and `RAILWAY_API_TOKEN`, stored the same day. **The
+workflow has never run** (decisions/522).
+That environment requires a review by the owner or the collaborator and
+deploys from `main` only. **`RAILWAY_API_TOKEN` is a workspace token: it can
+change production.** It is the only credential in GitHub that can, which is
+why it is behind required reviewers and not among the repository's secrets.
 
 ### Versions and releases
 

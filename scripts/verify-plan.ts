@@ -34,6 +34,7 @@ export const VERIFY_STAGES: readonly Stage[] = [
  *
  * decisions/401-one-command-for-the-gate.md
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/522-railway-environment-from-code.md
  */
 export const NOT_A_STAGE: Readonly<Record<string, string>> = {
   "db:migrate":
@@ -45,6 +46,8 @@ export const NOT_A_STAGE: Readonly<Record<string, string>> = {
     "cuts the tag once every gate is green; it is the release itself, not a check of it",
   "check:boxes":
     "reads the issues a pull request closes, so there is nothing for it to read until one exists (#463)",
+  "railway:environment":
+    "creates a Railway environment, started by hand; it is an action on the infrastructure, not a check of the code",
 };
 
 const RUN_PREFIX = "npm run ";
