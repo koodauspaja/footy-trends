@@ -190,7 +190,7 @@ already, and #390 found two classes that had never been written down at all.
    | the quick check only | a review of the head whose whole body is `### Sourcery assessment` and `**Approved.**` | 0 when nothing but documentation changed since the last full review, 1 otherwise |
    | a budget notice, and no review | a review, or a `skipped` check-run, that starts `Sorry @…, this account has used its review budget` | 1 |
    | a skip, and no review | a `skipped` check-run, or a review that starts `Sorry`, for any other reason; see "When Sourcery skips" below | 1 |
-   | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 1 |
+   | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 0 when the check-run reads `success` and nothing but documentation changed since the last full review, 1 otherwise |
 
    **Only the first line of the body tells a full review from the quick
    check.** A full review that found nothing and the quick check are both a
@@ -198,12 +198,13 @@ already, and #390 found two classes that had never been written down at all.
    check-run that reads `success`.
 
    Exit code 1 is a **hard block**: the PR waits until the script exits 0,
-   which takes a full review of the head, or the quick check over
-   documentation alone. Do not merge on a green check, and do not propose
+   which takes a full review of the head, or documentation alone changed
+   since one: under the quick check, or under no review at all beside a green
+   check-run, which is what Sourcery often leaves on such a push. Do not merge on a green check, and do not propose
    merging with a caveat.
 
-   Where it cannot tell, it fails. Under the quick check it lists what changed
-   since the last full review, and only Markdown files outside tests, changed
+   Where it cannot tell, it fails. Without a full review of the head it lists
+   what changed since the last one, and only Markdown files outside tests, changed
    in place, count as documentation: a comment in code does not, and neither
    does a file renamed from anything. A branch rebased since its full review,
    a file list GitHub cut short, a full review of the head that someone
@@ -295,8 +296,9 @@ already, and #390 found two classes that had never been written down at all.
    **The test is the first line of the review body for the head**, which is
    what step 7's script reads.
 
-   The quick check is enough for a fix that changes documentation alone, which
-   is when step 7 exits 0 without a full review of the head. After any other
+   The quick check is enough for a fix that changes documentation alone, and
+   so is a green check-run with no review of the push at all. Those are when
+   step 7 exits 0 without a full review of the head. After any other
    fix, comment `@sourcery-ai review` on the PR, with nothing else in the
    comment, and wait until step 7 reports a full review before handing off.
 

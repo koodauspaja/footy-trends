@@ -4,6 +4,7 @@
  * has. The reading is injected.
  *
  * decisions/597-check-sourcery.md
+ * decisions/600-silence-beside-a-green-check.md
  */
 import {
   type Console,
@@ -141,11 +142,10 @@ export async function checkReview(options: CheckOptions): Promise<Report> {
   const kind = headReview(reviews, head) ?? withoutReview(check);
   const reviewed = lastFullReview(reviews, head);
   let outcome: Outcome;
-  if (kind !== "quick") outcome = { kind };
-  else {
+  if (kind === "quick" || kind === "nothing") {
     const since = reviewed === undefined ? undefined : await readSince(options, reviewed, head);
     outcome = { kind, since };
-  }
+  } else outcome = { kind };
 
   const now = await readHead(options);
   if (now !== head) {

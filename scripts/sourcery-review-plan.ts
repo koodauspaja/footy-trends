@@ -5,6 +5,7 @@
  *
  * decisions/559-sourcery-review-kind.md
  * decisions/597-check-sourcery.md
+ * decisions/600-silence-beside-a-green-check.md
  */
 
 /**
@@ -57,9 +58,9 @@ export type Since = {
 export type ReviewKind = "full" | "quick" | "budget" | "skip";
 
 export type Outcome =
-  | { kind: "full" | "budget" | "skip" | "nothing" }
+  | { kind: "full" | "budget" | "skip" }
   /** `since` is undefined when no full review came before this head. */
-  | { kind: "quick"; since: Since | undefined };
+  | { kind: "quick" | "nothing"; since: Since | undefined };
 
 const FULL_REVIEW = /^Hey - I['’]ve (?:reviewed|found)\b/;
 const QUICK_CHECK = /^### Sourcery assessment\s+\*\*Approved\.\*\*$/;
@@ -183,14 +184,20 @@ export function withoutReview(check: CheckRun | undefined): "budget" | "skip" | 
 }
 
 /**
- * Whether the review is enough: a full review of the head, or the quick check
- * over nothing but documentation since a full review the head is ahead of.
+ * Whether the review is enough: a full review of the head, or nothing but
+ * documentation since a full review the head is ahead of, under the quick
+ * check or under no review at all beside a green check-run.
  *
  * decisions/597-check-sourcery.md
+ * decisions/600-silence-beside-a-green-check.md
  */
-export function sufficient(outcome: Outcome): boolean {
-  if (outcome.kind === "full") return true;
-  if (outcome.kind !== "quick" || outcome.since === undefined) return false;
+export function sufficient({ outcome, check, dismissed }: Judged): boolean {
+  // Only the quick check and silence carry what changed since a full review.
+  if (!("since" in outcome)) return outcome.kind === "full";
+  // Silence stands in for the quick check only when Sourcery's run of the
+  // commit finished green, and never over a review of it someone dismissed.
+  if (outcome.kind === "nothing" && (check?.conclusion !== "success" || dismissed)) return false;
+  if (outcome.since === undefined) return false;
 
   const { ahead, complete, changes } = outcome.since;
   return ahead && complete && changes.every(isDocumentation);
@@ -234,21 +241,22 @@ function sinceLines(since: Since | undefined): string[] {
   ];
 }
 
-function verdictLine(outcome: Outcome): string {
+function verdictLine(outcome: Outcome, passed: boolean): string {
   if (outcome.kind === "full") return "Enough to hand off.";
-  if (sufficient(outcome)) {
-    return "Enough: nothing but documentation changed since the full review.";
-  }
+  if (passed) return "Enough: nothing but documentation changed since the full review.";
   return 'Not enough: the head needs a full review, one whose body starts "Hey". skills/open-pr.md step 9 says how to get one.';
 }
 
-export type ReportInput = {
-  pull: number;
-  head: string;
+export type Judged = {
   outcome: Outcome;
   check: CheckRun | undefined;
   /** Whether a full review of the head was left out because it was dismissed. */
   dismissed: boolean;
+};
+
+export type ReportInput = Judged & {
+  pull: number;
+  head: string;
 };
 
 export type Report = {
@@ -267,15 +275,17 @@ export function report({ pull, head, outcome, check, dismissed }: ReportInput): 
   // A skipped check-run's first line says which limit was hit and when it lifts.
   const reason = check?.conclusion === "skipped" ? check.summary.trim().split("\n")[0] : "";
 
+  const passed = sufficient({ outcome, check, dismissed });
+
   return {
-    passed: sufficient(outcome),
+    passed,
     lines: [
       `#${pull} at ${short(head)}: ${HEADLINE[outcome.kind]}.`,
       `Check-run: ${check ? (check.conclusion ?? check.status) : "none"}.`,
       ...(reason ? [reason] : []),
       ...(dismissed ? ["A full review of this head was dismissed, and is not counted."] : []),
-      ...(outcome.kind === "quick" ? sinceLines(outcome.since) : []),
-      verdictLine(outcome),
+      ...("since" in outcome ? sinceLines(outcome.since) : []),
+      verdictLine(outcome, passed),
     ],
   };
 }

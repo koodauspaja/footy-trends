@@ -247,6 +247,7 @@ describe("checkReview", () => {
         "#552 at f4e9a2d: nothing from Sourcery.",
         "Check-run: success.",
         "A full review of this head was dismissed, and is not counted.",
+        "No full review came before it.",
         expect.stringMatching(NOT_ENOUGH),
       ],
     });
@@ -297,26 +298,89 @@ describe("checkReview", () => {
     ]);
   });
 
-  it("fails a head Sourcery wrote nothing about, green check-run or not", async () => {
+  it("passes a head Sourcery wrote nothing about, beside a green check-run, when only a document changed", async () => {
     const result = await check({
-      reviews: [sourcery(REVIEWED, FOUND, "2026-10-05T22:09:01Z")],
+      reviews: [sourcery(REVIEWED, FOUND, "2026-10-09T07:53:01Z")],
       runs: [run("success")],
+      since: { status: "ahead", files: [{ filename: "skills/open-pr.md" }] },
     });
 
     expect(result).toEqual({
-      passed: false,
+      passed: true,
       lines: [
         "#552 at f4e9a2d: nothing from Sourcery.",
         "Check-run: success.",
-        expect.stringMatching(NOT_ENOUGH),
+        "The last full review was of 797ee79. Changed since then:",
+        "  documentation: skills/open-pr.md",
+        "Enough: nothing but documentation changed since the full review.",
       ],
     });
+  });
+
+  it("fails it when source changed since the full review, and lists the file", async () => {
+    const result = await check({
+      reviews: [sourcery(REVIEWED, FOUND, "2026-10-05T22:09:01Z")],
+      runs: [run("success")],
+      since: {
+        status: "ahead",
+        files: [
+          { filename: "specs/037-blown-leads.md" },
+          { filename: "src/components/team-page.tsx" },
+        ],
+      },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines).toContain("  not documentation: src/components/team-page.tsx");
+  });
+
+  it("fails it when the branch was rebased since the full review", async () => {
+    const result = await check({
+      reviews: [sourcery(REVIEWED, FOUND, "2026-10-08T22:27:35Z")],
+      runs: [run("success")],
+      since: { status: "diverged", files: [{ filename: "docs/infrastructure.md" }] },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines[2]).toMatch(/the branch has been rebased since/);
+  });
+
+  it.each([
+    ["no check-run at all", []],
+    ["a check-run that has not finished", [run(null)]],
+  ])(
+    "fails a head Sourcery wrote nothing about with %s, though only a document changed",
+    async (_name, runs) => {
+      const result = await check({
+        reviews: [sourcery(REVIEWED, FOUND, "2026-10-09T07:53:01Z")],
+        runs,
+        since: { status: "ahead", files: [{ filename: "skills/open-pr.md" }] },
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.lines.at(-1)).toMatch(NOT_ENOUGH);
+    }
+  );
+
+  it("fails it when the only full review is a dismissed one of the head itself", async () => {
+    const result = await check({
+      reviews: [
+        sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z", "DISMISSED"),
+        sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z", "DISMISSED"),
+      ],
+      runs: [run("success")],
+      since: { status: "ahead", files: [{ filename: "skills/open-pr.md" }] },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines).toContain("A full review of this head was dismissed, and is not counted.");
   });
 
   it("fails a pull request with no reviews and no check-run", async () => {
     expect((await check({})).lines).toEqual([
       "#552 at f4e9a2d: nothing from Sourcery.",
       "Check-run: none.",
+      "No full review came before it.",
       expect.stringMatching(NOT_ENOUGH),
     ]);
   });
