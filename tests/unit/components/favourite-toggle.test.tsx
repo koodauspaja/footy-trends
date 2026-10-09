@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 
@@ -10,6 +11,7 @@ import { FavouriteToggle } from "@/components/favourite-toggle";
  * decisions/026-favourites.md
  * decisions/024-account-settings.md
  * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 
 const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
@@ -270,5 +272,16 @@ describe("an unusable session payload", () => {
     render(team());
 
     expect(add()).toBeInTheDocument();
+  });
+});
+
+describe("the first render", () => {
+  it("shows the star to a signed-in reader without waiting for an effect", () => {
+    // A render to a string runs no effects, so this is the first render alone.
+    // The header reads the session the same way; one that waited here would
+    // show the star a render later than the header shows the account.
+    signedIn({ favoriteTeams: ["taso:60731"] });
+
+    expect(renderToStaticMarkup(team())).toContain("Poista suosikeista: Ilves");
   });
 });

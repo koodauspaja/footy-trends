@@ -78,6 +78,12 @@ console error, the link at `/?valitse=1`, the search and the star. With the
 well as without. A better-auth release that changed the snapshot back would
 fail it on Renovate's pull request.
 
+On 1.7.7 that test passes with the wait restored too, because there is then no
+fault for it to find. What holds "no wait" is a test each in
+`favourite-toggle.test.tsx` and `team-search.test.tsx`: rendered to a string,
+which runs no effects, a signed-in reader gets the star and the search field.
+Both fail with the wait restored. Sourcery raised the gap on the first review.
+
 It is the one test that renders these components without mocking
 `@/lib/auth-client`. The reason the others mock it still stands
 (`decisions/026-favourites.md`: the client's cleanup runs some time after the
