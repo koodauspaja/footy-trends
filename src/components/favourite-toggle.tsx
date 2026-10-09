@@ -16,6 +16,7 @@ import { favouriteKeysOf } from "@/lib/session-extras";
  * renders anything containing it must mock `@/lib/auth-client`.
  *
  * decisions/026-favourites.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 
 type Props = Readonly<
@@ -41,10 +42,6 @@ export function FavouriteToggle(props: Props) {
   // `null` means no answer of our own yet: use the session.
   const [own, setOwn] = useState<boolean | null>(null);
   const [limit, setLimit] = useState(false);
-  // Rendered only after hydration: the server has no session, and the client's
-  // cached one would otherwise disagree with the server's HTML.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   const key =
     props.kind === "team"
@@ -60,7 +57,9 @@ export function FavouriteToggle(props: Props) {
     if (own !== null && own === stored) setOwn(null);
   }, [own, stored]);
 
-  if (!mounted || !session) return null;
+  // Safe on the first render: better-auth hydrates with the signed-out state the
+  // server rendered, and answers with a session it already holds only after that.
+  if (!session) return null;
 
   const favourite = own ?? stored;
 

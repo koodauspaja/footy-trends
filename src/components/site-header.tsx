@@ -18,6 +18,7 @@ import { defaultRegionOf } from "@/lib/session-extras";
  * decisions/024-account-settings.md
  * decisions/207-region-breadcrumb.md
  * decisions/373-team-search-header-row.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 export function SiteHeader() {
   const region = regionCrumbFor(usePathname());

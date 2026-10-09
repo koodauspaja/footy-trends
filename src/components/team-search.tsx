@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useSession } from "@/lib/auth-client";
 import type { TeamSearchView } from "@/lib/team-search";
 import { searchTeamsAction } from "@/lib/team-search-actions";
@@ -13,6 +13,7 @@ import { searchTeamsAction } from "@/lib/team-search-actions";
  *
  * decisions/027-team-search.md
  * decisions/373-team-search-header-row.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 
 const LABEL = "Hae joukkuetta";
@@ -45,14 +46,11 @@ export function TeamSearch() {
   // Which submission is current, so a slow earlier one cannot overwrite a fast
   // later one. A ref, not state: bumping it must not itself cause a re-render.
   const latestSubmission = useRef(0);
-  // Rendered only after hydration: better-auth's client can answer from its own
-  // cache on the first client render, which would disagree with the server's HTML.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   const fieldId = useId();
 
-  if (!mounted || !session) return null;
+  // Safe on the first render: better-auth hydrates with the signed-out state the
+  // server rendered, and answers with a session it already holds only after that.
+  if (!session) return null;
 
   return (
     // The row's own padding lives here, not in `site-header.tsx`: this component

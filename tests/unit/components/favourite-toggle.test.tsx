@@ -272,15 +272,3 @@ describe("an unusable session payload", () => {
     expect(add()).toBeInTheDocument();
   });
 });
-
-describe("hydration", () => {
-  it("renders nothing on the server, even for a signed-in reader", async () => {
-    // The star waits for mount. It is on server-rendered pages, four of them prerendered,
-    // and better-auth answers from its own cache on the first render: a first client render
-    // that disagreed with that HTML would make React throw the server's markup away.
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    signedIn({ favoriteTeams: ["taso:60731"] });
-
-    expect(renderToStaticMarkup(team())).toBe("");
-  });
-});
