@@ -234,150 +234,242 @@ function positions<Key>(keys: Iterable<Key>): Map<Key, number> {
 }
 
 /**
+ * A fit's matches as columns: each match's weight on the day asked for, its
+ * goals, and where its competition and its two teams sit among the parameters.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+type Columns = {
+  codes: Map<string, number>;
+  teams: Map<number, number>;
+  weight: Float64Array;
+  competition: Int32Array;
+  homeTeam: Int32Array;
+  awayTeam: Int32Array;
+  homeGoals: Float64Array;
+  awayGoals: Float64Array;
+};
+
+/**
+ * The parameters being fitted, in the columns' order.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+type Strengths = {
+  base: Float64Array;
+  attack: Float64Array;
+  defence: Float64Array;
+  home: number;
+};
+
+function columnsOf(history: readonly PoissonMatch[], day: number): Columns {
+  const codes = positions(history.map((match) => match.code));
+  const teams = positions(history.flatMap((match) => [match.homeTeam, match.awayTeam]));
+  return {
+    codes,
+    teams,
+    weight: Float64Array.from(history, (match) =>
+      Math.exp(-POISSON_DECAY_PER_DAY * (day - match.kickoffAt.getTime() / DAY_MS))
+    ),
+    competition: Int32Array.from(history, (match) => codes.get(match.code) as number),
+    homeTeam: Int32Array.from(history, (match) => teams.get(match.homeTeam) as number),
+    awayTeam: Int32Array.from(history, (match) => teams.get(match.awayTeam) as number),
+    homeGoals: Float64Array.from(history, (match) => match.homeGoals),
+    awayGoals: Float64Array.from(history, (match) => match.awayGoals),
+  };
+}
+
+/**
+ * Sets every parameter of `target` to the logarithm of its goals over those
+ * expected of it, a prior added to both, and answers how far the furthest
+ * one moved.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function settle(
+  target: Float64Array,
+  goals: Float64Array,
+  expected: Float64Array,
+  prior: number
+): number {
+  let moved = 0;
+  for (let index = 0; index < target.length; index += 1) {
+    const next = Math.log(
+      ((goals[index] as number) + prior) / ((expected[index] as number) + prior)
+    );
+    moved = Math.max(moved, Math.abs(next - (target[index] as number)));
+    target[index] = next;
+  }
+  return moved;
+}
+
+/** Each competition's base rate, from all the goals of its matches. */
+function settleBase(columns: Columns, strengths: Strengths): number {
+  const goals = new Float64Array(strengths.base.length);
+  const expected = new Float64Array(strengths.base.length);
+  const { attack, defence, home } = strengths;
+  for (let index = 0; index < columns.weight.length; index += 1) {
+    const h = columns.homeTeam[index] as number;
+    const a = columns.awayTeam[index] as number;
+    const c = columns.competition[index] as number;
+    const w = columns.weight[index] as number;
+    goals[c] =
+      (goals[c] as number) +
+      w * ((columns.homeGoals[index] as number) + (columns.awayGoals[index] as number));
+    expected[c] =
+      (expected[c] as number) +
+      w *
+        (Math.exp(home + (attack[h] as number) + (defence[a] as number)) +
+          Math.exp((attack[a] as number) + (defence[h] as number)));
+  }
+  return settle(strengths.base, goals, expected, RATE_PRIOR_GOALS);
+}
+
+/** The home advantage, from the home sides' goals. */
+function settleHome(columns: Columns, strengths: Strengths): number {
+  let goals = 0;
+  let expected = 0;
+  for (let index = 0; index < columns.weight.length; index += 1) {
+    const w = columns.weight[index] as number;
+    goals += w * (columns.homeGoals[index] as number);
+    expected +=
+      w *
+      Math.exp(
+        (strengths.base[columns.competition[index] as number] as number) +
+          (strengths.attack[columns.homeTeam[index] as number] as number) +
+          (strengths.defence[columns.awayTeam[index] as number] as number)
+      );
+  }
+  const next = Math.log((goals + RATE_PRIOR_GOALS) / (expected + RATE_PRIOR_GOALS));
+  const moved = Math.abs(next - strengths.home);
+  strengths.home = next;
+  return moved;
+}
+
+/**
+ * Every attack, or every defence. `homeGoalsTo` names the parameter each
+ * match's home goals count for and `awayGoalsTo` its away goals: the scoring
+ * sides for the attacks, the conceding sides for the defences. Each is
+ * measured against the `other` kind of strength of the side it faced.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function settleSide(
+  columns: Columns,
+  strengths: Strengths,
+  own: Float64Array,
+  other: Float64Array,
+  homeGoalsTo: Int32Array,
+  awayGoalsTo: Int32Array
+): number {
+  const goals = new Float64Array(own.length);
+  const expected = new Float64Array(own.length);
+  for (let index = 0; index < columns.weight.length; index += 1) {
+    const w = columns.weight[index] as number;
+    const rate = strengths.base[columns.competition[index] as number] as number;
+    const forHome = homeGoalsTo[index] as number;
+    const forAway = awayGoalsTo[index] as number;
+    goals[forHome] = (goals[forHome] as number) + w * (columns.homeGoals[index] as number);
+    expected[forHome] =
+      (expected[forHome] as number) +
+      w * Math.exp(rate + strengths.home + (other[forAway] as number));
+    goals[forAway] = (goals[forAway] as number) + w * (columns.awayGoals[index] as number);
+    expected[forAway] =
+      (expected[forAway] as number) + w * Math.exp(rate + (other[forHome] as number));
+  }
+  return settle(own, goals, expected, POISSON_PRIOR_MATCHES);
+}
+
+/**
+ * One sweep: each kind of parameter in turn set to what makes the scores most
+ * likely given the rest. Answers how far the furthest parameter moved.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function sweep(columns: Columns, strengths: Strengths): number {
+  const { attack, defence } = strengths;
+  const base = settleBase(columns, strengths);
+  const home = settleHome(columns, strengths);
+  const attacks = settleSide(
+    columns,
+    strengths,
+    attack,
+    defence,
+    columns.homeTeam,
+    columns.awayTeam
+  );
+  const defences = settleSide(
+    columns,
+    strengths,
+    defence,
+    attack,
+    columns.awayTeam,
+    columns.homeTeam
+  );
+  return Math.max(base, home, attacks, defences);
+}
+
+/**
+ * Each competition's draw factor: the one that brings the average draw
+ * probability of its fitted matches, once scaled, to their draw share.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function drawFactors(columns: Columns, strengths: Strengths): number[] {
+  const tallies = Array.from(strengths.base, () => ({ draws: [] as number[], drawn: 0 }));
+  for (let index = 0; index < columns.weight.length; index += 1) {
+    const h = columns.homeTeam[index] as number;
+    const a = columns.awayTeam[index] as number;
+    const c = columns.competition[index] as number;
+    const rate = strengths.base[c] as number;
+    const tally = tallies[c] as { draws: number[]; drawn: number };
+    tally.draws.push(
+      plainDraw(
+        Math.exp(
+          rate + strengths.home + (strengths.attack[h] as number) + (strengths.defence[a] as number)
+        ),
+        Math.exp(rate + (strengths.attack[a] as number) + (strengths.defence[h] as number))
+      )
+    );
+    tally.drawn += columns.homeGoals[index] === columns.awayGoals[index] ? 1 : 0;
+  }
+  return tallies.map(({ draws, drawn }) => drawFactorFor(draws, drawn / draws.length));
+}
+
+/**
  * The fit of `history`, as it stands on `day`: weighted maximum likelihood by
- * sweeps over the base rates, the home advantage, the attacks and the defences
- * until none moves. `warm` is a nearby fit to start from; it changes how long
- * the sweeps take, not where they end.
+ * sweeps until no parameter moves. `warm` is a nearby fit to start from; it
+ * changes how long the sweeps take, not where they end.
  *
  * decisions/055-poisson-goal-model.md
  */
 function fitWindow(history: readonly PoissonMatch[], day: number, warm?: PoissonFit): PoissonFit {
-  const codes = positions(history.map((match) => match.code));
-  const teams = positions(history.flatMap((match) => [match.homeTeam, match.awayTeam]));
-  const count = history.length;
-  const weight = new Float64Array(count);
-  const competition = new Int32Array(count);
-  const homeTeam = new Int32Array(count);
-  const awayTeam = new Int32Array(count);
-  history.forEach((match, index) => {
-    weight[index] = Math.exp(-POISSON_DECAY_PER_DAY * (day - match.kickoffAt.getTime() / DAY_MS));
-    competition[index] = codes.get(match.code) as number;
-    homeTeam[index] = teams.get(match.homeTeam) as number;
-    awayTeam[index] = teams.get(match.awayTeam) as number;
-  });
-
-  const base = Float64Array.from(codes.keys(), (code) => warm?.competitions.get(code)?.base ?? 0);
-  const attack = Float64Array.from(teams.keys(), (team) => warm?.attack.get(team) ?? 0);
-  const defence = Float64Array.from(teams.keys(), (team) => warm?.defence.get(team) ?? 0);
-  let home = warm?.home ?? START_HOME_ADVANTAGE;
-
-  const goals = new Float64Array(Math.max(codes.size, teams.size));
-  const expected = new Float64Array(goals.length);
-  // Sets every parameter of `target` from the goals counted and expected for
-  // it, and answers how far the furthest one moved.
-  const settle = (target: Float64Array, prior: number): number => {
-    let moved = 0;
-    for (let index = 0; index < target.length; index += 1) {
-      const next = Math.log(
-        ((goals[index] as number) + prior) / ((expected[index] as number) + prior)
-      );
-      moved = Math.max(moved, Math.abs(next - (target[index] as number)));
-      target[index] = next;
-    }
-    goals.fill(0);
-    expected.fill(0);
-    return moved;
+  const columns = columnsOf(history, day);
+  const { codes, teams } = columns;
+  const strengths: Strengths = {
+    base: Float64Array.from(codes.keys(), (code) => warm?.competitions.get(code)?.base ?? 0),
+    attack: Float64Array.from(teams.keys(), (team) => warm?.attack.get(team) ?? 0),
+    defence: Float64Array.from(teams.keys(), (team) => warm?.defence.get(team) ?? 0),
+    home: warm?.home ?? START_HOME_ADVANTAGE,
   };
-
-  for (let sweep = 0; sweep < MAX_SWEEPS && count > 0; sweep += 1) {
-    for (let index = 0; index < count; index += 1) {
-      const match = history[index] as PoissonMatch;
-      const h = homeTeam[index] as number;
-      const a = awayTeam[index] as number;
-      const c = competition[index] as number;
-      const w = weight[index] as number;
-      goals[c] = (goals[c] as number) + w * (match.homeGoals + match.awayGoals);
-      expected[c] =
-        (expected[c] as number) +
-        w *
-          (Math.exp(home + (attack[h] as number) + (defence[a] as number)) +
-            Math.exp((attack[a] as number) + (defence[h] as number)));
-    }
-    let moved = settle(base, RATE_PRIOR_GOALS);
-
-    let homeGoals = 0;
-    let homeExpected = 0;
-    for (let index = 0; index < count; index += 1) {
-      const match = history[index] as PoissonMatch;
-      const w = weight[index] as number;
-      homeGoals += w * match.homeGoals;
-      homeExpected +=
-        w *
-        Math.exp(
-          (base[competition[index] as number] as number) +
-            (attack[homeTeam[index] as number] as number) +
-            (defence[awayTeam[index] as number] as number)
-        );
-    }
-    const nextHome = Math.log((homeGoals + RATE_PRIOR_GOALS) / (homeExpected + RATE_PRIOR_GOALS));
-    moved = Math.max(moved, Math.abs(nextHome - home));
-    home = nextHome;
-
-    for (const [own, other] of [
-      [attack, defence],
-      [defence, attack],
-    ] as const) {
-      for (let index = 0; index < count; index += 1) {
-        const match = history[index] as PoissonMatch;
-        const h = homeTeam[index] as number;
-        const a = awayTeam[index] as number;
-        const w = weight[index] as number;
-        const rate = base[competition[index] as number] as number;
-        // An attack is measured by the goals its side scored, a defence by
-        // those it conceded: the home side's goals go to the home attack and
-        // the away defence.
-        const [homeGoalsTo, awayGoalsTo] = own === attack ? [h, a] : [a, h];
-        const [homeGoalsAgainst, awayGoalsAgainst] = own === attack ? [a, h] : [h, a];
-        goals[homeGoalsTo] = (goals[homeGoalsTo] as number) + w * match.homeGoals;
-        expected[homeGoalsTo] =
-          (expected[homeGoalsTo] as number) +
-          w * Math.exp(rate + home + (other[homeGoalsAgainst] as number));
-        goals[awayGoalsTo] = (goals[awayGoalsTo] as number) + w * match.awayGoals;
-        expected[awayGoalsTo] =
-          (expected[awayGoalsTo] as number) +
-          w * Math.exp(rate + (other[awayGoalsAgainst] as number));
-      }
-      moved = Math.max(moved, settle(own.subarray(0, teams.size), POISSON_PRIOR_MATCHES));
-    }
-    if (moved < TOLERANCE) break;
+  for (let sweeps = 0; sweeps < MAX_SWEEPS && history.length > 0; sweeps += 1) {
+    if (sweep(columns, strengths) < TOLERANCE) break;
   }
 
-  const fit: PoissonFit = {
-    competitions: new Map(),
-    home,
-    attack: new Map([...teams].map(([team, index]) => [team, attack[index] as number])),
-    defence: new Map([...teams].map(([team, index]) => [team, defence[index] as number])),
+  const factors = drawFactors(columns, strengths);
+  const byTeam = (values: Float64Array) =>
+    new Map([...teams].map(([team, index]) => [team, values[index] as number]));
+  return {
+    competitions: new Map(
+      [...codes].map(([code, index]) => [
+        code,
+        { base: strengths.base[index] as number, drawFactor: factors[index] as number },
+      ])
+    ),
+    home: strengths.home,
+    attack: byTeam(strengths.attack),
+    defence: byTeam(strengths.defence),
   };
-  const plainDraws = new Map<string, { draws: number[]; drawn: number }>();
-  for (const match of history) {
-    const rate = base[codes.get(match.code) as number] as number;
-    const tally = plainDraws.get(match.code) ?? { draws: [], drawn: 0 };
-    tally.draws.push(
-      plainDraw(
-        Math.exp(
-          rate +
-            home +
-            (fit.attack.get(match.homeTeam) as number) +
-            (fit.defence.get(match.awayTeam) as number)
-        ),
-        Math.exp(
-          rate +
-            (fit.attack.get(match.awayTeam) as number) +
-            (fit.defence.get(match.homeTeam) as number)
-        )
-      )
-    );
-    tally.drawn += match.homeGoals === match.awayGoals ? 1 : 0;
-    plainDraws.set(match.code, tally);
-  }
-  for (const [code, index] of codes) {
-    const { draws, drawn } = plainDraws.get(code) as { draws: number[]; drawn: number };
-    fit.competitions.set(code, {
-      base: base[index] as number,
-      drawFactor: drawFactorFor(draws, drawn / draws.length),
-    });
-  }
-  return fit;
 }
 
 /**
