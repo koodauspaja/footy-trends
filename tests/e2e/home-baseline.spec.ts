@@ -30,7 +30,16 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   }
 }
 
-function fixture(id: number, status: string, goals: number | null, categoryId = "VL") {
+// Three days ago: finished history the Poisson fit can read whatever else is stored.
+const PLAYED_AT = new Date(Date.now() - 3 * 86_400_000);
+
+function fixture(
+  id: number,
+  status: string,
+  goals: number | null,
+  categoryId = "VL",
+  kickoffAt = new Date(`${SEASON}-05-01T15:00:00Z`)
+) {
   return {
     taso_match_id: id,
     competition_id: `spljp${SEASON % 100}`,
@@ -38,7 +47,7 @@ function fixture(id: number, status: string, goals: number | null, categoryId = 
     season_id: SEASON,
     group_id: 1,
     group_name: "Runkosarja",
-    kickoff_at: new Date(`${SEASON}-05-01T15:00:00Z`),
+    kickoff_at: kickoffAt,
     matchday: 1,
     status,
     home_team_provider_id: 999_051_101,
@@ -57,7 +66,7 @@ test.beforeAll(async () => {
     await sql`delete from taso_matches where taso_match_id in ${sql(IDS)}`;
     await sql`insert into taso_matches ${sql([
       fixture(UPCOMING_ID, "SCHEDULED", null),
-      fixture(FINISHED_ID, "FINISHED", 1),
+      fixture(FINISHED_ID, "FINISHED", 1, "VL", PLAYED_AT),
       // Suomen Cup: upcoming, but not a competition the home-advantage table
       // compares.
       fixture(CUP_ID, "SCHEDULED", null, "MSC"),

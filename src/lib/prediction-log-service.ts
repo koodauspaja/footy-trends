@@ -11,6 +11,7 @@
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
+import { invalidateCache } from "./cache";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
 import { replayElo, type TeamRating } from "./elo";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
@@ -43,6 +44,7 @@ import {
   type RefreshTarget,
   refreshTargets,
 } from "./prediction-log";
+import { qualityCacheKey } from "./prediction-quality-service";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "./standings-service";
 import { getSeasonMatches as getTasoSeasonMatches } from "./taso";
 import { synchronizeMatches as synchronizeTasoMatches } from "./taso-standings-service";
@@ -440,9 +442,12 @@ export async function readFinished(
 
 /**
  * The backtest: one `backtest` row for every stored finished match with
- * history, written idempotently. Stored rows only, no provider request.
+ * history, written idempotently. Stored rows only, no provider request. The
+ * cached reports of the backtest are dropped, so `/ennusteet` shows the new
+ * rows at once.
  *
  * decisions/052-predictions-log.md
+ * decisions/055-poisson-goal-model.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
@@ -453,5 +458,12 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
     ...poissonBacktestRows(finished, now),
   ];
   await writePredictions(rows);
+  // A report cached before these rows would hide them for up to 15 minutes.
+  // A failure to drop it is logged by the cache, and the rows are written.
+  await Promise.all(
+    (["football-data", "taso"] as const).map((source) =>
+      invalidateCache(qualityCacheKey(source, "backtest"))
+    )
+  );
   return rows.length;
 }

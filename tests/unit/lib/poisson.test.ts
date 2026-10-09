@@ -27,11 +27,11 @@ import {
  */
 
 const DAY_MS = 86_400_000;
-/** The day every fit below is asked for: 2025-06-01. */
+// The day every fit below is asked for: 2025-06-01.
 const TODAY = utcDay(new Date(Date.UTC(2025, 5, 1)));
 
 let nextId = 1;
-/** A match `daysAgo` days before `TODAY`, at 15:00 UTC. */
+// A match `daysAgo` days before `TODAY`, at 15:00 UTC.
 function played(
   daysAgo: number,
   homeTeam: number,
@@ -56,7 +56,7 @@ function played(
 
 const total = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0);
 
-/** A repeatable stream of numbers in [0, 1). */
+// A repeatable stream of numbers in [0, 1).
 function seeded(seed: number): () => number {
   let state = seed;
   return () => {
@@ -65,7 +65,7 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** A Poisson draw at `expected`, from the stream. */
+// A Poisson draw at `expected`, from the stream.
 function goalsAt(expected: number, random: () => number): number {
   const drawn = random();
   let goals = 0;
@@ -79,7 +79,7 @@ function goalsAt(expected: number, random: () => number): number {
   return goals;
 }
 
-/** A small league with scores of every kind, the last 30 days. */
+// A small league with scores of every kind, the last 30 days.
 function league(): PoissonMatch[] {
   return [
     played(30, 1, 2, 2, 0),

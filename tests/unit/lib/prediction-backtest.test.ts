@@ -156,15 +156,21 @@ describe("poissonBacktestRows", () => {
     expect(rows[1]?.homeProbability).toBeGreaterThan(rows[1]?.awayProbability as number);
   });
 
-  it("does not let a later match on the same day inform an earlier one", () => {
+  it("does not let an earlier match of the same day inform a later one", () => {
     const earlier = played(1, 2, 0);
-    const noon = played(4, 1, 0, { kickoffAt: new Date(Date.UTC(2026, 3, 4, 12)) });
-    const evening = (homeGoals: number) =>
-      played(4, homeGoals, 0, { providerMatchId: 7_001, homeTeam: 2, awayTeam: 1 });
+    const noon = (homeGoals: number) =>
+      played(4, homeGoals, 0, {
+        providerMatchId: 7_000,
+        kickoffAt: new Date(Date.UTC(2026, 3, 4, 12)),
+      });
+    const evening = played(4, 1, 0, { providerMatchId: 7_001, homeTeam: 2, awayTeam: 1 });
+    const eveningRow = (rows: ReturnType<typeof poissonBacktestRows>) =>
+      rows.find((row) => row.providerMatchId === 7_001);
 
-    const [afterNil] = poissonBacktestRows([earlier, noon, evening(0)], NOW);
-    const [afterNine] = poissonBacktestRows([earlier, noon, evening(9)], NOW);
+    const afterNil = eveningRow(poissonBacktestRows([earlier, noon(0), evening], NOW));
+    const afterNine = eveningRow(poissonBacktestRows([earlier, noon(9), evening], NOW));
 
+    expect(afterNil).toBeDefined();
     expect(afterNine).toEqual(afterNil);
   });
 

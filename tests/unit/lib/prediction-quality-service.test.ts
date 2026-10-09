@@ -33,6 +33,7 @@ import {
   getPredictionQuality,
   QUALITY_FIRST_SEASON,
   QUALITY_MODELS,
+  qualityCacheKey,
 } from "@/lib/prediction-quality-service";
 
 function row(
@@ -68,6 +69,10 @@ describe("getPredictionQuality", () => {
   it("judges the baseline, Elo and Poisson, from 2016 domestically and 2023 for football-data", () => {
     expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
+  });
+
+  it("names the cache key the backtest drops", () => {
+    expect(qualityCacheKey("taso", "backtest")).toBe("quality:v2:taso:backtest");
   });
 
   it("caches each provider and kind apart for 15 minutes", async () => {

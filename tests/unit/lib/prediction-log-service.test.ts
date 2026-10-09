@@ -13,6 +13,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
 
 const mocks = vi.hoisted(() => ({
   fitPoisson: vi.fn(),
+  invalidateCache: vi.fn<(key: string) => Promise<boolean>>(),
   select: vi.fn(),
   insertValues: vi.fn(),
   onConflictDoUpdate: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock("@/lib/match-service", () => ({
 vi.mock("@/lib/logger", () => ({
   logger: { error: mocks.loggerError, info: mocks.loggerInfo },
 }));
+vi.mock("@/lib/cache", () => ({ invalidateCache: mocks.invalidateCache }));
 // The real fit, behind a spy one test makes fail.
 vi.mock("@/lib/poisson", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/poisson")>();
@@ -518,6 +520,53 @@ describe("runPredictionBacktest", () => {
     vi.clearAllMocks();
     mocks.select.mockReset();
     mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
+    mocks.invalidateCache.mockReset().mockResolvedValue(true);
+  });
+
+  it("drops both providers' cached backtest reports once the rows are written, and no live one", async () => {
+    let written = false;
+    mocks.onConflictDoUpdate.mockImplementation(async () => {
+      written = true;
+    });
+    const writtenWhenDropped: boolean[] = [];
+    mocks.invalidateCache.mockImplementation(async () => {
+      writtenWhenDropped.push(written);
+      return true;
+    });
+    mocks.select
+      .mockResolvedValueOnce([
+        { code: "PL", ...played(1, 2, 0) },
+        { code: "PL", ...played(2, 1, 1) },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await runPredictionBacktest(NOW);
+
+    expect(mocks.invalidateCache.mock.calls).toEqual([
+      ["quality:v2:football-data:backtest"],
+      ["quality:v2:taso:backtest"],
+    ]);
+    expect(writtenWhenDropped).toEqual([true, true]);
+  });
+
+  it("still answers with the rows written when a cached report cannot be dropped", async () => {
+    mocks.select.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    mocks.invalidateCache.mockResolvedValue(false);
+
+    await expect(runPredictionBacktest(NOW)).resolves.toBe(0);
+  });
+
+  it("drops no cached report when the write fails", async () => {
+    mocks.select
+      .mockResolvedValueOnce([
+        { code: "PL", ...played(1, 2, 0) },
+        { code: "PL", ...played(2, 1, 1) },
+      ])
+      .mockResolvedValueOnce([]);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
+
+    await expect(runPredictionBacktest(NOW)).rejects.toThrow("connection reset");
+    expect(mocks.invalidateCache).not.toHaveBeenCalled();
   });
 
   const played = (day: number, home: number, away: number, overrides = {}) => ({

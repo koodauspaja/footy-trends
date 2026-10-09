@@ -53,6 +53,16 @@ const CACHE_TTL_SECONDS = 15 * 60;
 
 export type QualityResult = QualityReport | { status: "error" };
 
+/**
+ * Where one provider's and kind's report is cached.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
+ */
+export function qualityCacheKey(source: MatchSource["kind"], kind: PredictionKind): string {
+  return `quality:v2:${source}:${kind}`;
+}
+
 function outcomeOf(home: number, away: number): Outcome {
   if (home > away) return "home";
   return home === away ? "draw" : "away";
@@ -146,7 +156,7 @@ export async function getPredictionQuality(
   kind: PredictionKind
 ): Promise<QualityResult> {
   try {
-    return await getCached(`quality:v2:${source}:${kind}`, CACHE_TTL_SECONDS, async () => {
+    return await getCached(qualityCacheKey(source, kind), CACHE_TTL_SECONDS, async () => {
       const judged: JudgedPrediction[] = (await readJudged(source, kind)).map(
         ({ homeGoals, awayGoals, ...row }) => ({ ...row, outcome: outcomeOf(homeGoals, awayGoals) })
       );

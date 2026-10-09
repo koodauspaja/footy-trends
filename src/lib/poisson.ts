@@ -31,7 +31,8 @@ export const POISSON_DECAY_PER_DAY = 0.0019;
 export const POISSON_HORIZON_DAYS = 1500;
 
 /**
- * The average matches every strength is pulled towards average by.
+ * The pull of every strength towards average: this many goals scored against
+ * as many expected, about what an average side gets from one match.
  *
  * decisions/055-poisson-goal-model.md
  */
@@ -121,7 +122,11 @@ function isFittable(match: PoissonMatch): boolean {
   return match.homeTeam !== PLACEHOLDER_TEAM_ID && match.awayTeam !== PLACEHOLDER_TEAM_ID;
 }
 
-/** The probabilities of 0 to 10 goals at an expected count, not yet summing to 1. */
+/**
+ * The probabilities of 0 to 10 goals at an expected count, not yet summing to 1.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
 function goalProbabilities(expected: number): number[] {
   const probabilities: number[] = [];
   let probability = Math.exp(-expected);
@@ -226,7 +231,11 @@ export function drawFactorFor(plainDraws: readonly number[], share: number): num
   return Math.exp((low + high) / 2);
 }
 
-/** Each distinct key's position, in first-seen order. */
+/**
+ * Each distinct key's position, in first-seen order.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
 function positions<Key>(keys: Iterable<Key>): Map<Key, number> {
   const found = new Map<Key, number>();
   for (const key of keys) if (!found.has(key)) found.set(key, found.size);
@@ -303,7 +312,11 @@ function settle(
   return moved;
 }
 
-/** Each competition's base rate, from all the goals of its matches. */
+/**
+ * Each competition's base rate, from all the goals of its matches.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
 function settleBase(columns: Columns, strengths: Strengths): number {
   const goals = new Float64Array(strengths.base.length);
   const expected = new Float64Array(strengths.base.length);
@@ -325,7 +338,11 @@ function settleBase(columns: Columns, strengths: Strengths): number {
   return settle(strengths.base, goals, expected, RATE_PRIOR_GOALS);
 }
 
-/** The home advantage, from the home sides' goals. */
+/**
+ * The home advantage, from the home sides' goals.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
 function settleHome(columns: Columns, strengths: Strengths): number {
   let goals = 0;
   let expected = 0;
