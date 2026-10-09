@@ -3,6 +3,7 @@ import path from "node:path";
 import type { FullConfig, FullResult, Reporter, Suite } from "@playwright/test/reporter";
 import { fingerprint } from "./e2e-freshness-git";
 import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
+import { e2eTarget, vouchesForAPush } from "./e2e-target";
 
 /**
  * Spec files on disk, so a run narrowed to one file is not mistaken for all of
@@ -21,12 +22,15 @@ function availableSpecFiles(testDir: string, readdir: ReporterDeps["readdir"]): 
  * drive it without a Playwright run or a marker on disk.
  *
  * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export type ReporterDeps = {
   readdir: (directory: string) => string[];
   fingerprint: () => string[] | null;
   writeMarker: (contents: string) => void;
   now: () => Date;
+  /** Whether the server under test was built by this run. */
+  builtWhatItTested: () => boolean;
 };
 
 /**
@@ -41,15 +45,18 @@ export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
     fingerprint: () => fingerprint(),
     writeMarker: (contents) => writeFileSync(markerPath, contents),
     now: () => new Date(),
+    builtWhatItTested: () => vouchesForAPush(e2eTarget(process.env.E2E_TARGET)),
   };
 }
 
 /**
  * Records that the whole e2e suite passed, for the pre-push hook to read.
- * Nothing is written unless the run both passed and covered every spec file.
+ * Nothing is written unless the run passed, covered every spec file and built
+ * the server it ran against.
  *
  * decisions/084-e2e-freshness-before-push.md
  * decisions/242-freshness-compares-content.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export default class E2eFreshnessReporter implements Reporter {
   private covered = false;
@@ -74,6 +81,7 @@ export default class E2eFreshnessReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     if (result.status !== "passed" || !this.covered) return;
+    if (!this.deps.builtWhatItTested()) return;
 
     // The marker records the content of the watched trees, not where git keeps it.
     // A fingerprint git cannot produce is no fingerprint, so nothing is written.

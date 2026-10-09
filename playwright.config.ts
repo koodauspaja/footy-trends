@@ -8,10 +8,12 @@
  * decisions/227-e2e-runs-serially.md
  * decisions/304-test-database.md
  * decisions/384-a-dom-only-where-a-test-needs-one.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { e2eTarget, serverCommand, startUpTimeoutMs } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
@@ -26,12 +28,14 @@ if (existsSync(".env")) {
 // targeting `main`.
 
 /**
- * `build` runs the suite against a production build, which is what
- * `release.yml` sets. The build itself happens in the workflow.
+ * Unset, the suite builds and runs against that production build. `build`
+ * serves a build already made, which is what `release.yml` sets, and `dev` runs
+ * against `next dev`.
  *
  * decisions/085-release-workflow.md
+ * decisions/568-e2e-against-a-production-build.md
  */
-const againstProductionBuild = process.env.E2E_TARGET === "build";
+const target = e2eTarget(process.env.E2E_TARGET);
 
 /**
  * The suite runs its own server, on its own port, against its own database.
@@ -71,10 +75,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // The port is passed explicitly rather than through `PORT`, so that it
-    // holds for both `next dev` and `next start` regardless of how either reads
-    // its environment.
-    command: againstProductionBuild ? `npm start -- -p ${PORT}` : `npm run dev -- -p ${PORT}`,
+    command: serverCommand(target, PORT),
     url: BASE_URL,
     // Never reused: a server already listening was started against the
     // development database, or is a `next dev` where a build is under test.
@@ -83,6 +84,6 @@ export default defineConfig({
     // analytics flag works only against a `_test` database, which this also sets:
     // see `src/lib/e2e-analytics.ts`.
     env: { ...process.env, DATABASE_URL: testDatabaseUrl(), [E2E_ANALYTICS_FLAG]: "1" },
-    timeout: 120_000,
+    timeout: startUpTimeoutMs(target),
   },
 });

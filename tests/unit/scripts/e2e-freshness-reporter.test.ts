@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { FullConfig, FullResult, Suite, TestCase } from "@playwright/test/reporter";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import E2eFreshnessReporter, {
   type ReporterDeps,
   reporterDeps,
@@ -50,6 +50,7 @@ function reporter(overrides: Partial<ReporterDeps> = {}) {
     fingerprint: () => ["hash\tsrc/a.ts"],
     writeMarker: (contents) => written.push(contents),
     now: () => new Date("2026-09-18T07:00:00.000Z"),
+    builtWhatItTested: () => true,
     ...overrides,
   };
 
@@ -138,6 +139,17 @@ describe("E2eFreshnessReporter", () => {
     expect(written).toEqual([]);
   });
 
+  it("writes nothing for a full passing run against a server it did not build", () => {
+    // The dev server, or a build made earlier: neither is known to be the code
+    // on disk as it ships, so a push cannot stand on it.
+    const { instance, written } = reporter({ builtWhatItTested: () => false });
+
+    instance.onBegin(config(), suite(SPECS));
+    instance.onEnd(passed);
+
+    expect(written).toEqual([]);
+  });
+
   it("writes nothing when the config has no project to read specs from", () => {
     const { instance, written } = reporter();
 
@@ -208,5 +220,19 @@ describe("reporterDeps", () => {
     // answers, and neither may throw.
     expect(() => deps.fingerprint()).not.toThrow();
     expect(deps.now().getTime()).toBeGreaterThan(0);
+  });
+
+  it.each([
+    [undefined, true],
+    ["build", false],
+    ["dev", false],
+  ])("reads E2E_TARGET %j as built here: %s", (value, expected) => {
+    vi.stubEnv("E2E_TARGET", value);
+
+    try {
+      expect(reporterDeps().builtWhatItTested()).toBe(expected);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
