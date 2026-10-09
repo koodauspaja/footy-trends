@@ -49,8 +49,21 @@ silent.
 `src/app/global-error.tsx` already called `Sentry.captureException` and is
 unchanged.
 
-## Not established here
+## Checked in a browser
 
-No event was seen arriving in Sentry from this change. The unit tests assert
-the helper is called at each site and that it calls `captureException`; an
-event needs a build with a DSN and a failure in a browser.
+Once, by hand, on 2026-10-09, against a production build with the local
+`NEXT_PUBLIC_SENTRY_DSN`: the request that starts a sign-in was aborted, and
+the header's `Kirjaudu sisään` pressed.
+
+| Looked for | Found |
+|---|---|
+| An event posted to the tunnel route, `/monitoring` | one, answered 200 |
+| The tag | `"where":"sign-in.header"` |
+| The error | `TypeError: Failed to fetch` |
+| A `user` object | none |
+| An email address anywhere in the envelope | none; the only `@` is in the DSN |
+
+The other seventeen sites were not driven in a browser. They call the same
+helper, which the unit tests assert site by site. The check is not kept as an
+end-to-end test: it would send an event to Sentry on every run, or need a DSN
+that CI does not have.
