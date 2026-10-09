@@ -197,9 +197,10 @@ already, and #390 found two classes that had never been written down at all.
    review in state `APPROVED` whose `commit_id` is the head, beside a
    check-run that reads `success`.
 
-   Exit code 1 is a **hard block**: the PR waits until step 9 has produced a
-   full review. Do not merge on a green check, and do not propose merging with
-   a caveat.
+   Exit code 1 is a **hard block**: the PR waits until the script exits 0,
+   which takes a full review of the head, or the quick check over
+   documentation alone. Do not merge on a green check, and do not propose
+   merging with a caveat.
 
    Where it cannot tell, it fails. Under the quick check it lists what changed
    since the last full review, and only Markdown files outside tests, changed
@@ -334,8 +335,8 @@ waiting never shrinks its diff, while an exhausted budget can only be
 
 Note that Sourcery's own docs are explicit that "a rate limit never blocks a
 merge" — it skips the review and GitHub goes green. That is exactly why the
-merge gate in step 7 checks for a full review of the head commit rather than
-trusting the check's colour.
+merge gate in step 7 reads which kind of review the head commit has rather
+than trusting the check's colour.
 
 ## Update a stale branch by rebase, not merge
 
@@ -399,6 +400,10 @@ behind, and the check appeared unprompted within 30 seconds and completed
 
 So the load-bearing rule is the next paragraph, not this one: **a missing check
 is re-requested, never waited on**, whatever shape the head is.
+
+**A rebase after the full review asks for a new one.** The reviewed commit is
+then no ancestor of the head, so step 7's script cannot list what changed
+since and does not accept the quick check, documentation or not.
 
 **It is safe here specifically.** The `main` ruleset targets `~DEFAULT_BRANCH`
 only, so feature branches carry no `non_fast_forward` rule and force-pushing to
