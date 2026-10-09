@@ -146,6 +146,17 @@ export const OPTIONAL_SECRETS = [
  */
 export const SIGN_IN_LIST = "AUTH_ALLOWED_EMAILS";
 
+/**
+ * Whether a sign-in list names anyone, read as the app reads it
+ * (`allowedSignInEmails`): `, ,` is no list at all, and no list lets any
+ * Google account in.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export function namesSomeone(list: string): boolean {
+  return list.split(",").some((entry) => entry.trim() !== "");
+}
+
 export type Variable = { name: string; value: string };
 
 // A value Railway resolves inside the environment: another service's variable,
@@ -168,7 +179,8 @@ export function variablesFor(
 ): Variables {
   const open = name === "production";
   const required = open ? REQUIRED_SECRETS : [...REQUIRED_SECRETS, SIGN_IN_LIST];
-  const held = (key: string) => (env[key] ?? "").trim() !== "";
+  const held = (key: string) =>
+    key === SIGN_IN_LIST ? namesSomeone(env[key] ?? "") : (env[key] ?? "").trim() !== "";
 
   const missing = required.filter((key) => !held(key));
   if (missing.length > 0) return { ok: false, missing };

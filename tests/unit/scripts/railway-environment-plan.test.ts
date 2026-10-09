@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { allowedSignInEmails } from "@/lib/sign-in-allowlist";
 import { PROTECTED_ENVIRONMENT_IDS } from "../../../.railway/databases";
 import {
   collision,
   domainFrom,
   findTarget,
   healthy,
+  namesSomeone,
   parseArgs,
   railway,
   refusal,
@@ -223,6 +225,13 @@ describe("variablesFor", () => {
     });
   });
 
+  it("counts a sign-in list that names nobody as missing", () => {
+    expect(variablesFor("pr-123", { ...KEYS, AUTH_ALLOWED_EMAILS: " , , " }, "s")).toEqual({
+      ok: false,
+      missing: ["AUTH_ALLOWED_EMAILS"],
+    });
+  });
+
   // An environment with no list lets any Google account in.
   it("requires the sign-in list everywhere but an environment named production", () => {
     const { AUTH_ALLOWED_EMAILS: _, ...withoutList } = KEYS;
@@ -240,6 +249,33 @@ describe("variablesFor", () => {
     const names = planned.ok ? planned.variables.map((variable) => variable.name) : [];
     expect(names).toContain("GOOGLE_CLIENT_SECRET");
     expect(names).not.toContain("AUTH_ALLOWED_EMAILS");
+  });
+});
+
+describe("namesSomeone", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // The app decides who may sign in; this only has to agree with it on whether
+  // a value restricts anything.
+  it.each([
+    "someone@example.com",
+    " a@example.com , b@example.com ",
+    ",someone@example.com",
+    "",
+    " ",
+    ",",
+    " , , ",
+  ])("agrees with the app on whether %j restricts sign-in", (list) => {
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", list);
+
+    expect(namesSomeone(list)).toBe(allowedSignInEmails().length > 0);
+  });
+
+  it("is false for a list of commas and spaces, which the app reads as no list", () => {
+    expect(namesSomeone(" , , ")).toBe(false);
+    expect(namesSomeone("someone@example.com")).toBe(true);
   });
 });
 

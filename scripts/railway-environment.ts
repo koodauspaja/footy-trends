@@ -27,6 +27,9 @@ const steps: Steps = {
     // the CLI's own stderr, which goes straight to the terminal.
     return execFileSync(binary, args, {
       encoding: "utf8",
+      // `railway status --json` describes every environment and service: far
+      // past Node's default megabyte in a project with many.
+      maxBuffer: 64 * 1024 * 1024,
       stdio: ["pipe", "pipe", "inherit"],
       // `_` is how the SDK finds the CLI to ask its version when it evaluates
       // a config file. A shell sets it to the command it ran; here it would

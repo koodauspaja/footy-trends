@@ -36,6 +36,12 @@ hold nothing, and the command would build into it, as it would into a fork's
 first `production`. The ids protect the two environments that exist; nothing
 protects a name.
 
+**One run at a time is a rule of the workflow only.** Its concurrency group
+queues runs. Two people running the command by hand into the same new
+environment at the same moment would both read it as empty and write over each
+other; nothing stops that, and the result would be a site that fails its
+health check.
+
 **Approving a run gives a branch the keys.** An environment for a branch runs
 that branch's code with the Google client, the provider keys and the sign-in
 list. The reviewer who approves the run is approving that, as merging to `main`
@@ -57,6 +63,7 @@ Environment is the only thing between the token and a workflow somebody edited.
 | The databases are named after the environment: `Postgres-<name>`, `Redis-<name>` | In Railway a service belongs to the project, and an environment holds an instance of it. Measured: declared under a name the project has never held, the CLI builds Railway's own database (`redis:8.2`, its start command, `REDIS_URL`). Declared as `Redis` where the project already had one, it added an instance of that service from the SDK's defaults (`railwayapp/redis:8.2`, no variables), `REDIS_URL` resolved to nothing, and `/api/health` reported Redis unreachable. Seen in two environments, with either spelling of the region. A name of its own also means a new environment in this project shares no service with the `Postgres` and `Redis` production runs on |
 | The region is `europe-west4-drams3a` | Railway's stored name. Measured: with `europe-west4` the database is created in that same place, and every later plan shows `Move database … to europe-west4`, which the CLI counts as destructive |
 | A new environment is shaped as staging: it restricts sign-in, and may sleep | Staging is the shape for anything that is not production. `AUTH_ALLOWED_EMAILS` is required, because without a list any Google account may sign in (#314) |
+| A sign-in list must name someone | The app reads `, ,` as no list, and no list lets anyone in. `namesSomeone` reads it the same way, and a test holds the two to the same answer |
 | An environment named `production` gets no `AUTH_ALLOWED_EMAILS` | `.railway/railway.ts` does not declare it there, so the next apply would delete it. A fork's production is open, as this one is |
 | The branch is a variable read by the file, not an argument | `railway config apply` takes none. A later plan or apply of that environment needs the same variable, or the file throws |
 | `staging` and `production` ignore the branch | Theirs are in the file (`main`, `release`), for a fork as for this project |
