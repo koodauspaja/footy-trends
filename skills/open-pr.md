@@ -219,6 +219,10 @@ already, and #390 found two classes that had never been written down at all.
    PR is unmergeable for ever, so the rule gets set aside by hand, which is
    worse than having no rule.
 
+   This is about a pull request Sourcery has not reviewed in full at all. A
+   push that changes only documentation after a full review is the other
+   case, and the script passes it by itself.
+
    The exception is an **allowlist**, not "everything that is not source".
    Only these paths count as unreviewable:
 
