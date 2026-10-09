@@ -174,7 +174,8 @@ describe("preferences", () => {
     // The save did succeed, so reporting a failure would be wrong. But the
     // start region will not take effect until the session is re-read, and a
     // silently stale header is worse than saying so.
-    refetch.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    refetch.mockRejectedValue(failure);
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
@@ -184,7 +185,7 @@ describe("preferences", () => {
         "Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan."
       )
     ).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "settings.save.refetch");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "settings.save.refetch");
   });
 
   it("does not refresh the session when the save failed", async () => {
@@ -349,7 +350,8 @@ describe("a server action that rejects before returning anything", () => {
     fireEvent.change(screen.getByLabelText("Vahvistus"), { target: { value } });
 
   it("still reports a failed save", async () => {
-    saveSettings.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    saveSettings.mockRejectedValue(failure);
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
@@ -357,11 +359,12 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "settings.save");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "settings.save");
   });
 
   it("still reports a failed sign-out of other devices", async () => {
-    signOutOtherDevices.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    signOutOtherDevices.mockRejectedValue(failure);
     renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
 
     fireEvent.click(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" }));
@@ -369,13 +372,14 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Uloskirjaus epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sessions.sign-out-others");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sessions.sign-out-others");
   });
 
   it("still reports a failed deletion, and does not navigate away", async () => {
     // Sending the reader to `/` as though the account were gone would be the
     // worst possible outcome here.
-    deleteAccount.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    deleteAccount.mockRejectedValue(failure);
     renderPage();
     typeConfirmation("POISTA");
 
@@ -384,7 +388,7 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Tilin poistaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "account.delete");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "account.delete");
   });
 });
 
@@ -629,7 +633,7 @@ describe("Profiilikuva", () => {
     expect(
       screen.queryByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")
     ).not.toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "avatar.save");
+    expect(reportClientError).toHaveBeenCalledWith(error, "avatar.save");
   });
 
   it("falls back to the Google picture when the reader removes their own", async () => {
@@ -653,7 +657,8 @@ describe("Profiilikuva", () => {
     async (_case, current, button, notice) => {
       const unhandled = vi.fn();
       process.on("unhandledRejection", unhandled);
-      refetch.mockRejectedValue(new Error("network"));
+      const failure = new Error("network");
+      refetch.mockRejectedValue(failure);
       renderPicture(current);
       if (current === null) chooseFile(imageOf(1024));
 
@@ -663,7 +668,7 @@ describe("Profiilikuva", () => {
         await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
         expect(screen.getByText(notice)).toBeInTheDocument();
         expect(reportClientError).toHaveBeenCalledWith(
-          expect.any(Error),
+          failure,
           current === null ? "avatar.save.refetch" : "avatar.remove.refetch"
         );
         // Node reports a rejection nobody handled once the current tasks are done.
@@ -704,7 +709,8 @@ describe("Profiilikuva", () => {
   });
 
   it("reports a rejected removal too, rather than looking as if it worked", async () => {
-    removeAvatarAction.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    removeAvatarAction.mockRejectedValue(failure);
     renderPicture(VERSION);
 
     fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
@@ -714,6 +720,6 @@ describe("Profiilikuva", () => {
         screen.getByText("Kuvan poistaminen epäonnistui. Yritä uudelleen.")
       ).toBeInTheDocument()
     );
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "avatar.remove");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "avatar.remove");
   });
 });

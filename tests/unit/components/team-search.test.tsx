@@ -112,11 +112,12 @@ describe("TeamSearch", () => {
   it("says the search failed when the action itself rejects", async () => {
     // A refused invocation is the same as a failed one from here.
     signedIn();
-    searchTeamsAction.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    searchTeamsAction.mockRejectedValue(failure);
     await search();
 
     expect(await screen.findByText("Haku epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "team-search");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "team-search");
   });
 
   it("tells an expired session to try again rather than showing nothing", async () => {

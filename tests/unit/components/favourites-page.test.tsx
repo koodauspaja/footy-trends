@@ -184,7 +184,8 @@ describe("removing", () => {
   });
 
   it("treats a rejected invocation the same as a refusal", async () => {
-    removeCompetition.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    removeCompetition.mockRejectedValue(failure);
     renderPage({ teams: [] });
 
     fireEvent.click(screen.getByRole("button", { name: "Poista suosikeista" }));
@@ -193,7 +194,7 @@ describe("removing", () => {
       expect(screen.getByText("Poistaminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument()
     );
     expect(screen.getByRole("link", { name: "Veikkausliiga" })).toBeInTheDocument();
-    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "favourites.remove");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "favourites.remove");
   });
 
   it("clears an old failure when the next attempt works", async () => {
