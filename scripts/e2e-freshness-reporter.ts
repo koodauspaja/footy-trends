@@ -2,7 +2,7 @@ import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { FullConfig, FullResult, Reporter, Suite } from "@playwright/test/reporter";
 import { fingerprint } from "./e2e-freshness-git";
-import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
+import { changedBetweenFingerprints, isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
 import { e2eTarget, vouchesForAPush } from "./e2e-target";
 
 /**
@@ -51,8 +51,8 @@ export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
 
 /**
  * Records that the whole e2e suite passed, for the pre-push hook to read.
- * Nothing is written unless the run passed, covered every spec file and built
- * the server it ran against.
+ * Nothing is written unless the run passed, covered every spec file, built
+ * the server it ran against, and ended on the files it started with.
  *
  * decisions/084-e2e-freshness-before-push.md
  * decisions/242-freshness-compares-content.md
@@ -61,9 +61,14 @@ export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
 export default class E2eFreshnessReporter implements Reporter {
   private covered = false;
   private readonly deps: ReporterDeps;
+  /** The watched files before the server was built, or `null` when no marker can follow. */
+  private readonly atStart: string[] | null;
 
   constructor(deps: Partial<ReporterDeps> = {}) {
     this.deps = { ...reporterDeps(), ...deps };
+    // Playwright constructs its reporters before it starts the server, so this
+    // is what the build is made from.
+    this.atStart = this.deps.builtWhatItTested() ? this.deps.fingerprint() : null;
   }
 
   onBegin(config: FullConfig, suite: Suite): void {
@@ -81,12 +86,15 @@ export default class E2eFreshnessReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     if (result.status !== "passed" || !this.covered) return;
-    if (!this.deps.builtWhatItTested()) return;
+    if (this.atStart === null) return;
 
     // The marker records the content of the watched trees, not where git keeps it.
     // A fingerprint git cannot produce is no fingerprint, so nothing is written.
     const files = this.deps.fingerprint();
     if (files === null) return;
+
+    // A file edited while the suite ran is not in the build the suite tested.
+    if (changedBetweenFingerprints(this.atStart, files).length > 0) return;
 
     this.deps.writeMarker(
       `${JSON.stringify({ finishedAt: this.deps.now().toISOString(), files })}\n`

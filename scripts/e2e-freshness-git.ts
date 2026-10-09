@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readlinkSync } from "node:fs";
-import { inFixedOrder, WATCHED_DIRECTORIES } from "./e2e-freshness-plan";
+import { inFixedOrder, WATCHED_PATHS } from "./e2e-freshness-plan";
 import { executablePath } from "./executable";
 
 /**
@@ -110,7 +110,7 @@ function watchedPaths(deps: GitDeps): string[] | null {
     "-o",
     "--exclude-standard",
     "--",
-    ...WATCHED_DIRECTORIES,
+    ...WATCHED_PATHS,
   ]);
   if (out === null) return null;
   return out.split("\0").filter(Boolean);

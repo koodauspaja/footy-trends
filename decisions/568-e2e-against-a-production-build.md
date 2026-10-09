@@ -48,6 +48,15 @@ defect is known that `next dev` shows and a build hides.
 - **Only a run that built its server writes the marker.** Against `build` or
   `dev` nothing says the server is the code on disk as it ships, so the
   reporter stays silent, as it does for a narrowed run.
+- **The marker is written only when the watched files end as they started.**
+  A dev server recompiled a file edited mid-run; a build does not, so the run
+  tested the files as they were before it. The reporter reads them when
+  Playwright constructs it, which is before the server starts, and again at the
+  end.
+- **The files that decide the server are watched.** `next.config.ts`,
+  `playwright.config.ts` and `scripts/e2e-target.ts` join `src` and
+  `tests/e2e`, so a change to which server runs, or to its route table, makes
+  an earlier marker stale.
 - **An unknown `E2E_TARGET` is the fresh build.** A typo must not land on the
   dev server, where this class of defect cannot fail.
 - **A running `npm run dev` does not get in the way.** It is on port 3000 and
@@ -68,4 +77,5 @@ defect is known that `next dev` shows and a build hides.
 - `tests/unit/scripts/e2e-target.test.ts`: the three targets, their commands
   and which one may vouch for a push.
 - `tests/unit/scripts/e2e-freshness-reporter.test.ts`: a full passing run that
-  did not build its server writes nothing.
+  did not build its server writes nothing, and neither does one during which
+  a watched file was edited, added or deleted.

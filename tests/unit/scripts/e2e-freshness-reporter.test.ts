@@ -159,7 +159,7 @@ describe("E2eFreshnessReporter", () => {
     expect(written).toEqual([]);
   });
 
-  it("does not ask git for a fingerprint it is not going to write", () => {
+  it("asks git once, at the start, for a run it is not going to record", () => {
     let asked = 0;
     const { instance } = reporter({
       fingerprint: () => {
@@ -171,7 +171,49 @@ describe("E2eFreshnessReporter", () => {
     instance.onBegin(config(), suite(["one.spec.ts"]));
     instance.onEnd(passed);
 
+    expect(asked).toBe(1);
+  });
+
+  it("does not ask git at all when it did not build the server", () => {
+    let asked = 0;
+    const { instance } = reporter({
+      builtWhatItTested: () => false,
+      fingerprint: () => {
+        asked += 1;
+        return ["hash\tsrc/a.ts"];
+      },
+    });
+
+    instance.onBegin(config(), suite(SPECS));
+    instance.onEnd(passed);
+
     expect(asked).toBe(0);
+  });
+
+  it.each([
+    ["edited", ["changed\tsrc/a.ts"]],
+    ["added", ["hash\tsrc/a.ts", "new\tsrc/b.ts"]],
+    ["deleted", []],
+  ])("writes nothing when a watched file was %s while the suite ran", (_, atEnd) => {
+    // The build was made from the files at the start, so the run says nothing
+    // about the ones at the end.
+    const readings = [["hash\tsrc/a.ts"], atEnd];
+    const { instance, written } = reporter({ fingerprint: () => readings.shift() ?? null });
+
+    instance.onBegin(config(), suite(SPECS));
+    instance.onEnd(passed);
+
+    expect(written).toEqual([]);
+  });
+
+  it("writes nothing when git could not produce the fingerprint at the end", () => {
+    const readings: (string[] | null)[] = [["hash\tsrc/a.ts"], null];
+    const { instance, written } = reporter({ fingerprint: () => readings.shift() ?? null });
+
+    instance.onBegin(config(), suite(SPECS));
+    instance.onEnd(passed);
+
+    expect(written).toEqual([]);
   });
 
   it("treats a grep Playwright did not set as no grep at all", () => {

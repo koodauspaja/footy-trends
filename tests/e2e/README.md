@@ -197,7 +197,7 @@ A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
 |---|---|
 | No marker | `No passing full e2e run has been recorded` |
 | Older than **12 hours** | `The last passing e2e run finished 13 h 0 min ago` |
-| Files under `src/` or `tests/e2e/` modified since the marker | `3 file(s) changed since the last passing e2e run: …` |
+| A watched file modified since the marker: anything under `src/` or `tests/e2e/`, `next.config.ts`, `playwright.config.ts` or `scripts/e2e-target.ts` | `3 file(s) changed since the last passing e2e run: …` |
 
 The file comparison is the load-bearing one — a run is stale the moment the
 code it exercised changes. The twelve-hour window is a backstop for what that
@@ -236,6 +236,10 @@ through a push whose changes were never exercised.
 The run must also have **built the server it ran against**. With
 `E2E_TARGET=dev` or `E2E_TARGET=build` nothing says the server is the code on
 disk as it ships, so neither writes the marker.
+
+And the watched files must be **the same at the end as at the start**. The
+build is made once, before the first spec, so a file edited while the suite
+runs was not tested, and that run writes no marker.
 
 It is a reporter rather than an `&&` on the `test:e2e` script because npm
 appends a script's extra arguments to the end of the whole command, so
