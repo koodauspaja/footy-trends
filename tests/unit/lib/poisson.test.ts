@@ -291,8 +291,16 @@ describe("fitPoisson", () => {
     let expectedAgainst = 0;
     let homeGoals = 0;
     let homeExpected = 0;
+    // The base rate: every goal, against what the sides would score at a rate of one.
+    let allGoals = 0;
+    let allExpected = 0;
     for (const match of history) {
       const w = weight(match);
+      allGoals += w * (match.homeGoals + match.awayGoals);
+      allExpected +=
+        w *
+        (Math.exp(fit.home + attack(match.homeTeam) + defence(match.awayTeam)) +
+          Math.exp(attack(match.awayTeam) + defence(match.homeTeam)));
       if (match.homeTeam === 1) {
         scored += w * match.homeGoals;
         expected += w * Math.exp(base + fit.home + defence(match.awayTeam));
@@ -316,6 +324,7 @@ describe("fitPoisson", () => {
     expect(attack(1)).toBeCloseTo(Math.log((scored + 1) / (expected + 1)), 3);
     expect(defence(3)).toBeCloseTo(Math.log((conceded + 1) / (expectedAgainst + 1)), 3);
     expect(fit.home).toBeCloseTo(Math.log((homeGoals + 0.5) / (homeExpected + 0.5)), 3);
+    expect(base).toBeCloseTo(Math.log((allGoals + 0.5) / (allExpected + 0.5)), 3);
   });
 
   it("counts a recent match for more than an old one", () => {
