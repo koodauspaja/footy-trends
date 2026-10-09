@@ -247,7 +247,9 @@ export async function checkReview({
           ...every.map((review) => review.commit),
           ...(await readCommits(reading)),
         ]);
-  const reviews = commit === undefined ? standing(every, head) : every;
+  // The present head, however it was named: an earlier one keeps the reviews
+  // a later push dismissed.
+  const reviews = head === found.head.sha ? standing(every, head) : every;
   const check = await readCheck(reading, head);
 
   const kind = headReview(reviews, head) ?? withoutReview(check);

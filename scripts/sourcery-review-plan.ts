@@ -221,7 +221,7 @@ export function lastFullReview(comparisons: readonly Comparison[]): Comparison |
 }
 
 const TEST_DIRECTORY = /(?:^|\/)tests\//;
-const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TEST_FILE = /\.(?:test|spec)\.[^./]+$/;
 const TYPESCRIPT = /\.[cm]?tsx?$/;
 // A comment a tool reads, so changing it can change what compiles, what is
 // linted or what counts as covered.

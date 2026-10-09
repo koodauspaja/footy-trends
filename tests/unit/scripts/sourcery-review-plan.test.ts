@@ -310,8 +310,10 @@ describe("changeKind", () => {
     expect(changeKind(change("CLAUDE.md", { status: "added" }))).toBe("documentation");
   });
 
-  it("does not call a Markdown file under tests documentation", () => {
+  it("does not call a Markdown file that is a test documentation", () => {
     expect(changeKind(change("tests/fixtures/issue-body.md"))).toBe("other");
+    expect(changeKind(change("docs/setup/chain.test.md"))).toBe("other");
+    expect(changeKind(change("docs/setup/chain.spec.md"))).toBe("other");
   });
 
   it("does not call source renamed to a Markdown path documentation", () => {

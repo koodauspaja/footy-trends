@@ -314,6 +314,18 @@ describe("checkReview", () => {
     expect(result.lines[0]).toBe("#552 at f4e9a2d: nothing from Sourcery.");
   });
 
+  it("does not count it either when the head is named on the command line", async () => {
+    const result = await check(
+      {
+        reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z", "DISMISSED")],
+        comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
+      },
+      "f4e9a2d"
+    );
+
+    expect(result.lines[0]).toBe("#552 at f4e9a2d: nothing from Sourcery.");
+  });
+
   it("compares the pull request with itself when the branch was rebased after the full review", async () => {
     const result = await check({
       reviews: QUICK_AFTER_FULL,
