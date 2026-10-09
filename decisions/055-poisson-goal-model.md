@@ -14,7 +14,7 @@ implementation had to decide something the spec did not.
 | The tolerance | 0,0001 on a log-strength, not smaller | A shift of every attack one way and the base rate the other barely changes any expected goal count, so the sweeps crawl along it: at 0,000001 a warm fit took about 250 sweeps instead of about 10, for predictions that differ in the fifth decimal. Measured below. |
 | The backtest's warm start | Each day's fit starts from the day before's, for the teams and competitions still in the window | Speed only. It ends where a cold fit ends, within the tolerance; a unit test compares the two. |
 | A team outside the window | Absent from the fit, so average | S4. #515's prototype kept a team's last strength for ever once it had one; a club back after more than 1 500 days is here an average side, as the spec says. |
-| The prior on strengths (S4) | One goal scored against one goal expected, added to each attack's and each defence's totals | #515's prototype's, which the figures were measured with. It is about one average match, not exactly: an average side is expected 1,2 to 1,6 goals in one, so the pull is a little weaker than a whole match's. Sourcery raised the difference on #613; making it a match's exact worth would be another model than the one #515 measured, and is left for a `poisson-v2` to measure. |
+| The prior on strengths (S4) | One goal scored against one goal expected, added to each attack's and each defence's totals | #515's prototype's, which the figures were measured with. It is about one average match, not exactly: an average side is expected 1,2 to 1,6 goals in one, so the pull is a little weaker than a whole match's. Sourcery raised the difference on #613; making it a match's exact worth would be another model than the one #515 measured, and is left for a `poisson-v2` to measure. Miikka agreed to leaving it, 2026-10-10. |
 | The prior on rates | Half a goal on each competition's base rate and on the home advantage | #515's prototype had it on the base rate only. Without it a history with no home goal at all gives a home advantage of minus infinity. With thousands of matches it moves nothing a reader could see. |
 | The draw factor (S16) | Per competition, inside the fit: the plain grid's draw probability of every one of the competition's fitted matches, and the factor (searched between a thousandth and a thousand) that brings their average, once scaled, to those matches' draw share; unweighted | S16. The share is of the same matches the probabilities are of, so the two sides of the equation describe one set. Unweighted because S16 says the draw share of those matches, not a decayed one. |
 | No draw factor (S14) | 1 when the fitted matches of the competition have no draw, or nothing else | S14, now within the window rather than "ever", since the window is all the fit reads. |
@@ -185,7 +185,8 @@ beside it; `#515` is the prototype's `dc-strengths`, which had none.
   base rate) are together worth that.
 - **The draw factor neither helps nor hurts.** Brier moves by 0,0001 either
   way; log-loss is 0,0005 better for TASO and 0,0004 worse for football-data.
-  It is kept because S6 and S16 specify it. The fitted strengths already draw
+  It is kept: Miikka, 2026-10-10, with the figures in hand, "let's keep the
+  draw factor now, we can maybe recalibrate after some months or so". The fitted strengths already draw
   about as often as the competitions do: Veikkausliiga's factor is 1,008, the
   Premier League's 1,118, and the furthest are the youth leagues' (0,66 to
   0,80) and the Bundesliga's and Eredivisie's (1,30).
