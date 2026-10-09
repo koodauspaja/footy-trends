@@ -572,6 +572,29 @@ describe("checkReview", () => {
     await expect(check(stub)).rejects.toThrow("It starts: ### Sourcery assessment");
   });
 
+  it.each([
+    ["the head", { head: { sha: "../../../orgs/someone" }, base: { sha: BASE } }],
+    ["the base", { head: { sha: HEAD }, base: { sha: "main?per_page=1" } }],
+  ])(
+    "refuses an answer in which %s is not a commit id, and asks nothing with it",
+    async (_name, pull) => {
+      const paths: string[] = [];
+      const answers: Record<string, unknown> = {
+        ...answersFor({ runs: [run("skipped", "Skipped.")] }),
+        [`${ROOT}/pulls/552`]: pull,
+      };
+      const read: ReadJson = (path) => {
+        paths.push(path);
+        return Promise.resolve(answers[path]);
+      };
+
+      await expect(
+        checkReview({ pull: 552, commit: undefined, repository: REPOSITORY, read })
+      ).rejects.toThrow("GitHub named a commit that is not one");
+      expect(paths.filter((path) => path.includes("orgs") || path.includes("main"))).toEqual([]);
+    }
+  );
+
   it("refuses to report on a head that moved while it was being read", async () => {
     const pushed = "0a1b2c3000000000000000000000000000000000";
     const answers = answersFor({ reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z")] });

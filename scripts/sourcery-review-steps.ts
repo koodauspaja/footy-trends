@@ -69,6 +69,16 @@ type Reading = {
   pull: number;
 };
 
+const COMMIT_ID = /^[0-9a-f]{40}$/;
+
+// A commit id as one segment of a path. Every id here comes out of one of
+// GitHub's answers, and an answer that is not an id must not choose the next
+// request.
+function segment(commit: string): string {
+  if (!COMMIT_ID.test(commit)) throw new Error(`GitHub named a commit that is not one: ${commit}`);
+  return encodeURIComponent(commit);
+}
+
 async function readHead({ read, repository, pull }: Reading): Promise<ApiPull> {
   return (await read(`/repos/${repository}/pulls/${pull}`)) as ApiPull;
 }
@@ -104,7 +114,7 @@ async function readCheck(
 ): Promise<CheckRun | undefined> {
   const runs = await readAll(
     read,
-    `/repos/${repository}/commits/${commit}/check-runs`,
+    `/repos/${repository}/commits/${segment(commit)}/check-runs`,
     (answer) => (answer as { check_runs: ApiCheckRun[] }).check_runs
   );
 
@@ -127,7 +137,7 @@ async function readComparison(
   to: string
 ): Promise<Comparison> {
   const { status, files = [] } = (await read(
-    `/repos/${repository}/compare/${from}...${to}`
+    `/repos/${repository}/compare/${segment(from)}...${segment(to)}`
   )) as ApiComparison;
 
   return {
@@ -151,7 +161,7 @@ async function readSource(
 ): Promise<string | undefined> {
   const encoded = path.split("/").map(encodeURIComponent).join("/");
   const { encoding, content } = (await read(
-    `/repos/${repository}/contents/${encoded}?ref=${commit}`
+    `/repos/${repository}/contents/${encoded}?ref=${segment(commit)}`
   )) as ApiContent;
 
   return encoding === "base64" ? Buffer.from(content, "base64").toString("utf8") : undefined;

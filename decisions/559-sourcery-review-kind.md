@@ -119,15 +119,26 @@ The script reads the head first and the reviews after, so a push in between
 would leave it reporting on the commit before. It reads the head again at the
 end and refuses to answer when the two differ.
 
-## A named commit is looked up, not sent
+## A named commit is looked up, and every commit id is checked
 
 The optional commit is matched against the commits GitHub lists for the pull
 request and the ones Sourcery reviewed, and the whole id found there is what
-goes into a request. A commit rebased away that Sourcery never reviewed cannot
-be named. What was typed therefore never reaches a URL, which is also what
-Sonar's gate failed the first push for (`tssecurity:S8476`,
-`tssecurity:S7044`): a hex pattern is not a sanitiser to its taint analysis.
-Abbreviations are resolved once, so every later comparison is of whole ids.
+the script works with. A commit rebased away that Sourcery never reviewed
+cannot be named. Abbreviations are resolved once, so every later comparison is
+of whole ids.
+
+Commit ids from one answer go into the path of the next request: the head, the
+base, a reviewed commit. Each is checked to be forty hex digits and encoded at
+the one place it enters a path, and an answer that names anything else stops
+the check. That is what Sonar's gate failed the first two pushes for
+(`tssecurity:S7044`, `tssecurity:S8476`): its data-flow starts at the API
+response, on the reasoning that a compromised server could steer the next
+request.
+
+The second push answered a different finding from the one Sonar had made. It
+was taken, without reading Sonar's flow, to be about the commit typed on the
+command line, and the lookup above was built for that. The lookup stays for
+what it is worth by itself; the finding was not about it.
 
 ## What the two checks share
 
@@ -173,6 +184,9 @@ dismissed review counted, a head that could move, a rename read as
 documentation, Markdown under `tests/` read as documentation, one page of
 check-runs, and three sentences in the documents that disagreed with the
 script.
+
+The Sonar finding was answered wrongly once before it was answered: see the
+section on commit ids.
 
 ## Not done
 
