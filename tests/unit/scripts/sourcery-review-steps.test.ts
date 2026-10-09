@@ -207,11 +207,13 @@ describe("checkReview", () => {
   it.each([
     ["earlier", REVIEWED],
     ["present", HEAD],
+    // Both unread must not compare as two equal empty files.
+    ["earlier or the present", "both"],
   ])(
     "fails the quick check when GitHub will not send the %s side of a file whole",
     async (_name, missing) => {
       const side = (commit: string) =>
-        commit === missing
+        missing === "both" || commit === missing
           ? { encoding: "none", content: "" }
           : whole("// same\nexport const a = 1;");
       const result = await check({
