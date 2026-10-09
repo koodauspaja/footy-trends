@@ -79,7 +79,10 @@ Constraints:
   shaped as staging (decisions/522).
 - **A new environment is one command**, `npm run railway:environment`
   (`docs/setup/026`), by hand or from `railway-environment.yml`. It builds only
-  into an environment that holds no service. Its databases come from
+  into an environment that holds no service. **Two builds of one service at
+  once collide in its build cache**: the command waits for the deploy that
+  applying the web service starts, which fails for want of its variables,
+  before it starts its own. Its databases come from
   `.railway/databases.ts`, a partial of its own that refuses staging and
   production by id, and are services of their own, `Postgres-<name>` and
   `Redis-<name>`: **the `Postgres` and `Redis` of staging and production stay

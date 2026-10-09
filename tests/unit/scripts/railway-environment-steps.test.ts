@@ -4,6 +4,8 @@ import { BRANCH_VARIABLE } from "../../../.railway/railway";
 import {
   HEALTH_ATTEMPTS,
   HEALTH_INTERVAL_MS,
+  IDLE_ATTEMPTS,
+  IDLE_INTERVAL_MS,
   type Steps,
   standUp,
 } from "../../../scripts/railway-environment-steps";
@@ -52,6 +54,7 @@ function fake({
   statuses,
   services = [],
   domain = { domain: DOMAIN },
+  deployments = [[{ status: "FAILED" }]],
   health = [OK],
   env = KEYS,
 }: {
@@ -59,6 +62,8 @@ function fake({
   statuses?: Environment[][];
   services?: string[];
   domain?: unknown;
+  /** What `deployment list` answers, in turn; the last answer repeats. */
+  deployments?: unknown[];
   health?: unknown[];
   env?: Record<string, string | undefined>;
 } = {}) {
@@ -66,6 +71,7 @@ function fake({
   const calls: Array<{ args: string[]; input?: string; env?: Record<string, string> }> = [];
   const lines: string[] = [];
   const answers = [...health];
+  const listed = [...deployments];
   let reads = 0;
 
   const steps: Steps = {
@@ -81,6 +87,9 @@ function fake({
         held.push({ id: NEW_ID, name: String(name), services: [] });
       }
       if (command === "domain") return JSON.stringify(domain);
+      if (command === "deployment") {
+        return JSON.stringify(listed.length > 1 ? listed.shift() : listed[0]);
+      }
       return "{}";
     },
     env,
@@ -112,6 +121,7 @@ describe("standUp", () => {
       "config apply",
       "domain --service",
       ...Array.from({ length: 11 }, () => "variable set"),
+      "deployment list",
       "redeploy --service",
     ]);
   });
@@ -269,6 +279,58 @@ describe("standUp", () => {
     expect(outcome).toEqual({ ok: false, message: "Railway answered no domain for the site." });
     expect(railway.ran()).not.toContain("variable set");
     expect(railway.ran()).not.toContain("redeploy --service");
+  });
+
+  // Applying the web service starts a deploy, which fails its build for want of
+  // the variables. A second build beside it fails too, in the cache they share.
+  it("starts its deploy only once the one the apply started has ended", async () => {
+    const railway = fake({
+      deployments: [[{ status: "BUILDING" }], [{ status: "BUILDING" }], [{ status: "FAILED" }]],
+    });
+
+    const outcome = await standUp(REQUEST, railway.steps);
+
+    expect(outcome.ok).toBe(true);
+    expect(railway.ran().slice(-4)).toEqual([
+      "deployment list",
+      "deployment list",
+      "deployment list",
+      "redeploy --service",
+    ]);
+    // Two for the build under way, then the health check's one.
+    expect(railway.steps.wait).toHaveBeenCalledTimes(3);
+    expect(railway.steps.wait).toHaveBeenNthCalledWith(1, IDLE_INTERVAL_MS);
+  });
+
+  it("does not wait when nothing is under way", async () => {
+    const railway = fake({ deployments: [[]] });
+
+    await standUp(REQUEST, railway.steps);
+
+    // The one wait left is the health check's own.
+    expect(railway.steps.wait).toHaveBeenCalledTimes(1);
+    expect(railway.ran().filter((call) => call === "deployment list")).toHaveLength(1);
+  });
+
+  it("starts no deploy when the first never ends, and says the environment exists", async () => {
+    const railway = fake({ deployments: [[{ status: "BUILDING" }]] });
+
+    const outcome = await standUp(REQUEST, railway.steps);
+
+    expect(outcome).toEqual({
+      ok: false,
+      message:
+        'The deploy that applying the web service started has not ended. The environment exists; redeploy "pr-123" in Railway once it has.',
+    });
+    expect(railway.ran()).not.toContain("redeploy --service");
+    expect(railway.ran().filter((call) => call === "deployment list")).toHaveLength(
+      IDLE_ATTEMPTS + 1
+    );
+    expect(railway.steps.health).not.toHaveBeenCalled();
+  });
+
+  it("allows ten minutes for the first deploy to end", () => {
+    expect(IDLE_ATTEMPTS * IDLE_INTERVAL_MS).toBe(10 * 60 * 1000);
   });
 
   it("asks again until the site answers healthy, waiting between each", async () => {

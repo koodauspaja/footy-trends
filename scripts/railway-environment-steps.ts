@@ -12,6 +12,7 @@ import {
   domainFrom,
   findTarget,
   healthy,
+  idle,
   type Request,
   railway,
   refusal,
@@ -42,8 +43,31 @@ export type Outcome = { ok: boolean; message: string };
 export const HEALTH_ATTEMPTS = 60;
 export const HEALTH_INTERVAL_MS = 15_000;
 
+/**
+ * How long the deploy that applying the web service starts is given to end:
+ * it fails its build within a minute, having no variables yet.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export const IDLE_ATTEMPTS = 40;
+export const IDLE_INTERVAL_MS = 15_000;
+
 function status(steps: Steps): unknown {
   return JSON.parse(steps.railway(railway.status()));
+}
+
+/**
+ * Whether the web service has no deployment under way within `attempts` waits.
+ * Two builds of one service at once share its build cache, and the second
+ * fails there on a file the first is moving.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+async function quiet(steps: Steps, name: string, attempts: number): Promise<boolean> {
+  if (idle(JSON.parse(steps.railway(railway.deployments(name))))) return true;
+  if (attempts === 0) return false;
+  await steps.wait(IDLE_INTERVAL_MS);
+  return quiet(steps, name, attempts - 1);
 }
 
 /**
@@ -118,6 +142,12 @@ export async function standUp({ name, branch }: Request, steps: Steps): Promise<
   }
   steps.out(`Set       ${planned.variables.map((variable) => variable.name).join(", ")}`);
 
+  if (!(await quiet(steps, name, IDLE_ATTEMPTS))) {
+    return {
+      ok: false,
+      message: `The deploy that applying the web service started has not ended. The environment exists; redeploy "${name}" in Railway once it has.`,
+    };
+  }
   steps.railway(railway.deploy(name));
   steps.out(`Deploying ${domain}`);
 
