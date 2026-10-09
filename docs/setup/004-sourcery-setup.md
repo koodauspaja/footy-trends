@@ -115,13 +115,27 @@ deliberately lighter: they re-check existing comments, resolve threads the
 new code addressed, and re-run security scans. They do **not** regenerate
 the summary, the reviewer's guide, or the full set of inline comments.
 
-A consequence worth knowing: a light reaction creates no new review object,
-so the latest review's `commit_id` keeps pointing at the first reviewed
-commit even though later commits were seen. Never treat that value as
-"the last commit Sourcery looked at".
+Such a reaction does create a review object. Observed on the reviews API on
+2026-10-05 (#552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`): its state is
+`APPROVED`, its `commit_id` is the new head, and its whole body is
 
-To get a complete review of the final state — worth doing after substantive
-fix commits — comment `@sourcery-ai review` on the PR.
+```
+### Sourcery assessment
+
+**Approved.**
+```
+
+A full review's body starts `Hey - I've reviewed your changes` or
+`Hey - I've found N issues`. Nothing else tells the two apart: the state, the
+`commit_id` and the check-run read the same for both. So `APPROVED` on the
+head is the outcome of the lighter reaction above, and not a review of the
+lines the push changed. A push can also get a green check-run and nothing on
+the reviews API (#558 `c67b89c`).
+
+`npm run check:sourcery -- <PR>` says which of these the head has. To get a
+complete review of the final state, comment `@sourcery-ai review` on the PR,
+with nothing else in the comment; `skills/open-pr.md` step 9 says when that is
+required.
 
 ### Three separate things cause a skip
 
@@ -169,13 +183,8 @@ verifies a real review of the head commit rather than the check's colour.
 
 `gh pr checks <PR>` reports the *latest* check state, not the state at a
 given commit. A skipped review on an earlier commit is invisible there once
-a later one succeeds. Query the head SHA directly:
-
-```sh
-HEAD=$(gh pr view <PR> --json headRefOid -q .headRefOid)
-gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
-  -q '.check_runs[]|select(.name|test("Sourcery";"i"))|.conclusion'
-```
+a later one succeeds. `npm run check:sourcery -- <PR>` reads the check-run at
+the head, and at any earlier commit named after the number.
 
 ---
 

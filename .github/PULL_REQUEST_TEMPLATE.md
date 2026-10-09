@@ -24,6 +24,7 @@ Closes #<!-- issue number -->
 - [ ] The spec is linked above, or that section says `Not applicable`
 - [ ] The decision record is linked above, or that section says `Not applicable`
 - [ ] Tests written and passing
+- [ ] The pass in `skills/self-review.md` and the `code-review` skill were run on this diff before the first push. What they changed: <!-- or "nothing found" -->
 - [ ] UI strings are in Finnish
 - [ ] No API keys or secrets committed
 - [ ] No console.log left in code
