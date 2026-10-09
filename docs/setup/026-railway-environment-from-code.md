@@ -46,7 +46,9 @@ FOOTBALL_DATA_API_KEY=… GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… \
 new environment.
 
 - **In your own organisation,** do 025's Step 1 first: `.railway/railway.ts`
-  names the repository the site deploys from.
+  names the repository the site deploys from. If you rename the web service
+  there, change `WEB_SERVICE` in `scripts/railway-environment-plan.ts` to
+  match, and the name in its tests.
 - **The CLI is looked for** in `/usr/bin`, `/usr/local/bin` and
   `/opt/homebrew/bin`. Installed elsewhere:
   `RAILWAY_EXECUTABLE=<its absolute path>`.
