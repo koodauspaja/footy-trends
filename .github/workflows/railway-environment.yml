@@ -77,8 +77,8 @@ jobs:
       - name: Create the environment
         env:
           # No `railway link` first: it asks who the token belongs to, which a
-          # workspace token cannot answer. With the project named here the CLI
-          # needs no link, and the script links the new environment itself.
+          # workspace token cannot answer. With the project named here, the
+          # script's own `railway environment link` works, and is all it needs.
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           # Inputs arrive as variables, never spliced into the command line.
