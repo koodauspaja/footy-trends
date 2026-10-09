@@ -18,8 +18,8 @@ now is not known, and nothing here depends on the reason.
 | A skip for another reason | no review | | | `skipped`, the summary naming the limit |
 | Nothing | no review | | | `success`, or none |
 
-Seen as: full reviews on #553 `eb6c786`, #554 `766dd69`, #555 `3404b15`, #556
-`7f39f49`; quick checks on #552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`; the
+Seen as: full reviews on #556 `7f39f49` and, by the issue's own measurement,
+#553 `eb6c786`, #554 `766dd69` and #555 `3404b15`; quick checks on #552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`; the
 budget notice on #558 `3890507`; a skip on #541 `9bd3386` (five automatic
 re-reviews); nothing, beside a green check-run, on #558 `c67b89c` and #594
 `1a3232d`.
@@ -30,8 +30,9 @@ in a thread.
 
 ## The first line of the body is the test
 
-Nothing else tells a full review from the quick check: the state, the
-`commit_id` and the check-run are the same for both. So the script reads the
+Nothing else tells a full review from the quick check: a full review that
+found nothing is `APPROVED` too, and the `commit_id` and the check-run are the
+same for both. So the script reads the
 body, and a body in none of the three shapes on the head is an error with its
 first line quoted, never a guess. Sourcery can change its wording, and a
 script that then stops is better than one that calls an unknown body a review
@@ -72,8 +73,7 @@ runs:
   holds many.
 
 The same hole is left open in script source outside `tests/`: a `//` line
-inside a template string there counts as a comment. No such file was found on
-2026-10-09.
+inside a template string there counts as a comment.
 
 ## A rebase since the full review
 

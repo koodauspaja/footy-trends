@@ -238,6 +238,8 @@ export async function checkReview({
   return report({ pull, head, outcome, check, exempt });
 }
 
+// Decimal digits alone: `Number` would also take `0x10` and `1e2`.
+const PULL = /^[1-9]\d*$/;
 const COMMIT = /^[0-9a-f]{7,40}$/;
 
 /**
@@ -253,9 +255,9 @@ export async function runCheck(
   console: Console,
   read: (token: string) => ReadJson = jsonReader
 ): Promise<number> {
-  const pull = Number(argv[2]);
+  const pull = PULL.test(argv[2] ?? "") ? Number(argv[2]) : Number.NaN;
   const head = argv[3];
-  if (!Number.isSafeInteger(pull) || pull <= 0 || (head !== undefined && !COMMIT.test(head))) {
+  if (!Number.isSafeInteger(pull) || (head !== undefined && !COMMIT.test(head))) {
     console.err("Usage: npm run check:sourcery -- <pull request number> [<commit>]");
     console.err("  The commit, seven to forty hex digits, judges an earlier head.");
     return 1;

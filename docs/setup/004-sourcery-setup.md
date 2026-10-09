@@ -117,7 +117,8 @@ the summary, the reviewer's guide, or the full set of inline comments.
 
 Such a reaction does create a review object. Observed on the reviews API on
 2026-10-05 (#552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`): its state is
-`APPROVED`, its `commit_id` is the new head, and its whole body is
+`APPROVED` until a later push dismisses it, its `commit_id` is the new head,
+and its whole body is
 
 ```
 ### Sourcery assessment
@@ -126,8 +127,9 @@ Such a reaction does create a review object. Observed on the reviews API on
 ```
 
 A full review's body starts `Hey - I've reviewed your changes` or
-`Hey - I've found N issues`. Nothing else tells the two apart: the state, the
-`commit_id` and the check-run read the same for both. So `APPROVED` on the
+`Hey - I've found N issues`. Nothing else tells the two apart: a full review
+that found nothing has the same state, and the `commit_id` and the check-run
+read the same for both. So `APPROVED` on the
 head is the outcome of the lighter reaction above, and not a review of the
 lines the push changed. A push can also get a green check-run and nothing on
 the reviews API (#558 `c67b89c`).

@@ -186,11 +186,12 @@ already, and #390 found two classes that had never been written down at all.
    | the quick check only | a review of the head whose whole body is `### Sourcery assessment` and `**Approved.**` | 0 when nothing but comments and documentation changed since the last full review, 1 otherwise |
    | a budget notice, and no review | a review, or a `skipped` check-run, that starts `Sorry @…, this account has used its review budget` | 1 |
    | a skip, and no review | a `skipped` check-run for any other reason; see "When Sourcery skips" below | 1 |
-   | nothing from Sourcery | no review of the head, with or without a check-run | 1 |
+   | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 1 |
 
    **Only the first line of the body tells a full review from the quick
-   check.** Both are a review object in state `APPROVED` whose `commit_id` is
-   the head, beside a check-run that reads `success`. Under the quick check the
+   check.** A full review that found nothing and the quick check are both a
+   review in state `APPROVED` whose `commit_id` is the head, beside a
+   check-run that reads `success`. Under the quick check the
    script lists what changed since the last full review, and it compares the
    pull request with itself when the branch was rebased in between.
 

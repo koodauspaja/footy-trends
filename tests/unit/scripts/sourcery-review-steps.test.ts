@@ -458,6 +458,9 @@ describe("runCheck", () => {
     ["no pull request number", ["node", "script"]],
     ["a pull request number that is not one", ["node", "script", "abc"]],
     ["a pull request number of zero", ["node", "script", "0"]],
+    ["a pull request number in hexadecimal", ["node", "script", "0x10"]],
+    ["a pull request number with an exponent", ["node", "script", "1e2"]],
+    ["a pull request number too large to be one", ["node", "script", "99999999999999999999"]],
     ["a commit that is too short", ["node", "script", "556", "f4e9a2"]],
     ["a commit that is not hexadecimal", ["node", "script", "556", "main-branch"]],
   ])("exits 1 with the usage on %s, and reads nothing", async (_name, argv) => {
