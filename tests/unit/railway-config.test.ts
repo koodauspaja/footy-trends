@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { createRailwayContext, project } from "railway/iac";
-import { describe, expect, it } from "vitest";
-import program, { partial } from "../../.railway/railway";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import program, { BRANCH_VARIABLE, partial } from "../../.railway/railway";
 
 /**
  * `.railway/railway.ts`, as it evaluates for each environment. Railway's CLI
@@ -10,7 +10,12 @@ import program, { partial } from "../../.railway/railway";
  *
  * decisions/521-railway-infrastructure-as-code.md
  * decisions/551-staging-sleeps-when-idle.md
+ * decisions/522-railway-environment-from-code.md
  */
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // Every variable each environment's web service holds, by name; RAILWAY_* are
 // Railway's own. Written out here, not imported from the file, on purpose: a
@@ -150,6 +155,43 @@ describe(".railway/railway.ts", () => {
       '.railway/railway.ts has no configuration for environment "pr-123"'
     );
   });
+
+  it("refuses a new environment whose branch variable is empty", async () => {
+    vi.stubEnv(BRANCH_VARIABLE, "");
+
+    await expect(resourcesFor("pr-123")).rejects.toThrow(`a new one needs ${BRANCH_VARIABLE}`);
+  });
+
+  // The web service alone, as everywhere: a new environment's databases are in
+  // their own file, so this one can never plan a database's deletion.
+  it("shapes a new environment as staging, on the branch it is given", async () => {
+    vi.stubEnv(BRANCH_VARIABLE, "feature/099-something");
+
+    const resources = (await resourcesFor("pr-123")) as Array<{ variables?: object }>;
+
+    expect(resources).toHaveLength(1);
+    expect(resources[0]).toMatchObject({ ...EXPECTED_WEB, deploy: { sleepApplication: true } });
+    expect(resources[0]).toHaveProperty("source", {
+      type: "github",
+      repo: "koodauspaja/footy-trends",
+      branch: "feature/099-something",
+    });
+    expect(Object.keys(resources[0]?.variables ?? {}).sort()).toEqual([...HELD.staging].sort());
+  });
+
+  it.each([
+    ["staging", "main"],
+    ["production", "release"],
+  ])(
+    "keeps %s on its own branch whatever the branch variable says",
+    async (environment, branch) => {
+      vi.stubEnv(BRANCH_VARIABLE, "feature/099-something");
+
+      const [web] = await resourcesFor(environment);
+
+      expect(web).toHaveProperty("source.branch", branch);
+    }
+  );
 
   it("names the project after Railway's own, falling back to footy-trends", async () => {
     const definition = await program(createRailwayContext({ environmentName: "staging" }), project);

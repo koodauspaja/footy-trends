@@ -44,6 +44,7 @@ documents cite them, so they stay as they are.
 | 22 | [022-production-backfill.md](022-production-backfill.md) | Fill production with the competitions' history, once |
 | 23 | [023-admin-access.md](023-admin-access.md) | The first admin, once per environment |
 | 24 | [024-predictions-cron.md](024-predictions-cron.md) | The hourly predictions cron, production only, and the backtest |
+| 25 | [026-railway-environment-from-code.md](026-railway-environment-from-code.md) | Another environment from one command: its databases, the web service and its keys |
 
 `019` described `railway.toml`, which Railway stops reading on 2026-12-01; step
 13 replaced it (#521).

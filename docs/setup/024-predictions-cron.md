@@ -81,6 +81,4 @@ on #349 against the spec's estimate (about $0.11 a month).
 
 ## Next
 
-→ Nothing: the setup is complete. `docs/infrastructure.md` describes what now
-  exists, and is the document to keep true from here on. `skills/release.md` is
-  how `main` reaches production.
+→ `026-railway-environment-from-code.md`

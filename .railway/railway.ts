@@ -6,8 +6,16 @@
  * decisions/521-railway-infrastructure-as-code.md
  * decisions/525-next-started-directly.md
  * decisions/551-staging-sleeps-when-idle.md
+ * decisions/522-railway-environment-from-code.md
  */
-import { defineRailway, github, preserve, project, service } from "railway/iac";
+import {
+  defineRailway,
+  github,
+  preserve,
+  project,
+  type RailwayContext,
+  service,
+} from "railway/iac";
 
 export const partial = "footy-trends";
 
@@ -67,16 +75,38 @@ const ENVIRONMENTS = {
   },
 } as const;
 
-export default defineRailway((ctx) => {
+/**
+ * The variable that carries a new environment's branch. Without it, a name
+ * other than the two above has no configuration.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export const BRANCH_VARIABLE = "RAILWAY_NEW_ENVIRONMENT_BRANCH";
+
+/**
+ * The entry an environment evaluates as: its own, or staging's on the branch
+ * `BRANCH_VARIABLE` names.
+ *
+ * decisions/521-railway-infrastructure-as-code.md
+ * decisions/522-railway-environment-from-code.md
+ */
+function environmentFor(ctx: RailwayContext) {
   const name = (Object.keys(ENVIRONMENTS) as Array<keyof typeof ENVIRONMENTS>).find((key) =>
     ctx.isEnvironment(key)
   );
-  if (name === undefined) {
+  if (name !== undefined) return ENVIRONMENTS[name];
+
+  const branch = process.env[BRANCH_VARIABLE];
+  if (branch === undefined || branch === "") {
     throw new Error(
-      `.railway/railway.ts has no configuration for environment "${ctx.environmentName}"`
+      `.railway/railway.ts has no configuration for environment "${ctx.environmentName}" (a new one needs ${BRANCH_VARIABLE})`
     );
   }
-  const environment = ENVIRONMENTS[name];
+  return { ...ENVIRONMENTS.staging, branch };
+}
+
+export default defineRailway((ctx) => {
+  const environment = environmentFor(ctx);
   const names = [...SHARED_VARIABLES, ...environment.variables];
   const web = service("footy-trends", {
     source: github("koodauspaja/footy-trends", {
