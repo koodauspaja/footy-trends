@@ -4,8 +4,10 @@
  * deploy. `DATABASE_URL` must come from the environment, not `.env`.
  *
  * decisions/052-predictions-log.md
+ * decisions/571-bounded-database-close.md
  */
 import { existsSync } from "node:fs";
+import { describeError } from "./backfill-plan";
 import { describeRun, exitCodeFor, parseCommand, USAGE } from "./predictions-plan";
 
 function out(line = ""): void {
@@ -52,12 +54,12 @@ async function main(): Promise<void> {
   } finally {
     // Cleanup cannot decide whether the run succeeded.
     for (const result of await Promise.allSettled([closeDatabase(), redis.quit()])) {
-      if (result.status === "rejected") err(`cleanup: ${String(result.reason)}`);
+      if (result.status === "rejected") err(`cleanup: ${describeError(result.reason)}`);
     }
   }
 }
 
 main().catch((error: unknown) => {
-  err(`Predictions failed: ${error instanceof Error ? error.message : String(error)}`);
+  err(`Predictions failed: ${describeError(error)}`);
   process.exitCode = 1;
 });

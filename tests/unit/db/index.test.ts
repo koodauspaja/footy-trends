@@ -10,7 +10,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/536-database-url-required.md
  */
 
-const end = vi.fn(() => Promise.resolve());
+const end = vi.fn((_options?: { timeout: number }) => Promise.resolve());
 const postgresMock = vi.fn((_url: string) => ({ end }));
 
 // What drizzle hands back, as far as these tests need one: state, a method that
@@ -32,8 +32,8 @@ const URL = "postgres://user:secret@db.example.com:5432/app";
 
 // `db` as these tests use it: the stand-in, typed as the fake behind it.
 async function load() {
-  const { db, closeDatabase } = await import("@/db");
-  return { db: db as unknown as FakeDatabase, closeDatabase };
+  const { db, closeDatabase, CLOSE_TIMEOUT_SECONDS } = await import("@/db");
+  return { db: db as unknown as FakeDatabase, closeDatabase, CLOSE_TIMEOUT_SECONDS };
 }
 
 beforeEach(() => {
@@ -149,6 +149,16 @@ describe("closeDatabase", () => {
     await closeDatabase();
 
     expect(end).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the close a bound, so a connection that never opened cannot hold it", async () => {
+    const { db, closeDatabase, CLOSE_TIMEOUT_SECONDS } = await load();
+    db.select();
+
+    await closeDatabase();
+
+    expect(CLOSE_TIMEOUT_SECONDS).toBeGreaterThan(0);
+    expect(end).toHaveBeenCalledWith({ timeout: CLOSE_TIMEOUT_SECONDS });
   });
 
   it("has nothing to close when the database was never used", async () => {

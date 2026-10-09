@@ -173,11 +173,15 @@ function batches<T>(rows: readonly T[], size: number): T[][] {
 }
 
 /**
- * Upserts rows, one per match, model and kind. The batches are disjoint.
+ * Upserts rows, one per match, model and kind. The batches are disjoint, and
+ * every one started is left to settle before the run fails with whichever
+ * failed first.
  *
  * decisions/052-predictions-log.md
+ * decisions/571-bounded-database-close.md
  */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
+  const failures: unknown[] = [];
   await Promise.all(
     batches(rows, WRITE_BATCH).map((batch) =>
       db
@@ -199,8 +203,12 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
             kickoffAt: sql`excluded.kickoff_at`,
           },
         })
+        .catch((reason: unknown) => {
+          failures.push(reason);
+        })
     )
   );
+  if (failures.length > 0) throw failures[0];
 }
 
 /**

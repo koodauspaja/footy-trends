@@ -415,27 +415,52 @@ describe("runPredictionBacktest", () => {
     ]);
   });
 
+  // 1 501 finished matches: 1 500 rows under each model, three batches of a thousand.
+  const threeBatchesOfFinished = () =>
+    Array.from({ length: 1_501 }, (_, index) => ({
+      code: "PL",
+      seasonId: 2024,
+      providerMatchId: index,
+      homeTeam: 1 + (index % 20),
+      awayTeam: 21 + (index % 20),
+      kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
+      homeGoals: 1,
+      awayGoals: 0,
+    }));
+
   it("writes in batches of a thousand", async () => {
-    mocks.select
-      .mockResolvedValueOnce(
-        Array.from({ length: 1_501 }, (_, index) => ({
-          code: "PL",
-          seasonId: 2024,
-          providerMatchId: index,
-          homeTeam: 1 + (index % 20),
-          awayTeam: 21 + (index % 20),
-          kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
-          homeGoals: 1,
-          awayGoals: 0,
-        }))
-      )
-      .mockResolvedValueOnce([]);
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
 
     // 1 500 rows under each model: 3 000, written a thousand at a time.
     await expect(runPredictionBacktest(NOW)).resolves.toBe(3_000);
     expect(mocks.insertValues.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([
       1_000, 1_000, 1_000,
     ]);
+  });
+
+  it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
+    // Three batches: the first is still writing and fails in the end, the second
+    // fails at once, the third is stored.
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
+    let failFirst = (_reason: Error) => {};
+    const first = new Promise<void>((_resolve, reject) => {
+      failFirst = reject;
+    });
+    mocks.onConflictDoUpdate
+      .mockReturnValueOnce(first)
+      .mockRejectedValueOnce(new Error("connection reset"));
+    const settled = vi.fn();
+
+    const run = runPredictionBacktest(NOW);
+    run.then(settled, settled);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(3));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(settled).not.toHaveBeenCalled();
+
+    failFirst(new Error("a later failure"));
+
+    await expect(run).rejects.toThrow("connection reset");
   });
 });
 
