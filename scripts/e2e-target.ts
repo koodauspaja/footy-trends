@@ -15,7 +15,7 @@ export type E2eTarget = "fresh-build" | "prebuilt" | "dev";
 
 /**
  * Reads `E2E_TARGET`. Unset, or anything unknown, is the build made here: the
- * slowest and strictest of the three.
+ * strictest of the three.
  *
  * decisions/568-e2e-against-a-production-build.md
  */

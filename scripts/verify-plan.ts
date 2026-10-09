@@ -33,6 +33,7 @@ export const VERIFY_STAGES: readonly Stage[] = [
  * with the reason.
  *
  * decisions/401-one-command-for-the-gate.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export const NOT_A_STAGE: Readonly<Record<string, string>> = {
   "db:migrate":

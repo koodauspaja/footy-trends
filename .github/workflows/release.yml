@@ -158,7 +158,8 @@ jobs:
       # and the suite would then run against a season floor nobody chose.
       FOOTBALL_DATA_EARLIEST_SEASON: "2023"
       FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS: "3600"
-      # Switches playwright.config.ts's webServer from `next dev` to `npm start`.
+      # playwright.config.ts's webServer then serves the build made in the Build
+      # step below, and does not make one itself.
       E2E_TARGET: build
 
     steps:
@@ -182,9 +183,8 @@ jobs:
       - name: Run database migrations
         run: npm run db:migrate
 
-      # Built here rather than by Playwright's webServer: a release gate should
-      # exercise what ships, and `webServer` runs a single command with a
-      # start-up timeout that a full build would blow through.
+      # Built here, as a step of its own. `E2E_TARGET: build` above keeps
+      # Playwright's webServer from building again.
       - name: Build
         run: npm run build
 
