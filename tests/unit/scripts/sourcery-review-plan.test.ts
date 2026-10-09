@@ -261,37 +261,67 @@ function since(changes: Change[], overrides: Partial<Since> = {}): Since {
 }
 
 describe("sufficient", () => {
+  function enough(outcome: Outcome, check: CheckRun | undefined = SUCCESS, dismissed = false) {
+    return sufficient({ outcome, check, dismissed });
+  }
+
   it("accepts a full review", () => {
-    expect(sufficient({ kind: "full" })).toBe(true);
+    expect(enough({ kind: "full" })).toBe(true);
   });
 
   it("accepts the quick check over documentation alone, or over nothing", () => {
-    expect(sufficient({ kind: "quick", since: since([DOCUMENT]) })).toBe(true);
-    expect(sufficient({ kind: "quick", since: since([]) })).toBe(true);
+    expect(enough({ kind: "quick", since: since([DOCUMENT]) })).toBe(true);
+    expect(enough({ kind: "quick", since: since([]) })).toBe(true);
   });
 
   it("refuses the quick check when anything else changed since the full review", () => {
-    expect(sufficient({ kind: "quick", since: since([DOCUMENT, SOURCE]) })).toBe(false);
+    expect(enough({ kind: "quick", since: since([DOCUMENT, SOURCE]) })).toBe(false);
   });
 
   it("refuses the quick check when the list of changes may be cut short", () => {
-    expect(sufficient({ kind: "quick", since: since([DOCUMENT], { complete: false }) })).toBe(
-      false
-    );
+    expect(enough({ kind: "quick", since: since([DOCUMENT], { complete: false }) })).toBe(false);
   });
 
   it("refuses the quick check when the branch was rebased since the full review", () => {
-    expect(sufficient({ kind: "quick", since: since([DOCUMENT], { ahead: false }) })).toBe(false);
+    expect(enough({ kind: "quick", since: since([DOCUMENT], { ahead: false }) })).toBe(false);
   });
 
   it("refuses the quick check when no full review came before it", () => {
-    expect(sufficient({ kind: "quick", since: undefined })).toBe(false);
+    expect(enough({ kind: "quick", since: undefined })).toBe(false);
   });
 
-  it("refuses a budget notice, a skip and nothing", () => {
-    expect(sufficient({ kind: "budget" })).toBe(false);
-    expect(sufficient({ kind: "skip" })).toBe(false);
-    expect(sufficient({ kind: "nothing" })).toBe(false);
+  it("accepts no review at all beside a green check-run, over documentation alone", () => {
+    expect(enough({ kind: "nothing", since: since([DOCUMENT]) })).toBe(true);
+  });
+
+  it("refuses no review at all when anything else changed, green check-run or not", () => {
+    expect(enough({ kind: "nothing", since: since([DOCUMENT, SOURCE]) })).toBe(false);
+  });
+
+  it.each([
+    ["there is no check-run", undefined],
+    ["the check-run has not finished", { status: "in_progress", conclusion: null, summary: "" }],
+    ["the check-run failed", { status: "completed", conclusion: "failure", summary: "" }],
+  ])("refuses no review at all over documentation alone when %s", (_name, check) => {
+    // Passed whole: the helper would put its green check-run in place of none.
+    const outcome: Outcome = { kind: "nothing", since: since([DOCUMENT]) };
+
+    expect(sufficient({ outcome, check, dismissed: false })).toBe(false);
+  });
+
+  it("refuses no review at all when a full review of the head was dismissed", () => {
+    expect(enough({ kind: "nothing", since: since([DOCUMENT]) }, SUCCESS, true)).toBe(false);
+  });
+
+  it("refuses no review at all when it cannot say what changed", () => {
+    expect(enough({ kind: "nothing", since: undefined })).toBe(false);
+    expect(enough({ kind: "nothing", since: since([DOCUMENT], { ahead: false }) })).toBe(false);
+    expect(enough({ kind: "nothing", since: since([DOCUMENT], { complete: false }) })).toBe(false);
+  });
+
+  it("refuses a budget notice and a skip", () => {
+    expect(enough({ kind: "budget" })).toBe(false);
+    expect(enough({ kind: "skip" })).toBe(false);
   });
 });
 
@@ -395,13 +425,14 @@ describe("report", () => {
     const none = report({
       pull: 552,
       head: HEAD,
-      outcome: { kind: "nothing" },
+      outcome: { kind: "nothing", since: undefined },
       check: undefined,
       dismissed: false,
     });
     expect(none.lines).toEqual([
       "#552 at f4e9a2d: nothing from Sourcery.",
       "Check-run: none.",
+      "No full review came before it.",
       NOT_ENOUGH,
     ]);
   });
@@ -419,20 +450,39 @@ describe("report", () => {
   });
 
   it("says when a full review of the head was dismissed", () => {
-    const { passed, lines } = reportFor({ kind: "nothing" }, SUCCESS, true);
+    const silent: Outcome = { kind: "nothing", since: since([DOCUMENT]) };
+    const { passed, lines } = reportFor(silent, SUCCESS, true);
 
     expect(passed).toBe(false);
     expect(lines).toEqual([
       "#552 at f4e9a2d: nothing from Sourcery.",
       "Check-run: success.",
       "A full review of this head was dismissed, and is not counted.",
+      "The last full review was of 797ee79. Changed since then:",
+      "  documentation: docs/infrastructure.md",
       NOT_ENOUGH,
     ]);
+  });
+
+  it("passes no review at all beside a green check-run, over documentation alone", () => {
+    expect(reportFor({ kind: "nothing", since: since([DOCUMENT]) })).toEqual({
+      passed: true,
+      lines: [
+        "#552 at f4e9a2d: nothing from Sourcery.",
+        "Check-run: success.",
+        "The last full review was of 797ee79. Changed since then:",
+        "  documentation: docs/infrastructure.md",
+        "Enough: nothing but documentation changed since the full review.",
+      ],
+    });
   });
 
   it("shows a check-run that has not finished by its status", () => {
     const check = { status: "in_progress", conclusion: null, summary: "" };
 
-    expect(reportFor({ kind: "nothing" }, check).lines[1]).toBe("Check-run: in_progress.");
+    const { passed, lines } = reportFor({ kind: "nothing", since: since([DOCUMENT]) }, check);
+
+    expect(passed).toBe(false);
+    expect(lines[1]).toBe("Check-run: in_progress.");
   });
 });
