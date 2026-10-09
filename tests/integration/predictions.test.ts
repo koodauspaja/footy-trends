@@ -15,6 +15,13 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
 }));
 
 import { expectedHome } from "@/lib/elo";
+import {
+  fitPoisson,
+  type PoissonMatch,
+  type PoissonPrediction,
+  predictPoisson,
+  utcDay,
+} from "@/lib/poisson";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
 
 /**
@@ -25,6 +32,7 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-se
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
@@ -174,6 +182,24 @@ describe("the hourly run", () => {
     expect(total).toBeCloseTo(1, 10);
   });
 
+  it("logs poisson-v1 beside them from the stored history, one row", async () => {
+    await db.insert(matches).values(footballDataRow());
+
+    await runPredictionLog(() => NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
+
+    const rows = await rowsFor(IDS[0] as number, "live", "poisson-v1");
+    expect(rows).toHaveLength(1);
+    const [poisson] = rows;
+    const total =
+      (poisson?.homeProbability ?? 0) +
+      (poisson?.drawProbability ?? 0) +
+      (poisson?.awayProbability ?? 0);
+    expect(total).toBeCloseTo(1, 10);
+    // The same pair met once, and the home side won: it is the favourite again.
+    expect(poisson?.homeProbability).toBeGreaterThan(poisson?.awayProbability ?? 1);
+  });
+
   it("writes nothing for a passed kickoff, even one still marked scheduled", async () => {
     await db.insert(matches).values(footballDataRow({ kickoffAt: at(-1), status: "SCHEDULED" }));
 
@@ -263,6 +289,47 @@ describe("the backtest", () => {
       expect.objectContaining({
         homeProbability: expect.closeTo(0.5 * expectedHome(home2, away2), 12),
         drawProbability: 0.5,
+      }),
+    ]);
+
+    // poisson-v1: each day from a fit of the days before it, the shoot-out a 1–1.
+    const stored = (day: number, homeGoals: number, awayGoals: number): PoissonMatch => ({
+      source: "football-data",
+      code: "DED",
+      seasonId: 1990,
+      providerMatchId: day,
+      kickoffAt: kickoff(day),
+      homeTeam: 985_101,
+      awayTeam: 985_102,
+      homeGoals,
+      awayGoals,
+    });
+    const predictionOn = (day: number, history: PoissonMatch[]) =>
+      (
+        predictPoisson(
+          fitPoisson(history, utcDay(kickoff(day))),
+          "DED",
+          985_101,
+          985_102
+        ) as PoissonPrediction
+      ).prediction;
+    const third = predictionOn(3, [stored(1, 2, 0), stored(2, 1, 1)]);
+    // Read as the 5–4 it is stored as, the fit would be another one.
+    const withShootOut = predictionOn(3, [stored(1, 2, 0), stored(2, 5, 4)]);
+    expect(Math.abs(third.away - withShootOut.away)).toBeGreaterThan(0.02);
+    expect(await rowsFor(IDS[0] as number, "backtest", "poisson-v1")).toHaveLength(0);
+    const afterOne = predictionOn(2, [stored(1, 2, 0)]);
+    expect(await rowsFor(IDS[1] as number, "backtest", "poisson-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(afterOne.home, 3),
+        drawProbability: expect.closeTo(afterOne.draw, 3),
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "poisson-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(third.home, 3),
+        drawProbability: expect.closeTo(third.draw, 3),
+        awayProbability: expect.closeTo(third.away, 3),
       }),
     ]);
   });

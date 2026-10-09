@@ -4,11 +4,13 @@
  *
  * decisions/052-predictions-log.md
  * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/055-poisson-goal-model.md
  */
 
 import { ELO_MODEL, predictElo, type TeamRating } from "./elo";
 import type { HomeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
+import { POISSON_MODEL, type PoissonFit, predictPoisson } from "./poisson";
 
 /**
  * Upcoming matches kicking off within this many hours are logged.
@@ -191,6 +193,33 @@ export function eloLiveRow(
     homeProbability: elo.prediction.home,
     drawProbability: elo.prediction.draw,
     awayProbability: elo.prediction.away,
+    predictedAt: now,
+    kickoffAt: candidate.kickoffAt,
+  };
+}
+
+/**
+ * The `poisson-v1` live row for a match, from its provider's fit — or nothing
+ * for a placeholder side or a competition the fit has no match of.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+export function poissonLiveRow(
+  candidate: LogCandidate,
+  fit: PoissonFit,
+  now: Date
+): PredictionRow | null {
+  const poisson = predictPoisson(fit, candidate.code, candidate.homeTeam, candidate.awayTeam);
+  if (poisson === null) return null;
+  return {
+    source: candidate.source,
+    providerMatchId: candidate.providerMatchId,
+    competitionCode: candidate.code,
+    model: POISSON_MODEL,
+    kind: "live",
+    homeProbability: poisson.prediction.home,
+    drawProbability: poisson.prediction.draw,
+    awayProbability: poisson.prediction.away,
     predictedAt: now,
     kickoffAt: candidate.kickoffAt,
   };

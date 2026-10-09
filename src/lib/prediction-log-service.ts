@@ -5,11 +5,13 @@
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
+import { invalidateCache } from "./cache";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
 import { replayElo, type TeamRating } from "./elo";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
@@ -23,7 +25,13 @@ import {
 } from "./match-service";
 import type { MatchSource } from "./match-source";
 import { createPacer, FOOTBALL_DATA_PER_MINUTE, type Paced, TASO_PER_MINUTE } from "./pacer";
-import { backtestRows, eloBacktestRows, type FinishedMatch } from "./prediction-backtest";
+import { fitPoisson, type PoissonFit, utcDay } from "./poisson";
+import {
+  backtestRows,
+  eloBacktestRows,
+  type FinishedMatch,
+  poissonBacktestRows,
+} from "./prediction-backtest";
 import {
   eloLiveRow,
   isLoggable,
@@ -31,10 +39,12 @@ import {
   type LogCandidate,
   liveRow,
   type PredictionRow,
+  poissonLiveRow,
   RESULT_WINDOW_HOURS,
   type RefreshTarget,
   refreshTargets,
 } from "./prediction-log";
+import { qualityCacheKey } from "./prediction-quality-service";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "./standings-service";
 import { getSeasonMatches as getTasoSeasonMatches } from "./taso";
 import { synchronizeMatches as synchronizeTasoMatches } from "./taso-standings-service";
@@ -238,6 +248,7 @@ export type PredictionRunReport = {
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/603-server-side-records.md
+ * decisions/055-poisson-goal-model.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -282,14 +293,22 @@ export async function runPredictionLog(
     if (baseline.status === "error") failures.push(`baseline ${key}`);
   }
 
-  // The run replays for itself, never from the pages' cache. A failed read costs
-  // the Elo rows only: the baseline's are still written, and no Elo row is ever
-  // made from ratings that were never read.
-  const ratings = await readFinished().then(eloRatingsBySource, (error: unknown) => {
+  // The run replays and fits for itself, never from the pages' cache. A failed
+  // read costs the Elo and Poisson rows only: the baseline's are still written,
+  // and no row is ever made from ratings or strengths that were never read.
+  const finished = readFinished();
+  const ratings = await finished.then(eloRatingsBySource, (error: unknown) => {
     logger.error({ err: error }, "Unable to read the Elo history for predictions");
     failures.push("elo ratings");
     return null;
   });
+  const fits = await finished
+    .then((matches) => poissonFitsBySource(matches, utcDay(startedAt)))
+    .catch((error: unknown) => {
+      logger.error({ err: error }, "Unable to fit the Poisson model for predictions");
+      failures.push("poisson strengths");
+      return null;
+    });
 
   // Read again: pacing the refreshes can take minutes, and a match that kicked
   // off in the meantime must not be written.
@@ -304,6 +323,7 @@ export async function runPredictionLog(
         ratings === null
           ? null
           : eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
+        fits === null ? null : poissonLiveRow(candidate, fits[candidate.source], writtenAt),
       ].filter((row) => row !== null);
     });
 
@@ -331,12 +351,31 @@ function eloRatingsBySource(
 }
 
 /**
+ * Each provider's Poisson fit as it stands on `day`, fitted apart: the id
+ * spaces never meet.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function poissonFitsBySource(
+  finished: readonly FinishedMatch[],
+  day: number
+): Record<MatchSource["kind"], PoissonFit> {
+  const fitOf = (source: MatchSource["kind"]) =>
+    fitPoisson(
+      finished.filter((match) => match.source === source),
+      day
+    );
+  return { "football-data": fitOf("football-data"), taso: fitOf("taso") };
+}
+
+/**
  * Every stored finished match of the compared competitions, its score after
  * extra time, with its teams and season: of both providers unless told which.
- * The backtests, the live Elo ratings and the pages' ratings all read it.
+ * The backtests, the live ratings and fits, and the pages' all read it.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 export async function readFinished(
   sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
@@ -403,14 +442,32 @@ export async function readFinished(
 
 /**
  * The backtest: one `backtest` row for every stored finished match with
- * history, written idempotently. Stored rows only, no provider request.
+ * history, written idempotently. Stored rows only, no provider request. The
+ * cached reports of the backtest are dropped whether or not every row was
+ * written, so `/ennusteet` shows what is stored.
  *
  * decisions/052-predictions-log.md
+ * decisions/055-poisson-goal-model.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
   const baseline = backtestRows(finished, HOME_BASELINE_MODEL, now);
-  const rows = [...baseline, ...eloBacktestRows(finished, baseline, now)];
-  await writePredictions(rows);
+  const rows = [
+    ...baseline,
+    ...eloBacktestRows(finished, baseline, now),
+    ...poissonBacktestRows(finished, now),
+  ];
+  try {
+    await writePredictions(rows);
+  } finally {
+    // A report cached before these rows would hide them for up to 15 minutes,
+    // and a write that failed part-way has stored some of them. A failure to
+    // drop it is logged by the cache, and changes nothing else.
+    await Promise.all(
+      (["football-data", "taso"] as const).map((source) =>
+        invalidateCache(qualityCacheKey(source, "backtest"))
+      )
+    );
+  }
   return rows.length;
 }

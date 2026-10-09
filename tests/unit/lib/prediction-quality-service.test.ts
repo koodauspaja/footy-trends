@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * is proved against Postgres in `tests/integration/prediction-quality.test.ts`.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -32,6 +33,7 @@ import {
   getPredictionQuality,
   QUALITY_FIRST_SEASON,
   QUALITY_MODELS,
+  qualityCacheKey,
 } from "@/lib/prediction-quality-service";
 
 function row(
@@ -64,9 +66,13 @@ describe("getPredictionQuality", () => {
       );
   });
 
-  it("judges the baseline and Elo, from 2016 domestically and 2023 for football-data", () => {
-    expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1"]);
+  it("judges the baseline, Elo and Poisson, from 2016 domestically and 2023 for football-data", () => {
+    expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
+  });
+
+  it("names the cache key the backtest drops", () => {
+    expect(qualityCacheKey("taso", "backtest")).toBe("quality:v2:taso:backtest");
   });
 
   it("caches each provider and kind apart for 15 minutes", async () => {
@@ -76,21 +82,23 @@ describe("getPredictionQuality", () => {
     await getPredictionQuality("football-data", "live");
 
     expect(mocks.getCached.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
-      ["quality:v1:taso:backtest", 900],
-      ["quality:v1:football-data:live", 900],
+      ["quality:v2:taso:backtest", 900],
+      ["quality:v2:football-data:live", 900],
     ]);
   });
 
-  it("reads each outcome from the score, and judges the matches both models predicted", async () => {
+  it("reads each outcome from the score, and judges the matches all three models predicted", async () => {
+    const byAll = (providerMatchId: number, homeGoals: number, awayGoals: number) =>
+      QUALITY_MODELS.map((model) => row(model, providerMatchId, homeGoals, awayGoals));
     mocks.select.mockResolvedValue([
-      row("home-baseline-v1", 1, 2, 0),
-      row("elo-v1", 1, 2, 0),
-      row("home-baseline-v1", 2, 1, 1),
-      row("elo-v1", 2, 1, 1),
-      row("home-baseline-v1", 3, 0, 1),
-      row("elo-v1", 3, 0, 1),
+      ...byAll(1, 2, 0),
+      ...byAll(2, 1, 1),
+      ...byAll(3, 0, 1),
       // Only one model predicted it: not judged.
       row("home-baseline-v1", 4, 3, 0),
+      // Poisson did not, on the competition's first day: not judged under any.
+      row("home-baseline-v1", 5, 3, 0),
+      row("elo-v1", 5, 3, 0),
     ]);
 
     const result = await getPredictionQuality("football-data", "backtest");
@@ -99,10 +107,19 @@ describe("getPredictionQuality", () => {
     // Every prediction picks home: right once in three.
     if (result.status !== "ok") return;
     expect(result.totals[0]?.accuracy).toBeCloseTo(100 / 3, 12);
+    expect(result.totals.map((total) => [total.model, total.matches])).toEqual([
+      ["home-baseline-v1", 3],
+      ["elo-v1", 3],
+      ["poisson-v1", 3],
+    ]);
   });
 
   it("drops a TASO row whose score is missing", async () => {
-    mocks.select.mockResolvedValue([row("home-baseline-v1", 1, 1, 0), row("elo-v1", 1, null, 0)]);
+    mocks.select.mockResolvedValue([
+      row("home-baseline-v1", 1, 1, 0),
+      row("elo-v1", 1, null, 0),
+      row("poisson-v1", 1, 1, 0),
+    ]);
 
     await expect(getPredictionQuality("taso", "backtest")).resolves.toEqual({ status: "empty" });
   });

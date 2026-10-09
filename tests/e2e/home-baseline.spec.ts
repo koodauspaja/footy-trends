@@ -11,6 +11,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/051-home-win-baseline.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 const HEADING = "Ennuste";
@@ -29,7 +30,16 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   }
 }
 
-function fixture(id: number, status: string, goals: number | null, categoryId = "VL") {
+// Three days ago: finished history the Poisson fit can read whatever else is stored.
+const PLAYED_AT = new Date(Date.now() - 3 * 86_400_000);
+
+function fixture(
+  id: number,
+  status: string,
+  goals: number | null,
+  categoryId = "VL",
+  kickoffAt = new Date(`${SEASON}-05-01T15:00:00Z`)
+) {
   return {
     taso_match_id: id,
     competition_id: `spljp${SEASON % 100}`,
@@ -37,7 +47,7 @@ function fixture(id: number, status: string, goals: number | null, categoryId = 
     season_id: SEASON,
     group_id: 1,
     group_name: "Runkosarja",
-    kickoff_at: new Date(`${SEASON}-05-01T15:00:00Z`),
+    kickoff_at: kickoffAt,
     matchday: 1,
     status,
     home_team_provider_id: 999_051_101,
@@ -56,7 +66,7 @@ test.beforeAll(async () => {
     await sql`delete from taso_matches where taso_match_id in ${sql(IDS)}`;
     await sql`insert into taso_matches ${sql([
       fixture(UPCOMING_ID, "SCHEDULED", null),
-      fixture(FINISHED_ID, "FINISHED", 1),
+      fixture(FINISHED_ID, "FINISHED", 1, "VL", PLAYED_AT),
       // Suomen Cup: upcoming, but not a competition the home-advantage table
       // compares.
       fixture(CUP_ID, "SCHEDULED", null, "MSC"),
@@ -77,7 +87,7 @@ test.describe("Home-win baseline, signed in", () => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   });
 
-  test("an upcoming league match shows the baseline and Elo rows, and what each rests on", async ({
+  test("an upcoming league match shows the baseline, Elo and Poisson rows, and what each rests on", async ({
     page,
   }) => {
     await page.goto(PATH(UPCOMING_ID));
@@ -88,12 +98,13 @@ test.describe("Home-win baseline, signed in", () => {
       "Tasapeli",
       "Vierasvoitto",
     ]);
-    // The baseline first, then Elo, three whole percentages each.
+    // The baseline first, then Elo, then Poisson, three whole percentages each.
     const rows = panel(page).getByRole("row");
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(4);
     for (const [index, model] of [
       [1, "Perustaso"],
       [2, "Elo"],
+      [3, "Poisson"],
     ] as const) {
       const cells = await rows.nth(index).locator("th, td").allTextContents();
       expect(cells[0]).toBe(model);
@@ -107,6 +118,11 @@ test.describe("Home-win baseline, signed in", () => {
     await expect(
       panel(page).getByText(
         /^Elo: E2E Koti \d{4}, E2E Vieras \d{4}\. Kotijoukkueelle lisätään 60 pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus\.$/
+      )
+    ).toBeVisible();
+    await expect(
+      panel(page).getByText(
+        /^Poisson: odotetut maalit E2E Koti \d,\d – E2E Vieras \d,\d; todennäköisin tulos \d–\d \(\d{1,2}\u00a0%\)\.$/
       )
     ).toBeVisible();
     // Between the match's details and its meetings.
@@ -144,5 +160,6 @@ test.describe("Home-win baseline, signed out", () => {
     expect(html).not.toContain("Kotivoitto");
     expect(html).not.toContain("Perustaso");
     expect(html).not.toContain("Elo:");
+    expect(html).not.toContain("Poisson");
   });
 });

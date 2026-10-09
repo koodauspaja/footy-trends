@@ -5,11 +5,13 @@
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
 import { homeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
+import { POISSON_MODEL, replayPoisson } from "./poisson";
 import type { PredictionRow } from "./prediction-log";
 
 /**
@@ -127,6 +129,39 @@ export function eloBacktestRows(
           providerMatchId: match.providerMatchId,
           competitionCode: match.code,
           model: ELO_MODEL,
+          kind: "backtest",
+          homeProbability: prediction.home,
+          drawProbability: prediction.draw,
+          awayProbability: prediction.away,
+          predictedAt: now,
+          kickoffAt: match.kickoffAt,
+        });
+      }
+    );
+  }
+  return rows;
+}
+
+/**
+ * One `poisson-v1` backtest row per match its day's fit can predict: the fit
+ * of the provider's matches on strictly earlier UTC days.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+export function poissonBacktestRows(
+  finished: readonly FinishedMatch[],
+  now: Date
+): PredictionRow[] {
+  const rows: PredictionRow[] = [];
+  for (const source of ["football-data", "taso"] as const) {
+    replayPoisson(
+      finished.filter((match) => match.source === source),
+      (match, { prediction }) => {
+        rows.push({
+          source: match.source,
+          providerMatchId: match.providerMatchId,
+          competitionCode: match.code,
+          model: POISSON_MODEL,
           kind: "backtest",
           homeProbability: prediction.home,
           drawProbability: prediction.draw,

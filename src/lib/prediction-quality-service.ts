@@ -3,6 +3,7 @@
  * Every figure is computed by `prediction-quality.ts`; this reads, and caches.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 
 import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
@@ -14,6 +15,7 @@ import { HOME_BASELINE_MODEL } from "./home-baseline";
 import { logger } from "./logger";
 import { FOOTBALL_DATA_AWAY_GOALS, FOOTBALL_DATA_HOME_GOALS } from "./match-service";
 import type { MatchSource } from "./match-source";
+import { POISSON_MODEL } from "./poisson";
 import {
   type JudgedPrediction,
   type Outcome,
@@ -26,7 +28,7 @@ import {
  *
  * decisions/054-prediction-quality.md
  */
-export const QUALITY_MODELS = [HOME_BASELINE_MODEL, ELO_MODEL] as const;
+export const QUALITY_MODELS = [HOME_BASELINE_MODEL, ELO_MODEL, POISSON_MODEL] as const;
 
 /**
  * The first season judged: domestically 2016, leaving Elo's cold 2015
@@ -50,6 +52,16 @@ const FINISHED_STATUS = "FINISHED";
 const CACHE_TTL_SECONDS = 15 * 60;
 
 export type QualityResult = QualityReport | { status: "error" };
+
+/**
+ * Where one provider's and kind's report is cached.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
+ */
+export function qualityCacheKey(source: MatchSource["kind"], kind: PredictionKind): string {
+  return `quality:v2:${source}:${kind}`;
+}
 
 function outcomeOf(home: number, away: number): Outcome {
   if (home > away) return "home";
@@ -144,7 +156,7 @@ export async function getPredictionQuality(
   kind: PredictionKind
 ): Promise<QualityResult> {
   try {
-    return await getCached(`quality:v1:${source}:${kind}`, CACHE_TTL_SECONDS, async () => {
+    return await getCached(qualityCacheKey(source, kind), CACHE_TTL_SECONDS, async () => {
       const judged: JudgedPrediction[] = (await readJudged(source, kind)).map(
         ({ homeGoals, awayGoals, ...row }) => ({ ...row, outcome: outcomeOf(homeGoals, awayGoals) })
       );
