@@ -134,8 +134,9 @@ export async function changeRole(
   targetUserId: string,
   role: Role
 ): Promise<AdminWriteResult> {
+  let result: AdminWriteResult;
   try {
-    const result = await guardedWrite(
+    result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => role === DEFAULT_ROLE && targetRole === "admin",
@@ -143,11 +144,6 @@ export async function changeRole(
         await tx.update(user).set({ role, updatedAt: new Date() }).where(eq(user.id, targetUserId));
       }
     );
-    logger.info(
-      { actingAdminId, targetUserId, role, outcome: outcomeOf(result) },
-      "An admin asked to change a user's role"
-    );
-    return result;
   } catch (error) {
     logger.error(
       { err: error, actingAdminId, targetUserId, role },
@@ -155,6 +151,12 @@ export async function changeRole(
     );
     return { ok: false, reason: "failed" };
   }
+
+  logger.info(
+    { actingAdminId, targetUserId, role, outcome: outcomeOf(result) },
+    "An admin asked to change a user's role"
+  );
+  return result;
 }
 
 /**
@@ -168,8 +170,9 @@ export async function deleteUser(
   actingAdminId: string,
   targetUserId: string
 ): Promise<AdminWriteResult> {
+  let result: AdminWriteResult;
   try {
-    const result = await guardedWrite(
+    result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => targetRole === "admin",
@@ -177,13 +180,14 @@ export async function deleteUser(
         await tx.delete(user).where(eq(user.id, targetUserId));
       }
     );
-    logger.info(
-      { actingAdminId, targetUserId, outcome: outcomeOf(result) },
-      "An admin asked to delete a user"
-    );
-    return result;
   } catch (error) {
     logger.error({ err: error, actingAdminId, targetUserId }, "Deleting a user failed");
     return { ok: false, reason: "failed" };
   }
+
+  logger.info(
+    { actingAdminId, targetUserId, outcome: outcomeOf(result) },
+    "An admin asked to delete a user"
+  );
+  return result;
 }

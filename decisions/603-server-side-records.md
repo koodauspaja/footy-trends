@@ -20,7 +20,7 @@ predictions run's result. Each now logs one.
 |---|---|
 | One line per attempt, with `outcome` either `ok` or the refusal's reason | The issue asks for who did it, to what, and the outcome. A refusal (`self`, `last_admin`, `stale`) is an outcome too, and one line with a field is one thing to search for. |
 | A write that threw logs no `info` line | It already logs at `error` with the same ids, and two lines for one event would count it twice. |
-| The admin lines are after the transaction has returned | A line written inside it would record a change a rollback then undid. |
+| The admin lines are after the transaction has returned, and outside its `try` | A line written inside the transaction would record a change a rollback then undid. Inside the `try`, a logger that threw would report a committed write as `failed`. |
 | The refresh line is in the action, the user lines are in the library | `applyRefresh` returns from six places, and its caller sees every one of them as a single result. `changeRole` and `deleteUser` each have one. Both actions are the only callers of what they wrap. |
 | Ids only, and nothing at all for a refused sign-in | Logs leave for a third party and the repository is public. The address is the only thing known about a refused identity, so the line carries no fields. |
 | A refused sign-in is `warn` | It is the app saying no to someone, like the forced refresh's refusals, which are `warn` already. |
