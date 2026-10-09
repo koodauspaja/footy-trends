@@ -174,13 +174,15 @@ function batches<T>(rows: readonly T[], size: number): T[][] {
 
 /**
  * Upserts rows, one per match, model and kind. The batches are disjoint, and
- * every one started is left to settle before a failed one fails the run.
+ * every one started is left to settle before the run fails with whichever
+ * failed first.
  *
  * decisions/052-predictions-log.md
  * decisions/571-bounded-database-close.md
  */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
-  const writes = await Promise.allSettled(
+  const failures: unknown[] = [];
+  await Promise.all(
     batches(rows, WRITE_BATCH).map((batch) =>
       db
         .insert(predictions)
@@ -201,10 +203,12 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
             kickoffAt: sql`excluded.kickoff_at`,
           },
         })
+        .catch((reason: unknown) => {
+          failures.push(reason);
+        })
     )
   );
-  const failed = writes.find((write) => write.status === "rejected");
-  if (failed !== undefined) throw failed.reason;
+  if (failures.length > 0) throw failures[0];
 }
 
 /**

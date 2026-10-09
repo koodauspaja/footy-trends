@@ -438,18 +438,17 @@ describe("runPredictionBacktest", () => {
     ]);
   });
 
-  it("lets every batch it started settle before a failed one fails the run", async () => {
-    // Three batches: the first fails at once, the second is still writing, and
-    // the third fails too.
+  it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
+    // Three batches: the first is still writing and fails in the end, the second
+    // fails at once, the third is stored.
     mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
-    let finishSecond = () => {};
-    const second = new Promise<void>((resolve) => {
-      finishSecond = resolve;
+    let failFirst = (_reason: Error) => {};
+    const first = new Promise<void>((_resolve, reject) => {
+      failFirst = reject;
     });
     mocks.onConflictDoUpdate
-      .mockRejectedValueOnce(new Error("connection reset"))
-      .mockReturnValueOnce(second)
-      .mockRejectedValueOnce(new Error("a later failure"));
+      .mockReturnValueOnce(first)
+      .mockRejectedValueOnce(new Error("connection reset"));
     const settled = vi.fn();
 
     const run = runPredictionBacktest(NOW);
@@ -459,7 +458,7 @@ describe("runPredictionBacktest", () => {
 
     expect(settled).not.toHaveBeenCalled();
 
-    finishSecond();
+    failFirst(new Error("a later failure"));
 
     await expect(run).rejects.toThrow("connection reset");
   });

@@ -14,8 +14,8 @@ Measured, with postgres 3.4.9 against a port that refuses the connection:
 | two | never settles |
 
 Both commands start with two queries at once (`readFinished` and
-`readCandidates` each read `matches` and `taso_matches` under one
-`Promise.all`), so the driver opens two connections. The first refusal rejects
+`readCandidates` each read the two match tables under one `Promise.all`), so
+the driver opens two connections. The first refusal rejects
 the `Promise.all`, and the script's `finally` calls `closeDatabase()` while the
 second connection is still opening. The driver's `end()` for a connection in
 that state returns a promise that only its `terminate()` resolves, and the
@@ -54,11 +54,24 @@ something can still be in flight when the close starts.
 | the refreshes and the baseline reads | none: each catches its own failure | nothing |
 | the write batches in `writePredictions` | other batches | a batch not yet sent is not stored |
 
-So `writePredictions` waits for every batch it started with
-`Promise.allSettled`, then fails the run with the first failure. A failed
-write still fails the run (`decisions/052-predictions-log.md`); the batches
-that could be stored are, as they were before the bound. Sourcery raised this
-on the pull request.
+So `writePredictions` waits for every batch it started, then fails the run
+with the failure that came first in time, which is the one a fail-fast
+`Promise.all` reported. A failed write still fails the run
+(`decisions/052-predictions-log.md`); the batches that could be stored are, as
+they were before the bound. Sourcery raised this on the pull request.
+
+Waiting has a cost, which Sourcery raised on a later round: a batch that never
+settles keeps the run from ending. That is not new. A query on this driver
+settles when its connection fails (measured for a refused and for a reset
+connection; the connect timeout is 30 seconds), so only a server that holds a
+connection open and never answers leaves one pending, and every other awaited
+query in the run, and the unbounded close on `main`, waits on such a server the
+same way.
+
+| Considered | Why not |
+|---|---|
+| Fail fast again, and let the bound drop the other batches | it is the loss the first review found: a failed run would store fewer rows than it could |
+| A time limit on the batches themselves | a second bound to reason about, for a server that every other query would wait on anyway |
 
 How much the bound would have dropped is narrower than "every batch in flight":
 when the time is up the driver ends each socket with a Terminate message, and a
