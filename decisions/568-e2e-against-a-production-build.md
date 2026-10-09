@@ -64,6 +64,19 @@ defect is known that `next dev` shows and a build hides.
   3001 stops the run at once, with Playwright's own message that the address is
   already used.
 
+## What this does not do
+
+- **It does not watch `package.json`, the lockfile or
+  `tests/support/test-database.ts`.** Review asked for them. A dependency bump
+  is what the twelve-hour window is for
+  (`decisions/084-e2e-freshness-before-push.md`), and that line is not moved
+  here: watching the lockfile would make every merged dependency update ask
+  for a new run before the next push.
+- **It does not notice a file edited and put back while the suite ran.** The
+  start and the end then match, though the build may hold the edit. Seeing that
+  takes a file watcher for the length of the run, which is more machinery than
+  a local nudge that `--no-verify` skips has earned.
+
 ## What this overrides
 
 - `decisions/401-one-command-for-the-gate.md` exempted `build` from the stages
