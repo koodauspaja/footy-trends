@@ -3,7 +3,8 @@
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
 to. Not general advice — every class below is measured from the review history,
-and each has a counter that takes minutes. The table says which to weight
+bar section 11, which comes from an audit and says so, and each has a counter
+that takes minutes. The table says which to weight
 today; it is re-measured, not maintained by hand.
 
 When to use
@@ -236,6 +237,26 @@ pass, never the things that fail: an allowlist a reader can check, not a
 denylist someone has to keep complete. If the allowlist cannot be written
 down, the check is trying to judge something it should not.
 
+## 11. A failure or a write that leaves no record
+
+Not in the table above, and not from a review: from an audit on 2026-10-04 of
+every `catch` in `src/`. Failures on the server were nearly all logged. What
+left no line were the things nobody thinks of as failing: an admin changing a
+role, deleting a user or forcing a refresh, a sign-in being refused, and the
+hourly run's result. `npm run review:findings` does not count this class, so it
+stays until a human removes it.
+
+**What it looks like.** A new server action that writes and returns `{ ok: true
+}` with no log line. A refusal returned to the caller and recorded nowhere. A
+summary printed with `console` in a script, which reaches Railway's log and not
+Axiom. A log line carrying an email address because the object was to hand.
+
+**The counter.** For each new call that can fail, name the line it logs. For
+each new write to shared data, name the line that says who did it, to what, and
+the outcome, a refusal included. Then read each line's fields: ids only. Put
+the line where a test imports it, and run its mutation, so removing the line
+fails a test.
+
 ---
 
 ## The pass itself
@@ -245,8 +266,9 @@ down, the check is trying to judge something it should not.
    fourth merge is often enough.
 2. Read the whole diff as if reviewing someone else's work.
 3. For every test added: run its mutation.
-4. For every call added that can fail: name its catcher and its reader-visible
-   outcome.
+4. For every call added that can fail: name its catcher, its reader-visible
+   outcome and the line it logs. For every write added to shared data: name the
+   line that records it.
 5. For every behaviour changed: search the repository for sentences describing
    the old one.
 6. **`npm run verify`** — lint, typecheck, `test:unit` (100% on all four
