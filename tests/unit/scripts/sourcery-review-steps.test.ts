@@ -300,6 +300,20 @@ describe("checkReview", () => {
     expect(result.lines[0]).toBe("#552 at f4e9a2d: a budget notice, and no review.");
   });
 
+  it("reports a refusal written as a review of the head as a skip", async () => {
+    const result = await check({
+      reviews: [
+        sourcery(HEAD, "Sorry, we are unable to review this pull request", "2026-09-14T09:00:00Z"),
+      ],
+      comparisons: {
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["src/lib/form.ts", "+x"]) },
+      },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines[0]).toBe("#552 at f4e9a2d: a skip, and no review.");
+  });
+
   it("fails a skip on a pull request that has something to review", async () => {
     const result = await check({
       runs: [run("skipped", "This pull request has hit its limit of 5 automatic re-reviews.")],

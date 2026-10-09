@@ -1,8 +1,7 @@
 /**
  * Which kind of Sourcery review a pull request's head has, and whether that is
- * enough to hand the pull request off. Pure: API answers in, outcome and
- * report out; `sourcery-review-steps.ts` does the reading and decides the exit
- * code.
+ * enough to hand it off. Pure: API answers in, outcome and report out;
+ * `sourcery-review-steps.ts` does the reading.
  *
  * decisions/559-sourcery-review-kind.md
  */
@@ -61,7 +60,7 @@ export type Comparison = {
   changes: Change[];
 };
 
-export type ReviewKind = "full" | "quick" | "budget";
+export type ReviewKind = "full" | "quick" | "budget" | "skip";
 
 export type ChangeKind = "documentation" | "comments" | "other";
 
@@ -82,6 +81,8 @@ export type Outcome =
 const FULL_REVIEW = /^Hey - I['’]ve (?:reviewed|found)\b/;
 const QUICK_CHECK = /^### Sourcery assessment\s+\*\*Approved\.\*\*$/;
 const BUDGET_NOTICE = /^Sorry\b.*\bhas used its review budget\b/;
+// Any other apology: "Sorry, we are unable to review this pull request".
+const REFUSAL = /^Sorry\b/;
 
 /**
  * What a Sourcery review body is, read from how it starts: nothing else on the
@@ -94,6 +95,7 @@ export function reviewKind(body: string): ReviewKind | undefined {
   if (FULL_REVIEW.test(text)) return "full";
   if (QUICK_CHECK.test(text)) return "quick";
   if (BUDGET_NOTICE.test(text)) return "budget";
+  if (REFUSAL.test(text)) return "skip";
   return undefined;
 }
 
@@ -106,10 +108,9 @@ function oldestFirst(a: Review, b: Review): number {
 }
 
 /**
- * What Sourcery wrote about `head`: a full review if it ever wrote one,
- * otherwise the latest thing it said, otherwise nothing. `head` may be an
- * abbreviated commit. A body in none of the three shapes is an error, not a
- * guess.
+ * What Sourcery wrote about `head`, which may be abbreviated: a full review if
+ * it ever wrote one, otherwise the latest thing it said, otherwise nothing. A
+ * body in no known shape is an error, not a guess.
  *
  * decisions/559-sourcery-review-kind.md
  */
@@ -131,7 +132,7 @@ export function headReview(reviews: readonly Review[], head: string): ReviewKind
   const unknown = written.find((review) => reviewKind(review.body) === undefined);
   if (unknown) {
     throw new Error(
-      `Sourcery's review of ${short(head)} is neither a full review, the quick check nor a budget notice. It starts: ${unknown.body.trim().split("\n")[0]}`
+      `Sourcery's review of ${short(head)} is in no shape this check knows. It starts: ${unknown.body.trim().split("\n")[0]}`
     );
   }
 
@@ -141,8 +142,7 @@ export function headReview(reviews: readonly Review[], head: string): ReviewKind
 /**
  * The commits other than `head` that got a full review, latest review first
  * and each once. When Sourcery wrote about `head`, only reviews from before
- * that count: a later one is of a later commit, which matters when `head` is
- * not the pull request's last.
+ * that count: a later one is of a later commit.
  *
  * decisions/559-sourcery-review-kind.md
  */
@@ -182,18 +182,19 @@ export function lastFullReview(comparisons: readonly Comparison[]): Comparison |
 }
 
 const COMMENTED_SOURCE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
-const COMMENT_MARKER = /^(?:\/\/+|\*(?!\S))\s*/;
+const COMMENT_MARKER = /^(?:\/\/(?!\/)|\*(?!\S))\s*/;
 const DIRECTIVE = /^(?:@|eslint-|prettier-|biome-|v8 |c8 |istanbul |NOSONAR)/;
 
 // A blank line, a `//` line or the inside of a block comment, and not one a
-// tool reads. A line that opens or closes a block comment is not one: it can
-// turn the code beside it into a comment.
+// tool reads. A line that opens or closes a block comment is not one, nor is
+// `///`: either can change what compiles.
 function isComment(line: string): boolean {
   const text = line.trim();
   if (text === "") return true;
 
   const marker = COMMENT_MARKER.exec(text);
-  return marker !== null && !DIRECTIVE.test(text.slice(marker[0].length));
+  if (marker === null || (text.startsWith("*") && text.includes("*/"))) return false;
+  return !DIRECTIVE.test(text.slice(marker[0].length));
 }
 
 /**
@@ -218,9 +219,8 @@ export function changeKind({ path, patch }: Change): ChangeKind {
 }
 
 /**
- * The files whose part in the pull request differs between two states of it,
- * for a branch rebased since its full review: `before` and `after` are the
- * pull request's own diff at each. No patch is carried over, so none of them
+ * The files whose part in the pull request differs between its own diff
+ * `before` a rebase and `after` it. No patch is carried over, so none of them
  * can count as comments only.
  *
  * decisions/559-sourcery-review-kind.md
@@ -346,16 +346,15 @@ export type Report = {
  * decisions/559-sourcery-review-kind.md
  */
 export function report({ pull, head, outcome, check, exempt }: ReportInput): Report {
-  const declined = outcome.kind === "budget" || outcome.kind === "skip";
-  // Sourcery's own first line says which limit it hit and when it lifts.
-  const reason = declined ? (check?.summary.trim().split("\n")[0] ?? "") : "";
+  // A skipped check-run's first line says which limit was hit and when it lifts.
+  const reason = check?.conclusion === "skipped" ? check.summary.trim().split("\n")[0] : "";
 
   return {
     passed: sufficient(outcome) || exempt,
     lines: [
       `#${pull} at ${short(head)}: ${HEADLINE[outcome.kind]}.`,
       `Check-run: ${check ? (check.conclusion ?? check.status) : "none"}.`,
-      ...(reason === "" ? [] : [reason]),
+      ...(reason ? [reason] : []),
       ...(outcome.kind === "quick" || outcome.kind === "nothing" ? sinceLines(outcome.since) : []),
       verdictLine(outcome, exempt),
     ],

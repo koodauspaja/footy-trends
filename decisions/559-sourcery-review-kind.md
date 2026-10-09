@@ -15,13 +15,14 @@ now is not known, and nothing here depends on the reason.
 | A full review | `COMMENTED` or `APPROVED` | the commit reviewed | starts `Hey - I've found N issues` or `Hey - I've reviewed your changes and they look great!` | `success` |
 | The quick check after a push | `APPROVED` | the new head | only `### Sourcery assessment` and `**Approved.**` | `success` |
 | A budget notice | `COMMENTED` | the head | starts `Sorry @…, this account has used its review budget of 1,500,000 diff characters for the last 7 days.` | `skipped`, with the same sentence as its summary |
-| A skip for another reason | no review | | | `skipped`, the summary naming the limit |
+| A skip for another reason | no review, or `COMMENTED` | the head | absent, or starts `Sorry, we are unable to review this pull request` | `skipped`, the summary naming the limit; not read for the second shape |
 | Nothing | no review | | | `success`, or none |
 
 Seen as: full reviews on #556 `7f39f49` and, by the issue's own measurement,
 #553 `eb6c786`, #554 `766dd69` and #555 `3404b15`; quick checks on #552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`; the
 budget notice on #558 `3890507`; a skip on #541 `9bd3386` (five automatic
-re-reviews); nothing, beside a green check-run, on #558 `c67b89c` and #594
+re-reviews) and, as a review, on #394 `6d3a66c` (a diff over 20 000 lines);
+nothing, beside a green check-run, on #558 `c67b89c` and #594
 `1a3232d`.
 
 A state of `DISMISSED` is what a later push does to an earlier review, and
@@ -33,7 +34,7 @@ in a thread.
 Nothing else tells a full review from the quick check: a full review that
 found nothing is `APPROVED` too, and the `commit_id` and the check-run are the
 same for both. So the script reads the
-body, and a body in none of the three shapes on the head is an error with its
+body, and a body in no known shape on the head is an error with its
 first line quoted, never a guess. Sourcery can change its wording, and a
 script that then stops is better than one that calls an unknown body a review
 or calls it nothing.
@@ -72,8 +73,9 @@ runs:
   inside a template string, and `tests/unit/scripts/comment-rules.test.ts`
   holds many.
 
-The same hole is left open in script source outside `tests/`: a `//` line
-inside a template string there counts as a comment.
+The same hole is left open in script source outside `tests/`: a line that
+starts `//` or `* ` inside a template string or JSX text there counts as a
+comment.
 
 ## A rebase since the full review
 
@@ -124,7 +126,9 @@ failure swallowed silently, and the seven-day budget ran out that evening.
 
 The rule was written down and skipped, which is how the quick check was
 misread too. So `skills/open-pr.md` step 5 puts the pass and the `code-review`
-skill before the first push, and the pull request template has a Checklist box
+skill before the first push, the skill at its lowest effort because the
+author's review is the quick one and Sourcery's the thorough one (Miikka,
+2026-10-09), and the pull request template has a Checklist box
 that stays visibly empty until both were run on the diff as pushed, with what
 they changed written on the line. `npm run check:boxes` reads the issue's
 boxes and not the pull request's own; making it read this one is a separate

@@ -59,7 +59,14 @@ describe("reviewKind", () => {
     expect(reviewKind(BUDGET)).toBe("budget");
   });
 
-  it("does not guess at a body in none of the three shapes", () => {
+  it("reads any other apology as a skip", () => {
+    const body =
+      "Sorry, we are unable to review this pull request\n\nThe GitHub API does not allow us to fetch diffs exceeding 20000 lines";
+
+    expect(reviewKind(body)).toBe("skip");
+  });
+
+  it("does not guess at a body in no known shape", () => {
     expect(reviewKind("### Sourcery assessment\n\n**Changes requested.**")).toBeUndefined();
     expect(reviewKind(`${QUICK}\n\nOne more thing.`)).toBeUndefined();
     expect(reviewKind("")).toBeUndefined();
@@ -271,6 +278,8 @@ describe("changeKind", () => {
   it.each([
     ["an opened block comment", "+/**"],
     ["a closed block comment", "-  */"],
+    ["a block comment closed mid-line", "+ * a reason */ run();"],
+    ["a triple-slash directive", '+/// <reference types="next" />'],
     ["a type-checker directive", "+// @ts-expect-error"],
     ["a linter directive", "+  // eslint-disable-next-line no-console"],
     ["a coverage directive", "+/* v8 ignore next */"],
@@ -511,6 +520,15 @@ describe("report", () => {
       "#552 at f4e9a2d: a budget notice, and no review.",
       "Check-run: none.",
       'Not enough: the head needs a full review, one whose body starts "Hey". skills/open-pr.md step 9 says how to get one.',
+    ]);
+  });
+
+  it("quotes no reason from a check-run that did not skip", () => {
+    // The notice came as a review, beside an earlier green check-run.
+    expect(reportFor({ kind: "budget" }).lines).toEqual([
+      "#552 at f4e9a2d: a budget notice, and no review.",
+      "Check-run: success.",
+      expect.stringMatching(/^Not enough/),
     ]);
   });
 

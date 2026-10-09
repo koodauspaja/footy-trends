@@ -88,8 +88,10 @@ already, and #390 found two classes that had never been written down at all.
 5. **Review your own diff, then** push the branch and open a PR against
    main. The author's review comes before Sourcery's, and it is two things,
    both run on the diff as it will be pushed: the pass in
-   `skills/self-review.md`, and the `code-review` skill (`/code-review` in
-   Claude Code). Fix what they find before the push.
+   `skills/self-review.md`, and the `code-review` skill at its lowest effort
+   (`/code-review low` in Claude Code). It is the quick pass for what an
+   author should have seen; the thorough one is Sourcery's. Fix what they find
+   before the push.
 6. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`) — never a bare mention like
@@ -185,7 +187,7 @@ already, and #390 found two classes that had never been written down at all.
    | a full review | a review of the head whose body starts `Hey - I've reviewed your changes` or `Hey - I've found N issues` | 0 |
    | the quick check only | a review of the head whose whole body is `### Sourcery assessment` and `**Approved.**` | 0 when nothing but comments and documentation changed since the last full review, 1 otherwise |
    | a budget notice, and no review | a review, or a `skipped` check-run, that starts `Sorry @…, this account has used its review budget` | 1 |
-   | a skip, and no review | a `skipped` check-run for any other reason; see "When Sourcery skips" below | 1 |
+   | a skip, and no review | a `skipped` check-run, or a review that starts `Sorry`, for any other reason; see "When Sourcery skips" below | 1 |
    | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 1 |
 
    **Only the first line of the body tells a full review from the quick
@@ -241,8 +243,8 @@ already, and #390 found two classes that had never been written down at all.
    branch will allow a merge with no Sourcery review at all — see
    `docs/setup/011-branch-protection.md`. This step is the only thing
    enforcing it.
-8. **Read the review threads before merging, every time.** The check-run
-   query above tells you a review happened. It does not tell you what it
+8. **Read the review threads before merging, every time.** Step 7 tells you
+   which kind of review the head has. It does not tell you what the review
    said, and `mergeStateStatus: CLEAN` says only that the required checks
    passed — never that anyone read the comments.
 
@@ -280,8 +282,9 @@ already, and #390 found two classes that had never been written down at all.
    check.
 
    The quick check is enough for a fix that changes no code and no test:
-   comments and documentation. That is the one case where step 7 exits 0
-   without a full review of the head. After any other fix, comment
+   comments and documentation. That, and a pull request of unreviewable
+   paths alone, are the only cases where step 7 exits 0 without a full review
+   of the head. After any other fix, comment
    `@sourcery-ai review` on the PR, with nothing else in the comment, and
    wait until step 7 reports a full review before handing off.
 10. **Never merge on your own initiative** — however green it is. Merge only

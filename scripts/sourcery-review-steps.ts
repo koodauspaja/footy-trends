@@ -1,8 +1,7 @@
 /**
  * The check behind `npm run check:sourcery`: read a pull request's reviews and
  * the check-run at its head, and say which kind of Sourcery review the head
- * has. The reading is injected, and goes to the API over HTTPS, not through
- * `gh`.
+ * has. The reading is injected, and goes to the API over HTTPS.
  *
  * decisions/559-sourcery-review-kind.md
  */
