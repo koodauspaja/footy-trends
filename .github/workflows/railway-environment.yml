@@ -74,21 +74,13 @@ jobs:
             | sudo tar -xz -C /usr/local/bin railway
           railway --version
 
-      - name: Link the project
-        env:
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-        # A link needs an environment that exists, and every project has one:
-        # the first listed. The script links the new one itself before it
-        # applies anything.
-        run: |
-          set -euo pipefail
-          first=$(railway environment list --json | jq -r '.environments[0].name')
-          railway link --project "$RAILWAY_PROJECT_ID" --environment "$first" --json > /dev/null
-
       - name: Create the environment
         env:
+          # No `railway link` first: it asks who the token belongs to, which a
+          # workspace token cannot answer. With the project named here, the
+          # script's own `railway environment link` works, and is all it needs.
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           # Inputs arrive as variables, never spliced into the command line.
           ENVIRONMENT_NAME: ${{ inputs.name }}
           ENVIRONMENT_BRANCH: ${{ inputs.branch }}
