@@ -73,6 +73,7 @@ function panels(
 const {
   dbMock,
   getCachedMock,
+  getCachedUnlessDegradedMock,
   getSeasonMatchesMock,
   getSeasonGroupsMock,
   getSeasonCategoryNamesMock,
@@ -88,6 +89,7 @@ const {
     transaction: vi.fn(),
   },
   getCachedMock: vi.fn(),
+  getCachedUnlessDegradedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
   getSeasonCategoryNamesMock: vi.fn(),
@@ -96,7 +98,10 @@ const {
   loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
-vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
+vi.mock("@/lib/cache", () => ({
+  getCached: getCachedMock,
+  getCachedUnlessDegraded: getCachedUnlessDegradedMock,
+}));
 vi.mock("@/lib/taso", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso")>();
   return {
@@ -2146,9 +2151,19 @@ describe("resolveTasoSeasonContext", () => {
     });
   }
 
+  // What each resolver told the cache about its own answer, by cache key: the
+  // cache stores an answer only when this is false.
+  let degraded: Record<string, boolean>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+    degraded = {};
+    getCachedUnlessDegradedMock.mockImplementation(async (key, _ttl, fetcher) => {
+      const fetched = await fetcher();
+      degraded[key] = fetched.degraded;
+      return fetched.value;
+    });
   });
 
   it("uses the discovered season when it already has matches", async () => {
@@ -2300,6 +2315,117 @@ describe("resolveTasoSeasonContext", () => {
       expect.objectContaining({ currentSeason: 2027 }),
       "Unable to check the current season for matches"
     );
+  });
+
+  it("caches a ceiling and a context that TASO answered for, for 15 minutes", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2027, [match({ seasonId: 2027 })]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
+    });
+    expect(getCachedUnlessDegradedMock.mock.calls.map(([, ttl]) => ttl)).toEqual([
+      15 * 60,
+      15 * 60,
+    ]);
+  });
+
+  it("caches neither the ceiling nor the context when discovery fails", async () => {
+    // TASO is back within the 15 minutes: the fallback season must not outlive
+    // the outage, so the next request has to ask again.
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(2026, [match({ seasonId: 2026 })]);
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2026,
+      defaultSeason: 2026,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches neither when discovery fails and the fallback season is empty", async () => {
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches the ceiling when TASO answers with no season it recognizes", async () => {
+    // An answer, not an outage: asking again gets the same one.
+    getCurrentSeasonMock.mockResolvedValue(null);
+    mockDb(2024, [match({ seasonId: 2024 })]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
+    });
+  });
+
+  it("caches the ceiling but not the context when the season's sync fails with rows stored", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    const stale = new Date(Date.now() - 16 * 60 * 1000);
+    mockDb(2027, [match({ seasonId: 2027, updatedAt: stale })]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2027,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches the ceiling but not the context when the season's sync fails with nothing stored", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("does not cache the context when the matches check itself throws", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database unavailable");
+    });
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
   });
 
   describe("an unconfigured continuation group", () => {
