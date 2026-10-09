@@ -71,7 +71,7 @@ Tests are organized by test type, with unit tests mirroring the relevant
 `npm run verify` runs every stage the gate does, in order. On a pull request
 CI runs the unit and integration suites; the end-to-end suite runs locally
 (the pre-push hook asks for a fresh run) and in `release.yml`, against a
-production build, before anything reaches production.
+production build in both, before anything reaches production.
 
 The project targets Node 24, and expects npm 12.2.0.
 
