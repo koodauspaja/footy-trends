@@ -227,11 +227,15 @@ describe("checkReview", () => {
     ]);
   });
 
-  it("fails a rebased branch whose earlier diff is too long to compare in full", async () => {
+  it.each([
+    ["earlier", "before"],
+    ["present", "after"],
+  ])("fails a rebased branch whose %s diff is too long to compare in full", async (_name, long) => {
     const many = Array.from({ length: 300 }, (_, index) => ({
       filename: `docs/${index}.md`,
       patch: "+x",
     }));
+    const few = files(["docs/0.md", "+x"]);
     const result = await check({
       reviews: [
         sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z"),
@@ -239,8 +243,8 @@ describe("checkReview", () => {
       ],
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: { status: "diverged", files: [] },
-        [`${BASE}...${REVIEWED}`]: { status: "ahead", files: many },
-        [`${BASE}...${HEAD}`]: { status: "ahead", files: many },
+        [`${BASE}...${REVIEWED}`]: { status: "ahead", files: long === "before" ? many : few },
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: long === "after" ? many : few },
       },
     });
 
