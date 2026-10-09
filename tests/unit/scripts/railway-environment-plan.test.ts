@@ -6,6 +6,7 @@ import {
   domainFrom,
   findTarget,
   healthy,
+  idle,
   namesSomeone,
   parseArgs,
   railway,
@@ -310,6 +311,33 @@ describe("healthy", () => {
   });
 });
 
+describe("idle", () => {
+  it("is true when every deployment has ended, and when there is none", () => {
+    expect(idle([{ status: "FAILED" }, { status: "SUCCESS" }])).toBe(true);
+    expect(idle([{ status: "CRASHED" }, { status: "REMOVED" }, { status: "SKIPPED" }])).toBe(true);
+    expect(idle([])).toBe(true);
+  });
+
+  it.each(["BUILDING", "DEPLOYING", "INITIALIZING", "QUEUED", "WAITING"])(
+    "is false while one is %s",
+    (status) => {
+      expect(idle([{ status: "FAILED" }, { status }])).toBe(false);
+    }
+  );
+
+  // Named by what has ended, so a state Railway adds later reads as under way.
+  it.each([[[{ status: "SOMETHING_NEW" }]], [[{}]], [[null]]])(
+    "is false for %j, which it cannot place",
+    (answer) => {
+      expect(idle(answer)).toBe(false);
+    }
+  );
+
+  it.each([null, {}, "none"])("throws on %j, which is no list", (answer) => {
+    expect(() => idle(answer)).toThrow("answered no list");
+  });
+});
+
 describe("the railway argument lists", () => {
   const every = [
     railway.status(),
@@ -319,6 +347,7 @@ describe("the railway argument lists", () => {
     railway.applyWeb(),
     railway.domain("pr-123"),
     railway.setVariable("pr-123", "LOG_LEVEL"),
+    railway.deployments("pr-123"),
     railway.deploy("pr-123"),
   ];
 
@@ -359,6 +388,18 @@ describe("the railway argument lists", () => {
       "GOOGLE_CLIENT_SECRET",
       "--stdin",
       "--skip-deploys",
+      "--service",
+      "footy-trends",
+      "--environment",
+      "pr-123",
+      "--json",
+    ]);
+  });
+
+  it("list the web service's deployments in the named environment", () => {
+    expect(railway.deployments("pr-123")).toEqual([
+      "deployment",
+      "list",
       "--service",
       "footy-trends",
       "--environment",

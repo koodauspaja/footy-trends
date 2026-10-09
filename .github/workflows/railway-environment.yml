@@ -32,10 +32,10 @@ jobs:
   create:
     name: Create ${{ inputs.name }}
     runs-on: ubuntu-latest
-    # The command waits fifteen minutes in all for the site, and each of its
-    # sixty questions may itself take twenty seconds: thirty-five at the worst,
-    # after the install and the applies.
-    timeout-minutes: 45
+    # The command waits up to ten minutes for the first deploy to end, then
+    # asks the site sixty times, fifteen seconds apart and twenty seconds each
+    # at the slowest: forty-five at the worst, after the install and the applies.
+    timeout-minutes: 60
     # The Railway token reaches the whole workspace, so it belongs to this
     # environment, not to the repository: a run waits here for a required
     # reviewer, and only `main` may use it. Approving a run also hands the

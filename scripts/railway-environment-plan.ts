@@ -225,6 +225,23 @@ export function healthy(body: unknown): boolean {
   return checks?.database === "ok" && checks.redis === "ok";
 }
 
+// The states a deployment ends in. Any other, one this list has never seen
+// included, is a deployment still under way.
+const ENDED = new Set(["SUCCESS", "FAILED", "CRASHED", "REMOVED", "SKIPPED"]);
+
+/**
+ * Whether every deployment `railway deployment list --json` answered has
+ * ended. Throws on an answer that is no list: unreadable is not idle.
+ *
+ * decisions/522-railway-environment-from-code.md
+ */
+export function idle(answer: unknown): boolean {
+  if (!Array.isArray(answer)) throw new Error("railway deployment list answered no list");
+  return answer.every((deployment) =>
+    ENDED.has((deployment as { status?: unknown })?.status as string)
+  );
+}
+
 /**
  * Every `railway` argument list the command needs, as data, so a test can read
  * them. None carries `--confirm-destructive`: an environment that holds
@@ -246,6 +263,15 @@ export const railway = {
     variable,
     "--stdin",
     "--skip-deploys",
+    "--service",
+    WEB_SERVICE,
+    "--environment",
+    name,
+    "--json",
+  ],
+  deployments: (name: string) => [
+    "deployment",
+    "list",
     "--service",
     WEB_SERVICE,
     "--environment",
