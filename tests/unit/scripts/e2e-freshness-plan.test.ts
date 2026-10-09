@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   changedBetweenFingerprints,
@@ -11,6 +12,7 @@ import {
   missingPrerequisites,
   parseMarker,
   pathFromEntry,
+  WATCHED_PATHS,
 } from "../../../scripts/e2e-freshness-plan";
 
 /**
@@ -21,7 +23,19 @@ import {
  * decisions/220-freshness-notices-deletions.md
  * decisions/242-freshness-compares-content.md
  * decisions/292-sonar-zero-open-issues.md
+ * decisions/568-e2e-against-a-production-build.md
  */
+
+describe("WATCHED_PATHS", () => {
+  it.each(["src", "tests/e2e", "next.config.ts", "playwright.config.ts", "scripts/e2e-target.ts"])(
+    "watches %s, which exists",
+    (watched) => {
+      // A renamed file would otherwise drop out of every fingerprint unnoticed.
+      expect(WATCHED_PATHS).toContain(watched);
+      expect(existsSync(watched)).toBe(true);
+    }
+  );
+});
 
 const NOW = new Date("2026-08-30T12:00:00.000Z");
 
