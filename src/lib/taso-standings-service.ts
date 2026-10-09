@@ -397,7 +397,7 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
   discoveryFailed: boolean;
 }> {
   return getCachedUnlessDegraded(
-    `taso:season-ceiling:${competitionCode}`,
+    `taso:season-ceiling:v2:${competitionCode}`,
     CURRENT_SEASON_CACHE_TTL_SECONDS,
     async () => {
       // The stored fallback is per competition, so the key is too.
@@ -429,7 +429,7 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
 ): Promise<TasoSeasonContext> {
-  const key = `taso:season-context:${competitionCode}`;
+  const key = `taso:season-context:v2:${competitionCode}`;
   return getCachedUnlessDegraded(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
     const { currentSeason, newestStored, discoveryFailed } =
       await resolveTasoSeasonCeiling(competitionCode);

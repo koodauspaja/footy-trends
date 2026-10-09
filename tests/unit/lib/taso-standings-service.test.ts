@@ -2324,8 +2324,8 @@ describe("resolveTasoSeasonContext", () => {
     await resolveTasoSeasonContext("VL");
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": false,
-      "taso:season-context:VL": false,
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
     });
     expect(getCachedUnlessDegradedMock.mock.calls.map(([, ttl]) => ttl)).toEqual([
       15 * 60,
@@ -2345,8 +2345,8 @@ describe("resolveTasoSeasonContext", () => {
     });
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": true,
-      "taso:season-context:VL": true,
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
     });
   });
 
@@ -2358,8 +2358,8 @@ describe("resolveTasoSeasonContext", () => {
     await resolveTasoSeasonContext("VL");
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": true,
-      "taso:season-context:VL": true,
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
     });
   });
 
@@ -2371,8 +2371,8 @@ describe("resolveTasoSeasonContext", () => {
     await resolveTasoSeasonContext("VL");
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": false,
-      "taso:season-context:VL": false,
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
     });
   });
 
@@ -2388,8 +2388,8 @@ describe("resolveTasoSeasonContext", () => {
     });
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": false,
-      "taso:season-context:VL": true,
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
     });
   });
 
@@ -2404,8 +2404,8 @@ describe("resolveTasoSeasonContext", () => {
     });
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": false,
-      "taso:season-context:VL": true,
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
     });
   });
 
@@ -2423,8 +2423,8 @@ describe("resolveTasoSeasonContext", () => {
     await resolveTasoSeasonContext("VL");
 
     expect(degraded).toEqual({
-      "taso:season-ceiling:VL": false,
-      "taso:season-context:VL": true,
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
     });
   });
 

@@ -62,8 +62,16 @@ and the sync are tried once per request, each attempt bounded by the timeout in
 `decisions/363-render-timeouts.md` and deduplicated within the request by
 `cache()`.
 
-`specs/011-current-season-discovery.md` puts the cost at one extra TASO request
-per 15 minutes. The same exception applies.
+`specs/011-current-season-discovery.md` put the cost at one extra TASO request
+per 15 minutes. Its Caching and Performance sections now state the exception.
+
+## The keys are versioned
+
+`taso:season-ceiling:v2:<code>` and `taso:season-context:v2:<code>`. An entry
+under the old keys may be a fallback, written before this change or by an old
+instance while a deployment rolls, and nothing in it says so. The new code
+reads only keys that the old code never wrote. Sourcery raised it on the first
+review.
 
 ## Not changed
 

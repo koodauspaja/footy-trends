@@ -358,7 +358,7 @@ describe("previewRefresh", () => {
 
     expect(state.invalidated).toEqual(["taso:matches:spljp26:VL", "taso:category:spljp26:VL"]);
     // Which seasons and names exist is not what a refresh corrects.
-    expect(state.invalidated).not.toContain("taso:season-context:VL");
+    expect(state.invalidated).not.toContain("taso:season-context:v2:VL");
     expect(state.invalidated).not.toContain("taso:categories:spljp26");
   });
 
