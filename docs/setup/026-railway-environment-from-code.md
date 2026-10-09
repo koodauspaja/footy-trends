@@ -58,7 +58,8 @@ Once, in the repository's settings:
 3. In that environment, the secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    and `AUTH_ALLOWED_EMAILS`. The two provider keys are repository secrets
    already (013).
-4. The repository variable `RAILWAY_PROJECT_ID` (`railway status --json`, `id`).
+4. In that environment, the secret `RAILWAY_PROJECT_ID`: the project the new
+   environment is created in (`railway status --json`, `id`).
 
 Then **Actions** → **Railway environment** → **Run workflow**, with a name and
 a branch. A reviewer approves the run before it starts.

@@ -241,16 +241,15 @@ container a workflow run creates (any random value; nothing outside a run uses i
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
 
-`railway-environment.yml` reads more: the variable `RAILWAY_PROJECT_ID`, and
-in the GitHub Environment `railway-provisioning` the secrets
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `AUTH_ALLOWED_EMAILS`, copied
-from staging on 2026-10-09, and `RAILWAY_API_TOKEN`, stored the same day. **The
+`railway-environment.yml` reads more, all of it secrets of the GitHub
+Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+and `AUTH_ALLOWED_EMAILS`, copied from staging on 2026-10-09, and
+`RAILWAY_PROJECT_ID` and `RAILWAY_API_TOKEN`, stored the same day. **The
 workflow has never run** (decisions/522).
 That environment requires a review by the owner or the collaborator and
 deploys from `main` only. **`RAILWAY_API_TOKEN` is a workspace token: it can
-change production.** It would be the only credential in GitHub that can, which
-is why it belongs behind required reviewers and not among the repository's
-secrets.
+change production.** It is the only credential in GitHub that can, which is
+why it is behind required reviewers and not among the repository's secrets.
 
 ### Versions and releases
 
