@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { HEADLINE } from "../../../scripts/sourcery-review-plan";
 
 /**
  * No document says a push after the first review leaves no review object
@@ -8,6 +9,7 @@ import { describe, expect, it } from "vitest";
  * against.
  *
  * decisions/559-sourcery-review-kind.md
+ * decisions/597-check-sourcery.md
  */
 
 const ROOT = process.cwd();
@@ -45,6 +47,13 @@ describe("the documents that describe the Sourcery gate", () => {
     expect("deliberately light and create no new review\n   object").toMatch(NO_REVIEW_OBJECT);
     expect("Such a reaction does create a review object").not.toMatch(NO_REVIEW_OBJECT);
   });
+
+  it.each(Object.values(HEADLINE))(
+    "the gate's table has a row for '%s', as the script words it",
+    (headline) => {
+      expect(read("skills/open-pr.md")).toContain(`\n   | ${headline} | `);
+    }
+  );
 
   it("gives the first line of each kind of review where the gate is described", () => {
     const gate = read("skills/open-pr.md");
