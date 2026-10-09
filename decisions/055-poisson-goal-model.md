@@ -14,6 +14,7 @@ implementation had to decide something the spec did not.
 | The tolerance | 0,0001 on a log-strength, not smaller | A shift of every attack one way and the base rate the other barely changes any expected goal count, so the sweeps crawl along it: at 0,000001 a warm fit took about 250 sweeps instead of about 10, for predictions that differ in the fifth decimal. Measured below. |
 | The backtest's warm start | Each day's fit starts from the day before's, for the teams and competitions still in the window | Speed only. It ends where a cold fit ends, within the tolerance; a unit test compares the two. |
 | A team outside the window | Absent from the fit, so average | S4. #515's prototype kept a team's last strength for ever once it had one; a club back after more than 1 500 days is here an average side, as the spec says. |
+| The prior on strengths (S4) | One goal scored against one goal expected, added to each attack's and each defence's totals | #515's prototype's, which the figures were measured with. It is about one average match, not exactly: an average side is expected 1,2 to 1,6 goals in one, so the pull is a little weaker than a whole match's. Sourcery raised the difference on #613; making it a match's exact worth would be another model than the one #515 measured, and is left for a `poisson-v2` to measure. |
 | The prior on rates | Half a goal on each competition's base rate and on the home advantage | #515's prototype had it on the base rate only. Without it a history with no home goal at all gives a home advantage of minus infinity. With thousands of matches it moves nothing a reader could see. |
 | The draw factor (S16) | Per competition, inside the fit: the plain grid's draw probability of every one of the competition's fitted matches, and the factor (searched between a thousandth and a thousand) that brings their average, once scaled, to those matches' draw share; unweighted | S16. The share is of the same matches the probabilities are of, so the two sides of the equation describe one set. Unweighted because S16 says the draw share of those matches, not a decayed one. |
 | No draw factor (S14) | 1 when the fitted matches of the competition have no draw, or nothing else | S14, now within the window rather than "ever", since the window is all the fit reads. |
@@ -26,6 +27,7 @@ implementation had to decide something the spec did not.
 | `/ennusteet`'s third line | A fourth style, `dashDotted` (`6 4 2 4`), on `LineSeries` and `LineLegend` | S18. Lines are told apart by dash, never colour (specs/032 Q5); dashed, dotted and solid were taken. |
 | `/ennusteet`'s window line | `…, joille kaikki mallit ovat antaneet ennusteen.` | It said `molemmat mallit`. "All" stays true when a fourth model is judged. |
 | `/ennusteet`'s cache key | `quality:v2:<provider>:<kind>` | A report cached under `v1` has two models; the page would show it for up to 15 minutes after a deploy. |
+| A backtest and the cached reports | `runPredictionBacktest` drops `quality:v2:<provider>:backtest` for both providers once its rows are written | Sourcery on #613: a report cached before the rows would hide them for up to 15 minutes, on the one occasion someone is looking for them. A failure to drop is logged by the cache and does not fail the backtest. |
 | `/ennusteet` right after a deploy | Shows `Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.` until the backtest has been run in that environment | Only matches all three models predicted are judged (S18), and `poisson-v1` has no rows until `npm run predictions -- backtest` has run. The same step as after specs/053. |
 | `Ennakkoon tehdyt` after this ships | Judges only matches kicked off since `poisson-v1` began logging | The same rule: an earlier live match has no `poisson-v1` row. The backtested figures are unaffected. |
 
@@ -109,11 +111,20 @@ implementation had to decide something the spec did not.
   | 71 | Draw share counts every match |
   | 72 | Draw factor: always 1 in fit |
   | 73 | Draw factor: home advantage left out |
+  | 74 | Backtest: cached report not dropped |
+  | 75 | Backtest: live report dropped instead |
+  | 76 | Backtest: only one provider's report dropped |
+  | 77 | Replay: same-day matches inform, against the backtest's own test |
 
 - **Two first survived and were closed with a test**: the replay sorted by
   match id alone (61: the test's ids happened to follow its kickoffs; they now
   disagree) and the base rate's prior changed (69: only the home advantage's
   was asserted; the base rate's balance now is too).
+- **One test proved nothing until review.** The backtest's same-day test
+  compared each run's first row, which is the noon match's and not the evening
+  one it meant; Sourcery found it on #613. It now compares the evening match's
+  row, and mutation 77 fails it alone. The replay's own same-day test caught
+  the mutation all along.
 - **Three survive, as they must.** A fit started from another home advantage,
   or from no warm base rates, ends in the same place: that is what "warm start
   changes the speed only" means. And a match's age counted in whole days
@@ -124,7 +135,8 @@ implementation had to decide something the spec did not.
   scores made by hand, the stored 5–4 shoot-out read as the 1–1 it was; the
   hourly run writing one `poisson-v1` row beside the other two; and
   `/ennusteet`'s read leaving out a match `poisson-v1` has no row for.
-- **End to end**: the seeded upcoming match shows `Perustaso`, `Elo` and
+- **End to end**: with a finished match seeded three days back, so the fit
+  has history whatever else is stored, the seeded upcoming match shows `Perustaso`, `Elo` and
   `Poisson` rows and the Poisson line; `/ennusteet` judges three models, with
   three rows, three columns and four calibration lines; signed out, neither
   page carries a value or the word `Poisson`.
