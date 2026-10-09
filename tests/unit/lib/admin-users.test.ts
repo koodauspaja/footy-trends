@@ -25,7 +25,7 @@ const { state, logger } = vi.hoisted(() => ({
     countMissing: false,
     totalMissing: false,
   },
-  logger: { error: vi.fn() },
+  logger: { error: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/lib/logger", () => ({ logger }));
@@ -111,6 +111,7 @@ beforeEach(() => {
   state.totalMissing = false;
   state.countMissing = false;
   logger.error.mockReset();
+  logger.info.mockReset();
 });
 
 afterEach(() => {
@@ -128,6 +129,34 @@ describe("changeRole", () => {
 
     await expect(changeRole("admin-1", "target-9", "admin")).resolves.toEqual({ ok: true });
     expect(state.updates).toHaveLength(1);
+  });
+
+  it("records who changed whose role, to what, by id alone", async () => {
+    const { changeRole } = await import("@/lib/admin-users");
+
+    await changeRole("admin-1", "target-9", "admin");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "target-9", role: "admin", outcome: "ok" },
+        "An admin asked to change a user's role",
+      ],
+    ]);
+  });
+
+  it("records a refused role change with the reason", async () => {
+    state.target = { role: "admin" };
+    state.adminCount = 1;
+    const { changeRole } = await import("@/lib/admin-users");
+
+    await changeRole("admin-1", "admin-2", "user");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "admin-2", role: "user", outcome: "last_admin" },
+        "An admin asked to change a user's role",
+      ],
+    ]);
   });
 
   it("refuses to act on the acting admin's own row, and writes nothing", async () => {
@@ -219,6 +248,33 @@ describe("deleteUser", () => {
 
     await expect(deleteUser("admin-1", "target-9")).resolves.toEqual({ ok: true });
     expect(state.deletes).toBe(1);
+  });
+
+  it("records who deleted whom, by id alone", async () => {
+    const { deleteUser } = await import("@/lib/admin-users");
+
+    await deleteUser("admin-1", "target-9");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "target-9", outcome: "ok" },
+        "An admin asked to delete a user",
+      ],
+    ]);
+  });
+
+  it("records a refused deletion with the reason", async () => {
+    state.target = undefined;
+    const { deleteUser } = await import("@/lib/admin-users");
+
+    await deleteUser("admin-1", "gone");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "gone", outcome: "not_found" },
+        "An admin asked to delete a user",
+      ],
+    ]);
   });
 
   it("refuses the acting admin's own account, and deletes nothing", async () => {

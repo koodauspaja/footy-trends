@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   synchronizeTasoMatches: vi.fn(),
   getHomeBaseline: vi.fn<(source: string, code: string) => Promise<HomeBaseline>>(),
   loggerError: vi.fn(),
+  loggerInfo: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -51,7 +52,9 @@ vi.mock("@/lib/match-service", () => ({
   FOOTBALL_DATA_AWAY_GOALS: "away",
   getHomeBaseline: mocks.getHomeBaseline,
 }));
-vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
+vi.mock("@/lib/logger", () => ({
+  logger: { error: mocks.loggerError, info: mocks.loggerInfo },
+}));
 
 import {
   readFinished,
@@ -228,6 +231,16 @@ describe("runPredictionLog", () => {
       expect.objectContaining({ err: expect.any(Error), code: "PL" }),
       "Unable to refresh a competition for predictions"
     );
+  });
+
+  it("logs the run's summary, failures included", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+    mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.loggerInfo.mock.calls).toEqual([[report, "Predictions run finished"]]);
+    expect(report.failures).toEqual(["refresh football-data PL 2026"]);
   });
 
   it("reports a competition whose baseline fails, and logs the others", async () => {

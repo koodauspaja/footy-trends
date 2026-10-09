@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
 /**
@@ -36,10 +37,14 @@ export function refusesSignIn(email: unknown): boolean {
 /**
  * better-auth's `user.validateUserInfo` answer: nothing to allow, `{ error }`
  * to refuse. It runs before `create-user`, on `link-account`, and on every
- * OAuth `sign-in`.
+ * OAuth `sign-in`. A refusal is logged without the address.
  *
  * decisions/314-sign-in-allowlist.md
+ * decisions/603-server-side-records.md
  */
 export function signInRefusal(email: unknown): { error: string } | undefined {
-  return refusesSignIn(email) ? { error: SIGN_IN_NOT_ALLOWED } : undefined;
+  if (!refusesSignIn(email)) return undefined;
+
+  logger.warn("Sign-in refused: the address is not on the allowlist");
+  return { error: SIGN_IN_NOT_ALLOWED };
 }

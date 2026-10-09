@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
 import { applyRefresh, listSeasonsFor, previewRefresh } from "@/lib/force-refresh";
+import { logger } from "@/lib/logger";
 import { isKnownCompetition } from "@/lib/refresh-competitions";
 import {
   type ApplyResult,
@@ -68,6 +69,7 @@ export async function previewRefreshAction(
  * the admin approved, and is not trusted as data: the engine recomputes it.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/603-server-side-records.md
  */
 export async function applyRefreshAction(
   competition: string,
@@ -81,6 +83,10 @@ export async function applyRefreshAction(
   if (choice === null) return REFUSED_APPLY;
 
   const result = await applyRefresh(choice, seasonId, snapshotHash, adminId);
+  logger.info(
+    { ...choice, seasonId, adminId, outcome: result.ok ? "ok" : result.reason },
+    "An admin asked to apply a forced refresh"
+  );
 
   // Only on success, and only here: the run list is server-rendered, and a
   // refusal wrote no row.

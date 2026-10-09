@@ -474,8 +474,8 @@ defence in depth rather than the fix.
 **Recommended: `info`.** It is worth understanding why this is safe rather than
 assuming it, because "info in production" is usually the wrong answer.
 
-Exactly two paths log at `info` through the Pino logger, and neither scales
-with user traffic:
+These paths log at `info` through the Pino logger, and none scales with user
+traffic:
 
 - `src/lib/provider-request.ts`, once per *outbound provider request*. This is
   bounded by **cache misses rather than user traffic** — a busy day does not
@@ -495,6 +495,13 @@ with user traffic:
   log. That is why it is opt-in rather than part of the default probe — but it
   does mean a scripted monitor hitting `?providers=1` on a short interval would
   turn an unbounded provider call into a per-interval one.
+
+- `src/lib/admin-users.ts` and `src/lib/refresh-actions.ts`, once per write an
+  admin asks for (decisions/603).
+- `src/lib/prediction-log-service.ts`, once per hourly predictions run
+  (decisions/603).
+- `src/lib/rate-limit-storage.ts`, once when Redis is reachable again after a
+  failure.
 
 Everything else in `src/` logs at `warn` or `error`.
 

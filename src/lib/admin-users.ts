@@ -114,18 +114,29 @@ async function guardedWrite(
 }
 
 /**
+ * What a write's log line says happened: `ok`, or the reason it was refused.
+ *
+ * decisions/603-server-side-records.md
+ */
+function outcomeOf(result: AdminWriteResult): string {
+  return result.ok ? "ok" : result.reason;
+}
+
+/**
  * Promote or demote. Self is refused either way: demoting yourself locks you
  * out, and promoting yourself means nothing.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/603-server-side-records.md
  */
 export async function changeRole(
   actingAdminId: string,
   targetUserId: string,
   role: Role
 ): Promise<AdminWriteResult> {
+  let result: AdminWriteResult;
   try {
-    return await guardedWrite(
+    result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => role === DEFAULT_ROLE && targetRole === "admin",
@@ -140,6 +151,12 @@ export async function changeRole(
     );
     return { ok: false, reason: "failed" };
   }
+
+  logger.info(
+    { actingAdminId, targetUserId, role, outcome: outcomeOf(result) },
+    "An admin asked to change a user's role"
+  );
+  return result;
 }
 
 /**
@@ -147,13 +164,15 @@ export async function changeRole(
  * `DELETE`: what a user owns cascades, and a refresh run's `run_by` is set null.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/603-server-side-records.md
  */
 export async function deleteUser(
   actingAdminId: string,
   targetUserId: string
 ): Promise<AdminWriteResult> {
+  let result: AdminWriteResult;
   try {
-    return await guardedWrite(
+    result = await guardedWrite(
       actingAdminId,
       targetUserId,
       (targetRole) => targetRole === "admin",
@@ -165,4 +184,10 @@ export async function deleteUser(
     logger.error({ err: error, actingAdminId, targetUserId }, "Deleting a user failed");
     return { ok: false, reason: "failed" };
   }
+
+  logger.info(
+    { actingAdminId, targetUserId, outcome: outcomeOf(result) },
+    "An admin asked to delete a user"
+  );
+  return result;
 }
