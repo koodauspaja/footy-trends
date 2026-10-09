@@ -553,7 +553,8 @@ describe("replayPoisson", () => {
   });
 
   it("goes in kickoff order whatever order it is given, the id deciding a shared kickoff", () => {
-    const first = played(9, 1, 2, 2, 0);
+    // The earliest match has the largest id: the order is the kickoffs', not the ids'.
+    const first = played(9, 1, 2, 2, 0, { providerMatchId: 9_013 });
     const second = played(5, 3, 4, 0, 0, { providerMatchId: 9_012 });
     const third = played(5, 1, 2, 1, 0, { providerMatchId: 9_011 });
 
