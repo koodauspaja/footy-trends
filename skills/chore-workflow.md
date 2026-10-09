@@ -108,9 +108,9 @@ Workflow
 
 9. Push the chore branch and open a pull request against `main`.
    - **Before the push, review your own diff**: the pass in
-     `skills/self-review.md` and the `code-review` skill, with what they find
-     fixed first, per `skills/open-pr.md` step 5. The pull request's Checklist
-     has a box for it.
+     `skills/self-review.md` and the `code-review` skill at its lowest effort,
+     with what they find fixed first, per `skills/open-pr.md` step 5. The pull
+     request's Checklist has a box for it.
    - **When the chore has an issue**, link it with a closing keyword —
      `Closes #NNN` (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or
      `Refs #NNN`. Only a closing keyword makes GitHub populate the PR↔issue
@@ -131,13 +131,13 @@ Workflow
     initiative** — however green it is. Merge only when a human tells you to;
     that instruction is the allowed final step, not an exception to the rule.
     Before handing it off, apply the Sourcery review gate in
-    `skills/open-pr.md`: `npm run check:sourcery -- <PR>` must exit 0. The
-    head needs a full review; the quick check after a push is enough only when
-    nothing but comments and documentation changed since one, and a skip is a
-    hard block unless every changed path is on the short allowlist of
-    unreviewable files (documentation and workflows are **not** on it).
-    Unresolved review threads must be read immediately before merging. Either
-    Miikka or Kalle may be the reviewer.
+    `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
+    every changed path is on that document's short allowlist of unreviewable
+    files (documentation and workflows are **not** on it), unresolved review
+    threads must be read immediately before merging, and the quick check
+    after a push is not a full review: the first line of the review body for
+    the head says which one it has. Either Miikka or Kalle may be the
+    reviewer.
 
 Important rules
 - Never hand off or merge a pull request while its issue still has unticked

@@ -219,6 +219,23 @@ reader's URL. A per-user timestamp answers the first and not the second. If one
 value has to do both jobs, it has to be unguessable and unique — not merely
 fresh.
 
+## 10. A check that passes what it cannot classify
+
+Not in the table above, which counts merged pull requests. From #596, where
+two Sourcery reviews found sixteen things in one script and most were this.
+
+**What it looks like.** A rule that decides "this is only a comment" from how
+a line starts, so a multiplication carried onto a line beginning `* ` passes.
+A list of the comments tools read, so one not on the list passes. A file
+called documentation by its new name after a rename from source. One page of
+results read as all of them.
+
+**The counter.** For every check, gate or classifier, ask what it does with an
+input it does not recognise, and make that answer "fail". Name the things that
+pass, never the things that fail: an allowlist a reader can check, not a
+denylist someone has to keep complete. If the allowlist cannot be written
+down, the check is trying to judge something it should not.
+
 ---
 
 ## The pass itself

@@ -1,13 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { HEADLINE, UNREVIEWABLE } from "../../../scripts/sourcery-review-plan";
 
 /**
- * The documents that describe the Sourcery gate say what `npm run
- * check:sourcery` does: the same five outcomes, the same unreviewable paths,
- * and nowhere the claim that a push after the first review leaves no review
- * object behind.
+ * No document says a push after the first review leaves no review object
+ * behind: it does, and reading it as a full review is what the gate guards
+ * against.
  *
  * decisions/559-sourcery-review-kind.md
  */
@@ -42,17 +40,16 @@ describe("the documents that describe the Sourcery gate", () => {
     expect(NO_REVIEW_OBJECT.test(read(file))).toBe(false);
   });
 
-  it.each(Object.values(HEADLINE))("the gate's table has a row for '%s'", (headline) => {
-    expect(read("skills/open-pr.md")).toContain(`\n   | ${headline} | `);
-  });
-
-  it.each(UNREVIEWABLE)("the gate names %s as a path Sourcery does not review", (file) => {
-    expect(read("skills/open-pr.md")).toContain(`\`${file}\``);
-  });
-
   it("recognises the sentence it exists to keep out", () => {
     expect("a light reaction creates no new review object").toMatch(NO_REVIEW_OBJECT);
     expect("deliberately light and create no new review\n   object").toMatch(NO_REVIEW_OBJECT);
     expect("Such a reaction does create a review object").not.toMatch(NO_REVIEW_OBJECT);
+  });
+
+  it("gives the first line of each kind of review where the gate is described", () => {
+    const gate = read("skills/open-pr.md");
+
+    expect(gate).toContain("`Hey - I've found N issues`");
+    expect(gate).toContain("`### Sourcery assessment`");
   });
 });

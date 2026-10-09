@@ -129,16 +129,13 @@ and its whole body is
 A full review's body starts `Hey - I've reviewed your changes` or
 `Hey - I've found N issues`. Nothing else tells the two apart: a full review
 that found nothing has the same state, and the `commit_id` and the check-run
-read the same for both. So `APPROVED` on the
-head does not say which of the two it is; only the body does. The quick check
-is the outcome of the lighter reaction above, and not a review of the lines
-the push changed. A push can also get a green check-run and nothing on
-the reviews API (#558 `c67b89c`).
+read the same for both. So `APPROVED` on the head does not say which of the
+two it is; only the body does. A push can also get a green check-run and
+nothing on the reviews API (#558 `c67b89c`).
 
-`npm run check:sourcery -- <PR>` says which of these the head has. To get a
-complete review of the final state, comment `@sourcery-ai review` on the PR,
-with nothing else in the comment; `skills/open-pr.md` step 9 says when that is
-required.
+`skills/open-pr.md` step 7 has the query that reads the first line, and step 9
+says when a full review is required. To get one of the final state, comment
+`@sourcery-ai review` on the PR, with nothing else in the comment.
 
 ### Three separate things cause a skip
 
@@ -186,8 +183,13 @@ verifies a real review of the head commit rather than the check's colour.
 
 `gh pr checks <PR>` reports the *latest* check state, not the state at a
 given commit. A skipped review on an earlier commit is invisible there once
-a later one succeeds. `npm run check:sourcery -- <PR>` reads the check-run at
-the head, and at any earlier commit named after the number.
+a later one succeeds. Query the head SHA directly:
+
+```sh
+HEAD=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
+  -q '.check_runs[]|select(.name|test("Sourcery";"i"))|.conclusion'
+```
 
 ---
 

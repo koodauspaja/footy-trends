@@ -1,4 +1,4 @@
-# 559 — Which kind of Sourcery review a head has: decisions
+# 559 — The quick check is not a full review, and the author's review comes first: decisions
 
 Chore #559. Two documents said a push after the first review "creates no new
 review object". It does, and on 2026-10-05 that object was read as an approval
@@ -15,15 +15,16 @@ now is not known, and nothing here depends on the reason.
 | A full review | `COMMENTED` or `APPROVED` | the commit reviewed | starts `Hey - I've found N issues` or `Hey - I've reviewed your changes and they look great!` | `success` |
 | The quick check after a push | `APPROVED` | the new head | only `### Sourcery assessment` and `**Approved.**` | `success` |
 | A budget notice | `COMMENTED` | the head | starts `Sorry @…, this account has used its review budget of 1,500,000 diff characters for the last 7 days.` | `skipped`, with the same sentence as its summary |
-| A skip for another reason | no review, or `COMMENTED` | the head | absent, or starts `Sorry, we are unable to review this pull request` | `skipped`, the summary naming the limit; not read for the second shape |
+| A refusal | `COMMENTED` | the head | starts `Sorry, we are unable to review this pull request` | `skipped` |
+| A skip for another reason | no review | | | `skipped`, the summary naming the limit |
 | Nothing | no review | | | `success`, or none |
 
 Seen as: full reviews on #556 `7f39f49` and, by the issue's own measurement,
-#553 `eb6c786`, #554 `766dd69` and #555 `3404b15`; quick checks on #552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`; the
-budget notice on #558 `3890507`; a skip on #541 `9bd3386` (five automatic
-re-reviews) and, as a review, on #394 `6d3a66c` (a diff over 20 000 lines);
-nothing, beside a green check-run, on #558 `c67b89c` and #594
-`1a3232d`.
+#553 `eb6c786`, #554 `766dd69` and #555 `3404b15`; quick checks on #552
+`f4e9a2d`, #557 `09874a2`, #558 `304d479`; the budget notice on #558
+`3890507`; a refusal on #394 `6d3a66c` (a diff over 20 000 lines); a skip on
+#541 (five automatic re-reviews); nothing, beside a green check-run, on #558
+`c67b89c` and #594 `1a3232d`.
 
 A state of `DISMISSED` is what a later push does to an earlier review, and
 says nothing about which kind it was. A review with an empty body is a reply
@@ -33,128 +34,46 @@ in a thread.
 
 Nothing else tells a full review from the quick check: a full review that
 found nothing is `APPROVED` too, and the `commit_id` and the check-run are the
-same for both. So the script reads the
-body, and a body in no known shape on the head is an error with its
-first line quoted, never a guess. Sourcery can change its wording, and a
-script that then stops is better than one that calls an unknown body a review
-or calls it nothing.
-
-## A script, because the sentence was already there
-
-`skills/open-pr.md` step 9 already said a light re-check is not a full review.
-What nobody could do from it was tell which one a head had. `npm run
-check:sourcery -- <PR>` answers that and exits non-zero when the answer is not
-enough, in place of the `gh` snippets step 7 used to carry.
-
-It is run by hand, and is not a CI job or a required check. Out of scope by the
-issue: GitHub accepts `skipped` for a required check
-(`docs/setup/011-branch-protection.md`), and a job that fails until Sourcery
-has answered would be red on every push.
+same for both. `skills/open-pr.md` step 7 reads that line with a `gh` query
+and a table of what each first line means, and the paragraph that told the
+reader not to compare `commit_id` with the head is gone, since it rested on
+the wrong claim.
 
 ## When the quick check is enough
 
-Only for comments and documentation changed since the last full review. #557
-is the case: one commit after the full review reworded a comment.
+For a fix that changes no code and no test: comments and documentation, as the
+issue says. A person judges that from the changed files. #557 is the case: one
+commit after the full review reworded a comment.
 
-| A changed file is | When |
-|---|---|
-| documentation | its path ends `.md`, and so did the path it was renamed from, if any |
-| comments only | TypeScript source modified in place, whose two sides parse to the same code and carry the same directives |
-| anything else | every other file; every file under a `tests/` directory or named `.test.` or `.spec.`, Markdown included; a file renamed from one; and a file GitHub will not send whole |
+## The script is its own issue
 
-"The same code" is the TypeScript compiler's parse of each side, printed back
-without comments, and the two compared. The script reads the whole file at the
-reviewed commit and at the head for that, and only for files that could
-qualify. A directive is a comment a tool reads: `@ts-expect-error`, a linter,
-formatter or coverage instruction, `NOSONAR`, `@vitest-environment`, a
-triple-slash reference. Each is compared together with the line under it, so
-one that is added, removed, reworded or moved counts as a change.
+The issue's larger half was `npm run check:sourcery`, to make step 7 a command
+with an exit code. It was built in this pull request and taken out again, and
+is #597 now.
 
-The first version judged a diff's changed lines by how they start. That reads
-a multiplication carried onto a line beginning `* `, and a `//` line inside a
-template string or between JSX tags, as comments. Sourcery's review found it,
-and patching the prefixes would have left the next case to be found the same
-way.
+It grew past the issue. Beyond the five outcomes it judged whether only
+comments had changed, compared a rebased branch with itself, looked a named
+commit up, and held the list of unreviewable paths. Sourcery's first review
+found nine things in it and its second, of the rework, seven more, nearly all
+in those additions; Sonar's gate failed twice. A gate that decides what may
+skip review is the kind of code a reviewer can always find one more case in,
+and each addition was more of it.
 
-## A rebase since the full review
+What it taught, kept for #597:
 
-`main` requires a branch to be up to date, so a branch is often rebased after
-its full review. The reviewed commit is then no ancestor of the head, and the
-commits in between include the base branch's. The script compares the pull
-request with itself in that case: its own diff at the reviewed commit against
-its own diff at the head, file by file. A file whose part is the same on both
-sides did not change; one that differs counts as changed, as documentation or
-as anything else, since no patch of the difference exists to read for
-comments. A rebase that moves a hunk's line numbers makes the two differ, and
-that errs towards asking for a review. A file's earlier path is part of what
-is compared, so a rename counts.
+- Telling a comment from code by how a line starts is unsound (a
+  multiplication carried onto a `* ` line, a `//` line in a template string),
+  and parsing the file and listing the comments tools read is a list that is
+  never complete. #597 does not try: documentation only.
+- Sonar's two findings (`tssecurity:S7044`, `tssecurity:S8476`) were about a
+  commit id from one GitHub answer entering the path of the next request.
+  Its data-flow is in `api/issues/search` with `additionalFields=_all`. The
+  first fix answered a guess, the commit typed on the command line, and
+  failed the gate again.
+- The working version is in #596's history at `f85f418`.
 
-GitHub lists at most 300 files of a comparison and does not say when it stops.
-A list that long is treated as incomplete: the quick check is then not
-enough, and neither is the exemption for unreviewable paths.
-
-## Nothing, beside a green check-run, stays a block
-
-Some pushes get a `success` check-run and no review object at all. That may be
-the quick check with nothing to say; it was not established. The script
-lists what changed since the last full review for such a head, and exits
-non-zero whatever the list holds. Letting documentation through here as under
-the quick check is a rule nobody has agreed, so it is left as a question for
-the pull request.
-
-When a commit is named in place of the head and Sourcery wrote nothing about
-it, every full review on the pull request is a candidate for "the last one",
-including one written later. For a head Sourcery did write about, only earlier
-reviews count.
-
-## A dismissed review, and a head that moves
-
-A push dismisses the reviews of the commit before it, so `DISMISSED` on an
-earlier commit says nothing: #557's full review of `5bee97a` is in that state.
-On the present head it can only be a person's doing, and a full review they
-dismissed is not counted. A named earlier commit keeps its dismissed reviews,
-or #558 at `304d479` could not be read as it stood.
-
-The script reads the head first and the reviews after, so a push in between
-would leave it reporting on the commit before. It reads the head again at the
-end and refuses to answer when the two differ.
-
-## A named commit is looked up, and every commit id is checked
-
-The optional commit is matched against the commits GitHub lists for the pull
-request and the ones Sourcery reviewed, and the whole id found there is what
-the script works with. A commit rebased away that Sourcery never reviewed
-cannot be named. Abbreviations are resolved once, so every later comparison is
-of whole ids.
-
-Commit ids from one answer go into the path of the next request: the head, the
-base, a reviewed commit. Each is checked to be forty hex digits and encoded at
-the one place it enters a path, and an answer that names anything else stops
-the check. That is what Sonar's gate failed the first two pushes for
-(`tssecurity:S7044`, `tssecurity:S8476`): its data-flow starts at the API
-response, on the reasoning that a compromised server could steer the next
-request.
-
-The second push answered a different finding from the one Sonar had made. It
-was taken, without reading Sonar's flow, to be about the commit typed on the
-command line, and the lookup above was built for that. The lookup stays for
-what it is worth by itself; the finding was not about it.
-
-## What the two checks share
-
-`scripts/github-read.ts` holds the reader, the paging and the turning of a
-verdict into output and an exit code, for this check and `check:boxes`. The
-first push copied the last twenty lines of `scripts/issue-boxes-steps.ts`, and
-Sonar counted them. Reviews, commits and check-runs are all read page by page.
-
-## The unreviewable paths moved into the script
-
-`package.json` and `package-lock.json` were a fenced list in `skills/open-pr.md`
-beside a `git diff --name-only` to check by eye. They are `UNREVIEWABLE` in
-`scripts/sourcery-review-plan.ts` now, and the script reads the pull request's
-paths itself when the review is not enough. `tests/unit/docs/sourcery-gate.test.ts`
-holds the skill to the script: the five outcomes by name, the two paths, and no
-document saying a push leaves no review object.
+The observation that a quick check exists does not need the script, so the
+documents land here without it.
 
 ## The author's review comes first, and has a box
 
@@ -166,27 +85,25 @@ failure swallowed silently, and the seven-day budget ran out that evening.
 
 The rule was written down and skipped, which is how the quick check was
 misread too. So `skills/open-pr.md` step 5 puts the pass and the `code-review`
-skill before the first push, the skill at its lowest effort because the
-author's review is the quick one and Sourcery's the thorough one (Miikka,
-2026-10-09), and the pull request template has a Checklist box
+skill before the first push, and the pull request template has a Checklist box
 that stays visibly empty until both were run on the diff as pushed, with what
 they changed written on the line. `npm run check:boxes` reads the issue's
 boxes and not the pull request's own; making it read this one is a separate
 change.
 
-## What the first push got wrong
+The skill runs at its lowest effort (Miikka, 2026-10-09): the author's review
+is the quick pass for what an author should have seen, it should catch most of
+what Sourcery would, and it should not spend the quota development needs. On
+this pull request it ran once at medium and did not predict Sourcery, which
+found nine things after it.
 
-Sourcery's first review found nine things and Sonar's gate failed, after the
-author's own pass and a `code-review` run. The comment detection was the
-largest: three reviews in a row found a new way to fool a rule about how a
-line starts, and the answer was to stop reading prefixes. The rest were a
-dismissed review counted, a head that could move, a rename read as
-documentation, Markdown under `tests/` read as documentation, one page of
-check-runs, and three sentences in the documents that disagreed with the
-script.
+## One class added to the self-review pass
 
-The Sonar finding was answered wrongly once before it was answered: see the
-section on commit ids.
+`skills/self-review.md` section 10, "a check that passes what it cannot
+classify", is the class most of those sixteen findings share. It is written
+from this pull request's reviews and is not in the measured table, which
+counts merged pull requests; `npm run review:findings` will say whether it
+recurs.
 
 ## Not done
 

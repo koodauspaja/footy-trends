@@ -27,7 +27,6 @@
     "release:version": "tsx scripts/release-version.ts",
     "review:findings": "tsx scripts/review-findings.ts",
     "check:boxes": "tsx scripts/issue-boxes.ts",
-    "check:sourcery": "tsx scripts/sourcery-review.ts",
     "setup": "tsx scripts/setup-main.ts",
     "start": "next start",
     "test": "npm run test:unit",

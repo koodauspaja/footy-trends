@@ -171,45 +171,41 @@ already, and #390 found two classes that had never been written down at all.
      what they changed, or that they found nothing. Otherwise leave it
      unticked: a box that is visibly empty is what it is for
    - List the steps a reviewer should take to verify the feature works
-7. Find out which kind of Sourcery review the commit that would be merged
-   has, before handing the PR off:
+7. Verify Sourcery actually reviewed the commit that would be merged, before
+   handing the PR off. Query the check-run at the PR head — not
+   `gh pr checks`, which reports the *latest* state rather than that
+   commit's:
 
    ```sh
-   GH_TOKEN=$(gh auth token) npm run check:sourcery -- <PR>
+   HEAD=$(gh pr view <PR> --json headRefOid -q .headRefOid)
+   gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
+     -q '.check_runs[]|select(.name|test("Sourcery";"i"))|.conclusion'
    ```
 
-   It reads the reviews and the check-run at the PR's head, not `gh pr checks`,
-   which reports the *latest* state and not that commit's. It reports one of
-   five things:
+   It must be `success`. A `skipped` conclusion means Sourcery declined —
+   see "When Sourcery skips" below — and is a **hard block**: the PR waits
+   until a review completes. Do not merge on a stale green check, and do not
+   propose merging with a caveat.
 
-   | It reports | What the head has | Exit code |
-   |---|---|---|
-   | a full review | a review of the head whose body starts `Hey - I've reviewed your changes` or `Hey - I've found N issues` | 0 |
-   | the quick check only | a review of the head whose whole body is `### Sourcery assessment` and `**Approved.**` | 0 when nothing but comments and documentation changed since the last full review, 1 otherwise |
-   | a budget notice, and no review | a review, or a `skipped` check-run, that starts `Sorry @…, this account has used its review budget` | 1 |
-   | a skip, and no review | a `skipped` check-run, or a review that starts `Sorry`, for any other reason; see "When Sourcery skips" below | 1 |
-   | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 1 |
+   **`success` does not say which kind of review the head has.** Read the
+   first line of what Sourcery wrote about that commit:
 
-   **Only the first line of the body tells a full review from the quick
-   check.** A full review that found nothing and the quick check are both a
-   review in state `APPROVED` whose `commit_id` is the head, beside a
-   check-run that reads `success`. Under the quick check the
-   script lists what changed since the last full review, and it compares the
-   pull request with itself when the branch was rebased in between.
+   ```sh
+   gh api "repos/:owner/:repo/pulls/<PR>/reviews" --paginate \
+     -q ".[]|select(.user.login==\"sourcery-ai[bot]\" and .commit_id==\"$HEAD\")|.body|split(\"\n\")[0]"
+   ```
 
-   Exit code 1 is a **hard block**: the PR waits until step 9 has produced a
-   full review. Do not merge on a green check, and do not propose merging with
-   a caveat. A head with a green check-run and no review at all is still
-   "nothing": the script lists what changed since the last full review, and
-   the block stands.
+   | First line | What the head has |
+   |---|---|
+   | `Hey - I've reviewed your changes…` or `Hey - I've found N issues` | a full review |
+   | `### Sourcery assessment`, with `**Approved.**` as the rest of the body | the quick check after a push, which step 9 says is not a full review |
+   | `Sorry @…, this account has used its review budget…` | a budget notice, and no review |
+   | nothing printed | no review of this commit, whatever the check-run says |
 
-   A full review of the head that someone dismissed does not count. The
-   script reads the head again before it answers, and refuses to answer if a
-   push arrived in between.
-
-   To see how an earlier head stood, name it:
-   `npm run check:sourcery -- <PR> <commit>`. The commit has to be one the
-   pull request still has, or one Sourcery reviewed.
+   Nothing else tells the first two apart. A full review that found nothing
+   and the quick check are both a review in state `APPROVED` whose `commit_id`
+   is the head, beside a check-run that reads `success`. #597 is to put this
+   step in a script.
 
    **The one exception: a diff with nothing in it for Sourcery to review.**
    Sourcery reviews source. A pull request that touches only dependency
@@ -219,9 +215,13 @@ already, and #390 found two classes that had never been written down at all.
    PR is unmergeable for ever, so the rule gets set aside by hand, which is
    worse than having no rule.
 
-   The exception is an **allowlist**, not "everything that is not source". It
-   is `UNREVIEWABLE` in `scripts/sourcery-review-plan.ts`, and it holds
-   `package.json` and `package-lock.json`.
+   The exception is an **allowlist**, not "everything that is not source".
+   Only these paths count as unreviewable:
+
+   ```
+   package.json
+   package-lock.json
+   ```
 
    Everything else is reviewable, **including documentation and workflows**.
    Sourcery reviews prose, `.github/` and `skills/` perfectly well — the
@@ -229,10 +229,16 @@ already, and #390 found two classes that had never been written down at all.
    entire diff was three Markdown files. Defining the carve-out by exclusion
    would have let those bypass the gate, which is the opposite of the intent.
 
-   The script establishes it: when the review is not enough it reads the pull
-   request's paths, and exits 0 only if every one is on the list, saying so.
-   Repeat that in the PR, naming the paths. **One path off the list and the
-   hard block stands for the whole PR**, however small that path's diff.
+   Establish it rather than assume it. List what actually changed, and check
+   every path is on the allowlist:
+
+   ```sh
+   git diff --name-only origin/main...HEAD
+   ```
+
+   If every path is on it, a missing review is expected and the PR may merge —
+   say so explicitly in the PR, naming the paths. **One path off the list and
+   the hard block stands for the whole PR**, however small that path's diff.
 
    The distinction is *what Sourcery reviews*, not how risky the change looks.
    Two lines of lockfile are low-risk and unreviewable; two lines in
@@ -240,14 +246,15 @@ already, and #390 found two classes that had never been written down at all.
    matters here.
 
    If a future PR hits a genuinely unreviewable path that is not on the list,
-   add it to `UNREVIEWABLE` in that PR, with the evidence that Sourcery
-   produced nothing for it — do not widen the rule from memory.
+   add it here in that PR, with the evidence that Sourcery produced nothing for
+   it — do not widen the rule from memory.
 
    This check cannot be delegated to branch protection. GitHub treats a
    `skipped` required check as satisfying the requirement, so a protected
    branch will allow a merge with no Sourcery review at all — see
    `docs/setup/011-branch-protection.md`. This step is the only thing
    enforcing it.
+
 8. **Read the review threads before merging, every time.** Step 7 tells you
    which kind of review the head has. It does not tell you what the review
    said, and `mergeStateStatus: CLEAN` says only that the required checks
@@ -281,17 +288,13 @@ already, and #390 found two classes that had never been written down at all.
    `APPROVED` all the same, so the reviews API reads `APPROVED on <head>`
    either way.
 
-   **The test is the first line of the review body for the head**, which is
-   what step 7's script reads: `Hey - I've …` is a full review, and a body
-   that is only `### Sourcery assessment` and `**Approved.**` is the quick
-   check.
+   **The test is the first line of the review body for the head**, as step 7
+   reads it.
 
    The quick check is enough for a fix that changes no code and no test:
-   comments and documentation. That, and a pull request of unreviewable
-   paths alone, are the only cases where step 7 exits 0 without a full review
-   of the head. After any other fix, comment
+   comments and documentation. After any other fix, comment
    `@sourcery-ai review` on the PR, with nothing else in the comment, and
-   wait until step 7 reports a full review before handing off.
+   wait until step 7 shows a full review of the head before handing off.
 10. **Never merge on your own initiative** — however green it is. Merge only
    when a human tells you to; that instruction is the allowed final step, not
    an exception to the rule. Otherwise leave it for human review. **Either Miikka

@@ -5,8 +5,9 @@
  *
  * decisions/463-bare-issue-boxes-fail.md
  */
-import { type Console, conclude, jsonReader, processConsole } from "./github-read";
 import { bareBoxes, closedIssues, type IssueVerdict, report, summary } from "./issue-boxes-plan";
+
+const API = "https://api.github.com";
 
 /**
  * One GitHub body, however it was fetched.
@@ -34,10 +35,20 @@ export type CheckResult = {
  * decisions/463-bare-issue-boxes-fail.md
  */
 export function bodyReader(token: string): ReadBody {
-  const read = jsonReader(token);
-
   return async (path: string) => {
-    const { body } = (await read(path)) as { body: string | null };
+    const response = await fetch(`${API}${path}`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub answered ${response.status} for ${path}`);
+    }
+
+    const { body } = (await response.json()) as { body: string | null };
     // An empty body is a body: a pull request with no description closes no
     // issue, which is a pass rather than a failure to read anything.
     return body ?? "";
@@ -65,6 +76,11 @@ export async function checkBoxes({ pull, repository, read }: CheckOptions): Prom
     ? { passed: true, lines: [summary(verdicts)] }
     : { passed: false, lines };
 }
+
+export type Console = {
+  out: (line: string) => void;
+  err: (line: string) => void;
+};
 
 /**
  * The command: arguments and environment in, exit code out. The pull request
@@ -95,11 +111,16 @@ export async function runCheck(
 
   const repository = env.GITHUB_REPOSITORY ?? "koodauspaja/footy-trends";
 
-  // A failed read is not a pass. The check exists because nothing failed
-  // when the rule was skipped, and an unreachable API is the same silence.
-  return conclude(console, `Could not check the boxes on #${pull}`, () =>
-    checkBoxes({ pull, repository, read: read(token) })
-  );
+  try {
+    const { passed, lines } = await checkBoxes({ pull, repository, read: read(token) });
+    for (const line of lines) (passed ? console.out : console.err)(line);
+    return passed ? 0 : 1;
+  } catch (error) {
+    // A failed read is not a pass. The check exists because nothing failed
+    // when the rule was skipped, and an unreachable API is the same silence.
+    console.err(`Could not check the boxes on #${pull}: ${(error as Error).message}`);
+    return 1;
+  }
 }
 
 /**
@@ -108,5 +129,8 @@ export async function runCheck(
  * decisions/463-bare-issue-boxes-fail.md
  */
 export function startCheck(): Promise<number> {
-  return runCheck(process.argv, process.env, processConsole());
+  return runCheck(process.argv, process.env, {
+    out: (line) => process.stdout.write(`${line}\n`),
+    err: (line) => process.stderr.write(`${line}\n`),
+  });
 }
