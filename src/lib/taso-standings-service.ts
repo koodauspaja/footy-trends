@@ -10,7 +10,7 @@ import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
-import { getCached } from "./cache";
+import { getCached, getCachedUnlessDegraded } from "./cache";
 import { isRoundRobin } from "./cup-rounds";
 import {
   categoryIdForSeason,
@@ -360,16 +360,17 @@ async function newestStoredSeason(competitionCode: string): Promise<number | nul
 
 /**
  * The current season from TASO, or null: an outage narrows the season range and
- * does not break the page.
+ * does not break the page. `failed` tells an outage from an answer naming none.
  *
  * decisions/011-current-season-discovery.md
+ * decisions/534-taso-season-fallback-cache.md
  */
-async function discoverCurrentSeason(): Promise<number | null> {
+async function discoverCurrentSeason(): Promise<{ season: number | null; failed: boolean }> {
   try {
-    return await getCurrentSeason();
+    return { season: await getCurrentSeason(), failed: false };
   } catch (error) {
     logger.warn({ err: error }, "TASO season discovery failed; falling back to stored seasons");
-    return null;
+    return { season: null, failed: true };
   }
 }
 
@@ -385,11 +386,17 @@ export type TasoSeasonContext = {
  * Reads only, so the forced refresh can call it before anything is approved.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/534-taso-season-fallback-cache.md
  */
 export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCeiling(
   competitionCode: string
-): Promise<{ currentSeason: number; newestStored: number | null }> {
-  return getCached(
+): Promise<{
+  currentSeason: number;
+  newestStored: number | null;
+  /** TASO could not be asked, so this ceiling is a fallback and was not cached. */
+  discoveryFailed: boolean;
+}> {
+  return getCachedUnlessDegraded(
     `taso:season-ceiling:${competitionCode}`,
     CURRENT_SEASON_CACHE_TTL_SECONDS,
     async () => {
@@ -401,10 +408,13 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
       // Floored at the competition's own first season, or a failed discovery with
       // nothing stored would put the ceiling below the floor and empty the selector.
       const currentSeason = Math.max(
-        discovered ?? newestStored ?? EARLIEST_TASO_SEASON,
+        discovered.season ?? newestStored ?? EARLIEST_TASO_SEASON,
         earliestSeasonFor(competitionCode)
       );
-      return { currentSeason, newestStored };
+      return {
+        value: { currentSeason, newestStored, discoveryFailed: discovered.failed },
+        degraded: discovered.failed,
+      };
     }
   );
 });
@@ -414,16 +424,19 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
  * with matches, so a just-published season does not open empty.
  *
  * decisions/011-current-season-discovery.md
+ * decisions/534-taso-season-fallback-cache.md
  */
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
 ): Promise<TasoSeasonContext> {
   const key = `taso:season-context:${competitionCode}`;
-  return getCached(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
-    const { currentSeason, newestStored } = await resolveTasoSeasonCeiling(competitionCode);
+  return getCachedUnlessDegraded(key, CURRENT_SEASON_CACHE_TTL_SECONDS, async () => {
+    const { currentSeason, newestStored, discoveryFailed } =
+      await resolveTasoSeasonCeiling(competitionCode);
+    let syncFailed = false;
 
     try {
-      const { matches } = await getSyncedSeasonMatches(
+      const { matches, refreshFailed } = await getSyncedSeasonMatches(
         categoryIdForSeason(competitionCode, currentSeason),
         // The competition's own id: Liigacup and Ykkösliigacup publish outside
         // the `spljpNN` umbrella, so probing that would find their current
@@ -432,8 +445,15 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
         currentSeason,
         currentSeason
       );
-      if (matches.length > 0) return { currentSeason, defaultSeason: currentSeason };
+      syncFailed = refreshFailed;
+      if (matches.length > 0) {
+        return {
+          value: { currentSeason, defaultSeason: currentSeason },
+          degraded: discoveryFailed || syncFailed,
+        };
+      }
     } catch (error) {
+      syncFailed = true;
       logger.warn(
         { err: error, competitionCode, currentSeason },
         "Unable to check the current season for matches"
@@ -446,7 +466,10 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       earliestSeasonFor(competitionCode),
       Math.min(newestStored ?? currentSeason, currentSeason)
     );
-    return { currentSeason, defaultSeason: fallbackDefault };
+    return {
+      value: { currentSeason, defaultSeason: fallbackDefault },
+      degraded: discoveryFailed || syncFailed,
+    };
   });
 });
 

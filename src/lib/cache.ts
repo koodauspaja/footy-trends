@@ -1,10 +1,34 @@
 import { logger } from "./logger";
 import { redis } from "./redis";
 
-export async function getCached<T>(
+/**
+ * What a fetcher answers when its value may be a fallback built from a failure.
+ *
+ * decisions/534-taso-season-fallback-cache.md
+ */
+export type Fetched<T> = { value: T; degraded: boolean };
+
+export function getCached<T>(
   key: string,
   ttlSeconds: number,
   fetcher: () => Promise<T>
+): Promise<T> {
+  return getCachedUnlessDegraded(key, ttlSeconds, async () => ({
+    value: await fetcher(),
+    degraded: false,
+  }));
+}
+
+/**
+ * `getCached` for a fetcher that can fall back: a degraded value is returned
+ * and not stored, so the next call asks again.
+ *
+ * decisions/534-taso-season-fallback-cache.md
+ */
+export async function getCachedUnlessDegraded<T>(
+  key: string,
+  ttlSeconds: number,
+  fetcher: () => Promise<Fetched<T>>
 ): Promise<T> {
   let cached: string | null = null;
   try {
@@ -21,15 +45,16 @@ export async function getCached<T>(
     }
   }
 
-  const fresh = await fetcher();
+  const { value, degraded } = await fetcher();
+  if (degraded) return value;
 
   try {
-    await redis.setex(key, ttlSeconds, JSON.stringify(fresh));
+    await redis.setex(key, ttlSeconds, JSON.stringify(value));
   } catch (error) {
     logger.error({ err: error, key }, "Cache write failed");
   }
 
-  return fresh;
+  return value;
 }
 
 /**
