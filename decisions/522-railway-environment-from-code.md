@@ -101,8 +101,8 @@ read.
   a laptop, logged in as a person, against a separate project made for the
   purpose. Not seen: the CLI authenticating with a workspace token, the
   workflow's link step listing environments with only `RAILWAY_PROJECT_ID`
-  set, and the release binary on a runner. `RAILWAY_API_TOKEN` was not stored
-  when this was written, so the workflow cannot run yet.
+  set, and the release binary on a runner. `RAILWAY_API_TOKEN` held a
+  placeholder when this was written, so the workflow cannot run yet.
 - A run that fails part-way leaves an environment that holds something, which
   the next run refuses. Deleting it and starting again is the way through;
   nothing resumes.
