@@ -128,3 +128,39 @@ implementation had to decide something the spec did not.
   `Poisson` rows and the Poisson line; `/ennusteet` judges three models, with
   three rows, three columns and four calibration lines; signed out, neither
   page carries a value or the word `Poisson`.
+
+## Measured
+
+**The tolerance**, on 15 360 generated matches of five leagues over twelve
+years, a fit per match day (577 of them), on a laptop:
+
+| Tolerance | Sweeps, all fits | The whole replay | One prediction's home win |
+|---|---|---|---|
+| 0,000001 | 146 838 | 55 s | 0,57605 |
+| 0,0001 | 5 789 | 2,3 s | 0,57608 |
+
+About ten sweeps a warm fit instead of about 250, for a difference in the
+fifth decimal. A cold fit of the last 1 500 days took 46 ms.
+
+**The local test database**, which holds a part of the history (3 440
+finished matches, with whole seasons missing), the backtest computed in memory
+and scored with specs/054's module on the matches all three models predicted.
+`Plain` is `poisson-v1` without its draw factor, computed beside it:
+
+| | Matches | Baseline | Elo | Poisson | Plain |
+|---|---|---|---|---|---|
+| TASO, Brier | 1 275 | 0,6506 | 0,6234 | 0,6106 | 0,6094 |
+| TASO, log-loss | | 1,0805 | 1,0409 | 1,0218 | 1,0192 |
+| football-data, Brier | 1 949 | 0,6563 | 0,6130 | 0,6040 | 0,6041 |
+| football-data, log-loss | | 1,1080 | 1,0320 | 1,0162 | 1,0154 |
+
+A cold fit took 28 ms (TASO, 54 teams) and 53 ms (football-data, 117 teams),
+the whole replay 0,6 s and 1,1 s, and the cached fit is 3 KB and 6 KB. These
+are not specs/055's figures: that check is the same computation on staging,
+whose history is whole.
+
+Screenshots at 375 px and 1 280 px, light and dark, of `Ennuste` on an upcoming
+Veikkausliiga match and of `/ennusteet` (`Ulkomaat`, 1 949 matches, three
+rolling lines), from a server on the test database: no horizontal scroll at
+either width, and the three lines and the diagonal are four different dashes
+in both the charts and their legends.
