@@ -6,6 +6,7 @@
  * decisions/053-elo-ratings.md
  */
 
+import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 import type { MatchSource } from "./match-source";
 
 /**
@@ -42,13 +43,6 @@ export const ELO_HOME_ADVANTAGE = 60;
  * decisions/053-elo-ratings.md
  */
 export const ELO_REGRESSION = 1 / 3;
-
-/**
- * TASO's unresolved bracket slot: not a team, never rated.
- *
- * decisions/053-elo-ratings.md
- */
-const PLACEHOLDER_TEAM = 0;
 
 /**
  * One finished match, its score after extra time.
@@ -142,7 +136,7 @@ export function ratingFor(
 }
 
 function isRateable(match: EloMatch): boolean {
-  return match.homeTeam !== PLACEHOLDER_TEAM && match.awayTeam !== PLACEHOLDER_TEAM;
+  return match.homeTeam !== PLACEHOLDER_TEAM_ID && match.awayTeam !== PLACEHOLDER_TEAM_ID;
 }
 
 function homeScore(match: EloMatch): number {
@@ -238,7 +232,7 @@ export function predictElo(
   seasonId: number,
   drawShare: number
 ): { prediction: ThreeWay; homeRating: number; awayRating: number } | null {
-  if (homeTeam === PLACEHOLDER_TEAM || awayTeam === PLACEHOLDER_TEAM) return null;
+  if (homeTeam === PLACEHOLDER_TEAM_ID || awayTeam === PLACEHOLDER_TEAM_ID) return null;
   const homeRating = ratingFor(ratings, homeTeam, seasonId);
   const awayRating = ratingFor(ratings, awayTeam, seasonId);
   return { prediction: threeWay(homeRating, awayRating, drawShare), homeRating, awayRating };

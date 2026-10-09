@@ -33,20 +33,20 @@ export function MatchesControls({
   availableRounds,
   selectedRound,
 }: Readonly<MatchesControlsProps>) {
-  const navigate = useSeasonRoundNavigation(`${basePath}/ottelut`, competitionCode);
+  const navigate = useSeasonRoundNavigation(`${basePath}/ottelut`);
 
   return (
     <SeasonForm actionPath={`${basePath}/ottelut`} competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
-        onChange={(seasonId) => navigate(seasonId, selectedRound)}
+        onChange={(seasonId) => navigate(competitionCode, seasonId, selectedRound)}
       />
       {selectedRound !== undefined && availableRounds.length > 0 && (
         <RoundSelect
           availableRounds={availableRounds}
           selectedRound={selectedRound}
-          onChange={(round) => navigate(selectedSeasonId, round)}
+          onChange={(round) => navigate(competitionCode, selectedSeasonId, round)}
         />
       )}
     </SeasonForm>

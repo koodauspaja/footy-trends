@@ -1,5 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type Transaction } from "@/db";
 import { user } from "@/db/schema";
 import { DEFAULT_ROLE, isRole, type Role } from "@/lib/admin-role";
 import { type AdminUser, type AdminWriteResult, pageCount, windowFor } from "@/lib/admin-user-view";
@@ -63,21 +63,12 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
 }
 
 /**
- * The transaction handle drizzle hands `db.transaction`.
- *
- * decisions/028-admin-tools-and-roles.md
- */
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-/**
  * Runs `run` with every admin row locked, so two admins demoting each other at
  * once cannot leave none: the second waits, re-counts and refuses.
  *
  * decisions/028-admin-tools-and-roles.md
  */
-async function withAdminsLocked<T>(
-  run: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => Promise<T>
-): Promise<T> {
+async function withAdminsLocked<T>(run: (tx: Transaction) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select 1 from ${user} where ${user.role} = 'admin' for update`);
     return run(tx);
