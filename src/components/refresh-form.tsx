@@ -13,6 +13,7 @@ import type {
   RefreshPreview,
   SeasonChoice,
 } from "@/lib/refresh-view";
+import { reportClientError } from "@/lib/report-client-error";
 
 /**
  * The forced season refresh's form. A client component: it imports
@@ -120,7 +121,8 @@ export function RefreshForm({ domestic, foreign }: Props) {
         // The newest season the app holds, which is the one most likely wanted.
         setSeason(result.seasons[0]?.seasonId ?? null);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        reportClientError(error, "refresh.seasons");
         if (current) setSeasonsFailed(true);
       });
 
@@ -144,7 +146,8 @@ export function RefreshForm({ domestic, foreign }: Props) {
       try {
         const value = await request();
         if (id === requestId.current) settle(value);
-      } catch {
+      } catch (error) {
+        reportClientError(error, "refresh.request");
         if (id !== requestId.current) return;
         setPreview(null);
         setNotice(REQUEST_FAILED);

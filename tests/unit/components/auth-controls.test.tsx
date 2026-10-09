@@ -22,6 +22,14 @@ const { sessionState, socialSignIn, signOut, searchParams, pathname, replace } =
   replace: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => sessionState.current,
   signIn: { social: socialSignIn },
@@ -174,7 +182,8 @@ describe("a failed request is reported, not dropped", () => {
     // Without this the reader sees a header claiming they are signed in while
     // the session row and cookie still exist, and the rejection goes unhandled.
     signedInAs("Matti");
-    signOut.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    signOut.mockRejectedValue(failure);
     pathname.current = "/kotimaa/ottelut";
 
     render(<AuthControls />);
@@ -184,10 +193,12 @@ describe("a failed request is reported, not dropped", () => {
 
     // Same page, not the front page: the reader keeps their place.
     expect(replace).toHaveBeenCalledWith("/kotimaa/ottelut?error=signout");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sign-out");
   });
 
   it("reports a sign-in that never reached Google", async () => {
-    socialSignIn.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    socialSignIn.mockRejectedValue(failure);
     pathname.current = "/ulkomaat";
 
     render(<AuthControls />);
@@ -195,6 +206,7 @@ describe("a failed request is reported, not dropped", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
     expect(replace).toHaveBeenCalledWith("/ulkomaat?error=auth");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sign-in.header");
   });
 
   it("keeps the query the reader already had", async () => {
@@ -351,8 +363,9 @@ describe("a URL rewrite that itself fails", () => {
     signedInAs("Matti");
     pathname.current = "/kotimaa/ottelut";
     searchParams.current = new URLSearchParams({ error: "signout" });
+    const failure = new Error("navigation failed");
     replace.mockImplementation(() => {
-      throw new Error("navigation failed");
+      throw failure;
     });
 
     render(<AuthControls />);
@@ -364,6 +377,7 @@ describe("a URL rewrite that itself fails", () => {
     // told the reader their sign-out failed, which it did not.
     expect(replace).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sign-out.notice");
   });
 });
 

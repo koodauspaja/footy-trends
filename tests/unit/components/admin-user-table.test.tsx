@@ -18,6 +18,14 @@ const { promoteUserAction, demoteUserAction, deleteUserAction } = vi.hoisted(() 
   deleteUserAction: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/admin-actions", () => ({
   promoteUserAction,
   demoteUserAction,
@@ -205,7 +213,8 @@ describe("refusals reach the reader, in Finnish", () => {
   });
 
   it("treats a thrown action as a failure rather than letting it escape", async () => {
-    promoteUserAction.mockRejectedValue(new Error("network gone"));
+    const failure = new Error("network gone");
+    promoteUserAction.mockRejectedValue(failure);
     renderTable([READER]);
 
     fireEvent.click(screen.getByRole("button", { name: "Tee ylläpitäjäksi" }));
@@ -213,6 +222,7 @@ describe("refusals reach the reader, in Finnish", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Toiminto epäonnistui. Yritä uudelleen."
     );
+    expect(reportClientError).toHaveBeenCalledWith(failure, "admin.user-write");
   });
 
   it("clears a previous refusal when another action is tried", async () => {

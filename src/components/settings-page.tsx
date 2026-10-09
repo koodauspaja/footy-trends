@@ -7,6 +7,7 @@ import { removeAvatarAction, saveAvatarAction } from "@/lib/avatar-actions";
 import { MAX_UPLOAD_BYTES } from "@/lib/avatar-limits";
 import type { CompetitionOption } from "@/lib/competition-preferences";
 import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
+import { reportClientError } from "@/lib/report-client-error";
 import {
   type ActionResult,
   deleteAccount,
@@ -90,7 +91,8 @@ export function SettingsPage({
             let result: ActionResult;
             try {
               result = await saveSettings(formData);
-            } catch {
+            } catch (error) {
+              reportClientError(error, "settings.save");
               setSaved("error");
               return;
             }
@@ -101,7 +103,8 @@ export function SettingsPage({
             if (!result.ok) return;
             try {
               await refetch();
-            } catch {
+            } catch (error) {
+              reportClientError(error, "settings.save.refetch");
               setSaved("stale");
             }
           });
@@ -308,13 +311,17 @@ function ProfilePicture({
                   // The header reads the avatar version off the session, so it
                   // only changes once the session is refetched. Not awaited: the
                   // save is already reported.
-                  refetch().catch(() => setStale(true));
+                  refetch().catch((error: unknown) => {
+                    reportClientError(error, "avatar.save.refetch");
+                    setStale(true);
+                  });
                 } else {
                   announce(null, outcome.reason);
                 }
-              } catch {
+              } catch (error) {
                 // A rejected invocation gets the generic notice: what it means is not
                 // knowable from here.
+                reportClientError(error, "avatar.save");
                 announce(null, "failed");
               }
             });
@@ -337,12 +344,16 @@ function ProfilePicture({
                     setCurrent(null);
                     setChosen(null);
                     announce("removed", null);
-                    refetch().catch(() => setStale(true));
+                    refetch().catch((error: unknown) => {
+                      reportClientError(error, "avatar.remove.refetch");
+                      setStale(true);
+                    });
                   } else {
                     announce(null, null);
                     setRemoveFailed(true);
                   }
-                } catch {
+                } catch (error) {
+                  reportClientError(error, "avatar.remove");
                   announce(null, null);
                   setRemoveFailed(true);
                 }
@@ -396,7 +407,8 @@ function DeviceList({ devices }: Readonly<{ devices: Device[] | null }>) {
               try {
                 const outcome = await signOutOtherDevices();
                 setResult(outcome.ok ? "ok" : "error");
-              } catch {
+              } catch (error) {
+                reportClientError(error, "sessions.sign-out-others");
                 setResult("error");
               }
             });
@@ -453,7 +465,8 @@ function DeleteAccount() {
               // session.
               if (outcome.ok) window.location.href = "/";
               else setFailed(true);
-            } catch {
+            } catch (error) {
+              reportClientError(error, "account.delete");
               setFailed(true);
             }
           });

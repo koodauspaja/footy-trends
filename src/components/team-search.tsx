@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, useRef, useState, useTransition } from "react";
 import { useSession } from "@/lib/auth-client";
+import { reportClientError } from "@/lib/report-client-error";
 import type { TeamSearchView } from "@/lib/team-search";
 import { searchTeamsAction } from "@/lib/team-search-actions";
 
@@ -85,7 +86,8 @@ export function TeamSearch() {
                 kind: "message",
                 text: result.reason === "too-short" ? TOO_SHORT : FAILED,
               });
-            } catch {
+            } catch (error) {
+              reportClientError(error, "team-search");
               if (superseded()) return;
               setState({ kind: "message", text: FAILED });
             }

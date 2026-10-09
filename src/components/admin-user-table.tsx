@@ -9,6 +9,7 @@ import {
   type AdminWriteResult,
   isAdminRole,
 } from "@/lib/admin-user-view";
+import { reportClientError } from "@/lib/report-client-error";
 
 /**
  * The user list and its controls. A client component: it imports
@@ -78,7 +79,8 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
         // A refusal leaves the row as it was and says why; the page revalidates
         // itself on success, so there is no local copy of the list to keep.
         if (!result.ok) setNotice(REFUSALS[result.reason]);
-      } catch {
+      } catch (error) {
+        reportClientError(error, "admin.user-write");
         setNotice(REFUSALS.failed);
       }
     });

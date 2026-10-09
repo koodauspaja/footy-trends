@@ -25,6 +25,14 @@ const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
   };
 });
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/refresh-actions", () => ({
   seasonsForCompetitionAction: seasonsAction,
   previewRefreshAction: previewAction,
@@ -153,12 +161,14 @@ describe("the season picker", () => {
   it("says so when the season list rejects outright, not only when it refuses", async () => {
     // A thrown action is not the same as one answering `ok: false`, and both
     // have to leave the admin with an explanation rather than a spinner.
-    seasonsAction.mockRejectedValueOnce(new Error("network"));
+    const failure = new Error("network");
+    seasonsAction.mockRejectedValueOnce(failure);
     renderForm();
 
     await waitFor(() =>
       expect(screen.getAllByText("Kausien haku epäonnistui.").length).toBeGreaterThan(0)
     );
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.seasons");
   });
 
   it("says so when the app holds no seasons for this competition", async () => {
@@ -306,7 +316,8 @@ describe("a request that rejects rather than refuses", () => {
   // A server action can reject — a dropped connection, an exception the engine
   // did not convert — and that must not leave the form pending with no notice.
   it("tells the admin when the preview request fails outright", async () => {
-    previewAction.mockRejectedValueOnce(new Error("network"));
+    const failure = new Error("network");
+    previewAction.mockRejectedValueOnce(failure);
     await renderLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
@@ -315,6 +326,7 @@ describe("a request that rejects rather than refuses", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.request");
   });
 
   it("tells the admin when the apply request fails outright", async () => {
@@ -387,9 +399,11 @@ describe("a slow preview", () => {
     fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } });
     await waitFor(() => expect(seasonsAction).toHaveBeenCalledTimes(2));
 
+    const failure = new Error("too late");
     await act(async () => {
-      rejectPreview(new Error("too late"));
+      rejectPreview(failure);
     });
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.request");
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

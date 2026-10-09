@@ -33,6 +33,14 @@ const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
     >(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch }),
 }));
@@ -242,7 +250,8 @@ describe("when the write does not happen", () => {
   });
 
   it("survives a rejected invocation", async () => {
-    toggleTeam.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    toggleTeam.mockRejectedValue(failure);
     signedIn();
     render(team());
 
@@ -250,10 +259,12 @@ describe("when the write does not happen", () => {
 
     await waitFor(() => expect(toggleTeam).toHaveBeenCalled());
     expect(add()).toHaveAttribute("aria-pressed", "false");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "favourite.toggle");
   });
 
   it("survives a refetch that rejects, having already written", async () => {
-    refetch.mockRejectedValue(new Error("offline"));
+    const failure = new Error("offline");
+    refetch.mockRejectedValue(failure);
     signedIn();
     render(team());
 
@@ -263,6 +274,7 @@ describe("when the write does not happen", () => {
     // The write succeeded; only the catching-up failed, so the star keeps the
     // answer the server gave.
     expect(remove()).toHaveAttribute("aria-pressed", "true");
+    expect(reportClientError).toHaveBeenCalledWith(failure, "favourite.toggle");
   });
 });
 

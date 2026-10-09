@@ -8,6 +8,7 @@ import {
 } from "@/lib/favourite-actions";
 import { competitionKey, type FavouriteSource, teamKey } from "@/lib/favourite-keys";
 import type { RegionSegment } from "@/lib/regions";
+import { reportClientError } from "@/lib/report-client-error";
 import { favouriteKeysOf } from "@/lib/session-extras";
 
 /**
@@ -91,8 +92,9 @@ export function FavouriteToggle(props: Props) {
               }
               // A failure leaves the star where it was: reporting the old state
               // is honest, and the reader can press again.
-            } catch {
-              /* A rejected invocation is the same as a refused one here. */
+            } catch (error) {
+              // To the reader, a rejected invocation is the same as a refused one.
+              reportClientError(error, "favourite.toggle");
             }
           });
         }}

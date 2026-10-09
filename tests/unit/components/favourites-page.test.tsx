@@ -20,6 +20,14 @@ const { removeTeam, removeCompetition, refetch } = vi.hoisted(() => ({
   removeCompetition: vi.fn<(region: string, code: string) => Promise<{ ok: boolean }>>(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ data: null, refetch }) }));
 vi.mock("@/lib/favourite-actions", () => ({
   removeFavouriteTeamAction: removeTeam,
@@ -176,7 +184,8 @@ describe("removing", () => {
   });
 
   it("treats a rejected invocation the same as a refusal", async () => {
-    removeCompetition.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    removeCompetition.mockRejectedValue(failure);
     renderPage({ teams: [] });
 
     fireEvent.click(screen.getByRole("button", { name: "Poista suosikeista" }));
@@ -185,6 +194,7 @@ describe("removing", () => {
       expect(screen.getByText("Poistaminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument()
     );
     expect(screen.getByRole("link", { name: "Veikkausliiga" })).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "favourites.remove");
   });
 
   it("clears an old failure when the next attempt works", async () => {

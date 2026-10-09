@@ -16,6 +16,14 @@ const { sessionState, searchTeamsAction } = vi.hoisted(() => ({
   searchTeamsAction: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({ useSession: () => sessionState.current }));
 vi.mock("@/lib/team-search-actions", () => ({ searchTeamsAction }));
 
@@ -104,10 +112,12 @@ describe("TeamSearch", () => {
   it("says the search failed when the action itself rejects", async () => {
     // A refused invocation is the same as a failed one from here.
     signedIn();
-    searchTeamsAction.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    searchTeamsAction.mockRejectedValue(failure);
     await search();
 
     expect(await screen.findByText("Haku epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "team-search");
   });
 
   it("tells an expired session to try again rather than showing nothing", async () => {
