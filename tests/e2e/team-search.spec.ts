@@ -31,7 +31,7 @@ test.describe("Team search", () => {
 
   test("the front page still serves its content without JavaScript", async ({ browser }) => {
     // With JavaScript disabled the page still arrives complete. That the HTML lacks
-    // `Hae joukkuetta` would prove nothing: `TeamSearch` returns null before hydration.
+    // `Hae joukkuetta` would prove nothing: the server has no session to render it for.
     // Whether the page stayed static is `tests/unit/app/rendering-mode.test.ts`'s to guard.
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();

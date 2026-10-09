@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSearch } from "@/components/team-search";
 
@@ -7,6 +8,7 @@ import { TeamSearch } from "@/components/team-search";
  * cleanup runs after this file's jsdom is gone.
  *
  * decisions/027-team-search.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 
 const { sessionState, searchTeamsAction } = vi.hoisted(() => ({
@@ -67,6 +69,13 @@ describe("TeamSearch", () => {
     render(<TeamSearch />);
 
     expect(screen.getByRole("searchbox")).toBeInTheDocument();
+  });
+
+  it("offers the field on the first render, without waiting for an effect", () => {
+    // A render to a string runs no effects, so this is the first render alone.
+    signedIn();
+
+    expect(renderToStaticMarkup(<TeamSearch />)).toContain("Hae joukkuetta");
   });
 
   it("shows the Finnish empty state when nothing matched", async () => {

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 
@@ -10,6 +11,7 @@ import { FavouriteToggle } from "@/components/favourite-toggle";
  * decisions/026-favourites.md
  * decisions/024-account-settings.md
  * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
 
 const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
@@ -273,14 +275,13 @@ describe("an unusable session payload", () => {
   });
 });
 
-describe("hydration", () => {
-  it("renders nothing on the server, even for a signed-in reader", async () => {
-    // The star waits for mount. It is on server-rendered pages, four of them prerendered,
-    // and better-auth answers from its own cache on the first render: a first client render
-    // that disagreed with that HTML would make React throw the server's markup away.
-    const { renderToStaticMarkup } = await import("react-dom/server");
+describe("the first render", () => {
+  it("shows the star to a signed-in reader without waiting for an effect", () => {
+    // A render to a string runs no effects, so this is the first render alone.
+    // The header reads the session the same way; one that waited here would
+    // show the star a render later than the header shows the account.
     signedIn({ favoriteTeams: ["taso:60731"] });
 
-    expect(renderToStaticMarkup(team())).toBe("");
+    expect(renderToStaticMarkup(team())).toContain("Poista suosikeista: Ilves");
   });
 });
