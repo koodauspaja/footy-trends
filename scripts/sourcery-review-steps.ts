@@ -1,15 +1,24 @@
 /**
  * The check behind `npm run check:sourcery`: read a pull request's reviews and
  * the check-run at its head, and say which kind of Sourcery review the head
- * has. The reading is injected, and goes to the API over HTTPS.
+ * has. The reading is injected.
  *
  * decisions/559-sourcery-review-kind.md
  */
-import type { Console } from "./issue-boxes-steps";
 import {
+  type Console,
+  conclude,
+  jsonReader,
+  processConsole,
+  type ReadJson,
+  readAll,
+} from "./github-read";
+import {
+  type Change,
   type CheckRun,
   COMPARISON_FILE_LIMIT,
   type Comparison,
+  comparable,
   fullReviewCommits,
   headReview,
   lastFullReview,
@@ -18,27 +27,19 @@ import {
   type Review,
   rebasedChanges,
   report,
+  resolveCommit,
   type Since,
   SOURCERY_APP,
+  standing,
   sufficient,
   unreviewable,
   withoutReview,
 } from "./sourcery-review-plan";
 
-const API = "https://api.github.com";
-const PAGE = 100;
-
-/**
- * One JSON answer from the API, however it was fetched.
- *
- * decisions/559-sourcery-review-kind.md
- */
-export type ReadJson = (path: string) => Promise<unknown>;
-
 export type CheckOptions = {
   pull: number;
   /** A commit to judge in place of the pull request's head: how it stood then. */
-  head?: string | undefined;
+  commit: string | undefined;
   repository: string;
   read: ReadJson;
 };
@@ -47,79 +48,65 @@ type ApiPull = { head: { sha: string }; base: { sha: string } };
 type ApiReview = {
   user: { login: string } | null;
   commit_id: string;
+  state: string;
   body: string | null;
   submitted_at: string;
 };
-type ApiCheckRuns = {
-  check_runs: {
-    id: number;
-    app: { slug: string } | null;
-    status: string;
-    conclusion: string | null;
-    output: { summary: string | null };
-  }[];
-};
-type ApiComparison = {
+type ApiCheckRun = {
+  id: number;
+  app: { slug: string } | null;
   status: string;
-  files?: { filename: string; patch?: string }[];
+  conclusion: string | null;
+  output: { summary: string | null };
+};
+type ApiFile = { filename: string; status: string; previous_filename?: string; patch?: string };
+type ApiComparison = { status: string; files?: ApiFile[] };
+type ApiContent = { encoding: string; content: string };
+
+type Reading = {
+  read: ReadJson;
+  repository: string;
+  pull: number;
 };
 
-/**
- * Fetches one JSON answer from the API. A status that is not a success is an
- * error, so an unreadable pull request never reads as one with no review.
- *
- * decisions/559-sourcery-review-kind.md
- */
-export function jsonReader(token: string): ReadJson {
-  return async (path: string) => {
-    const response = await fetch(`${API}${path}`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`GitHub answered ${response.status} for ${path}`);
-    }
-
-    return response.json();
-  };
+async function readHead({ read, repository, pull }: Reading): Promise<ApiPull> {
+  return (await read(`/repos/${repository}/pulls/${pull}`)) as ApiPull;
 }
 
-// Every page: a full one means there may be another behind it.
-async function readReviews(
-  read: ReadJson,
-  repository: string,
-  pull: number,
-  page = 1
-): Promise<Review[]> {
-  const rows = (await read(
-    `/repos/${repository}/pulls/${pull}/reviews?per_page=${PAGE}&page=${page}`
-  )) as ApiReview[];
+async function readReviews({ read, repository, pull }: Reading): Promise<Review[]> {
+  const rows = await readAll(
+    read,
+    `/repos/${repository}/pulls/${pull}/reviews`,
+    (answer) => answer as ApiReview[]
+  );
 
-  const reviews = rows.map((row) => ({
+  return rows.map((row) => ({
     author: row.user?.login ?? "",
     commit: row.commit_id,
     body: row.body ?? "",
     submittedAt: row.submitted_at,
+    dismissed: row.state === "DISMISSED",
   }));
+}
 
-  return rows.length < PAGE
-    ? reviews
-    : [...reviews, ...(await readReviews(read, repository, pull, page + 1))];
+// The commits the pull request is made of now. One that was rebased away is
+// not among them, and is known only if Sourcery reviewed it.
+function readCommits({ read, repository, pull }: Reading): Promise<string[]> {
+  return readAll(read, `/repos/${repository}/pulls/${pull}/commits`, (answer) =>
+    (answer as { sha: string }[]).map((commit) => commit.sha)
+  );
 }
 
 // Sourcery's latest check-run at the commit: a re-requested review adds a run.
 async function readCheck(
-  read: ReadJson,
-  repository: string,
-  head: string
+  { read, repository }: Reading,
+  commit: string
 ): Promise<CheckRun | undefined> {
-  const { check_runs: runs } = (await read(
-    `/repos/${repository}/commits/${head}/check-runs?per_page=${PAGE}`
-  )) as ApiCheckRuns;
+  const runs = await readAll(
+    read,
+    `/repos/${repository}/commits/${commit}/check-runs`,
+    (answer) => (answer as { check_runs: ApiCheckRun[] }).check_runs
+  );
 
   const latest = runs
     .filter((run) => run.app?.slug === SOURCERY_APP)
@@ -135,8 +122,7 @@ async function readCheck(
 }
 
 async function readComparison(
-  read: ReadJson,
-  repository: string,
+  { read, repository }: Reading,
   from: string,
   to: string
 ): Promise<Comparison> {
@@ -148,40 +134,74 @@ async function readComparison(
     commit: from,
     status,
     complete: files.length < COMPARISON_FILE_LIMIT,
-    changes: files.map((file) => ({ path: file.filename, patch: file.patch })),
+    changes: files.map((file) => ({
+      path: file.filename,
+      status: file.status,
+      previousPath: file.previous_filename,
+      patch: file.patch,
+    })),
   };
 }
 
-type Reading = {
-  read: ReadJson;
-  repository: string;
-  head: string;
-  /** The tip of the branch the pull request merges into. */
-  base: string;
-};
+// A file as it is at a commit, or nothing when GitHub will not send it whole.
+async function readSource(
+  { read, repository }: Reading,
+  path: string,
+  commit: string
+): Promise<string | undefined> {
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  const { encoding, content } = (await read(
+    `/repos/${repository}/contents/${encoded}?ref=${commit}`
+  )) as ApiContent;
+
+  return encoding === "base64" ? Buffer.from(content, "base64").toString("utf8") : undefined;
+}
+
+// Both sides of a file whose comments may be all that changed.
+async function withSources(
+  reading: Reading,
+  change: Change,
+  from: string,
+  to: string
+): Promise<Change> {
+  if (!comparable(change)) return change;
+
+  const [before, after] = await Promise.all([
+    readSource(reading, change.path, from),
+    readSource(reading, change.path, to),
+  ]);
+
+  return before === undefined || after === undefined
+    ? change
+    : { ...change, sources: { before, after } };
+}
 
 // What changed since the last full review. Ahead of it, that is the commits
 // in between. Rebased, those include the base branch's, so the pull request's
 // own diff then is compared with its own diff now.
 async function changesSince(
+  reading: Reading,
   reviews: Review[],
-  { read, repository, head, base }: Reading
+  head: string,
+  base: string
 ): Promise<Since | undefined> {
   const comparisons = await Promise.all(
-    fullReviewCommits(reviews, head).map((commit) => readComparison(read, repository, commit, head))
+    fullReviewCommits(reviews, head).map((commit) => readComparison(reading, commit, head))
   );
 
   const last = lastFullReview(comparisons);
   if (last === undefined) return undefined;
 
   if (last.status === "ahead") {
-    const { commit, complete, changes } = last;
-    return { commit, rebased: false, complete, changes };
+    const changes = await Promise.all(
+      last.changes.map((change) => withSources(reading, change, last.commit, head))
+    );
+    return { commit: last.commit, rebased: false, complete: last.complete, changes };
   }
 
   const [before, after] = await Promise.all([
-    readComparison(read, repository, base, last.commit),
-    readComparison(read, repository, base, head),
+    readComparison(reading, base, last.commit),
+    readComparison(reading, base, head),
   ]);
 
   return {
@@ -194,45 +214,48 @@ async function changesSince(
 
 /**
  * The whole check, from a pull request number to a report. The pull request's
- * own paths are read only when the review is not enough, to see whether there
- * was anything for Sourcery to review.
+ * own paths are read only when the review is not enough, and its head is read
+ * again at the end: a push in between leaves a report about the wrong commit.
  *
  * decisions/559-sourcery-review-kind.md
  */
 export async function checkReview({
   pull,
-  head: asked,
+  commit,
   repository,
   read,
 }: CheckOptions): Promise<Report> {
-  const found = (await read(`/repos/${repository}/pulls/${pull}`)) as ApiPull;
-  const reading = {
-    read,
-    repository,
-    head: asked ?? found.head.sha,
-    base: found.base.sha,
-  };
-  const { head, base } = reading;
+  const reading = { read, repository, pull };
+  const found = await readHead(reading);
+  const base = found.base.sha;
+  const every = await readReviews(reading);
 
-  const [reviews, check] = await Promise.all([
-    readReviews(read, repository, pull),
-    readCheck(read, repository, head),
-  ]);
+  const head =
+    commit === undefined
+      ? found.head.sha
+      : resolveCommit(commit, [
+          ...every.map((review) => review.commit),
+          ...(await readCommits(reading)),
+        ]);
+  const reviews = commit === undefined ? standing(every, head) : every;
+  const check = await readCheck(reading, head);
 
-  const kind = headReview(reviews, head);
-  let outcome: Outcome = kind === undefined ? withoutReview(check) : { kind };
-  if (outcome.kind === "quick" || outcome.kind === "nothing") {
-    outcome = {
-      kind: outcome.kind,
-      since: await changesSince(reviews, reading),
-    };
+  const kind = headReview(reviews, head) ?? withoutReview(check);
+  const outcome: Outcome =
+    kind === "quick" || kind === "nothing"
+      ? { kind, since: await changesSince(reading, reviews, head, base) }
+      : { kind };
+
+  const exempt = !sufficient(outcome) && unreviewable(await readComparison(reading, base, head));
+
+  if (commit === undefined) {
+    const now = (await readHead(reading)).head.sha;
+    if (now !== head) {
+      throw new Error(
+        `its head moved from ${head.slice(0, 7)} to ${now.slice(0, 7)} while it was read. Run it again`
+      );
+    }
   }
-
-  const exempt =
-    !sufficient(outcome) &&
-    unreviewable(
-      (await readComparison(read, repository, base, head)).changes.map((change) => change.path)
-    );
 
   return report({ pull, head, outcome, check, exempt });
 }
@@ -255,8 +278,8 @@ export async function runCheck(
   read: (token: string) => ReadJson = jsonReader
 ): Promise<number> {
   const pull = PULL.test(argv[2] ?? "") ? Number(argv[2]) : Number.NaN;
-  const head = argv[3];
-  if (!Number.isSafeInteger(pull) || (head !== undefined && !COMMIT.test(head))) {
+  const commit = argv[3];
+  if (!Number.isSafeInteger(pull) || (commit !== undefined && !COMMIT.test(commit))) {
     console.err("Usage: npm run check:sourcery -- <pull request number> [<commit>]");
     console.err("  The commit, seven to forty hex digits, judges an earlier head.");
     return 1;
@@ -272,20 +295,9 @@ export async function runCheck(
 
   const repository = env.GITHUB_REPOSITORY ?? "koodauspaja/footy-trends";
 
-  try {
-    const { passed, lines } = await checkReview({
-      pull,
-      head,
-      repository,
-      read: read(token),
-    });
-    for (const line of lines) (passed ? console.out : console.err)(line);
-    return passed ? 0 : 1;
-  } catch (error) {
-    // A failed read is not a review.
-    console.err(`Could not read Sourcery's review of #${pull}: ${(error as Error).message}`);
-    return 1;
-  }
+  return conclude(console, `Could not read Sourcery's review of #${pull}`, () =>
+    checkReview({ pull, commit, repository, read: read(token) })
+  );
 }
 
 /**
@@ -294,8 +306,5 @@ export async function runCheck(
  * decisions/559-sourcery-review-kind.md
  */
 export function startCheck(): Promise<number> {
-  return runCheck(process.argv, process.env, {
-    out: (line) => process.stdout.write(`${line}\n`),
-    err: (line) => process.stderr.write(`${line}\n`),
-  });
+  return runCheck(process.argv, process.env, processConsole());
 }

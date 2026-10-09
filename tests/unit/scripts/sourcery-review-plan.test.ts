@@ -3,6 +3,7 @@ import {
   type Change,
   type CheckRun,
   changeKind,
+  comparable,
   fullReviewCommits,
   headReview,
   lastFullReview,
@@ -10,8 +11,10 @@ import {
   type Review,
   rebasedChanges,
   report,
+  resolveCommit,
   reviewKind,
   type Since,
+  standing,
   sufficient,
   unreviewable,
   withoutReview,
@@ -34,9 +37,24 @@ const BUDGET =
 
 const HEAD = "f4e9a2da8d79ff975d6284198f2d00373a46813b";
 const EARLIER = "797ee79000000000000000000000000000000000";
+const LATER = "ddcfb82000000000000000000000000000000000";
 
-function review(commit: string, body: string, submittedAt: string, author = "sourcery-ai[bot]") {
-  return { author, commit, body, submittedAt } satisfies Review;
+function review(
+  commit: string,
+  body: string,
+  submittedAt: string,
+  { author = "sourcery-ai[bot]", dismissed = false } = {}
+): Review {
+  return { author, commit, body, submittedAt, dismissed };
+}
+
+function change(path: string, extra: Partial<Change> = {}): Change {
+  return { path, status: "modified", previousPath: undefined, patch: undefined, ...extra };
+}
+
+// A TypeScript file modified in place, with both of its sides.
+function source(path: string, before: string, after: string): Change {
+  return change(path, { sources: { before, after } });
 }
 
 const SUCCESS: CheckRun = { status: "completed", conclusion: "success", summary: "Completed" };
@@ -70,6 +88,38 @@ describe("reviewKind", () => {
     expect(reviewKind("### Sourcery assessment\n\n**Changes requested.**")).toBeUndefined();
     expect(reviewKind(`${QUICK}\n\nOne more thing.`)).toBeUndefined();
     expect(reviewKind("")).toBeUndefined();
+  });
+});
+
+describe("resolveCommit", () => {
+  it("finds the one known commit an abbreviation names, however often it is listed", () => {
+    expect(resolveCommit("f4e9a2d", [EARLIER, HEAD, HEAD])).toBe(HEAD);
+    expect(resolveCommit(HEAD, [HEAD])).toBe(HEAD);
+  });
+
+  it("refuses an abbreviation that names no known commit", () => {
+    expect(() => resolveCommit("abc1234", [HEAD, EARLIER])).toThrow(
+      "abc1234 names 0 of the commits"
+    );
+  });
+
+  it("refuses an abbreviation that names two", () => {
+    const twin = "f4e9a2d111111111111111111111111111111111";
+
+    expect(() => resolveCommit("f4e9a2d", [HEAD, twin])).toThrow("f4e9a2d names 2 of the commits");
+  });
+});
+
+describe("standing", () => {
+  it("drops a dismissed review of the head, and keeps the rest", () => {
+    const dismissedHead = review(HEAD, FOUND, "2026-10-09T10:00:00Z", { dismissed: true });
+    const dismissedEarlier = review(EARLIER, FOUND, "2026-10-09T09:00:00Z", { dismissed: true });
+    const standingHead = review(HEAD, QUICK, "2026-10-09T10:05:00Z");
+
+    expect(standing([dismissedHead, dismissedEarlier, standingHead], HEAD)).toEqual([
+      dismissedEarlier,
+      standingHead,
+    ]);
   });
 });
 
@@ -110,9 +160,9 @@ describe("headReview", () => {
   });
 
   it("ignores a review of the head by anyone else", () => {
-    expect(
-      headReview([review(HEAD, FOUND, "2026-10-05T06:06:37Z", "a-colleague")], HEAD)
-    ).toBeUndefined();
+    const reviews = [review(HEAD, FOUND, "2026-10-05T06:06:37Z", { author: "a-colleague" })];
+
+    expect(headReview(reviews, HEAD)).toBeUndefined();
   });
 
   it("ignores a reply in a thread, which is a review with an empty body", () => {
@@ -122,10 +172,6 @@ describe("headReview", () => {
     ];
 
     expect(headReview(reviews, HEAD)).toBe("quick");
-  });
-
-  it("matches an abbreviated commit", () => {
-    expect(headReview([review(HEAD, QUICK, "2026-10-05T06:23:07Z")], "f4e9a2d")).toBe("quick");
   });
 
   it("refuses a review of the head it cannot recognise, and quotes how it starts", () => {
@@ -162,30 +208,39 @@ describe("fullReviewCommits", () => {
     const reviews = [
       review("aaaaaaa1", QUICK, "2026-10-05T06:00:00Z"),
       review("bbbbbbb2", BUDGET, "2026-10-05T06:10:00Z"),
-      review("ccccccc3", FOUND, "2026-10-05T06:20:00Z", "a-colleague"),
+      review("ccccccc3", FOUND, "2026-10-05T06:20:00Z", { author: "a-colleague" }),
       review(HEAD, QUICK, "2026-10-05T08:00:00Z"),
     ];
 
     expect(fullReviewCommits(reviews, HEAD)).toEqual([]);
   });
 
+  it("counts a full review a later push dismissed", () => {
+    const reviews = [
+      review(EARLIER, FOUND, "2026-10-05T08:22:00Z", { dismissed: true }),
+      review(HEAD, QUICK, "2026-10-05T08:30:16Z"),
+    ];
+
+    expect(fullReviewCommits(reviews, HEAD)).toEqual([EARLIER]);
+  });
+
   it("leaves out a full review written after Sourcery wrote about the head", () => {
     const reviews = [
       review(HEAD, QUICK, "2026-10-05T10:16:42Z"),
-      review("ddcfb82", FOUND, "2026-10-05T22:09:01Z"),
+      review(LATER, FOUND, "2026-10-05T22:09:01Z"),
     ];
 
     expect(fullReviewCommits(reviews, HEAD)).toEqual([]);
   });
 
   it("counts every full review when Sourcery wrote nothing about the head", () => {
-    expect(fullReviewCommits([review("ddcfb82", FOUND, "2026-10-05T22:09:01Z")], HEAD)).toEqual([
-      "ddcfb82",
+    expect(fullReviewCommits([review(LATER, FOUND, "2026-10-05T22:09:01Z")], HEAD)).toEqual([
+      LATER,
     ]);
   });
 
   it("never lists the head itself", () => {
-    expect(fullReviewCommits([review(HEAD, FOUND, "2026-10-05T22:09:01Z")], "f4e9a2d")).toEqual([]);
+    expect(fullReviewCommits([review(HEAD, FOUND, "2026-10-05T22:09:01Z")], HEAD)).toEqual([]);
   });
 });
 
@@ -208,15 +263,18 @@ describe("lastFullReview", () => {
   });
 
   it("prefers a review the head is ahead of to a newer one it was rebased away from", () => {
-    expect(
-      lastFullReview([comparison("rebased", "diverged"), comparison("a", "ahead")])?.commit
-    ).toBe("a");
+    const found = lastFullReview([comparison("rebased", "diverged"), comparison("a", "ahead")]);
+
+    expect(found?.commit).toBe("a");
   });
 
   it("falls back to a review the branch was rebased away from", () => {
-    expect(
-      lastFullReview([comparison("later", "behind"), comparison("rebased", "diverged")])?.commit
-    ).toBe("rebased");
+    const found = lastFullReview([
+      comparison("later", "behind"),
+      comparison("rebased", "diverged"),
+    ]);
+
+    expect(found?.commit).toBe("rebased");
   });
 
   it("is nothing when every review is of a later commit", () => {
@@ -225,157 +283,228 @@ describe("lastFullReview", () => {
   });
 });
 
+describe("comparable", () => {
+  it("is true of TypeScript source modified in place", () => {
+    expect(comparable(change("src/lib/form.ts"))).toBe(true);
+    expect(comparable(change("src/components/team-page.tsx"))).toBe(true);
+    expect(comparable(change("scripts/verify.mts"))).toBe(true);
+  });
+
+  it("is false of a test, wherever it lives", () => {
+    expect(comparable(change("tests/unit/lib/form.test.ts"))).toBe(false);
+    expect(comparable(change("src/lib/form.test.ts"))).toBe(false);
+    expect(comparable(change("packages/app/tests/helpers.ts"))).toBe(false);
+  });
+
+  it("is false of a file that is not TypeScript, or was not modified in place", () => {
+    expect(comparable(change("postcss.config.mjs"))).toBe(false);
+    expect(comparable(change(".github/workflows/ci.yml"))).toBe(false);
+    expect(comparable(change("src/lib/form.ts", { status: "added" }))).toBe(false);
+    expect(comparable(change("src/lib/form.ts", { status: "renamed" }))).toBe(false);
+  });
+});
+
 describe("changeKind", () => {
-  it("calls a Markdown file documentation, whatever its diff", () => {
-    expect(
-      changeKind({ path: "docs/setup/011-branch-protection.md", patch: "+const x = 1;" })
-    ).toBe("documentation");
-    expect(changeKind({ path: "CLAUDE.md" })).toBe("documentation");
+  it("calls a Markdown file documentation", () => {
+    expect(changeKind(change("docs/setup/011-branch-protection.md"))).toBe("documentation");
+    expect(changeKind(change("CLAUDE.md", { status: "added" }))).toBe("documentation");
   });
 
-  it("calls a reworded line comment comments only", () => {
-    const patch = [
-      "@@ -25,10 +25,9 @@ export type TeamPageDefaults =",
-      "  */",
-      " export function seasonCandidate(rawValue: string): number | undefined {",
-      "-  // Digits alone are not enough, which `parseWholeNumber` knows: a value past",
-      "-  // the column fails at bind time.",
-      "+  // `parseWholeNumber` refuses a value past the column as well as one that is",
-      "+  // not digits, so neither reaches a query.",
-      "   return parseWholeNumber(rawValue) ?? undefined;",
-      " }",
-    ].join("\n");
-
-    expect(changeKind({ path: "src/lib/team-page-context.ts", patch })).toBe("comments");
+  it("does not call a Markdown file under tests documentation", () => {
+    expect(changeKind(change("tests/fixtures/issue-body.md"))).toBe("other");
   });
 
-  it("calls the inside of a block comment, and a blank line, comments only", () => {
-    const patch = [
-      "@@ -1,4 +1,5 @@",
-      " /**",
-      "- * What it was for.",
-      "+ * What it is for.",
-      "+ *",
-      "+",
-      "  */",
-    ].join("\n");
+  it("does not call source renamed to a Markdown path documentation", () => {
+    const renamed = change("docs/form.md", { status: "renamed", previousPath: "src/lib/form.ts" });
 
-    expect(changeKind({ path: "src/components/team-page.tsx", patch })).toBe("comments");
+    expect(changeKind(renamed)).toBe("other");
   });
 
-  it("calls a changed line of code something else, however many comments surround it", () => {
-    const patch = [
-      "@@ -1,3 +1,3 @@",
-      "-// one",
-      "+// two",
-      "-const limit = 5;",
-      "+const limit = 3;",
+  it("calls a Markdown file renamed from another one documentation", () => {
+    const renamed = change("docs/new.md", { status: "renamed", previousPath: "docs/old.md" });
+
+    expect(changeKind(renamed)).toBe("documentation");
+  });
+
+  it("calls a reworded line comment and doc comment comments only", () => {
+    const before = [
+      "/**",
+      " * What it was for.",
+      " */",
+      "export function limit(raw: string): number | undefined {",
+      "  // Digits alone are not enough.",
+      "  return parse(raw) ?? undefined;",
+      "}",
+    ].join("\n");
+    const after = [
+      "/**",
+      " * What it is for,",
+      " * on two lines.",
+      " */",
+      "export function limit(raw: string): number | undefined {",
+      "",
+      "  // `parse` refuses what is not digits.",
+      "  return parse(raw) ?? undefined;",
+      "}",
     ].join("\n");
 
-    expect(changeKind({ path: "src/lib/form.ts", patch })).toBe("other");
+    expect(changeKind(source("src/lib/form.ts", before, after))).toBe("comments");
   });
 
   it.each([
-    ["an opened block comment", "+/**"],
-    ["a closed block comment", "-  */"],
-    ["a block comment closed mid-line", "+ * a reason */ run();"],
-    ["a triple-slash directive", '+/// <reference types="next" />'],
-    ["a type-checker directive", "+// @ts-expect-error"],
-    ["a linter directive", "+  // eslint-disable-next-line no-console"],
-    ["a coverage directive", "+/* v8 ignore next */"],
-    ["a coverage directive on a line comment", "+// v8 ignore next"],
-    ["a docblock tag", "+ * @vitest-environment jsdom"],
-    ["a generator method", "+  *entries() {"],
-  ])("does not call %s a comment", (_name, line) => {
-    expect(changeKind({ path: "src/lib/form.ts", patch: `@@ -1 +1 @@\n${line}` })).toBe("other");
+    ["a changed value", "const limit = 5;", "const limit = 3;"],
+    [
+      "a multiplication carried onto a line that starts like a comment",
+      "const y = x\n  * 2;",
+      "const y = x\n  * 3;",
+    ],
+    [
+      "a template string line that starts like a comment",
+      "const t = `\n// one\n`;",
+      "const t = `\n// two\n`;",
+    ],
+    ["code a block comment now swallows", "/* note */ run();", "/* note run(); */"],
+  ])("calls %s something else", (_name, before, after) => {
+    expect(changeKind(source("src/lib/form.ts", before, after))).toBe("other");
+  });
+
+  it("calls changed text between tags something else, though it starts like a comment", () => {
+    const before = "export const a = <p>\n  // beta\n</p>;";
+    const after = "export const a = <p>\n  // gamma\n</p>;";
+
+    expect(changeKind(source("src/components/note.tsx", before, after))).toBe("other");
+  });
+
+  it.each([
+    ["a type-checker directive", "// @ts-expect-error"],
+    ["a linter directive", "// eslint-disable-next-line no-console"],
+    ["a formatter directive", "// biome-ignore lint/suspicious/noExplicitAny: fixture"],
+    ["a coverage directive", "/* v8 ignore next */"],
+    ["a scanner directive", "// NOSONAR"],
+    ["a test-environment tag", "/** @vitest-environment jsdom */"],
+    ["a triple-slash reference", '/// <reference types="next" />'],
+  ])("calls %s added above unchanged code something else", (_name, directive) => {
+    const before = "run();";
+
+    expect(changeKind(source("src/lib/form.ts", before, `${directive}\n${before}`))).toBe("other");
+  });
+
+  it("calls a directive added as the last line of a file something else", () => {
+    expect(changeKind(source("src/lib/form.ts", "run();", "run();\n// NOSONAR"))).toBe("other");
+  });
+
+  it("calls a directive moved to another line something else", () => {
+    const before = "// @ts-expect-error\none();\ntwo();";
+    const after = "one();\n// @ts-expect-error\ntwo();";
+
+    expect(changeKind(source("src/lib/form.ts", before, after))).toBe("other");
+  });
+
+  it("calls a comment reworded beside an untouched directive comments only", () => {
+    const before = "// one\n// @ts-expect-error\nrun();";
+    const after = "// two\n// @ts-expect-error\nrun();";
+
+    expect(changeKind(source("src/lib/form.ts", before, after))).toBe("comments");
   });
 
   it("calls any change to a test something else, comments included", () => {
-    expect(
-      changeKind({ path: "tests/unit/lib/form.test.ts", patch: "@@ -1 +1 @@\n+// a note" })
-    ).toBe("other");
+    expect(changeKind(source("tests/unit/lib/form.test.ts", "// one", "// two"))).toBe("other");
   });
 
-  it("calls a file that is not script source something else", () => {
-    expect(changeKind({ path: ".github/workflows/ci.yml", patch: "@@ -1 +1 @@\n+// a note" })).toBe(
-      "other"
-    );
-    expect(changeKind({ path: "package.json", patch: "@@ -1 +1 @@\n+" })).toBe("other");
+  it("calls a source file whose two sides were not read something else", () => {
+    expect(changeKind(change("src/lib/form.ts"))).toBe("other");
   });
 
-  it("calls a source file with no readable diff something else", () => {
-    expect(changeKind({ path: "src/lib/form.ts" })).toBe("other");
+  it("calls a file that is not TypeScript something else, whatever was read", () => {
+    expect(changeKind(source("postcss.config.mjs", "// one", "// two"))).toBe("other");
+    expect(changeKind(change("package.json"))).toBe("other");
   });
 });
 
 describe("rebasedChanges", () => {
   it("lists nothing when the pull request's own diff is the same after the rebase", () => {
-    const diff: Change[] = [
-      { path: "src/a.ts", patch: "+one" },
-      { path: "docs/b.md", patch: "+two" },
-    ];
+    const diff = [change("src/a.ts", { patch: "+one" }), change("docs/b.md", { patch: "+two" })];
 
     expect(
       rebasedChanges(
         diff,
-        diff.map((change) => ({ ...change }))
+        diff.map((each) => ({ ...each }))
       )
     ).toEqual([]);
   });
 
   it("lists a file changed differently, one dropped and one added", () => {
-    const before: Change[] = [
-      { path: "src/a.ts", patch: "+one" },
-      { path: "src/dropped.ts", patch: "+x" },
-      { path: "src/same.ts", patch: "+s" },
+    const before = [
+      change("src/a.ts", { patch: "+one" }),
+      change("src/dropped.ts", { patch: "+x" }),
+      change("src/same.ts", { patch: "+s" }),
     ];
-    const after: Change[] = [
-      { path: "src/a.ts", patch: "+two" },
-      { path: "src/added.ts", patch: "+y" },
-      { path: "src/same.ts", patch: "+s" },
+    const after = [
+      change("src/a.ts", { patch: "+two" }),
+      change("src/added.ts", { patch: "+y" }),
+      change("src/same.ts", { patch: "+s" }),
     ];
 
-    expect(rebasedChanges(before, after)).toEqual([
-      { path: "src/a.ts" },
-      { path: "src/dropped.ts" },
-      { path: "src/added.ts" },
+    expect(rebasedChanges(before, after).map((each) => each.path)).toEqual([
+      "src/a.ts",
+      "src/dropped.ts",
+      "src/added.ts",
     ]);
   });
 
   it("lists a file with no readable diff on either side, since it cannot be compared", () => {
-    expect(rebasedChanges([{ path: "public/logo.png" }], [{ path: "public/logo.png" }])).toEqual([
-      { path: "public/logo.png" },
+    const image = change("public/logo.png");
+
+    expect(rebasedChanges([image], [image])).toEqual([
+      { path: "public/logo.png", previousPath: undefined, patch: undefined, status: "rebased" },
     ]);
+  });
+
+  it("lists a file that came from somewhere else after the rebase, and says from where", () => {
+    const before = [change("docs/form.md", { patch: "+same" })];
+    const after = [change("docs/form.md", { patch: "+same", previousPath: "src/lib/form.ts" })];
+
+    expect(rebasedChanges(before, after)).toEqual([
+      {
+        path: "docs/form.md",
+        previousPath: "src/lib/form.ts",
+        patch: undefined,
+        status: "rebased",
+      },
+    ]);
+  });
+
+  it("carries no source over, so a rebased file is never comments only", () => {
+    const before = [source("src/lib/form.ts", "// one", "// two")];
+    const after = [change("src/lib/form.ts", { patch: "+different" })];
+
+    expect(rebasedChanges(before, after).map(changeKind)).toEqual(["other"]);
   });
 });
 
 describe("withoutReview", () => {
   it("is nothing when there is no check-run, or one that did not skip", () => {
-    expect(withoutReview(undefined)).toEqual({ kind: "nothing" });
-    expect(withoutReview(SUCCESS)).toEqual({ kind: "nothing" });
-    expect(withoutReview({ status: "in_progress", conclusion: null, summary: "" })).toEqual({
-      kind: "nothing",
-    });
+    expect(withoutReview(undefined)).toBe("nothing");
+    expect(withoutReview(SUCCESS)).toBe("nothing");
+    expect(withoutReview({ status: "in_progress", conclusion: null, summary: "" })).toBe("nothing");
   });
 
   it("is a budget notice when the skipped check-run says the budget is spent", () => {
-    expect(withoutReview({ status: "completed", conclusion: "skipped", summary: BUDGET })).toEqual({
-      kind: "budget",
-    });
+    expect(withoutReview({ status: "completed", conclusion: "skipped", summary: BUDGET })).toBe(
+      "budget"
+    );
   });
 
   it("is a skip for any other reason the check-run gives", () => {
     const summary = "This pull request has hit its limit of 5 automatic re-reviews.";
 
-    expect(withoutReview({ status: "completed", conclusion: "skipped", summary })).toEqual({
-      kind: "skip",
-    });
+    expect(withoutReview({ status: "completed", conclusion: "skipped", summary })).toBe("skip");
   });
 });
 
-const COMMENT_ONLY: Change = { path: "src/lib/form.ts", patch: "@@ -1 +1 @@\n-// one\n+// two" };
-const DOCUMENT: Change = { path: "docs/infrastructure.md", patch: "+a line" };
-const TEST: Change = { path: "tests/unit/lib/form.test.ts", patch: "+expect(1).toBe(1);" };
+const COMMENT_ONLY = source("src/lib/form.ts", "// one\nrun();", "// two\nrun();");
+const DOCUMENT = change("docs/infrastructure.md", { patch: "+a line" });
+const TEST = change("tests/unit/lib/form.test.ts", { patch: "+expect(1).toBe(1);" });
 
 function since(changes: Change[], overrides: Partial<Since> = {}): Since {
   return { commit: EARLIER, rebased: false, complete: true, changes, ...overrides };
@@ -396,13 +525,13 @@ describe("sufficient", () => {
   });
 
   it("refuses the quick check when the list of changes may be cut short", () => {
-    expect(sufficient({ kind: "quick", since: since([DOCUMENT], { complete: false }) })).toBe(
-      false
-    );
+    const cut = since([DOCUMENT], { complete: false });
+
+    expect(sufficient({ kind: "quick", since: cut })).toBe(false);
   });
 
   it("refuses the quick check when no full review came before it", () => {
-    expect(sufficient({ kind: "quick" })).toBe(false);
+    expect(sufficient({ kind: "quick", since: undefined })).toBe(false);
   });
 
   it("refuses a head with no review object, even over documentation alone", () => {
@@ -416,25 +545,44 @@ describe("sufficient", () => {
 });
 
 describe("unreviewable", () => {
+  const pull = (changes: Change[], complete = true) => ({
+    commit: "base",
+    status: "ahead",
+    complete,
+    changes,
+  });
+
   it("is true of a pull request made of the manifest and the lockfile", () => {
-    expect(unreviewable(["package.json", "package-lock.json"])).toBe(true);
-    expect(unreviewable(["package-lock.json"])).toBe(true);
+    expect(unreviewable(pull([change("package.json"), change("package-lock.json")]))).toBe(true);
+    expect(unreviewable(pull([change("package-lock.json")]))).toBe(true);
   });
 
   it("is false with one path off the list", () => {
-    expect(unreviewable(["package.json", "docs/infrastructure.md"])).toBe(false);
-    expect(unreviewable(["apps/package.json"])).toBe(false);
+    expect(unreviewable(pull([change("package.json"), change("docs/infrastructure.md")]))).toBe(
+      false
+    );
+    expect(unreviewable(pull([change("apps/package.json")]))).toBe(false);
   });
 
-  it("is false of a pull request with no paths at all", () => {
-    expect(unreviewable([])).toBe(false);
+  it("is false when a listed path came from one that is not", () => {
+    const renamed = change("package.json", { status: "renamed", previousPath: "src/lib/form.ts" });
+
+    expect(unreviewable(pull([renamed]))).toBe(false);
+  });
+
+  it("is false of a pull request with no paths, or with a list cut short", () => {
+    expect(unreviewable(pull([]))).toBe(false);
+    expect(unreviewable(pull([change("package.json")], false))).toBe(false);
   });
 });
 
 describe("report", () => {
-  function reportFor(outcome: Outcome, check: CheckRun | undefined = SUCCESS, exempt = false) {
+  function reportFor(outcome: Outcome, check: CheckRun = SUCCESS, exempt = false) {
     return report({ pull: 552, head: HEAD, outcome, check, exempt });
   }
+
+  const NOT_ENOUGH =
+    'Not enough: the head needs a full review, one whose body starts "Hey". skills/open-pr.md step 9 says how to get one.';
 
   it("passes a full review, naming the pull request and the head", () => {
     expect(reportFor({ kind: "full" })).toEqual({
@@ -452,7 +600,7 @@ describe("report", () => {
         "The last full review was of 797ee79. Changed since then:",
         "  documentation: docs/infrastructure.md",
         "  code, test or configuration: tests/unit/lib/form.test.ts",
-        'Not enough: the head needs a full review, one whose body starts "Hey". skills/open-pr.md step 9 says how to get one.',
+        NOT_ENOUGH,
       ],
     });
   });
@@ -467,8 +615,15 @@ describe("report", () => {
     );
   });
 
+  it("says where a renamed file was", () => {
+    const renamed = change("docs/form.md", { status: "renamed", previousPath: "src/lib/form.ts" });
+    const { lines } = reportFor({ kind: "quick", since: since([renamed]) });
+
+    expect(lines).toContain("  code, test or configuration: docs/form.md (was src/lib/form.ts)");
+  });
+
   it("says so when the quick check is the only review the pull request has had", () => {
-    const { passed, lines } = reportFor({ kind: "quick" });
+    const { passed, lines } = reportFor({ kind: "quick", since: undefined });
 
     expect(passed).toBe(false);
     expect(lines).toContain("No full review came before it.");
@@ -485,10 +640,8 @@ describe("report", () => {
   });
 
   it("says when the list of changes may be cut short", () => {
-    const { passed, lines } = reportFor({
-      kind: "quick",
-      since: since([DOCUMENT], { complete: false }),
-    });
+    const cut = since([DOCUMENT], { complete: false });
+    const { passed, lines } = reportFor({ kind: "quick", since: cut });
 
     expect(passed).toBe(false);
     expect(lines).toContain("  and possibly more: GitHub lists 300 files of a comparison");
@@ -507,7 +660,6 @@ describe("report", () => {
   });
 
   it("reports a budget notice that came as a review with no check-run beside it", () => {
-    // Passed whole: the helper would put its green check-run in place of none.
     const { lines } = report({
       pull: 552,
       head: HEAD,
@@ -519,7 +671,7 @@ describe("report", () => {
     expect(lines).toEqual([
       "#552 at f4e9a2d: a budget notice, and no review.",
       "Check-run: none.",
-      'Not enough: the head needs a full review, one whose body starts "Hey". skills/open-pr.md step 9 says how to get one.',
+      NOT_ENOUGH,
     ]);
   });
 
@@ -528,7 +680,7 @@ describe("report", () => {
     expect(reportFor({ kind: "budget" }).lines).toEqual([
       "#552 at f4e9a2d: a budget notice, and no review.",
       "Check-run: success.",
-      expect.stringMatching(/^Not enough/),
+      NOT_ENOUGH,
     ]);
   });
 
@@ -562,12 +714,14 @@ describe("report", () => {
     expect(passed).toBe(false);
     expect(lines[0]).toBe("#552 at f4e9a2d: nothing from Sourcery.");
     expect(lines).toContain("  documentation: docs/infrastructure.md");
-    expect(lines.at(-1)).toMatch(/^Not enough/);
+    expect(lines.at(-1)).toBe(NOT_ENOUGH);
   });
 
   it("shows a check-run that has not finished by its status", () => {
     const check = { status: "in_progress", conclusion: null, summary: "" };
 
-    expect(reportFor({ kind: "nothing" }, check).lines[1]).toBe("Check-run: in_progress.");
+    expect(reportFor({ kind: "nothing", since: undefined }, check).lines[1]).toBe(
+      "Check-run: in_progress."
+    );
   });
 });

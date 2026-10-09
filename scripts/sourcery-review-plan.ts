@@ -5,6 +5,7 @@
  *
  * decisions/559-sourcery-review-kind.md
  */
+import ts from "typescript";
 
 /**
  * Sourcery's login on a review, and its app on a check-run.
@@ -32,9 +33,11 @@ export const COMPARISON_FILE_LIMIT = 300;
 
 export type Review = {
   author: string;
+  /** The whole commit id. */
   commit: string;
   body: string;
   submittedAt: string;
+  dismissed: boolean;
 };
 
 export type CheckRun = {
@@ -44,10 +47,21 @@ export type CheckRun = {
   summary: string;
 };
 
+export type Sources = {
+  before: string;
+  after: string;
+};
+
 export type Change = {
   path: string;
+  /** GitHub's word for what happened to the file, or `rebased`. */
+  status: string;
+  /** Where a renamed file was. */
+  previousPath: string | undefined;
   /** Absent for a binary file, a pure rename, or a diff GitHub would not send. */
-  patch?: string | undefined;
+  patch: string | undefined;
+  /** The whole file on each side, read only where comments may be all that changed. */
+  sources?: Sources;
 };
 
 export type Comparison = {
@@ -75,8 +89,8 @@ export type Since = {
 
 export type Outcome =
   | { kind: "full" | "budget" | "skip" }
-  /** `since` is absent when no full review came before this head. */
-  | { kind: "quick" | "nothing"; since?: Since | undefined };
+  /** `since` is undefined when no full review came before this head. */
+  | { kind: "quick" | "nothing"; since: Since | undefined };
 
 const FULL_REVIEW = /^Hey - I['’]ve (?:reviewed|found)\b/;
 const QUICK_CHECK = /^### Sourcery assessment\s+\*\*Approved\.\*\*$/;
@@ -108,9 +122,36 @@ function oldestFirst(a: Review, b: Review): number {
 }
 
 /**
- * What Sourcery wrote about `head`, which may be abbreviated: a full review if
- * it ever wrote one, otherwise the latest thing it said, otherwise nothing. A
- * body in no known shape is an error, not a guess.
+ * The one known commit an abbreviation names. The commits come from GitHub,
+ * so what was typed is compared and never sent.
+ *
+ * decisions/559-sourcery-review-kind.md
+ */
+export function resolveCommit(asked: string, known: readonly string[]): string {
+  const found = [...new Set(known)].filter((commit) => commit.startsWith(asked));
+  const [only] = found;
+  if (found.length === 1 && only !== undefined) return only;
+
+  throw new Error(
+    `${asked} names ${found.length} of the commits this pull request has or Sourcery reviewed, not one`
+  );
+}
+
+/**
+ * The reviews that still stand for the pull request's present head: a review
+ * of that head someone dismissed is one they said does not count. Dismissed
+ * reviews of earlier commits stay, since a push dismisses those by itself.
+ *
+ * decisions/559-sourcery-review-kind.md
+ */
+export function standing(reviews: readonly Review[], head: string): Review[] {
+  return reviews.filter((review) => !(review.dismissed && review.commit === head));
+}
+
+/**
+ * What Sourcery wrote about `head`: a full review if it ever wrote one,
+ * otherwise the latest thing it said, otherwise nothing. A body in no known
+ * shape is an error, not a guess.
  *
  * decisions/559-sourcery-review-kind.md
  */
@@ -120,9 +161,7 @@ export function headReview(reviews: readonly Review[], head: string): ReviewKind
   const written = reviews
     .filter(
       (review) =>
-        review.author === SOURCERY_LOGIN &&
-        review.commit.startsWith(head) &&
-        review.body.trim() !== ""
+        review.author === SOURCERY_LOGIN && review.commit === head && review.body.trim() !== ""
     )
     .sort(oldestFirst);
 
@@ -149,14 +188,14 @@ export function headReview(reviews: readonly Review[], head: string): ReviewKind
 export function fullReviewCommits(reviews: readonly Review[], head: string): string[] {
   const fromSourcery = reviews.filter((review) => review.author === SOURCERY_LOGIN);
   const seen = fromSourcery
-    .filter((review) => review.commit.startsWith(head))
+    .filter((review) => review.commit === head)
     .sort(oldestFirst)
     .at(-1)?.submittedAt;
 
   const commits = fromSourcery
     .filter(
       (review) =>
-        !review.commit.startsWith(head) &&
+        review.commit !== head &&
         reviewKind(review.body) === "full" &&
         (seen === undefined || review.submittedAt < seen)
     )
@@ -181,71 +220,110 @@ export function lastFullReview(comparisons: readonly Comparison[]): Comparison |
   );
 }
 
-const COMMENTED_SOURCE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
-const COMMENT_MARKER = /^(?:\/\/(?!\/)|\*(?!\S))\s*/;
-const DIRECTIVE = /^(?:@|eslint-|prettier-|biome-|v8 |c8 |istanbul |NOSONAR)/;
+const TEST_DIRECTORY = /(?:^|\/)tests\//;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TYPESCRIPT = /\.[cm]?tsx?$/;
+// A comment a tool reads, so changing it can change what compiles, what is
+// linted or what counts as covered.
+const DIRECTIVE =
+  /@ts-|eslint-|prettier-|biome-|\b(?:v8|c8|istanbul) ignore\b|NOSONAR|@vitest-environment/;
+const TRIPLE_SLASH = /^\s*\/\/\//;
 
-// A blank line, a `//` line or the inside of a block comment, and not one a
-// tool reads. A line that opens or closes a block comment is not one, nor is
-// `///`: either can change what compiles.
-function isComment(line: string): boolean {
-  const text = line.trim();
-  if (text === "") return true;
+const printer = ts.createPrinter({ removeComments: true });
 
-  const marker = COMMENT_MARKER.exec(text);
-  if (marker === null || (text.startsWith("*") && text.includes("*/"))) return false;
-  return !DIRECTIVE.test(text.slice(marker[0].length));
+// The file as the compiler parses it, printed back without its comments.
+function code(path: string, text: string): string {
+  return printer.printFile(ts.createSourceFile(path, text, ts.ScriptTarget.Latest));
+}
+
+// Each directive with the line under it, which is the line most of them act on.
+function directives(text: string): string {
+  const lines = text.split("\n");
+  return lines
+    .flatMap((line, index) =>
+      DIRECTIVE.test(line) || TRIPLE_SLASH.test(line)
+        ? [`${line.trim()}\n${(lines[index + 1] ?? "").trim()}`]
+        : []
+    )
+    .join("\n");
+}
+
+function isTest(path: string): boolean {
+  return TEST_DIRECTORY.test(path) || TEST_FILE.test(path);
+}
+
+function everyPath({ path, previousPath }: Change): string[] {
+  return previousPath === undefined ? [path] : [path, previousPath];
 }
 
 /**
- * What a changed file is to the review gate: documentation, source whose
- * changed lines are all comments, or anything else. A test is always
- * "anything else", and so is a file whose diff cannot be read.
+ * Whether both sides of a changed file are worth reading to see if comments
+ * are all that changed: TypeScript source, modified in place, and not a test.
  *
  * decisions/559-sourcery-review-kind.md
  */
-export function changeKind({ path, patch }: Change): ChangeKind {
-  if (path.endsWith(".md")) return "documentation";
-  if (patch === undefined || path.startsWith("tests/") || !COMMENTED_SOURCE.test(path)) {
-    return "other";
-  }
+export function comparable({ path, status }: Change): boolean {
+  return status === "modified" && TYPESCRIPT.test(path) && !isTest(path);
+}
 
-  const changed = patch
-    .split("\n")
-    .filter((line) => line.startsWith("+") || line.startsWith("-"))
-    .map((line) => line.slice(1));
+/**
+ * What a changed file is to the review gate: documentation, source that
+ * parses to the same code with the same directives, or anything else. A test
+ * is always "anything else", and so is a file that came from one.
+ *
+ * decisions/559-sourcery-review-kind.md
+ */
+export function changeKind(change: Change): ChangeKind {
+  const paths = everyPath(change);
+  if (paths.some(isTest)) return "other";
+  if (paths.every((path) => path.endsWith(".md"))) return "documentation";
+  if (!comparable(change) || change.sources === undefined) return "other";
 
-  return changed.every(isComment) ? "comments" : "other";
+  const { before, after } = change.sources;
+  return code(change.path, before) === code(change.path, after) &&
+    directives(before) === directives(after)
+    ? "comments"
+    : "other";
 }
 
 /**
  * The files whose part in the pull request differs between its own diff
- * `before` a rebase and `after` it. No patch is carried over, so none of them
+ * `before` a rebase and `after` it. No source is carried over, so none of them
  * can count as comments only.
  *
  * decisions/559-sourcery-review-kind.md
  */
 export function rebasedChanges(before: readonly Change[], after: readonly Change[]): Change[] {
-  const was = new Map(before.map((change) => [change.path, change.patch]));
-  const now = new Map(after.map((change) => [change.path, change.patch]));
+  const was = new Map(before.map((change) => [change.path, change]));
+  const now = new Map(after.map((change) => [change.path, change]));
 
-  // A file with no patch on either side is unreadable, so it counts as changed.
-  const same = (path: string) => was.get(path) !== undefined && was.get(path) === now.get(path);
+  // A file with no patch is unreadable, so it counts as changed.
+  const same = (path: string) => {
+    const earlier = was.get(path);
+    const later = now.get(path);
+    return (
+      earlier !== undefined &&
+      later !== undefined &&
+      earlier.patch !== undefined &&
+      earlier.patch === later.patch &&
+      earlier.previousPath === later.previousPath
+    );
+  };
 
-  return [...new Set([...was.keys(), ...now.keys()])]
-    .filter((path) => !same(path))
-    .map((path) => ({ path }));
+  return [...new Map([...before, ...after].map((change) => [change.path, change])).values()]
+    .filter(({ path }) => !same(path))
+    .map(({ path, previousPath }) => ({ path, previousPath, patch: undefined, status: "rebased" }));
 }
 
 /**
- * The outcome for a head Sourcery wrote no review of: its check-run says
- * whether it declined, and why.
+ * What a head has when Sourcery wrote no review of it: its check-run says
+ * whether Sourcery declined, and why.
  *
  * decisions/559-sourcery-review-kind.md
  */
-export function withoutReview(check: CheckRun | undefined): Outcome {
-  if (check?.conclusion !== "skipped") return { kind: "nothing" };
-  return { kind: BUDGET_NOTICE.test(check.summary.trim()) ? "budget" : "skip" };
+export function withoutReview(check: CheckRun | undefined): "budget" | "skip" | "nothing" {
+  if (check?.conclusion !== "skipped") return "nothing";
+  return BUDGET_NOTICE.test(check.summary.trim()) ? "budget" : "skip";
 }
 
 /**
@@ -267,13 +345,15 @@ export function sufficient(outcome: Outcome): boolean {
 }
 
 /**
- * Whether a pull request is made only of paths Sourcery does not review. An
- * empty list is not such a pull request: it is one that could not be read.
+ * Whether a pull request is made only of paths Sourcery does not review,
+ * wherever each file was before. A list that is empty or cut short is not
+ * such a pull request: it is one that could not be read whole.
  *
  * decisions/559-sourcery-review-kind.md
  */
-export function unreviewable(paths: readonly string[]): boolean {
-  return paths.length > 0 && paths.every((path) => UNREVIEWABLE.includes(path));
+export function unreviewable({ complete, changes }: Comparison): boolean {
+  const paths = changes.flatMap(everyPath);
+  return complete && paths.length > 0 && paths.every((path) => UNREVIEWABLE.includes(path));
 }
 
 /**
@@ -296,17 +376,19 @@ const CHANGE_LABEL: Record<ChangeKind, string> = {
   other: "code, test or configuration",
 };
 
+function changeLine(change: Change): string {
+  const from = change.previousPath === undefined ? "" : ` (was ${change.previousPath})`;
+  return `  ${CHANGE_LABEL[changeKind(change)]}: ${change.path}${from}`;
+}
+
 function sinceLines(since: Since | undefined): string[] {
   if (since === undefined) return ["No full review came before it."];
 
   const rebased = since.rebased ? ", and the branch has been rebased since" : "";
-  const changes = since.changes.map(
-    (change) => `  ${CHANGE_LABEL[changeKind(change)]}: ${change.path}`
-  );
 
   return [
     `The last full review was of ${short(since.commit)}${rebased}. Changed since then:`,
-    ...(changes.length === 0 ? ["  nothing"] : changes),
+    ...(since.changes.length === 0 ? ["  nothing"] : since.changes.map(changeLine)),
     ...(since.complete
       ? []
       : [`  and possibly more: GitHub lists ${COMPARISON_FILE_LIMIT} files of a comparison`]),

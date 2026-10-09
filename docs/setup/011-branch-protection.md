@@ -71,8 +71,8 @@ Enable the following:
   difference matters: Sourcery reports `skipped` when it declines a review, and
   GitHub treats a skipped required check as satisfied. So a PR can show four
   green checks with no Sourcery review at all. `skills/open-pr.md` therefore
-  requires `npm run check:sourcery` to find a full review of the head commit
-  before handing off — that step, not the merge button, is what actually
+  requires `npm run check:sourcery` to pass for the head commit before handing
+  off — that step, not the merge button, is what actually
   enforces review here. See the note under Step 4.
 
   Raise it to 1 if the repo grows past two people. Note that
@@ -151,7 +151,7 @@ That distinction is the whole reason for the note below, because Sourcery
 reports exactly `skipped` when it declines a review. Only `ci.yml`'s three
 jobs, `Issue checkboxes` among them, and SonarCloud are genuinely gated by this
 rule; Sourcery's real gate is the head-commit check in `skills/open-pr.md`,
-which requires a full review of the head before handoff.
+which requires `npm run check:sourcery` to pass for the head before handoff.
 
 > **A required check cannot enforce the Sourcery gate.** GitHub's own
 > documentation is explicit: *"Required status checks must have a

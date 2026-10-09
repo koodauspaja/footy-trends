@@ -203,8 +203,13 @@ already, and #390 found two classes that had never been written down at all.
    "nothing": the script lists what changed since the last full review, and
    the block stands.
 
+   A full review of the head that someone dismissed does not count. The
+   script reads the head again before it answers, and refuses to answer if a
+   push arrived in between.
+
    To see how an earlier head stood, name it:
-   `npm run check:sourcery -- <PR> <commit>`.
+   `npm run check:sourcery -- <PR> <commit>`. The commit has to be one the
+   pull request still has, or one Sourcery reviewed.
 
    **The one exception: a diff with nothing in it for Sourcery to review.**
    Sourcery reviews source. A pull request that touches only dependency
@@ -419,7 +424,7 @@ Both halves have been seen to fail, on the same day:
 |---|---|---|
 | #212 | **A check with no review.** The check-run went green having reviewed nothing | Branch protection is satisfied and the PR merges unreviewed |
 | #229 | **A review with no check.** Sourcery reviewed and approved the head but posted no check-run | `Sourcery review` is a required check on `main`, so the PR sat `BLOCKED` indefinitely on a review that had already happened |
-| #552 | **A quick check read as a review.** The head had a green check-run and a review in state `APPROVED`, whose body was the bare `Approved` | The PR merged with a changed test that no full review had seen |
+| #552 | **A quick check read as a review.** The head had a green check-run and a review in state `APPROVED`, whose whole body was `### Sourcery assessment` and `**Approved.**` | The PR merged with a changed test that no full review had seen |
 
 The second needs an explicit `@sourcery-ai review` comment to make Sourcery
 report; waiting does not fix it. Treat a PR blocked on a missing Sourcery

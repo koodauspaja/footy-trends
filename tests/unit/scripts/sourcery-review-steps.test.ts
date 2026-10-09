@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  checkReview,
-  jsonReader,
-  type ReadJson,
-  runCheck,
-  startCheck,
-} from "../../../scripts/sourcery-review-steps";
+import type { ReadJson } from "../../../scripts/github-read";
+import { checkReview, runCheck, startCheck } from "../../../scripts/sourcery-review-steps";
 
 /**
  * The sequence behind `npm run check:sourcery`, with the reading injected so
@@ -29,19 +24,27 @@ const BUDGET =
 
 const NOT_ENOUGH = /^Not enough/;
 
+type File = { filename: string; status?: string; previous_filename?: string; patch?: string };
+
 type Stub = {
   pull?: number;
-  head?: string;
+  /** The commit whose check-runs are stubbed, when it is not the head. */
+  judged?: string;
   reviews?: unknown[];
   runs?: unknown[];
+  /** The commits the pull request is made of now. */
+  commits?: string[];
   /** Keyed `from...to`. */
-  comparisons?: Record<string, unknown>;
+  comparisons?: Record<string, { status: string; files?: File[] }>;
+  /** Keyed by the rest of the contents URL: `path?ref=commit`. */
+  contents?: Record<string, unknown>;
 };
 
-function sourcery(commit: string, body: string | null, submittedAt: string) {
+function sourcery(commit: string, body: string | null, submittedAt: string, state = "COMMENTED") {
   return {
     user: { login: "sourcery-ai[bot]" },
     commit_id: commit,
+    state,
     body,
     submitted_at: submittedAt,
   };
@@ -57,39 +60,56 @@ function run(conclusion: string | null, summary: string | null = "Completed", id
   };
 }
 
-function files(...entries: [path: string, patch?: string][]) {
-  return entries.map(([filename, patch]) =>
-    patch === undefined ? { filename } : { filename, patch }
-  );
+function modified(filename: string, patch = "+x"): File {
+  return { filename, status: "modified", patch };
+}
+
+function whole(text: string) {
+  return { encoding: "base64", content: Buffer.from(text).toString("base64") };
+}
+
+function answersFor({
+  pull = 552,
+  judged = HEAD,
+  reviews = [],
+  runs = [],
+  commits = [HEAD],
+  comparisons = {},
+  contents = {},
+}: Stub): Record<string, unknown> {
+  const answers: Record<string, unknown> = {
+    [`${ROOT}/pulls/${pull}`]: { head: { sha: HEAD }, base: { sha: BASE } },
+    [`${ROOT}/pulls/${pull}/reviews?per_page=100&page=1`]: reviews,
+    [`${ROOT}/pulls/${pull}/commits?per_page=100&page=1`]: commits.map((sha) => ({ sha })),
+    [`${ROOT}/commits/${judged}/check-runs?per_page=100&page=1`]: { check_runs: runs },
+  };
+  for (const [range, answer] of Object.entries(comparisons)) {
+    answers[`${ROOT}/compare/${range}`] = answer;
+  }
+  for (const [rest, answer] of Object.entries(contents)) {
+    answers[`${ROOT}/contents/${rest}`] = answer;
+  }
+  return answers;
 }
 
 // A reader over the answers a scenario has, failing loudly on anything else:
 // a path that is read without being stubbed is a request the check should not
 // have made.
-function reading({
-  pull = 552,
-  head = HEAD,
-  reviews = [],
-  runs = [],
-  comparisons = {},
-}: Stub): ReadJson {
-  const answers: Record<string, unknown> = {
-    [`${ROOT}/pulls/${pull}`]: { head: { sha: HEAD }, base: { sha: BASE } },
-    [`${ROOT}/pulls/${pull}/reviews?per_page=100&page=1`]: reviews,
-    [`${ROOT}/commits/${head}/check-runs?per_page=100`]: { check_runs: runs },
-  };
-  for (const [range, answer] of Object.entries(comparisons)) {
-    answers[`${ROOT}/compare/${range}`] = answer;
-  }
-
+function reading(stub: Stub): ReadJson {
+  const answers = answersFor(stub);
   return (path) =>
     path in answers
       ? Promise.resolve(answers[path])
       : Promise.reject(new Error(`nothing stubbed for ${path}`));
 }
 
-function check(stub: Stub, head?: string) {
-  return checkReview({ pull: stub.pull ?? 552, head, repository: REPOSITORY, read: reading(stub) });
+function check(stub: Stub, commit?: string) {
+  return checkReview({
+    pull: stub.pull ?? 552,
+    commit,
+    repository: REPOSITORY,
+    read: reading(stub),
+  });
 }
 
 function consoleSpy() {
@@ -101,6 +121,11 @@ function consoleSpy() {
     lines: { out, err },
   };
 }
+
+const QUICK_AFTER_FULL = [
+  sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z", "DISMISSED"),
+  sourcery(HEAD, QUICK, "2026-10-05T06:23:07Z", "APPROVED"),
+];
 
 describe("checkReview", () => {
   it("passes a head with a full review, and compares nothing", async () => {
@@ -117,20 +142,17 @@ describe("checkReview", () => {
 
   it("fails the quick check when a test changed after the full review", async () => {
     const result = await check({
-      reviews: [
-        sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z"),
-        sourcery(HEAD, QUICK, "2026-10-05T06:23:07Z"),
-      ],
+      reviews: QUICK_AFTER_FULL,
       runs: [run("success")],
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: {
           status: "ahead",
-          files: files(
-            ["docs/setup/011-branch-protection.md", "+a line"],
-            ["tests/unit/docs/setup-chain.test.ts", "+expect(1).toBe(1);"]
-          ),
+          files: [
+            modified("docs/setup/011-branch-protection.md"),
+            modified("tests/unit/docs/setup-chain.test.ts"),
+          ],
         },
-        [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["docs/infrastructure.md", "+x"]) },
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("docs/infrastructure.md")] },
       },
     });
 
@@ -145,44 +167,110 @@ describe("checkReview", () => {
     ]);
   });
 
-  it("passes the quick check when only a comment changed after the full review", async () => {
+  it("passes the quick check when only a comment changed, read from both sides of the file", async () => {
     const result = await check({
-      reviews: [
-        sourcery(REVIEWED, FOUND, "2026-10-05T08:22:00Z"),
-        sourcery(HEAD, QUICK, "2026-10-05T08:30:16Z"),
-      ],
+      reviews: QUICK_AFTER_FULL,
       runs: [run("success")],
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: {
           status: "ahead",
-          files: files(["src/lib/team-page-context.ts", "@@ -1 +1 @@\n-// before\n+// after"]),
+          files: [modified("src/app/team/[id]/page.tsx")],
         },
+      },
+      contents: {
+        [`src/app/team/%5Bid%5D/page.tsx?ref=${REVIEWED}`]: whole("// before\nexport const a = 1;"),
+        [`src/app/team/%5Bid%5D/page.tsx?ref=${HEAD}`]: whole("// after\nexport const a = 1;"),
       },
     });
 
     expect(result.passed).toBe(true);
-    expect(result.lines).toContain("  comments only: src/lib/team-page-context.ts");
+    expect(result.lines).toContain("  comments only: src/app/team/[id]/page.tsx");
   });
 
-  it("judges an earlier head when given one, without the reviews that came later", async () => {
-    const earlier = "304d479";
+  it("fails the quick check when the code under a comment changed with it", async () => {
+    const result = await check({
+      reviews: QUICK_AFTER_FULL,
+      comparisons: {
+        [`${REVIEWED}...${HEAD}`]: { status: "ahead", files: [modified("src/lib/form.ts")] },
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/lib/form.ts")] },
+      },
+      contents: {
+        [`src/lib/form.ts?ref=${REVIEWED}`]: whole("// before\nexport const a = 1;"),
+        [`src/lib/form.ts?ref=${HEAD}`]: whole("// after\nexport const a = 2;"),
+      },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines).toContain("  code, test or configuration: src/lib/form.ts");
+  });
+
+  it.each([
+    ["earlier", REVIEWED],
+    ["present", HEAD],
+  ])(
+    "fails the quick check when GitHub will not send the %s side of a file whole",
+    async (_name, missing) => {
+      const side = (commit: string) =>
+        commit === missing
+          ? { encoding: "none", content: "" }
+          : whole("// same\nexport const a = 1;");
+      const result = await check({
+        reviews: QUICK_AFTER_FULL,
+        comparisons: {
+          [`${REVIEWED}...${HEAD}`]: { status: "ahead", files: [modified("src/lib/form.ts")] },
+          [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/lib/form.ts")] },
+        },
+        contents: {
+          [`src/lib/form.ts?ref=${REVIEWED}`]: side(REVIEWED),
+          [`src/lib/form.ts?ref=${HEAD}`]: side(HEAD),
+        },
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.lines).toContain("  code, test or configuration: src/lib/form.ts");
+    }
+  );
+
+  it("fails the quick check when source was renamed to a documentation path", async () => {
+    const renamed = {
+      filename: "docs/form.md",
+      status: "renamed",
+      previous_filename: "src/lib/form.ts",
+    };
+    const result = await check({
+      reviews: QUICK_AFTER_FULL,
+      comparisons: {
+        [`${REVIEWED}...${HEAD}`]: { status: "ahead", files: [renamed] },
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: [renamed] },
+      },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines).toContain(
+      "  code, test or configuration: docs/form.md (was src/lib/form.ts)"
+    );
+  });
+
+  it("judges an earlier head by its abbreviation, without the reviews that came later", async () => {
+    const earlier = "304d479000000000000000000000000000000000";
     const result = await check(
       {
-        head: earlier,
+        judged: earlier,
         reviews: [
           sourcery("3890507000000000000000000000000000000000", BUDGET, "2026-10-05T09:23:29Z"),
-          sourcery("304d479000000000000000000000000000000000", QUICK, "2026-10-05T10:16:42Z"),
+          // Dismissed by the push after it, as an earlier head's review is.
+          sourcery(earlier, QUICK, "2026-10-05T10:16:42Z", "DISMISSED"),
           sourcery("ddcfb82000000000000000000000000000000000", FOUND, "2026-10-05T22:09:01Z"),
         ],
         runs: [run("success")],
         comparisons: {
           [`${BASE}...${earlier}`]: {
             status: "ahead",
-            files: files(["src/lib/team-panels.ts", "+x"]),
+            files: [modified("src/lib/team-panels.ts")],
           },
         },
       },
-      earlier
+      "304d479"
     );
 
     expect(result.passed).toBe(false);
@@ -194,25 +282,58 @@ describe("checkReview", () => {
     ]);
   });
 
+  it("finds a named commit among the pull request's own when Sourcery never reviewed it", async () => {
+    const result = await check(
+      {
+        judged: REVIEWED,
+        commits: [REVIEWED, HEAD],
+        comparisons: {
+          [`${BASE}...${REVIEWED}`]: { status: "ahead", files: [modified("src/a.ts")] },
+        },
+      },
+      "797ee79"
+    );
+
+    expect(result.lines[0]).toBe("#552 at 797ee79: nothing from Sourcery.");
+  });
+
+  it("refuses a named commit the pull request does not know, and asks GitHub nothing about it", async () => {
+    await expect(check({}, "abc1234")).rejects.toThrow("abc1234 names 0 of the commits");
+  });
+
+  it("does not count a full review of the head that someone dismissed", async () => {
+    const result = await check({
+      reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z", "DISMISSED")],
+      runs: [run("success")],
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.lines[0]).toBe("#552 at f4e9a2d: nothing from Sourcery.");
+  });
+
   it("compares the pull request with itself when the branch was rebased after the full review", async () => {
     const result = await check({
-      reviews: [
-        sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z"),
-        sourcery(HEAD, QUICK, "2026-10-05T06:23:07Z"),
-      ],
+      reviews: QUICK_AFTER_FULL,
       runs: [run("success")],
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: {
           status: "diverged",
-          files: files(["src/from-the-base-branch.ts", "+not this pull request's"]),
+          files: [modified("src/from-the-base-branch.ts", "+not this pull request's")],
         },
         [`${BASE}...${REVIEWED}`]: {
           status: "ahead",
-          files: files(["src/lib/form.ts", "+same"], ["docs/infrastructure.md", "+before"]),
+          files: [
+            modified("src/lib/form.ts", "+same"),
+            modified("docs/infrastructure.md", "+before"),
+          ],
         },
         [`${BASE}...${HEAD}`]: {
           status: "ahead",
-          files: files(["src/lib/form.ts", "+same"], ["docs/infrastructure.md", "+after"]),
+          files: [
+            modified("src/lib/form.ts", "+same"),
+            modified("docs/infrastructure.md", "+after"),
+          ],
         },
       },
     });
@@ -231,16 +352,10 @@ describe("checkReview", () => {
     ["earlier", "before"],
     ["present", "after"],
   ])("fails a rebased branch whose %s diff is too long to compare in full", async (_name, long) => {
-    const many = Array.from({ length: 300 }, (_, index) => ({
-      filename: `docs/${index}.md`,
-      patch: "+x",
-    }));
-    const few = files(["docs/0.md", "+x"]);
+    const many = Array.from({ length: 300 }, (_, index) => modified(`docs/${index}.md`));
+    const few = [modified("docs/0.md")];
     const result = await check({
-      reviews: [
-        sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z"),
-        sourcery(HEAD, QUICK, "2026-10-05T06:23:07Z"),
-      ],
+      reviews: QUICK_AFTER_FULL,
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: { status: "diverged", files: [] },
         [`${BASE}...${REVIEWED}`]: { status: "ahead", files: long === "before" ? many : few },
@@ -253,15 +368,9 @@ describe("checkReview", () => {
   });
 
   it("fails a comparison that reached GitHub's limit, though every listed file is a document", async () => {
-    const many = Array.from({ length: 300 }, (_, index) => ({
-      filename: `docs/${index}.md`,
-      patch: "+x",
-    }));
+    const many = Array.from({ length: 300 }, (_, index) => modified(`docs/${index}.md`));
     const result = await check({
-      reviews: [
-        sourcery(REVIEWED, FOUND, "2026-10-05T06:06:37Z"),
-        sourcery(HEAD, QUICK, "2026-10-05T06:23:07Z"),
-      ],
+      reviews: QUICK_AFTER_FULL,
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: { status: "ahead", files: many },
         [`${BASE}...${HEAD}`]: { status: "ahead", files: many },
@@ -275,9 +384,7 @@ describe("checkReview", () => {
     const result = await check({
       reviews: [sourcery(HEAD, BUDGET, "2026-10-05T09:23:29Z")],
       runs: [run("skipped", BUDGET)],
-      comparisons: {
-        [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["src/lib/form.ts", "+x"]) },
-      },
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
     });
 
     expect(result.passed).toBe(false);
@@ -291,9 +398,7 @@ describe("checkReview", () => {
   it("reports a budget notice that only the skipped check-run carries", async () => {
     const result = await check({
       runs: [run("skipped", BUDGET)],
-      comparisons: {
-        [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["src/lib/form.ts", "+x"]) },
-      },
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
     });
 
     expect(result.passed).toBe(false);
@@ -305,9 +410,7 @@ describe("checkReview", () => {
       reviews: [
         sourcery(HEAD, "Sorry, we are unable to review this pull request", "2026-09-14T09:00:00Z"),
       ],
-      comparisons: {
-        [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["src/lib/form.ts", "+x"]) },
-      },
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
     });
 
     expect(result.passed).toBe(false);
@@ -320,7 +423,7 @@ describe("checkReview", () => {
       comparisons: {
         [`${BASE}...${HEAD}`]: {
           status: "ahead",
-          files: files(["package.json", "+x"], ["docs/infrastructure.md", "+x"]),
+          files: [modified("package.json"), modified("docs/infrastructure.md")],
         },
       },
     });
@@ -339,13 +442,23 @@ describe("checkReview", () => {
       comparisons: {
         [`${BASE}...${HEAD}`]: {
           status: "ahead",
-          files: files(["package.json", "+x"], ["package-lock.json"]),
+          files: [modified("package.json"), { filename: "package-lock.json", status: "modified" }],
         },
       },
     });
 
     expect(result.passed).toBe(true);
     expect(result.lines.at(-1)).toMatch(/^Enough: every path in the pull request/);
+  });
+
+  it("fails a skip when the manifest is a file renamed from source", async () => {
+    const renamed = { filename: "package.json", status: "renamed", previous_filename: "src/a.ts" };
+    const result = await check({
+      runs: [run("skipped", "Skipped.")],
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [renamed] } },
+    });
+
+    expect(result.passed).toBe(false);
   });
 
   it("fails a head Sourcery wrote nothing about, and lists what changed since its full review", async () => {
@@ -355,12 +468,9 @@ describe("checkReview", () => {
       comparisons: {
         [`${REVIEWED}...${HEAD}`]: {
           status: "ahead",
-          files: files(["specs/037-blown-leads.md", "+x"]),
+          files: [modified("specs/037-blown-leads.md")],
         },
-        [`${BASE}...${HEAD}`]: {
-          status: "ahead",
-          files: files(["specs/037-blown-leads.md", "+x"]),
-        },
+        [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("specs/037-blown-leads.md")] },
       },
     });
 
@@ -401,24 +511,46 @@ describe("checkReview", () => {
     expect(result.lines[1]).toBe("Check-run: success.");
   });
 
-  it("reads every page of reviews, so a review past the first hundred still counts", async () => {
-    const replies = Array.from({ length: 100 }, () => ({
-      user: null,
-      commit_id: HEAD,
-      body: null,
-      submitted_at: "2026-10-05T07:00:00Z",
+  it("reads every page of check-runs, so Sourcery's run past the first hundred still counts", async () => {
+    const others = Array.from({ length: 100 }, (_, index) => ({
+      ...run("success", "Another app's", index + 1),
+      app: { slug: "github-actions" },
     }));
-    const answers: Record<string, unknown> = {
-      [`${ROOT}/pulls/552`]: { head: { sha: HEAD }, base: { sha: BASE } },
-      [`${ROOT}/pulls/552/reviews?per_page=100&page=1`]: replies,
-      [`${ROOT}/pulls/552/reviews?per_page=100&page=2`]: [
-        sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z"),
-      ],
-      [`${ROOT}/commits/${HEAD}/check-runs?per_page=100`]: { check_runs: [] },
+    const answers = answersFor({
+      reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z")],
+      runs: others,
+    });
+    answers[`${ROOT}/commits/${HEAD}/check-runs?per_page=100&page=2`] = {
+      check_runs: [run("skipped", "Skipped.", 500)],
     };
 
     const result = await checkReview({
       pull: 552,
+      commit: undefined,
+      repository: REPOSITORY,
+      read: (path) =>
+        path in answers ? Promise.resolve(answers[path]) : Promise.reject(new Error(path)),
+    });
+
+    expect(result.lines[1]).toBe("Check-run: skipped.");
+  });
+
+  it("reads every page of reviews, so a review past the first hundred still counts", async () => {
+    const replies = Array.from({ length: 100 }, () => ({
+      user: null,
+      commit_id: HEAD,
+      state: "COMMENTED",
+      body: null,
+      submitted_at: "2026-10-05T07:00:00Z",
+    }));
+    const answers = answersFor({ reviews: replies });
+    answers[`${ROOT}/pulls/552/reviews?per_page=100&page=2`] = [
+      sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z"),
+    ];
+
+    const result = await checkReview({
+      pull: 552,
+      commit: undefined,
       repository: REPOSITORY,
       read: (path) =>
         path in answers ? Promise.resolve(answers[path]) : Promise.reject(new Error(path)),
@@ -428,7 +560,7 @@ describe("checkReview", () => {
     expect(result.lines[0]).toBe("#552 at f4e9a2d: a full review.");
   });
 
-  it("refuses a review of the head it does not recognise, rather than calling it nothing", async () => {
+  it("refuses a review of the head it does not recognise, and does not call it nothing", async () => {
     const stub = {
       reviews: [
         sourcery(HEAD, "### Sourcery assessment\n\n**Changes requested.**", "2026-10-05T07:57:42Z"),
@@ -436,6 +568,21 @@ describe("checkReview", () => {
     };
 
     await expect(check(stub)).rejects.toThrow("It starts: ### Sourcery assessment");
+  });
+
+  it("refuses to report on a head that moved while it was being read", async () => {
+    const pushed = "0a1b2c3000000000000000000000000000000000";
+    const answers = answersFor({ reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z")] });
+    let reads = 0;
+    const read: ReadJson = (path) => {
+      if (path !== `${ROOT}/pulls/552`) return Promise.resolve(answers[path]);
+      reads += 1;
+      return Promise.resolve({ head: { sha: reads === 1 ? HEAD : pushed }, base: { sha: BASE } });
+    };
+
+    await expect(
+      checkReview({ pull: 552, commit: undefined, repository: REPOSITORY, read })
+    ).rejects.toThrow("its head moved from f4e9a2d to 0a1b2c3 while it was read");
   });
 });
 
@@ -449,7 +596,7 @@ describe("runCheck", () => {
   const failing = () =>
     reading({
       pull: 556,
-      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: files(["src/a.ts", "+x"]) } },
+      comparisons: { [`${BASE}...${HEAD}`]: { status: "ahead", files: [modified("src/a.ts")] } },
     });
 
   it("exits 0 and writes the report to stdout when the review is enough", async () => {
@@ -490,19 +637,22 @@ describe("runCheck", () => {
 
   it("judges the commit it is given in place of the head", async () => {
     const spy = consoleSpy();
-    const earlier = "304d479";
+    const earlier = "304d479000000000000000000000000000000000";
     const reader = () =>
       reading({
         pull: 558,
-        head: earlier,
-        reviews: [
-          sourcery("304d479000000000000000000000000000000000", FOUND, "2026-10-05T10:16:42Z"),
-        ],
+        judged: earlier,
+        reviews: [sourcery(earlier, FOUND, "2026-10-05T10:16:42Z")],
       });
 
-    expect(
-      await runCheck(["node", "script", "558", earlier], { GH_TOKEN: "token" }, spy, reader)
-    ).toBe(0);
+    const code = await runCheck(
+      ["node", "script", "558", "304d479"],
+      { GH_TOKEN: "token" },
+      spy,
+      reader
+    );
+
+    expect(code).toBe(0);
     expect(spy.lines.out[0]).toBe("#558 at 304d479: a full review.");
   });
 
@@ -518,10 +668,9 @@ describe("runCheck", () => {
   it("falls back to GITHUB_TOKEN when GH_TOKEN is exported but empty", async () => {
     const spy = consoleSpy();
     const reader = vi.fn(passing);
+    const env = { GH_TOKEN: "", GITHUB_TOKEN: "ci" };
 
-    expect(
-      await runCheck(["node", "script", "556"], { GH_TOKEN: "", GITHUB_TOKEN: "ci" }, spy, reader)
-    ).toBe(0);
+    expect(await runCheck(["node", "script", "556"], env, spy, reader)).toBe(0);
     expect(reader).toHaveBeenCalledWith("ci");
   });
 
@@ -532,13 +681,9 @@ describe("runCheck", () => {
       paths.push(path);
       return Promise.reject(new Error("stop here"));
     };
+    const env = { GH_TOKEN: "token", GITHUB_REPOSITORY: "someone/fork" };
 
-    await runCheck(
-      ["node", "script", "7"],
-      { GH_TOKEN: "token", GITHUB_REPOSITORY: "someone/fork" },
-      spy,
-      reader
-    );
+    await runCheck(["node", "script", "7"], env, spy, reader);
 
     expect(paths).toEqual(["/repos/someone/fork/pulls/7"]);
   });
@@ -551,37 +696,6 @@ describe("runCheck", () => {
     expect(spy.lines.err).toEqual([
       "Could not read Sourcery's review of #556: GitHub answered 403 for /repos/x",
     ]);
-  });
-});
-
-describe("jsonReader", () => {
-  it("asks GitHub for the path, with the token and the version header", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify({ status: "ahead" }), { status: 200 }));
-
-    expect(await jsonReader("token")("/repos/x/compare/a...b")).toEqual({ status: "ahead" });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "https://api.github.com/repos/x/compare/a...b",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer token",
-          "X-GitHub-Api-Version": "2022-11-28",
-        }),
-      })
-    );
-    fetchSpy.mockRestore();
-  });
-
-  it("throws with the status, so a commit GitHub no longer has is not an empty comparison", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("", { status: 404 }));
-
-    await expect(jsonReader("token")("/repos/x/compare/a...b")).rejects.toThrow(
-      "GitHub answered 404 for /repos/x/compare/a...b"
-    );
-    fetchSpy.mockRestore();
   });
 });
 
@@ -608,17 +722,13 @@ describe("startCheck", () => {
       return true;
     });
     const argv = vi.spyOn(process, "argv", "get").mockReturnValue(["node", "script", "556"]);
-    const answers = [
-      { head: { sha: HEAD }, base: { sha: BASE } },
-      [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z")],
-      { check_runs: [] },
-    ];
+    const answers = answersFor({
+      pull: 556,
+      reviews: [sourcery(HEAD, FOUND, "2026-10-05T07:57:42Z")],
+    });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-      const path = String(url);
-      let answer = answers[0];
-      if (path.includes("/reviews")) answer = answers[1];
-      if (path.includes("/check-runs")) answer = answers[2];
-      return Promise.resolve(new Response(JSON.stringify(answer), { status: 200 }));
+      const path = String(url).replace("https://api.github.com", "");
+      return Promise.resolve(new Response(JSON.stringify(answers[path]), { status: 200 }));
     });
     const previous = process.env.GH_TOKEN;
     process.env.GH_TOKEN = "token";

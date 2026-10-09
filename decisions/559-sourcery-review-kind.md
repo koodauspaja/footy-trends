@@ -58,24 +58,23 @@ is the case: one commit after the full review reworded a comment.
 
 | A changed file is | When |
 |---|---|
-| documentation | its path ends `.md` |
-| comments only | script source outside `tests/`, with every added or removed line blank, a `//` line, or the inside of a block comment |
-| anything else | every other file, every test, and a file GitHub sends no diff for |
+| documentation | its path ends `.md`, and so did the path it was renamed from, if any |
+| comments only | TypeScript source modified in place, whose two sides parse to the same code and carry the same directives |
+| anything else | every other file; every file under a `tests/` directory or named `.test.` or `.spec.`, Markdown included; a file renamed from one; and a file GitHub will not send whole |
 
-Three refusals inside "comments only", each because the line can change what
-runs:
+"The same code" is the TypeScript compiler's parse of each side, printed back
+without comments, and the two compared. The script reads the whole file at the
+reviewed commit and at the head for that, and only for files that could
+qualify. A directive is a comment a tool reads: `@ts-expect-error`, a linter,
+formatter or coverage instruction, `NOSONAR`, `@vitest-environment`, a
+triple-slash reference. Each is compared together with the line under it, so
+one that is added, removed, reworded or moved counts as a change.
 
-- a line that opens or closes a block comment, which can turn the code beside
-  it into a comment;
-- a comment a tool reads: `@ts-expect-error`, a linter or coverage directive,
-  a docblock tag such as `@vitest-environment`;
-- any file under `tests/`. A test fixture can hold a line that starts `//`
-  inside a template string, and `tests/unit/scripts/comment-rules.test.ts`
-  holds many.
-
-The same hole is left open in script source outside `tests/`: a line that
-starts `//` or `* ` inside a template string or JSX text there counts as a
-comment.
+The first version judged a diff's changed lines by how they start. That reads
+a multiplication carried onto a line beginning `* `, and a `//` line inside a
+template string or between JSX tags, as comments. Sourcery's review found it,
+and patching the prefixes would have left the next case to be found the same
+way.
 
 ## A rebase since the full review
 
@@ -87,11 +86,12 @@ its own diff at the head, file by file. A file whose part is the same on both
 sides did not change; one that differs counts as changed, as documentation or
 as anything else, since no patch of the difference exists to read for
 comments. A rebase that moves a hunk's line numbers makes the two differ, and
-that errs towards asking for a review.
+that errs towards asking for a review. A file's earlier path is part of what
+is compared, so a rename counts.
 
 GitHub lists at most 300 files of a comparison and does not say when it stops.
-A list that long is treated as incomplete, and the quick check is then not
-enough.
+A list that long is treated as incomplete: the quick check is then not
+enough, and neither is the exemption for unreviewable paths.
 
 ## Nothing, beside a green check-run, stays a block
 
@@ -106,6 +106,35 @@ When a commit is named in place of the head and Sourcery wrote nothing about
 it, every full review on the pull request is a candidate for "the last one",
 including one written later. For a head Sourcery did write about, only earlier
 reviews count.
+
+## A dismissed review, and a head that moves
+
+A push dismisses the reviews of the commit before it, so `DISMISSED` on an
+earlier commit says nothing: #557's full review of `5bee97a` is in that state.
+On the present head it can only be a person's doing, and a full review they
+dismissed is not counted. A named earlier commit keeps its dismissed reviews,
+or #558 at `304d479` could not be read as it stood.
+
+The script reads the head first and the reviews after, so a push in between
+would leave it reporting on the commit before. It reads the head again at the
+end and refuses to answer when the two differ.
+
+## A named commit is looked up, not sent
+
+The optional commit is matched against the commits GitHub lists for the pull
+request and the ones Sourcery reviewed, and the whole id found there is what
+goes into a request. A commit rebased away that Sourcery never reviewed cannot
+be named. What was typed therefore never reaches a URL, which is also what
+Sonar's gate failed the first push for (`tssecurity:S8476`,
+`tssecurity:S7044`): a hex pattern is not a sanitiser to its taint analysis.
+Abbreviations are resolved once, so every later comparison is of whole ids.
+
+## What the two checks share
+
+`scripts/github-read.ts` holds the reader, the paging and the turning of a
+verdict into output and an exit code, for this check and `check:boxes`. The
+first push copied the last twenty lines of `scripts/issue-boxes-steps.ts`, and
+Sonar counted them. Reviews, commits and check-runs are all read page by page.
 
 ## The unreviewable paths moved into the script
 
@@ -133,6 +162,17 @@ that stays visibly empty until both were run on the diff as pushed, with what
 they changed written on the line. `npm run check:boxes` reads the issue's
 boxes and not the pull request's own; making it read this one is a separate
 change.
+
+## What the first push got wrong
+
+Sourcery's first review found nine things and Sonar's gate failed, after the
+author's own pass and a `code-review` run. The comment detection was the
+largest: three reviews in a row found a new way to fool a rule about how a
+line starts, and the answer was to stop reading prefixes. The rest were a
+dismissed review counted, a head that could move, a rename read as
+documentation, Markdown under `tests/` read as documentation, one page of
+check-runs, and three sentences in the documents that disagreed with the
+script.
 
 ## Not done
 

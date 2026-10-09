@@ -130,8 +130,9 @@ A full review's body starts `Hey - I've reviewed your changes` or
 `Hey - I've found N issues`. Nothing else tells the two apart: a full review
 that found nothing has the same state, and the `commit_id` and the check-run
 read the same for both. So `APPROVED` on the
-head is the outcome of the lighter reaction above, and not a review of the
-lines the push changed. A push can also get a green check-run and nothing on
+head does not say which of the two it is; only the body does. The quick check
+is the outcome of the lighter reaction above, and not a review of the lines
+the push changed. A push can also get a green check-run and nothing on
 the reviews API (#558 `c67b89c`).
 
 `npm run check:sourcery -- <PR>` says which of these the head has. To get a
