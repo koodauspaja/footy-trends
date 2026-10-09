@@ -12,10 +12,20 @@ import {
 import type { NormalizedTasoMatch } from "./taso";
 import { getSeasonCategoryNameMap, getSeasonMatchList } from "./taso-standings-service";
 
-/** A match plus the name of the competition it belonged to, which the row shows. */
+/**
+ * A match plus the name of the competition it belonged to, which the row shows.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export type NationalTeamMatch = NormalizedTasoMatch & { competitionName: string };
 
-/** One calendar year's matches, chronological. Only years with matches become sections. */
+/**
+ * One calendar year's matches, chronological. Only years with matches become sections.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
 export type NationalTeamYear = { year: number; matches: NationalTeamMatch[] };
 
 export type NationalTeamResult =
@@ -25,25 +35,12 @@ export type NationalTeamResult =
   | { status: "error" };
 
 /**
- * One provider bucket's Finland matches, or `null` if the bucket cannot be
- * served at all.
+ * One provider bucket's Finland matches, not yet grouped by year, or `null` if
+ * the bucket cannot be served at all. An empty list is a normal answer.
  *
- * `null` rather than an empty list precisely because the two must not be
- * confused: an empty category is normal — thirteen of Helmarit's return no
- * rows at all, and two more hold only other teams' matches — while a category
- * that cannot be read has to reach the reader as an error. A year quietly missing from a page that shows all of them is
- * invisible — nothing on screen would say which one went absent.
- *
- * "Cannot be served at all" is the exact bar, and it is lower than it sounds.
- * `getSeasonMatchList` answers `ok` with stored rows when a refresh fails, so
- * a TASO outage serves the database's copy rather than an error, and only a
- * category with nothing stored *and* a failed refresh reaches `null`. That is
- * the app-wide behaviour and it is right here: every year but the current one
- * is a finished season whose stored rows are complete, so "stale" has no
- * meaning for them. Only the current year can lag, by one refresh interval.
- *
- * The returned matches are not yet grouped: which year each belongs to is
- * decided by its own date, not by this bucket's nominal season.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/041-national-team-analytics.md
  */
 async function loadSeason(
   team: NationalTeam,
@@ -94,9 +91,8 @@ async function loadSeason(
     // Names are normalised before the filter, not after, so a row can never be
     // matched on one spelling and displayed as another.
     for (const match of toFinnishTasoTeamNames(result.matches)) {
-      // `normalizeFinlandId` runs here and nowhere else: this is the one place
-      // that has already worked out which side Finland is, and the analytics
-      // functions all key on an id (specs/041, S1 and S2).
+      // `normalizeFinlandId` runs here and nowhere else: this is the one place that
+      // has already worked out which side Finland is.
       if (isFinlandMatch(match)) {
         matches.push({ ...normalizeFinlandId(match), competitionName });
       }
@@ -108,22 +104,11 @@ async function loadSeason(
 
 /**
  * Every year on one team's page, newest first, each one's matches
- * chronological.
+ * chronological. A bucket that fails is left out and `incomplete` says so;
+ * only a page with nothing to show is an error.
  *
- * Buckets load in parallel and are then regrouped by the year each match was
- * actually played in, because a bucket is not a calendar year — `maajp18`
- * holds three years of Huuhkajat matches and four of Helmarit's.
- *
- * A bucket that fails no longer takes the page with it. The first version
- * failed the whole page on any failure, reasoning that a year missing from a
- * page showing every year leaves no gap a reader could notice. Production
- * proved the trade wrong: this page issues up to 28 queries where every other
- * issues one, so a single transient failure blanked eight years of history
- * (#180).
- *
- * What loaded is rendered, and `incomplete` tells the page to say so — which
- * has no silent hole either. Only a page with nothing to show at all is an
- * error.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 export async function getNationalTeamYears(team: NationalTeam): Promise<NationalTeamResult> {
   const loaded = await Promise.all(

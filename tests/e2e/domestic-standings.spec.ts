@@ -1,5 +1,16 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * Veikkausliiga's standings page, end to end: split seasons and their round
+ * numbering against live data, and how a group renders against the seeded
+ * season.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/133-split-group-round-numbering.md
+ * decisions/304-test-database.md
+ */
+
 test.describe("Domestic standings page (Veikkausliiga)", () => {
   test("loads the standings table for the default (current) season", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko");
@@ -43,19 +54,9 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     await expect(rows.nth(5)).toContainText("33");
   });
 
-  /**
-   * The rendering rules, against the seeded season rather than a real one
-   * (#304).
-   *
-   * These used to assert on 2019, 2022, 2023 and 2024, and passed only on a
-   * database synced before #272 — TASO omitted `points` for a knockout group
-   * through the endpoint the app read then, so those groups classified as match
-   * lists. `getCategory` sends points for them, so no live season produces this
-   * shape any more and the assertions were describing a provider outage.
-   *
-   * Seeded, they also cost nothing: a completed season with stored rows is
-   * never refetched, so this page makes no provider request at all.
-   */
+  // The rendering rules, against the seeded season: no live season produces a
+  // knockout group without points. Seeded, the page also makes no provider
+  // request, because a completed season with stored rows is never refetched.
   test("renders a league group as a table and a knockout group as its matches", async ({
     page,
   }) => {
@@ -83,12 +84,8 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
   test("a knockout group renders its matches, with no standings columns", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2017");
 
-    /**
-     * Located by heading rather than by `nth()`. The old assertions indexed
-     * tables positionally, so a season with one group more or fewer silently
-     * retargeted them — which is exactly how they came to assert the wrong
-     * thing without anyone noticing.
-     */
+    // Located by heading, not by `nth()`: a season with one group more or fewer
+    // would silently retarget a positional index.
     const knockout = page
       .getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 })
       .locator("xpath=following::table[1]");
@@ -119,13 +116,13 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2017");
 
     // The bracket is built from the groups that render as match lists, so it
-    // appears exactly when one does — see specs/010-playoff-group-match-list.md.
+    // appears exactly when one does.
     await expect(page.getByRole("heading", { name: "Pudotuspelit", level: 2 })).toBeVisible();
 
     expect(consoleErrors.filter((text) => text.includes("same key"))).toEqual([]);
   });
 
-  test("a restarted-numbering season's round filter counts one stage, not two (#133)", async ({
+  test("a restarted-numbering season's round filter counts one stage, not two", async ({
     page,
   }) => {
     // The issue's repro, against live data. 2022's split groups restart at
@@ -144,7 +141,7 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     expect(played.map(Number)).toEqual([5, 5, 5, 5, 5, 5]);
   });
 
-  test("a restarted-numbering season's split rounds are reachable in the selector (#133)", async ({
+  test("a restarted-numbering season's split rounds are reachable in the selector", async ({
     page,
   }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2022");
@@ -157,8 +154,7 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     );
     const rounds = values.map(Number).filter((round) => Number.isInteger(round) && round > 0);
 
-    // Previously capped at Runkosarja's 22, leaving the split groups' own
-    // rounds unselectable.
+    // Above Runkosarja's 22: the split groups' own rounds are selectable too.
     expect(Math.max(...rounds)).toBeGreaterThan(22);
   });
 

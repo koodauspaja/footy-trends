@@ -12,7 +12,11 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
 
 export type ActionResult = { ok: true } | { ok: false };
 
-/** Empty string from a `<select>` means "no preference", which is a real value. */
+/**
+ * Empty string from a `<select>` means "no preference", which is a real value.
+ *
+ * decisions/024-account-settings.md
+ */
 function orNull(value: FormDataEntryValue | null): string | null {
   const text = typeof value === "string" ? value.trim() : "";
   return text === "" ? null : text;
@@ -34,11 +38,9 @@ export async function saveSettings(formData: FormData): Promise<ActionResult> {
   };
 
   try {
-    // Inside the `try`, not before it: resolving the session reads request
-    // headers and hits the database, and a failure there would reject the
-    // server action rather than returning `{ ok: false }`. The client awaits
-    // this and has no rejection handler, so the reader would be left with a
-    // form that silently did nothing instead of the promised Finnish notice.
+    // Inside the `try`, not before it: resolving the session can fail, and a
+    // rejected action would leave the client, which has no rejection handler,
+    // with a form that silently did nothing.
     const userId = await currentUserId();
     if (userId === null) return { ok: false };
 
@@ -74,6 +76,8 @@ export async function signOutOtherDevices(): Promise<ActionResult> {
  * Deletes the account. `user_preferences`, `session` and `account` cascade away
  * with the `user` row, so there is no half-deleted state to clean up — the
  * cascades are one transaction.
+ *
+ * decisions/024-account-settings.md
  */
 export async function deleteAccount(confirmation: string): Promise<ActionResult> {
   // Belt and braces: the button is disabled until this matches, but a form can
@@ -90,13 +94,10 @@ export async function deleteAccount(confirmation: string): Promise<ActionResult>
 }
 
 /**
- * The reader's stored row for the settings page.
+ * The reader's stored row for the settings page: the row, `null` for a reader
+ * who has never saved, or `"error"` when the lookup failed.
  *
- * Three outcomes, deliberately distinguished: the row, `null` for a reader who
- * has never saved, and `"error"` when the lookup failed. Collapsing the last
- * two would show a reader their preferences reset to defaults and let them
- * overwrite the real ones with a save — losing settings because a query
- * briefly failed. See specs/024-account-settings.md.
+ * decisions/024-account-settings.md
  */
 export async function currentPreferencesRow() {
   try {

@@ -7,16 +7,13 @@ import { getPreferencesFor, getSessionExtrasFor } from "@/lib/preferences";
 import { saveSettings } from "@/lib/settings-actions";
 
 /**
- * The write path and the read path, against a real Postgres.
+ * The settings' write path and read path together, against a real Postgres:
+ * what `saveSettings` writes is what the pages later read. Only the session is
+ * mocked.
  *
- * Everything else tests one or the other in isolation: the action with a mocked
- * database, the resolvers with mocked preferences. Nothing proved the two agree
- * — that what `saveSettings` writes is what the pages later read. A column
- * mapped to the wrong region, or a value stored in a shape the reader cannot
- * parse, would pass every other test in the suite.
- *
- * Only the session is mocked, because a real one needs a Google sign-in.
+ * decisions/024-account-settings.md
  */
+
 const USER_ID = "itest-actions-user";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));

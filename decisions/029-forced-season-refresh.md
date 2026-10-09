@@ -448,3 +448,297 @@ something this work may touch, and it had not had the migration applied anyway.
   and operator.
 
 Every fixture was removed afterwards and the run log left empty.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/force-refresh.ts` at `55a14fc` by #531.
+
+- **Module.** The two steps are all that stands between a truncated provider
+  answer and a deleted season: nothing in a partial answer tells it from a
+  season that lost fixtures, so a person looks at the removals.
+- **`listSeasonsFor`.** New seasons come through the ordinary sync. Per
+  competition, as resolving ten at once would turn a cold Redis into ten
+  requests against a rate-limited plan. `resolveTasoSeasonContext` would have
+  written rows on a mere preview (found in review).
+- **`storedSeasonsFor`.** A second copy of "what do we hold" is how the ceiling
+  and the season list once disagreed.
+- **`cacheKeysFor`.** `taso:season-context`, `taso:categories` and
+  `football-data:competition` stay. A key spelled out twice changes in one place,
+  and the refetch then silently answers from the cache it meant to bypass.
+- **`compare`.** Run twice so a stale bounce shows the rows there now. It was
+  two functions, and each seam cost a review round. An `&&` across the tables
+  would let matches-without-standings destroy a finished season's standings.
+- **`snapshotHashOf`.** Hashing the provider alone would accept an approval
+  built on rows that are gone, removing matches the admin never saw.
+- **`computeDiff`.** The writer is shared with the ordinary sync, where deleting
+  a dropped team is right. Within the fifteen-minute window the apply reads the
+  same bytes; past it, a changed answer becomes a refusal. A server action's
+  throw reaches the client as a generic error, hence `"read"`.
+- **`writeSnapshot`.** `synchronizeGroupTeams` deleting first is right here: it
+  runs only on a non-empty, approved answer. Removal by id, never a predicate
+  over the season, which would widen with the next row. Without `tx` a group
+  replacement could commit and a later delete fail (found in review).
+  Serializable as in `scripts/grant-admin-run.ts`: a few runs a year cost
+  nothing against overwriting someone's correction.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`tasoMatchesCacheKey`, `tasoCategoryCacheKey`.** Exported because the forced
+  refresh has to delete exactly these keys to reach TASO. Spelled out in two
+  places, a changed key would silently stop the refresh clearing anything, and
+  the refetch would answer out of the cache it meant to bypass.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`storedTasoSeasons`.** A season holds group standings without matches when
+  a competition's fixtures were never synced but its published table was, or
+  its matches were pruned. Reading only `taso_matches` made this the single
+  source of truth for "seasons we have" in name only.
+- **`newestStoredSeason`.** Derived from `storedTasoSeasons`, so "what do we
+  hold" is answered one way. It read `taso_matches` alone before, so a
+  competition held only as group standings looked unstored, and with discovery
+  unavailable its ceiling fell below its own data.
+- **`resolveTasoSeasonCeiling`.** Split out of `resolveTasoSeasonContext`, which
+  needs the same numbers and then probes by synchronizing the current season,
+  which writes. The forced refresh needs a range to validate against and must
+  not write before an admin has approved a diff. Extracted, not reimplemented:
+  two copies of the floor clamp would drift, and a drifted ceiling offers a
+  season the competition never had.
+- **The floor in `resolveTasoSeasonCeiling`.** Without it, a discovery failure
+  with nothing stored would put Ykkösliiga's ceiling at 2015, below its 2024
+  floor; `listSelectableTasoSeasons` counts down from the ceiling to the floor,
+  so the selector would come back empty. Discovery is competition-agnostic but
+  the stored fallback is not, so the cache key is scoped to the competition.
+- **`synchronizeGroupTeams`' `executor`.** Defaults to opening its own
+  transaction, which is what every caller before the forced refresh did.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`refreshRuns`.** A forced refresh is run a handful of times a year, by an
+  admin, against a season whose data turned out wrong, so its questions are
+  asked months apart ("when did we last refresh this, and did it work?") by
+  someone who cannot be expected to remember. What an admin approved and what
+  is recorded are the same numbers by construction.
+- **`refresh_runs.source`.** `text` and not an enum, for the reason recorded
+  for `user.role`; the set is validated in `refresh-view.ts`.
+- **`refresh_runs.season_label`.** `2016` for a Finnish season, `2025/26` for a
+  foreign one that spans two calendar years. Deriving it later would mean a
+  provider call per row. Where it is null the list falls back to the season
+  id.
+- **`refresh_runs.run_by`.** The only user reference in the schema that does
+  not cascade. The row then renders as `Poistettu käyttäjä`. The admin-tools
+  feature relies on cascade so that one `DELETE` removes everything a reader
+  owns; a log of operations performed on the app is not something a reader
+  owns, so this is not a hole in that.
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **`footballDataMatchesCacheKey`.** Exported for the same reason as its TASO
+  counterpart: the forced refresh deletes exactly this key to reach the
+  provider, and a key spelled out in two places would let a change silently
+  stop that.
+
+Cut from `src/lib/refresh-view.ts` at `94397a8` by #531.
+
+- **`refresh-view.ts`.** `refresh-form.tsx` and `refresh-confirm.tsx` are
+  browser bundles, and the modules that do the work (`refresh-diff.ts`,
+  `force-refresh.ts`, `refresh-runs.ts`) must not travel with them: the
+  boundary `admin-user-view.ts` and `favourite-keys.ts` exist for.
+- **`CHOICE_SEPARATOR`.** One control and not a provider radio plus a
+  competition list: which provider a competition belongs to is a fact about
+  the competition, not a question to put to an admin. Both registries use
+  upper-case letters and digits, so `:` is safe.
+- **`decodeChoice`.** It stays client-safe so the form can use it too; the
+  registries live with the caller.
+- **`DeductionChange`.** The field the feature exists for.
+- **`RemovedMatch`.** A removal is the only irreversible thing the tool does,
+  and a number alone is not enough to judge it by, given that a provider can
+  answer partially.
+- **`RefreshPreview.snapshotHash`.** It makes "what you saw is what you
+  applied" a checked fact and not an assumption about timing.
+- **`previewHasChanges`.** Deductions are named although a moved
+  `starting_points` also moves the group row's `updated` count, so that
+  clause is unreachable as the diff works today. The predicate decides
+  whether the admin is offered a `Päivitä` button, and the dialog lists
+  deductions separately: leaving them out would make the button's condition
+  and the dialog's contents two ideas of "something changed", free to drift
+  when the diff does.
+
+Cut from `src/lib/refresh-diff.ts` at `ef7eb13` by #531.
+
+- **`refresh-diff.ts`.** Pure and separate from `force-refresh.ts` because it
+  is both what the confirmation dialog shows an admin and what the run log
+  records: computed once, what was approved and what is recorded are the same
+  numbers by construction.
+- **`valuesDiffer`.** Two `Date` objects for the same instant are never `===`,
+  so without their own case every match would read as changed on every run
+  and the confirmation dialog would be worthless.
+- **`rowChanged`.** Driven by the provider row's keys and not a hand-written
+  column list. Both normalized provider types mirror their table's columns
+  exactly, which is what lets a selected row satisfy the provider type
+  structurally, so the provider row's keys are the columns the upsert writes.
+  A hand-written list would be a second thing to keep true, and the column
+  it missed would be a change the admin was never shown.
+- **`groupTeamKey`.** There is no provider-side row id to key on.
+- **`byCodeUnit`.** `localeCompare` answers by the runtime's locale data, so
+  two machines, or one machine after an ICU upgrade, could order the same keys
+  differently and hash the same rows to different digests. The apply would
+  then refuse a diff nobody had changed, as `"stale"`, and re-previewing would
+  not help. Where the repository sorts for display it uses `localeCompare`
+  with a locale.
+- **`snapshotHash`.** The apply recomputes it and refuses when it no longer
+  matches, so an admin can never approve one diff and have another applied.
+  The provider is under no obligation to keep a row order. Each group is
+  length-prefixed and hashed separately, so matches and group teams cannot be
+  swapped for each other.
+
+Cut from `src/components/refresh-form.tsx` at `ef7eb13` by #531.
+
+- **`refresh-form.tsx`.** A client component because every control is
+  interactive and the apply asks first. The engine must not travel in a
+  browser bundle: the boundary `admin-user-view.ts` and `favourite-keys.ts`
+  exist for.
+- **`requestId`.** Without it a slow preview could put one competition's diff
+  on screen while the buttons beneath it act on another, and the whole
+  feature rests on the diff an admin sees being the one they approve.
+- **`abandonInFlight`.** `useCallback` with no dependencies: a function
+  rebuilt each render would restart the effect that lists it every render,
+  refetching the season list continuously.
+- **The season list.** There are ten foreign competitions, so resolving them
+  all on mount would turn a cold cache into ten requests against a
+  rate-limited plan.
+- **`run`.** A server action can reject where it could return a refusal, on a
+  dropped connection or an exception the engine did not convert, and
+  `void action()` alone would swallow that, leaving the form pending with no
+  notice and no way forward. `startTransition` tracks only what its callback
+  does before returning, so firing the request and returning at once drops
+  `pending` to false while the server action is still running.
+- **`chosenSeason`.** A guard the disabled button makes unreachable is a
+  branch no test can reach and no reader can justify.
+
+Cut from `src/lib/refresh-runs.ts` at `ef7eb13` by #531.
+
+- **`refresh-runs.ts`.** A forced refresh happens a handful of times a year,
+  so its questions are asked months apart by someone with no memory of the
+  event: when did we last refresh this, did it work, and what did it move?
+- **`recordSuccess`.** A refresh that succeeded has already changed the
+  database, and losing the note of it is no reason to tell an admin their
+  change failed: the one place in the feature where swallowing is right.
+- **`recordFailure`.** A submission naming a competition or season the app
+  does not have is a malformed request, not an event that happened to the
+  data; a stale bounce is the apply working as intended, and the admin is
+  about to see the fresh diff and decide again. Recording either would fill
+  the log with noise nobody can act on.
+- **`groupCountsFrom`.** A foreign competition stores null in all three
+  columns because it has no group standings. Null means "this table does not
+  exist for this provider"; three zeroes would claim nothing changed.
+- **`listRuns`.** The table gains a handful of rows a year, and a list that
+  needed paging would itself be the finding. A deleted admin's run has
+  `run_by` null, which is what `on delete set null` on the column is for.
+  Guessing which provider a hand-edited row meant would put a wrong
+  competition name in an audit log. Deriving the season label on read would
+  mean a provider call per row just to learn whether a foreign season spans
+  two calendar years, so a run would read `2025` where the picker says
+  `2025/26`.
+
+Cut from `src/db/index.ts` at `dc74e3e` by #531.
+
+- **`Executor`.** Without the parameter a writer silently commits on its own
+  connection while its caller believes it is inside a transaction, which is
+  what `force-refresh.ts` believed, and did not have, until review said so.
+
+Cut from `src/app/admin/data/page.tsx` at `ef99862` by #531.
+
+- **The refusal on `/yllapito/data`.** A 403 says "this exists and you may
+  not have it", a fact a stranger has no use for. The 200 is a framework
+  limit and not a choice: `src/app/loading.tsx` puts every segment behind a
+  Suspense boundary, so Next commits the status line before `notFound()` is
+  caught. The body gives nothing away, and `requireAdmin()` refuses here
+  and, separately, inside all three actions.
+- **A failed read of the run log.** Saying nothing has ever been refreshed
+  is a claim we cannot make from a database error, and the page exists
+  partly so an admin can trust that list.
+
+Cut from `src/lib/refresh-actions.ts` at `ef99862` by #531.
+
+- **`refresh-actions.ts`.** A server action is a public network endpoint
+  whether or not anything renders a control for it, so neither the missing
+  link nor the page's not-found response keeps a caller out; only the gate
+  does. The same rule `admin-actions.ts` and `favourite-actions.ts` follow.
+  The competition arrives as the `<select>`'s own encoded value, a string
+  from the browser like any other: `decodeChoice` checks its shape and
+  `isKnownCompetition` checks it against the registries, and a value failing
+  either is refused before it reaches the engine.
+- **`applyRefreshAction`.** The hash only answers "is this still the thing
+  you were shown".
+- **Revalidating after an apply.** Without it the row just written stays
+  invisible until the admin reloads: an audit log that does not show the
+  thing that was audited. Revalidating for a refusal would re-render the
+  page to prove nothing changed.
+
+Cut from `src/components/refresh-confirm.tsx` at `ef99862` by #531.
+
+- **`refresh-confirm.tsx`.** A truncated provider answer is
+  indistinguishable from a season that genuinely lost fixtures: nothing in
+  the response separates them, so nothing in the code can. What separates
+  them is a person seeing `Poistuvia otteluita: 180` and declining. A number
+  is not enough to judge a deletion by, and deletion is the only
+  irreversible thing this tool does.
+- **The `<dialog>` in the confirmation.** The element carries the semantics
+  natively and behaves consistently across assistive technology, which the
+  role alone does not guarantee. A top-layer modal would need focus
+  management the inline form does not otherwise require.
+
+Cut from `src/components/refresh-run-list.tsx` at `ef99862` by #531.
+
+- **`refresh-run-list.tsx`.** None of it needs to reach the browser as
+  JavaScript. The questions it answers are asked months apart by someone who
+  cannot be expected to remember: when did we last refresh this, did it
+  work, and what did it move.
+- **`REASONS`.** A reason with no message would otherwise be an empty cell
+  in an audit log. `reasonFrom` in `refresh-runs.ts` has already rejected
+  anything outside the union.
+- **`Counts`.** `1 / 2 / 0` is compact enough to scan down a column and
+  meaningless read aloud. Visually hidden text and not `aria-label`: a bare
+  `<span>` has no role, and ARIA labelling is not supported on elements that
+  have none. `sr-only` is what `team-search.tsx` already uses for the same
+  job.
+
+Cut from `src/lib/cache.ts` at `48ebab4` by #531.
+
+- **`invalidateCache`'s boolean.** The forced refresh clears a provider's
+  entry in order to reach the provider. If the clear silently failed, the
+  refetch would come back out of Redis and an admin would be shown, and
+  would apply, a diff built from the stale data they were trying to correct.
+  For every other caller, a failure to invalidate is no reason to fail a
+  request that was only trying to be helpful.
+
+Cut from `src/lib/refresh-competitions.ts` at `48ebab4` by #531.
+
+- **`refresh-competitions.ts`.** Its own module because both
+  `force-refresh.ts` and `refresh-runs.ts` need it, the engine to validate a
+  submission and the log to name a competition in a row written months ago,
+  and having the log import the engine would be a cycle.
+- **`isKnownCompetition`.** `decodeChoice` in `refresh-view.ts` validates
+  the shape and stays client-safe; this is the half that needs the
+  registries.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/components/refresh-form.test.tsx` at `e4b182f` by #531.
+
+- **Two tests of `refresh-form.test.tsx` that were wrong first.** Waiting
+  for the dialog and then reaching for `Päivitä` was a race, and failed
+  about one run in four. The earlier stale-response test unmounted the
+  component and asserted nothing was thrown, which passed with the guard
+  removed (verified).
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/refresh-actions.test.ts` at `ec04260` by #531.
+
+- **Every action's decode is tested.** The first version of
+  `refresh-actions.test.ts` tested only `previewRefreshAction`, and lcov
+  reported the other two decodes as two uncovered conditions.

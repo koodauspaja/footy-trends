@@ -2,6 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MatchesControls } from "@/components/matches-controls";
 
+/**
+ * The controls above a league's match list.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/012-finnish-urls-english-code.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type Transaction } from "@/db";
 import { favoriteCompetition, favoriteTeam, matches, tasoMatches, user } from "@/db/schema";
 import { regionOfCompetition } from "@/lib/competitions";
 import {
@@ -13,34 +13,28 @@ import { FINLAND_TEAM_NAME, MENS_TEAM, WOMENS_TEAM } from "@/lib/national-team";
 import type { RegionSegment } from "@/lib/regions";
 
 /**
- * Reading and writing one reader's favourites, from specs/026-favourites.md.
+ * Reading and writing one reader's favourites, in two tables because a team and
+ * a competition are identified differently.
  *
- * Two tables rather than one with a `kind`, for the reason the schema states:
- * the two identities have different shapes, and one table would hold four
- * nullable columns and a rule about which pair is legal.
+ * decisions/026-favourites.md
  */
-
-/** The transaction handle drizzle hands `db.transaction`. */
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type Favourites = { teams: string[]; competitions: string[] };
 
 export const NO_FAVOURITES: Favourites = { teams: [], competitions: [] };
 
 /**
- * The favourite's state **after** the write, or why there was none.
+ * The favourite's state after the write, or why there was none: "is it one
+ * now", so an insert that lost a race to an identical one is still `true`.
  *
- * `favorite` answers "is it one now", not "did this statement insert a row" —
- * which is what the star renders, and what makes an insert that lost a race to
- * an identical one still a true `true`.
+ * decisions/026-favourites.md
  */
 export type FavouriteWrite = { ok: true; favorite: boolean } | { ok: false; reason: "limit" };
 
 /**
- * Both lists as keys, for the session payload.
+ * Both lists as keys for the session payload: the client only asks whether one is there.
  *
- * Keys rather than rows because the only thing the client does with them is
- * ask whether one is present — see `favourite-keys.ts`.
+ * decisions/026-favourites.md
  */
 export async function getFavouriteKeys(userId: string): Promise<Favourites> {
   const [teams, competitions] = await Promise.all([
@@ -60,9 +54,8 @@ export async function getFavouriteKeys(userId: string): Promise<Favourites> {
   ]);
 
   return {
-    // Cast at the edge: the column is plain text, and a source that is no
-    // longer one of the two would produce a key nothing matches, which is the
-    // right outcome — it renders as "not a favourite" rather than as an error.
+    // Cast at the edge: an unknown source makes a key nothing matches, which
+    // renders as "not a favourite" rather than an error.
     teams: teams.map((row) => teamKey(row.source as FavouriteSource, row.teamProviderId)),
     competitions: competitions.map((row) =>
       competitionKey(row.region as RegionSegment, row.competitionCode)
@@ -71,17 +64,10 @@ export async function getFavouriteKeys(userId: string): Promise<Favourites> {
 }
 
 /**
- * Runs a toggle with this reader's `user` row locked.
+ * Runs a toggle with this reader's `user` row locked, so two tabs at the cap
+ * cannot both count 49 and insert. It waits only for the same reader's writes.
  *
- * **The cap needs it.** Counting and then inserting is two statements, and two
- * tabs at forty-nine both read forty-nine and both insert — the unique index
- * does not object, because they are different favourites. Read Committed does
- * not help: each statement takes its own snapshot, so a conditional insert
- * races the same way.
- *
- * The lock is on the reader's own `user` row, so it serialises only that
- * reader's favourite writes — a toggle waits for their other tab and for
- * nobody else.
+ * decisions/026-favourites.md
  */
 async function withUserLocked<T>(userId: string, run: (tx: Transaction) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
@@ -103,19 +89,10 @@ async function countFor(
 }
 
 /**
- * Adds the team if it is missing, removes it if it is there.
+ * Adds the team if it is missing, removes it if it is there. Two concurrent
+ * toggles flip it twice, and each caller is told what its own write did.
  *
- * A toggle rather than separate add and remove calls, because the control is a
- * toggle: two actions would mean the client deciding which to call from state
- * it might have wrong.
- *
- * **Two concurrent toggles of the same team flip it twice**, and it ends where
- * it started. That is what a toggle means, and it is now honest rather than
- * accidental: before the row lock, both transactions found nothing to delete
- * and both inserted, and the unique index quietly turned the second into a
- * no-op. Each caller is still told what its own write did, so a tab never
- * shows a state the database does not have. The button is disabled while its
- * own request is in flight, so this needs two tabs, not two clicks.
+ * decisions/026-favourites.md
  */
 export async function toggleFavouriteTeam(
   userId: string,
@@ -141,13 +118,7 @@ export async function toggleFavouriteTeam(
     await tx
       .insert(favoriteTeam)
       .values({ userId, source, teamProviderId })
-      /**
-       * Unreachable through this function — the lock serialises a reader's
-       * writes, and the delete above already ran — and kept anyway, so that a
-       * future caller writing outside the lock degrades to a no-op instead of
-       * an error the reader would have to understand. The unique index is the
-       * thing that makes it true; this only chooses what happens when it fires.
-       */
+      /** Unreachable under the lock; a caller writing outside it gets a no-op, not an error. */
       .onConflictDoNothing();
 
     return { ok: true, favorite: true };
@@ -185,7 +156,12 @@ export async function toggleFavouriteCompetition(
   });
 }
 
-/** Removing something that is not there is not an error — the list already says what it should. */
+/**
+ * Removing something that is not there is not an error: the list already says
+ * what it should.
+ *
+ * decisions/026-favourites.md
+ */
 export async function removeFavouriteTeam(
   userId: string,
   source: FavouriteSource,
@@ -219,12 +195,10 @@ export async function removeFavouriteCompetition(
 }
 
 /**
- * The favourites for the session payload, or none when the lookup fails.
+ * The favourites for the session payload, or none when the lookup fails: it
+ * runs on every session read, and a throw would take the header down with it.
  *
- * Swallowed like `getSessionExtrasFor`'s other reads: this runs inside
- * better-auth's `customSession` on every `/api/auth/get-session`, so throwing
- * would take the header down with it. A reader whose stars are briefly missing
- * has lost less than one who cannot see they are signed in.
+ * decisions/026-favourites.md
  */
 export async function favouritesForSession(userId: string): Promise<Favourites> {
   try {
@@ -235,7 +209,12 @@ export async function favouritesForSession(userId: string): Promise<Favourites> 
   }
 }
 
-/** One team's most recent appearance, from whichever side it played. */
+/**
+ * One team's most recent appearance, from whichever side it played.
+ *
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ */
 type TeamSide = {
   id: number;
   name: string;
@@ -251,46 +230,36 @@ type TeamSide = {
 };
 
 /**
- * TASO's season buckets for national-team football.
+ * TASO's national-team season buckets, matched by prefix as one is added every year.
  *
- * These decide whether a TASO team has a page at all, so the prefix is checked
- * rather than the exact id: the set grows by one every year (`maajp2026` and so
- * on), and a list would silently start sending next season's teams to the wrong
- * place.
+ * decisions/027-team-search.md
  */
 const TASO_NATIONAL_BUCKET_PREFIX = "maajp";
 
 /**
- * The two categories that say which Finland a TASO team id is, from #325.
+ * The categories that say which Finland a TASO team id is: each side's
+ * A-friendlies, present in every bucket and played by no one else.
  *
- * **Why these two and not the tournament categories.** Both national sides carry
- * an A-friendlies category in *every* bucket, and its id is the same either side
- * of TASO's `Muut` rename — `national-team.ts` records that. The tournament ids
- * cannot be used: a `W` prefix looks like it marks the women's game until you
- * meet `WCQ`, which is the men's World Cup qualifiers.
- *
- * The competition *names* would answer it directly, by the ` Huuhkajat` and
- * ` Helmarit` suffixes — but those come from a live TASO call, and this runs on
- * every session read.
+ * decisions/325-taso-finland-links.md
  */
 const MENS_FRIENDLIES_CATEGORY = "Miehet-A";
 const WOMENS_FRIENDLIES_CATEGORY = "Naiset-A";
 
 /**
- * Where a TASO national side's page is, or null when nothing can be said.
+ * A team's id route in its region, or null without a region.
  *
- * Only Finland has one at all — the opponents appear in TASO's data without
- * having pages anywhere — and Finland has **two**, so the answer has to come
- * from the categories the id actually played in.
- *
- * Null when the id carries both, or neither: an id that is somehow both teams
- * cannot be sent to one of them, and #247 already renders an unlinked row
- * honestly. A wrong link is worse than no link, because it looks like it worked.
+ * decisions/325-taso-finland-links.md
  */
 function idRouteFor(region: RegionSegment | null, teamProviderId: number): string | null {
   return region === null ? null : `/${region}/joukkue/${teamProviderId}`;
 }
 
+/**
+ * Which of Finland's two pages a TASO national-team id has, from the categories
+ * it played in. Null for both or neither: a wrong link looks like it worked.
+ *
+ * decisions/325-taso-finland-links.md
+ */
 function nationalTeamPathFor(categories: Set<string>): string | null {
   const mens = categories.has(MENS_FRIENDLIES_CATEGORY);
   const womens = categories.has(WOMENS_FRIENDLIES_CATEGORY);
@@ -299,11 +268,10 @@ function nationalTeamPathFor(categories: Set<string>): string | null {
 }
 
 /**
- * Every category a TASO national-team id has played in.
+ * Every category a TASO national-team id has played in: one query, asked only
+ * when there is a candidate, as this runs on every session read.
  *
- * One query for all of them, and only asked when a candidate exists —
- * `resolveTeamNames` runs on every session read, and Finland is a handful of
- * rows out of thousands.
+ * decisions/325-taso-finland-links.md
  */
 async function nationalCategoriesFor(ids: number[]): Promise<Map<string, Set<string>>> {
   const found = new Map<string, Set<string>>();
@@ -341,12 +309,10 @@ async function nationalCategoriesFor(ids: number[]): Promise<Map<string, Set<str
 }
 
 /**
- * Which region owns a team's page.
+ * Which region owns a team's page, decided by the competition, as one provider
+ * spans regions. Null for a competition the registry no longer has.
  *
- * The competition decides it, because the provider does not: Finland's national
- * side and a Spanish club are both `football-data` teams, and their pages live
- * under `/maajoukkueet` and `/ulkomaat`. Null for a competition the registry no
- * longer has — better an unlinked row than a link to some other club.
+ * decisions/026-favourites.md
  */
 function regionFor(
   source: FavouriteSource,
@@ -354,15 +320,7 @@ function regionFor(
   bucket: string | null
 ): RegionSegment | null {
   if (source === "taso") {
-    /**
-     * Only the club game has a TASO team page. `/maajoukkueet/joukkue/[id]` is
-     * football-data's, built by `CompetitionTeamPage`, so a TASO national-team
-     * id resolves to nothing there — and `/kotimaa/joukkue/[id]` is scoped to
-     * `{ kind: "taso", bucket: "domestic" }`, so it cannot find one either.
-     *
-     * Null rather than a guess: a row that is not a link is honest, and both
-     * `/suosikit` and the search results already render that case.
-     */
+    // Only the club game has a TASO team page; a national-team id gets no region.
     return bucket?.startsWith(TASO_NATIONAL_BUCKET_PREFIX) === true ? null : "kotimaa";
   }
   const registry = regionOfCompetition(competitionCode);
@@ -370,56 +328,40 @@ function regionFor(
   return registry === "national-teams" ? "maajoukkueet" : "ulkomaat";
 }
 
-/** One favourite team, ready to render. */
+/**
+ * One favourite team, ready to render.
+ *
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
+ */
 export type FavouriteTeamView = {
   source: FavouriteSource;
   teamProviderId: number;
   /** From stored matches, or null when nothing is stored for this team. */
   name: string | null;
-  /**
-   * Where this team's page lives, or null when we could not tell.
-   *
-   * Derived, never stored. A favourite is `(source, teamProviderId)` and
-   * deliberately carries no region — but `football-data` covers both club
-   * competitions and national sides, which live under different URLs, so the
-   * region has to come from the competitions its matches were played in.
-   */
+  /** Where this team's page lives, from where its matches were played; null when unknown. */
   region: RegionSegment | null;
   /**
-   * The competition and season of that most recent appearance, or null when
-   * nothing is stored.
+   * The latest appearance's competition and season, which tell same-named teams apart.
    *
-   * Carried for specs/027, where a result row has to tell two teams sharing a
-   * name apart — `FC Honka` is nine different teams. They come from the row this
-   * function already reads, so answering them costs nothing extra.
+   * decisions/027-team-search.md
    */
   competitionCode: string | null;
   seasonId: number | null;
   /**
-   * Where this team's page is, or null when it has none.
+   * Where this team's page is, built here once for every caller; null when none.
    *
-   * Built here rather than by each caller. `/suosikit` and team search were
-   * deriving `/${region}/joukkue/${id}` independently, so Finland's national
-   * sides — whose pages are `/maajoukkueet/huuhkajat` and
-   * `/maajoukkueet/helmarit`, not an id route at all — would have needed the
-   * same exception written twice (#325).
+   * decisions/325-taso-finland-links.md
    */
   href: string | null;
 };
 
 /**
- * The names for a set of favourited teams, in two queries rather than two per
- * team.
+ * The names for a set of favourited teams, read from the matches rather than
+ * stored, so a renamed club shows its current name. Not scoped by region.
  *
- * **Not stored on the row.** A club that renames would otherwise show its old
- * name until someone re-favourited it, and #254 exists precisely because a
- * renamed club has to be told apart from one that does not exist. The match
- * tables already hold the current name.
- *
- * Unscoped by region on purpose: the region only narrows an index, and a
- * favourite deliberately does not carry one — specs/022 established that a team
- * spans competitions. Fifty ids in one `IN` is a cheaper way to be right than
- * fifty region guesses.
+ * decisions/026-favourites.md
  */
 export async function resolveTeamNames(
   teams: { source: FavouriteSource; teamProviderId: number }[]
@@ -430,23 +372,8 @@ export async function resolveTeamNames(
   const footballDataIds = idsFor("football-data");
   const tasoIds = idsFor("taso");
 
-  /**
-   * One row per team, carrying that team's **most recent** appearance.
-   *
-   * `distinct on` rather than a plain `select distinct`: a club that renamed has
-   * matches stored under both names, and a `Map` filled from unordered rows
-   * shows whichever the planner happened to return last. The whole reason names
-   * are resolved rather than stored is to show the *current* one, so the
-   * ordering is the feature rather than a detail.
-   *
-   * It is also far less data — one row per team instead of one per match.
-   */
-  /**
-   * Four queries rather than one clever one, and written out rather than
-   * abstracted: `distinct on` needs the concrete column to group by, and a
-   * helper taking a union of two tables' columns loses exactly the typing that
-   * makes this safe. Each returns at most one row per team.
-   */
+  // Each team's most recent appearance, one row per team and side: `distinct on`
+  // keeps the current name, and needs a concrete column, hence four queries.
   const noSides = Promise.resolve([] as TeamSide[]);
   const [footballDataHome, footballDataAway, tasoHome, tasoAway] = await Promise.all([
     footballDataIds.length === 0
@@ -513,7 +440,7 @@ export async function resolveTeamNames(
           .orderBy(tasoMatches.awayTeamProviderId, desc(tasoMatches.kickoffAt)),
   ]);
 
-  /** The newer of a team's two sides: every club plays home and away. */
+  // The newer of a team's two sides: every club plays home and away.
   const newest = new Map<string, TeamSide>();
   const consider = (source: FavouriteSource, rows: TeamSide[]) => {
     for (const row of rows) {
@@ -527,11 +454,9 @@ export async function resolveTeamNames(
   consider("taso", tasoHome);
   consider("taso", tasoAway);
 
-  /**
-   * Finland is the only TASO national side with a page, and it has two of them.
-   * Matched on the **name**: `isFinlandMatch` does the same, because TASO gives
-   * it no team id that is stable across categories.
-   */
+  // Finland is the only TASO national side with a page, and it has two of them.
+  // Matched on the name, as `isFinlandMatch` does: TASO gives it no team id
+  // that is stable across categories.
   const finlandIds = teams
     .filter((team) => {
       if (team.source !== "taso") return false;

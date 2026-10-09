@@ -4,45 +4,42 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { canSkip } from "../../../scripts/backfill-plan";
 
+/**
+ * The backfill's two choices that no pure helper can see, read from its source:
+ * where the current TASO season comes from, and what `--refetch` stops it
+ * skipping.
+ *
+ * decisions/219-backfill-season-from-the-provider.md
+ * decisions/011-current-season-discovery.md
+ * decisions/036-halftime-comebacks.md
+ */
+
 const RAW = readFileSync(path.join(process.cwd(), "scripts", "backfill-run.ts"), "utf8");
 
-/**
- * Comments stripped, so the guards below match *code* rather than prose. The
- * comment explaining this fix names the expression it replaced, and a plain
- * text search cannot tell an explanation from a use — it failed on its own
- * documentation the first time it ran.
- */
+// Comments stripped, so the guards below match code and not prose: the script's
+// own comment names the expression these forbid, and a plain text search cannot
+// tell an explanation from a use.
 const SOURCE = ts.transpileModule(RAW, {
   compilerOptions: { removeComments: true, target: ts.ScriptTarget.ESNext },
 }).outputText;
 
-/**
- * #219 was not a wrong calculation — every function involved was correct. It
- * was the wrong *input*: the backfill took the current TASO season from
- * `new Date().getUTCFullYear()` while the app discovers it from the provider,
- * which spec 011 exists to require.
- *
- * No test of the pure helpers can catch that, because they are handed the
- * season and cannot know where it came from. So this reads the source, in the
- * same spirit as `tests/unit/app/rendering-mode.test.ts`: the thing worth
- * guarding is a choice made at the call site.
- */
+// The backfill must take the current TASO season from the provider, as the app does,
+// and not from the clock. No test of the pure helpers can see that, because they are
+// handed the season: the choice is made at the call site, so this reads the source.
 describe("the backfill's current TASO season", () => {
   it("comes from the provider", () => {
     expect(SOURCE).toContain("getCurrentSeason");
   });
 
-  // `resolveTasoSeasonContext` is what the app uses, and it is the wrong tool
-  // here: it also computes `defaultSeason`, which syncs a season to learn
-  // whether it has matches. Thirteen of those turns a discovery step into a
-  // second backfill — measured, when the first attempt at this fix did not
-  // finish inside ten minutes.
+  // `resolveTasoSeasonContext` is what the app uses, and the wrong tool here: it
+  // also computes `defaultSeason`, which syncs a season to learn whether it has
+  // matches. Thirteen of those turn a discovery step into a second backfill.
   it("does not reach for the app's heavier season-context helper", () => {
     expect(SOURCE).not.toContain("resolveTasoSeasonContext");
   });
 
-  // Discovery is competition-agnostic (spec 011), so asking once and flooring
-  // per competition is both correct and one request instead of thirteen.
+  // Discovery is competition-agnostic, so asking once and flooring per
+  // competition is both correct and one request, not thirteen.
   it("discovers once, outside the competition loop", () => {
     const occurrences = SOURCE.match(/getCurrentSeason\(\)/g) ?? [];
     expect(occurrences).toHaveLength(1);
@@ -55,17 +52,15 @@ describe("the backfill's current TASO season", () => {
     expect(SOURCE).toMatch(/discovered === null/);
   });
 
-  // `getCurrentSeason` has two failure shapes: it returns null when TASO
-  // publishes no seasons, and throws on a network or HTTP error. Handling only
-  // the first sends an outage to the top-level handler, losing the refusal and
-  // the run summary with it. The app's own `discoverCurrentSeason` wraps it for
-  // the same reason.
+  // `getCurrentSeason` has two failure shapes: null when TASO publishes no seasons,
+  // and a throw on a network or HTTP error. Handling only the first sends an outage
+  // to the top-level handler, losing the refusal and the run summary with it.
   it("catches a thrown discovery failure, not only a null one", () => {
     expect(SOURCE).toMatch(/try\s*\{[^}]*getCurrentSeason[^}]*\}\s*catch/s);
   });
 
   it("is not taken from the clock", () => {
-    // The exact expression #219 was filed for, and any near relative of it.
+    // The clock expression itself, and any near relative of it.
     expect(SOURCE).not.toMatch(/new Date\(\)\.getUTCFullYear\(\)/);
     expect(SOURCE).not.toMatch(/new Date\(\)\.getFullYear\(\)/);
   });
@@ -75,11 +70,8 @@ describe("the backfill's current TASO season", () => {
   });
 });
 
-/**
- * Why the input matters, stated as behaviour rather than left implicit in the
- * guard above. These pass before and after the fix — they are the consequence,
- * not the regression.
- */
+// Why the input matters, stated as behaviour: the consequence of the guard
+// above, and true whichever season source is used.
 describe("canSkip at a year boundary", () => {
   // TASO publishes 2027 in December 2026, or runs 2026 past New Year. The two
   // answers below are for the *same* stored season, and they differ.
@@ -98,14 +90,9 @@ describe("canSkip at a year boundary", () => {
   });
 });
 
-/**
- * `--refetch` exists for a column added after production was filled: every
- * stored season is complete by the old definition and empty by the new one, so
- * the ordinary run skips them all and writes nothing (specs/036).
- *
- * Read from the source for the same reason as the season guard above: what
- * matters is the choice at each skip site, which no pure helper can see.
- */
+// `--refetch` is for a column added after production was filled: every stored season is
+// complete by the old definition and empty by the new, so the ordinary run skips them
+// all. Read from the source, because the choice is made at each skip site.
 describe("the backfill's refetch flag", () => {
   it("guards every skip check, so a refetch run fetches what is stored", () => {
     const guarded = SOURCE.match(/!refetch\s*&&\s*\(?await already/g) ?? [];
@@ -130,11 +117,8 @@ describe("the backfill's refetch flag", () => {
     expect(SOURCE).toMatch(/refetch\s*=\s*false/);
   });
 
-  /**
-   * The entry point is the other half of the same wiring: a flag parsed and
-   * not passed on would leave every assertion above true and the run
-   * unchanged.
-   */
+  // The entry point is the other half of the same wiring: a flag parsed and not
+  // passed on would leave every assertion above true and the run unchanged.
   it("is read from the command line and handed to the run", () => {
     const entryPoint = ts.transpileModule(
       readFileSync(path.join(process.cwd(), "scripts", "backfill.ts"), "utf8"),

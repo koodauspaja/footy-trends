@@ -1,9 +1,8 @@
 /**
- * The pure half of the match page: what a stored row *reads* as.
+ * The pure half of the match page: what a stored row reads as. Everything
+ * works on a plain row and returns strings.
  *
- * Everything here works on a plain row and returns strings, so the page itself
- * stays markup and the rules below are unit-testable without a database. See
- * specs/019-match-page.md.
+ * decisions/019-match-page.md
  */
 
 import {
@@ -16,19 +15,18 @@ import {
 import { formatMatchResult } from "./standings";
 
 /**
- * TASO stores a bracket slot that was never resolved to a club as a team with
- * this provider id and, usually, an empty name.
+ * The provider id TASO stores for a bracket slot never resolved to a club. Not
+ * an identity: nothing may be joined on it.
  *
- * Measured 2026-09-02: 22 such rows, 21 of them finished with a real score,
- * three of them in Suomen Cup, which the site shows. `matches` has none.
- *
- * It is not an identity, and that is the whole point: a head-to-head joined on
- * it would pair a match against every other unresolved slot that happened to
- * face the same opponent, and present the result as previous meetings.
+ * decisions/019-match-page.md
  */
 export const PLACEHOLDER_TEAM_ID = 0;
 
-/** Shown in place of a placeholder's empty name. Finnish, like every string here. */
+/**
+ * Shown in place of a placeholder's empty name.
+ *
+ * decisions/019-match-page.md
+ */
 export const UNKNOWN_TEAM_NAME = "Tuntematon joukkue";
 
 export type MatchTeams = {
@@ -38,12 +36,20 @@ export type MatchTeams = {
   awayTeamName: string;
 };
 
-/** A team the provider never resolved: no id worth joining on, and no name worth showing. */
+/**
+ * A team the provider never resolved: no id worth joining on, and no name worth showing.
+ *
+ * decisions/019-match-page.md
+ */
 export function isPlaceholderTeam(teamProviderId: number, teamName: string): boolean {
   return teamProviderId === PLACEHOLDER_TEAM_ID || teamName.trim() === "";
 }
 
-/** Whether either side is a placeholder, which is what suppresses the head-to-head. */
+/**
+ * Whether either side is a placeholder, which is what suppresses the head-to-head.
+ *
+ * decisions/019-match-page.md
+ */
 export function hasPlaceholderTeam(match: MatchTeams): boolean {
   return (
     isPlaceholderTeam(match.homeTeamProviderId, match.homeTeamName) ||
@@ -51,7 +57,11 @@ export function hasPlaceholderTeam(match: MatchTeams): boolean {
   );
 }
 
-/** The name to render, never an empty string and never a link target. */
+/**
+ * The name to render, never an empty string and never a link target.
+ *
+ * decisions/019-match-page.md
+ */
 export function teamDisplayName(teamProviderId: number, teamName: string): string {
   return isPlaceholderTeam(teamProviderId, teamName) ? UNKNOWN_TEAM_NAME : teamName;
 }
@@ -70,12 +80,9 @@ const kickoffTimeFormatter = new Intl.DateTimeFormat("fi-FI", {
 });
 
 /**
- * `12.09.2026 klo 18.30` — the list pages' date, plus the time this page adds.
+ * `12.09.2026 klo 18.30`: the list pages' date, plus the time this page adds.
  *
- * Two formatters joined by `klo` rather than one `dateStyle`/`timeStyle` pair:
- * `fi-FI` renders the time as `18.30`, which is correct Finnish, but supplies
- * the connecting word only in some runtimes. Stating it here makes the output
- * the same everywhere, which is also what makes it testable.
+ * decisions/019-match-page.md
  */
 export function formatKickoff(kickoffAt: Date): string {
   return `${kickoffDateFormatter.format(kickoffAt)} klo ${kickoffTimeFormatter.format(kickoffAt)}`;
@@ -84,9 +91,7 @@ export function formatKickoff(kickoffAt: Date): string {
 /**
  * A score pair, or `null` unless both halves are present.
  *
- * Half a pair is unusable everywhere it appears — a sum needs both sides, and a
- * shootout with one total recorded is not a shootout — so the check lives here
- * once rather than as three near-identical conditions.
+ * decisions/019-match-page.md
  */
 function bothOrNeither(
   home: number | null | undefined,
@@ -97,7 +102,11 @@ function bothOrNeither(
     : [home, away];
 }
 
-/** The score breakdown football-data records behind a knockout tie. TASO has none. */
+/**
+ * The score breakdown football-data records behind a knockout tie. TASO has none.
+ *
+ * decisions/019-match-page.md
+ */
 export type ScoreBreakdown = {
   homeGoals: number | null;
   awayGoals: number | null;
@@ -110,14 +119,10 @@ export type ScoreBreakdown = {
 };
 
 /**
- * The score as the page shows it.
+ * The score as the page shows it: where the breakdown exists, normal time plus
+ * extra time, with the shoot-out stated separately.
  *
- * `homeGoals`/`awayGoals` is the provider's `fullTime`, which **includes** a
- * penalty shootout — printing it raw turns a 1–1 settled on penalties into a
- * "4–3" that was never the score. Where the breakdown exists, normal time plus
- * extra time is the score, and the shootout is stated separately. This is the
- * same correction `BracketLeg` documents; the suffixes match the bracket's so
- * one match cannot read two ways on two pages.
+ * decisions/019-match-page.md
  */
 export function formatScore(match: ScoreBreakdown): string {
   const regular = bothOrNeither(match.regularTimeHome, match.regularTimeAway);
@@ -133,20 +138,16 @@ export function formatScore(match: ScoreBreakdown): string {
   if (score === "–") return score;
 
   // Half a shootout is not a shootout: one total without the other would print
-  // "(rp 4–null)". `formatLeg` in the bracket has always required both, which
-  // is what `bothOrNeither` states once for all three pairs here.
+  // "(rp 4–null)".
   if (penalties !== null) return `${score} (rp ${penalties[0]}–${penalties[1]})`;
   return extra !== null ? `${score} (ja)` : score;
 }
 
 /**
- * Which side the provider says went through, but only where the score cannot
- * say it itself.
+ * Which side the provider says went through, where the score cannot say it
+ * itself. Null for football-data, which omits `winner`.
  *
- * TASO settles a level cup tie on penalties it never itemises, so the score
- * alone leaves the tie looking drawn. Naming the winner is all the data
- * supports — inventing an "(rp)" suffix would assert a shootout that is not
- * recorded. football-data omits `winner` entirely, so this is null there.
+ * decisions/019-match-page.md
  */
 export function declaredWinnerSide(
   match: { homeGoals: number | null; awayGoals: number | null },
@@ -158,10 +159,10 @@ export function declaredWinnerSide(
 }
 
 /**
- * The lines under the heading: where and when this match sits.
+ * The lines under the heading: where and when this match sits. A missing value
+ * produces no line.
  *
- * A missing value produces no line at all. A null `matchday` is ordinary, and
- * "Kierros –" would state an absence the reader has no use for.
+ * decisions/019-match-page.md
  */
 export type MatchContext =
   | {
@@ -182,23 +183,10 @@ export type MatchContext =
     };
 
 /**
- * What the match's number means, if anything.
+ * What the match's number means: a round in a league or group phase, a leg (1
+ * or 2) in a two-legged knockout round, and nothing elsewhere.
  *
- * It is a round in a league or group phase, a leg in a two-legged knockout
- * round, and nothing at all elsewhere — the same three cases the match lists
- * already distinguish (`fourthColumnFor` in competition-matches-page.tsx),
- * decided here from one row rather than from a round's worth of them.
- *
- * On a knockout stage, only 1 and 2 are legs. Measured across every stored
- * knockout row on 2026-09-02: Champions League and Championship carry 1–2,
- * the World Cup carries null, and the Euro carries 4–7 — its group-round
- * counter running on into the knockout, which is not a leg and must not be
- * shown as one.
- *
- * A Finnish cup round shows nothing either: TASO's `round_id` is not
- * re-indexed per competition (round 63 exists), and the series name above it
- * already names the round. The domestic standings page drops the same column
- * for the same reason.
+ * decisions/019-match-page.md
  */
 function roundLine(context: MatchContext): string | null {
   if (context.matchday === null) return null;
@@ -213,7 +201,11 @@ function roundLine(context: MatchContext): string | null {
   return context.matchday === 1 || context.matchday === 2 ? `Osaottelu ${context.matchday}` : null;
 }
 
-/** The stages that number their matches as rounds rather than as legs. */
+/**
+ * The stages that number their matches as rounds, not as legs.
+ *
+ * decisions/019-match-page.md
+ */
 const TABLE_STAGES = new Set([LEAGUE_STAGE, GROUP_STAGE]);
 
 export function matchContextLines(context: MatchContext): string[] {

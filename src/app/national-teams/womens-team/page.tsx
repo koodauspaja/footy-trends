@@ -5,18 +5,12 @@ import { WOMENS_TEAM } from "@/lib/national-team";
 export const metadata: Metadata = { title: WOMENS_TEAM.displayName };
 
 /**
- * Rendered per request, never prerendered.
+ * Rendered per request, never prerendered. Unlike the pages that read
+ * `searchParams`, this one takes no parameters, so Next would prerender it at
+ * build time, where the database cannot be reached.
  *
- * Every other data-backed page reads `searchParams`, which makes it dynamic on
- * its own. This one takes no parameters — it has no season selector — so Next
- * prerendered it at build time, where Railway's private network does not exist:
- * `*.railway.internal` is runtime-only, so the build container cannot resolve
- * the database at all.
- *
- * The prerender therefore failed every bucket and **baked the error page into
- * the static output**, which was then served to every visitor regardless of
- * runtime health. `/api/health` reported the database as fine throughout,
- * because it is dynamic and was genuinely fine. See #182.
+ * decisions/018-helmarit.md
+ * decisions/182-national-team-pages-not-prerendered.md
  */
 export const dynamic = "force-dynamic";
 

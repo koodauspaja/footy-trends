@@ -87,3 +87,32 @@ miss is one read per provider per 15 minutes — S11's no-table decision holds.
 Screenshots at 375px in light and dark, and 1280px, of both the panel and
 `Ennuste`; the first version of `Ennuste` failed at 375px and is described
 above.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
+
+- **`loadElo` for a national team.** Unavailable: the ratings are for clubs.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`LineSeries.dots`.** A team's rating after each of hundreds of matches
+  would be a row of dots.
+
+Cut from `src/lib/elo.ts` at `dc74e3e` by #531.
+
+- **`replayElo`.** Of two matches sharing a kickoff, neither is evidence for
+  the other, as in the predictions log. `onPredict` is the backtest's view of
+  what was known at kickoff. The two providers' id spaces never meet.
+
+Cut from `src/lib/prediction-backtest.ts` at `ef99862` by #531.
+
+- **`eloBacktestRows`.** Reading the draw share from the baseline
+  backtest's rows means the two models know exactly the same about draws. A
+  competition's first kickoff has no baseline row and so no Elo row.
+
+Cut from `src/components/match-prediction.tsx` at `ef99862` by #531.
+
+- **A placeholder side in `MatchPrediction`.** The Elo prediction needs the
+  baseline's draw share, which that branch has, but a placeholder has no
+  rating.

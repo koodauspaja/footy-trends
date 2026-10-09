@@ -11,13 +11,20 @@ import {
   verifyActions,
 } from "../../../scripts/verify-steps";
 
+/**
+ * The sequence of `npm run verify`: each stage in order, stopping at the first
+ * failure, and what is printed.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ */
+
 const STAGES: Stage[] = [
   { name: "Lint", script: "lint", typical: "~1s" },
   { name: "Unit tests", script: "test:unit", typical: "~40s" },
   { name: "End-to-end tests", script: "test:e2e", typical: "~4min" },
 ];
 
-/** Every action recorded, and a clock that ticks a second per reading. */
+// Every action recorded, and a clock that ticks a second per reading.
 function actions(overrides: Partial<VerifyActions> = {}) {
   const steps: string[] = [];
   let clock = 0;
@@ -102,11 +109,8 @@ describe("verifyActions", () => {
   it("runs an npm script through npm's own path, not through PATH", {
     timeout: 30_000,
   }, async () => {
-    /**
-     * Spawned for real, with a stand-in for npm that records its arguments and
-     * exits 0 — the way `docker.test.ts` exercises its spawn with a harmless
-     * command.
-     */
+    // Spawned for real, with a stand-in for npm that records its arguments and
+    // exits 0.
     const dir = mkdtempSync(path.join(tmpdir(), "footy-verify-"));
     const log = path.join(dir, "argv.json");
     const fakeNpm = path.join(dir, "fake-npm.js");
@@ -159,10 +163,8 @@ describe("startVerify", () => {
   });
 
   it("runs every stage against the npm it was given", { timeout: 60_000 }, async () => {
-    /**
-     * A stand-in npm that exits 0 for anything, so the whole sequence runs
-     * without running a suite — six spawns of `node`, not six test runs.
-     */
+    // A stand-in npm that exits 0 for anything, so the whole sequence runs
+    // without running a suite: six spawns of `node`, not six test runs.
     const dir = mkdtempSync(path.join(tmpdir(), "footy-verify-"));
     const log = path.join(dir, "calls.log");
     const fakeNpm = path.join(dir, "fake-npm.js");

@@ -132,3 +132,24 @@ in the app yet (unrelated, existing behavior from spec 002).
   page's own season selector works and preserves the team id, unknown team
   id shows the not-found state with the season selector still usable, no
   console errors.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getSyncedSeasonMatches`.** `refreshFailed` tells "stale but present" from
+  "nothing to show".
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches.status`.** Every row was a finished match until this feature,
+  whose migration backfills the default `FINISHED` so existing rows stay
+  accurate.
+
+Cut from `src/components/season-select.tsx` at `48ebab4` by #531.
+
+- **`SeasonSelect`.** The home page puts it inside a form that also has a
+  round control, the team page in its own season-only form; both get the
+  same Finnish label and option list without duplicating the markup.

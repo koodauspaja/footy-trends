@@ -3,6 +3,15 @@ import { FINLAND_TEAM_ID } from "@/lib/national-team";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The national-team years: how buckets are read and filed under the year
+ * played, and what a failed bucket costs.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/041-national-team-analytics.md
+ */
+
 const getSeasonCategoryNameMapMock =
   vi.fn<(competitionId: string, ...rest: number[]) => Promise<Record<string, string>>>();
 const getSeasonMatchListMock = vi.fn();
@@ -39,7 +48,8 @@ function match(
   } as NormalizedTasoMatch;
 }
 
-/** Only 2026 has categories; every other year is empty unless a test says otherwise. */
+// Only 2026 has categories; every other year is empty unless a test says
+// otherwise.
 function onlyIn2026(names: Record<string, string>) {
   getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
     competitionId === "maajp2026" ? names : {}
@@ -98,7 +108,7 @@ describe("getNationalTeamYears", () => {
     expect(result.years[0]?.matches.map((m) => m.providerMatchId)).toEqual([1]);
   });
 
-  it("writes the reserved Finland id on whichever side Finland played (specs/041, S1)", async () => {
+  it("writes the reserved Finland id on whichever side Finland played", async () => {
     onlyIn2026({ ECQ: "EM-karsinnat Huuhkajat" });
     getSeasonMatchListMock.mockResolvedValue({
       status: "ok",
@@ -119,10 +129,8 @@ describe("getNationalTeamYears", () => {
     expect(away?.homeTeamProviderId).toBe(1);
   });
 
-  /**
-   * `maajp18`'s 2019 and 2020 categories name opponents in English, unlike
-   * every later bucket. See specs/017-huuhkajat.md.
-   */
+  // `maajp18`'s 2019 and 2020 categories name opponents in English, unlike
+  // every later bucket.
   it("renders an English TASO name in Finnish", async () => {
     onlyIn2026({ ECQ: "EM-karsinnat Huuhkajat" });
     getSeasonMatchListMock.mockResolvedValue({
@@ -200,20 +208,16 @@ describe("getNationalTeamYears", () => {
     expect(result.years[0]?.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
   });
 
-  /**
-   * A year silently missing from a page that shows every year is invisible —
-   * nothing on screen would say which one went absent.
-   */
+  // A year silently missing from a page that shows every year is invisible —
+  // nothing on screen would say which one went absent.
   it("fails the page only when every bucket fails", async () => {
     getSeasonCategoryNameMapMock.mockRejectedValue(new Error("TASO request failed: 500"));
 
     await expect(load()).resolves.toEqual({ status: "error" });
   });
 
-  /**
-   * The behaviour #180 changed. Failing everything because one of up to 28
-   * queries failed blanked eight years of history in production.
-   */
+  // One failed query must not fail everything: this page issues up to 28
+  // queries, and the buckets that loaded still render.
   it("renders the buckets that loaded when another fails, and says it is incomplete", async () => {
     getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) => {
       if (competitionId === "maajp18") throw new Error("Failed query");
@@ -249,10 +253,8 @@ describe("getNationalTeamYears", () => {
     expect(result.incomplete).toBe(false);
   });
 
-  /**
-   * "Empty" must mean there are no matches, not that we could not read them —
-   * otherwise the reader is told something false.
-   */
+  // "Empty" must mean there are no matches, not that we could not read them —
+  // otherwise the reader is told something false.
   it("reports error, not empty, when nothing loaded and something failed", async () => {
     onlyIn2026({ UNL: "UEFA Nations League Huuhkajat", WCQ: "MM-karsinnat Huuhkajat" });
     getSeasonMatchListMock.mockImplementation(async (categoryId: string) =>
@@ -264,10 +266,8 @@ describe("getNationalTeamYears", () => {
     await expect(load()).resolves.toEqual({ status: "error" });
   });
 
-  /**
-   * `maajp18` is one bucket holding three calendar years. The page must file
-   * each match under the year it was played, not under the bucket's season.
-   */
+  // `maajp18` is one bucket holding three calendar years. The page must file
+  // each match under the year it was played, not under the bucket's season.
   it("splits a bucket that spans calendar years into a section each", async () => {
     getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
       competitionId === "maajp18" ? { ECQ: "EM-karsinnat Huuhkajat" } : {}
@@ -299,10 +299,8 @@ describe("getNationalTeamYears", () => {
   });
 });
 
-/**
- * Helmarit's data differs from Huuhkajat's in ways that are ordinary for it
- * and would have been anomalies for the men. See specs/018-helmarit.md.
- */
+// Helmarit's data differs from Huuhkajat's in ways that are ordinary for it and
+// would be anomalies for the men.
 describe("getNationalTeamYears — Helmarit", () => {
   async function loadWomens() {
     const { getNationalTeamYears } = await import("@/lib/national-team-service");
@@ -335,10 +333,8 @@ describe("getNationalTeamYears — Helmarit", () => {
     expect(asked).not.toContain("WCQ");
   });
 
-  /**
-   * `maajp2024/Naiset-A` is 3 of 3 other teams', `maajp2025/WEC` 6 of 6. A
-   * category filtering down to nothing is ordinary here, not a failure.
-   */
+  // `maajp2024/Naiset-A` is 3 of 3 other teams', `maajp2025/WEC` 6 of 6. A
+  // category filtering down to nothing is ordinary here, not a failure.
   it("treats a category with no Finland match at all as empty, not an error", async () => {
     getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
       competitionId === "maajp2026" ? { WEC: "EM-lopputurnaus Helmarit" } : {}
@@ -351,7 +347,7 @@ describe("getNationalTeamYears — Helmarit", () => {
     await expect(loadWomens()).resolves.toEqual({ status: "empty" });
   });
 
-  /** `maajp18` holds four calendar years of Helmarit matches, not three. */
+  // `maajp18` holds four calendar years of Helmarit matches, not three.
   it("splits maajp18 across all four years it spans", async () => {
     getSeasonCategoryNameMapMock.mockImplementation(async (competitionId) =>
       competitionId === "maajp18" ? { "Naiset-A": "Muut A-maaottelut Helmarit" } : {}

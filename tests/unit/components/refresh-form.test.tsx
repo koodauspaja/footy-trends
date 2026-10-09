@@ -4,13 +4,13 @@ import { RefreshForm } from "@/components/refresh-form";
 import { NO_CHANGES, type RefreshPreview } from "@/lib/refresh-view";
 
 /**
- * The forced refresh as an admin drives it, from
- * specs/029-forced-season-refresh.md.
+ * The forced refresh as an admin drives it. The actions are mocked: what
+ * matters is that nothing applies without a confirmation, and that every
+ * refusal the engine can report reaches the admin in Finnish.
  *
- * The actions are mocked: what matters here is that **nothing applies without a
- * confirmation**, and that every refusal the engine can report reaches the
- * admin in Finnish rather than as silence.
+ * decisions/029-forced-season-refresh.md
  */
+
 const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
   const state = {
     seasons: { ok: true, seasons: [{ seasonId: 2026, label: "2026" }] } as unknown,
@@ -23,6 +23,14 @@ const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
     previewAction: vi.fn(async () => state.preview),
     applyAction: vi.fn(async () => state.apply),
   };
+});
+
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
 });
 
 vi.mock("@/lib/refresh-actions", () => ({
@@ -59,19 +67,14 @@ function renderForm() {
   return render(<RefreshForm domestic={DOMESTIC} foreign={FOREIGN} />);
 }
 
-/**
- * Waits until the confirmation is ready to be acted on.
- *
- * Waiting for the dialog alone is not enough: `startTransition` keeps `pending`
- * true for a moment after the preview lands, and while it is the button reads
- * `Päivitetään…`. Waiting for the dialog and then reaching for `Päivitä` is a
- * race, and it duly failed about one run in four.
- */
+// Waits until the confirmation is ready to be acted on. The dialog alone is not
+// enough: `startTransition` keeps `pending` true for a moment after the preview
+// lands, and while it is the button reads `Päivitetään…`.
 async function confirmButton() {
   return await waitFor(() => screen.getByRole("button", { name: "Päivitä" }));
 }
 
-/** The season list loads on mount; most assertions need it settled first. */
+// The season list loads on mount; most assertions need it settled first.
 async function renderLoaded() {
   renderForm();
   await waitFor(() => expect(screen.getByLabelText("Kausi")).toBeEnabled());
@@ -158,12 +161,14 @@ describe("the season picker", () => {
   it("says so when the season list rejects outright, not only when it refuses", async () => {
     // A thrown action is not the same as one answering `ok: false`, and both
     // have to leave the admin with an explanation rather than a spinner.
-    seasonsAction.mockRejectedValueOnce(new Error("network"));
+    const failure = new Error("network");
+    seasonsAction.mockRejectedValueOnce(failure);
     renderForm();
 
     await waitFor(() =>
       expect(screen.getAllByText("Kausien haku epäonnistui.").length).toBeGreaterThan(0)
     );
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.seasons");
   });
 
   it("says so when the app holds no seasons for this competition", async () => {
@@ -206,11 +211,9 @@ describe("a slow season list", () => {
   });
 
   it("does not report a failure belonging to the competition you left", async () => {
-    // The previous version of this unmounted the component and asserted nothing
-    // was thrown. That proved nothing: React silently drops state updates after
-    // unmount, so the test passed with the guard removed — verified. This one
-    // is observable: without the guard the *new* competition's picker shows a
-    // failure that belongs to the old one.
+    // Observable, where unmounting and asserting nothing was thrown is not:
+    // React silently drops state updates after unmount. Without the guard the
+    // new competition's picker shows a failure that belongs to the old one.
     let rejectFirst: (reason: unknown) => void = () => undefined;
     seasonsAction.mockImplementationOnce(
       () =>
@@ -313,7 +316,8 @@ describe("a request that rejects rather than refuses", () => {
   // A server action can reject — a dropped connection, an exception the engine
   // did not convert — and that must not leave the form pending with no notice.
   it("tells the admin when the preview request fails outright", async () => {
-    previewAction.mockRejectedValueOnce(new Error("network"));
+    const failure = new Error("network");
+    previewAction.mockRejectedValueOnce(failure);
     await renderLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Hae muutokset" }));
@@ -322,6 +326,7 @@ describe("a request that rejects rather than refuses", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.request");
   });
 
   it("tells the admin when the apply request fails outright", async () => {
@@ -339,11 +344,9 @@ describe("a request that rejects rather than refuses", () => {
 });
 
 describe("changing the selection", () => {
-  /**
-   * A notice describes one competition and season. Left standing beside another
-   * it reads as a statement about that one — and after an apply it reads as a
-   * statement that something was written to it.
-   */
+  // A notice describes one competition and season. Left standing beside another
+  // it reads as a statement about that one, and after an apply as a statement
+  // that something was written to it.
   async function noticeThenChange(change: () => void) {
     state.apply = { ok: true, applied: preview() };
     await renderLoaded();
@@ -396,9 +399,11 @@ describe("a slow preview", () => {
     fireEvent.change(screen.getByLabelText("Sarja"), { target: { value: "taso:M1L" } });
     await waitFor(() => expect(seasonsAction).toHaveBeenCalledTimes(2));
 
+    const failure = new Error("too late");
     await act(async () => {
-      rejectPreview(new Error("too late"));
+      rejectPreview(failure);
     });
+    expect(reportClientError).toHaveBeenCalledWith(failure, "refresh.request");
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

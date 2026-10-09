@@ -48,3 +48,39 @@ decide something the spec did not.
 - **The rolling axis's evidence has no La Liga, Serie A or Ligue 1 season**, as
   the spec records; none is stored. If one is added and a five-match average
   passes 5, it is drawn at the top edge.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`teamLeagueMatches`.** Results are what TASO publishes, so an unverified
+  table does not stop them as it stops a position; across a split they
+  continue, as the table's `Vire` does.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`LineSeries`.** A dash and not a colour, so the chart reads in both themes
+  and without colour vision. `LineLegend` names each line with a sample of
+  its style.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`teamMatchesInOrder`.** Shared with the goals charts, so "the team's
+  fifth match" is the same match on every chart.
+
+Cut from `src/components/charts/goals-chart.tsx` at `ef99862` by #531.
+
+- **`GoalsChart`.** Both lines are in the foreground colour, with a legend
+  beneath. Only the rolling chart has a fixed top to meet.
+- **`ROLLING_TOP`.** Measured over 118 top-tier team-seasons, no five-match
+  average passed 4.4; averaging 5 takes 25 goals in five matches.
+- **`totalsTicks`.** The most goals in the stored top-tier seasons was 99:
+  an axis to 100, eleven labels, which the chart's height holds.
+
+Cut from `src/lib/goals-series.ts` at `ef99862` by #531.
+
+- **`goals-series.ts`.** Using `teamMatchesInOrder` means the three charts
+  agree on which match is which. The services decide which matches count,
+  and pass them in.

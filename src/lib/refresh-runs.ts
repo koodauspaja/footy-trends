@@ -13,26 +13,17 @@ import {
 } from "@/lib/refresh-view";
 
 /**
- * The audit trail behind the forced refresh, from
- * specs/029-forced-season-refresh.md.
+ * The audit trail behind the forced refresh. The counts written are the diff
+ * the confirmation dialog showed, never recomputed.
  *
- * A forced refresh happens a handful of times a year, so the questions it has
- * to answer are asked months apart by someone with no memory of the event:
- * when did we last refresh this, did it work, and what did it move?
- *
- * The counts written here come from the same diff the confirmation dialog
- * showed, never recomputed — so what an admin approved and what is recorded
- * are the same numbers by construction rather than by two pieces of code
- * agreeing.
+ * decisions/029-forced-season-refresh.md
  */
 
 /**
- * Records an applied run.
+ * Records an applied run. Never throws: a failure here is logged and
+ * swallowed.
  *
- * Never throws. A refresh that succeeded has already changed the database, and
- * losing the note of it is not a reason to tell an admin their change failed —
- * so a failure here is logged and swallowed, which is the one place in this
- * feature where swallowing is right.
+ * decisions/029-forced-season-refresh.md
  */
 export async function recordSuccess(preview: RefreshPreview, adminId: string): Promise<void> {
   try {
@@ -57,24 +48,17 @@ export async function recordSuccess(preview: RefreshPreview, adminId: string): P
 }
 
 /**
- * Records a run that got far enough to try and did not finish.
+ * Records a run that got far enough to try and did not finish. `"input"` and
+ * `"stale"` never reach here.
  *
- * `"input"` and `"stale"` never reach here. A submission naming a competition
- * or season this app does not have is a malformed request rather than an event
- * that happened to the data; a stale bounce is the apply working exactly as
- * intended, and the admin is about to see the fresh diff and decide again.
- * Recording either would fill the log with noise nobody can act on.
+ * decisions/029-forced-season-refresh.md
  */
 export async function recordFailure(
   choice: CompetitionChoice,
   seasonId: number,
   reason: Exclude<RefreshFailureReason, "input" | "stale">,
   adminId: string,
-  /**
-   * Null when the run failed before the season range could be resolved — the
-   * one case where the display label is genuinely unknown rather than merely
-   * unfetched.
-   */
+  /** Null when the run failed before the season range could be resolved. */
   seasonLabel: string | null = null
 ): Promise<void> {
   try {
@@ -96,11 +80,10 @@ export async function recordFailure(
 }
 
 /**
- * Counts are stored as three nullable columns, and a foreign competition
- * stores null in all three because it has no group standings at all. Null
- * means "this table does not exist for this provider", which the page renders
- * as `—` — a different statement from three zeroes, which would claim nothing
- * changed.
+ * A run's group counts, or null where the provider has no group standings:
+ * the page renders that as `—`, not as three zeroes.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 function groupCountsFrom(row: typeof refreshRuns.$inferSelect) {
   if (
@@ -131,12 +114,10 @@ function reasonFrom(value: string | null): RefreshFailureReason | null {
 }
 
 /**
- * The recent runs, newest first.
+ * The recent runs, newest first, without paging. A left join for the
+ * operator's name, so a run whose admin was deleted still appears.
  *
- * No paging. The table gains a handful of rows a year, and a list that needed
- * paging would itself be the finding. A left join for the operator's name, so a
- * run whose admin has since been deleted still appears — with `run_by` null,
- * which is what `on delete set null` on that column is for.
+ * decisions/029-forced-season-refresh.md
  */
 export async function listRuns(): Promise<RefreshRunView[]> {
   const rows = await db
@@ -147,10 +128,8 @@ export async function listRuns(): Promise<RefreshRunView[]> {
     .limit(RUN_LIST_LIMIT);
 
   return rows.flatMap(({ run, runByName }) => {
-    // Only this module writes the column, and only from a typed union, so an
-    // unrecognised value cannot come from the app. Skipped rather than coerced:
-    // guessing which provider a hand-edited row meant would put a wrong
-    // competition name in an audit log.
+    // Only this module writes the column, from a typed union. An unrecognised
+    // value is skipped, not coerced.
     if (!isRefreshSource(run.source)) {
       logger.warn({ id: run.id, source: run.source }, "Refresh run has an unknown source");
       return [];
@@ -161,11 +140,8 @@ export async function listRuns(): Promise<RefreshRunView[]> {
         id: run.id,
         source: run.source,
         competitionName: competitionNameFor({ source: run.source, code: run.competitionCode }),
-        // The label the preview computed, stored with the run. Deriving it
-        // here instead would mean a provider call per row just to learn whether
-        // a foreign season spans two calendar years — so a run would read
-        // `2025` where the picker says `2025/26`. The fallback covers the rows
-        // that failed before the range was resolved.
+        // The label stored with the run; the season id where it failed before the
+        // range was resolved.
         seasonLabel: run.seasonLabel ?? String(run.seasonId),
         succeeded: run.status === "success",
         reason: reasonFrom(run.reason),

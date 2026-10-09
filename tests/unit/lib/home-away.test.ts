@@ -9,6 +9,12 @@ import {
 } from "@/lib/home-away";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
+/**
+ * Home and away figures.
+ *
+ * decisions/033-home-vs-away.md
+ */
+
 function result(
   id: number,
   home: number,
@@ -31,10 +37,8 @@ function result(
   };
 }
 
-/**
- * Team 1 at home: 3–0 W, 1–1 D, 0–2 L, 2–1 W. Away: 1–2 (a 2–1 for the home
- * side) L, 0–0 D, 3–1 W.
- */
+// Team 1 at home: 3–0 W, 1–1 D, 0–2 L, 2–1 W. Away: 1–2 (a 2–1 for the home
+// side) L, 0–0 D, 3–1 W.
 const season = [
   result(1, 1, 2, 3, 0),
   result(2, 1, 3, 1, 1),
@@ -100,7 +104,7 @@ describe("the measures", () => {
   });
 
   it("has no value for a side with no match, not a zero", () => {
-    // `–` on the page (specs/033, Q7): a 0 would read as a real zero.
+    // `–` on the page: a 0 would read as a real zero.
     const none: SideStats = { matches: 0, won: 0, drawn: 0, lost: 0, scored: 0, conceded: 0 };
 
     expect(pointsPerMatch(none)).toBeNull();

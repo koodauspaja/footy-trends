@@ -2,13 +2,12 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Analyysit` on a cup team page (specs/040), end to end. Signed in the way
- * league-position.spec.ts explains.
+ * `Analyysit` on a cup team page, end to end. Signed in the way league-position.spec.ts
+ * explains. A cup page shows that cup's figures and a league page is unchanged: both
+ * are asserted against the same club on the same day.
  *
- * The property worth proving here is the separation: a cup page shows that
- * cup's figures and a league page is unchanged. Both are asserted against the
- * same club on the same day, because a rule that holds only on one page is not
- * the rule.
+ * decisions/040-cup-analytics.md
+ * decisions/043-liigacup.md
  */
 
 const ARSENAL_CUP = "/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024";
@@ -54,8 +53,8 @@ test.describe("Cup analytics, signed in", () => {
     const comparison = page.getByRole("region", { name: "Tämä kausi verrattuna" });
     await comparison.waitFor();
 
-    // Dropped rather than shown as `–`: a row that can never have a value on
-    // this page is noise (specs/040, S7).
+    // Dropped, not shown as `–`: a row that can never have a value on this page
+    // is noise.
     await expect(comparison.locator("[data-part=row]", { hasText: "Sijoitus" })).toHaveCount(0);
     await expect(comparison.locator("[data-part=row]")).not.toHaveCount(0);
   });
@@ -65,13 +64,13 @@ test.describe("Cup analytics, signed in", () => {
     const records = page.getByRole("region", { name: "Ennätykset" });
     await records.waitFor();
 
-    // The panel says which competition, so a cup page's records cannot be
-    // read as the club's own (specs/040, S9).
+    // The panel says which competition, so a cup page's records cannot be read
+    // as the club's own.
     await expect(records.getByText("Mestarien liiga")).toBeVisible();
   });
 });
 
-test.describe("Liigacup team page, signed in (specs/043)", () => {
+test.describe("Liigacup team page, signed in", () => {
   // FC Inter, Liigacup 2026's winner: a TASO cup published under its own
   // competition id, `Liigacup26`, rather than inside the `spljp26` umbrella.
   const INTER_LIIGACUP = "/kotimaa/joukkue/60987?kilpailu=LC&kausi=2026";
@@ -94,8 +93,8 @@ test.describe("Liigacup team page, signed in (specs/043)", () => {
     const comparison = page.getByRole("region", { name: "Tämä kausi verrattuna" });
     await comparison.waitFor();
 
-    // It asked `spljp25` for last season until specs/043, which holds no
-    // Liigacup, and so had nothing to compare.
+    // `spljp25` holds no Liigacup, so asking it for last season would leave
+    // nothing to compare.
     await expect(comparison.locator("[data-part=row]")).not.toHaveCount(0);
     await expect(comparison.locator("[data-part=row]", { hasText: "Sijoitus" })).toHaveCount(0);
   });

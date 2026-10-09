@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * A club's page under Ulkomaat, end to end.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/007-back-navigation.md
+ * decisions/020-context-free-team-page.md
+ * decisions/022-teams-between-tiers.md
+ */
+
 test.describe("Team match list", () => {
   test("a relegated club is told where it played instead of being unknown", async ({ page }) => {
     // Whoever is in the Championship this season is not in the Premier League
@@ -42,15 +51,9 @@ test.describe("Team match list", () => {
   test("a bare team URL renders the team, not the region's default competition", async ({
     page,
   }) => {
-    // Reached by navigation rather than a hardcoded id, then stripped of its
-    // parameters: before specs/020 the bare URL meant "Valioliiga, active
-    // season", which served 20 of 315 stored team ids.
-    //
-    // It deliberately does not require the same heading as the parameterised
-    // page: a Bundesliga club whose newest stored match is a Champions League
-    // one should render that instead, and a test demanding otherwise would fail
-    // on correct behaviour. The choice itself is verified against fixtures in
-    // tests/integration/team-context.test.ts.
+    // Reached by navigation, not a hardcoded id, then stripped of its parameters. It
+    // need not match the parameterised page's heading: a club whose newest stored match
+    // is in another competition renders that one. See team-context.test.ts.
     await page.goto("/ulkomaat/sarjataulukko?kilpailu=BL1");
     const firstTeam = page.locator("table tbody tr").first().getByRole("link").first();
     const teamName = await firstTeam.textContent();

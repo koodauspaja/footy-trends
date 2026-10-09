@@ -1,67 +1,54 @@
 /**
- * The rule CLAUDE.md states and nothing enforced: **no checkbox on a pull
- * request's issue is both unticked and unexplained** (#463).
+ * The rule that no checkbox on a pull request's issue is both unticked and
+ * unexplained. Pure: text in, verdict out; `issue-boxes-steps.ts` fetches the
+ * bodies and decides the exit code.
  *
- * Not "every box is ticked". A criterion that cannot be ticked honestly is
- * supposed to say so on the issue rather than be left blank, and four issues
- * already do — #448, #426, #406 and #400 all write the reason inline, after an
- * em dash, in bold. So the checkable property is the pair: a bare box is one
- * with neither a tick nor a reason.
- *
- * **Pure.** `issue-boxes-steps.ts` fetches the bodies and decides the exit
- * code; everything here is text in, verdict out, which is what makes the rule
- * testable without a network or a repository.
- *
- * Why a script rather than another paragraph: the rule was already written in
- * the one file loaded every session, and #158 and #425 were both merged and
- * closed with every box empty anyway. Nothing failed when it was skipped.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 
 /**
- * The keywords GitHub itself acts on, and so the ones that say "this pull
- * request completes that issue".
+ * The keywords GitHub itself acts on. Matched anywhere in the body, inside
+ * backticks or mid-sentence, because that is where GitHub matches them too.
  *
- * Matched anywhere in the body, including inside backticks or mid-sentence,
- * because that is where GitHub matches them too — a `Closes #N` written in
- * prose closes the issue just the same.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 const CLOSING_KEYWORD = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
 
-/** A list item that is a checkbox: `- [ ]` or `* [x]`, indented or not. */
+/**
+ * A list item that is a checkbox: `- [ ]` or `* [x]`, indented or not.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 const CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s?(.*)$/;
 
 /**
- * A fenced code block's delimiter, which Markdown allows to be backticks or
- * tildes, three or more, indented by up to three spaces.
+ * A fenced code block's delimiter: backticks or tildes, three or more, indented
+ * by up to three spaces. A checkbox drawn inside a fence is an example.
  *
- * Everything between a pair of them is code, and a checkbox drawn inside one is
- * an *example* of a checkbox. An issue explaining this very convention would
- * otherwise be reported as having a bare box — which is the check calling a
- * document about itself a failure. Raised in review on #468.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
-/** Any other list item, which ends the box above it. */
+/**
+ * Any other list item, which ends the box above it.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 const LIST_ITEM = /^\s*[-*]\s/;
 
 /**
- * An ATX heading, which ends the box above it.
+ * An ATX heading, which ends the box above it: up to three spaces of indent,
+ * and a space after the hashes, so `#tag` is ordinary text.
  *
- * Markdown allows up to three spaces of indent, and requires a space after the
- * hashes — so `   ## Notes` is a heading and `#tag` is ordinary text. Testing
- * `startsWith("#")` got both wrong in the same line: an indented heading could
- * explain the box above it, and a wrapped reason beginning `#tag` was cut off
- * from the box it belonged to. Raised in review on #468.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 const HEADING = /^ {0,3}#{1,6}(?:\s|$)/;
 
 /**
- * A reason, as the four issues that carry one write it: an em dash, then bold.
+ * A reason, as the issues that carry one write it: an em dash, then bold. A
+ * shape, not a wording.
  *
- * Deliberately a shape rather than a wording. `- [ ] … — **not ticked: …**`
- * and `- [ ] … — **the six issues exist; no spec is written yet …**` both
- * count, because insisting on the phrase "not ticked" would reject #426, which
- * is a model of the thing this check wants.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 const REASON = /—\s*\*\*[^*]+\*\*/;
 
@@ -77,8 +64,7 @@ export type Box = {
  * Every issue this pull request says it completes, in the order written and
  * each once.
  *
- * Several is ordinary: a pull request may close a feature and a chore at the
- * same time, and each one's boxes are its own.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 export function closedIssues(pullBody: string): number[] {
   const found = [...pullBody.matchAll(CLOSING_KEYWORD)].map((match) => Number(match[1]));
@@ -86,25 +72,15 @@ export function closedIssues(pullBody: string): number[] {
 }
 
 /**
- * The checkboxes in an issue body, each with the lines that continue it.
+ * The checkboxes in an issue body, each with the lines that continue it: up to
+ * the next box, list item, heading or blank line.
  *
- * A box's reason often wraps — GitHub stores the body as typed, and #400's
- * runs onto the next line — so a box is its own line plus everything up to the
- * next box, the next list item, the next heading or a blank line. Reading only
- * the first line would call an explained box bare, which is the one verdict
- * this check must never get wrong.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 export function boxesIn(issueBody: string): Box[] {
   const boxes: Box[] = [];
-  /**
-   * The box a continuation line would belong to, or `null` when the last line
-   * closed it.
-   *
-   * Tracked rather than read back off the end of `boxes`: a blank line ends the
-   * item, so a paragraph *after* it belongs to the issue and not to the box
-   * above — and reading `boxes.at(-1)` each time let exactly that paragraph
-   * explain a bare box.
-   */
+  // The box a continuation line would belong to, or `null` when the last line
+  // closed it. Tracked, not read back off the end of `boxes`.
   let open: Box | null = null;
 
   let fenced = false;
@@ -144,21 +120,27 @@ export function boxesIn(issueBody: string): Box[] {
   return boxes;
 }
 
-/** The boxes that are neither ticked nor explained. */
+/**
+ * The boxes that are neither ticked nor explained.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 export function bareBoxes(issueBody: string): Box[] {
   return boxesIn(issueBody).filter((box) => !(box.ticked || box.explained));
 }
 
-/** One issue's verdict, ready to print. */
+/**
+ * One issue's verdict, ready to print.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 export type IssueVerdict = { issue: number; bare: Box[] };
 
 /**
  * What the check says when it fails: which issue, which criteria, and what to
- * do about each.
+ * do about each. Every bare box is named, not counted.
  *
- * Names every bare box rather than counting them, for the reason
- * `coverage-gaps.ts` names every missing file — a number tells you to go and
- * look, a list tells you where.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 export function report(verdicts: readonly IssueVerdict[]): string[] {
   const failing = verdicts.filter((verdict) => verdict.bare.length > 0);
@@ -174,19 +156,21 @@ export function report(verdicts: readonly IssueVerdict[]): string[] {
   ];
 }
 
-/** `a box that is neither ticked nor explained`, in whichever number it is. */
+/**
+ * `a box that is neither ticked nor explained`, in whichever number it is.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 function countOf(bare: readonly Box[]): string {
   const subject = bare.length === 1 ? "a box that is" : `${bare.length} boxes that are`;
   return `${subject} neither ticked nor explained`;
 }
 
 /**
- * What to do about a bare box, printed once after the list however many issues
- * the pull request closed.
+ * What to do about a bare box, printed once after the list. It says what a tick
+ * means before it asks for one.
  *
- * The instruction is the rule itself rather than "tick them": a box ticked to
- * clear a red check is the failure this whole thing exists to catch, so the
- * message says what a tick means before it asks for one.
+ * decisions/463-bare-issue-boxes-fail.md
  */
 const ADVICE: readonly string[] = [
   "Tick each one it is honest to tick — a box is ticked because the outcome",
@@ -196,7 +180,12 @@ const ADVICE: readonly string[] = [
   "  - [ ] The criterion — **not ticked: it needs a live page, and I have not looked.**",
 ];
 
-/** What the check prints when nothing is wrong, so a green run still says what it checked. */
+/**
+ * What the check prints when nothing is wrong, so a green run still says what
+ * it checked.
+ *
+ * decisions/463-bare-issue-boxes-fail.md
+ */
 export function summary(verdicts: readonly IssueVerdict[]): string {
   if (verdicts.length === 0) {
     return "No issue is closed by this pull request, so there are no boxes to check.";

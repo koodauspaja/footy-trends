@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
+/**
+ * A Finnish match's page: its details, its earlier meetings and the link to the
+ * full head-to-head.
+ *
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/529-one-whole-number-parser.md
+ */
+
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 
 vi.mock("@/lib/match-service", () => ({
@@ -115,7 +124,7 @@ describe("/kotimaa/ottelu/:id", () => {
   it("names each previous meeting's competition rather than TASO's series", async () => {
     // The list spans competitions, so this column is the only signal for which
     // one a meeting belonged to: "5. Kierros" left a cup tie looking like a
-    // league round. See #251.
+    // league round.
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: tasoRow() },
@@ -280,7 +289,7 @@ describe("/kotimaa/ottelu/:id", () => {
     expect(screen.getByText("Ottelua ei löytynyt.")).toBeInTheDocument();
   });
 
-  // `Number()` alone read the first two as matches 16 and 1000 (#529).
+  // `Number()` alone would accept two of these: `0x10` as 16 and `1e3` as 1000.
   it.each([
     ["a word", "abc"],
     ["hexadecimal, which Number() reads as 16", "0x10"],
@@ -313,13 +322,10 @@ describe("/kotimaa/ottelu/:id", () => {
   });
 });
 
-describe("the link to the full history (specs/042)", () => {
-  /**
-   * Its own setup: this block is a sibling of the one above, so its
-   * `beforeEach` does not run here — and without this, a shuffled run inherits
-   * whichever fixture the previous test left behind. It did: the placeholder
-   * match leaked in and the link vanished for the wrong reason.
-   */
+describe("the link to the full history", () => {
+  // Its own setup: this block is a sibling of the one above, so its
+  // `beforeEach` does not run here, and a shuffled run would inherit whichever
+  // fixture the previous test left behind.
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();

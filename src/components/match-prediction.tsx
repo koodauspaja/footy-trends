@@ -11,15 +11,27 @@ import { teamDisplayName } from "@/lib/match-detail";
 import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
 import { formatSeasonLabel } from "@/lib/seasons";
 
-/** The strings agreed in specs/051, each where the spec places it. */
+/**
+ * The section's strings.
+ *
+ * decisions/051-home-win-baseline.md
+ */
 export const PREDICTION_HEADING = "Ennuste";
 export const PREDICTION_ERROR_MESSAGE = "Ennustetta ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const NO_HISTORY_MESSAGE = "Kilpailusta ei ole vielä tallennettuja otteluita.";
 export const PREDICTION_SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi ennusteen.";
-/** specs/053 S13. */
+/**
+ * The baseline's row, beside the Elo row.
+ *
+ * decisions/053-elo-ratings.md
+ */
 export const BASELINE_ROW = "Perustaso";
 export const ELO_ROW = "Elo";
-/** specs/054 S13: the models' track record, from every `Ennuste`. */
+/**
+ * The link to the models' track record, from every `Ennuste`.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const QUALITY_LINK = "Kuinka hyvin ennusteet ovat osuneet?";
 
 const SAME_FOR_EVERY_MATCH =
@@ -27,15 +39,21 @@ const SAME_FOR_EVERY_MATCH =
 
 const HEADING_ID = "ennuste";
 
-/** `1 234`: a Finnish count, a no-break space between the thousands. */
+/**
+ * `1 234`: a Finnish count, a no-break space between the thousands.
+ *
+ * decisions/051-home-win-baseline.md
+ */
 function countText(count: number): string {
   return new Intl.NumberFormat("fi-FI").format(count);
 }
 
 /**
- * What the shares rest on, from the data rather than literals (S2, S8): the
+ * What the shares rest on, from the data rather than literals: the
  * match count and the seasons, then that the teams are not considered. One
  * match or one season is written in the singular.
+ *
+ * decisions/051-home-win-baseline.md
  */
 export function baselineSentence(baseline: Extract<HomeBaseline, { status: "ok" }>): string {
   const { matches, seasons, spansCalendarYears } = baseline;
@@ -50,8 +68,10 @@ export function baselineSentence(baseline: Extract<HomeBaseline, { status: "ok" 
 }
 
 /**
- * The Elo line (specs/053 S13): both teams' ratings, rounded, then how the
+ * The Elo line: both teams' ratings, rounded, then how the
  * prediction is made from them.
+ *
+ * decisions/053-elo-ratings.md
  */
 export function eloSentence(
   homeName: string,
@@ -62,16 +82,26 @@ export function eloSentence(
   return `Elo: ${homeName} ${Math.round(homeRating)}, ${awayName} ${Math.round(awayRating)}. Kotijoukkueelle lisätään ${ELO_HOME_ADVANTAGE} pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus.`;
 }
 
-/** One model's row: its name and three shares, 0–100. */
+/**
+ * One model's row: its name and three shares, 0–100.
+ *
+ * decisions/053-elo-ratings.md
+ */
 type PredictionRow = { model: string; home: number; draw: number; away: number };
 
-/** The three outcomes' headings, in their order (specs/051, specs/053 S13). */
+/**
+ * The three outcomes' headings, in their order.
+ *
+ * decisions/053-elo-ratings.md
+ */
 const OUTCOMES = ["Kotivoitto", "Tasapeli", "Vierasvoitto"] as const;
 
 /**
  * The predictions as a small table that sizes to its content: three outcome
  * columns and two rows fit a phone, where `DataTable`'s 240px name column
  * would push `Tasapeli` and `Vierasvoitto` off the screen.
+ *
+ * decisions/053-elo-ratings.md
  */
 function PredictionTable({ rows }: Readonly<{ rows: readonly PredictionRow[] }>) {
   return (
@@ -106,7 +136,11 @@ function PredictionTable({ rows }: Readonly<{ rows: readonly PredictionRow[] }>)
   );
 }
 
-/** The two teams as the panel names them, and their ids. */
+/**
+ * The two teams as the panel names them, and their ids.
+ *
+ * decisions/053-elo-ratings.md
+ */
 type Sides = {
   homeTeam: number;
   awayTeam: number;
@@ -131,8 +165,7 @@ function Body({
       away: baseline.awayShare,
     },
   ];
-  // No Elo row for a placeholder side; the baseline still stands (S16 needs
-  // the baseline's draw share, which this branch has).
+  // No Elo row for a placeholder side; the baseline still stands.
   const prediction =
     elo.status === "ok"
       ? predictElo(
@@ -178,13 +211,13 @@ function Body({
 }
 
 /**
- * The match page's `Ennuste` (specs/051): the competition's home-win baseline
- * and, beside it, the Elo prediction from the two teams' ratings (specs/053
- * S8), on an upcoming match in a competition specs/049 compares, or nothing.
+ * The match page's `Ennuste`: the competition's home-win baseline and, beside
+ * it, the Elo prediction, on an upcoming match in a compared competition, or
+ * nothing. Gated before anything is read; awaited by the page, not rendered.
  *
- * The analytics gate is asked before anything is read, so a signed-out page
- * carries no probability (S4). Awaited by the page rather than rendered, as
- * `CompetitionAnalyticsSection` is.
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
+ * decisions/053-elo-ratings.md
  */
 export async function MatchPrediction({ stored }: Readonly<{ stored: StoredMatch }>) {
   const competition = baselineCompetition(stored);

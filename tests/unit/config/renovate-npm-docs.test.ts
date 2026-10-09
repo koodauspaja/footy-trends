@@ -3,32 +3,24 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Renovate's custom manager for the npm version our documents state (#461).
+ * Renovate's custom manager for the npm version the documents state: its
+ * patterns still find the version README.md and INSTALL.md repeat from
+ * `package.json`, and no other setup document states one they do not reach.
  *
- * `package.json`'s `packageManager` pin is the source, and two documents repeat
- * it in prose: README.md and INSTALL.md.
- * `tests/unit/scripts/setup-plan.test.ts` fails when they disagree with it — so
- * twice now, Renovate's npm pull request arrived red and needed a hand-written
- * commit: #400 (12.0.1 against 12.0.2) and #456 (12.0.2 against 12.1.0).
- *
- * The fix is a `customManagers` entry in `renovate.json`, which bumps those
- * lines in the same pull request. Its real proof is Renovate's next npm update,
- * which cannot be run from here; this file proves the half that broke both
- * times — that the config's own patterns still find the version those documents
- * state, and that no other setup document states one they do not reach.
+ * decisions/461-renovate-updates-the-stated-npm-version.md
+ * decisions/400-one-command-setup.md
  */
 
 const ROOT = process.cwd();
 
-/**
- * README.md, INSTALL.md and `docs/setup/` tell a reader which npm to install. A
- * spec or decision record narrating an old version is history rather than an
- * instruction, and is deliberately outside this.
- */
+// README.md, INSTALL.md and `docs/setup/` tell a reader which npm to install. A
+// spec or decision record narrating an old version is history, not an
+// instruction, and is deliberately outside this.
 const SETUP_DOCUMENTS = ["README.md", "INSTALL.md"];
 const SETUP_DIRECTORY = "docs/setup";
 
-/** Both ways a document states it: `npm 12.1.0`, and `npm install -g npm@12.1.0`. */
+// Both ways a document states it: `npm 12.1.0`, and
+// `npm install -g npm@12.1.0`.
 const STATED = /npm[ @]\d+\.\d+\.\d+/;
 
 type CustomManager = {
@@ -47,11 +39,8 @@ function npmManagers(): CustomManager[] {
   return (config.customManagers ?? []).filter((manager) => manager.depNameTemplate === "npm");
 }
 
-/**
- * The one manager under test. It throws rather than returning `undefined` so a
- * config that has lost the entry fails every assertion below by name, instead
- * of each one reading a property of nothing.
- */
+// The one manager under test. It throws, and does not return `undefined`, so a
+// config that has lost the entry fails every assertion below by name.
 function npmManager(): CustomManager {
   const [manager] = npmManagers();
   if (!manager) throw new Error("renovate.json has no customManagers entry for npm");
@@ -67,8 +56,8 @@ function pinnedVersion(): string | undefined {
   return /^npm@(.+)$/.exec(packageManager)?.[1];
 }
 
-/** Renovate's `/regex/` form for a file pattern, which the test below pins so
- *  this conversion stays honest. */
+// Renovate's `/regex/` form for a file pattern, which the test below pins so
+// this conversion stays honest.
 function asRegExp(pattern: string): RegExp {
   return new RegExp(pattern.slice(1, -1));
 }

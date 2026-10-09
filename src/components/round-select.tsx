@@ -1,24 +1,25 @@
 type RoundSelectProps = {
   availableRounds: number[];
-  selectedRound: number;
-  onChange: (round: number) => void;
+  selectedRound: number | undefined;
+  onChange: (round: number | undefined) => void;
+  /** Offers `Koko kausi` first, which selects no round. */
+  wholeSeason?: boolean;
 };
 
 /**
- * The `Kierros` label + `<select>` only, for the season-wide match list. No
- * "Koko kausi" option here — unlike the home page's round selector, a round
- * is always required, since it's this page's chunking mechanism rather than
- * an optional filter.
+ * The `Kierros` label and `<select>` only. A round is always required on the
+ * season-wide match list; a table passes `wholeSeason` for a `Koko kausi`
+ * option. Controlled via `value`, as the round also changes through the page's
+ * ◀/▶ links and the browser's Back button.
  *
- * Controlled via `value`, not `defaultValue`: the round can also change
- * through the page's ◀/▶ links, which don't go through this select's own
- * `onChange` — an uncontrolled select would keep showing the round it was
- * first mounted with after one of those link clicks.
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/532-one-transaction-type-one-round-dropdown.md
  */
 export function RoundSelect({
   availableRounds,
   selectedRound,
   onChange,
+  wholeSeason = false,
 }: Readonly<RoundSelectProps>) {
   return (
     <>
@@ -27,11 +28,15 @@ export function RoundSelect({
       </label>
       <select
         className="rounded border border-border px-3 py-2"
-        value={selectedRound}
+        value={selectedRound ?? ""}
         id="kierros"
         name="kierros"
-        onChange={(event) => onChange(Number(event.target.value))}
+        onChange={(event) => {
+          const { value } = event.target;
+          onChange(value === "" ? undefined : Number(value));
+        }}
       >
+        {wholeSeason && <option value="">Koko kausi</option>}
         {availableRounds.map((round) => (
           <option key={round} value={round}>
             {`Kierros ${round}`}

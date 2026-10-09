@@ -71,3 +71,50 @@ decide:
 | #333 bogey team | A team-page group for opponents across seasons, e.g. `Vastustajat` |
 | #355 rivalry page | The head-to-head page's first grouping: history against now |
 | #339–#342 league trends | An `Analyysit` section on competition pages, which have none |
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`SCORE_GRID_CAP`.** Six rows and six columns at most is what keeps the grid
+  legible at 375 px.
+- **`ScoreGrid`.** Every cell names its own goals, so a renderer keys on the
+  score and not on a position. The most common scorelines are uncapped
+  because the sentence names a real score, not a bucket; with none occurring
+  more than once the sentence would say nothing the grid does not.
+- **`SeasonRef`.** football-data names a season within a competition code.
+  TASO's `competition_id` is itself a season (`spljp24`, `Liigacup24`) and its
+  `category_id` the competition inside it, so the pair is the season.
+- **`AnalysedMeeting`.** Liigacup's `LC2023` and `LC` are one `competitionKey`.
+- **`competitionGroups`.** One group per competition and never one blended
+  average.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`CompetitionAverages`.** The average travels on the group it belongs to,
+  not in a parallel list, so a caller cannot pair one competition's average
+  with another's row. A failure is its own case, so the page can say the
+  averages could not be computed where an empty list would show no
+  competitions.
+- **`getCompetitionAverages`.** Not the whole competition. The pair's own
+  meetings are in every scope, so each has at least one match; an empty one
+  means the meetings and this query disagree about what counts, and is
+  reported as that failure, not printed as `0,0 – 0,0`.
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`mostCommonSentence`.** With every scoreline occurring once there is no
+  most common one. `kerran` is never needed: a count of one is exactly that
+  case.
+- **`shadeLevel`.** One hue, light to dark, mixed from the theme's own
+  foreground and background, so it is right in dark mode too. The shading is
+  never the only way to read a cell.
+- **`AveragesSection`.** A failed read keeps the heading and says so, so it
+  never looks like there was nothing to compare.
+- **`loadAnalysis`.** A signed-out request computes neither section, so its
+  page carries no count or average from them. The TASO national-team routes
+  have no averages: a category there holds only Finland's group of a
+  competition, so its "average" would not be the competition's. Loaded here
+  and rendered by plain components, as `AnalyticsSection` is awaited and not
+  nested: an async component inside JSX is not something every renderer can
+  draw.

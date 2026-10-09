@@ -6,6 +6,12 @@ import {
   intervalForRatePerMinute,
 } from "@/lib/pacer";
 
+/**
+ * The pacer that spaces provider requests under a rate limit.
+ *
+ * decisions/052-predictions-log.md
+ */
+
 describe("intervalForRatePerMinute", () => {
   it("converts a rate into the gap between requests", () => {
     expect(intervalForRatePerMinute(60)).toBe(1000);

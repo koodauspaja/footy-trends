@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QualityReport } from "@/lib/prediction-quality";
 import type { QualityResult } from "@/lib/prediction-quality-service";
 
+/**
+ * The `/ennusteet` page: its switches, its tables and the calibration chart.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/050-table-volatility.md
+ */
+
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getPredictionQuality: vi.fn<(source: string, kind: string) => Promise<QualityResult>>(),
@@ -81,7 +88,7 @@ async function renderPage(params = {}) {
   render(await PredictionQualityPage({ params }));
 }
 
-describe("parseQualityParams (S3, S4)", () => {
+describe("parseQualityParams", () => {
   it("defaults to the domestic backtest", () => {
     expect(parseQualityParams({})).toEqual({ source: "taso", kind: "backtest" });
   });
@@ -113,7 +120,7 @@ describe("the sentences", () => {
     );
   });
 
-  it("says how many matches the rolling chart still lacks (S14)", () => {
+  it("says how many matches the rolling chart still lacks", () => {
     expect(tooFewSentence(37)).toBe(
       "Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua; nyt niitä on 37."
     );
@@ -128,7 +135,7 @@ describe("modelLabel", () => {
   });
 });
 
-describe("PredictionQualityPage (specs/054)", () => {
+describe("PredictionQualityPage", () => {
   beforeEach(() => {
     canSeeAnalytics.mockReset().mockResolvedValue(true);
     getPredictionQuality.mockReset().mockResolvedValue(report);
@@ -177,7 +184,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(screen.getByText(BACKTEST_NOTE)).toBeInTheDocument();
   });
 
-  it("shows accuracy per model and the rolling chart with a legend (S5, S6)", async () => {
+  it("shows accuracy per model and the rolling chart with a legend", async () => {
     await renderPage();
 
     const panel = screen.getByRole("region", { name: ACCURACY_HEADING });
@@ -188,7 +195,7 @@ describe("PredictionQualityPage (specs/054)", () => {
       )
     ).toBeInTheDocument();
     expect(panel.querySelectorAll("[data-part=line]")).toHaveLength(2);
-    // A long caption breaks onto two lines (specs/050), so read its lines together.
+    // A long caption breaks onto two lines, so read its lines together.
     const caption = [...panel.querySelectorAll("tspan")].map((line) => line.textContent).join(" ");
     expect(caption).toContain("Osuma-% (200 viimeisintä)");
     expect(
@@ -248,7 +255,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(within(panel).getByText("60")).toBeInTheDocument();
   });
 
-  it("replaces the rolling chart with the count under 200 matches (S14)", async () => {
+  it("replaces the rolling chart with the count under 200 matches", async () => {
     getPredictionQuality.mockResolvedValue({ ...report, matches: 37, rolling: null });
     await renderPage();
 
@@ -257,7 +264,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(panel.querySelector("[data-part=line]")).toBeNull();
   });
 
-  it("shows Brier and log-loss per model, and Brier per season, with their notes (S7, S9)", async () => {
+  it("shows Brier and log-loss per model, and Brier per season, with their notes", async () => {
     await renderPage();
 
     const panel = screen.getByRole("region", { name: SCORES_HEADING });
@@ -286,7 +293,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(screen.getByRole("rowheader", { name: "2025/26" })).toBeInTheDocument();
   });
 
-  it("draws calibration against the diagonal, and says when a bin is left off (S8)", async () => {
+  it("draws calibration against the diagonal, and says when a bin is left off", async () => {
     await renderPage();
 
     const panel = screen.getByRole("region", { name: CALIBRATION_HEADING });
@@ -338,7 +345,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(screen.queryByText(BINS_OMITTED_NOTE)).not.toBeInTheDocument();
   });
 
-  it("says so when no prediction has been judged yet (S14)", async () => {
+  it("says so when no prediction has been judged yet", async () => {
     getPredictionQuality.mockResolvedValue({ status: "empty" });
     await renderPage();
 
@@ -353,7 +360,7 @@ describe("PredictionQualityPage (specs/054)", () => {
     expect(screen.getByText(QUALITY_ERROR)).toBeInTheDocument();
   });
 
-  it("signed out, shows the prompt and reads nothing (S12)", async () => {
+  it("signed out, shows the prompt and reads nothing", async () => {
     canSeeAnalytics.mockResolvedValue(false);
     await renderPage();
 

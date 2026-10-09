@@ -3,7 +3,13 @@ import { formSeries } from "@/lib/form-series";
 import { goalsSeries } from "@/lib/goals-series";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
-/** A finished match on `day` of September; the day is what orders them. */
+/**
+ * The goals series: rolling averages and running totals.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
+
+// A finished match on `day` of September; the day is what orders them.
 function result(
   day: number,
   home: number,
@@ -26,10 +32,8 @@ function result(
   };
 }
 
-/**
- * Team 1, home and away. Its own goals first: 2–0, 1–1, 0–3, 4–1, 2–2, 0–1.
- * Listed out of order on purpose; kickoff decides.
- */
+// Team 1, home and away. Its own goals first: 2–0, 1–1, 0–3, 4–1, 2–2, 0–1.
+// Listed out of order on purpose; kickoff decides.
 const season = [
   result(4, 5, 1, 1, 4),
   result(1, 1, 2, 2, 0),

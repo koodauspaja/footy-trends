@@ -14,6 +14,12 @@ import {
   rollingOf,
 } from "@/lib/prediction-quality";
 
+/**
+ * How a prediction is judged: the pick, Brier score, log-loss and calibration.
+ *
+ * decisions/054-prediction-quality.md
+ */
+
 const day = (n: number) => new Date(Date.UTC(2024, 0, 1) + n * 86_400_000);
 
 function judged(overrides: Partial<JudgedPrediction> = {}): JudgedPrediction {
@@ -30,7 +36,7 @@ function judged(overrides: Partial<JudgedPrediction> = {}): JudgedPrediction {
   };
 }
 
-describe("the constants (S6–S8)", () => {
+describe("the constants", () => {
   it("roll over 200, leave off bins under 50, floor log-loss at 0,001", () => {
     expect({ ROLLING_WINDOW, CALIBRATION_MINIMUM, LOG_LOSS_FLOOR, ROLLING_POINTS }).toEqual({
       ROLLING_WINDOW: 200,
@@ -41,7 +47,7 @@ describe("the constants (S6–S8)", () => {
   });
 });
 
-describe("pickOf (S5)", () => {
+describe("pickOf", () => {
   it("picks the most likely outcome", () => {
     expect(pickOf({ home: 0.5, draw: 0.3, away: 0.2 })).toBe("home");
     expect(pickOf({ home: 0.2, draw: 0.5, away: 0.3 })).toBe("draw");
@@ -55,7 +61,7 @@ describe("pickOf (S5)", () => {
   });
 });
 
-describe("brierOf and logLossOf (S7)", () => {
+describe("brierOf and logLossOf", () => {
   it("scores by hand", () => {
     // (0,5 − 1)² + 0,3² + 0,2² = 0,38
     expect(brierOf(judged())).toBeCloseTo(0.38, 12);
@@ -72,7 +78,7 @@ describe("brierOf and logLossOf (S7)", () => {
   });
 });
 
-describe("commonMatches (S4)", () => {
+describe("commonMatches", () => {
   it("keeps only the matches every model predicted", () => {
     const rows = [
       judged({ model: "a", providerMatchId: 1 }),
@@ -84,7 +90,7 @@ describe("commonMatches (S4)", () => {
   });
 });
 
-describe("rollingOf (S6)", () => {
+describe("rollingOf", () => {
   const series = (count: number) =>
     Array.from({ length: count }, (_, index) =>
       judged({
@@ -126,7 +132,7 @@ describe("rollingOf (S6)", () => {
   });
 });
 
-describe("calibrationOf (S8)", () => {
+describe("calibrationOf", () => {
   it("bins every probability by tens, counting how often its outcome happened", () => {
     const rows = Array.from({ length: 60 }, (_, index) =>
       judged({

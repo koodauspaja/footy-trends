@@ -98,3 +98,120 @@ Both from Sourcery on the first push, and both real:
   change to what that panel shows, which specs/041 puts out of scope.
 - **The opponent pages** under `/maajoukkueet/joukkue/[id]` are football-data
   club pages and keep the season axis. Nothing here touches them.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/national-team.ts` at `a86c1cb` by #531.
+
+- **`FINLAND_TEAM_ID`.** TASO publishes no id for Finland that is stable across
+  categories, which is why `isFinlandMatch` matches the name, while all eight
+  analytics functions take a `teamId` and compare it against the home or away
+  id. One reserved id is the only thing that is stable, so the read boundary
+  writes it on Finland's side and every function works untouched. Nothing
+  stores it, nothing fetches by it, and no URL carries it.
+- **`normalizeFinlandId`.** Applied once, beside the filter that already knows
+  which side Finland is. The opponent's id is left as TASO sent it, because
+  the match page and the head-to-head still read it. A match Finland is not
+  in cannot reach the pages, since `isFinlandMatch` runs first, but a
+  transformation that quietly relabelled another team's id would be worse
+  than one that does nothing.
+
+Cut from `src/lib/national-team-analytics.ts` at `a86c1cb` by #531.
+
+- **`national-team-analytics.ts`.** Pure. Every other team page's panels come
+  from a service that fetches a season; this page already holds its whole
+  history by the time the section renders, so there is nothing to fetch and
+  no cache to add. The page has no season, hence the two axes: `Ottelu
+  ottelulta` and `Koko historia` read every finished match since 2018 in
+  kickoff order; `Muut vuodet` reads the newest year against every earlier
+  one, and records that run across all of them. The loaders are thunks, so a
+  signed-out request computes nothing: `AnalyticsSection` checks the gate
+  before calling any of them.
+- **`NATIONAL_TEAM_PERIOD_CODE`.** `comparisonFor` and `recordsFor` tell periods
+  apart by `{ competitionCode, seasonId }`, and `recordsFor` joins two periods
+  into one run only when the code matches and the years are consecutive. It
+  is never looked up in a competition registry: a year names itself.
+- **`history`.** `getNationalTeamYears` answers newest year first with each
+  year's matches chronological, which is right for reading down the page and
+  backwards for a chart, so the years are reversed and their matches kept.
+- **`finishedHistory`.** Typed as the narrowed match and not as `SeasonMatch`:
+  `Kääntyneet ottelut` needs the half-time score, and widening would hide it
+  from the one panel that reads it.
+- **`selectedYear`.** Finished, not merely scheduled: a year whose fixtures are
+  all ahead of it has nothing to compare. In January that makes last year the
+  selected one, the most recent football there is.
+- **`yearSpan`.** In January the newest bucket carries fixtures and no results,
+  and a span reaching through it would claim coverage of a year nothing was
+  read from. `recordsFor` passes the contributing years in, so the span cannot
+  disagree with the panel. An en dash, as every range in the app.
+- **`readYear`.** `points` is empty and `teamCount` 0 because there is no
+  table: `seasonLength` finds no rounds, the share falls back to the whole
+  period, and the panel is asked for `UNRANKED_MEASURES`, so it shows no
+  `Sijoitus` row. `competition` is the year, because a year spans
+  friendlies, qualifiers and a tournament at once. A year with no finished
+  match is `empty` and not an empty period: counting it would let both panels
+  describe a year they read nothing from.
+
+Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
+
+- **`StreakRecords.scope`.** The panel says what its records cover because a
+  reader on a club's cup page could otherwise take them for the club's own.
+  Built by the caller because what identifies the run differs by page: a club
+  page names the competitions, a national-team page the span of years. One
+  field holding names that sometimes held years would be two meanings in one
+  place.
+- **`competitionScope`.** Shared by both providers: they differ in how a
+  season is read and in nothing about how it is named.
+
+Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
+
+- **`normalizeFinlandId` in `loadSeason`.** The analytics functions all key
+  on an id.
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **`axis` on `AnalyticsSection`.** A page that forgot it would quietly
+  claim its panels were about a season.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **The analytics on a national team's page.** The panels cannot sit inside
+  one year. The loaders are computed from `result.years`, so the section adds
+  no query and no provider request. They stay thunks because
+  `AnalyticsSection` checks the sign-in gate before calling any of them, and
+  a signed-out page must carry no computed value at all. The `incomplete`
+  notice already says the history may be short, and a partial history is
+  still a history: the same trade as on the list itself.
+
+Cut from `src/lib/analytics-axis.ts` at `ef99862` by #531.
+
+- **`AnalyticsAxis`.** A national-team page has no season at all, so its
+  charts run across the whole history and only `Muut vuodet` reads years as
+  periods. One value per page and not one flag per string: the panels spelled
+  `kausi` into their own headings, and a page that says
+  `Tämä vuosi verrattuna` under a group called `Muut kaudet` is worse than
+  one that says neither. Picking the axis picks every word at once, so a
+  page cannot disagree with itself, and the two constants are the only two
+  axes the app has.
+- **`SEASON_AXIS`.** Its strings are the ones the season comparison and the
+  record book were written with.
+
+Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #531.
+
+- **`BASELINE_LABEL`.** The filled column is `Tämä kausi` on a club page and
+  `Tämä vuosi` on a national-team one.
+
+Cut from `src/components/season-comparison-section.tsx` at `48ebab4` by #531.
+
+- **The comparison panel's strings.** The ones naming a period are a season
+  on a club page and a calendar year on a national-team page.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/unit/app/national-teams/mens-team.test.tsx` at `c12c30a` by #531.
+
+- **Why the national-team page tests mock the section.** Not only
+  separation: rendering the real section pulled ten panels and their charts
+  into every test, which took the first render past the five second budget
+  in a full run and left its DOM behind for the next test. The same holds in
+  `womens-team.test.tsx` and `pages.test.tsx`.

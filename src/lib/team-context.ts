@@ -16,18 +16,15 @@ import { isStoredInteger } from "./provider-ids";
 /**
  * Which competition and season a team page shows when its URL does not say.
  *
- * A bare team URL already resolved before this existed — it meant "the region's
- * default competition, in its default season", which served 12 of 1,315 stored
- * Finnish team ids and 20 of 315 football-data ones. Everything else answered
- * the team-not-found message on its own address. See
- * specs/020-context-free-team-page.md.
+ * decisions/020-context-free-team-page.md
  */
 export type TeamContext = { competitionCode: string; seasonId: number };
 
 /**
  * What the URL already said, and therefore what the resolution must not
- * contradict. Both optional, which is the point: the rule fills in only what is
- * missing.
+ * contradict. Both optional: the rule fills in only what is missing.
+ *
+ * decisions/020-context-free-team-page.md
  */
 export type TeamContextFilter = { competitionCode?: string; seasonId?: number };
 
@@ -41,12 +38,18 @@ export type TeamContextResult =
  * The routes that have a team page. Not every `MatchSource` does: TASO's
  * national-team buckets carry Huuhkajat's and Helmarit's opponents, and neither
  * they nor Finland have a page to link to.
+ *
+ * decisions/020-context-free-team-page.md
  */
 export type TeamPageSource =
   | { kind: "football-data"; region: CompetitionRegion }
   | { kind: "taso"; bucket: "domestic" };
 
-/** The team's newest stored match decides, so the ordering has to be total. */
+/**
+ * The team's newest stored match decides, so the ordering has to be total.
+ *
+ * decisions/020-context-free-team-page.md
+ */
 const NEWEST_FIRST = [desc(matches.kickoffAt), desc(matches.providerMatchId)];
 const TASO_NEWEST_FIRST = [desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId)];
 
@@ -120,10 +123,10 @@ async function resolveTaso(
 }
 
 /**
- * Keyed on primitives rather than on the source and filter objects, which a
- * route rebuilds on every render — `cache()` compares arguments by identity, so
- * an object argument misses the cache every time. `generateMetadata` and the
- * page each ask for this once.
+ * The lookup, cached per request and keyed on primitives: `cache()` compares
+ * arguments by identity, so an object argument would miss every time.
+ *
+ * decisions/020-context-free-team-page.md
  */
 const loadTeamContext = cache(async function loadTeamContext(
   kind: TeamPageSource["kind"],
@@ -155,21 +158,18 @@ const loadTeamContext = cache(async function loadTeamContext(
 
 /**
  * The competition and season a team page defaults to: those of the team's
- * newest stored match, narrowed by whatever the URL already said.
+ * newest stored match, narrowed by whatever the URL already said. The
+ * placeholder id short-circuits before any query.
  *
- * The placeholder id short-circuits before any query. `0` is TASO's unresolved
- * bracket slot rather than a team — 22 stored rows carry it — and a page for it
- * could only ever be empty.
+ * decisions/020-context-free-team-page.md
  */
 export function getTeamContext(
   source: TeamPageSource,
   teamProviderId: number,
   filter: TeamContextFilter = {}
 ): Promise<TeamContextResult> {
-  // The id alone, not `isPlaceholderTeam`: that also treats a blank *name* as a
-  // placeholder, and there is no name here to judge. `isStoredInteger` refuses
-  // what the column cannot hold, which would otherwise fail at bind time and
-  // reach the reader as an error rather than a not-found.
+  // The id alone, not `isPlaceholderTeam`, which also judges a name, and there is
+  // none here. `isStoredInteger` refuses what the column cannot hold.
   if (!isStoredInteger(teamProviderId) || teamProviderId === PLACEHOLDER_TEAM_ID) {
     return Promise.resolve({ status: "not_found" });
   }

@@ -2,10 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * `RowLink` (#489). `next/link`'s prefetch setting leaves no mark in the DOM,
- * so the link is replaced by one that shows what it was given: the point of
- * `RowLink` is exactly that prop, and everything else passing through intact.
+ * `RowLink`. `next/link`'s prefetch setting leaves no mark in the DOM, so the
+ * link is replaced by one that shows what it was given: that prop is the point,
+ * with everything else passing through.
+ *
+ * decisions/489-row-links-not-prefetched.md
  */
+
 vi.mock("next/link", () => ({
   default: ({
     prefetch,

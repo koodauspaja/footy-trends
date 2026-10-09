@@ -11,6 +11,12 @@ import {
 } from "@/components/goals-section";
 import type { GoalsSeries } from "@/lib/goals-series";
 
+/**
+ * The two goals panels.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
+
 const series: GoalsSeries = {
   status: "ok",
   rolling: [{ match: 5, scored: 1.4, conceded: 0.8 }],

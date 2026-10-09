@@ -15,6 +15,12 @@ import {
 } from "@/components/streaks-section";
 import type { StreaksSeries } from "@/lib/streaks";
 
+/**
+ * The `Putket` panel.
+ *
+ * decisions/035-streaks.md
+ */
+
 const series: StreaksSeries = {
   status: "ok",
   current: { outcome: "win", length: 2 },

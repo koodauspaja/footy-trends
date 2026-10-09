@@ -1,27 +1,36 @@
 import { logger } from "./logger";
 
-/** One retry, not a loop: enough to clear a counter reset, bounded enough that a
- * page render cannot be held indefinitely by a provider that keeps refusing. */
+/**
+ * One retry, not a loop: enough to clear a counter reset, bounded enough that a
+ * page render cannot be held indefinitely by a provider that keeps refusing.
+ *
+ * decisions/197-rate-limit-backoff.md
+ */
 const MAX_ATTEMPTS = 2;
-/** Longer than football-data.org's 30-second window would ever need. */
+/**
+ * Longer than football-data.org's 30-second window would ever need.
+ *
+ * decisions/197-rate-limit-backoff.md
+ */
 const MAX_BACKOFF_SECONDS = 35;
-/** When a provider rate-limits without saying for how long. */
+/**
+ * When a provider rate-limits without saying for how long.
+ *
+ * decisions/197-rate-limit-backoff.md
+ */
 const DEFAULT_BACKOFF_SECONDS = 10;
 
 /**
- * How long to wait before retrying a rate-limited request.
+ * How long to wait before retrying a rate-limited request. `Retry-After` is
+ * honoured first, then football-data.org's `X-RequestCounter-Reset`.
  *
- * `Retry-After` is the standard header and is honoured first. football-data.org
- * does not send it — it sends `X-RequestCounter-Reset`, the seconds until its
- * per-minute counter clears — so that is read as well rather than falling back
- * to a guess that would either retry too early and fail again, or wait longer
- * than the provider needs.
+ * decisions/197-rate-limit-backoff.md
  */
 export function backoffSecondsFrom(headers: Headers): number {
   const candidates = [headers.get("retry-after"), headers.get("x-requestcounter-reset")];
   for (const raw of candidates) {
-    // An empty header says nothing: `Number("")` is 0, which retried at once
-    // instead of waiting the default (#529).
+    // An empty header says nothing, and `Number("")` is 0: skipped, so it
+    // cannot mean "retry at once".
     if (raw === null || raw.trim() === "") continue;
     const seconds = Number(raw.trim());
     if (Number.isFinite(seconds) && seconds >= 0) {
@@ -36,7 +45,11 @@ export function backoffSecondsFrom(headers: Headers): number {
   return DEFAULT_BACKOFF_SECONDS;
 }
 
-/** Abortable wait, so a caller with a timeout is not held by a backoff. */
+/**
+ * Abortable wait, so a caller with a timeout is not held by a backoff.
+ *
+ * decisions/197-rate-limit-backoff.md
+ */
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason);
@@ -54,11 +67,12 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * The GET-JSON-with-timing-and-logging shape shared by every external data
- * provider (football-data.org, TASO): fetch, log success/failure the same
- * way, surface a provider-labeled error on a network failure or non-2xx
- * status. `buildHeaders` is called inside the same `try` as `fetch` itself,
- * so a header-construction error (e.g. a missing API key) is caught and
- * logged exactly like any other request failure, not thrown ahead of it.
+ * provider. `buildHeaders` runs inside the same `try` as `fetch`, so a missing
+ * API key is logged like any other request failure.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/197-rate-limit-backoff.md
+ * decisions/363-render-timeouts.md
  */
 export async function fetchProviderJson<T>(
   providerLabel: string,
@@ -66,23 +80,13 @@ export async function fetchProviderJson<T>(
   path: string,
   buildHeaders: () => Record<string, string>,
   /**
-   * Bounds the **whole call**, retries and backoff included. The health
-   * endpoint sets it, because an endpoint that hangs until a probe times out
-   * is worse than one that reports a provider as unreachable. See #182.
+   * Bounds the whole call, retries and backoff included. The health endpoint
+   * sets it.
    */
   signal?: AbortSignal,
   /**
-   * Bounds **one network attempt**, and each attempt gets a fresh one.
-   *
-   * Deliberately not the same thing as `signal`. A provider that accepts the
-   * connection and then stalls has to be cut off — that is #363, where an
-   * unbounded render let TASO hold 41 e2e specs until Playwright's own 30 s
-   * fired. But a 429 is the one failure worth waiting out, and that wait is up
-   * to `MAX_BACKOFF_SECONDS`. A timeout spanning the whole call would abort
-   * every retry before it completed, turning a recoverable rate limit into the
-   * "could not be loaded" page this retry exists to prevent.
-   *
-   * So the bound applies to the request, and the backoff is left alone.
+   * Bounds one network attempt, and each attempt gets a fresh one. Not the same
+   * thing as `signal`: the backoff between attempts is left alone.
    */
   attemptTimeoutMs?: number
 ): Promise<T> {
@@ -113,12 +117,8 @@ export async function fetchProviderJson<T>(
 
     const durationMs = Date.now() - startedAt;
 
-    // Rate limiting is the one failure worth waiting out. Without this a
-    // refusal becomes a thrown error, the caller falls back to stored data, and
-    // on a cold database there is none — so the page tells the reader the
-    // standings could not be loaded when the truth is only "not yet". Every
-    // other non-2xx still fails immediately: retrying a 404 or a 403 would
-    // delay a real answer without changing it.
+    // Rate limiting is the one failure worth waiting out. Every other non-2xx
+    // still fails immediately.
     if (response.status === 429 && attempt < MAX_ATTEMPTS) {
       const seconds = backoffSecondsFrom(response.headers);
       logger.warn(

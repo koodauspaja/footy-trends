@@ -1,15 +1,9 @@
 /**
- * What `npm run setup` decides — the `.env` it writes, which values it keeps,
- * and what it says about the ones it cannot fill in. Free of the filesystem, the
- * network and `process`, so every rule here is tested directly; the split
- * `services-plan.ts` follows.
+ * What `npm run setup` decides: the `.env` it writes, which values it keeps,
+ * and what it says about the ones it cannot fill in. Free of the filesystem,
+ * the network and `process`.
  *
- * **Why the password is generated rather than shipped (#400).** Everything in
- * `DATABASE_URL` except the password is already fixed by `docker-compose.yml`,
- * and `.env.example` is tracked, which #292 deliberately took credentials out
- * of. Writing one generated value into both `FOOTY_POSTGRES_PASSWORD` and
- * `DATABASE_URL` at once also removes the mismatch `.env.example` used to warn
- * about: the two halves cannot disagree when one hand writes both.
+ * decisions/400-one-command-setup.md
  */
 import { parseEnv } from "node:util";
 import {
@@ -20,42 +14,41 @@ import {
 } from "./services-plan";
 
 /**
- * The value `.env.example` shipped for `DATABASE_URL` until #400.
+ * The value `.env.example` once shipped for `DATABASE_URL`. Counted as unset:
+ * it names a user the container never had.
  *
- * Counted as unset, because a `.env` copied from it by hand — the old Quick
- * Start — carries it still, and it names a user the container never had. Left in
- * place it would be kept as though somebody had chosen it.
+ * decisions/400-one-command-setup.md
  */
 export const LEGACY_DATABASE_URL = "postgresql://user:password@localhost:5432/footy-trends";
 
-/** Where `npm run dev` serves, which is what better-auth must be told locally. */
+/**
+ * Where `npm run dev` serves, which is what better-auth must be told locally.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export const LOCAL_AUTH_URL = "http://localhost:3000";
 
-/** The connection string for the compose database, with this password. */
+/**
+ * The connection string for the compose database, with this password.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function composeDatabaseUrl(password: string): string {
   const url = new URL(`postgresql://localhost:${COMPOSE_POSTGRES_PORT}/`);
   url.username = COMPOSE_POSTGRES_USER;
-  /**
-   * Encoded here, because the setter does not do it completely: measured on
-   * Node 24, `%` passes through untouched and the result no longer decodes.
-   * A generated password never contains one, but a password adopted from an
-   * existing `.env` might.
-   */
+  // Encoded here, because the setter does not do it completely: `%` passes
+  // through untouched and the result no longer decodes.
   url.password = encodeURIComponent(password);
   url.pathname = `/${COMPOSE_DATABASE_NAME}`;
   return url.toString();
 }
 
 /**
- * What an existing `DATABASE_URL` says about this project's database.
+ * What an existing `DATABASE_URL` says about this project's database. Three
+ * answers: another server's URL is left alone, while one naming this database
+ * with a credential that cannot be decoded stops setup.
  *
- * **Three answers, not two.** `elsewhere` and `unreadable` used to share `null`,
- * and they need opposite handling: a URL for another server is somebody's
- * deliberate choice and none of setup's business, while one that names *this*
- * database with a credential that cannot be decoded is a broken file. Treating
- * the second as the first wrote a fresh password beside the broken URL and
- * handed a migration a connection string that could not work. Raised in review
- * on #409.
+ * decisions/400-one-command-setup.md
  */
 export type ComposeCredential =
   | { kind: "elsewhere" }
@@ -63,15 +56,8 @@ export type ComposeCredential =
   | { kind: "password"; value: string };
 
 export function composeCredential(url: string): ComposeCredential {
-  /**
-   * **The database name is part of the question, not just the server.**
-   * `runsOnComposeServer` answers "would starting the compose containers help?",
-   * which is true of every database on `localhost:5432` — another project's
-   * included. Using it here adopted a *different* database's password into
-   * `FOOTY_POSTGRES_PASSWORD`, which is what this project's container is then
-   * created with. `isComposeDatabase` is the narrower question #404 added for
-   * exactly this distinction. Raised in review on #409.
-   */
+  // The database name is part of the question, not just the server: another
+  // project's database on `localhost:5432` is not this one.
   if (!isComposeDatabase(url)) return { kind: "elsewhere" };
 
   try {
@@ -85,30 +71,36 @@ export function composeCredential(url: string): ComposeCredential {
   }
 }
 
-/** The password this URL carries for the compose database, if it can say. */
+/**
+ * The password this URL carries for the compose database, if it can say.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function composePasswordOf(url: string): string | null {
   const credential = composeCredential(url);
   return credential.kind === "password" ? credential.value : null;
 }
 
-/** A variable name as `.env` files spell them. */
+/**
+ * A variable name as `.env` files spell them.
+ *
+ * decisions/400-one-command-setup.md
+ */
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
- * What this module will write as a value unquoted.
+ * What this module will write as a value unquoted. Narrower than what an
+ * `.env` parser accepts: anything outside it would read back changed.
  *
- * Narrower than what an `.env` parser accepts, on purpose. Measured against
- * Node's `parseEnv`: `#` starts a comment **even with no space before it**, so
- * `KEY=a#b` reads back as `a`, and whitespace is trimmed from the ends. Anything
- * outside this set would be written as one value and read back as another.
+ * decisions/400-one-command-setup.md
  */
 const ENV_VALUE = /^[A-Za-z0-9._~%:/@+=-]*$/;
 
 /**
- * Whether `setEnvValue` can write this value without changing it.
+ * Whether `setEnvValue` can write this value without changing it. Asked before
+ * writing wherever the value came from outside this module.
  *
- * Asked **before** writing wherever the value came from outside this module: an
- * adopted password is the one case, and it arrives already decoded.
+ * decisions/400-one-command-setup.md
  */
 export function canWriteEnvValue(value: string): boolean {
   return ENV_VALUE.test(value);
@@ -116,15 +108,10 @@ export function canWriteEnvValue(value: string): boolean {
 
 /**
  * `text` with `name` set to `value`: every existing assignment replaced, or one
- * appended when there is none. Every other line — comments included — is left
- * exactly as it was.
+ * appended when there is none; every other line is left as it was. Throws on
+ * a value it cannot write faithfully.
  *
- * **Every assignment, not the first.** A later duplicate wins when the file is
- * read, so replacing only the first would write a value nothing ever sees.
- *
- * Throws on a value it cannot write faithfully rather than writing a different
- * one. Nothing reaches here unchecked — keys are screened by `readKeyInput` and
- * the rest are generated — so a throw is a bug in this module, not an input.
+ * decisions/400-one-command-setup.md
  */
 export function setEnvValue(text: string, name: string, value: string): string {
   if (!ENV_NAME.test(name)) throw new Error(`Not an environment variable name: ${name}`);
@@ -145,8 +132,7 @@ export function setEnvValue(text: string, name: string, value: string): string {
 /**
  * A variable's value as the application will read it, with blank meaning unset.
  *
- * `parseEnv` types its result with optional values, and an absent variable and
- * an empty one mean the same thing here: nothing has been set.
+ * decisions/400-one-command-setup.md
  */
 function settingOf(values: NodeJS.Dict<string>, name: string): string {
   return (values[name] ?? "").trim();
@@ -155,8 +141,8 @@ function settingOf(values: NodeJS.Dict<string>, name: string): string {
 export type EnvPlan = {
   text: string;
   /**
-   * What this run wrote, for the report — names and how each was arrived at,
-   * **never the value**. This is printed, and it is mostly credentials.
+   * What this run wrote, for the report: names and how each was arrived at,
+   * never the value.
    */
   written: string[];
   /**
@@ -169,11 +155,9 @@ export type EnvPlan = {
 
 /**
  * The `.env` to write, from the one already there or else from `.env.example`.
+ * Nothing already set is replaced, which is what makes a second run safe.
  *
- * **Nothing already set is replaced.** That is what makes a second run safe: the
- * password is the one a Postgres volume was initialised with, and regenerating
- * it would lock the developer out of their own database with nothing pointing
- * at why.
+ * decisions/400-one-command-setup.md
  */
 export function planEnv({
   existing,
@@ -190,7 +174,7 @@ export function planEnv({
   const url = settingOf(values, "DATABASE_URL");
   const urlUnset = url === "" || url === LEGACY_DATABASE_URL;
 
-  /** Read once, and used by both the password choice and the disagreement check. */
+  // Read once, and used by both the password choice and the disagreement check.
   const credential: ComposeCredential = urlUnset ? { kind: "elsewhere" } : composeCredential(url);
 
   // A broken URL for this very database. Writing a password beside it and
@@ -237,10 +221,10 @@ export function planEnv({
 }
 
 /**
- * Which password this `.env` should carry, or why setup cannot say.
+ * Which password this `.env` should carry, or why setup cannot say. `note` is
+ * what the report will call it; `null` means it was already there.
  *
- * `note` is what the report will call it, and `null` means it was already there
- * and nothing is being written.
+ * decisions/400-one-command-setup.md
  */
 type PasswordChoice =
   | { kind: "ready"; password: string; note: string | null }
@@ -257,19 +241,11 @@ function choosePassword({
 }): PasswordChoice {
   if (configured !== "") return { kind: "ready", password: configured, note: null };
 
-  /**
-   * **A password already in `DATABASE_URL` is adopted, not replaced.** A `.env`
-   * from before #292 holds the compose credential only there — and the volume
-   * was initialised with it, so a fresh one would be a different password for
-   * the same database.
-   */
+  // A password already in `DATABASE_URL` is adopted, not replaced: the volume
+  // was initialised with it.
   if (inUrl !== null && inUrl !== "") {
-    /**
-     * **This is the one value here that comes from outside**, and it arrives
-     * decoded: `…:ab%23cd@…` is the password `ab#cd`, which `.env` cannot carry
-     * unquoted. Writing it anyway threw, so setup died on an existing `.env` it
-     * was meant to repair. Raised in review on #409.
-     */
+    // The one value here that comes from outside, and it arrives decoded, so it
+    // may be one `.env` cannot carry unquoted.
     if (!canWriteEnvValue(inUrl)) return { kind: "stop", message: unwritablePasswordMessage() };
 
     return {
@@ -284,8 +260,9 @@ function choosePassword({
 
 /**
  * Whether a `DATABASE_URL` that was left as it was still agrees with the
- * password. A URL for some other server is a choice, and its password is not
- * ours to compare — Homebrew Postgres, a devcontainer, a remote database.
+ * password. A URL for some other server is a choice, and is not compared.
+ *
+ * decisions/400-one-command-setup.md
  */
 function disagreement(password: string, credential: ComposeCredential): string | null {
   if (credential.kind !== "password") return null;
@@ -294,12 +271,10 @@ function disagreement(password: string, credential: ComposeCredential): string |
 }
 
 /**
- * When `DATABASE_URL` names this project's database but its credential cannot be
- * decoded — a malformed percent escape such as `%E0%A4%A`.
+ * When `DATABASE_URL` names this project's database but its credential cannot
+ * be decoded. Setup stops; it writes no password beside it.
  *
- * Setup stops rather than writing a password beside it: nothing here can repair
- * the URL, and migrating would fail on a connection string the developer has not
- * been told about.
+ * decisions/400-one-command-setup.md
  */
 export function unreadableUrlMessage(): string {
   return [
@@ -314,8 +289,10 @@ export function unreadableUrlMessage(): string {
 }
 
 /**
- * Deliberately says which value to change and not which is right: only the
- * developer knows which one their Postgres volume was initialised with.
+ * Says which value to change and not which is right: only the developer knows
+ * which one their Postgres volume was initialised with.
+ *
+ * decisions/400-one-command-setup.md
  */
 export function mismatchMessage(): string {
   return [
@@ -332,22 +309,16 @@ export function mismatchMessage(): string {
 /**
  * The variables that decide which database the commands after this one talk to.
  *
- * Only these two: the rest of `.env` can be overridden in a shell without
- * anything silently pointing elsewhere.
+ * decisions/400-one-command-setup.md
  */
 export const DATABASE_VARIABLES = ["DATABASE_URL", "FOOTY_POSTGRES_PASSWORD"] as const;
 
 /**
- * Why an exported variable makes the `.env` just written a lie, or `null`.
+ * Why an exported variable makes the `.env` just written a lie, or `null`. An
+ * export beats the file everywhere setup hands off to; one that agrees with
+ * the file says nothing.
  *
- * **An export beats the file, everywhere setup hands off to.**
- * `process.loadEnvFile` does not overwrite a variable that is already set, and
- * Compose gives a shell export precedence over `.env` — which is what
- * `.env.example` already says about the `FOOTY_` prefix. So `npm run db:migrate`
- * would migrate the exported database while `.env` described another, and the
- * dev server would then read the file's. Raised in review on #409.
- *
- * An export that **agrees** with the file is not a conflict, so it says nothing.
+ * decisions/400-one-command-setup.md
  */
 export function exportedOverrideMessage(
   exported: NodeJS.Dict<string>,
@@ -355,17 +326,8 @@ export function exportedOverrideMessage(
 ): string | null {
   const values = parseEnv(envText);
 
-  /**
-   * **Present, not merely non-empty.** Measured on Node 24: with `DATABASE_URL=`
-   * exported, `process.loadEnvFile` leaves it as `""` — a variable that is
-   * already set is not overwritten, and an empty one counts as set. The child
-   * then migrates with no connection string at all, from a `.env` that has a
-   * perfectly good one. Raised in review on #409, where this was written the
-   * wrong way round and had a test agreeing with it.
-   *
-   * The comparison is against the raw exported value, because that is exactly
-   * what the child will use: ` pw ` and `pw` are different passwords.
-   */
+  // Present, not merely non-empty: an exported `DATABASE_URL=` counts as set.
+  // Compared against the raw exported value, which is what the child will use.
   const conflicting = DATABASE_VARIABLES.filter(
     (name) => exported[name] !== undefined && exported[name] !== settingOf(values, name)
   );
@@ -394,11 +356,10 @@ export function exportedOverrideMessage(
 }
 
 /**
- * When the password in use cannot go into `.env` as an unquoted value.
+ * When the password in use cannot go into `.env` as an unquoted value. Setup
+ * stops; it writes no substitute.
  *
- * Setup stops rather than writing a different password: the one in
- * `DATABASE_URL` is what the Postgres volume was initialised with, and a
- * substitute would fail to connect while looking deliberate.
+ * decisions/400-one-command-setup.md
  */
 export function unwritablePasswordMessage(): string {
   return [
@@ -422,10 +383,10 @@ export type ApiKey = {
 };
 
 /**
- * The two values that genuinely come from outside the repository.
+ * The two values that genuinely come from outside the repository. Both
+ * optional: the dev server starts without them.
  *
- * Both optional: the dev server starts without them. The pages are named here
- * because "some pages will not work" sends a newcomer looking for a bug.
+ * decisions/400-one-command-setup.md
  */
 export const API_KEYS: readonly ApiKey[] = [
   {
@@ -440,22 +401,30 @@ export const API_KEYS: readonly ApiKey[] = [
   },
 ];
 
-/** The API keys this `.env` leaves blank. */
+/**
+ * The API keys this `.env` leaves blank.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function missingApiKeys(text: string): ApiKey[] {
   const values = parseEnv(text);
   return API_KEYS.filter((key) => settingOf(values, key.name) === "");
 }
 
-/** Characters an API key is made of — the same set a value may be written with. */
+/**
+ * Characters an API key is made of: the same set a value may be written with.
+ *
+ * decisions/400-one-command-setup.md
+ */
 const KEY_INPUT = /^[A-Za-z0-9._~+/=-]+$/;
 
 export type KeyInput = { kind: "skip" } | { kind: "key"; value: string } | { kind: "invalid" };
 
 /**
- * One answer to a key prompt. Empty skips, because both keys are optional.
+ * One answer to a key prompt. Empty skips, because both keys are optional;
+ * anything with a space, a quote or a `#` is refused.
  *
- * Anything with a space, a quote or a `#` is refused rather than written: see
- * `ENV_VALUE` for how such a value would come back changed.
+ * decisions/400-one-command-setup.md
  */
 export function readKeyInput(input: string): KeyInput {
   const trimmed = input.trim();
@@ -473,7 +442,12 @@ export function missingKeysMessage(missing: readonly ApiKey[]): string {
   ].join("\n");
 }
 
-/** Signing in is the one thing a blank Google client breaks; every page works signed out. */
+/**
+ * Signing in is the one thing a blank Google client breaks; every page works
+ * signed out.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function missingGoogleMessage(text: string): string | null {
   const values = parseEnv(text);
   const blank = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"].filter(
@@ -488,23 +462,20 @@ export function missingGoogleMessage(text: string): string | null {
 }
 
 /**
- * The npm version running this, from `npm_config_user_agent` —
+ * The npm version running this, from `npm_config_user_agent`:
  * `npm/12.0.1 node/v24.16.0 darwin arm64 workspaces/false`.
+ *
+ * decisions/400-one-command-setup.md
  */
 export function npmVersionFromUserAgent(userAgent: string): string | null {
   return /^npm\/(\d+\.\d+\.\d+)(?:\s|$)/.exec(userAgent)?.[1] ?? null;
 }
 
 /**
- * A warning when npm is not the version `packageManager` pins, or `null`.
+ * A warning when npm is not the version `packageManager` pins, or `null`. A
+ * warning, not a stop.
  *
- * A warning, not a stop: the install has already happened by the time this
- * runs, and most differences are harmless. It is said because the lockfile is
- * what a different npm quietly rewrites.
- *
- * **Why not `corepack enable`**, which #400 suggested: corepack is no longer
- * bundled from Node 25, so a setup built on it would stop working at the next
- * Node upgrade. Naming the command is the part that survives.
+ * decisions/400-one-command-setup.md
  */
 export function npmVersionWarning(userAgent: string, packageManager: string): string | null {
   const pinned = /^npm@(\d+\.\d+\.\d+)$/.exec(packageManager)?.[1];
@@ -520,10 +491,10 @@ export function npmVersionWarning(userAgent: string, packageManager: string): st
 }
 
 /**
- * Only a clear yes, or just Enter, starts the server — the prompt says `[Y/n]`.
+ * Only a clear yes, or just Enter, starts the server: the prompt says `[Y/n]`.
+ * `null` is end of input, not agreement.
  *
- * `null` is end of input rather than agreement: nobody pressing Ctrl-D is asking
- * for a dev server to be started in front of them.
+ * decisions/400-one-command-setup.md
  */
 export function wantsDevServer(answer: string | null): boolean {
   return answer !== null && ["", "y", "yes"].includes(answer.trim().toLowerCase());

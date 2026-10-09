@@ -3,7 +3,7 @@
 ## Goal
 
 GitHub Actions running the gate on every pull request, and the release gate on
-`release`. The four workflows arrive with the clone, in `.github/workflows/`.
+`release`. The five workflows arrive with the clone, in `.github/workflows/`.
 
 | Workflow | When | What |
 |---|---|---|
@@ -11,6 +11,7 @@ GitHub Actions running the gate on every pull request, and the release gate on
 | `sonarcloud.yml` | the same | the SonarCloud scan (008) |
 | `release.yml` | pull requests and pushes to `release` | the same suites and the end-to-end suite against a production build, then the version tag |
 | `taso-key-check.yml` | daily | asks production's `/api/health?providers=1` whether TASO still answers |
+| `railway-environment.yml` | by hand | a new Railway environment; its own secrets and variable are in 026 |
 
 ---
 
@@ -23,6 +24,7 @@ Repository → **Settings** → **Secrets and variables** → **Actions**.
 | Secret | `FOOTBALL_DATA_API_KEY` | `release.yml`'s end-to-end run (007) |
 | Secret | `TASO_API_KEY` | the same (020) |
 | Secret | `SONAR_TOKEN` | `sonarcloud.yml` (008 sets it) |
+| Secret | `CI_POSTGRES_PASSWORD` | the Postgres container of `ci.yml` and `release.yml`: any random value, `openssl rand -hex 24` |
 | Variable | `OWNER_USERNAME`, `COLLABORATOR_USERNAME` | who `ci.yml` and `sonarcloud.yml` run for (001 set them) |
 | Variable | `FIRST_RELEASE_VERSION` | optional: the first release's version, when it should not be `v0.1.0` (`skills/release.md`) |
 

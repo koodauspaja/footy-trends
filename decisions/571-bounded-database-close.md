@@ -1,0 +1,123 @@
+# 571 — Closing the database is bounded: decisions
+
+Bug #571, 2026-10-09. `npm run predictions -- backtest` and `-- log` printed
+nothing and exited 0 when the database could not be reached. The hourly cron
+runs `log`, so Railway would have marked such a run successful.
+
+## The cause
+
+Measured, with postgres 3.4.9 against a port that refuses the connection:
+
+| Queries started together | Then `sql.end()` |
+|---|---|
+| one | resolves |
+| two | never settles |
+
+Both commands start with two queries at once (`readFinished` and
+`readCandidates` each read the two match tables under one `Promise.all`), so
+the driver opens two connections. The first refusal rejects
+the `Promise.all`, and the script's `finally` calls `closeDatabase()` while the
+second connection is still opening. The driver's `end()` for a connection in
+that state returns a promise that only its `terminate()` resolves, and the
+failed connect that follows never calls it.
+
+Nothing else was left on the event loop, so Node ended the process with
+`main()` still pending: a preloaded `beforeExit` handler fired with exit code 0
+and no rejection had reached `main().catch(...)`. That is the missing message
+and the exit code together.
+
+The issue suspected the `finally` block, which is where it stops, but not
+closing a client "whose connection never opened": that alone closes cleanly.
+`redis.quit()` resolves at once on a client that never connected.
+
+## The fix
+
+`closeDatabase()` passes the driver a timeout, `CLOSE_TIMEOUT_SECONDS` (2).
+The driver then races its close against a timer that destroys what is left, so
+the close settles, the original rejection reaches `main().catch(...)`, and the
+run prints one line and exits 1. The timer is also what holds the event loop
+open until then.
+
+Two seconds because a healthy close finishes long before it. The cost is that
+a run which failed to connect ends up to two seconds later.
+
+## What the bound may cut off
+
+A close without a bound waits for every query in flight; a bounded one drops
+those still running when the time is up. Cleanup follows the work, but a
+`Promise.all` rejects on its first failure and leaves its siblings running, so
+something can still be in flight when the close starts.
+
+| Started together | In flight when one fails | Dropped by the bound |
+|---|---|---|
+| the two reads in `readCandidates` and in `readFinished` | the other read | harmless: a read stores nothing. In `runPredictionLog` a failed `readFinished` is caught and the run goes on to write the baseline's rows |
+| the refreshes and the baseline reads | none: each catches its own failure | nothing |
+| the write batches in `writePredictions` | other batches | a batch not yet sent is not stored |
+
+So `writePredictions` waits for every batch it started, then fails the run
+with the failure that came first in time, which is the one a fail-fast
+`Promise.all` reported. A failed write still fails the run
+(`decisions/052-predictions-log.md`); the batches that could be stored are, as
+they were before the bound. Sourcery raised this on the pull request.
+
+Waiting has a cost, which Sourcery raised on a later round: a batch that never
+settles keeps the run from ending. That is not new. A query on this driver
+settles when its connection fails (measured for a refused and for a reset
+connection; the connect timeout is 30 seconds), so only a server that holds a
+connection open and never answers leaves one pending, and every other awaited
+query in the run, and the unbounded close on `main`, waits on such a server the
+same way.
+
+| Considered | Why not |
+|---|---|
+| Fail fast again, and let the bound drop the other batches | it is the loss the first review found: a failed run would store fewer rows than it could |
+| A time limit on the batches themselves | a second bound to reason about, for a server that every other query would wait on anyway |
+
+How much the bound would have dropped is narrower than "every batch in flight":
+when the time is up the driver ends each socket with a Terminate message, and a
+server that has already received an insert should finish it first. That part is
+from the protocol, not measured here, and the fix does not rest on it.
+
+The backfill awaits every query in turn, so it has nothing in flight when it
+closes.
+
+`scripts/predictions.ts` also takes the reason out of the driver's error with
+`describeError`, as the backfill does. Without it the line was drizzle's
+`Failed query: …` with the whole statement and its parameters, and the reason
+(`ECONNREFUSED`) only in `cause`.
+
+| Considered | Why not |
+|---|---|
+| Report the failure before cleanup, in a `catch` | the close would still never settle; the exit would rest on the event loop happening to drain |
+| `process.exit(1)` on failure | it can truncate output not yet flushed, the reason `closeDatabase` exists (`decisions/169-production-backfill.md`) |
+| A `beforeExit` guard that fails a pending `main()` | a second source of truth for whether the run finished; the close that hangs would still be there |
+
+## The same close elsewhere
+
+| Where | Close | Affected |
+|---|---|---|
+| `scripts/backfill-run.ts` | `closeDatabase()` | no: it awaits every query in turn, the first a single reachability probe, so no connection is still opening when it closes (measured: `Cannot reach the database: …`, exit 1). It gets the bound only because the close is shared |
+| `scripts/grant-admin-run.ts` | its own client, `end()` | no: one transaction, one connection (measured: `Error: connect ECONNREFUSED`, exit 1). Left as it is |
+| `src/db/migrate.ts` | its own client, `max: 1`, `end()` | no: one connection. Left as it is |
+| `scripts/services-run.ts` | `end({ timeout: 1 })` | already bounded |
+
+## Measured after the fix
+
+Both commands, each of the issue's three cases:
+
+| `DATABASE_URL` points at | stderr | Exit |
+|---|---|---|
+| a port that refuses the connection | `Predictions failed: connect ECONNREFUSED 127.0.0.1:59999` | 1, after 3 to 4 s |
+| an address that never answers | `Predictions failed: write CONNECT_TIMEOUT 10.255.255.1:5432` | 1, after 34 s |
+| a host name that does not resolve | `Predictions failed: getaddrinfo ENOTFOUND db.footy-trends.invalid` | 1, after 4 s |
+
+## Not shown by a test
+
+The test runs the script against a listener it holds, which resets every
+connection (measured by hand: `Predictions failed: read ECONNRESET`, exit 1,
+and nothing printed with exit 0 without the fix). A reset and not a plain
+close: the driver answers a connection closed without an error while it is
+opening by connecting again, and the script would never fail. It holds the port because one
+opened and closed could be taken by another process before the script
+connects. The issue's three cases were run by hand; the never-answering one
+takes the driver's 30-second connect timeout, too long for the unit suite.

@@ -57,3 +57,19 @@ at the break.
 - **Across seasons** — a club's record for leads given away — belongs to #426.
 - **Grouping the panels** is #424's, and this feature was built to keep
   `Analyysit` at eight rather than force that decision early.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/comebacks.ts` at `dc74e3e` by #531.
+
+- **`HalfTimeOutcomes`.** The panel shows only two outcomes per direction;
+  the third is what makes the sum equal `matches`, the check that the
+  arithmetic did not lose a match.
+
+Cut from `src/components/comebacks-section.tsx` at `dc74e3e` by #531.
+
+- **The missing-scores line in the comebacks panel.** Two identical lines,
+  one per direction, would read as two separate gaps.
+- **`Direction`.** The third outcome, trailed and lost or led and won, is
+  implied and not shown. One side can be empty while the other is not, and
+  three zeroes read as a measured result and not as "this has not happened".

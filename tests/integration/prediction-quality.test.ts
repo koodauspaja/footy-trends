@@ -13,11 +13,13 @@ vi.mock("@/lib/cache", () => ({
 import { getPredictionQuality } from "@/lib/prediction-quality-service";
 
 /**
- * The prediction quality's join against a real Postgres (specs/054). Every row
- * is a `live` one on this suite's own ids: `predictions.test.ts` writes live
- * rows only for unfinished matches, which are never judged, and clears every
- * backtest row, so `live` is the kind no other suite leaves judged rows in.
+ * The prediction quality's join against a real Postgres. Every row is `live`:
+ * `predictions.test.ts` writes live rows only for unfinished matches, which
+ * are never judged, so no other suite leaves judged `live` rows.
+ *
+ * decisions/054-prediction-quality.md
  */
+
 const IDS = Array.from({ length: 8 }, (_, index) => 986_001 + index);
 const MODELS = ["home-baseline-v1", "elo-v1"] as const;
 
@@ -44,7 +46,7 @@ function footballDataMatch(
   };
 }
 
-/** Both models' live predictions for a match, each certain of a home win. */
+// Both models' live predictions for a match, each certain of a home win.
 function predicted(
   id: number,
   source: "football-data" | "taso",
@@ -73,7 +75,7 @@ async function clear() {
 beforeEach(clear);
 afterEach(clear);
 
-describe("getPredictionQuality against Postgres (specs/054)", () => {
+describe("getPredictionQuality against Postgres", () => {
   it("judges finished football-data matches from 2023, the shoot-out taken out", async () => {
     const [won, shootOut, unfinished, early, oneModel, otherModel] = IDS as [
       number,

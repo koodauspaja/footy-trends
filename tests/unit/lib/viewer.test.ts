@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The viewer: whether a request is worth authenticating, and the reader's
+ * preferences.
+ *
+ * decisions/024-account-settings.md
+ * decisions/536-database-url-required.md
+ */
+
 const { headerValue, loaded, getSession, getPreferencesFor, logger } = vi.hoisted(() => ({
   headerValue: { cookie: null as string | null, throws: false },
   /** How often each deferred module was loaded: its mock's factory runs on import. */
@@ -49,12 +57,9 @@ beforeEach(() => {
 warmModules(() => import("@/lib/viewer"));
 
 describe("getViewerPreferences", () => {
-  /**
-   * The cookie header decides whether a request is worth authenticating at all.
-   * Both tables below assert the same two things, so they are tables rather
-   * than a dozen near-identical tests: what the function returns, and — just as
-   * important — whether better-auth was constructed at all.
-   */
+  // The cookie header decides whether a request is worth authenticating at all.
+  // Tables, not a dozen near-identical tests, as both assert the same two things:
+  // what the function returns, and whether better-auth was constructed at all.
   it.each([
     ["no cookie header at all", null],
     ["only unrelated cookies", "theme=dark; consent=1"],

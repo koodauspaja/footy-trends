@@ -355,3 +355,114 @@ to a `competition_id` TASO may not publish until the season is close, which
 fails worse and less visibly. Worth a follow-up issue before the 2027
 season opens.
 
+## Moved from comments, 2026-10-05
+
+Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
+
+- **`TasoStandingsControls`.** There is no `Kilpailu` select because the
+  competition is chosen on `/kotimaa` and `SeasonForm` carries it hidden, as
+  for `MatchesControls` and `TeamSeasonSelector`.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`TasoProviderMatch`.** The all-strings shape was confirmed live against
+  `getMatches`, not assumed.
+- **`NormalizedTasoMatch`.** Structurally compatible with `NormalizedMatch` and
+  `RosterMatch` from `standings.ts`, so `calculateStandings` is reused as it
+  is. `groupId` and `groupName` are for per-group tables and the "which group"
+  label on the match list and team page.
+- **`parseKickoff`.** TASO reports the correct Europe/Helsinki offset per match
+  (`+0300` in summer, `+0200` in winter, confirmed live across the 2025 DST
+  boundary), so no timezone database is needed. The regexes only prove the
+  fields are shaped like a timestamp: `2026-99-99 25:00 +0099` matches all
+  three and `Date.UTC` would normalize it into a real but wrong instant, so
+  out-of-range components are rejected.
+- **`TasoGroupTeam`.** The mix of native numbers and strings was confirmed live:
+  an inconsistency with `getMatches`' all-strings convention, not a typo.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`needsRefresh`.** Mirrors `needsRefresh` in `standings-service.ts`. The
+  freshness threshold applies only to the season being played.
+- **`ownCalculatedStandings`.** The parent group is bigger than the child: all
+  12 Runkosarja teams, not the 6 that reached Mestaruussarja. Filtering the
+  matches and not the result would be wrong: a Mestaruussarja team's
+  Runkosarja points include matches against teams that went to Karsintasarja,
+  and dropping those would under-count it (KuPS 2025 would show 44 less those
+  matches, not its real 67). Renumbering matches TASO's own
+  `final_group_standing`, which is relative to the group: 1–6 in both split
+  groups, not offset to 7–12.
+- **`listSelectableTasoRounds`.** One continuous scale for the page's single
+  selector, not a per-group 1..max range. A continuation's rounds start above
+  1 (Mestaruussarja's begin at 23) because `round_id` is never re-indexed.
+- **`parseTasoRoundParam`.** A membership check, not a range check: TASO's
+  scale can start above 1 for a continuation-only group and may have gaps.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DOMESTIC_COMPETITIONS`.** Separate from `SUPPORTED_COMPETITIONS` in
+  `competitions.ts`, the football-data list behind `/ulkomaat`: this list is
+  never added to that one.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`formatMatchResult`.** The same formatting was duplicated across every
+  matches and team page, both football-data.org's and TASO's.
+- **`selectTeamMatches`.** Shared by every provider's `getTeamMatches`: the
+  same "find this team's games, oldest first" logic wherever the match list
+  came from.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`displayGroupName`.** `Runkosarja` was the era's name for the season's
+  only phase.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **Finnish seasons.** A Finnish season is a single calendar year, not a
+  year-spanning one like the foreign leagues, so the label is just the year,
+  in the same descending order as `listSelectableSeasons`.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **`MatchListTable`.** Shared by football-data.org's `/ulkomaat/ottelut`
+  and `/ulkomaat/joukkue/:id` and `/kotimaa`'s equivalents. Only the
+  team-name link behaviour and the fourth column, `Kierros`' matchday against
+  `Sarja`'s group name, differ between them.
+
+Cut from `src/components/taso-season-only-controls.tsx` at `ef99862` by #531.
+
+- **`TasoSeasonOnlyControls`.** The season's full match list is shown at
+  once: the acceptance criteria describe both pages as listing a season's
+  matches, not a round-paginated view. `actionPath` follows the reasoning of
+  `TeamSeasonSelector`.
+
+Cut from `src/components/notice.tsx` at `48ebab4` by #531.
+
+- **`Notice`.** Identical markup was repeated three or four times per page
+  across every standings, matches and team page of both providers, and was
+  flagged as duplicated code. `<output>` carries the same implicit "status"
+  semantics as `<p role="status">` without the redundant explicit role.
+
+Cut from `src/components/season-form.tsx` at `48ebab4` by #531.
+
+- **`SeasonForm`.** Used by `MatchesControls`, `TeamSeasonSelector`,
+  `TasoStandingsControls` and `TasoSeasonOnlyControls`, so selections work
+  without JavaScript. `StandingsControls` is the one exception: it shows
+  `Kilpailu` as a visible field, not a hidden one.
+
+Cut from `src/components/use-season-round-navigation.ts` at `48ebab4` by #531.
+
+- **`useSeasonRoundNavigation`.** Reading `window.location.search`, and not
+  rebuilding the query from props, is what preserves any parameter neither
+  control owns.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **`tests/` is outside coverage.** Without the exclusion a JSON fixture is
+  reported as a permanently 0%-covered file, which adds noise and drags the
+  totals down, hiding a real regression in `src/`.

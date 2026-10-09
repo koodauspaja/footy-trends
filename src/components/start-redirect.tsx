@@ -8,14 +8,17 @@ import { defaultRegionOf } from "@/lib/session-extras";
 /**
  * The query parameter that always shows the region picker, whatever is stored.
  *
- * This is what makes the redirect safe to have at all. Without it a reader with
- * a default region could reach `/` only by having no preference — the picker
- * would be unreachable by clicking, and the `Etusivu` crumb would bounce them
- * straight back where they came from. No setting in
- * specs/024-account-settings.md may make a page unreachable.
+ * decisions/024-account-settings.md
  */
 export const SHOW_PICKER_PARAM = "valitse";
 
+/**
+ * The redirect itself: a reader with a default region goes there, unless the
+ * picker was asked for.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ */
 function Redirect() {
   const { data: session, isPending } = useSession();
   const searchParams = useSearchParams();
@@ -25,13 +28,8 @@ function Redirect() {
   useEffect(() => {
     if (suppressed || isPending || !session) return;
 
-    /**
-     * `defaultRegion` is added to the session response by better-auth's
-     * `customSession` plugin (see src/lib/auth.ts), and the browser client is
-     * not typed for server-side plugins — `defaultRegionOf` does the narrowing,
-     * which is the check we would want regardless, since a region retired from
-     * the app must not redirect anyone.
-     */
+    // `defaultRegionOf` narrows what `customSession` adds: a region retired from
+    // the app must not redirect anyone.
     const region = defaultRegionOf(session);
     if (region === null) return;
 
@@ -44,16 +42,12 @@ function Redirect() {
 }
 
 /**
- * Applied in the browser, deliberately.
+ * Sends a reader with a start page there. Applied in the browser,
+ * deliberately: `/` is prerendered, and reading the session on the server
+ * would cost it that.
  *
- * `/` is one of the four pages `tests/unit/app/rendering-mode.test.ts` names
- * `STATIC_BY_DESIGN`. Reading the session on the server here would cost it its
- * prerender — the #182 constraint that shaped specs/023-google-oauth-login.md,
- * where a prerendered page baked a build-time database error into static
- * output. So the page ships static and the redirect happens after hydration.
- *
- * The competition defaults are resolved server-side instead, because those
- * pages are already `force-dynamic` and lose nothing by it.
+ * decisions/023-google-oauth-login.md
+ * decisions/024-account-settings.md
  */
 export function StartRedirect() {
   return (

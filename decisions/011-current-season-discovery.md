@@ -121,3 +121,41 @@ That distinction was checked separately against the live API before opening
 the PR: `getCurrentSeason()` returns `2026`, not `null`. Worth stating
 because the same class of silent no-op bit spec 010 during implementation,
 where a `=== null` check matched nothing and the feature did nothing at all.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/taso-standings-service.ts` at `55a14fc` by #531.
+
+- **`resolveTasoSeasonContext`.** It replaced `specs/009`'s `LATEST_TASO_SEASON`;
+  the ceiling falls back from discovery to the newest stored season to the floor.
+  Answering "does it have matches" syncs the season, bounded by `cache()` and the
+  15-minute Redis TTL.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`EARLIEST_TASO_SEASON`.** Mirrors `FOOTBALL_DATA_EARLIEST_SEASON`.
+- **`SEASON_COMPETITION_ID`.** `spljp26` contains 28 categories, among them `VL`,
+  `M1L` and `MSC`, so the pattern is competition-agnostic. The `\d{2}` must not
+  be relaxed to a prefix test: `spljphhl26` (SPL Huuhkaja-Helmariliiga) shares
+  the prefix, the `published` status and `season_id: 2026`, and the id shape is
+  the only thing that tells them apart.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **The default season in `resolveTasoSeasonContext`.** Above the range:
+  `newestStored` can exceed `currentSeason` if TASO stops reporting a season
+  already synced, and `needsRefresh` would treat such a default as newer than
+  active. Below it: a stored row older than the competition's first season,
+  from before its floor was configured, would default Ykkösliiga to a season
+  it never had. Neither is the dropped "raise the ceiling to cover stored
+  data" guard; both keep the fallback inside the range.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`parseTasoSeasonParam`.** A season that was invalid last year becomes
+  valid without a deploy.
+- **`resolveDomesticPageContext`.** Async because the season ceiling comes
+  from TASO and not from a constant. It is the `/kotimaa` analogue of
+  `resolveBasePageContext`.

@@ -5,6 +5,17 @@ import {
   resolveDomesticPageContext,
 } from "@/lib/domestic-page-context";
 
+/**
+ * Which competition and season a Kotimaa page resolves from its URL and the
+ * reader's stored default, and which seasons are selectable.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/024-account-settings.md
+ */
+
 const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPreferences } =
   vi.hoisted(() => ({
     resolveTasoSeasonContextMock: vi.fn(),
@@ -12,7 +23,7 @@ const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPrefer
     getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
   }));
 
-// A signed-in reader's stored default, from specs/024-account-settings.md.
+// A signed-in reader's stored default.
 vi.mock("@/lib/viewer", () => ({ getViewerPreferences }));
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
@@ -23,15 +34,9 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   };
 });
 
-/**
- * At file level, so no test inherits another's arrangement.
- *
- * A stored viewer preference decides the competition when the URL says
- * nothing, and the competition decides which seasons exist — so one left
- * behind from another block changes both the default competition *and* which
- * `kausi` values parse. That is two assertions failing for a reason neither
- * test mentions, in whichever order they happen to run.
- */
+// At file level, so no test inherits another's arrangement: a stored viewer
+// preference decides the competition when the URL says nothing, and the
+// competition decides which seasons exist, so one left behind changes both.
 beforeEach(() => {
   getViewerPreferences.mockResolvedValue(null);
   getSeasonCategoryNameMock.mockResolvedValue(null);
@@ -205,13 +210,11 @@ describe("a reader's stored competition default", () => {
     getViewerPreferences.mockResolvedValue(null);
   });
 
-  /**
-   * The same shape as `page-context.test.ts`: stored preference plus a URL,
-   * resolved for Kotimaa. A table rather than five near-identical tests.
-   */
+  // The same shape as `page-context.test.ts`: stored preference plus a URL,
+  // resolved for Kotimaa. A table rather than five near-identical tests.
   it.each([
     ["the competition they chose", "M1L", {}, "M1L"],
-    // A shared link must render what it says (specs/012).
+    // A shared link must render what it says.
     ["Veikkausliiga, because the URL says so", "M1L", { kilpailu: "VL" }, "VL"],
     ["Veikkausliiga for a signed-out reader", null, {}, "VL"],
     // A competition can be retired long after someone chose it.

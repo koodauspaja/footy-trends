@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { regionCrumbFor } from "@/lib/breadcrumb";
 
+/**
+ * Which region crumb a path gets.
+ *
+ * decisions/207-region-breadcrumb.md
+ */
+
 describe("regionCrumbFor", () => {
   it.each([
     ["/kotimaa/sarjataulukko", "Kotimaa", "/kotimaa"],

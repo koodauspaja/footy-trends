@@ -52,3 +52,46 @@ container start is not in these figures; the first week's usage is.
 The live run's logging was not seen against real upcoming fixtures here: the
 test database held none inside the 48 hours. The integration test covers it,
 and the first production runs will show it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`predictions`.** Because the result is read and not copied, a corrected
+  score corrects every figure built on it. The `live` row is the last
+  prediction before kickoff, overwritten until then; the `backtest` row is
+  what the model would have said from the matches before it.
+
+Cut from `src/lib/prediction-log-service.ts` at `dc74e3e` by #531.
+
+- **`refresh` in the predictions log.** football-data's page staleness check
+  is an hour by default, and an hourly run gated by it would skip every other
+  refresh.
+- **`runPredictionLog`.** A competition that fails to refresh is still
+  logged from what is stored, and one whose baseline fails is skipped; either
+  makes the run exit non-zero, and a failed write fails the run. The clock is
+  read again just before writing: pacing the refreshes can take minutes, and
+  a match that kicked off in the meantime must not be written after its
+  kickoff.
+
+Cut from `src/lib/pacer.ts` at `ef99862` by #531.
+
+- **`delayBefore`.** Database writes between requests are not free, and
+  charging for time already spent would make a 344-request run considerably
+  longer than it needs to be.
+- **`createPacer`.** Requests started together are still spaced out. With
+  the clock and the sleep as parameters a test can run it without waiting.
+
+Cut from `src/lib/prediction-backtest.ts` at `ef99862` by #531.
+
+- **`backtestRows`.** Of two matches sharing a kickoff, neither is evidence
+  for the other. A competition's first kickoff has nothing before it.
+
+## Moved from comments, 2026-10-07
+
+Cut from `scripts/predictions.ts` at `5b180e0` by #531.
+
+- **`predictions.ts` ignores `.env`.** As `backfill.ts` does, so a forgotten
+  variable cannot write predictions into a development database. Nothing
+  touching the database is imported until the target is settled: `src/db`
+  reads the variable when it is first used.

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The service's decisions around its query: the outcome from the scores, the
- * models judged, the cache key and lifetime, and failure as its own case. The
- * join itself is proved against Postgres in
- * `tests/integration/prediction-quality.test.ts`.
+ * The service's decisions around its query: the outcome from the scores, the models
+ * judged, the cache key and lifetime, and failure as its own case. The join itself
+ * is proved against Postgres in `tests/integration/prediction-quality.test.ts`.
+ *
+ * decisions/054-prediction-quality.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -52,7 +53,7 @@ function row(
   };
 }
 
-describe("getPredictionQuality (specs/054)", () => {
+describe("getPredictionQuality", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -63,12 +64,12 @@ describe("getPredictionQuality (specs/054)", () => {
       );
   });
 
-  it("judges the baseline and Elo, from 2016 domestically and 2023 for football-data (S2, S4)", () => {
+  it("judges the baseline and Elo, from 2016 domestically and 2023 for football-data", () => {
     expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1"]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
   });
 
-  it("caches each provider and kind apart for 15 minutes (S11)", async () => {
+  it("caches each provider and kind apart for 15 minutes", async () => {
     mocks.select.mockResolvedValue([]);
 
     await getPredictionQuality("taso", "backtest");
@@ -88,7 +89,7 @@ describe("getPredictionQuality (specs/054)", () => {
       row("elo-v1", 2, 1, 1),
       row("home-baseline-v1", 3, 0, 1),
       row("elo-v1", 3, 0, 1),
-      // Only one model predicted it: not judged (S4).
+      // Only one model predicted it: not judged.
       row("home-baseline-v1", 4, 3, 0),
     ]);
 

@@ -4,6 +4,15 @@ import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
 import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
+/**
+ * A competition's Analyysit: its gate, which competitions have it, and its
+ * panels.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/050-table-volatility.md
+ */
+
 const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares, getTableVolatility } = vi.hoisted(
   () => ({
     canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
@@ -156,7 +165,7 @@ describe("the strings the spec agreed", () => {
 });
 
 describe("CompetitionAnalyticsSection, signed in", () => {
-  /** Goals per game's own panel: the section holds another chart since specs/050. */
+  // Goals per game's own panel: the section holds another chart.
   function goalsPanel() {
     return screen.getByRole("region", { name: GOALS_PER_GAME_HEADING });
   }
@@ -183,7 +192,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(getGoalsPerGame).toHaveBeenCalledWith("taso", "VL", 2025);
   });
 
-  it("draws one point per season, the page's own season ringed (S11)", async () => {
+  it("draws one point per season, the page's own season ringed", async () => {
     await renderSection();
     const container = goalsPanel();
     const points = container.querySelectorAll("[data-part=points] circle:not([data-marked])");
@@ -201,7 +210,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(container.querySelector("[data-marked]")).toBeNull();
   });
 
-  it("labels seasons as the page does, and notes the one in progress under its tick (S15)", async () => {
+  it("labels seasons as the page does, and notes the one in progress under its tick", async () => {
     await renderSection();
     const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
@@ -217,7 +226,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(notes[0]?.parentElement).toBe(ticks[2]);
   });
 
-  it("labels every other season on a phone when a long line would crowd them (S16)", async () => {
+  it("labels every other season on a phone when a long line would crowd them", async () => {
     getGoalsPerGame.mockResolvedValue({
       ...series,
       points: Array.from({ length: 12 }, (_, index) => ({
@@ -235,7 +244,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(hidden).toHaveLength(6);
   });
 
-  it("prints the y-axis the Finnish way, from the series' own zoom (S13)", async () => {
+  it("prints the y-axis the Finnish way, from the series' own zoom", async () => {
     await renderSection();
     const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=y-axis] text")].slice(0, -1);
@@ -261,7 +270,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     ]);
   });
 
-  it("names each season left out, then says the line is the stored seasons (S9, S14)", async () => {
+  it("names each season left out, then says the line is the stored seasons", async () => {
     await renderSection();
 
     expect(screen.getByText(leftOutSentence("2022/23"))).toBeInTheDocument();
@@ -288,7 +297,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   );
 });
 
-describe("CompetitionAnalyticsSection, signed out (S4)", () => {
+describe("CompetitionAnalyticsSection, signed out", () => {
   beforeEach(() => {
     canSeeAnalytics.mockResolvedValue(false);
   });
@@ -307,7 +316,7 @@ describe("CompetitionAnalyticsSection, signed out (S4)", () => {
   });
 });
 
-describe("CompetitionAnalyticsSection where the spec has none (S5)", () => {
+describe("CompetitionAnalyticsSection where the spec has none", () => {
   it.each([
     ["football-data", "WC"],
     ["football-data", "EC"],
@@ -327,15 +336,15 @@ describe("CompetitionAnalyticsSection where the spec has none (S5)", () => {
   );
 });
 
-describe("the home-advantage strings (specs/049)", () => {
-  it("prints Kotietu signed, with a real minus and a bare zero (S5)", () => {
+describe("the home-advantage strings", () => {
+  it("prints Kotietu signed, with a real minus and a bare zero", () => {
     expect(advantageText(15.6)).toBe("+16");
     expect(advantageText(-2.6)).toBe("−3");
     expect(advantageText(0.4)).toBe("0");
     expect(advantageText(-0.4)).toBe("0");
   });
 
-  it("names the seasons of both kinds, one kind, a single season, or nothing (S18)", () => {
+  it("names the seasons of both kinds, one kind, a single season, or nothing", () => {
     expect(windowSentence({ first: 2023, last: 2025 }, { first: 2023, last: 2025 })).toBe(
       "Kaudet 2023–2025 ja 2023/24–2025/26, kaikki tallennetut ottelut."
     );
@@ -368,7 +377,7 @@ describe("Kotietu ja tasapelit", () => {
     return within(screen.getByRole("region", { name: HOME_ADVANTAGE_HEADING }));
   }
 
-  it("lists every competition in the given order, shares as whole percentages (S4, S14)", async () => {
+  it("lists every competition in the given order, shares as whole percentages", async () => {
     await renderSection();
 
     const rows = panel()
@@ -402,7 +411,7 @@ describe("Kotietu ja tasapelit", () => {
     expect(panel().getByText(NO_OWN_MATCHES_MESSAGE)).toBeInTheDocument();
   });
 
-  it("names the seasons, then says the shares are rounded (S14, S18)", async () => {
+  it("names the seasons, then says the shares are rounded", async () => {
     await renderSection();
 
     const lines = panel()
@@ -414,7 +423,7 @@ describe("Kotietu ja tasapelit", () => {
     ]);
   });
 
-  it("still compares the others without a row of its own, and says why (S16)", async () => {
+  it("still compares the others without a row of its own, and says why", async () => {
     await renderSection({ kind: "taso", competitionCode: "M1L" });
 
     expect(panel().getByText(NO_OWN_MATCHES_MESSAGE)).toBeInTheDocument();
@@ -439,7 +448,7 @@ describe("Kotietu ja tasapelit", () => {
     expect(panel().getByText(ROUNDING_NOTE)).toBeInTheDocument();
   });
 
-  it("shows one failure message in place of the table, and keeps goals per game (S15)", async () => {
+  it("shows one failure message in place of the table, and keeps goals per game", async () => {
     getOutcomeShares.mockResolvedValue({ status: "error" });
     const { container } = await renderSection();
 
@@ -450,7 +459,7 @@ describe("Kotietu ja tasapelit", () => {
   });
 });
 
-describe("the table-movement strings (specs/050)", () => {
+describe("the table-movement strings", () => {
   it("uses the agreed Finnish", () => {
     expect(VOLATILITY_HEADING).toBe("Sijoitusten vaihtelu");
     expect(MID_SEASON_NOTE).toBe("Puoliväli: kun puolet kauden kierroksista on pelattu.");
@@ -465,7 +474,7 @@ describe("the table-movement strings (specs/050)", () => {
     );
   });
 
-  it("counts the seasons left out in the singular and the plural (S15)", () => {
+  it("counts the seasons left out in the singular and the plural", () => {
     expect(seasonsLeftOutSentence(1)).toBe(
       "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
     );
@@ -486,7 +495,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(getTableVolatility).toHaveBeenCalledWith("taso", "VL", 2025);
   });
 
-  it("draws one point per season from 0, the page's own ringed (S5, S13)", async () => {
+  it("draws one point per season from 0, the page's own ringed", async () => {
     await renderSection({ selectedSeasonId: 2023 });
     const chart = panel().getByRole("img");
     const points = chart.querySelectorAll("[data-part=points] circle:not([data-marked])");
@@ -506,7 +515,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().getByRole("img").querySelector("[data-marked]")).toBeNull();
   });
 
-  it("gives the chart a text alternative, one sentence per season with its team count (S12)", async () => {
+  it("gives the chart a text alternative, one sentence per season with its team count", async () => {
     await renderSection();
     const chart = panel().getByRole("img");
     const text = panel().getByRole("list");
@@ -530,7 +539,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().queryByText(/puuttuu/)).toBeNull();
   });
 
-  it("counts the seasons left out under the chart (S9)", async () => {
+  it("counts the seasons left out under the chart", async () => {
     getTableVolatility.mockResolvedValue({ ...volatility, leftOut: 2 } as TableVolatilitySeries);
     await renderSection();
 
@@ -549,7 +558,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().queryByText(MID_SEASON_NOTE)).toBeNull();
   });
 
-  it("has no panel on the Champions League, whose later rounds leave no final table (S10)", async () => {
+  it("has no panel on the Champions League, whose later rounds leave no final table", async () => {
     await renderSection({ competitionCode: "CL" });
 
     expect(screen.queryByRole("region", { name: VOLATILITY_HEADING })).toBeNull();

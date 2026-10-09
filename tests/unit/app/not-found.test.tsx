@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import NotFound, { metadata } from "@/app/not-found";
 
 /**
- * The page for an address nothing answers, and for every `notFound()`. Next's
- * default is in English, which is what readers met until #533.
+ * The page for an address nothing answers, and for every `notFound()`: in
+ * Finnish, in place of Next's default.
+ *
+ * decisions/533-finnish-error-pages.md
+ * decisions/028-admin-tools-and-roles.md
  */
+
 describe("Not-found page", () => {
   it("says in Finnish that the page does not exist", () => {
     render(<NotFound />);
@@ -34,11 +38,9 @@ describe("Not-found page", () => {
     expect(text).not.toMatch(/\b404\b/);
   });
 
-  /**
-   * The admin area answers a reader it does not know with `notFound()`, so
-   * that its pages cannot be told from ones that do not exist (specs/028).
-   * This page is what they see, so it may name nothing about where they were.
-   */
+  // The admin area answers a reader it does not know with `notFound()`, so that
+  // its pages cannot be told from ones that do not exist. This page is what
+  // they see, so it may name nothing about where they were.
   it("gives nothing away about the admin area, which renders it on purpose", () => {
     const { container } = render(<NotFound />);
 

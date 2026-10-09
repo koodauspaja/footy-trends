@@ -2,27 +2,24 @@ import { isRegionSegment, type RegionSegment } from "@/lib/regions";
 import { isStoredInteger, parseWholeNumber } from "./provider-ids";
 
 /**
- * What a favourite *is*, with **no database and no session** — the half a client
- * component may import, from specs/026-favourites.md.
+ * What a favourite is, with no database and no session: the half a client
+ * component may import.
  *
- * The exclusion is the same one at the top of `regions.ts` and
- * `avatar-limits.ts`, and it is load-bearing here for a specific reason: the
- * toggle renders on the region picker, which lives on the four pages
- * `tests/unit/app/rendering-mode.test.ts` keeps prerendered (#182). Anything it
- * imports is in the browser bundle.
+ * decisions/026-favourites.md
  */
 
 /**
  * How many of each kind one reader may keep.
  *
- * Fifty is a judgement, not a measurement: enough that nobody sensible meets it,
- * small enough to bound both the `/suosikit` query and the session payload the
- * list rides on. It is one constant so that measuring can change it — see the
- * spec's note on decisions kept cheap to reverse.
+ * decisions/026-favourites.md
  */
 export const MAX_FAVOURITES_PER_KIND = 50;
 
-/** The two providers, whose team id spaces are independent of each other. */
+/**
+ * The two providers, whose team id spaces are independent of each other.
+ *
+ * decisions/026-favourites.md
+ */
 export const FAVOURITE_SOURCES = ["football-data", "taso"] as const;
 
 export type FavouriteSource = (typeof FAVOURITE_SOURCES)[number];
@@ -34,10 +31,7 @@ export function isFavouriteSource(value: unknown): value is FavouriteSource {
 /**
  * Whether a number is an id the app could store, in the one place that decides.
  *
- * Shared rather than repeated: `parseTeamKey` reads ids out of the session and
- * the server actions read them off the wire, and two copies of this rule are
- * exactly how they drift — see `taso.ts`'s `parseProviderId`, which enforces the
- * same bound for the same reason.
+ * decisions/026-favourites.md
  */
 export function isTeamProviderId(value: unknown): value is number {
   // `isStoredInteger`, not `Number.isSafeInteger`: the latter accepts
@@ -50,9 +44,7 @@ export function isTeamProviderId(value: unknown): value is number {
  * A favourite as one string, because the only thing anything does with it is
  * compare it.
  *
- * `"taso:60731"` is one `includes` against a list; a `{ source, id }` object
- * would be a `find` with two fields at every call site, and the session payload
- * would carry the key names on every entry.
+ * decisions/026-favourites.md
  */
 export function teamKey(source: FavouriteSource, teamProviderId: number): string {
   return `${source}:${teamProviderId}`;
@@ -63,11 +55,10 @@ export function competitionKey(region: RegionSegment, code: string): string {
 }
 
 /**
- * A team key read back into its parts, or null when it is not one.
+ * A team key read back into its parts, or null when it is not one. Validated,
+ * not trusted: it arrives in a session payload.
  *
- * Validated rather than trusted: these arrive from a session payload the client
- * cannot vouch for, and a malformed key must render nothing rather than a link
- * to a team that does not exist.
+ * decisions/026-favourites.md
  */
 export function parseTeamKey(
   key: string
@@ -84,7 +75,12 @@ export function parseTeamKey(
   return isTeamProviderId(teamProviderId) ? { source, teamProviderId } : null;
 }
 
-/** A competition key read back into its parts, or null when the region is not one of the three. */
+/**
+ * A competition key read back into its parts, or null when the region is not
+ * one of the three.
+ *
+ * decisions/026-favourites.md
+ */
 export function parseCompetitionKey(key: string): { region: RegionSegment; code: string } | null {
   const separator = key.indexOf(":");
   if (separator === -1) return null;

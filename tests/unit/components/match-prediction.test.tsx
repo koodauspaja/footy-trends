@@ -4,6 +4,16 @@ import type { EloRatings } from "@/lib/elo-service";
 import type { HomeBaseline } from "@/lib/home-baseline";
 import type { StoredMatch } from "@/lib/match-service";
 
+/**
+ * The `Ennuste` panel: the baseline, Elo's row beside it, and the link to the
+ * models' track record.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/053-elo-ratings.md
+ * decisions/054-prediction-quality.md
+ */
+
 const { canSeeAnalytics, getHomeBaseline, getEloRatings } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getHomeBaseline: vi.fn<() => Promise<HomeBaseline>>(),
@@ -64,7 +74,7 @@ function upcoming(status = "SCHEDULED", overrides: Record<string, unknown> = {})
   } as StoredMatch;
 }
 
-/** HJK and KuPS even, once HJK's 60 home points are counted. */
+// HJK and KuPS even, once HJK's 60 home points are counted.
 const ratings: EloRatings = {
   status: "ok",
   ratings: new Map([
@@ -78,7 +88,7 @@ async function renderPanel(stored: StoredMatch = upcoming()) {
   return render(<div>{panel}</div>);
 }
 
-/** Each body row of the predictions table, as its cells read. */
+// Each body row of the predictions table, as its cells read.
 function tableRows() {
   return screen
     .getAllByRole("row")
@@ -87,7 +97,7 @@ function tableRows() {
 }
 
 describe("baselineSentence", () => {
-  it("names the match count, with a no-break space between thousands, and the seasons (S2)", () => {
+  it("names the match count, with a no-break space between thousands, and the seasons", () => {
     expect(baselineSentence(baseline)).toBe(
       `Perustaso: kilpailun 1 234 ottelun tulokset kausilta 2015–2026. ${SAME}`
     );
@@ -114,7 +124,7 @@ describe("baselineSentence", () => {
   });
 });
 
-describe("eloSentence (specs/053 S13)", () => {
+describe("eloSentence", () => {
   it("names both teams' ratings, rounded, then how the prediction is made", () => {
     expect(eloSentence("HJK", 1563.4, "KuPS", 1487.6)).toBe(
       "Elo: HJK 1563, KuPS 1488. Kotijoukkueelle lisätään 60 pistettä, ja tasapelin todennäköisyys on kilpailun tasapelien osuus."
@@ -122,18 +132,18 @@ describe("eloSentence (specs/053 S13)", () => {
   });
 });
 
-describe("MatchPrediction (specs/051, specs/053)", () => {
+describe("MatchPrediction", () => {
   beforeEach(() => {
     canSeeAnalytics.mockReset().mockResolvedValue(true);
     getHomeBaseline.mockReset().mockResolvedValue(baseline);
     getEloRatings.mockReset().mockResolvedValue(ratings);
   });
 
-  it("shows the baseline row, then the Elo row, as whole percentages (specs/053 S8, S13)", async () => {
+  it("shows the baseline row, then the Elo row, as whole percentages", async () => {
     await renderPanel();
 
     expect(screen.getByRole("heading", { level: 2, name: PREDICTION_HEADING })).toBeInTheDocument();
-    // The model column's heading is for screen readers only (decisions/053).
+    // The model column's heading is for screen readers only.
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
       "Malli",
       "Kotivoitto",
@@ -161,7 +171,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
       ROUNDING_NOTE,
       QUALITY_LINK,
     ]);
-    // specs/054 S13: the models' track record, from every `Ennuste`.
+    // The models' track record, from every `Ennuste`.
     expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute("href", "/ennusteet");
     expect(getHomeBaseline).toHaveBeenCalledWith("taso", "VL");
   });
@@ -211,7 +221,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     expect(screen.queryByText(ELO_ERROR_MESSAGE)).not.toBeInTheDocument();
   });
 
-  it("says so when the competition has no finished match, and shows no Elo either (S9; specs/053 S16)", async () => {
+  it("says so when the competition has no finished match, and shows no Elo either", async () => {
     getHomeBaseline.mockResolvedValue({ status: "empty" });
     await renderPanel();
 
@@ -228,7 +238,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("signed out, shows the prompt and reads nothing (S4; specs/053 S12)", async () => {
+  it("signed out, shows the prompt and reads nothing", async () => {
     canSeeAnalytics.mockResolvedValue(false);
     const { container } = await renderPanel();
 
@@ -239,7 +249,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     expect(container.textContent).not.toContain("%");
   });
 
-  it("renders nothing, and asks nothing, for a match that is not upcoming (S3)", async () => {
+  it("renders nothing, and asks nothing, for a match that is not upcoming", async () => {
     const { container } = await renderPanel(upcoming("FINISHED"));
 
     expect(container.firstChild).toBeEmptyDOMElement();
@@ -247,7 +257,7 @@ describe("MatchPrediction (specs/051, specs/053)", () => {
     expect(getHomeBaseline).not.toHaveBeenCalled();
   });
 
-  it("renders nothing for a competition specs/049 does not compare (S5)", async () => {
+  it("renders nothing for a competition the home-advantage table does not compare", async () => {
     const { container } = await renderPanel(upcoming("SCHEDULED", { categoryId: "MSC" }));
 
     expect(container.firstChild).toBeEmptyDOMElement();

@@ -70,6 +70,11 @@ request leaves alone.
 - Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
+**Block 7** — path: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`
+```
+- A new or changed comment says what the code beside it is for, in one to three lines, or a constraint the code cannot show, followed by the paths of the decision records behind it. The paths go on the doc comment of a declaration (a function, a type, a constant) or on the file's header comment; the comment on a field, and a comment inside a function, need none and are covered by the declaration they sit in or by the file's header. Flag a changed comment that narrates history (how the code used to work, which pull request or review found something, how a number was measured) or that describes something other than the code it sits on. That history belongs in a decision record under decisions/.
+```
+
 Each block's paths are chosen to cover every file its rules ask about.
 `REVIEW_RULES.md` records why each one is there, and which requirements are
 deliberately not Sourcery rules.
@@ -110,13 +115,28 @@ deliberately lighter: they re-check existing comments, resolve threads the
 new code addressed, and re-run security scans. They do **not** regenerate
 the summary, the reviewer's guide, or the full set of inline comments.
 
-A consequence worth knowing: a light reaction creates no new review object,
-so the latest review's `commit_id` keeps pointing at the first reviewed
-commit even though later commits were seen. Never treat that value as
-"the last commit Sourcery looked at".
+Such a reaction does create a review object. Observed on the reviews API on
+2026-10-05 (#552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`): its state is
+`APPROVED` until a later push dismisses it, its `commit_id` is the new head,
+and its whole body is
 
-To get a complete review of the final state — worth doing after substantive
-fix commits — comment `@sourcery-ai review` on the PR.
+```
+### Sourcery assessment
+
+**Approved.**
+```
+
+A full review's body starts `Hey - I've reviewed your changes` or
+`Hey - I've found N issues`. Nothing else tells the two apart: a full review
+that found nothing has the same state, and the `commit_id` and the check-run
+read the same for both. So `APPROVED` on the head does not say which of the
+two it is; only the body does. A push can also get a green check-run and
+nothing on the reviews API (#558 `c67b89c`).
+
+`npm run check:sourcery -- <PR>` reads the first line and says which the head
+has (`skills/open-pr.md` step 7), and step 9 says when a full review is
+required. To get one of the final state, comment
+`@sourcery-ai review` on the PR, with nothing else in the comment.
 
 ### Three separate things cause a skip
 

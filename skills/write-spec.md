@@ -25,16 +25,25 @@ Checklist (what a spec must contain)
 5. Edge Cases — list expected edge behaviours and error states.
 6. Performance & Limits — rate limits, pagination, expected load behaviour.
 7. Security & Secrets — required env vars and that secrets must not be committed.
-8. Acceptance Criteria — testable, concrete outcomes for the feature.
-9. Tests Required — file paths and minimal assertions (happy+edge cases).
-10. Files To Update — `specs/`, `.env.example`, docs, and any README notes.
+8. Logging — what the feature leaves in the logs.
+   - Each failure it can meet: the level and what the line says.
+   - Each action that changes shared data: one line saying who did it, to what,
+     and the outcome, a refusal included.
+   - What stays out: no personal data beyond ids. No email address, name or
+     token. The repository is public and the logs go to a third party.
+   - A feature that only reads, and whose failures existing code already logs,
+     says so. "None" is an answer; an empty section is not.
+   - Where logs go, and why: `docs/infrastructure.md`, Observability.
+9. Acceptance Criteria — testable, concrete outcomes for the feature.
+10. Tests Required — file paths and minimal assertions (happy+edge cases).
+11. Files To Update — `specs/`, `.env.example`, docs, and any README notes.
     - Note: `decisions/NNN-feature-name.md` is written by the implementing
       agent, not the spec author — but the spec should be precise enough
       (especially on edge cases and numeric values, e.g. "last 5 matches")
       that any drift between spec and decisions doc is easy to spot during
       review. See `REVIEW_RULES.md` — spec/decision drift is a required
       Sourcery check.
-11. Open Questions — anything the spec author is unsure about, listed
+12. Open Questions — anything the spec author is unsure about, listed
     explicitly rather than left implicit. An empty list is fine; the field
     exists to force a deliberate check rather than a silent gap.
 How to use in chat

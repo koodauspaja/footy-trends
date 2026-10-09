@@ -1,0 +1,41 @@
+# 207 — A region breadcrumb in the site header: decisions
+
+Chore #207 had no record of its own; #531 created this one for reasons cut
+from the comments of its code.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
+
+- **`SiteHeader` is a client component.** The root layout renders it, and
+  the App Router exposes no server-side pathname; `usePathname()` is the
+  supported way to know where we are. The alternative was a `layout.tsx` per
+  region passing its own name down, which stays on the server but is five
+  files and quietly loses the header for any future region that forgets one.
+  On `/` and on the region pickers the second crumb would point at the page
+  already shown.
+
+Cut from `src/lib/breadcrumb.ts` at `ef99862` by #531.
+
+- **`breadcrumb.ts`.** Kept apart from `SiteHeader` so the path-to-region
+  mapping is unit-testable without rendering, and so the component stays a
+  few lines of markup.
+- **`regionCrumbFor`.** A crumb on a region's own picker page would link to
+  the page already being shown.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/breadcrumb-hydration.spec.ts` at `0fe724f` by #531.
+
+- **Why `breadcrumb-hydration.spec.ts` exists.** Raised in review. If the
+  server rendered the header from the internal destination
+  (`/ulkomaat/ottelut` is served from `/foreign/matches`) while the browser
+  resolved the public path, the crumb would be missing from the server HTML
+  and appear only after hydration. It does not: `usePathname()` reports the
+  public path on both sides. The spec holds that, because it is the kind of
+  thing a Next upgrade could change quietly.
+
+Cut from `tests/e2e/breadcrumb.spec.ts` at `0fe724f` by #531.
+
+- **What the crumb is for.** From a competition page the only way out used
+  to be `Etusivu` and the front page.

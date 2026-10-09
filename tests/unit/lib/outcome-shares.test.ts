@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { outcomeShares, roundedAdvantage, type SeasonOutcomes } from "@/lib/outcome-shares";
 
+/**
+ * Home wins, draws and away wins as shares of a season.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
+
 const FLOOR = 2023;
 
-/** A completed season of 100 matches: 45 home wins, 25 draws, 30 away wins. */
+// A completed season of 100 matches: 45 home wins, 25 draws, 30 away wins.
 function season(overrides: Partial<SeasonOutcomes> = {}): SeasonOutcomes {
   return {
     kind: "football-data",
@@ -28,7 +34,7 @@ describe("roundedAdvantage", () => {
 });
 
 describe("outcomeShares", () => {
-  it("turns a competition's counts into shares and Kotietu, named as its list does (S5)", () => {
+  it("turns a competition's counts into shares and Kotietu, named as its list does", () => {
     const { rows } = outcomeShares(
       [season(), season({ kind: "taso", code: "VL", spansCalendarYears: false })],
       FLOOR
@@ -62,7 +68,7 @@ describe("outcomeShares", () => {
     });
   });
 
-  it("computes Kotietu from the unrounded shares (S14)", () => {
+  it("computes Kotietu from the unrounded shares", () => {
     // 1/3 home, 1/3 draw, 1/3 away but for one: shares that round to the same
     // whole numbers, while their difference does not vanish.
     const { rows } = outcomeShares(
@@ -73,13 +79,13 @@ describe("outcomeShares", () => {
     expect(rows[0]?.advantage).toBeCloseTo(2 / 3);
   });
 
-  it("leaves out a season before the floor (S8)", () => {
+  it("leaves out a season before the floor", () => {
     const { rows } = outcomeShares([season(), season({ seasonId: 2022, homeWins: 100 })], FLOOR);
 
     expect(rows[0]?.matches).toBe(100);
   });
 
-  it("leaves out a season with a match still to play, and one with nothing finished (S19)", () => {
+  it("leaves out a season with a match still to play, and one with nothing finished", () => {
     const { rows } = outcomeShares(
       [
         season(),
@@ -92,7 +98,7 @@ describe("outcomeShares", () => {
     expect(rows.map((row) => [row.code, row.matches])).toEqual([["PL", 100]]);
   });
 
-  it("orders by Kotietu as printed, strongest first, then more matches (S11, S17)", () => {
+  it("orders by Kotietu as printed, strongest first, then more matches", () => {
     const { rows } = outcomeShares(
       [
         season({ code: "BL1", homeWins: 40, awayWins: 35 }), // +5
@@ -109,7 +115,7 @@ describe("outcomeShares", () => {
     expect(rows.map((row) => row.code)).toEqual(["PL", "SA", "BL1", "PD"]);
   });
 
-  it("names the seasons of each kind the table covers (S18)", () => {
+  it("names the seasons of each kind the table covers", () => {
     const result = outcomeShares(
       [
         // Out of order, as a database may return them.

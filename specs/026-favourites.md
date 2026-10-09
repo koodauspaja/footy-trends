@@ -311,7 +311,8 @@ without a reload and the other stars on the page follow when the session lands.
 | `lib/favourite-actions.test.ts` (new) | Signed out writes nothing; the user id comes from the session, never the caller; each action returns a result rather than rejecting; the cap refusal survives as its own reason |
 | `lib/current-user.test.ts` (new) | Each of the three action modules imports cleanly with the auth variables unset, and `@/lib/auth` still refuses to construct without them |
 | `lib/session-extras.test.ts` | `favouriteKeysOf` reads each kind from its own field and answers `[]` for any payload that is not a list of strings |
-| `components/favourite-toggle.test.tsx` (new) | Both labels; nothing at all when signed out; **nothing on the server, so hydration cannot mismatch**; a failed toggle returns the star to its previous state rather than leaving it wrong |
+| `components/favourite-toggle.test.tsx` (new) | Both labels; nothing at all when signed out; the star on the first render for a signed-in reader; a failed toggle returns the star to its previous state rather than leaving it wrong |
+| `components/session-hydration.test.tsx` (added by #535) | With the real auth client: the header, the search and the star hydrate from the server's signed-out HTML with no mismatch when the browser already holds a session |
 | `components/favourites-page.test.tsx` (new) | Both sections; both empty states; removal updates the list; a retired competition and a team with no matches still render and stay removable |
 | `components/account-menu.test.tsx` | `Suosikit` is in the menu, above `Asetukset`, and closes it on navigation |
 | `app/favorites/page.test.tsx` (new) | Signed out asks for sign-in; a session read that fails says so rather than claiming signed out; keys that are not keys are dropped; each provider's team links to its own page |

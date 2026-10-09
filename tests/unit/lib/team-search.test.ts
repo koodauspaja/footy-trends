@@ -3,20 +3,14 @@ import { matches } from "@/db/schema";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * Finding a team by name, from specs/027-team-search.md.
+ * Finding a team by name. The mock does not inspect the `where` clause: asserting on a drizzle
+ * SQL object breaks on a version bump and proves less. `tests/integration/team-search.test.ts`
+ * has the SQL half: the fold, a typed `%`, id `0`, the empty name, a renamed club.
  *
- * No real database: the CI unit job has no service containers, deliberately
- * (#158). The mock answers the one chain this module uses and records the
- * queries it made. It deliberately does **not** inspect the `where` clause: that
- * is a drizzle SQL object, and asserting on its internals would break on a
- * version bump while proving less than running the query does.
- *
- * So the SQL-semantics half lives in `tests/integration/team-search.test.ts`
- * against real rows — that the fold applies to the *term* as well as the stored
- * name, that a typed `%` is not a wildcard, that id `0` and the empty name are
- * excluded, and that a renamed club is found by its old name. Both halves were
- * mutation-checked; those four mutations survive the unit suite and die here.
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
  */
+
 const { state, resolveTeamNames } = vi.hoisted(() => ({
   state: {
     sides: new Map<string, unknown[]>(),
@@ -26,16 +20,9 @@ const { state, resolveTeamNames } = vi.hoisted(() => ({
   resolveTeamNames: vi.fn(),
 }));
 
-/**
- * The chain is `selectDistinctOn(...).as(...)` wrapped in an outer
- * `select(...).from(sub).orderBy(...).limit(...)`, because the cap has to sit
- * where the rows are ordered by **date** — `distinct on (id)` forces the inner
- * sort to begin with `id`.
- *
- * The mock keeps that structure rather than flattening it: the inner select
- * decides *which rows*, the outer one decides *how many*, and a mock that
- * collapsed them could not tell a missing cap from a mis-ordered one.
- */
+// The chain is a `selectDistinctOn` subquery inside an outer `select` with `orderBy`
+// and `limit`. The mock keeps that structure: the inner select decides which rows and
+// the outer how many, so a missing cap and a mis-ordered one can be told apart.
 vi.mock("@/db", () => ({
   db: {
     selectDistinctOn: (columns: { name: string }[]) => ({
@@ -167,13 +154,9 @@ describe("searchTeams", () => {
   });
 
   it("ranks by recency, not by provider id", async () => {
-    /**
-     * The regression this exists for. `distinct on (id)` forces the sort to
-     * start with `id`, so a `LIMIT` on that query keeps the lowest ids — and a
-     * team that played last week would be dropped for one that has not played
-     * since 2019, purely because its id is larger. The cap belongs after the
-     * merge, where the rows are ordered by date.
-     */
+    // `distinct on (id)` forces the sort to start with `id`, so a `LIMIT` on that query keeps
+    // the lowest ids: a team that played last week would be dropped for one that has not played
+    // since 2019. The cap belongs after the merge, where rows are ordered by date.
     const { MAX_RESULTS, searchTeams } = await import("@/lib/team-search");
     state.sides.set("taso_matches:home", [
       // Twenty low ids, all long inactive.
@@ -333,7 +316,7 @@ describe("searchTeams", () => {
         name: "FC Honka",
         region: "kotimaa",
         // Passed straight through from `resolveTeamNames`, which is the one
-        // place that knows Finland's pages are not id routes (#325).
+        // place that knows Finland's pages are not id routes.
         href: "/kotimaa/joukkue/7",
         competitionName: "Veikkausliiga",
         seasonId: 2019,

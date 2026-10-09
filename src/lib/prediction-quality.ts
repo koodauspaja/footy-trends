@@ -1,15 +1,23 @@
 /**
- * How good the logged predictions are (specs/054): accuracy, Brier score,
- * log-loss and calibration, per model, over the same matches.
+ * How good the logged predictions are: accuracy, Brier score, log-loss and
+ * calibration, per model, over the same matches. Pure: the service reads the
+ * predictions with their results, and every figure is computed here.
  *
- * Pure: `prediction-quality-service.ts` reads the logged predictions with
- * their results; every figure is computed here.
+ * decisions/054-prediction-quality.md
  */
 
-/** What happened, from the home side's point of view. */
+/**
+ * What happened, from the home side's point of view.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export type Outcome = "home" | "draw" | "away";
 
-/** One logged prediction whose match has a result. */
+/**
+ * One logged prediction whose match has a result.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export type JudgedPrediction = {
   model: string;
   providerMatchId: number;
@@ -21,24 +29,44 @@ export type JudgedPrediction = {
   outcome: Outcome;
 };
 
-/** Rolling accuracy is over this many matches (S6). */
+/**
+ * Rolling accuracy is over this many matches.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const ROLLING_WINDOW = 200;
 
-/** A calibration bin with fewer probabilities than this is left off (S8). */
+/**
+ * A calibration bin with fewer probabilities than this is left off.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const CALIBRATION_MINIMUM = 50;
 
-/** Log-loss takes at least this probability, so one certain miss is not infinite (S7). */
+/**
+ * Log-loss takes at least this probability, so one certain miss is not infinite.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const LOG_LOSS_FLOOR = 0.001;
 
 const OUTCOMES: readonly Outcome[] = ["home", "draw", "away"];
 
-/** The outcome given the highest probability; a tie goes home, then draw (S5). */
+/**
+ * The outcome given the highest probability; a tie goes home, then draw.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function pickOf(prediction: Pick<JudgedPrediction, Outcome>): Outcome {
   if (prediction.home >= prediction.draw && prediction.home >= prediction.away) return "home";
   return prediction.draw >= prediction.away ? "draw" : "away";
 }
 
-/** Multi-class Brier score: 0 is perfect, 2 the worst (S7). */
+/**
+ * Multi-class Brier score: 0 is perfect, 2 the worst.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function brierOf(prediction: Pick<JudgedPrediction, Outcome | "outcome">): number {
   return OUTCOMES.reduce((sum, outcome) => {
     const happened = prediction.outcome === outcome ? 1 : 0;
@@ -46,14 +74,20 @@ export function brierOf(prediction: Pick<JudgedPrediction, Outcome | "outcome">)
   }, 0);
 }
 
-/** Log-loss of one prediction: `−ln p` of what happened, floored at 0,001 (S7). */
+/**
+ * Log-loss of one prediction: `−ln p` of what happened, floored at 0,001.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function logLossOf(prediction: Pick<JudgedPrediction, Outcome | "outcome">): number {
   return -Math.log(Math.max(prediction[prediction.outcome], LOG_LOSS_FLOOR));
 }
 
 /**
  * Only the matches every given model predicted, so the models are judged on
- * exactly the same ones (S4).
+ * exactly the same ones.
+ *
+ * decisions/054-prediction-quality.md
  */
 export function commonMatches(
   predictions: readonly JudgedPrediction[],
@@ -80,10 +114,18 @@ export type ModelTotals = {
   logLoss: number;
 };
 
-/** One point of the rolling line: the latest match's kickoff (epoch ms) and the share right, 0–100. */
+/**
+ * One point of the rolling line: the latest match's kickoff (epoch ms) and the share right, 0–100.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export type RollingPoint = { at: number; accuracy: number };
 
-/** The thinned line keeps at most this many windows, plus the last: a 640-unit chart shows no more (S6). */
+/**
+ * The thinned line keeps at most this many windows, plus the last: a 640-unit chart shows no more.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const ROLLING_POINTS = 400;
 
 export type SeasonBrier = {
@@ -97,11 +139,15 @@ export type CalibrationBin = {
   /** The bin's lower edge, 0–90 in tens. */
   from: number;
   probabilities: number;
-  /** 0–100, how often the binned outcome happened; null below the minimum (S8). */
+  /** 0–100, how often the binned outcome happened; null below the minimum. */
   observed: number | null;
 };
 
-/** JSON-safe, so the service can cache it as it is (S11). */
+/**
+ * JSON-safe, so the service can cache it as it is.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export type QualityReport =
   | { status: "empty" }
   | {
@@ -112,11 +158,11 @@ export type QualityReport =
       firstYear: number;
       lastYear: number;
       totals: ModelTotals[];
-      /** Per model, or null when fewer than 200 matches are judged (S14). */
+      /** Per model, or null when fewer than 200 matches are judged. */
       rolling: Array<{ model: string; points: RollingPoint[] }> | null;
       seasons: SeasonBrier[];
       calibration: Array<{ model: string; bins: CalibrationBin[] }>;
-      /** Whether any bin was left off, so the page says so (S8). */
+      /** Whether any bin was left off, so the page says so. */
       binsOmitted: boolean;
     };
 
@@ -134,7 +180,9 @@ function byKickoff(left: JudgedPrediction, right: JudgedPrediction): number {
 
 /**
  * The share right over each run of 200 consecutive matches, by kickoff,
- * thinned to every step-th window, at most 400, plus always the last (S6).
+ * thinned to every step-th window, at most 400, plus always the last.
+ *
+ * decisions/054-prediction-quality.md
  */
 export function rollingOf(predictions: readonly JudgedPrediction[]): RollingPoint[] {
   if (predictions.length < ROLLING_WINDOW) return [];
@@ -155,7 +203,11 @@ export function rollingOf(predictions: readonly JudgedPrediction[]): RollingPoin
   return points;
 }
 
-/** Every probability (three per match) in bins of ten; under 50 left off (S8). */
+/**
+ * Every probability (three per match) in bins of ten; under 50 left off.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function calibrationOf(predictions: readonly JudgedPrediction[]): CalibrationBin[] {
   const counts = Array.from({ length: 10 }, () => ({ count: 0, hits: 0 }));
   for (const prediction of predictions) {
@@ -177,8 +229,10 @@ export function calibrationOf(predictions: readonly JudgedPrediction[]): Calibra
 }
 
 /**
- * Every figure of specs/054 for one provider and kind: only the matches every
- * model predicted (S4), each model judged on them.
+ * Every figure for one provider and kind: only the matches every model
+ * predicted, each model judged on them.
+ *
+ * decisions/054-prediction-quality.md
  */
 export function qualityReport(
   predictions: readonly JudgedPrediction[],

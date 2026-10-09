@@ -44,3 +44,41 @@ FC Inter v AC Oulu, signed in: FC Inter `V V H V V`, 2,4 per match; AC Oulu
 `V T H H H`, 0,8; both last played 18.09.2026 — each other, the meeting
 `Kohtaamiset` lists first. A result link opens that match's page. Screenshots at
 375 px in light and dark, and 1280 px; the page does not scroll sideways.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`isCurrentRivalry`.** In 2026 a 2024 meeting counts and any 2023 one does
+  not. Both years are Helsinki's, as `playedYear` reads every date on the
+  site, so a late kick-off on 31 December is not filed under the next year
+  because UTC has already turned. `today` is a parameter so the rule is
+  testable at its boundary.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`footballDataTeamMatches`, `tasoTeamMatches`.** Shared by the full history
+  and the latest five, so an opponent's meetings and a team's current form
+  count the same matches.
+- **`TeamForm`.** A failed read is its own case, never "too few matches".
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`loadForm`.** Finland has no id stable across categories on the TASO
+  national-team routes.
+- **`FormBlock`.** The results are spelled as the standings `Vire` spells
+  them. A team with fewer than five, or whose read failed, says so; the other
+  block is its own.
+- **The groups on the head-to-head page.** Signed out, a rivalry no longer
+  played, and the TASO national-team routes all leave the page exactly as it
+  was before the form was added.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`formResultLabel`.** Exported so the head-to-head page's form spells a
+  result as the table does.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`latestForm`.** It equals `formSeries`' last point by construction and
+  not by a second formula.

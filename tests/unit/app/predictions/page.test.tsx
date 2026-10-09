@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+/**
+ * The `/ennusteet` route: what it reads and what it hands the page.
+ *
+ * decisions/054-prediction-quality.md
+ */
+
 const { PredictionQualityPage } = vi.hoisted(() => ({
   PredictionQualityPage: vi.fn(async () => "page"),
 }));
@@ -11,7 +17,7 @@ vi.mock("@/components/prediction-quality-page", () => ({
 
 import Page, { dynamic, metadata } from "@/app/predictions/page";
 
-describe("/ennusteet (specs/054)", () => {
+describe("/ennusteet", () => {
   it("passes the page's parameters through, rendered per request", async () => {
     await Page({ searchParams: Promise.resolve({ alue: "ulkomaat", tyyppi: "ennakkoon" }) });
 

@@ -9,7 +9,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: QUALITY_HEADING };
 
-/** `/ennusteet` — how good the predictions have been (specs/054). */
+/**
+ * `/ennusteet`: how good the predictions have been.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export default async function PredictionsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<QualityParams> }>) {

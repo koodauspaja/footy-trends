@@ -1,11 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * A Finnish club's page, end to end.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/020-context-free-team-page.md
+ * decisions/022-teams-between-tiers.md
+ * decisions/529-one-whole-number-parser.md
+ */
+
 test.describe("Domestic team match list (Veikkausliiga)", () => {
   test("a relegated club is told where it played, not that it is unknown", async ({ page }) => {
-    // Derived from the app rather than from a club id: whoever is in Ykkösliiga
-    // this season is, by definition, not in Veikkausliiga this season. Naming a
-    // club and a year here would only assert what one database happens to hold
-    // — the mistake this test was written with, and #256 fixed.
+    // Derived from the app, not from a club id: whoever is in Ykkösliiga this
+    // season is, by definition, not in Veikkausliiga this season. Naming a club
+    // and a year would only assert what one database happens to hold.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M1L");
     const firstTeam = page.locator("table tbody tr").first().getByRole("link").first();
     const clubName = (await firstTeam.textContent())?.trim() ?? "";
@@ -47,12 +55,9 @@ test.describe("Domestic team match list (Veikkausliiga)", () => {
   test("a bare team URL renders the team, not the region's default competition", async ({
     page,
   }) => {
-    // Deliberately not "the same heading as the parameterised URL": a correct
-    // resolver renders a *different* competition whenever the team's newest
-    // match is one — a Suomen Cup tie, say. Which competition it picks is
-    // verified against fixtures in tests/integration/team-context.test.ts; what
-    // e2e can prove is that the bare URL is a working team page rather than the
-    // Veikkausliiga not-found it used to be.
+    // Not "the same heading as the parameterised URL": a correct resolver renders a
+    // different competition whenever the team's newest match is one. Which it picks is
+    // verified in tests/integration/team-context.test.ts; this proves the URL works.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M2");
     const teamName = await page
       .locator("table tbody tr")
@@ -82,9 +87,8 @@ test.describe("Domestic team match list (Veikkausliiga)", () => {
     await expect(page.getByRole("link", { name: "Sarjataulukkoon" })).toHaveCount(0);
   });
 
-  // `Number("0x10")` is 16 and `Number("1e3")` is 1000: each of these showed a
-  // real club's page until #529. 60987 is FC Inter, so its hexadecimal spelling
-  // is a club that exists.
+  // `Number("0x10")` is 16 and `Number("1e3")` is 1000. 60987 is FC Inter, so
+  // its hexadecimal spelling is a club that exists.
   for (const id of ["0xEE3B", "6.0987e4", "60987.0", "-60987"]) {
     test(`a team id spelled ${id} is not a team`, async ({ page }) => {
       await page.goto(`/kotimaa/joukkue/${id}`);

@@ -2,10 +2,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { integrationDatabaseRefusal, namesTestDatabase } from "@/lib/test-database-name";
 import guardIntegrationDatabase from "../../support/integration-database-guard";
 
+/**
+ * Which database names count as a test database, and what the integration suite
+ * refuses to run against.
+ *
+ * decisions/479-integration-suite-database-guard.md
+ * decisions/304-test-database.md
+ */
+
 const TEST = "postgresql://postgres:secret@localhost:5432/footy-trends_test";
 const DEV = "postgresql://postgres:secret@localhost:5432/footy-trends";
 
-describe("namesTestDatabase (#479)", () => {
+describe("namesTestDatabase", () => {
   it("accepts a database whose name ends in _test", () => {
     expect(namesTestDatabase(TEST)).toBe(true);
     // Percent-encoded, as a connection string may carry it.
@@ -23,7 +31,7 @@ describe("namesTestDatabase (#479)", () => {
   });
 });
 
-describe("integrationDatabaseRefusal (#479)", () => {
+describe("integrationDatabaseRefusal", () => {
   it("allows the test database", () => {
     expect(integrationDatabaseRefusal({ DATABASE_URL: TEST })).toBeNull();
   });
@@ -44,7 +52,7 @@ describe("integrationDatabaseRefusal (#479)", () => {
     expect(integrationDatabaseRefusal(env)).toContain(said);
   });
 
-  it("allows #304's explicit TEST_DATABASE_URL override, whatever its name", () => {
+  it("allows an explicit TEST_DATABASE_URL override, whatever its name", () => {
     const override = "postgresql://ci@db.example.com/integration";
 
     expect(
@@ -66,7 +74,7 @@ describe("integrationDatabaseRefusal (#479)", () => {
   });
 });
 
-describe("the integration suite's globalSetup (#479)", () => {
+describe("the integration suite's globalSetup", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });

@@ -11,9 +11,10 @@ import { formatMatchResult } from "@/lib/standings";
 import { matchDateFormatter } from "./match-list-table";
 
 /**
- * How a tie was settled, appended to the aggregate. `ja` is jatkoaika (extra
- * time), `rp` rangaistuspotkut (penalties). A tie settled in normal time gets
- * no suffix — the aggregate alone says it.
+ * How a tie was settled, appended to the aggregate: `ja` is jatkoaika (extra
+ * time), `rp` rangaistuspotkut (penalties). Normal time gets no suffix.
+ *
+ * decisions/014-champions-league.md
  */
 const DECISION_SUFFIX: Record<TieDecision, string> = {
   regular: "",
@@ -36,8 +37,9 @@ type CupBracketProps = {
 
 /**
  * A leg's own result: normal time plus extra time, with the shootout stated
- * separately rather than folded in. `formatMatchResult` alone would print
- * 0-1 for a shootout leg and lose the fact that it went to penalties.
+ * separately and not folded in.
+ *
+ * decisions/014-champions-league.md
  */
 function formatLeg(leg: BracketLeg): string {
   const score = formatMatchResult(leg.homeGoals, leg.awayGoals);
@@ -77,8 +79,9 @@ function TeamName({
 
 /**
  * One side of a tie inside a drawn card: team on the left, its aggregate on the
- * right, and its shootout score in parentheses after it when the tie went to
- * penalties — the usual football convention, `4 (3)`.
+ * right, and its shootout score in parentheses after it, as in `4 (3)`.
+ *
+ * decisions/014-champions-league.md
  */
 function TieSide({
   team,
@@ -115,8 +118,9 @@ function TieSide({
 
 /**
  * One tie as a card in the tree. The connector stub on the right is decorative
- * — it joins the card to the round beside it, and is hidden from assistive
- * technology, which reads the round headings instead.
+ * and hidden from assistive technology, which reads the round headings.
+ *
+ * decisions/014-champions-league.md
  */
 function TieCard({
   tie,
@@ -153,12 +157,10 @@ function TieCard({
 
 /**
  * The drawn tree: one column per round, later rounds centred against their
- * feeders.
+ * feeders. Exported because the Finnish cups use the tree alone.
  *
- * Exported because the Finnish cups use the tree alone: their page already
- * lists every round below, so it needs the drawing without `CupBracket`'s
- * listed-vs-drawn split, which keys on football-data stage names those rounds
- * do not have. See specs/015-finnish-cups.md.
+ * decisions/014-champions-league.md
+ * decisions/015-finnish-cups.md
  */
 export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
   // Aligned so each tie sits against the two that feed it; a round's own
@@ -189,11 +191,12 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
 }
 
 /**
- * An earlier knockout round, as a table of resolved ties.
+ * An earlier knockout round, as a table of resolved ties. A single-leg round
+ * reads `Lopputulos` and drops the per-leg column; a two-legged round keeps
+ * both.
  *
- * A single-leg round has no aggregate to speak of — the tie *is* the match — so
- * it reads `Lopputulos` and drops the per-leg column, whose one row would only
- * repeat the date already in the first column. A two-legged round keeps both.
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
  */
 function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHref: TeamHref }>) {
   const twoLegged = round.ties.some((tie) => tie.legs.length > 1);
@@ -262,10 +265,7 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
  * The knockout phase in two parts: the rounds before the quarter-finals as
  * tables, then the quarter-finals onward as a drawn tree.
  *
- * The split is a readability limit, not a preference. `LAST_16` is eight ties
- * across and `LAST_32` sixteen, which no tree survives on a phone; from the
- * quarter-finals the tree is three columns and shows what a list cannot —
- * who plays whom next.
+ * decisions/014-champions-league.md
  */
 export function CupBracket({ rounds, teamHref }: Readonly<CupBracketProps>) {
   if (rounds.length === 0) return <p>{NO_BRACKET_MESSAGE}</p>;

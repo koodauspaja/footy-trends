@@ -10,10 +10,16 @@ import {
   streakRecords,
 } from "@/lib/streak-records";
 
+/**
+ * Streak records across stored seasons.
+ *
+ * decisions/039-streak-records.md
+ */
+
 const TEAM = 1;
 const OTHER = 2;
 
-/** One finished match for `TEAM`, at home, in `seasonId`. */
+// One finished match for `TEAM`, at home, in `seasonId`.
 function match(seasonId: number, day: number, scored: number, conceded: number): ResultMatch {
   return {
     providerMatchId: seasonId * 1000 + day,
@@ -25,7 +31,7 @@ function match(seasonId: number, day: number, scored: number, conceded: number):
   };
 }
 
-/** A season of results, each `"V"`, `"T"` or `"H"` from this team's side. */
+// A season of results, each `"V"`, `"T"` or `"H"` from this team's side.
 function season(competitionCode: string, seasonId: number, results: string): RecordSeason {
   const score = { V: [1, 0], T: [0, 0], H: [0, 1] } as const;
   return {
@@ -221,11 +227,9 @@ describe("recordsFor", () => {
   const isLeague = (code: string) => code !== "CUP";
   const label = (year: number) => String(year);
 
-  /**
-   * A season read carrying `results` for this team, named after its code — so
-   * `competitions` says exactly which seasons were counted rather than only
-   * how many.
-   */
+  // A season read carrying `results` for this team, named after its code — so
+  // `competitions` says exactly which seasons were counted rather than only how
+  // many.
   const NAMES: Record<string, string> = { VL: "Veikkausliiga", M1: "Ykkönen", CUP: "Suomen Cup" };
   function readOf(code: string, seasonId: number, results: string) {
     return {

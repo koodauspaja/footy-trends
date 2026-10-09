@@ -12,11 +12,19 @@ import {
   refreshTargets,
 } from "@/lib/prediction-log";
 
+/**
+ * The predictions log: its windows, which matches are logged and refreshed, and
+ * the rows written.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
+ */
+
 const NOW = new Date("2026-10-03T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
 const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
 
-/** A football-data match unless the overrides make it a TASO one, pair and all. */
+// A football-data match unless the overrides make it a TASO one, pair and all.
 function candidate(overrides: Record<string, unknown> = {}): LogCandidate {
   return {
     source: "football-data",
@@ -30,7 +38,7 @@ function candidate(overrides: Record<string, unknown> = {}): LogCandidate {
   } as LogCandidate;
 }
 
-describe("the windows (S7, S15)", () => {
+describe("the windows", () => {
   it("logs 48 hours ahead and fetches results for 24 hours after kickoff", () => {
     expect(LOG_WINDOW_HOURS).toBe(48);
     expect(RESULT_WINDOW_HOURS).toBe(24);
@@ -49,7 +57,7 @@ describe("isLoggable", () => {
     expect(isLoggable(candidate({ kickoffAt: new Date(at(48).getTime() + 1) }), NOW)).toBe(false);
   });
 
-  it("never logs a passed kickoff, whatever the status says (S5)", () => {
+  it("never logs a passed kickoff, whatever the status says", () => {
     expect(isLoggable(candidate({ kickoffAt: NOW }), NOW)).toBe(false);
     expect(isLoggable(candidate({ kickoffAt: at(-1), status: "SCHEDULED" }), NOW)).toBe(false);
   });
@@ -62,7 +70,7 @@ describe("isLoggable", () => {
   );
 });
 
-describe("awaitsResult (S15)", () => {
+describe("awaitsResult", () => {
   it("wants the result of a match that kicked off within the last 24 hours", () => {
     expect(awaitsResult(candidate({ kickoffAt: NOW, status: "IN_PLAY" }), NOW)).toBe(true);
     expect(awaitsResult(candidate({ kickoffAt: at(-3), status: "SCHEDULED" }), NOW)).toBe(true);
@@ -76,7 +84,7 @@ describe("awaitsResult (S15)", () => {
   });
 });
 
-describe("refreshTargets (S13, S15)", () => {
+describe("refreshTargets", () => {
   it("refreshes a competition once, whether for an upcoming match, a missing result or both", () => {
     const targets = refreshTargets(
       [
@@ -177,7 +185,7 @@ describe("liveRow", () => {
   });
 });
 
-describe("eloLiveRow (specs/053)", () => {
+describe("eloLiveRow", () => {
   const baseline: HomeBaseline = {
     status: "ok",
     matches: 100,
@@ -189,7 +197,7 @@ describe("eloLiveRow (specs/053)", () => {
   };
   const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026 });
 
-  it("predicts from the ratings at the match's season, regressed into a new one (S3, S14)", () => {
+  it("predicts from the ratings at the match's season, regressed into a new one", () => {
     const ratings = new Map([[11, { rating: 1650, seasonId: 2025 }]]);
 
     const row = eloLiveRow(match, ratings, baseline, NOW);
@@ -210,7 +218,7 @@ describe("eloLiveRow (specs/053)", () => {
     });
   });
 
-  it("writes nothing without a draw share, or for a placeholder side (S16)", () => {
+  it("writes nothing without a draw share, or for a placeholder side", () => {
     expect(eloLiveRow(match, new Map(), { status: "empty" }, NOW)).toBeNull();
     expect(eloLiveRow(match, new Map(), { status: "error" }, NOW)).toBeNull();
     expect(eloLiveRow({ ...match, homeTeam: 0 }, new Map(), baseline, NOW)).toBeNull();

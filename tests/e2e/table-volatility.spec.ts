@@ -2,13 +2,11 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Sijoitusten vaihtelu` on a competition's standings page (specs/050), end to
- * end. Signed in the way league-position.spec.ts explains.
+ * `Sijoitusten vaihtelu` on a competition's standings page, end to end. Signed
+ * in the way league-position.spec.ts explains. No value is written down: one
+ * season's figure is recomputed from its own mid-season and final tables.
  *
- * The seasons stored here are not fixed, so no value is written down: one
- * season's figure is recomputed by hand from its own standings page — the
- * table after round ⌈R / 2⌉ and the final one — which is the property the
- * panel rests on (S1, S6, S7).
+ * decisions/050-table-volatility.md
  */
 
 const PL = "/ulkomaat/sarjataulukko?kilpailu=PL";
@@ -18,7 +16,7 @@ function panel(page: Page) {
   return page.getByRole("region", { name: HEADING });
 }
 
-/** Each team's position in the page's table, by name. */
+// Each team's position in the page's table, by name.
 async function positions(page: Page, url: string): Promise<Map<string, number>> {
   await page.goto(url);
   // The standings table is the page's first; signed in, `Analyysit` holds another.
@@ -49,15 +47,14 @@ test.describe("Table movement, signed in", () => {
 
     expect(panels).toEqual(["Maaleja ottelua kohden", HEADING]);
     await expect(panel(page).getByRole("listitem")).toHaveCount(await points.count());
-    // The season in progress is never a point (S3).
+    // The season in progress is never a point.
     await expect(panel(page).getByRole("listitem").filter({ hasText: "(kesken)" })).toHaveCount(0);
   });
 
   test("equals the standings page's own tables at halfway and at the end", async ({ page }) => {
-    // Opening a season stores it, and the panel reads every stored completed
-    // season — so on a fresh database, as `release.yml` starts from, there may
-    // be none to read yet (#501, the class #485 fixed). Every season the page
-    // offers is opened first, so the line has its points.
+    // Opening a season stores it, and the panel reads every stored completed season, so
+    // on a fresh database, as `release.yml` starts from, there may be none yet. Every
+    // season the page offers is opened first, so the line has its points.
     await page.goto(PL);
     const seasons = await page
       .getByLabel("Kausi")

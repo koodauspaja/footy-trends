@@ -15,6 +15,20 @@ import {
   ticksFor,
 } from "@/components/charts/line-chart";
 
+/**
+ * The shared line chart: scales, ticks, open points, labelled seasons, and the
+ * axis text's size on a phone.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/034-clean-sheets.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/050-table-volatility.md
+ * decisions/054-prediction-quality.md
+ * decisions/413-rounds-a-team-sat-out.md
+ * decisions/441-line-chart-text-on-a-phone.md
+ */
+
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
 const LEFT = MARGIN.left;
@@ -317,16 +331,17 @@ describe("percentText", () => {
   });
 });
 
-/** `text-xs` is 0,75rem, and inside a `viewBox` that is 12 *user units*. */
+// `text-xs` is 0,75rem, and inside a `viewBox` that is 12 user units.
 const DESKTOP_AXIS_UNITS = 12;
 
-/** A line box, used to say the caption sits a whole line below the tick row. */
+// A line box, used to say the caption sits a whole line below the tick row.
 const LINE_BOX = 1.2;
 
-/** A digit's width as a share of the font size — near enough for the UI font. */
+// A digit's width as a share of the font size: near enough for the UI font.
 const DIGIT_WIDTH = 0.6;
 
-/** The axis font below `sm`, read from the class so the geometry checks follow it. */
+// The axis font below `sm`, read from the class so the geometry checks follow
+// it.
 function mobileAxisSize(container: HTMLElement, part: string): number {
   const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
   const size = /text-\[(\d+)px\]/.exec(className)?.[1];
@@ -335,7 +350,7 @@ function mobileAxisSize(container: HTMLElement, part: string): number {
   return Number(size);
 }
 
-/** The clean-sheet chart's axis, verbatim: a share, so its ticks reach 100. */
+// The clean-sheet chart's axis, verbatim: a share, so its ticks reach 100.
 function shareChart() {
   return render(
     <LineChart
@@ -363,11 +378,9 @@ function shareChart() {
 }
 
 describe("LineChart axis text on a phone", () => {
-  // The text is inside the viewBox, so it scales with the drawing: at 640 units
-  // on a 375-px phone, 12 units reached the reader at about 6 px. The font is
-  // the only part of the chart a breakpoint can reach, since MARGIN is
-  // JavaScript — hence enlarging it below `sm` rather than narrowing the
-  // drawing, which would have cost the desktop canvas (#441).
+  // The text is inside the viewBox, so it scales with the drawing. The font is the only
+  // part of the chart a breakpoint can reach, since MARGIN is JavaScript: it is
+  // enlarged below `sm`, where narrowing the drawing would cost the desktop canvas.
   it.each(["x-axis", "y-axis"])("enlarges %s text below sm, and keeps 12 units above", (part) => {
     const container = chart(true);
     const className = container.querySelector(`[data-part=${part}]`)?.getAttribute("class") ?? "";
@@ -407,7 +420,7 @@ describe("LineChart axis text on a phone", () => {
   });
 });
 
-/** A season chart, as specs/048 draws it: labelled ticks, a note, a ring. */
+// A season chart: labelled ticks, a note, a ring.
 function seasonChart(notes: Record<number, string> = { 2026: "(kesken)" }) {
   return render(
     <LineChart
@@ -437,7 +450,7 @@ function seasonChart(notes: Record<number, string> = { 2026: "(kesken)" }) {
   ).container;
 }
 
-describe("LineChart season axis (specs/048)", () => {
+describe("LineChart season axis", () => {
   it("prints each tick as it is told to, and the number itself by default", () => {
     const container = seasonChart();
     const xTicks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
@@ -453,7 +466,7 @@ describe("LineChart season axis (specs/048)", () => {
     expect(chart(true).querySelector("[data-part=y-axis] text")?.textContent).toBe("1");
   });
 
-  it("writes a note on a second line under its own tick only (S15)", () => {
+  it("writes a note on a second line under its own tick only", () => {
     const container = seasonChart();
     const notes = container.querySelectorAll("[data-part=tick-note]");
     const lastTick = [...container.querySelectorAll("[data-part=x-axis] text")].at(-2);
@@ -486,7 +499,7 @@ describe("LineChart season axis (specs/048)", () => {
     expect(Number(axis?.getAttribute("y1"))).toBe(BOTTOM);
   });
 
-  it("rings a marked point, behind its dot and at its value (S11)", () => {
+  it("rings a marked point, behind its dot and at its value", () => {
     const container = seasonChart();
     const rings = container.querySelectorAll("[data-part=points] [data-marked]");
     const all = [...container.querySelectorAll("[data-part=points] circle")];
@@ -520,7 +533,7 @@ describe("LineChart season axis (specs/048)", () => {
   });
 });
 
-/** Twelve seasons of a calendar-year league: too many labels for a phone. */
+// Twelve seasons of a calendar-year league: too many labels for a phone.
 function twelveSeasons(thin: boolean, from = 2015, count = 12) {
   const seasons = Array.from({ length: count }, (_, index) => from + index);
   return render(
@@ -547,7 +560,7 @@ function phoneHiddenTicks(container: HTMLElement) {
     .map((text) => text.firstChild?.textContent);
 }
 
-describe("LineChart season labels on a phone (specs/048, S16)", () => {
+describe("LineChart season labels on a phone", () => {
   it("hides every other label below sm, counting back from the latest, when they would touch", () => {
     expect(phoneHiddenTicks(twelveSeasons(true))).toEqual([
       "2015",
@@ -568,7 +581,7 @@ describe("LineChart season labels on a phone (specs/048, S16)", () => {
   });
 });
 
-describe("captionLines (specs/050)", () => {
+describe("captionLines", () => {
   it("keeps a caption that fits the plot's height at a phone's font on one line", () => {
     expect(captionLines("Maaleja / ottelu", 248)).toEqual(["Maaleja / ottelu"]);
   });
@@ -585,8 +598,8 @@ describe("captionLines (specs/050)", () => {
   });
 
   it("prints both halves of a caption that breaks into two equal lines", () => {
-    // A duplicate React key — the first version keyed each line by its text —
-    // is reported through console.error, and may drop a line on a later render.
+    // A duplicate React key, as when each line is keyed by its text, is
+    // reported through console.error, and may drop a line on a later render.
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     // Restored in `finally`: a failing assertion would otherwise leave
     // console.error silenced for every later test in the file.

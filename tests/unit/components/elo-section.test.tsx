@@ -10,6 +10,12 @@ import {
   eloSeasonSentence,
 } from "@/components/elo-section";
 
+/**
+ * The Elo panel: its axis, its line and its explanation of 1500.
+ *
+ * decisions/053-elo-ratings.md
+ */
+
 const seasonLabel = (seasonId: number) => `${seasonId}/${String((seasonId + 1) % 100)}`;
 
 function renderPanel(series: Parameters<typeof eloPanel>[0]["series"]) {
@@ -40,7 +46,7 @@ describe("eloSeasonSentence", () => {
   });
 });
 
-describe("eloPanel (specs/053 S9, S10)", () => {
+describe("eloPanel", () => {
   const series = {
     status: "ok" as const,
     points: [
@@ -86,7 +92,7 @@ describe("eloPanel (specs/053 S9, S10)", () => {
     expect(screen.getByText(ELO_ERROR_MESSAGE)).toBeInTheDocument();
   });
 
-  it("is absent where there is no Elo, a national team's page (S5)", () => {
+  it("is absent where there is no Elo, a national team's page", () => {
     expect(eloPanel({ series: { status: "unavailable" } })).toBeNull();
   });
 

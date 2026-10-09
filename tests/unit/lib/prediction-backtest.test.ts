@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { backtestRows, type FinishedMatch } from "@/lib/prediction-backtest";
 
+/**
+ * The rows a backtest writes.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/051-home-win-baseline.md
+ */
+
 const NOW = new Date("2026-10-03T12:00:00Z");
 const day = (n: number) => new Date(Date.UTC(2026, 3, n, 15));
 
@@ -25,8 +32,8 @@ function played(
   };
 }
 
-describe("backtestRows (S2, S14)", () => {
-  it("predicts each match from the matches strictly before it, as specs/051 would have", () => {
+describe("backtestRows", () => {
+  it("predicts each match from the matches strictly before it, as the home-win baseline would have", () => {
     const first = played(1, 2, 0);
     const second = played(2, 1, 1);
     const third = played(3, 0, 1);

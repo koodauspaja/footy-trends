@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isEntryPoint, runWhenMain } from "../../../scripts/entry-point";
 
 /**
- * The guard that lets an entry point be imported by a test instead of excluded
- * from coverage — `setup-main.ts` from #400, `verify.ts` from #401.
+ * The guard that lets an entry point be imported by a test and not excluded
+ * from coverage.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ * decisions/400-one-command-setup.md
  */
 
 describe("isEntryPoint", () => {
@@ -35,11 +38,9 @@ describe("isEntryPoint", () => {
   });
 
   it("requires the match to fall on a path boundary", () => {
-    /**
-     * A bare `endsWith` accepted this: the string really does end with
-     * `scripts/setup-main.ts`, but the directory is `not-scripts`. An unrelated
-     * file would have started setup. Raised in review on #409.
-     */
+    // A bare `endsWith` would accept this: the string does end with
+    // `scripts/setup-main.ts`, but the directory is `not-scripts`, and an
+    // unrelated file would start setup.
     expect(isEntryPoint(["node", "/tmp/not-scripts/setup-main.ts"], "scripts/setup-main.ts")).toBe(
       false
     );

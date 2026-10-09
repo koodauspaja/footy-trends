@@ -147,3 +147,36 @@ composed selector) now that it composes three controls (`Kilpailu`,
   switching competitions updates the heading and URL correctly; the hidden
   `kilpailu` field correctly carries a non-default competition (Bundesliga)
   onto the team page.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`SUPPORTED_COMPETITIONS`.** The competitions the football-data.org plan
+  grants access to, originally limited to plain league-table formats. Flags
+  are the competition's national flag (`area.flag`) and not a club or league
+  crest: football-data.org's terms require separate consent from the clubs
+  and leagues to use their logos, which we do not have. The Champions League
+  uses the Europe area flag for the same reason.
+
+Cut from `src/components/team-season-selector.tsx` at `ef99862` by #531.
+
+- **`kilpailu` in `TeamSeasonSelector`.** There is no competition selector
+  on the team page, so the value must survive both the JS-driven navigation
+  and the plain GET form fallback.
+
+Cut from `src/components/competition-select.tsx` at `48ebab4` by #531.
+
+- **The flag beside `CompetitionSelect`.** It reflects whichever competition
+  is selected. The picker page, plain links and not a `<select>`, shows a
+  flag per competition without this constraint.
+
+Cut from `src/components/matches-controls.tsx` at `48ebab4` by #531.
+
+- **`kilpailu` in `MatchesControls`.** There is no competition selector on
+  the page, so the value rides in a hidden field.
+
+Cut from `src/components/standings-controls.tsx` at `48ebab4` by #531.
+
+- **One form for the three selections.** No selection is lost when another
+  changes.

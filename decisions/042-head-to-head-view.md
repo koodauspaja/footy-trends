@@ -106,3 +106,105 @@ first row. Nothing was changed for it.
 - **Fixtures still to come are absent** (S12). The match page a reader arrives
   from already carries the fixture they were looking at, and a fixture list and
   a record are different claims. #333, #337 and #338 sit on this page's data.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`Meeting`.** Structural, not one of the two row types, as `form-series.ts`
+  takes `ResultMatch`: the arithmetic is the same whichever table the row came
+  from, and naming one would make the other a cast.
+- **`HeadToHeadRecord`.** Two home lines, not one home and one away: a reader
+  comparing them is comparing two teams at home, which is the question a
+  rivalry's ground record asks.
+- **`headToHeadRecord`.** It counts only what it is handed: finished meetings
+  with both scores stored, across every competition in the region, so a
+  fixture still to come cannot reach it. `null` for no meetings because a
+  record of nothing is not a record, and a caller rendering
+  `0 ottelua, NaN–NaN` is what makes zeroes worse than nothing.
+- **`meetingsLinkCount`.** Two reasons for the same answer, decided in one
+  place: a `null` count is a read that failed, and a link promising a number
+  it does not have is worse than no link; a count of zero is a pair with
+  nothing to open, where the block above already shows everything.
+- **`meetingsLink`.** The href sits beside the rule that decides whether to
+  show it, so a caller cannot build one for a pair with nothing behind it, and
+  a test reaches both directly.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`PreviousMeetings`.** `total` is the row count of the page the link leads
+  to, not a second query able to disagree with it, and a match page costs one
+  head-to-head query, not two.
+- **`getHeadToHeadHistory`.** Three differences from the match page's block,
+  each a decision. No anchor: the match page takes only meetings before its
+  own kickoff, as context for that fixture, while a history of the pair is
+  not about one fixture. No limit: `HEAD_TO_HEAD_LIMIT` is a choice about the
+  match page. No exclusion of the match linked from, which is one of the
+  meetings. What does not differ is the scope and which matches count: every
+  competition in the region, finished, both scores stored.
+
+Cut from `src/components/head-to-head-page.tsx` at `a86c1cb` by #531.
+
+- **`View.record` on the head-to-head page.** A meeting is what
+  `headToHeadRecord` needs, so the summary cannot be handed a record of
+  nothing and does not guard against one.
+- **`namesFrom`.** Whichever side an id was on in the first meeting decides
+  which name belongs to which id.
+- **`playedLine`.** Finnish counts one thing differently, and a literal
+  `ottelua` would make a pair that has met once read `1 ottelua`.
+
+Cut from `src/components/match-page.tsx` at `94397a8` by #531.
+
+- **`allMeetingsLink`.** A placeholder team has no identity to pair, the
+  reason the block above says `HEAD_TO_HEAD_UNAVAILABLE` and does not show an
+  empty list. A link to an empty page is worse than no link. The count is the
+  length of the history the previous meetings were taken from, the same read
+  the full page performs, so the number on the link is the number of rows
+  behind it.
+- **The link under the previous meetings.** Offered even when the block shows
+  every meeting: the full page carries a record, goals and a ground split
+  that the list does not.
+
+Cut from `src/lib/meeting-labels.ts` at `ef7eb13` by #531.
+
+- **`meeting-labels.ts`.** The head-to-head deliberately spans competitions,
+  so this column is the only signal for which one a meeting belonged to, and
+  TASO's `group_name` names a stage: `5. Kierros` leaves a cup tie looking
+  like a league round, and on the national-team side it can be `2024`,
+  `Slovakia` or `Heinäkuu`. The fallback covers a category the picker does
+  not claim, or a map that could not be read, and costs one line where an
+  error would cost the page. Extracted from `match-page.tsx` because the full
+  head-to-head page needs the same labels for the same rows: two copies would
+  be two answers to "which competition was that".
+- **`loadCategoryNames`.** A bucket at or above the active year is treated as
+  still changing and cached for fifteen minutes, an older one as settled and
+  cached for a year. Passing the active year twice makes every bucket look
+  current, which is the fifteen-minute re-fetch this is meant to avoid.
+- **`categoryNameLoader`.** `getCached` does not deduplicate in-flight
+  misses, so on a cold cache every caller sees the miss and fetches the same
+  map. A match page asks about the match it displays and up to five previous
+  meetings; a full history asks about every meeting.
+- **`labelFromCategoryName`.** A Helmarit row reached from a Huuhkajat match
+  must lose `Helmarit`, not `Huuhkajat`.
+
+Cut from `src/app/national-teams/mens-team/head-to-head/[a]/[b]/page.tsx` at `48ebab4` by #531.
+
+- **`/maajoukkueet/huuhkajat/kohtaamiset`.** The link on
+  `/maajoukkueet/huuhkajat/ottelu/:id` is built from that prefix, and without
+  the route it would lead nowhere. The competitions' only source of names is
+  TASO's category map.
+
+Cut from `src/app/national-teams/womens-team/head-to-head/[a]/[b]/page.tsx` at `48ebab4` by #531.
+
+- **`/maajoukkueet/helmarit/kohtaamiset`.** The link on
+  `/maajoukkueet/helmarit/ottelu/:id` is built from that prefix, and without
+  the route it would lead nowhere. The competitions' only source of names is
+  TASO's category map.
+
+## Moved from comments, 2026-10-07
+
+Cut from `next.config.ts` at `5b180e0` by #531.
+
+- **`HEAD_TO_HEAD_PREFIXES`.** The two national-team routes have their own
+  prefix, so without them the link on Finland's match pages would lead
+  nowhere.

@@ -2,11 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * `auth.ts` reads four environment variables at import and builds a database
- * adapter, so nothing here may touch the real `postgres` client or inherit an
- * ambient environment: the CI `unit` job runs with no service containers and no
- * env vars at all, deliberately (#158).
+ * The better-auth configuration: what it reads from the environment, the client
+ * address rate limiting uses, where the counters live, and the plugins.
+ *
+ * decisions/023-google-oauth-login.md
+ * decisions/024-account-settings.md
+ * decisions/309-client-ip-resolution.md
+ * decisions/314-sign-in-allowlist.md
+ * decisions/318-rate-limit-storage.md
  */
+
+// `auth.ts` reads four environment variables at import and builds a database adapter,
+// so nothing here may touch the real `postgres` client or inherit an ambient
+// environment: the CI `unit` job runs with no service containers and no env vars.
 vi.mock("postgres", () => ({ default: vi.fn(() => ({ end: vi.fn() })) }));
 vi.mock("drizzle-orm/postgres-js", () => ({ drizzle: vi.fn(() => ({})) }));
 
@@ -31,12 +39,9 @@ vi.mock("better-auth/plugins/custom-session", () => ({ customSession }));
 vi.mock("@/lib/preferences", () => ({ getSessionExtrasFor }));
 
 const REQUIRED = {
-  /**
-   * Stubbed empty rather than left alone: a developer who sets this locally to
-   * exercise #314 would otherwise turn every "no allowlist" test into a
-   * refusal, and the failure would look like a bug in the code under test.
-   * Same reason the CI unit job runs with no environment at all (#158).
-   */
+  // Stubbed empty, not left alone: a developer who sets this locally to try the
+  // allowlist would otherwise turn every "no allowlist" test into a refusal,
+  // and the failure would look like a bug in the code under test.
   AUTH_ALLOWED_EMAILS: "",
   BETTER_AUTH_SECRET: "test-secret",
   BETTER_AUTH_URL: "http://localhost:3000",
@@ -62,7 +67,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The config object handed to `betterAuth()`, typed loosely on purpose. */
+// The config object handed to `betterAuth()`, typed loosely on purpose.
 // biome-ignore lint/suspicious/noExplicitAny: asserting on a third-party config shape
 async function loadConfig(): Promise<any> {
   await import("@/lib/auth");
@@ -71,17 +76,11 @@ async function loadConfig(): Promise<any> {
 
 warmModules(() => import("@/lib/auth"));
 
-describe("resolving the client IP, from #309", () => {
+describe("resolving the client IP", () => {
   it("reads the address from x-real-ip, the one header the edge overwrites", async () => {
-    // Without a resolvable header better-auth falls back to one shared per-path
-    // bucket, where one attacker locks everyone out. Railway's `x-forwarded-for`
-    // arrives with two entries, which better-auth refuses to read unaided.
-    //
-    // `x-real-ip` and not `x-envoy-external-address`: a sentinel sent as the
-    // first is overwritten by the edge, and one sent as the second arrives
-    // intact, because Railway never sets it. An absent header a client may set
-    // is worse than no configuration at all — ordinary visitors still share a
-    // bucket and an attacker rotates theirs freely.
+    // Without a resolvable header better-auth falls back to one shared per-path bucket, where
+    // one attacker locks everyone out. `x-real-ip` and not `x-envoy-external-address`: the edge
+    // overwrites the first, while a client may set the second, because Railway never sets it.
     setEnv();
 
     const config = await loadConfig();
@@ -127,7 +126,7 @@ describe("resolving the client IP, from #309", () => {
   });
 });
 
-describe("who may sign in, from #314", () => {
+describe("who may sign in", () => {
   it("gates every identity through the allowlist", async () => {
     // `validateUserInfo` and not `databaseHooks.user.create.before`: that one
     // fires only at account creation, so anyone who signed in before a list
@@ -152,7 +151,7 @@ describe("who may sign in, from #314", () => {
   });
 });
 
-describe("where rate-limit counters live, from #318", () => {
+describe("where rate-limit counters live", () => {
   it("counts in Redis rather than in this instance's memory", async () => {
     // better-auth's default is an in-process Map: it resets on every deploy and
     // becomes one limiter per instance the moment there are two.
@@ -167,8 +166,7 @@ describe("where rate-limit counters live, from #318", () => {
 
   it("leaves sessions in Postgres", async () => {
     // `secondaryStorage` is the option better-auth documents for this, and it
-    // also moves sessions — reads come from it and rows are deleted from the
-    // database — which would make sign-in depend on Redis being up.
+    // also moves sessions, which would make sign-in depend on Redis being up.
     // `customStorage` is consulted first, so only the counters move.
     setEnv();
 
@@ -238,7 +236,7 @@ describe("auth configuration", () => {
 
     const config = await loadConfig();
 
-    // Off by default in better-auth; `Poista tili` in specs/024 depends on it.
+    // Off by default in better-auth; `Poista tili` depends on it.
     expect(config.user.deleteUser.enabled).toBe(true);
   });
 
@@ -256,8 +254,8 @@ describe("auth configuration", () => {
     const config = await loadConfig();
 
     expect(nextCookies).toHaveBeenCalled();
-    // `customSession` joined it in specs/024, to put the start-page preference
-    // on the session the browser already fetches. `nextCookies` must stay last.
+    // `customSession` puts the start-page preference on the session the browser
+    // already fetches. `nextCookies` must stay last.
     expect(config.plugins).toHaveLength(2);
     expect(config.plugins.at(-1)).toBe(nextCookies.mock.results.at(-1)?.value);
   });

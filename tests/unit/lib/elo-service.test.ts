@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FinishedMatch } from "@/lib/prediction-backtest";
 
+/**
+ * The Elo service: the replay it runs, what it caches, and what it returns for
+ * a team and for a match.
+ *
+ * decisions/053-elo-ratings.md
+ */
+
 const mocks = vi.hoisted(() => ({
   readFinished: vi.fn<(sources?: ReadonlySet<string>) => Promise<FinishedMatch[]>>(),
   getCached: vi.fn(),
@@ -28,12 +35,13 @@ function played(day: number, homeTeam: number, awayTeam: number, home: number, a
   };
 }
 
-/** What the cache returns: the fetcher's value as it would come back out of Redis. */
+// What the cache returns: the fetcher's value as it would come back out of
+// Redis.
 async function throughJson(_key: string, _ttl: number, fetcher: () => Promise<unknown>) {
   return JSON.parse(JSON.stringify(await fetcher()));
 }
 
-describe("the Elo service (specs/053 S11)", () => {
+describe("the Elo service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCached.mockReset().mockImplementation(throughJson);

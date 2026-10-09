@@ -8,11 +8,11 @@ import {
 } from "../../../scripts/migration-name";
 
 /**
- * What `npm run db:generate` will and will not do, from the chore that renamed
- * seven whimsically named migrations.
+ * What `npm run db:generate` will and will not do. The rules are tested here,
+ * not by running the generator: the script only spawns `drizzle-kit` with what
+ * this decides.
  *
- * The rules are tested here rather than by running the generator: the script
- * itself only spawns `drizzle-kit` with what this decides.
+ * decisions/376-named-migrations.md
  */
 
 describe("planMigrationGeneration", () => {
@@ -60,16 +60,9 @@ describe("planMigrationGeneration", () => {
     });
   });
 
-  /**
-   * Every way of giving `--name` that cannot be acted on.
-   *
-   * A following argument that is itself a flag is not a value —
-   * `--name --config=x` would otherwise generate a migration called
-   * `--config=x`, which is worse than refusing. And two names would mean
-   * validating one while generating the other, since a filter takes the first
-   * and a command-line parser generally takes the last; they are counted across
-   * both forms, because mixing them is the easiest way to do it by accident.
-   */
+  // Every way of giving `--name` that cannot be acted on. `--name --config=x` would name a
+  // migration `--config=x`. Two names would validate one and generate the other, a filter
+  // taking the first and a parser the last, so both forms are counted together.
   it.each([
     ["--name followed by a flag", ["--name", "--config=other.ts"], "--name was given no value"],
     ["--name with nothing after it", ["--config=other.ts", "--name"], "--name was given no value"],
@@ -117,20 +110,13 @@ describe("MIGRATION_TAG", () => {
   });
 });
 
-/**
- * The documentation and the rule have now drifted apart twice in one change:
- * `docs/setup/015-database-setup.md` told a reader to wire up the unguarded
- * command, and `README.md` gave an example name the guard rejects. Both were
- * found in review rather than by running anything.
- *
- * So the examples are executable now. Every `--name` a document offers is fed
- * through the same planner the script uses, and a document that teaches a
- * command which would be refused fails here.
- */
+// The examples are executable: every `--name` a document offers is fed through
+// the planner the script uses, so a document that teaches a command which would
+// be refused fails here.
 describe("the documented examples", () => {
   const DOCUMENTS = ["README.md", "docs/setup/015-database-setup.md", "CLAUDE.md"];
 
-  /** `<verb>_<what>` and friends describe the rule; they are not examples of it. */
+  // `<verb>_<what>` and friends describe the rule; they are not examples of it.
   const isPlaceholder = (name: string) => name.includes("<") || name.includes(">");
 
   function examplesIn(file: string): string[] {

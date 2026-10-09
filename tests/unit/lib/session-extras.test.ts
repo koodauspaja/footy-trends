@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { avatarSourceOf, defaultRegionOf, favouriteKeysOf } from "@/lib/session-extras";
 
 /**
- * Reading the fields `customSession` adds, from specs/024-account-settings.md
- * and specs/025-custom-avatar.md.
+ * Reading the fields `customSession` adds. They arrive untyped, as
+ * better-auth's browser client knows nothing about server-side plugins, so
+ * every case is a value the server could send and the client must survive.
  *
- * These arrive untyped — better-auth's browser client knows nothing about
- * server-side plugins — so every case here is a value the server could send and
- * the client must survive.
+ * decisions/025-custom-avatar.md
+ * decisions/024-account-settings.md
+ * decisions/026-favourites.md
  */
 
 const GOOGLE = "https://lh3.googleusercontent.com/a/matti";

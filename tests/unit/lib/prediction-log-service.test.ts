@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HomeBaseline } from "@/lib/home-baseline";
 
 /**
- * The run's decisions around its queries: what it refreshes and through what,
- * that a failure in one competition does not stop the rest, and what it
- * writes. The SQL is proved against Postgres in
- * `tests/integration/predictions.test.ts`.
+ * The run's decisions around its queries: what it refreshes and through what, that
+ * a failure in one competition does not stop the rest, and what it writes. The SQL
+ * is proved against Postgres in `tests/integration/predictions.test.ts`.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   synchronizeTasoMatches: vi.fn(),
   getHomeBaseline: vi.fn<(source: string, code: string) => Promise<HomeBaseline>>(),
   loggerError: vi.fn(),
+  loggerInfo: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -49,7 +52,9 @@ vi.mock("@/lib/match-service", () => ({
   FOOTBALL_DATA_AWAY_GOALS: "away",
   getHomeBaseline: mocks.getHomeBaseline,
 }));
-vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
+vi.mock("@/lib/logger", () => ({
+  logger: { error: mocks.loggerError, info: mocks.loggerInfo },
+}));
 
 import {
   readFinished,
@@ -102,11 +107,9 @@ function tasoRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/**
- * The run's reads, in order: the candidates before and after refreshing, then
- * the finished matches its Elo replay reads (none here unless given) —
- * football-data, then TASO, each time.
- */
+// The run's reads, in order: the candidates before and after refreshing, then
+// the finished matches its Elo replay reads (none here unless given) —
+// football-data, then TASO, each time.
 function stored(footballData: unknown[], taso: unknown[], finished: unknown[][] = [[], []]) {
   mocks.select
     .mockResolvedValueOnce(footballData)
@@ -119,14 +122,14 @@ function stored(footballData: unknown[], taso: unknown[], finished: unknown[][] 
 
 const immediate = { "football-data": vi.fn((work) => work()), taso: vi.fn((work) => work()) };
 
-/** The rows written under one model; the baseline's unless another is named. */
+// The rows written under one model; the baseline's unless another is named.
 function written(model = "home-baseline-v1") {
   return mocks.insertValues.mock.calls
     .flatMap(([rows]) => rows as Array<Record<string, unknown>>)
     .filter((row) => row.model === model);
 }
 
-describe("runPredictionLog (specs/052)", () => {
+describe("runPredictionLog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -230,6 +233,16 @@ describe("runPredictionLog (specs/052)", () => {
     );
   });
 
+  it("logs the run's summary, failures included", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+    mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.loggerInfo.mock.calls).toEqual([[report, "Predictions run finished"]]);
+    expect(report.failures).toEqual(["refresh football-data PL 2026"]);
+  });
+
   it("reports a competition whose baseline fails, and logs the others", async () => {
     stored([footballDataRow()], [tasoRow()]);
     mocks.getHomeBaseline.mockImplementation(async (source) =>
@@ -266,7 +279,7 @@ describe("runPredictionLog (specs/052)", () => {
     expect(report).toEqual({ refreshed: 1, logged: 0, failures: [] });
   });
 
-  it("skips a match that kicked off while the run was refreshing, and stamps the write time (S5)", async () => {
+  it("skips a match that kicked off while the run was refreshing, and stamps the write time", async () => {
     stored(
       [
         footballDataRow({ kickoffAt: at(1) }),
@@ -371,7 +384,7 @@ describe("runPredictionLog (specs/052)", () => {
   });
 });
 
-describe("runPredictionBacktest (specs/052, S10)", () => {
+describe("runPredictionBacktest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();
@@ -415,21 +428,21 @@ describe("runPredictionBacktest (specs/052, S10)", () => {
     ]);
   });
 
+  // 1 501 finished matches: 1 500 rows under each model, three batches of a thousand.
+  const threeBatchesOfFinished = () =>
+    Array.from({ length: 1_501 }, (_, index) => ({
+      code: "PL",
+      seasonId: 2024,
+      providerMatchId: index,
+      homeTeam: 1 + (index % 20),
+      awayTeam: 21 + (index % 20),
+      kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
+      homeGoals: 1,
+      awayGoals: 0,
+    }));
+
   it("writes in batches of a thousand", async () => {
-    mocks.select
-      .mockResolvedValueOnce(
-        Array.from({ length: 1_501 }, (_, index) => ({
-          code: "PL",
-          seasonId: 2024,
-          providerMatchId: index,
-          homeTeam: 1 + (index % 20),
-          awayTeam: 21 + (index % 20),
-          kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
-          homeGoals: 1,
-          awayGoals: 0,
-        }))
-      )
-      .mockResolvedValueOnce([]);
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
 
     // 1 500 rows under each model: 3 000, written a thousand at a time.
     await expect(runPredictionBacktest(NOW)).resolves.toBe(3_000);
@@ -437,9 +450,34 @@ describe("runPredictionBacktest (specs/052, S10)", () => {
       1_000, 1_000, 1_000,
     ]);
   });
+
+  it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
+    // Three batches: the first is still writing and fails in the end, the second
+    // fails at once, the third is stored.
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
+    let failFirst = (_reason: Error) => {};
+    const first = new Promise<void>((_resolve, reject) => {
+      failFirst = reject;
+    });
+    mocks.onConflictDoUpdate
+      .mockReturnValueOnce(first)
+      .mockRejectedValueOnce(new Error("connection reset"));
+    const settled = vi.fn();
+
+    const run = runPredictionBacktest(NOW);
+    run.then(settled, settled);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(3));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(settled).not.toHaveBeenCalled();
+
+    failFirst(new Error("a later failure"));
+
+    await expect(run).rejects.toThrow("connection reset");
+  });
 });
 
-describe("readFinished (specs/053)", () => {
+describe("readFinished", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.select.mockReset();

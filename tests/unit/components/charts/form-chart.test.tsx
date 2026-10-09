@@ -4,6 +4,12 @@ import { FormChart, formSentence } from "@/components/charts/form-chart";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
 import type { FormPoint } from "@/lib/form-series";
 
+/**
+ * The form chart and its text alternative.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
+
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
 

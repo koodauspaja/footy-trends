@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The rules behind promoting, demoting and deleting, from
- * specs/028-admin-tools-and-roles.md.
+ * The rules behind promoting, demoting and deleting. No real database: the CI unit job
+ * has no service containers. The mock answers the four shapes `admin-users.ts` uses and
+ * records what was written, so a refusal can be checked for having written nothing.
  *
- * No real database: the CI unit job has no service containers, deliberately.
- * The chain below answers the four shapes `admin-users.ts` uses and records
- * what was written, so a refusal can be checked for having written **nothing**
- * rather than merely having returned `ok: false`.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 const { state, logger } = vi.hoisted(() => ({
   state: {
     target: undefined as { role: string } | undefined,
@@ -26,7 +25,7 @@ const { state, logger } = vi.hoisted(() => ({
     countMissing: false,
     totalMissing: false,
   },
-  logger: { error: vi.fn() },
+  logger: { error: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/lib/logger", () => ({ logger }));
@@ -112,6 +111,7 @@ beforeEach(() => {
   state.totalMissing = false;
   state.countMissing = false;
   logger.error.mockReset();
+  logger.info.mockReset();
 });
 
 afterEach(() => {
@@ -129,6 +129,34 @@ describe("changeRole", () => {
 
     await expect(changeRole("admin-1", "target-9", "admin")).resolves.toEqual({ ok: true });
     expect(state.updates).toHaveLength(1);
+  });
+
+  it("records who changed whose role, to what, by id alone", async () => {
+    const { changeRole } = await import("@/lib/admin-users");
+
+    await changeRole("admin-1", "target-9", "admin");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "target-9", role: "admin", outcome: "ok" },
+        "An admin asked to change a user's role",
+      ],
+    ]);
+  });
+
+  it("records a refused role change with the reason", async () => {
+    state.target = { role: "admin" };
+    state.adminCount = 1;
+    const { changeRole } = await import("@/lib/admin-users");
+
+    await changeRole("admin-1", "admin-2", "user");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "admin-2", role: "user", outcome: "last_admin" },
+        "An admin asked to change a user's role",
+      ],
+    ]);
   });
 
   it("refuses to act on the acting admin's own row, and writes nothing", async () => {
@@ -220,6 +248,33 @@ describe("deleteUser", () => {
 
     await expect(deleteUser("admin-1", "target-9")).resolves.toEqual({ ok: true });
     expect(state.deletes).toBe(1);
+  });
+
+  it("records who deleted whom, by id alone", async () => {
+    const { deleteUser } = await import("@/lib/admin-users");
+
+    await deleteUser("admin-1", "target-9");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "target-9", outcome: "ok" },
+        "An admin asked to delete a user",
+      ],
+    ]);
+  });
+
+  it("records a refused deletion with the reason", async () => {
+    state.target = undefined;
+    const { deleteUser } = await import("@/lib/admin-users");
+
+    await deleteUser("admin-1", "gone");
+
+    expect(logger.info.mock.calls).toEqual([
+      [
+        { actingAdminId: "admin-1", targetUserId: "gone", outcome: "not_found" },
+        "An admin asked to delete a user",
+      ],
+    ]);
   });
 
   it("refuses the acting admin's own account, and deletes nothing", async () => {
@@ -350,13 +405,9 @@ describe("listUsers", () => {
 });
 
 describe("when a count query comes back empty", () => {
-  /**
-   * Postgres `count(*)` always returns a row, so these are defensive rather
-   * than reachable today. They are tested because each fallback decides
-   * something: two of them decide an authorisation, and reading "no rows" as
-   * zero admins refuses — the safe direction — while the alternative is a crash
-   * inside a transaction.
-   */
+  // Postgres `count(*)` always returns a row, so these are defensive. They are tested
+  // because each fallback decides something: reading "no rows" as zero admins refuses,
+  // the safe direction, where the alternative is a crash inside a transaction.
   it("treats it as no admins and refuses the demotion", async () => {
     state.countMissing = true;
     state.target = { role: "admin" };
@@ -391,18 +442,9 @@ describe("when a count query comes back empty", () => {
 
 describe("the page ordering", () => {
   it("sorts by a second key, so rows cannot swap between pages", async () => {
-    /**
-     * `created_at` is not unique. Two accounts created in the same millisecond
-     * have no defined order between them, so Postgres may return them either
-     * way on each query — which across a page boundary means one is rendered
-     * twice and the other never appears. `id desc` beside it makes the order
-     * total.
-     *
-     * Asserted structurally, on the number of sort keys, because demonstrating
-     * the behaviour needs fifty-one accounts sharing a timestamp and a real
-     * database. Removing the second key survived every other test in this file,
-     * which is why the check exists at all rather than being left to review.
-     */
+    // `created_at` is not unique: two accounts created in the same millisecond have no defined
+    // order, so across a page boundary one is rendered twice and the other never. `id desc` makes
+    // the order total. Asserted on the number of sort keys: the behaviour needs a real database.
     const { listUsers } = await import("@/lib/admin-users");
 
     await listUsers(1);

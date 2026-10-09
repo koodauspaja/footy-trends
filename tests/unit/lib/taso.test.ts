@@ -8,6 +8,22 @@ import {
   normalizeTasoMatch,
 } from "@/lib/taso";
 
+/**
+ * The TASO client: what it asks the provider, how a response is normalised and
+ * validated, and how the current season is discovered.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/200-taso-read-cache.md
+ * decisions/272-group-standings-endpoint.md
+ * decisions/284-provider-id-validation.md
+ * decisions/363-render-timeouts.md
+ */
+
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
   loggerInfoMock: vi.fn(),
   loggerErrorMock: vi.fn(),
@@ -81,7 +97,7 @@ describe("taso mapping", () => {
     });
   });
 
-  it("tells no half-time score from a goalless first half (specs/036)", () => {
+  it("tells no half-time score from a goalless first half", () => {
     // TASO sends `""` for a match it has no half-time score for — 1 of 132 in
     // Ykkönen 2025 — and "0" for one that really was goalless at the break.
     const played = (halfTime: string) => ({
@@ -222,14 +238,9 @@ describe("taso mapping", () => {
   });
 
   describe("a match whose id is not an id", () => {
-    /**
-     * Every one of these four columns is `integer NOT NULL`. `Number` alone
-     * answered for all of them: `""` and `"  "` became 0, `"2abc"` became NaN,
-     * and a long digit string became a rounded value. The first three fail the
-     * insert — taking the whole season's sync with them, not just this row —
-     * and the fourth is worse, because it succeeds under a group or team that
-     * exists and is not this one.
-     */
+    // Each of these four columns is `integer NOT NULL`, and `Number` alone would answer for them
+    // all: an empty or blank string as 0, `"2abc"` as NaN, a long digit string rounded. The first
+    // three would fail the season's insert; the fourth would land under the wrong group or team.
     const field = (name: string, value: unknown) => ({
       match_id: "1",
       status: "Played",
@@ -287,9 +298,8 @@ describe("taso mapping", () => {
     });
 
     it("costs an unusable score the score rather than the match", () => {
-      // Scores had their own copy of this parse until #285 folded it into the
-      // shared one, and `Number("2abc")` is NaN — a value the `integer` column
-      // rejects, taking the season's insert with it.
+      // `Number("2abc")` is NaN, a value the `integer` column rejects, taking
+      // the season's insert with it.
       expect(normalizeTasoMatch(field("fs_A", "2abc"), "spljp26", "VL", 2026)).toMatchObject({
         providerMatchId: 1,
         homeGoals: null,
@@ -444,8 +454,7 @@ describe("taso mapping", () => {
 
   // Each of these matches the kickoff regexes but is not a real instant.
   // `Date.UTC` normalizes them all into valid-but-wrong dates, so without an
-  // explicit range check the match would be stored at a kickoff it never had
-  // instead of being skipped.
+  // explicit range check the match would be stored at a kickoff it never had.
   it.each([
     ["an out-of-range month", "2026-99-15", "18:00:00", "+0300"],
     ["a day that does not exist in its month", "2026-02-31", "18:00:00", "+0300"],
@@ -575,9 +584,9 @@ describe("taso mapping", () => {
           Origin: "https://tulospalvelu.palloliitto.fi",
           "User-Agent": expect.any(String),
         },
-        // Every TASO request carries a per-attempt bound since #363. The exact
-        // signal is not assertable — it is an `AbortSignal.any` of the bound
-        // and whatever the caller passed — but its presence is the guarantee.
+        // Every TASO request carries a per-attempt bound. The exact signal is
+        // not assertable, being an `AbortSignal.any` of the bound and whatever
+        // the caller passed, but its presence is the guarantee.
         signal: expect.any(AbortSignal),
       }
     );
@@ -642,7 +651,7 @@ describe("taso mapping", () => {
     const groups = await getSeasonGroups("spljp26", "VL");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      // `getCategory`, not `getGroups`: TASO refuses the latter outright (#272).
+      // `getCategory`, not `getGroups`: TASO refuses the latter outright.
       "https://spl.torneopal.net/taso/rest/getCategory?competition_id=spljp26&category_id=VL",
       expect.any(Object)
     );
@@ -651,7 +660,7 @@ describe("taso mapping", () => {
 
   it("does not read a top-level groups field, which is the old endpoint's shape", async () => {
     // Guards the switch itself: reading `groups` again would silently return
-    // nothing from `getCategory`, which is the failure this bug was (#272).
+    // nothing from `getCategory`.
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal(
       "fetch",
@@ -691,17 +700,9 @@ describe("getCurrentSeason", () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
   });
 
-  /**
-   * `/api/health?providers=1` bounds this call, because a health endpoint that
-   * hangs until the platform probe times out is worse than one reporting a
-   * provider as unreachable. See #182.
-   *
-   * The caller's signal no longer reaches `fetch` by identity: since #363 every
-   * TASO request also carries a per-attempt bound, and the two are combined
-   * with `AbortSignal.any`. So this asserts what the caller actually depends on
-   * — that aborting theirs aborts the request — rather than which object
-   * arrived, which was only ever a proxy for it.
-   */
+  // `/api/health?providers=1` bounds this call. The caller's signal does not reach `fetch`
+  // by identity: it is combined with the per-attempt bound by `AbortSignal.any`, so this
+  // asserts what the caller depends on, that aborting theirs aborts the request.
   it("aborts the request when the caller's signal aborts", async () => {
     vi.stubGlobal(
       "fetch",
@@ -721,9 +722,8 @@ describe("getCurrentSeason", () => {
   });
 
   it("bounds a page request even though it passes no signal of its own", async () => {
-    // The inverse of what this asserted before #363. A page render passing no
-    // signal used to mean an unbounded request, which is how a stalled TASO
-    // held 41 e2e specs until Playwright's own 30 s fired.
+    // A page render passing no signal must still be bounded: an unbounded
+    // request is how one stalled provider holds every page that asks it.
     const fetchMock = mockCompetitions([]);
 
     await getCurrentSeason();
@@ -752,10 +752,9 @@ describe("getCurrentSeason", () => {
     await expect(getCurrentSeason()).resolves.toBe(2027);
   });
 
-  // The regression guard for this feature's sharpest edge: spljphhl26 is a
-  // different competition that shares the prefix, the status AND the season,
-  // so only the exact id shape separates them. A prefix test would pass every
-  // other assertion here.
+  // The sharpest edge: spljphhl26 is a different competition that shares the
+  // prefix, the status and the season, so only the exact id shape separates
+  // them. A prefix test would pass every other assertion here.
   it("never picks spljphhl26, which shares the prefix, status and season_id", async () => {
     mockCompetitions([
       { competition_id: "spljphhl27", competition_status: "published", season_id: 2027 },
@@ -900,14 +899,9 @@ describe("normalizeGroupTeams", () => {
     expect(rows).toEqual([]);
   });
 
-  /**
-   * These are the ids the standings service also refuses to report on. The
-   * two must agree: a group it says nothing about because the id is unusable
-   * must not then be stored under that same unusable id — which is what
-   * happened while only the diagnostic checked (#285). Each case carries a
-   * team, because a group with no teams contributes no rows anyway and would
-   * pass this test with the validation removed.
-   */
+  // These are the ids the standings service also refuses to report on, and the two must
+  // agree: an unusable id must not be stored. Each case carries a team, because a group
+  // with no teams contributes no rows and would pass with the validation removed.
   const UNUSABLE_IDS = [
     ["is empty", ""],
     ["is whitespace", "  "],
@@ -1152,9 +1146,9 @@ describe("taso caching", () => {
   });
 
   it("caches a season's matches per competition and category", async () => {
-    // An empty answer stores no rows, so without a cache `getSyncedSeasonMatches`
-    // cannot tell "never fetched" from "fetched, nothing there" and re-asks on
-    // every request — 18 times for one pair in a single test run. See #200.
+    // An empty answer stores no rows, so without a cache
+    // `getSyncedSeasonMatches` cannot tell "never fetched" from
+    // "fetched, nothing there", and re-asks on every request.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ matches: [] }), { status: 200 }))

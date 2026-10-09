@@ -74,8 +74,20 @@ Constraints:
   and every variable are declared for that reason. **A variable added in the
   dashboard must be added to the file before the next apply**, or that apply
   deletes it. Always `railway config plan` first; stop on any deletion (#521).
-- **Only `staging` and `production` evaluate.** Any other environment name
-  throws. A new environment is #522.
+- **Only `staging` and `production` evaluate by themselves.** Any other name
+  throws unless `RAILWAY_NEW_ENVIRONMENT_BRANCH` names its branch, and is then
+  shaped as staging (decisions/522).
+- **A new environment is one command**, `npm run railway:environment`
+  (`docs/setup/026`), by hand or from `railway-environment.yml`. It builds only
+  into an environment that holds no service. **Two builds of one service at
+  once collide in its build cache**: the command waits for the deploy that
+  applying the web service starts, which fails for want of its variables,
+  before it starts its own. Its databases come from
+  `.railway/databases.ts`, a partial of its own that refuses staging and
+  production by id, and are services of their own, `Postgres-<name>` and
+  `Redis-<name>`: **the `Postgres` and `Redis` of staging and production stay
+  in the dashboard, no file declares them, and no other environment holds an
+  instance of them**.
 - **A red release run leaves production on the previous version**, and Railway
   marks the deployment `SKIPPED`. Re-running the workflow does not restart the
   deploy; press **Redeploy** in Railway (#215).
@@ -181,7 +193,7 @@ from a checkout of the commit that environment runs.
   environment after its migration has deployed.
 - **The suites never touch the development database.** `npm run
   test:integration` and `npm run test:e2e` create and migrate `<name>_test`;
-  e2e serves on port 3001.
+  e2e builds the application and serves that production build on port 3001.
 
 ## GitHub
 
@@ -209,10 +221,11 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 | File | Runs on | Jobs | Notes |
 |---|---|---|---|
-| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), integration (Postgres 18 and Redis 8 as services), issue checkboxes | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
+| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1` whether TASO still answers | #113 |
+| `railway-environment.yml` | by hand, with a name and a branch | `npm run railway:environment`: a new Railway environment, from nothing to a site that answers `/api/health` | runs in the GitHub Environment `railway-provisioning`, so it waits for a required reviewer; one run at a time (decisions/522) |
 
 - **Every workflow's token is `contents: read`**, and a job widens only what it
   needs: the issue-checkbox job reads issues and pull requests, the Sonar job
@@ -226,9 +239,22 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`. `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
+`TASO_API_KEY`, and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
+
+`railway-environment.yml` reads more, all of it secrets of the GitHub
+Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+and `AUTH_ALLOWED_EMAILS`, copied from staging on 2026-10-09, and
+`RAILWAY_PROJECT_ID` and `RAILWAY_API_TOKEN`, stored the same day. **A
+workspace token cannot `railway link`**: that command asks who the token
+belongs to and answers Unauthorized. The job names the project to the CLI in
+`RAILWAY_PROJECT_ID` instead, which needs no link.
+That environment requires a review by the owner or the collaborator and
+deploys from `main` only. **`RAILWAY_API_TOKEN` is a workspace token: it can
+change production.** It is the only credential in GitHub that can, which is
+why it is behind required reviewers and not among the repository's secrets.
 
 ### Versions and releases
 
@@ -256,17 +282,17 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 
 | Tool | Configured in | Constraints |
 |---|---|---|
-| Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and the check still passes. A later push gets a lighter re-check; a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
-| SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md) |
+| Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and its check-run reads `skipped`, which a required check accepts. A later push gets the quick check, a review whose whole body is `### Sourcery assessment` and `**Approved.**`, which is not a full review; `npm run check:sourcery -- <PR>` says which the head has, and a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
+| SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
-| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run for changed files) | the stages are checked against the workflows by a unit test |
+| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, for changed files) | the stages are checked against the workflows by a unit test |
 
 ## Observability
 
 | | Where | Constraints |
 |---|---|---|
-| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs `NEXT_PUBLIC_` copies of each setting. A blank variable means unset, not zero |
-| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). Logging is not yet a feature requirement, and some writes leave no record (#538) |
+| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs `NEXT_PUBLIC_` copies of each setting. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
+| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). An admin's write (a role change, a deletion, a forced refresh) and each hourly predictions run are one `info` line each, with ids and never an address. A refused sign-in is a `warn` with no fields (decisions/603). Logging is a feature requirement: a spec says what the feature logs (`skills/write-spec.md`, item 8), and the pass before a review checks it (`skills/self-review.md`, section 11). |
 | Health | `/api/health`; `?providers=1` also asks TASO | `?providers=1` is an uncached provider call: not for a short-interval monitor |
 
 ## Sign-in

@@ -4,17 +4,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
  * What `?idle_timeout=` on a database address does to a live connection, which
- * staging's sleeping depends on (docs/infrastructure.md, *Staging sleeps*):
- * postgres.js closes a connection that has sat idle that long, and otherwise
- * holds it open with a TCP keepalive that would keep the service awake.
+ * staging's sleeping depends on. Against the test database: only a real
+ * server shows whether the connection is still there.
  *
- * Against the test database, because only a real server shows whether the
- * connection is still there. `tests/unit/lib/staging-sleep-settings.test.ts`
- * has the half that needs none.
+ * decisions/551-staging-sleeps-when-idle.md
  */
+
 const NAME = `itest-sleep-${process.pid}`;
 
-/** The test database's address, with the query string staging's carries, sped up. */
+// The test database's address, with the query string staging's carries, sped up.
 function address(idleTimeoutSeconds?: number): string {
   const url = new URL(process.env.DATABASE_URL ?? "");
   if (idleTimeoutSeconds !== undefined) {
@@ -39,7 +37,7 @@ afterEach(async () => {
   await Promise.all(clients.splice(0).map((client) => client.end({ timeout: 1 })));
 });
 
-describe("an idle timeout on the database address (#551)", () => {
+describe("an idle timeout on the database address", () => {
   it("closes the connection once it has sat idle, where a plain address keeps it open", async () => {
     const observer = connect(`${NAME}-observer`);
     const quiet = connect(`${NAME}-quiet`, 1);

@@ -1,10 +1,10 @@
 /**
- * The home-win baseline (specs/051): a competition's own results, read as the
- * chance of a home win, a draw and an away win in its next match — the answer
- * every later model has to beat.
+ * The home-win baseline: a competition's own results, read as the chance of a
+ * home win, a draw and an away win in its next match. Pure: the service reads
+ * the per-season counts.
  *
- * Pure: the service reads specs/049's per-season counts for one competition,
- * and this decides which matches get a prediction and sums the counts into one.
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
  */
 
 import { competitionForSeasonPair } from "./domestic-competitions";
@@ -14,16 +14,20 @@ import type { MatchSource } from "./match-source";
 import type { SeasonOutcomes, SeasonRange } from "./outcome-shares";
 
 /**
- * The model's name, as the predictions log (#349) will record it beside each
- * prediction (S10). A change to what the baseline computes is a new version,
+ * The model's name, as the predictions log will record it beside each
+ * prediction. A change to what the baseline computes is a new version,
  * so a logged prediction always says which rule made it.
+ *
+ * decisions/051-home-win-baseline.md
  */
 export const HOME_BASELINE_MODEL = "home-baseline-v1";
 
 /**
- * The statuses of a match not yet kicked off, on either provider (S3). TASO's
+ * The statuses of a match not yet kicked off, on either provider. TASO's
  * normaliser maps its `Fixture` and `Planned` to `SCHEDULED`. Anything in play,
  * finished, postponed, suspended or cancelled gets no prediction.
+ *
+ * decisions/051-home-win-baseline.md
  */
 const UPCOMING: ReadonlySet<string> = new Set(["SCHEDULED", "TIMED"]);
 
@@ -41,17 +45,17 @@ export type HomeBaseline =
       /** Whether the competition's seasons run across two calendar years, as `2024/25`. */
       spansCalendarYears: boolean;
     }
-  /** No finished match stored (S9, S11). */
+  /** No finished match stored. */
   | { status: "empty" }
   | { status: "error" };
 
 /**
  * The competition a match is predicted from, or `null` when it gets no
- * prediction: not upcoming (S3), or not in specs/049 S6's set (S5).
+ * prediction: not upcoming, or not a compared competition. A TASO match is
+ * filed by its `(competition_id, category_id)` pair.
  *
- * A TASO match is filed by its `(competition_id, category_id)` pair, the rule
- * specs/049 counts the history by, so the prediction and its history are the
- * same competition. A national-team match matches no pair and gets none.
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
  */
 export function baselineCompetition(
   stored: StoredMatch
@@ -74,9 +78,11 @@ export function baselineCompetition(
 }
 
 /**
- * One competition's seasons summed into three shares (S1, S2). A season with no
+ * One competition's seasons summed into three shares. A season with no
  * finished match — next season's fixtures, already published — adds nothing
  * and does not widen the range the explanation line names.
+ *
+ * decisions/051-home-win-baseline.md
  */
 export function homeBaseline(
   seasons: readonly SeasonOutcomes[]

@@ -14,6 +14,18 @@ import {
   parseDomesticCompetitionParam,
 } from "@/lib/domestic-competitions";
 
+/**
+ * The Finnish competitions: the default one and how the `kilpailu` parameter is
+ * read, their categories and competition ids by season, their earliest seasons,
+ * the cups and their formats, and which competition a season pair belongs to.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ * decisions/051-home-win-baseline.md
+ */
+
 describe("domestic competitions", () => {
   it("defaults to Veikkausliiga", () => {
     expect(DEFAULT_DOMESTIC_COMPETITION_CODE).toBe("VL");

@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 /**
  * The match page, reached the way a reader reaches it: by clicking a row's date
  * in a match list. Every region is covered, because the routes resolve against
- * different tables — see specs/019-match-page.md.
+ * different tables.
+ *
+ * decisions/019-match-page.md
  */
 
 const WINDOW_SENTENCE = /Perustuu (kaudesta|vuodesta) .+ alkaen tallennettuihin otteluihin\./;

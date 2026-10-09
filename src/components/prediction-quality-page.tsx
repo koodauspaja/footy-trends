@@ -15,7 +15,11 @@ import {
 } from "@/lib/prediction-quality-service";
 import { formatSeasonLabel } from "@/lib/seasons";
 
-/** The strings agreed in specs/054 (S13), each where the spec places it. */
+/**
+ * The page's strings.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const QUALITY_HEADING = "Ennusteiden osuvuus";
 export const QUALITY_INTRO =
   "Kuinka usein perustaso ja Elo ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.";
@@ -39,38 +43,64 @@ export const QUALITY_ERROR = "Ennusteiden osuvuutta ei voitu laskea. Yritä myö
 export const NO_JUDGED = "Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.";
 export const QUALITY_SIGNED_OUT = "Kirjaudu sisään nähdäksesi ennusteiden osuvuuden.";
 
-/** Each model's name on the page (S2). */
+/**
+ * Each model's name on the page.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export const MODEL_LABELS: Record<string, string> = {
   [HOME_BASELINE_MODEL]: "Perustaso",
   [ELO_MODEL]: "Elo",
 };
 
-/** A model's name on the page; its id where none is known. */
+/**
+ * A model's name on the page; its id where none is known.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function modelLabel(model: string): string {
   return MODEL_LABELS[model] ?? model;
 }
 
-/** The baseline is the yardstick, drawn dashed; every other model solid. */
+/**
+ * The baseline is the yardstick, drawn dashed; every other model solid.
+ *
+ * decisions/054-prediction-quality.md
+ */
 const isDashed = (model: string) => model === HOME_BASELINE_MODEL;
 
-/** `Liukuvaan osumatarkkuuteen tarvitaan …` — fewer than 200 judged matches (S14). */
+/**
+ * `Liukuvaan osumatarkkuuteen tarvitaan …`: fewer than 200 judged matches.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function tooFewSentence(count: number): string {
   return `Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua; nyt niitä on ${count}.`;
 }
 
-/** The window line, from the data (S4). */
+/**
+ * The window line, from the data.
+ *
+ * decisions/054-prediction-quality.md
+ */
 export function windowSentence(matches: number, firstYear: number, lastYear: number): string {
   const years =
     firstYear === lastYear ? `vuodelta ${firstYear}` : `vuosilta ${firstYear}–${lastYear}`;
   return `${new Intl.NumberFormat("fi-FI").format(matches)} ottelua ${years}, joille molemmat mallit ovat antaneet ennusteen.`;
 }
 
-/** `0,601`: three decimals with a comma (S7). */
+/**
+ * `0,601`: three decimals with a comma.
+ *
+ * decisions/054-prediction-quality.md
+ */
 const score = (value: number) => formatDecimal(value, 3);
 
 /**
  * The page's parameters, as Next gives them: `alue` and `tyyppi`, the defaults
- * `kotimaa` and backtest (S3, S4). A repeated one is an array, and falls back.
+ * `kotimaa` and backtest. A repeated one is an array, and falls back.
+ *
+ * decisions/054-prediction-quality.md
  */
 export type QualityParams = Record<string, string | string[] | undefined>;
 
@@ -337,9 +367,11 @@ function Body({
 }
 
 /**
- * `/ennusteet` (specs/054): the models judged against the results, one
- * provider and one kind at a time (S3, S4). Signed in only, the gate asked
- * before anything is read (S12).
+ * `/ennusteet`: the models judged against the results, one
+ * provider and one kind at a time. Signed in only, the gate asked
+ * before anything is read.
+ *
+ * decisions/054-prediction-quality.md
  */
 export async function PredictionQualityPage({ params }: Readonly<{ params: QualityParams }>) {
   const { source, kind } = parseQualityParams(params);

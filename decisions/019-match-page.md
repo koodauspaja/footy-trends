@@ -197,3 +197,163 @@ integration test can trigger on demand.
 - **The season label falls back to the bare start year** when `getSeasonContext`
   cannot be reached. The match is the page; losing a slash is not worth an
   error state.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/head-to-head.ts` at `a86c1cb` by #531.
+
+- **`HEAD_TO_HEAD_LIMIT`.** Five, as the issue asked; the data supports more.
+- **`HeadToHeadWindow`.** National-team matches are grouped by the year they
+  were played and not by a season at all.
+- **`headToHeadWindowSentence`.** "tallennettuihin" (stored) is load-bearing: it
+  claims a window we looked in, not a set of seasons guaranteed complete,
+  since a season is synced when someone browses it. The measured asymmetry is
+  why the sentence exists: 47% of football-data pairs have two meetings or
+  fewer, against 10% in Veikkausliiga, where the deepest pair has 35. Without
+  it, "2 aiempaa kohtaamista" reads as a fact about the teams and not about
+  our data.
+- **`headToHeadWindow`.** The head-to-head spans every competition in a region,
+  so a World Cup page can list a European Championship meeting. Stating the
+  World Cup's own floor (2026) under a list containing a 2024 meeting would
+  describe a window the page has just contradicted, so the floor is the oldest
+  season any competition the query can return reaches. `spansCalendarYears`
+  only shapes the label: `2023/24` for a league, `2026` for a tournament
+  played inside one summer.
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`StoredMatch`.** One row carries a score breakdown and a stage, the other a
+  series name and TASO's verdict on who went through, so flattening them
+  would have to lie about one of them.
+- **`HeadToHeadResult`, `unavailable`.** Not an error. Telling the reader is
+  honest; an empty list would claim these teams have never met.
+- **`previousOf`.** Every clause is a decision: both orientations, strictly
+  earlier than this match, played matches only, and scoped to the same source
+  so a Kotimaa page cannot surface a Huuhkajat row out of the table they
+  share. A row cannot kick off strictly before itself, so that clause also
+  keeps the match off its own list. The ordering is total, since two meetings
+  can share a kickoff instant and a page that reordered between renders would
+  be a bug nobody could reproduce. Ties belong to the bracket; this is a list
+  of matches.
+- **`footballDataHeadToHead`, `tasoHeadToHead`.** A single function had to
+  re-check that the row and the route agreed about the source, which the
+  caller knows by construction: an unreachable branch pretending to be error
+  handling.
+- **`loadMatchPageData`.** Cached per request because Next.js calls
+  `generateMetadata` and the page separately and both need the same rows, as
+  for `getTeamMatches`. Keyed on primitives, not the source object, which a
+  route rebuilds on every render and would miss the cache every time. A
+  head-to-head failure never reaches the match: the reader came for the
+  match.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches_head_to_head_idx`.** The match page's head-to-head asks for one
+  pair in either order. One composite index serves both orientations under a
+  BitmapOr, so the mirrored index would earn nothing and is absent on
+  purpose.
+- **`taso_matches_head_to_head_idx`.** On 20,604 stored rows it turns the
+  pair lookup from a 3.16 ms sequential scan into a 0.13 ms bitmap scan.
+
+Cut from `src/lib/cup-stages.ts` at `a86c1cb` by #531.
+
+- **`REGULAR_SEASON`.** 13,184 stored rows across nine competitions carry it.
+  The competition and round already say everything a name for it would.
+
+Cut from `src/lib/national-team.ts` at `a86c1cb` by #531.
+
+- **`NationalTeam.basePath`.** These matches are TASO's while
+  `/maajoukkueet/ottelu/:id` is football-data's, so each team's rows need a
+  route that names their source.
+- **`EARLIEST_NATIONAL_TEAM_YEAR`.** Not a bucket's nominal year: `maajp18`
+  reports `season_id: 2021` while holding matches played in 2018 to 2021. It
+  is the year the match page's head-to-head states as the window it looked
+  in.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`competitionCodeForCategory`.** The inverse of `categoryIdsFor`, for a page
+  that starts from a stored row and not from a `kilpailu` value: the match
+  page builds a team link out of a match it has just read. `null` and not a
+  fallback: a category no competition claims has no team page to link to.
+
+Cut from `src/lib/match-detail.ts` at `94397a8` by #531.
+
+- **`match-detail.ts`.** The page itself stays markup, and the rules are
+  unit-testable without a database.
+- **`PLACEHOLDER_TEAM_ID`.** Usually with an empty name. Measured 2026-09-02:
+  22 such rows in TASO's table, 21 of them finished with a real score, three
+  in Suomen Cup, which the site shows; `matches` has none. A head-to-head
+  joined on it would pair a match against every other unresolved slot that
+  faced the same opponent, and present the result as previous meetings.
+- **`formatKickoff`.** Two formatters joined by `klo` and not one
+  `dateStyle`/`timeStyle` pair: `fi-FI` renders the time as `18.30`, which is
+  correct Finnish, but supplies the connecting word only in some runtimes.
+  Stating it makes the output the same everywhere, and so testable.
+- **`bothOrNeither`.** Half a pair is unusable everywhere it appears: a sum
+  needs both sides, and a shoot-out with one total recorded is not a
+  shoot-out. One check and not three near-identical conditions.
+- **`formatScore`.** `homeGoals` and `awayGoals` are the provider's `fullTime`,
+  which includes a penalty shoot-out: printed raw, a 1–1 settled on penalties
+  becomes a "4–3" that was never the score. The same correction `BracketLeg`
+  makes, with the bracket's suffixes, so one match cannot read two ways on two
+  pages.
+- **`declaredWinnerSide`.** TASO settles a level cup tie on penalties it never
+  itemises, so the score alone leaves the tie looking drawn. Naming the winner
+  is all the data supports: an "(rp)" suffix would assert a shoot-out that is
+  not recorded.
+- **`MatchContext`.** A null `matchday` is ordinary, and "Kierros –" would
+  state an absence the reader has no use for.
+- **`roundLine`.** The same three cases the match lists distinguish
+  (`fourthColumnFor` in `competition-matches-page.tsx`), decided from one row.
+  On a knockout stage only 1 and 2 are legs. Across every stored knockout row
+  on 2026-09-02: the Champions League and Championship carry 1–2, the World
+  Cup null, and the Euro 4–7, its group-round counter running on into the
+  knockout, which is not a leg. A Finnish cup round shows nothing either:
+  TASO's `round_id` is not re-indexed per competition (round 63 exists), and
+  the series name above already names the round.
+
+Cut from `src/components/match-page.tsx` at `94397a8` by #531.
+
+- **`MatchPageOptions.teamBasePath`.** Neither Finland nor its opponents have
+  a page under `/maajoukkueet`, and the feature asks for a link to a team's
+  existing page. #246 is what would change that.
+- **`resolveSpansCalendarYears`.** The match is the page: with the provider
+  unreachable the season shows as its bare start year, where failing would
+  take the whole page down for a missing slash.
+- **`linkableTeamHref`.** A placeholder renders as `Tuntematon joukkue`, and
+  `/kotimaa/joukkue/0` is a page that cannot exist. Applied to both providers
+  and not only to TASO: `matches` has no placeholder rows today, and one rule
+  is cheaper than remembering that.
+- **`tasoCompetitionName`.** Two different questions behind one line. `null`
+  from either, an unclaimed junior category or a map that could not be read,
+  costs one line and not the page.
+- **`resolve` on the match page.** The provider's id is the value that
+  survives a re-sync, as every team link on the site uses the provider's team
+  id.
+- **`MatchPage`.** Five routes share this body, `/maajoukkueet` needing two of
+  them. A not-found inside the page shell is what the team pages already do.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **`matchHref`.** No caller has ever needed one row to differ from its
+  neighbours. The date carries the link and not the row: `Pvm` is the one
+  column every one of these tables has, it is never a link otherwise, and it
+  does not nest inside the team links the `Ottelu` column already carries.
+
+Cut from `src/lib/match-source.ts` at `48ebab4` by #531.
+
+- **`match-source.ts`.** There is no single match id space: `matches` and
+  `taso_matches` are separate tables with independent provider ids, and 317
+  numeric ids exist in both (measured 2026-09-02).
+- **`domestic` as a negation.** Almost every Finnish competition lives
+  inside the `spljp{YY}` season umbrella, but Ykkösliigacup publishes its
+  own `M1LCUP{YY}`, so a `spljp%` predicate would make every one of its 69
+  stored matches a not-found. The two predicates are exhaustive over the
+  table and cannot both match, which is the property the routes need.
+
+Cut from `src/app/national-teams/match/[id]/page.tsx` at `48ebab4` by #531.
+
+- **The national teams' match routes.** The region is fed by both sources,
+  and one route trying both tables would render the wrong match the first
+  time an id existed in both.

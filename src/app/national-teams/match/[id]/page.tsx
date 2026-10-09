@@ -4,12 +4,11 @@ import { MatchPage, type MatchPageOptions, matchMetadata } from "@/components/ma
 export const dynamic = "force-dynamic";
 
 /**
- * `/maajoukkueet/ottelu/:id` — the World Cup and the European Championship,
- * which come from football-data.
+ * `/maajoukkueet/ottelu/:id`: the World Cup and the European Championship,
+ * which come from football-data. Huuhkajat and Helmarit are TASO's, and have
+ * their own routes.
  *
- * Huuhkajat and Helmarit are TASO's, and have their own routes: the region is
- * fed by both sources, and one route trying both tables would render the wrong
- * match the first time an id existed in both. See specs/019-match-page.md.
+ * decisions/019-match-page.md
  */
 const ROUTE = {
   source: { kind: "football-data", region: "national-teams" },

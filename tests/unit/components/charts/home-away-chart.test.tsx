@@ -10,7 +10,13 @@ import {
 import { percentText } from "@/components/charts/line-chart";
 import type { SideStats } from "@/lib/home-away";
 
-/** Arsenal 2024/25: 39 points at home in 19 matches, 35 away. */
+/**
+ * The home and away chart: its measures and its text alternative.
+ *
+ * decisions/033-home-vs-away.md
+ */
+
+// Arsenal 2024/25: 39 points at home in 19 matches, 35 away.
 const home: SideStats = { matches: 19, won: 11, drawn: 6, lost: 2, scored: 35, conceded: 17 };
 const away: SideStats = { matches: 19, won: 9, drawn: 8, lost: 2, scored: 34, conceded: 17 };
 

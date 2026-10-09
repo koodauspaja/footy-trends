@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { CompetitionSelect } from "@/components/competition-select";
 import type { Competition } from "@/lib/competitions";
 
+/**
+ * The competition selector.
+ *
+ * decisions/006-other-competitions.md
+ */
+
 const competitions: Competition[] = [
   {
     code: "PL",

@@ -1,15 +1,11 @@
 import Link from "next/link";
 
 /**
- * The site footer, from #302.
+ * The site footer: links to the privacy policy and the terms, and the data
+ * providers' credit. A server component with no state.
  *
- * It exists because Google requires a **publicly reachable** privacy policy
- * before an OAuth consent screen can leave Testing, and a page nothing links to
- * is reachable only by someone who already knows the URL.
- *
- * A server component with no state, so it costs the pages it sits on nothing —
- * `tests/unit/app/rendering-mode.test.ts` keeps four of them prerendered (#182),
- * and a client component in the layout would have taken that away.
+ * decisions/302-privacy-policy-and-footer.md
+ * decisions/303-terms-and-attribution.md
  */
 export function SiteFooter() {
   return (
@@ -23,19 +19,10 @@ export function SiteFooter() {
             Käyttöehdot
           </Link>
         </nav>
-        {/* football-data.org's free tier asks for this in "a visible section of
-            your application or website", so it is on every page rather than on
-            the terms page alone (#303).
-
-            In Finnish, because CLAUDE.md admits no exceptions and their
-            requirement is a *credit* rather than a fixed string: the part that
-            has to survive is their name and a link to them, and both do. */}
-        {/* A joint credit rather than a split one. Both providers appear on
-            `/maajoukkueet` — the tournaments are football-data's, the Finnish
-            teams' own match lists are Palloliitto's — and a single footer line
-            cannot draw that boundary without getting it wrong, which it did
-            twice. The precise split is on `/kayttoehdot`, where there is room
-            for it. */}
+        {/* football-data.org asks for this in "a visible section", so it is on
+            every page. In Finnish: what has to survive is their name and a link. */}
+        {/* A joint credit, not a split one: the precise split is on
+            `/kayttoehdot`, where there is room for it. */}
         <p>
           Tiedot tarjoaa{" "}
           <a className="hover:underline" href="https://www.football-data.org/">

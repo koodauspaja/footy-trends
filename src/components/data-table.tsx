@@ -1,19 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * The width scale every table column is sized from.
+ * The width scale every table column is sized from. Fixed widths are what make
+ * sibling tables line up.
  *
- * Fixed widths exist so that **sibling tables line up**. Browser auto layout
- * sizes each column from its own table's rows, so three phases of one
- * competition rendered one above the other drifted apart — measured at 1280px
- * on `/kotimaa/sarjataulukko?kilpailu=VL&kausi=2019`, two match lists were
- * 20, 47, 12 and 14 pixels apart column by column, and twelve World Cup group
- * tables spread their name column across 663–669px. See
- * specs/021-table-consistency.md.
- *
- * The numbers are chosen to keep the standings' floor near the 760px it has
- * always had: 64 + 8×44 + 112 fixed, plus a 240px minimum for the flexible
- * column, is 768.
+ * decisions/021-table-consistency.md
  */
 export const COLUMN_WIDTHS = {
   /** `Sija`, which holds at most three digits. */
@@ -35,6 +26,8 @@ export const COLUMN_WIDTHS = {
 /**
  * One column. Exactly one column in a table carries `width: "flex"` and takes
  * whatever the container leaves; every other width comes from the scale above.
+ *
+ * decisions/021-table-consistency.md
  */
 export type DataTableColumn<T> = {
   /** Stable across renders, and unique within the table. */
@@ -58,14 +51,15 @@ export type DataTableProps<T> = {
   rows: readonly T[];
   columns: ReadonlyArray<DataTableColumn<T>>;
   rowKey: (row: T) => string | number;
-  /**
-   * The one row a page is about, shaded and marked `aria-current` — this
-   * competition among the others (specs/049, S4).
-   */
+  /** The one row a page is about, shaded and marked `aria-current`. */
   isCurrentRow?: (row: T) => boolean;
 };
 
-/** The floor: every fixed column, plus the least the flexible one may have. */
+/**
+ * The floor: every fixed column, plus the least the flexible one may have.
+ *
+ * decisions/021-table-consistency.md
+ */
 export function tableMinWidth<T>(columns: ReadonlyArray<DataTableColumn<T>>): number {
   return columns.reduce(
     (total, column) => total + (column.width === "flex" ? COLUMN_WIDTHS.flexMinimum : column.width),
@@ -78,16 +72,12 @@ function alignClass(align: DataTableColumn<unknown>["align"]): string {
 }
 
 /**
- * The table both the standings and the match lists render through.
+ * The table both the standings and the match lists render through:
+ * `table-fixed` with a `<colgroup>`. Below the floor the wrapper scrolls
+ * sideways; nothing is hidden or truncated.
  *
- * `table-fixed` with a `<colgroup>` is what makes the widths declarations
- * rather than suggestions: the browser stops measuring content, so two tables
- * with the same columns are identical whatever their rows say. The flexible
- * column absorbs the rest, so a wide screen still gives the team name the room
- * and the numbers stay grouped.
- *
- * Below the floor the wrapper scrolls sideways. Nothing is hidden and nothing is
- * truncated: a long name wraps inside its column instead.
+ * decisions/021-table-consistency.md
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export function DataTable<T>({
   rows,

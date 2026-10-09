@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The cache helpers.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
+
 const getMock = vi.fn();
 const setexMock = vi.fn();
 const delMock = vi.fn();
@@ -101,6 +107,42 @@ describe("cache helpers", () => {
     expect(getMock).toHaveBeenCalledWith("fetch-fail");
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(setexMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a degraded value without storing it", async () => {
+    getMock.mockResolvedValue(null);
+
+    const { getCachedUnlessDegraded } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: { season: 2025 }, degraded: true }));
+
+    await expect(getCachedUnlessDegraded("fallback", 60, fetcher)).resolves.toEqual({
+      season: 2025,
+    });
+    expect(setexMock).not.toHaveBeenCalled();
+  });
+
+  it("stores the value alone when it is not degraded", async () => {
+    getMock.mockResolvedValue(null);
+
+    const { getCachedUnlessDegraded } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: { season: 2026 }, degraded: false }));
+
+    await expect(getCachedUnlessDegraded("answered", 60, fetcher)).resolves.toEqual({
+      season: 2026,
+    });
+    expect(setexMock).toHaveBeenCalledWith("answered", 60, '{"season":2026}');
+  });
+
+  it("answers from the cache without asking the fetcher whether it is degraded", async () => {
+    getMock.mockResolvedValue('{"season":2026}');
+
+    const { getCachedUnlessDegraded } = await import("@/lib/cache");
+    const fetcher = vi.fn(async () => ({ value: { season: 2025 }, degraded: true }));
+
+    await expect(getCachedUnlessDegraded("answered", 60, fetcher)).resolves.toEqual({
+      season: 2026,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("invalidates cache by deleting the key", async () => {

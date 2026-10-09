@@ -11,13 +11,14 @@ import type { MatchSource } from "@/lib/match-source";
 import { MENS_TEAM } from "@/lib/national-team";
 
 /**
- * The full head-to-head page (specs/042): what it asks for, and what it puts on
- * screen.
+ * The full head-to-head page: its sections (two signed out, four signed in, and a form group
+ * while the rivalry is current), the ids it resolves, and the cases with nothing to show. The
+ * record's arithmetic is `head-to-head.test.ts`'s and the row labels are `meeting-labels`'.
  *
- * The record's arithmetic is `head-to-head.test.ts`'s and the row labels are
- * `meeting-labels`', so what this file owns is the page — its sections (two
- * signed out, four signed in since specs/044), the
- * ids it resolves, and the cases where there is nothing to show.
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/047-rivalry-page.md
+ * decisions/529-one-whole-number-parser.md
  */
 
 const getHeadToHeadHistoryMock = vi.fn<() => Promise<HeadToHeadResult>>();
@@ -27,7 +28,7 @@ const getCompetitionAveragesMock = vi.fn(
     rows: groups.map((group) => ({ ...group, competition: { home: 1.6, away: 1.25 } })),
   })
 );
-/** Signed out unless a test says otherwise, which is also what specs/042's tests assume. */
+// Signed out unless a test says otherwise.
 const canSeeAnalyticsMock = vi.fn(async () => false);
 
 const getTeamFormMock = vi.fn(
@@ -51,15 +52,9 @@ vi.mock("@/lib/taso-standings-service", () => ({
   getSeasonCategoryNameMap: vi.fn(async () => null),
 }));
 
-/**
- * Nothing mocks `@/lib/football-data`, deliberately.
- *
- * specs/042 promises this page makes no provider request, and the first
- * version called `getSeasonContext` for a season label — which passed here and
- * timed out on CI, where there is no API key. An unmocked provider module is
- * what makes that promise testable: if the page ever reaches for one again,
- * these tests hang rather than quietly pass.
- */
+// Nothing mocks `@/lib/football-data`, deliberately: the page promises to make
+// no provider request, and an unmocked provider module makes that testable. If
+// the page reaches for one, these tests hang and do not quietly pass.
 
 import { warmModules } from "../../support/warm-module";
 
@@ -106,14 +101,13 @@ async function renderPage(a = String(HJK), b = String(KUPS)) {
 warmModules(() => import("@/components/head-to-head-page"));
 
 // Every test starts signed out, whatever the last one set: `clearAllMocks`
-// keeps implementations, so without this the specs/042 tests would inherit the
-// signed-in reader of whichever specs/044 test ran before them.
+// keeps implementations, so without this a test would inherit the signed-in
+// reader of whichever ran before it.
 beforeEach(() => {
   canSeeAnalyticsMock.mockResolvedValue(false);
-  // specs/042 and specs/044's tests describe the page with no form group: in
-  // 2030 their 2024–2025 fixtures are a rivalry no longer played (specs/047,
-  // S8), so the page is exactly as those specs made it. specs/047's tests set
-  // their own date.
+  // The tests of the list and the analysis describe the page with no form
+  // group: in 2030 their 2024–2025 fixtures are a rivalry no longer played. The
+  // rivalry's tests set their own date.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2030-06-01T12:00:00Z"));
 });
@@ -228,7 +222,7 @@ describe("HeadToHeadPage", () => {
     expect(getHeadToHeadHistoryMock).not.toHaveBeenCalled();
   });
 
-  // `Number()` alone read the first two as teams 16 and 1000 (#529).
+  // `Number()` alone would accept two of these: `0x10` as 16 and `1e3` as 1000.
   describe.each([
     ["a word", "abc"],
     ["hexadecimal, which Number() reads as 16", "0x10"],
@@ -442,12 +436,9 @@ describe("HeadToHeadPage on a national team's own matches", () => {
       })
     );
 
-    /**
-     * `maajp18`'s older categories name some opponents in English, and
-     * `FINNISH_TASO_TEAM_NAMES` covers exactly those — `Greece` is one of its
-     * nine entries. The rest of the region localises them, and a head-to-head
-     * page cannot be the one place that does not.
-     */
+    // `maajp18`'s older categories name some opponents in English, and
+    // `FINNISH_TASO_TEAM_NAMES` covers those. The rest of the region localises
+    // them, and a head-to-head page cannot be the one place that does not.
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Kohtaamiset: Suomi – Kreikka"
     );
@@ -469,10 +460,10 @@ describe("HeadToHeadPage on a national team's own matches", () => {
   });
 });
 
-describe("the analysis sections (specs/044)", () => {
+describe("the analysis sections", () => {
   const SIGN_IN = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
-  /** HJK 2–1 KuPS twice (once at KuPS), and a 0–0: 2024 and 2025 Veikkausliiga. */
+  // HJK 2–1 KuPS twice (once at KuPS), and a 0–0: 2024 and 2025 Veikkausliiga.
   const MEETINGS = [
     meeting({ providerMatchId: 1 }),
     meeting({
@@ -495,7 +486,7 @@ describe("the analysis sections (specs/044)", () => {
     }),
   ];
 
-  /** The competition-seasons the page asked averages for, one per group. */
+  // The competition-seasons the page asked averages for, one per group.
   function scopesAsked(): unknown[] {
     const [groups] = getCompetitionAveragesMock.mock.calls[0] ?? [[]];
     return (groups as ReadonlyArray<{ scope: unknown }>).map((group) => group.scope);
@@ -609,7 +600,7 @@ describe("the analysis sections (specs/044)", () => {
     ]);
   });
 
-  it("says the averages could not be computed, and still shows the grid (S10)", async () => {
+  it("says the averages could not be computed, and still shows the grid", async () => {
     getCompetitionAveragesMock.mockResolvedValueOnce({ status: "error" });
     await renderPage();
 
@@ -623,7 +614,7 @@ describe("the analysis sections (specs/044)", () => {
     ).toBeVisible();
   });
 
-  it("has no sentence when every scoreline occurred once (S8)", async () => {
+  it("has no sentence when every scoreline occurred once", async () => {
     getHeadToHeadHistoryMock.mockResolvedValue({
       status: "ok",
       matches: [meeting({ providerMatchId: 1 })],
@@ -658,7 +649,7 @@ describe("the analysis sections (specs/044)", () => {
     expect(byLevel("2")).not.toHaveClass("text-background");
   });
 
-  it("drops the averages on a TASO national-team route, keeping the grid (S9)", async () => {
+  it("drops the averages on a TASO national-team route, keeping the grid", async () => {
     const { HeadToHeadPage } = await import("@/components/head-to-head-page");
     render(
       await HeadToHeadPage({
@@ -708,7 +699,7 @@ describe("the analysis sections (specs/044)", () => {
     ]);
   });
 
-  it("signed out, shows one prompt and computes neither section (S6)", async () => {
+  it("signed out, shows one prompt and computes neither section", async () => {
     canSeeAnalyticsMock.mockResolvedValue(false);
     const { HeadToHeadPage } = await import("@/components/head-to-head-page");
     const { container } = render(
@@ -723,8 +714,9 @@ describe("the analysis sections (specs/044)", () => {
   });
 });
 
-describe("the rivalry: current form beside the history (specs/047)", () => {
-  /** Five finished matches for one team, oldest first, as `latestForm` returns them. */
+describe("the rivalry: current form beside the history", () => {
+  // Five finished matches for one team, oldest first, as `latestForm` returns
+  // them.
   function okForm(firstId: number, results: string, latest: string): TeamForm {
     const letters = [...results] as Array<"V" | "T" | "H">;
     const labels = { V: "Voitto", T: "Tasapeli", H: "Häviö" } as const;
@@ -760,7 +752,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     );
   });
 
-  it("puts Nykyinen vire first and the whole history under Keskinäinen historia (S4)", async () => {
+  it("puts Nykyinen vire first and the whole history under Keskinäinen historia", async () => {
     await renderPage();
 
     expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
@@ -772,7 +764,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     ).toEqual(["Yhteenveto", "Tulokset", "Maalit kilpailuittain", "Kohtaamiset"]);
   });
 
-  it("asks for each team's form within the pair's own source (S1)", async () => {
+  it("asks for each team's form within the pair's own source", async () => {
     await renderPage();
 
     expect(getTeamFormMock).toHaveBeenCalledWith(ROUTE.source, HJK);
@@ -792,7 +784,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(blocks()).toEqual(["KuPS", "HJK"]);
   });
 
-  it("shows five results oldest first, each linking to its match, as the Vire column spells them (S7)", async () => {
+  it("shows five results oldest first, each linking to its match, as the Vire column spells them", async () => {
     await renderPage();
     const block = screen.getByRole("region", { name: "HJK" });
     const links = within(block).getAllByRole("link");
@@ -806,7 +798,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(within(block).getByText("Viimeisin ottelu 21.09.2026")).toBeInTheDocument();
   });
 
-  it("says too few, or that the read failed, in that team's block only (S9)", async () => {
+  it("says too few, or that the read failed, in that team's block only", async () => {
     getTeamFormMock.mockImplementation(async (_source, team) =>
       team === HJK ? ({ status: "too-few" } as const) : ({ status: "error" } as const)
     );
@@ -826,7 +818,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(screen.getByRole("region", { name: "Keskinäinen historia" })).toBeInTheDocument();
   });
 
-  it("counts a meeting in current year − 2, in Helsinki's calendar (S13)", async () => {
+  it("counts a meeting in current year − 2, in Helsinki's calendar", async () => {
     // 00:30 on 1 January 2024 in Helsinki is still 31 December 2023 in UTC.
     getHeadToHeadHistoryMock.mockResolvedValue({
       status: "ok",
@@ -837,7 +829,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
   });
 
-  it("leaves a rivalry no longer played exactly as it was, reading no form (S8, S12)", async () => {
+  it("leaves a rivalry no longer played exactly as it was, reading no form", async () => {
     // 23:30 on 31 December 2023 in Helsinki: 2023, three years back.
     getHeadToHeadHistoryMock.mockResolvedValue({
       status: "ok",
@@ -849,7 +841,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(getTeamFormMock).not.toHaveBeenCalled();
   });
 
-  it("reads no form and adds no group for a signed-out reader (S11, S14)", async () => {
+  it("reads no form and adds no group for a signed-out reader", async () => {
     canSeeAnalyticsMock.mockResolvedValue(false);
     const { container } = render(
       await (await import("@/components/head-to-head-page")).HeadToHeadPage({
@@ -863,7 +855,7 @@ describe("the rivalry: current form beside the history (specs/047)", () => {
     expect(container.innerHTML).not.toContain("pistettä ottelua kohden");
   });
 
-  it("adds nothing on a TASO national-team route (S10)", async () => {
+  it("adds nothing on a TASO national-team route", async () => {
     const { HeadToHeadPage } = await import("@/components/head-to-head-page");
     render(
       await HeadToHeadPage({

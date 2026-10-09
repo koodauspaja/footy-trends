@@ -7,21 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MISSING_DATABASE_URL } from "@/db/connection-string";
 
 /**
- * `npm run db:migrate` without `DATABASE_URL` (#536). It used to go on with
- * postgres.js's defaults, so a stray `PGHOST` in a shell decided which database
- * was migrated.
+ * `npm run db:migrate` without `DATABASE_URL`, run as the process it is. It cannot reach a
+ * real database: every `PG*` variable points at a listener this file owns, and the empty
+ * journal is what makes the runner reach its first query, so the listener would count it.
  *
- * The runner migrates as soon as it is loaded, so it is run as the process it
- * is. **It cannot reach a real database from here**, whatever it does:
- *
- * - it runs in a temporary directory holding nothing but an empty migration
- *   journal, so it finds no `.env` to load a `DATABASE_URL` from. The journal
- *   is what makes the listener mean something: without one the runner returns
- *   before its first query, and postgres.js connects only when it has one;
- * - its environment is built here from nothing but `PATH`, with every `PG*`
- *   variable pointing at a listener this file owns, which accepts a connection
- *   only to count it and hang up.
+ * decisions/536-database-url-required.md
  */
+
 const REPOSITORY = process.cwd();
 const TSX = path.join(REPOSITORY, "node_modules", "tsx", "dist", "cli.mjs");
 const RUNNER = path.join(REPOSITORY, "src", "db", "migrate.ts");

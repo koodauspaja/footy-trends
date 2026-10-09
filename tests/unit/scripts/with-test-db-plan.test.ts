@@ -6,6 +6,13 @@ import {
   usageMessage,
 } from "../../../scripts/with-test-db-plan";
 
+/**
+ * What `with-test-db` decides around the command it runs: how the invocation is
+ * read, which executable runs it, and the exit code.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ */
+
 describe("parseInvocation", () => {
   it("takes the first argument as the command and the rest as its arguments", () => {
     expect(parseInvocation(["node", "node_modules/vitest/vitest.mjs", "run"])).toEqual({
@@ -43,11 +50,9 @@ describe("parseInvocation", () => {
 
 describe("executableFor", () => {
   it("runs `node` as the very Node that started this", () => {
-    /**
-     * A package binary through `node_modules/.bin` would be a `.cmd` shim on
-     * Windows, which `spawn` cannot execute without a shell — the trap
-     * `executable.ts` documents — and could be a different runtime besides.
-     */
+    // A package binary through `node_modules/.bin` would be a `.cmd` shim on
+    // Windows, which `spawn` cannot execute without a shell, and could be a
+    // different runtime besides.
     expect(executableFor("node", "/usr/local/bin/node")).toBe("/usr/local/bin/node");
   });
 

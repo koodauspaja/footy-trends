@@ -12,20 +12,16 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 /**
- * `scripts/setup` runs before Node is known to exist, so it is shell and cannot
- * be imported. It is tested by running it — in a temporary directory holding
- * nothing but the files it reads, with a `PATH` holding nothing but fakes, so
- * what this machine happens to have installed decides nothing.
+ * `scripts/setup` runs before Node is known to exist, so it is shell and is tested by
+ * running it, in a temporary directory with a `PATH` of fakes. Run with `/bin/sh`, which is
+ * dash on the CI runners: the script claims POSIX sh, and this checks the claim.
  *
- * Run with `/bin/sh`, which is dash on the CI runners and not bash. That is the
- * point: the script claims POSIX sh, and this is what checks the claim.
+ * decisions/400-one-command-setup.md
  */
 
-/**
- * Every case here spawns a real `/bin/sh`, and a few of them spawn `npm ci`
- * decisions behind it. vitest's 5s default is thin for that on a machine that is
- * already busy, and a spawn that is merely slow must not read as a failure.
- */
+// Every case here spawns a real `/bin/sh`, and a few spawn the `npm ci`
+// decisions behind it. vitest's 5s default is thin for that on a busy machine,
+// and a spawn that is merely slow must not read as a failure.
 const SPAWN_TIMEOUT = { timeout: 30_000 };
 
 const SCRIPT = path.resolve("scripts/setup");
@@ -37,7 +33,7 @@ afterEach(() => {
   created.length = 0;
 });
 
-/** A fake executable that logs how it was called and answers as told. */
+// A fake executable that logs how it was called and answers as told.
 function fake(bin: string, name: string, body: string): void {
   const file = path.join(bin, name);
   writeFileSync(file, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
@@ -45,10 +41,8 @@ function fake(bin: string, name: string, body: string): void {
 
 type Clone = { dir: string; bin: string; log: () => string };
 
-/**
- * A directory with the script, a `.nvmrc` and a lockfile — and a `bin` holding
- * whichever fakes this case wants.
- */
+// A directory with the script, a `.nvmrc` and a lockfile, and a `bin` holding
+// whichever fakes this case wants.
 function clone({
   node,
   docker,
@@ -94,11 +88,9 @@ function clone({
   };
 }
 
-/**
- * A `PATH` holding only this case's fakes, so nothing installed on the machine
- * running the suite can decide the result. `NODE_ENV` is here because Next's
- * types make it a required member of `ProcessEnv`; the script never reads it.
- */
+// A `PATH` holding only this case's fakes, so nothing installed on the machine
+// running the suite can decide the result. `NODE_ENV` is here because Next's
+// types make it a required member of `ProcessEnv`; the script never reads it.
 function environment(c: Clone, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   return { PATH: c.bin, HOME: c.dir, NODE_ENV: "test", ...extra };
 }
@@ -167,12 +159,9 @@ describe("scripts/setup prerequisites", () => {
 });
 
 describe("scripts/setup and DOCKER_EXECUTABLE", () => {
-  /**
-   * INSTALL.md offers this for a docker installed somewhere unusual, and the
-   * shell check runs before the TypeScript half that reads it — so without
-   * support here the documented escape hatch never got a chance. Raised in
-   * review on #409.
-   */
+  // INSTALL.md offers this for a docker installed somewhere unusual, and the
+  // shell check runs before the TypeScript half that reads it: without support
+  // here the documented escape hatch never gets a chance.
   function dockerAt(c: Clone, name: string): string {
     const elsewhere = path.join(c.dir, name);
     writeFileSync(elsewhere, '#!/bin/sh\ncase "$1" in compose) exit 0 ;; esac\nexit 0\n', {
@@ -264,10 +253,8 @@ describe("scripts/setup hand-off", () => {
   });
 
   it("does not reinstall when the tree is newer than the lockfile", SPAWN_TIMEOUT, () => {
-    /**
-     * A second run must be safe, and `npm ci` deletes node_modules — under a dev
-     * server that may well be running.
-     */
+    // A second run must be safe, and `npm ci` deletes node_modules, under a dev
+    // server that may well be running.
     const c = clone({ node: "v24.16.0", docker: "working" });
     const installed = path.join(c.dir, "node_modules/.package-lock.json");
     mkdirSync(path.dirname(installed));

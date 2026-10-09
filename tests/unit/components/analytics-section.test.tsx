@@ -11,6 +11,20 @@ import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
+/**
+ * The Analyysit section: the sign-in gate, which panels a page gets, and the
+ * groups they sit in.
+ *
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/041-national-team-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/416-team-page-folds.md
+ * decisions/424-analytics-panel-groups.md
+ */
+
 const { canSeeAnalytics } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
 }));
@@ -107,11 +121,10 @@ async function renderSection(
   loadComparison = vi.fn(async (): Promise<SeasonComparisonSeries> => comparison),
   loadRecords = vi.fn(async (): Promise<StreakRecordsSeries> => records),
   axis = SEASON_AXIS,
-  // Absent unless a test asks for it, as on a national team's page (specs/045,
-  // S5), so the #424 tests below keep asserting the three groups they were
-  // written for.
+  // Absent unless a test asks for it, as on a national team's page, so the
+  // group tests below keep asserting the three groups they describe.
   loadOpponents = vi.fn(async (): Promise<OpponentsSeries> => ({ status: "unavailable" })),
-  // Absent unless a test asks for it, for the same reason (specs/053 S9).
+  // Absent unless a test asks for it, for the same reason.
   loadElo = vi.fn(async (): Promise<EloPanelData> => ({ series: { status: "unavailable" } }))
 ) {
   const view = await AnalyticsSection({
@@ -148,7 +161,7 @@ beforeEach(() => {
   canSeeAnalytics.mockResolvedValue(true);
 });
 
-describe("the groups a page's axis names (specs/041, S13)", () => {
+describe("the groups a page's axis names", () => {
   it("names the middle group for the history it covers, and the last for years", async () => {
     const { container } = await renderSection(
       undefined,
@@ -188,11 +201,9 @@ describe("AnalyticsSection, signed out", () => {
   });
 
   it("never computes a chart, so the page carries no analytics value at all", async () => {
-    /**
-     * The gate comes before the data: hiding a chart in the browser would still
-     * send its values. Not calling the loaders is what guarantees they are not
-     * in the page.
-     */
+    // The gate comes before the data: hiding a chart in the browser would still
+    // send its values. Not calling the loaders is what guarantees they are not
+    // in the page.
     const {
       loadPosition,
       loadForm,
@@ -225,7 +236,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(section).toContainElement(screen.getByRole("region", { name: FORM_HEADING }));
     // `Nollapelit` is a running share plotted match by match, so it joins the
     // first group; `Koti- ja vierastilastot` summarises the season and heads
-    // the second. That swaps the two against the flat order before #424.
+    // the second.
     expect(subheadings).toEqual([
       POSITION_HEADING,
       FORM_HEADING,
@@ -271,7 +282,7 @@ describe("AnalyticsSection, signed in", () => {
     ]);
   });
 
-  it("puts each panel under its agreed group (#424)", async () => {
+  it("puts each panel under its agreed group", async () => {
     await renderSection();
     const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
 
@@ -309,7 +320,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.queryByText(SEASON_AXIS.otherHeading)).toBeNull();
   });
 
-  it("sits in a fold that starts open, like the match list (#416)", async () => {
+  it("sits in a fold that starts open, like the match list", async () => {
     const { container } = await renderSection();
     const details = container.querySelector("details");
 
@@ -338,7 +349,7 @@ describe("AnalyticsSection, signed in", () => {
   });
 });
 
-describe("the Vastustajat group (specs/045, S6)", () => {
+describe("the Vastustajat group", () => {
   const opponents: OpponentsSeries = {
     status: "ok",
     rows: [
@@ -402,7 +413,7 @@ describe("the Vastustajat group (specs/045, S6)", () => {
   });
 });
 
-describe("Joukkueen vahvuus (Elo) (specs/053 S9)", () => {
+describe("Joukkueen vahvuus (Elo)", () => {
   beforeEach(() => {
     canSeeAnalytics.mockReset().mockResolvedValue(true);
   });
