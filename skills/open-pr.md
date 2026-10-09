@@ -91,7 +91,8 @@ already, and #390 found two classes that had never been written down at all.
    `skills/self-review.md`, and the `code-review` skill at its lowest effort
    (`/code-review low` in Claude Code). It is the quick pass for what an
    author should have seen; the thorough one is Sourcery's. Fix what they find
-   before the push.
+   before the push. A later push repeats the pass on what it changed, as
+   `skills/self-review.md` says, and not the skill.
 6. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`) — never a bare mention like
@@ -167,8 +168,9 @@ already, and #390 found two classes that had never been written down at all.
      `Not applicable - chore` or `Not applicable - bug`
    - Write a one or two sentence summary of what was built
    - Tick the Checklist's box for the author's own review only when both
-     halves of step 5 were run on the diff as pushed, and write on that line
-     what they changed, or that they found nothing. Otherwise leave it
+     halves of step 5 were run on the diff as first pushed and the pass on
+     every change since, and write on that line what they changed, or that
+     they found nothing. Otherwise leave it
      unticked: a box that is visibly empty is what it is for
    - List the steps a reviewer should take to verify the feature works
 7. Verify Sourcery actually reviewed the commit that would be merged, before
@@ -192,8 +194,12 @@ already, and #390 found two classes that had never been written down at all.
 
    ```sh
    gh api "repos/:owner/:repo/pulls/<PR>/reviews" --paginate \
-     -q ".[]|select(.user.login==\"sourcery-ai[bot]\" and .commit_id==\"$HEAD\")|.body|split(\"\n\")[0]"
+     -q ".[]|select(.user.login==\"sourcery-ai[bot]\" and .commit_id==\"$HEAD\" and .state!=\"DISMISSED\")|.body|split(\"\n\")[0]"
    ```
+
+   A review of the head that someone dismissed is left out: it does not
+   count. `$HEAD` is the head as it was when the first query ran, so after a
+   push in between, run both again.
 
    | First line | What the head has |
    |---|---|
