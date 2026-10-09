@@ -7,6 +7,7 @@ import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_MODEL } from "@/lib/elo";
 import { HOME_BASELINE_MODEL } from "@/lib/home-baseline";
 import type { MatchSource } from "@/lib/match-source";
+import { POISSON_MODEL } from "@/lib/poisson";
 import type { CalibrationBin, QualityReport, RollingPoint } from "@/lib/prediction-quality";
 import {
   getPredictionQuality,
@@ -19,10 +20,11 @@ import { formatSeasonLabel } from "@/lib/seasons";
  * The page's strings.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 export const QUALITY_HEADING = "Ennusteiden osuvuus";
 export const QUALITY_INTRO =
-  "Kuinka usein perustaso ja Elo ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.";
+  "Kuinka usein perustaso, Elo ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.";
 export const BACKTEST_NOTE =
   "Jälkikäteen lasketut ennusteet on laskettu kustakin ottelusta vain sitä ennen pelattujen otteluiden perusteella.";
 export const ACCURACY_HEADING = "Osumatarkkuus";
@@ -33,7 +35,7 @@ export const BRIER_NOTE =
   "Brier-pistemäärä mittaa, kuinka kaukana ennustetut todennäköisyydet olivat toteutuneesta: 0 on täydellinen ja 2 huonoin.";
 export const LOG_LOSS_NOTE = "Log-loss rankaisee erityisesti varmoista virheistä.";
 export const YARDSTICK_NOTE =
-  "Kummassakin pienempi on parempi: Elo on parempi kuin perustaso, jos sen luku on pienempi.";
+  "Kummassakin pienempi on parempi: malli on sitä parempi, mitä pienempi sen luku on.";
 export const CALIBRATION_HEADING = "Kalibrointi";
 export const CALIBRATION_NOTE =
   "Hyvin kalibroitu malli osuu lävistäjälle: sen 70 prosentin ennusteista noin 70 % toteutuu.";
@@ -47,10 +49,12 @@ export const QUALITY_SIGNED_OUT = "Kirjaudu sisään nähdäksesi ennusteiden os
  * Each model's name on the page.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 export const MODEL_LABELS: Record<string, string> = {
   [HOME_BASELINE_MODEL]: "Perustaso",
   [ELO_MODEL]: "Elo",
+  [POISSON_MODEL]: "Poisson",
 };
 
 /**
@@ -63,11 +67,16 @@ export function modelLabel(model: string): string {
 }
 
 /**
- * The baseline is the yardstick, drawn dashed; every other model solid.
+ * How a model's line is told from the others: the baseline, the yardstick,
+ * dashed; Poisson dash-dotted; every other model solid.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
-const isDashed = (model: string) => model === HOME_BASELINE_MODEL;
+const lineStyle = (model: string) => ({
+  dashed: model === HOME_BASELINE_MODEL,
+  dashDotted: model === POISSON_MODEL,
+});
 
 /**
  * `Liukuvaan osumatarkkuuteen tarvitaan …`: fewer than 200 judged matches.
@@ -86,7 +95,7 @@ export function tooFewSentence(count: number): string {
 export function windowSentence(matches: number, firstYear: number, lastYear: number): string {
   const years =
     firstYear === lastYear ? `vuodelta ${firstYear}` : `vuosilta ${firstYear}–${lastYear}`;
-  return `${new Intl.NumberFormat("fi-FI").format(matches)} ottelua ${years}, joille molemmat mallit ovat antaneet ennusteen.`;
+  return `${new Intl.NumberFormat("fi-FI").format(matches)} ottelua ${years}, joille kaikki mallit ovat antaneet ennusteen.`;
 }
 
 /**
@@ -166,7 +175,7 @@ function RollingChart({
         labelledBy="quality-accuracy"
         series={lines.map((line) => ({
           name: line.model,
-          dashed: isDashed(line.model),
+          ...lineStyle(line.model),
           dots: false,
           points: line.points.map((point) => ({ x: point.at, y: point.accuracy })),
         }))}
@@ -180,10 +189,7 @@ function RollingChart({
         yTicks={yTicks}
       />
       <LineLegend
-        items={lines.map((line) => ({
-          label: modelLabel(line.model),
-          dashed: isDashed(line.model),
-        }))}
+        items={lines.map((line) => ({ label: modelLabel(line.model), ...lineStyle(line.model) }))}
       />
       <ul className="sr-only" id={textId}>
         {lines.map((line) => (
@@ -222,7 +228,7 @@ function CalibrationChart({
           },
           ...lines.map((line) => ({
             name: line.model,
-            dashed: isDashed(line.model),
+            ...lineStyle(line.model),
             points: drawn(line.bins).map((bin) => ({ x: bin.from + 5, y: bin.observed })),
           })),
         ]}
@@ -237,7 +243,7 @@ function CalibrationChart({
       <LineLegend
         items={[
           { label: PERFECT_LABEL, dotted: true },
-          ...lines.map((line) => ({ label: modelLabel(line.model), dashed: isDashed(line.model) })),
+          ...lines.map((line) => ({ label: modelLabel(line.model), ...lineStyle(line.model) })),
         ]}
       />
       <ul className="sr-only" id={textId}>
