@@ -28,3 +28,103 @@ implementation had to decide something the spec did not.
 | `/ennusteet`'s cache key | `quality:v2:<provider>:<kind>` | A report cached under `v1` has two models; the page would show it for up to 15 minutes after a deploy. |
 | `/ennusteet` right after a deploy | Shows `Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.` until the backtest has been run in that environment | Only matches all three models predicted are judged (S18), and `poisson-v1` has no rows until `npm run predictions -- backtest` has run. The same step as after specs/053. |
 | `Ennakkoon tehdyt` after this ships | Judges only matches kicked off since `poisson-v1` began logging | The same rule: an earlier live match has no `poisson-v1` row. The backtested figures are unaffected. |
+
+## What the tests prove, and how
+
+- **Every mutation below was caught**, one row each, so the count is the
+  table's length:
+
+  | # | Mutation |
+  |---|---|
+  | 1 | The decay per day changed |
+  | 2 | The 1 500-day horizon changed |
+  | 3 | The one-match prior changed |
+  | 4 | The grid cut at nine goals |
+  | 5 | Placeholder fitted |
+  | 6 | Placeholder home only checked in fit |
+  | 7 | Grid: draw factor on every cell |
+  | 8 | Grid: not renormalised |
+  | 9 | Grid transposed |
+  | 10 | Outcomes: home and away swapped |
+  | 11 | Score: tie rule dropped |
+  | 12 | Score: tie takes later cell |
+  | 13 | Score: smallest cell |
+  | 14 | Draw factor: S14 guard none |
+  | 15 | Draw factor: S14 guard all |
+  | 16 | Draw factor: search inverted |
+  | 17 | Window: today's matches read |
+  | 18 | Window: no horizon |
+  | 19 | Window: horizon exclusive |
+  | 20 | Predict: placeholder away predicted |
+  | 21 | Predict: draw factor ignored |
+  | 22 | Replay: same-day matches inform |
+  | 23 | Replay: window start never advances |
+  | 24 | Replay: id order ignored |
+  | 25 | Backtest: providers mixed |
+  | 26 | Backtest: wrong model |
+  | 27 | Live row: sides swapped |
+  | 28 | Live row: kind backtest |
+  | 29 | Run: fit failure unreported |
+  | 30 | Run: fit failure unlogged |
+  | 31 | Run: fit today's matches too |
+  | 32 | Run: providers fitted together |
+  | 33 | Run: no poisson live row |
+  | 34 | Backtest run: no poisson rows |
+  | 35 | Service: ttl changed |
+  | 36 | Service: reads both providers |
+  | 37 | Service: key not per provider |
+  | 38 | Service: tomorrow's fit |
+  | 39 | Service: failure unlogged |
+  | 40 | Service: defence lost through cache |
+  | 41 | Ennuste: failure line hidden |
+  | 42 | Ennuste: no Poisson row |
+  | 43 | Ennuste: Poisson line missing |
+  | 44 | Ennuste: competition ignored |
+  | 45 | Ennuste: sides swapped |
+  | 46 | Ennuste: fit read signed out |
+  | 47 | Sentence: score probability not a percentage |
+  | 48 | Sentence: goals swapped |
+  | 49 | Quality: Poisson drawn dashed |
+  | 50 | Quality: Elo dash-dotted |
+  | 51 | Quality: no Poisson label |
+  | 52 | Quality: Poisson not judged |
+  | 53 | Quality: cache key v1 |
+  | 54 | Chart: dash-dot drawn dashed |
+  | 55 | Chart: dash-dot pattern changed |
+  | 56 | Chart: no data-dash-dotted |
+  | 57 | Weights ignored |
+  | 58 | Predict: no home advantage |
+  | 59 | Predict: sides' strengths swapped |
+  | 60 | Predict: unknown team not average |
+  | 61 | Replay: kickoff order ignored |
+  | 62 | Backtest: home/away swapped |
+  | 63 | Fit: home advantage never updated |
+  | 64 | Fit: attacks credited to the away side |
+  | 65 | Fit: defences credited to the home side |
+  | 66 | Fit: one sweep only |
+  | 67 | Fit: home advantage left out of a side's expectation |
+  | 68 | Fit: side prior is the rate prior |
+  | 69 | Fit: base prior is the side prior |
+  | 70 | Fit: base rate from home goals only |
+  | 71 | Draw share counts every match |
+  | 72 | Draw factor: always 1 in fit |
+  | 73 | Draw factor: home advantage left out |
+
+- **Two first survived and were closed with a test**: the replay sorted by
+  match id alone (61: the test's ids happened to follow its kickoffs; they now
+  disagree) and the base rate's prior changed (69: only the home advantage's
+  was asserted; the base rate's balance now is too).
+- **Three survive, as they must.** A fit started from another home advantage,
+  or from no warm base rates, ends in the same place: that is what "warm start
+  changes the speed only" means. And a match's age counted in whole days
+  rather than to the minute moves a strength by less than the fit's own
+  tolerance.
+- **Integration**, against Postgres: the backtest's `poisson-v1` rows for
+  three seeded matches between one pair, compared with a fit of the same
+  scores made by hand, the stored 5–4 shoot-out read as the 1–1 it was; the
+  hourly run writing one `poisson-v1` row beside the other two; and
+  `/ennusteet`'s read leaving out a match `poisson-v1` has no row for.
+- **End to end**: the seeded upcoming match shows `Perustaso`, `Elo` and
+  `Poisson` rows and the Poisson line; `/ennusteet` judges three models, with
+  three rows, three columns and four calibration lines; signed out, neither
+  page carries a value or the word `Poisson`.
