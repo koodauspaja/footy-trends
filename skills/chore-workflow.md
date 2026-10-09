@@ -135,8 +135,8 @@ Workflow
     every changed path is on that document's short allowlist of unreviewable
     files (documentation and workflows are **not** on it), unresolved review
     threads must be read immediately before merging, and the quick check
-    after a push is not a full review: the first line of the review body for
-    the head says which one it has. Either Miikka or Kalle may be the
+    after a push is not a full review: `npm run check:sourcery -- <PR>` says
+    which one the head has, and must exit 0. Either Miikka or Kalle may be the
     reviewer.
 
 Important rules

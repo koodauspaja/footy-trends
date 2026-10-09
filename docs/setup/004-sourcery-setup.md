@@ -133,8 +133,9 @@ read the same for both. So `APPROVED` on the head does not say which of the
 two it is; only the body does. A push can also get a green check-run and
 nothing on the reviews API (#558 `c67b89c`).
 
-`skills/open-pr.md` step 7 has the query that reads the first line, and step 9
-says when a full review is required. To get one of the final state, comment
+`npm run check:sourcery -- <PR>` reads the first line and says which the head
+has (`skills/open-pr.md` step 7), and step 9 says when a full review is
+required. To get one of the final state, comment
 `@sourcery-ai review` on the PR, with nothing else in the comment.
 
 ### Three separate things cause a skip
