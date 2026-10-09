@@ -6,9 +6,13 @@
 > #352 (model against model) and #353 (per competition) are named in Q2 and
 > Q10.
 
-> **A third model since:** specs/055 S18 adds `poisson-v1` to this page. Where
-> this spec says "both models", names two in a string or counts two lines,
-> specs/055's UX / UI section is what the page does now.
+> **Superseded in part by specs/055 (S18), which adds `poisson-v1` to this
+> page.** The models judged are the three in specs/055, not the two named
+> here. Every requirement, edge case, acceptance criterion and string below
+> that says "both models", lists `home-baseline-v1` and `elo-v1`, or counts two
+> lines or columns, reads as all the models judged; the strings are specs/055's
+> UX / UI section. "Any new model" under Out of scope was this feature's own
+> scope, not a limit on later ones.
 
 ## Summary
 

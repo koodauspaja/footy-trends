@@ -117,6 +117,7 @@ implementation had to decide something the spec did not.
   | 76 | Backtest: only one provider's report dropped |
   | 77 | Replay: same-day matches inform, against the backtest's own test |
   | 78 | Backtest: cached report kept when the write fails |
+  | 79 | Backtest: reports dropped before the write has ended |
 
 - **Two first survived and were closed with a test**: the replay sorted by
   match id alone (61: the test's ids happened to follow its kickoffs; they now

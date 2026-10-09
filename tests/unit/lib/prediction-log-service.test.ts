@@ -524,29 +524,32 @@ describe("runPredictionBacktest", () => {
   });
 
   it("drops both providers' cached backtest reports once the rows are written, and no live one", async () => {
-    let written = false;
-    mocks.onConflictDoUpdate.mockImplementation(async () => {
-      written = true;
-    });
-    const writtenWhenDropped: boolean[] = [];
-    mocks.invalidateCache.mockImplementation(async () => {
-      writtenWhenDropped.push(written);
-      return true;
-    });
     mocks.select
       .mockResolvedValueOnce([
         { code: "PL", ...played(1, 2, 0) },
         { code: "PL", ...played(2, 1, 1) },
       ])
       .mockResolvedValueOnce([]);
+    // The write is held open: nothing may be dropped until it has ended.
+    let finishWrite = () => {};
+    mocks.onConflictDoUpdate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      })
+    );
 
-    await runPredictionBacktest(NOW);
+    const run = runPredictionBacktest(NOW);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.invalidateCache).not.toHaveBeenCalled();
+
+    finishWrite();
+    await run;
 
     expect(mocks.invalidateCache.mock.calls).toEqual([
       ["quality:v2:football-data:backtest"],
       ["quality:v2:taso:backtest"],
     ]);
-    expect(writtenWhenDropped).toEqual([true, true]);
   });
 
   it("still answers with the rows written when a cached report cannot be dropped", async () => {
