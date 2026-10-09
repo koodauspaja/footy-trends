@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
 import { signIn, signOut, useSession } from "@/lib/auth-client";
+import { reportClientError } from "@/lib/report-client-error";
 import { ERROR_PARAM, returnPath, withError } from "@/lib/return-path";
 import { avatarSourceOf, isAdminSession } from "@/lib/session-extras";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
@@ -86,7 +87,10 @@ function AuthButtons() {
             })
             // Fails before any redirect happens — our own route being
             // unreachable, not Google refusing.
-            .catch(() => report("auth"));
+            .catch((error: unknown) => {
+              reportClientError(error, "sign-in.header");
+              report("auth");
+            });
         }}
         type="button"
       >
@@ -108,9 +112,13 @@ function AuthButtons() {
         // `then(onFulfilled, onRejected)`, so a throw inside `clearError` is not
         // reported as a failed sign-out; the terminal `catch` keeps it from escaping.
         signOut()
-          .then(clearError, () => report("signout"))
-          .catch(() => {
-            /* The URL rewrite failed; the stale notice stays. Nothing to say. */
+          .then(clearError, (error: unknown) => {
+            reportClientError(error, "sign-out");
+            report("signout");
+          })
+          .catch((error: unknown) => {
+            // The URL rewrite failed; the stale notice stays. Nothing to tell the reader.
+            reportClientError(error, "sign-out.notice");
           });
       }}
     />

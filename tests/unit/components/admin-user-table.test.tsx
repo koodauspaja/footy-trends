@@ -18,6 +18,14 @@ const { promoteUserAction, demoteUserAction, deleteUserAction } = vi.hoisted(() 
   deleteUserAction: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/admin-actions", () => ({
   promoteUserAction,
   demoteUserAction,
@@ -213,6 +221,7 @@ describe("refusals reach the reader, in Finnish", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Toiminto epäonnistui. Yritä uudelleen."
     );
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "admin.user-write");
   });
 
   it("clears a previous refusal when another action is tried", async () => {

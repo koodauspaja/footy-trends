@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
+import { reportClientError } from "@/lib/report-client-error";
 import { returnPath, withError } from "@/lib/return-path";
 
 /**
@@ -35,7 +36,10 @@ export function SignInPrompt({
             })
             // Reported through the same `?error=` channel Google's own failures use, so
             // the header's notice renders it.
-            .catch(() => router.replace(withError(pathname, searchParams, "auth")));
+            .catch((error: unknown) => {
+              reportClientError(error, "sign-in.prompt");
+              router.replace(withError(pathname, searchParams, "auth"));
+            });
         }}
         type="button"
       >

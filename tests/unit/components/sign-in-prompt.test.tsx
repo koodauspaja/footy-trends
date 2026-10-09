@@ -16,6 +16,14 @@ const { socialSignIn, pathname, search, replace } = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({ signIn: { social: socialSignIn } }));
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname.current,
@@ -98,6 +106,7 @@ describe("SignInPrompt", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu sisään" }));
 
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/asetukset?error=auth"));
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sign-in.prompt");
   });
 
   it("leaves the URL alone when sign-in starts normally", async () => {

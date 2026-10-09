@@ -22,6 +22,14 @@ const { sessionState, socialSignIn, signOut, searchParams, pathname, replace } =
   replace: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => sessionState.current,
   signIn: { social: socialSignIn },
@@ -184,6 +192,7 @@ describe("a failed request is reported, not dropped", () => {
 
     // Same page, not the front page: the reader keeps their place.
     expect(replace).toHaveBeenCalledWith("/kotimaa/ottelut?error=signout");
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sign-out");
   });
 
   it("reports a sign-in that never reached Google", async () => {
@@ -195,6 +204,7 @@ describe("a failed request is reported, not dropped", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalled());
 
     expect(replace).toHaveBeenCalledWith("/ulkomaat?error=auth");
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sign-in.header");
   });
 
   it("keeps the query the reader already had", async () => {
@@ -364,6 +374,7 @@ describe("a URL rewrite that itself fails", () => {
     // told the reader their sign-out failed, which it did not.
     expect(replace).toHaveBeenCalledTimes(1);
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sign-out.notice");
   });
 });
 

@@ -35,6 +35,14 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
   removeAvatarAction: vi.fn<() => Promise<{ ok: boolean }>>(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
 vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
 // Wrapped, so the component gets a promise of its own: a mock handles the
@@ -176,6 +184,7 @@ describe("preferences", () => {
         "Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan."
       )
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "settings.save.refetch");
   });
 
   it("does not refresh the session when the save failed", async () => {
@@ -348,6 +357,7 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "settings.save");
   });
 
   it("still reports a failed sign-out of other devices", async () => {
@@ -359,6 +369,7 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Uloskirjaus epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "sessions.sign-out-others");
   });
 
   it("still reports a failed deletion, and does not navigate away", async () => {
@@ -373,6 +384,7 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Tilin poistaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "account.delete");
   });
 });
 
@@ -617,6 +629,7 @@ describe("Profiilikuva", () => {
     expect(
       screen.queryByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")
     ).not.toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "avatar.save");
   });
 
   it("falls back to the Google picture when the reader removes their own", async () => {
@@ -649,6 +662,10 @@ describe("Profiilikuva", () => {
 
         await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
         expect(screen.getByText(notice)).toBeInTheDocument();
+        expect(reportClientError).toHaveBeenCalledWith(
+          expect.any(Error),
+          current === null ? "avatar.save.refetch" : "avatar.remove.refetch"
+        );
         // Node reports a rejection nobody handled once the current tasks are done.
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(unhandled).not.toHaveBeenCalled();
@@ -697,5 +714,6 @@ describe("Profiilikuva", () => {
         screen.getByText("Kuvan poistaminen epäonnistui. Yritä uudelleen.")
       ).toBeInTheDocument()
     );
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "avatar.remove");
   });
 });

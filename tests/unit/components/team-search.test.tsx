@@ -16,6 +16,14 @@ const { sessionState, searchTeamsAction } = vi.hoisted(() => ({
   searchTeamsAction: vi.fn(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/auth-client", () => ({ useSession: () => sessionState.current }));
 vi.mock("@/lib/team-search-actions", () => ({ searchTeamsAction }));
 
@@ -108,6 +116,7 @@ describe("TeamSearch", () => {
     await search();
 
     expect(await screen.findByText("Haku epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "team-search");
   });
 
   it("tells an expired session to try again rather than showing nothing", async () => {

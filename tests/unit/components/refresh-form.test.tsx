@@ -25,6 +25,14 @@ const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
   };
 });
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/refresh-actions", () => ({
   seasonsForCompetitionAction: seasonsAction,
   previewRefreshAction: previewAction,
@@ -159,6 +167,7 @@ describe("the season picker", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Kausien haku epäonnistui.").length).toBeGreaterThan(0)
     );
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "refresh.seasons");
   });
 
   it("says so when the app holds no seasons for this competition", async () => {
@@ -315,6 +324,7 @@ describe("a request that rejects rather than refuses", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Pyyntö epäonnistui. Yritä uudelleen.")
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "refresh.request");
   });
 
   it("tells the admin when the apply request fails outright", async () => {
@@ -390,6 +400,7 @@ describe("a slow preview", () => {
     await act(async () => {
       rejectPreview(new Error("too late"));
     });
+    expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "refresh.request");
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

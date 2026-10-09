@@ -10,6 +10,7 @@ import {
 } from "@/lib/favourite-actions";
 import type { FavouriteSource } from "@/lib/favourite-keys";
 import type { RegionSegment } from "@/lib/regions";
+import { reportClientError } from "@/lib/report-client-error";
 
 /**
  * `/suosikit` for a signed-in reader. The lists arrive resolved from the
@@ -83,7 +84,8 @@ export function FavouritesPage({ teams, competitions }: Props) {
         } else {
           setFailed(true);
         }
-      } catch {
+      } catch (error) {
+        reportClientError(error, "favourites.remove");
         setFailed(true);
       }
     });
