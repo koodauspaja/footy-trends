@@ -142,6 +142,57 @@ years, a fit per match day (577 of them), on a laptop:
 About ten sweeps a warm fit instead of about 250, for a difference in the
 fifth decimal. A cold fit of the last 1 500 days took 46 ms.
 
+**Staging and production**, read-only, on 2026-10-10: every finished match
+read, the three backtests computed in memory and scored with specs/054's own
+module on the matches all three models predicted, on specs/054's window.
+Nothing was written. `Plain` is `poisson-v1` without its draw factor, computed
+beside it; `#515` is the prototype's `dc-strengths`, which had none.
+
+| Staging | Matches | Baseline | Elo | Poisson | Plain | #515 |
+|---|---|---|---|---|---|---|
+| TASO, accuracy | 15 382 | 46,2 % | 52,9 % | 56,1 % | 56,1 % | 56,1 % |
+| TASO, Brier | | 0,6238 | 0,5861 | 0,5626 | 0,5625 | 0,5624 |
+| TASO, log-loss | | 1,0283 | 0,9810 | 0,9530 | 0,9535 | 0,9533 |
+| football-data, accuracy | 11 142 | 43,8 % | 49,9 % | 51,0 % | 50,9 % | 50,8 % |
+| football-data, Brier | | 0,6520 | 0,6135 | 0,6004 | 0,6003 | 0,6003 |
+| football-data, log-loss | | 1,0855 | 1,0272 | 1,0058 | 1,0054 | 1,0054 |
+
+| Production | Matches | Baseline | Elo | Poisson | Plain |
+|---|---|---|---|---|---|
+| TASO, Brier | 15 468 | 0,6237 | 0,5860 | 0,5625 | 0,5625 |
+| TASO, log-loss | | 1,0280 | 0,9809 | 0,9529 | 0,9535 |
+| football-data, Brier | 11 160 | 0,6520 | 0,6135 | 0,6004 | 0,6003 |
+| football-data, log-loss | | 1,0854 | 1,0272 | 1,0058 | 1,0055 |
+
+- **The acceptance criterion holds.** On staging, the same 15 382 and 11 142
+  matches #515 judged, the model without its draw factor gives #515's Brier to
+  the fourth decimal for football-data and one unit off in it for TASO; with
+  the factor, 0,0002 and 0,0001 from #515's. The differences this record
+  lists (a tolerance instead of three sweeps, a team outside the window
+  average, half a goal of prior on the home advantage, no prediction without a
+  base rate) are together worth that.
+- **The draw factor neither helps nor hurts.** Brier moves by 0,0001 either
+  way; log-loss is 0,0005 better for TASO and 0,0004 worse for football-data.
+  It is kept because S6 and S16 specify it. The fitted strengths already draw
+  about as often as the competitions do: Veikkausliiga's factor is 1,008, the
+  Premier League's 1,118, and the furthest are the youth leagues' (0,66 to
+  0,80) and the Bundesliga's and Eredivisie's (1,30).
+- **Poisson has the lower Brier than Elo in every season of both providers**;
+  the closest is TASO 2026, 0,5905 against 0,5907.
+
+| Cost, from a laptop | TASO | football-data |
+|---|---|---|
+| Reading every finished match, both providers | 450 ms | |
+| One cold fit, as the page's cache miss and the hourly run make | 79 ms, 237 teams | 122 ms, 256 teams |
+| The whole backtest, a fit per match day | 20,7 s, 1 851 days | 11,4 s, 859 days |
+| The cached fit | 14 KB | 14 KB |
+
+The backtest is slower than #515's 12 s and 8 s: its fits run to the tolerance
+and each computes its competitions' draw factors. It is a command run by hand
+after a deploy. S11's design holds: a page's cache miss is one read and one
+fit, about half a second from a laptop and less inside Railway, once per
+provider per 15 minutes.
+
 **The local test database**, which holds a part of the history (3 440
 finished matches, with whole seasons missing), the backtest computed in memory
 and scored with specs/054's module on the matches all three models predicted.
@@ -155,9 +206,9 @@ and scored with specs/054's module on the matches all three models predicted.
 | football-data, log-loss | | 1,1080 | 1,0320 | 1,0162 | 1,0154 |
 
 A cold fit took 28 ms (TASO, 54 teams) and 53 ms (football-data, 117 teams),
-the whole replay 0,6 s and 1,1 s, and the cached fit is 3 KB and 6 KB. These
-are not specs/055's figures: that check is the same computation on staging,
-whose history is whole.
+the whole replay 0,6 s and 1,1 s, and the cached fit is 3 KB and 6 KB. With
+so little history the draw factor cost TASO 0,0012 of Brier, which the whole
+history above does not bear out.
 
 Screenshots at 375 px and 1 280 px, light and dark, of `Ennuste` on an upcoming
 Veikkausliiga match and of `/ennusteet` (`Ulkomaat`, 1 949 matches, three
