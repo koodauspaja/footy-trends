@@ -5,6 +5,7 @@ import { matches, tasoMatches } from "@/db/schema";
 import { competitionNameFor } from "@/lib/competition-preferences";
 import type { FavouriteSource } from "@/lib/favourite-keys";
 import { resolveTeamNames } from "@/lib/favourites";
+import { PLACEHOLDER_TEAM_ID } from "@/lib/match-detail";
 import type { RegionSegment } from "@/lib/regions";
 
 /**
@@ -97,14 +98,6 @@ export type TeamSearchView = {
  * decisions/027-team-search.md
  */
 type Hit = { source: FavouriteSource; teamProviderId: number; kickoffAt: Date };
-
-/**
- * TASO's placeholder for a bracket slot nobody has qualified into yet, and the
- * one stored team with no name. Neither is a team a reader can open.
- *
- * decisions/027-team-search.md
- */
-const PLACEHOLDER_TEAM_ID = 0;
 
 export async function searchTeams(term: string): Promise<TeamSearchView[]> {
   if (!isSearchable(term)) return [];

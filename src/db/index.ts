@@ -46,12 +46,21 @@ export const db: Database = new Proxy({} as Database, {
 });
 
 /**
+ * The transaction handle drizzle hands `db.transaction`.
+ *
+ * decisions/026-favourites.md
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/532-one-transaction-type-one-round-dropdown.md
+ */
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
  * The database, or a transaction on it. Writers take this and never reach for
  * the module-level `db`, so a write joins the transaction its caller opened.
  *
  * decisions/029-forced-season-refresh.md
  */
-export type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Executor = typeof db | Transaction;
 
 /**
  * How long a close may take before the driver drops what is left.

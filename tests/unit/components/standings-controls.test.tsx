@@ -8,6 +8,7 @@ import type { Competition } from "@/lib/competitions";
  *
  * decisions/003-standings-after-selected-round.md
  * decisions/006-other-competitions.md
+ * decisions/532-one-transaction-type-one-round-dropdown.md
  */
 
 const pushMock = vi.fn();
@@ -139,6 +140,48 @@ describe("StandingsControls", () => {
     );
 
     expect(screen.getByLabelText("Kierros")).toHaveValue("");
+  });
+
+  it("shows the round the page was re-rendered with, as after the browser's Back button", () => {
+    const { rerender } = render(
+      <StandingsControls
+        basePath="/ulkomaat"
+        competitions={competitions}
+        selectedCompetitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={3}
+      />
+    );
+
+    rerender(
+      <StandingsControls
+        basePath="/ulkomaat"
+        competitions={competitions}
+        selectedCompetitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={undefined}
+      />
+    );
+
+    expect(screen.getByLabelText("Kierros")).toHaveValue("");
+
+    rerender(
+      <StandingsControls
+        basePath="/ulkomaat"
+        competitions={competitions}
+        selectedCompetitionCode="PL"
+        seasons={seasons}
+        selectedSeasonId={2025}
+        availableRounds={[1, 2, 3]}
+        selectedRound={2}
+      />
+    );
+
+    expect(screen.getByLabelText("Kierros")).toHaveValue("2");
   });
 
   it("navigates to the chosen competition, keeping the current season and round", () => {

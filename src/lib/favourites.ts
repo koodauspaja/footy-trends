@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type Transaction } from "@/db";
 import { favoriteCompetition, favoriteTeam, matches, tasoMatches, user } from "@/db/schema";
 import { regionOfCompetition } from "@/lib/competitions";
 import {
@@ -18,13 +18,6 @@ import type { RegionSegment } from "@/lib/regions";
  *
  * decisions/026-favourites.md
  */
-
-/**
- * The transaction handle drizzle hands `db.transaction`.
- *
- * decisions/026-favourites.md
- */
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type Favourites = { teams: string[]; competitions: string[] };
 

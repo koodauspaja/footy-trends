@@ -7,6 +7,7 @@ import { TasoStandingsControls } from "@/components/taso-standings-controls";
  *
  * decisions/009-veikkausliiga.md
  * decisions/015-finnish-cups.md
+ * decisions/532-one-transaction-type-one-round-dropdown.md
  */
 
 const pushMock = vi.fn();
@@ -58,6 +59,30 @@ describe("TasoStandingsControls", () => {
     expect(pushMock).toHaveBeenCalledWith(
       "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2025&kierros=2"
     );
+  });
+
+  it("shows the round the page was re-rendered with, as after the browser's Back button", () => {
+    const { rerender } = render(
+      <TasoStandingsControls
+        competitionCode="VL"
+        seasons={seasons}
+        selectedSeasonId={2026}
+        availableRounds={[1, 2]}
+        selectedRound={2}
+      />
+    );
+
+    rerender(
+      <TasoStandingsControls
+        competitionCode="VL"
+        seasons={seasons}
+        selectedSeasonId={2026}
+        availableRounds={[1, 2]}
+        selectedRound={1}
+      />
+    );
+
+    expect(screen.getByLabelText("Kierros")).toHaveValue("1");
   });
 
   it("navigates with kierros removed when 'Koko kausi' is chosen", () => {
