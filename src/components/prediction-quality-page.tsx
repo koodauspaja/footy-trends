@@ -4,15 +4,23 @@ import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
+import { getCompetitionName } from "@/lib/competitions";
+import { getDomesticCompetitionName } from "@/lib/domestic-competitions";
 import { ELO_MODEL } from "@/lib/elo";
 import { HOME_BASELINE_MODEL } from "@/lib/home-baseline";
 import type { MatchSource } from "@/lib/match-source";
 import { POISSON_MODEL } from "@/lib/poisson";
-import type { CalibrationBin, QualityReport, RollingPoint } from "@/lib/prediction-quality";
+import {
+  type CalibrationBin,
+  type QualityReport,
+  type RollingPoint,
+  SCORE_DECIMALS,
+} from "@/lib/prediction-quality";
 import {
   getPredictionQuality,
   type PredictionKind,
   type QualityResult,
+  qualityCompetitions,
 } from "@/lib/prediction-quality-service";
 import { formatSeasonLabel } from "@/lib/seasons";
 
@@ -21,6 +29,7 @@ import { formatSeasonLabel } from "@/lib/seasons";
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 export const QUALITY_HEADING = "Ennusteiden osuvuus";
 export const QUALITY_INTRO =
@@ -44,6 +53,10 @@ export const PERFECT_LABEL = "Täydellinen kalibrointi";
 export const QUALITY_ERROR = "Ennusteiden osuvuutta ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const NO_JUDGED = "Ennusteita, joiden ottelu on jo pelattu, ei ole vielä.";
 export const QUALITY_SIGNED_OUT = "Kirjaudu sisään nähdäksesi ennusteiden osuvuuden.";
+export const BY_COMPETITION_HEADING = "Kilpailuittain";
+export const BY_COMPETITION_NOTE =
+  "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi.";
+export const ALL_COMPETITIONS_LINK = "Kaikki kilpailut";
 
 /**
  * Each model's name on the page.
@@ -88,6 +101,13 @@ export function tooFewSentence(count: number): string {
 }
 
 /**
+ * `1 520`: a count of matches, as Finnish groups its thousands.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+const matchCount = new Intl.NumberFormat("fi-FI");
+
+/**
  * The window line, from the data.
  *
  * decisions/054-prediction-quality.md
@@ -95,7 +115,16 @@ export function tooFewSentence(count: number): string {
 export function windowSentence(matches: number, firstYear: number, lastYear: number): string {
   const years =
     firstYear === lastYear ? `vuodelta ${firstYear}` : `vuosilta ${firstYear}–${lastYear}`;
-  return `${new Intl.NumberFormat("fi-FI").format(matches)} ottelua ${years}, joille kaikki mallit ovat antaneet ennusteen.`;
+  return `${matchCount.format(matches)} ottelua ${years}, joille kaikki mallit ovat antaneet ennusteen.`;
+}
+
+/**
+ * `Näytetään vain kilpailu …`: the page counts one competition's matches.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function filteredSentence(name: string): string {
+  return `Näytetään vain kilpailu ${name}.`;
 }
 
 /**
@@ -103,30 +132,47 @@ export function windowSentence(matches: number, firstYear: number, lastYear: num
  *
  * decisions/054-prediction-quality.md
  */
-const score = (value: number) => formatDecimal(value, 3);
+const score = (value: number) => formatDecimal(value, SCORE_DECIMALS);
 
 /**
- * The page's parameters, as Next gives them: `alue` and `tyyppi`, the defaults
- * `kotimaa` and backtest. A repeated one is an array, and falls back.
+ * The page's parameters, as Next gives them: `alue`, `tyyppi` and `kilpailu`,
+ * the defaults `kotimaa`, backtest and every competition. A repeated one is an
+ * array, and falls back, as does a `kilpailu` that is not one of the
+ * provider's compared competitions.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export type QualityParams = Record<string, string | string[] | undefined>;
 
 export function parseQualityParams(params: QualityParams): {
   source: MatchSource["kind"];
   kind: PredictionKind;
+  competition: string | null;
 } {
+  const source = params.alue === "ulkomaat" ? "football-data" : "taso";
+  const named = params.kilpailu;
   return {
-    source: params.alue === "ulkomaat" ? "football-data" : "taso",
+    source,
     kind: params.tyyppi === "ennakkoon" ? "live" : "backtest",
+    competition:
+      typeof named === "string" && qualityCompetitions(source).includes(named) ? named : null,
   };
 }
 
-function hrefFor(source: MatchSource["kind"], kind: PredictionKind): string {
+function hrefFor(
+  source: MatchSource["kind"],
+  kind: PredictionKind,
+  competition: string | null = null
+): string {
   const regionSlug = source === "taso" ? "kotimaa" : "ulkomaat";
   const kindSlug = kind === "backtest" ? "jalkikateen" : "ennakkoon";
-  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}`;
+  const filter = competition === null ? "" : `&kilpailu=${competition}`;
+  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}${filter}`;
+}
+
+function competitionName(source: MatchSource["kind"], code: string): string {
+  return source === "taso" ? getDomesticCompetitionName(code) : getCompetitionName(code);
 }
 
 function Switch({
@@ -259,14 +305,69 @@ function CalibrationChart({
   );
 }
 
-function Report({
+function CompetitionTable({
   report,
   source,
   kind,
+  competition,
 }: Readonly<{
   report: Extract<QualityReport, { status: "ok" }>;
   source: MatchSource["kind"];
   kind: PredictionKind;
+  competition: string | null;
+}>) {
+  return (
+    <table className="text-sm">
+      <thead>
+        <tr className="border-border border-b text-muted">
+          <th className="py-2 pr-4 text-left font-medium" scope="col">
+            Kilpailu
+          </th>
+          <th className="py-2 pl-4 text-right font-medium" scope="col">
+            Ottelut
+          </th>
+          {report.models.map((model) => (
+            <th className="py-2 pl-4 text-right font-medium" key={model} scope="col">
+              {modelLabel(model)}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {report.competitions.map((row) => (
+          <tr className="border-border border-b" key={row.code}>
+            <th className="py-2 pr-4 text-left font-normal" scope="row">
+              <SameRouteLink
+                aria-current={row.code === competition ? "page" : undefined}
+                className={row.code === competition ? "font-semibold" : "underline"}
+                href={hrefFor(source, kind, row.code)}
+              >
+                {competitionName(source, row.code)}
+              </SameRouteLink>
+            </th>
+            <td className="py-2 pl-4 text-right tabular-nums">{matchCount.format(row.matches)}</td>
+            {row.brier.map((value, index) => (
+              <td className="py-2 pl-4 text-right tabular-nums" key={report.models[index]}>
+                {row.best[index] ? <strong>{score(value)}</strong> : score(value)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Report({
+  report,
+  source,
+  kind,
+  competition,
+}: Readonly<{
+  report: Extract<QualityReport, { status: "ok" }>;
+  source: MatchSource["kind"];
+  kind: PredictionKind;
+  competition: string | null;
 }>) {
   return (
     <div>
@@ -358,6 +459,11 @@ function Report({
         <p className="mt-2 text-muted text-sm">{CALIBRATION_NOTE}</p>
         {report.binsOmitted ? <p className="mt-1 text-muted text-sm">{BINS_OMITTED_NOTE}</p> : null}
       </ChartPanel>
+
+      <ChartPanel heading={BY_COMPETITION_HEADING} headingId="quality-competitions">
+        <CompetitionTable competition={competition} kind={kind} report={report} source={source} />
+        <p className="mt-2 text-muted text-sm">{BY_COMPETITION_NOTE}</p>
+      </ChartPanel>
     </div>
   );
 }
@@ -366,21 +472,28 @@ function Body({
   result,
   source,
   kind,
-}: Readonly<{ result: QualityResult; source: MatchSource["kind"]; kind: PredictionKind }>) {
+  competition,
+}: Readonly<{
+  result: QualityResult;
+  source: MatchSource["kind"];
+  kind: PredictionKind;
+  competition: string | null;
+}>) {
   if (result.status === "error") return <p className="mt-4">{QUALITY_ERROR}</p>;
   if (result.status === "empty") return <p className="mt-4">{NO_JUDGED}</p>;
-  return <Report kind={kind} report={result} source={source} />;
+  return <Report competition={competition} kind={kind} report={result} source={source} />;
 }
 
 /**
  * `/ennusteet`: the models judged against the results, one
- * provider and one kind at a time. Signed in only, the gate asked
- * before anything is read.
+ * provider and one kind at a time, over all its competitions or one. Signed in
+ * only, the gate asked before anything is read.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export async function PredictionQualityPage({ params }: Readonly<{ params: QualityParams }>) {
-  const { source, kind } = parseQualityParams(params);
+  const { source, kind, competition } = parseQualityParams(params);
   if (!(await canSeeAnalytics())) {
     return (
       <PageShell heading={QUALITY_HEADING}>
@@ -388,7 +501,7 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       </PageShell>
     );
   }
-  const result = await getPredictionQuality(source, kind);
+  const result = await getPredictionQuality(source, kind, competition);
   return (
     <PageShell heading={QUALITY_HEADING}>
       <p className="mb-4">{QUALITY_INTRO}</p>
@@ -407,14 +520,26 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
           options={[
             {
               label: "Jälkikäteen lasketut",
-              href: hrefFor(source, "backtest"),
+              href: hrefFor(source, "backtest", competition),
               current: kind === "backtest",
             },
-            { label: "Ennakkoon tehdyt", href: hrefFor(source, "live"), current: kind === "live" },
+            {
+              label: "Ennakkoon tehdyt",
+              href: hrefFor(source, "live", competition),
+              current: kind === "live",
+            },
           ]}
         />
       </div>
-      <Body kind={kind} result={result} source={source} />
+      {competition === null ? null : (
+        <p className="mt-4 text-sm">
+          {filteredSentence(competitionName(source, competition))}{" "}
+          <SameRouteLink className="underline" href={hrefFor(source, kind)}>
+            {ALL_COMPETITIONS_LINK}
+          </SameRouteLink>
+        </p>
+      )}
+      <Body competition={competition} kind={kind} result={result} source={source} />
     </PageShell>
   );
 }

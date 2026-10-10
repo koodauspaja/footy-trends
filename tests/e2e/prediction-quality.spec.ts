@@ -6,10 +6,12 @@ import { testDatabaseUrl } from "../support/test-database";
 /**
  * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Whether
  * judged predictions are stored depends on what ran before, so one per model is seeded, on a
- * finished match in 2098. Whatever else is stored joins them, so no figure is named.
+ * finished Veikkausliiga match in 2098. Whatever else is stored joins them, so no figure is
+ * named.
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 
 const HEADING = "Ennusteiden osuvuus";
@@ -56,7 +58,7 @@ test.beforeAll(async () => {
       MODELS.map((model) => ({
         source: "taso",
         provider_match_id: MATCH_ID,
-        competition_code: `spljp${SEASON % 100}`,
+        competition_code: "VL",
         model,
         kind: "backtest",
         home_probability: 0.5,
@@ -133,6 +135,64 @@ test.describe("Prediction quality, signed in", () => {
 
     // The diagonal and a line per model.
     await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(4);
+  });
+
+  test("lists the competitions, and a competition's name opens the page filtered to it", async ({
+    page,
+  }) => {
+    await page.goto("/ennusteet");
+
+    const byCompetition = region(page, "Kilpailuittain");
+    await expect(byCompetition.getByRole("columnheader")).toHaveText([
+      "Kilpailu",
+      "Ottelut",
+      "Perustaso",
+      "Elo",
+      "Poisson",
+    ]);
+    // The row's lowest Brier score is bold: at least one in the seeded competition's row.
+    const row = byCompetition.getByRole("row", { name: /Veikkausliiga/ });
+    await expect(row.locator("strong").first()).toHaveText(/^\d,\d{3}$/);
+    await expect(
+      byCompetition.getByText(
+        "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi."
+      )
+    ).toBeVisible();
+    await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
+
+    await byCompetition.getByRole("link", { name: "Veikkausliiga" }).click();
+
+    await expect(page).toHaveURL(/\/ennusteet\?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL$/);
+    await expect(page.getByText("Näytetään vain kilpailu Veikkausliiga.")).toBeVisible();
+    await expect(
+      region(page, "Kilpailuittain").getByRole("link", { name: "Veikkausliiga" })
+    ).toHaveAttribute("aria-current", "page");
+    // The seeded match is one of them, so the filtered page has figures.
+    await expect(region(page, "Osumatarkkuus")).toBeVisible();
+
+    // The kind switch keeps the competition.
+    await page.getByRole("link", { name: "Ennakkoon tehdyt" }).click();
+    await expect(page).toHaveURL(/\/ennusteet\?alue=kotimaa&tyyppi=ennakkoon&kilpailu=VL$/);
+    await expect(page.getByText("Näytetään vain kilpailu Veikkausliiga.")).toBeVisible();
+
+    await page.getByRole("link", { name: "Kaikki kilpailut" }).click();
+    await expect(page).toHaveURL(/\/ennusteet\?alue=kotimaa&tyyppi=ennakkoon$/);
+    await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
+  });
+
+  test("the provider switch drops the competition, and another provider's is ignored", async ({
+    page,
+  }) => {
+    await page.goto("/ennusteet?kilpailu=VL");
+    await expect(page.getByText("Näytetään vain kilpailu Veikkausliiga.")).toBeVisible();
+
+    await page.getByRole("link", { name: "Ulkomaat" }).click();
+    await expect(page).toHaveURL(/\/ennusteet\?alue=ulkomaat&tyyppi=jalkikateen$/);
+    await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
+
+    await page.goto("/ennusteet?alue=ulkomaat&kilpailu=VL");
+    await expect(page.getByRole("heading", { level: 1, name: HEADING })).toBeVisible();
+    await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
   });
 
   test("the switches keep each other's choice", async ({ page }) => {

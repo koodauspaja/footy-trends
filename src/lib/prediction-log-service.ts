@@ -44,7 +44,7 @@ import {
   type RefreshTarget,
   refreshTargets,
 } from "./prediction-log";
-import { qualityCacheKey } from "./prediction-quality-service";
+import { qualityCacheKeys } from "./prediction-quality-service";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "./standings-service";
 import { getSeasonMatches as getTasoSeasonMatches } from "./taso";
 import { synchronizeMatches as synchronizeTasoMatches } from "./taso-standings-service";
@@ -448,6 +448,7 @@ export async function readFinished(
  *
  * decisions/052-predictions-log.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
@@ -464,9 +465,9 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
     // and a write that failed part-way has stored some of them. A failure to
     // drop it is logged by the cache, and changes nothing else.
     await Promise.all(
-      (["football-data", "taso"] as const).map((source) =>
-        invalidateCache(qualityCacheKey(source, "backtest"))
-      )
+      (["football-data", "taso"] as const)
+        .flatMap((source) => qualityCacheKeys(source, "backtest"))
+        .map((key) => invalidateCache(key))
     );
   }
   return rows.length;
