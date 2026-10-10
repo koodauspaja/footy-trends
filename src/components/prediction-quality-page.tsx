@@ -320,14 +320,14 @@ function CompetitionTable({
     <table className="text-sm">
       <thead>
         <tr className="border-border border-b text-muted">
-          <th className="py-2 pr-4 text-left font-medium" scope="col">
+          <th className="py-2 pr-2 text-left sm:pr-4 font-medium" scope="col">
             Kilpailu
           </th>
-          <th className="py-2 pl-4 text-right font-medium" scope="col">
+          <th className="py-2 pl-2 text-right sm:pl-4 font-medium" scope="col">
             Ottelut
           </th>
           {report.models.map((model) => (
-            <th className="py-2 pl-4 text-right font-medium" key={model} scope="col">
+            <th className="py-2 pl-2 text-right sm:pl-4 font-medium" key={model} scope="col">
               {modelLabel(model)}
             </th>
           ))}
@@ -336,7 +336,7 @@ function CompetitionTable({
       <tbody>
         {report.competitions.map((row) => (
           <tr className="border-border border-b" key={row.code}>
-            <th className="py-2 pr-4 text-left font-normal" scope="row">
+            <th className="py-2 pr-2 text-left sm:pr-4 font-normal" scope="row">
               <SameRouteLink
                 aria-current={row.code === competition ? "page" : undefined}
                 className={row.code === competition ? "font-semibold" : "underline"}
@@ -345,9 +345,11 @@ function CompetitionTable({
                 {competitionName(source, row.code)}
               </SameRouteLink>
             </th>
-            <td className="py-2 pl-4 text-right tabular-nums">{matchCount.format(row.matches)}</td>
+            <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums">
+              {matchCount.format(row.matches)}
+            </td>
             {row.brier.map((value, index) => (
-              <td className="py-2 pl-4 text-right tabular-nums" key={report.models[index]}>
+              <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums" key={report.models[index]}>
                 {row.best[index] ? <strong>{score(value)}</strong> : score(value)}
               </td>
             ))}
