@@ -366,6 +366,8 @@ describe("the rows per competition", () => {
         { model: "a", matches: 1, accuracy: 0 },
         { model: "b", matches: 1, accuracy: 100 },
       ],
+      // Under 200 matches in the one competition: no rolling line, as on any page.
+      rolling: null,
       seasons: [{ seasonId: 2024, matches: 1 }],
       competitions: [
         { code: "VL", matches: 3 },
