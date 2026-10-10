@@ -75,10 +75,12 @@ decide something the spec did not.
   | 39 | A competition's rows kept each by its own code |
   | 40 | Integration: football-data's competition read from the match |
   | 41 | Integration: TASO's competition read from the match |
+  | 42 | The filter's sentence below the empty line |
 
 - **None survived.** 38 to 41 came with the first review: 37 read the
   provider's name for the code, which no fixture could mistake, where 40 and
-  41 read the stored match's code, which the first fixture could.
+  41 read the stored match's code, which the first fixture could. 42 came
+  with the second.
 - **Integration**, against Postgres: predictions filed under two competitions
   grouped by the code each carries, in the picker's order; one competition's
   report counting its matches only with the table still whole; a compared
@@ -93,9 +95,9 @@ decide something the spec did not.
 - **By eye**: the table and a filtered page at 375 px and 1280 px, light and
   dark, with six competitions seeded into the test database.
 
-## After the first review
+## After the reviews
 
-Sourcery's full review of #614 found four things.
+Sourcery's first full review of #614 found four things.
 
 | Finding | Outcome |
 |---|---|
@@ -103,6 +105,16 @@ Sourcery's full review of #614 found four things.
 | The integration test passes if the stored match's code is read | Fixed: mutations 40 and 41 |
 | A report read before a backtest and cached after its drop stays 15 minutes | As decisions/055 records for the one key there was: nothing coordinates the two, and the cache's lifetime is the bound. The keys are more now; the window is the same |
 | A filtered page with nothing judged shows no table | S11: the empty line under the filter's line and the link back. Such a competition has no row in the table to mark |
+
+The second found eight and the third one. The cached-report window came back
+in both, with the same answer. New in the second:
+
+| Finding | Outcome |
+|---|---|
+| The empty filtered page's test does not check where the sentence sits | Fixed: mutation 42 |
+| `filteredSentence`'s comment says the page counts | Reworded |
+| `kilpailu` is a Finnish identifier, four times | Not changed: it is the address's own key, as `alue` and `tyyppi` (decisions/012); the identifiers around it are English |
+| A report cached before the e2e fixture is seeded would hide its match | Not changed here: the suite has read these cached reports since specs/054 and has no Redis client. A chore of its own if it is wanted |
 
 ## Measured
 
