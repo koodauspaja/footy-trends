@@ -46,6 +46,81 @@ unchanged.
 
 ## What the tests prove, and how
 
+- **Every mutation below was caught**, one row each, so the count is the
+  table's length. The last thirteen are caught by the integration suite:
+  they change a query, which the unit tests mock.
+
+  | # | Mutation |
+  |---|---|
+  | 1 | A draw given the away probability |
+  | 2 | Home and away probabilities swapped |
+  | 3 | The list most likely first |
+  | 4 | Equal surprises the later kickoff first |
+  | 5 | No match id behind a shared kickoff |
+  | 6 | Eleven listed |
+  | 7 | The list not cut |
+  | 8 | The first season itself not the first |
+  | 9 | A season before the first listed |
+  | 10 | All drawn called empty |
+  | 11 | No matches called all drawn |
+  | 12 | Never in progress, in the rule |
+  | 13 | Never in progress, in the service |
+  | 14 | The first season read and ignored |
+  | 15 | A TASO row without a score kept |
+  | 16 | The shoot-out left in the match's score |
+  | 17 | Half a shoot-out subtracted |
+  | 18 | An unfinished match given a figure |
+  | 19 | A drawn match read |
+  | 20 | The season's failure logged without its season |
+  | 21 | The match's failure logged without its id |
+  | 22 | A failed season read answered as empty |
+  | 23 | The latest stored season as the first |
+  | 24 | No stored season answered as a number |
+  | 25 | A TASO match linked under /ulkomaat |
+  | 26 | A football-data match linked under /kotimaa |
+  | 27 | The season's line on a finished season |
+  | 28 | The draws note dropped |
+  | 29 | The probability printed as a fraction |
+  | 30 | The first season shown the no-matches line |
+  | 31 | All drawn shown the no-matches line |
+  | 32 | The team names outside the link |
+  | 33 | The selected and active seasons swapped |
+  | 34 | The active season named above the list |
+  | 35 | The group not first |
+  | 36 | The surprises read signed out |
+  | 37 | The match line ungated |
+  | 38 | The match line's probability as a fraction |
+  | 39 | The match line under the kickoff |
+  | 40 | The replay predicting unwanted matches |
+  | 41 | The replay fitting every day |
+  | 42 | A key without its model |
+  | 43 | A key without its provider |
+  | 44 | Written baseline rows rewritten |
+  | 45 | Written Elo rows rewritten |
+  | 46 | Written Poisson rows rewritten |
+  | 47 | Poisson's missing rows looked up under Elo |
+  | 48 | The step's rows not counted |
+  | 49 | The step's failure not reported |
+  | 50 | The step's failure not logged |
+  | 51 | The step stamped with the run's start |
+  | 52 | The reports dropped when nothing was written |
+  | 53 | The reports kept when the step's write fails |
+  | 54 | The step before the live rows |
+  | 55 | The summary without its backtest line |
+  | 56 | The list reading live rows too |
+  | 57 | The list reading every model |
+  | 58 | The list reading every competition |
+  | 59 | The list reading both providers' rows |
+  | 60 | The football-data list reading every season |
+  | 61 | The TASO list reading every season |
+  | 62 | The football-data list reading unfinished matches |
+  | 63 | The football-data list with the shoot-out in the score |
+  | 64 | The providers' list reads swapped |
+  | 65 | The match's figure from a live row |
+  | 66 | The match's figure from any model |
+  | 67 | The match's figure from the other provider |
+  | 68 | The step taking a live row for a written backtest row |
+
 - **Unit**: the rules (`surprise.test.ts`), the service's decisions around its
   queries (`surprise-service.test.ts`), the panel and the line
   (`season-surprises.test.tsx`, `match-surprise.test.tsx`), the section's order
