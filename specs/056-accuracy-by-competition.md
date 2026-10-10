@@ -65,9 +65,9 @@ best in this competition?"**
 - The rows in each provider's picker order (S5): `DOMESTIC_COMPETITIONS` by
   tier for `Kotimaa`, `SUPPORTED_COMPETITIONS` for `Ulkomaat`.
 
-**Filtered** (S1, S9): under the page heading,
+**Filtered** (S1, S9): under the two switches,
 `Näytetään vain kilpailu Veikkausliiga.` and a link `Kaikki kilpailut`; the
-window line counts that competition's matches only. The `Kilpailuittain`
+window line, next under it, counts that competition's matches only. The `Kilpailuittain`
 table stays, the filtered competition's row marked as current. The kind
 switch keeps the filter and the provider switch drops it (S9, S11).
 
