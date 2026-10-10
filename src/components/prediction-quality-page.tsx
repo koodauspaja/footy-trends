@@ -119,7 +119,8 @@ export function windowSentence(matches: number, firstYear: number, lastYear: num
 }
 
 /**
- * `Näytetään vain kilpailu …`: the page counts one competition's matches.
+ * `Näytetään vain kilpailu …`: the line naming the one competition a filtered
+ * page counts.
  *
  * decisions/056-accuracy-by-competition.md
  */

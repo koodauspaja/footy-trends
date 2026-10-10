@@ -540,6 +540,8 @@ describe("PredictionQualityPage", () => {
     expect(screen.getByText(NO_JUDGED)).toBeInTheDocument();
     const line = screen.getByText(NO_JUDGED);
     const link = screen.getByRole("link", { name: ALL_COMPETITIONS_LINK });
+    // The sentence and its link are one paragraph, and that paragraph comes first.
+    expect(link.parentElement?.textContent).toContain(filteredSentence("Ykkösliiga"));
     expect(link.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
