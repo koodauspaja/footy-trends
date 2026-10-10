@@ -167,6 +167,22 @@ describe("the hourly run", () => {
       })
     );
 
+    // Logged before it kicked off, as every match is: a live row is not a backtest row.
+    await db.insert(predictions).values(
+      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) => ({
+        source: "football-data",
+        providerMatchId: IDS[9] as number,
+        competitionCode: "DED",
+        model,
+        kind: "live",
+        homeProbability: 0.5,
+        drawProbability: 0.3,
+        awayProbability: 0.2,
+        predictedAt: at(-51),
+        kickoffAt: at(-50),
+      }))
+    );
+
     const first = await runPredictionLog(() => NOW, immediate);
     const second = await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
 
