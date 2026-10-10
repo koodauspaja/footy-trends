@@ -615,10 +615,11 @@ describe("Kauden suurimmat yllätykset, in the section", () => {
   });
 
   it("names the selected season as the page does, above a list still being played", async () => {
-    await renderSection({ selectedSeasonId: 2025 });
+    // The mocked read says in progress; the season named is the selected one.
+    await renderSection({ selectedSeasonId: 2024 });
 
     expect(inProgressSeasonLine("2025/26")).toBe(`Kausi 2025/26 ${IN_PROGRESS_NOTE}`);
-    expect(within(panel()).getByText("Kausi 2025/26 (kesken)")).toBeInTheDocument();
+    expect(within(panel()).getByText("Kausi 2024/25 (kesken)")).toBeInTheDocument();
   });
 
   it("links each match to its provider's match page", async () => {

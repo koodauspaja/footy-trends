@@ -113,18 +113,18 @@ describe("getSeasonSurprises against Postgres", () => {
       // In play with a score so far.
       footballDataMatch(8, { status: "IN_PLAY" }),
     ]);
-    await db
-      .insert(predictions)
-      .values([
-        predicted(0, "football-data"),
-        predicted(1, "football-data"),
-        predicted(2, "football-data"),
-        predicted(3, "football-data"),
-        predicted(4, "football-data", { homeProbability: 0.15 }),
-        predicted(5, "football-data", { kind: "live", homeProbability: 0.01 }),
-        predicted(6, "football-data", { model: "poisson-v1", homeProbability: 0.01 }),
-        predicted(8, "football-data", { homeProbability: 0.01 }),
-      ]);
+    await db.insert(predictions).values([
+      predicted(0, "football-data"),
+      predicted(1, "football-data"),
+      predicted(2, "football-data"),
+      predicted(3, "football-data"),
+      predicted(4, "football-data", { homeProbability: 0.15 }),
+      predicted(5, "football-data", { kind: "live", homeProbability: 0.01 }),
+      predicted(6, "football-data", { model: "poisson-v1", homeProbability: 0.01 }),
+      predicted(8, "football-data", { homeProbability: 0.01 }),
+      // TASO's match of the same id as the one without a row is another match.
+      predicted(7, "taso", { homeProbability: 0.01 }),
+    ]);
 
     const result = await getSeasonSurprises("football-data", "PPL", 1981, 2099);
 
@@ -192,15 +192,21 @@ describe("getSeasonSurprises against Postgres", () => {
 });
 
 describe("getMatchSurprise against Postgres", () => {
-  it("reads the match's own Elo backtest row, never a live one or another model's", async () => {
+  // Every row of a match's id that is not its own Elo backtest row.
+  const others = (index: number, own: "football-data" | "taso") => [
+    predicted(index, own, { kind: "live", homeProbability: 0.9, awayProbability: 0.9 }),
+    predicted(index, own, { model: "poisson-v1", homeProbability: 0.9, awayProbability: 0.9 }),
+    predicted(index, own === "taso" ? "football-data" : "taso", {
+      homeProbability: 0.9,
+      awayProbability: 0.9,
+    }),
+  ];
+
+  it("reads a football-data match's own Elo backtest row", async () => {
     await db.insert(matches).values(footballDataMatch(1, { homeGoals: 0, awayGoals: 1 }));
-    await db.insert(predictions).values([
-      predicted(1, "football-data"),
-      predicted(1, "football-data", { kind: "live", awayProbability: 0.9 }),
-      predicted(1, "football-data", { model: "poisson-v1", awayProbability: 0.9 }),
-      // TASO's match of the same id is another match.
-      predicted(1, "taso", { awayProbability: 0.9 }),
-    ]);
+    await db
+      .insert(predictions)
+      .values([...others(1, "football-data"), predicted(1, "football-data")]);
     const [match] = await db
       .select()
       .from(matches)
@@ -211,9 +217,22 @@ describe("getMatchSurprise against Postgres", () => {
     ).resolves.toBe(0.1);
   });
 
-  it("has no figure for a TASO match with only a live row", async () => {
+  it("reads a TASO match's own Elo backtest row", async () => {
     await db.insert(tasoMatches).values(tasoMatch(1));
-    await db.insert(predictions).values(predicted(1, "taso", { kind: "live" }));
+    await db.insert(predictions).values([...others(1, "taso"), predicted(1, "taso")]);
+    const [match] = await db
+      .select()
+      .from(tasoMatches)
+      .where(eq(tasoMatches.providerMatchId, id(1)));
+
+    await expect(
+      getMatchSurprise({ source: "taso", match: match as typeof tasoMatches.$inferSelect })
+    ).resolves.toBe(0.2);
+  });
+
+  it("has no figure from a live row, another model's row or the other provider's", async () => {
+    await db.insert(tasoMatches).values(tasoMatch(1));
+    await db.insert(predictions).values(others(1, "taso"));
     const [match] = await db
       .select()
       .from(tasoMatches)
