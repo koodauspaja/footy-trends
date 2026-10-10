@@ -123,7 +123,7 @@ describe("getSeasonSurprises against Postgres", () => {
       predicted(6, "football-data", { model: "poisson-v1", homeProbability: 0.01 }),
       predicted(8, "football-data", { homeProbability: 0.01 }),
       // TASO's match of the same id as the one without a row is another match.
-      predicted(7, "taso", { homeProbability: 0.01 }),
+      predicted(7, "taso", { competitionCode: "PPL", homeProbability: 0.01 }),
     ]);
 
     const result = await getSeasonSurprises("football-data", "PPL", 1981, 2099);
@@ -169,15 +169,15 @@ describe("getSeasonSurprises against Postgres", () => {
       // Finished without a score.
       tasoMatch(5, { homeGoals: null, awayGoals: null }),
     ]);
-    await db
-      .insert(predictions)
-      .values([
-        predicted(1, "taso"),
-        predicted(2, "taso"),
-        predicted(3, "taso"),
-        predicted(4, "taso", { competitionCode: "M1", homeProbability: 0.01 }),
-        predicted(5, "taso", { homeProbability: 0.01 }),
-      ]);
+    await db.insert(predictions).values([
+      // The season before has its own row.
+      predicted(0, "taso", { homeProbability: 0.01 }),
+      predicted(1, "taso"),
+      predicted(2, "taso"),
+      predicted(3, "taso"),
+      predicted(4, "taso", { competitionCode: "M1", homeProbability: 0.01 }),
+      predicted(5, "taso", { homeProbability: 0.01 }),
+    ]);
 
     const result = await getSeasonSurprises("taso", "VL", 1981, 1981);
 
