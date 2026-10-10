@@ -52,9 +52,9 @@ export type SeasonSurprises =
   /** The competition's first stored season, which Elo has nothing behind. */
   | { status: "first-season" }
   /** No predicted match in the season. */
-  | { status: "empty" }
+  | { status: "empty"; inProgress: boolean }
   /** Predicted matches, every one a draw. */
-  | { status: "all-drawn" }
+  | { status: "all-drawn"; inProgress: boolean }
   | { status: "error" };
 
 /**
@@ -91,7 +91,7 @@ export function seasonSurprises(
   matches: readonly PredictedMatch[],
   inProgress: boolean
 ): SeasonSurprises {
-  if (matches.length === 0) return { status: "empty" };
+  if (matches.length === 0) return { status: "empty", inProgress };
 
   const surprises = matches
     .flatMap((match) => {
@@ -105,5 +105,7 @@ export function seasonSurprises(
         left.providerMatchId - right.providerMatchId
     )
     .slice(0, SURPRISE_LIMIT);
-  return surprises.length === 0 ? { status: "all-drawn" } : { status: "ok", surprises, inProgress };
+  return surprises.length === 0
+    ? { status: "all-drawn", inProgress }
+    : { status: "ok", surprises, inProgress };
 }

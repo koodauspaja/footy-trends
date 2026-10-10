@@ -8,7 +8,8 @@ import { testDatabaseUrl } from "../support/test-database";
  * seeded 2017 Veikkausliiga season. Signed in the way league-position.spec.ts
  * explains. Elo's backtest row is seeded on one of the season's own wins, and
  * a 2016 match beside it so that 2017 is not the competition's first stored
- * season; both are removed afterwards.
+ * season; both are removed afterwards, and a row the match already had is put
+ * back.
  *
  * decisions/057-surprise-index.md
  */
@@ -18,6 +19,8 @@ const HEADING = "Kauden suurimmat yllätykset";
 const EARLIER_MATCH_ID = 999_057_001;
 
 let matchId = 0;
+// The match's Elo backtest row as it was before this suite, put back afterwards.
+let before: postgres.Row[] = [];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -28,23 +31,27 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   }
 }
 
-async function clear(sql: postgres.Sql) {
-  await sql`delete from predictions where source = 'taso' and model = 'elo-v1' and kind = 'backtest'
-    and provider_match_id in (select taso_match_id from taso_matches
-      where category_id = 'VL' and competition_id = 'spljp17' and season_id = 2017)`;
-  await sql`delete from taso_matches where taso_match_id = ${EARLIER_MATCH_ID}`;
+// The seeded season's first won match: the same one on every run.
+async function wonMatch(sql: postgres.Sql) {
+  const [won] = await sql<Array<{ id: number; kickoff_at: Date }>>`
+    select taso_match_id as id, kickoff_at from taso_matches
+    where category_id = 'VL' and competition_id = 'spljp17' and season_id = 2017
+      and status = 'FINISHED' and home_goals <> away_goals
+    order by kickoff_at, taso_match_id limit 1`;
+  if (won === undefined) throw new Error("The seeded 2017 season has no won match");
+  return won;
+}
+
+function eloRowOf(sql: postgres.Sql, id: number) {
+  return sql`source = 'taso' and provider_match_id = ${id} and model = 'elo-v1' and kind = 'backtest'`;
 }
 
 test.beforeAll(async () => {
   await withDatabase(async (sql) => {
-    await clear(sql);
-    const [won] = await sql<Array<{ id: number; kickoff_at: Date }>>`
-      select taso_match_id as id, kickoff_at from taso_matches
-      where category_id = 'VL' and competition_id = 'spljp17' and season_id = 2017
-        and status = 'FINISHED' and home_goals <> away_goals
-      order by kickoff_at, taso_match_id limit 1`;
-    if (won === undefined) throw new Error("The seeded 2017 season has no won match");
+    const won = await wonMatch(sql);
     matchId = won.id;
+    before = await sql`delete from predictions where ${eloRowOf(sql, matchId)} returning *`;
+    await sql`delete from taso_matches where taso_match_id = ${EARLIER_MATCH_ID}`;
 
     await sql`insert into taso_matches ${sql({
       taso_match_id: EARLIER_MATCH_ID,
@@ -80,7 +87,11 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await withDatabase(clear);
+  await withDatabase(async (sql) => {
+    await sql`delete from predictions where ${eloRowOf(sql, matchId)}`;
+    await sql`delete from taso_matches where taso_match_id = ${EARLIER_MATCH_ID}`;
+    for (const { id: _id, ...row } of before) await sql`insert into predictions ${sql(row)}`;
+  });
 });
 
 test.describe("Surprises, signed in", () => {

@@ -16,6 +16,7 @@ unchanged.
 | Where the rules live | `surprise.ts`, pure: `surpriseOf` reads a result's probability, `seasonSurprises` ranks and cuts, `isFirstStoredSeason` is S9 | As specs/054: every rule is unit-tested without a database, and `surprise-service.ts` only reads. |
 | A draw | `surpriseOf` answers `null`, so a draw is neither ranked nor given a line | S18. One function decides for the list and for the match page. |
 | A season's states | `ok`, `first-season`, `empty`, `all-drawn`, `error` | One per line of the spec's string table, so the panel never infers a state from an empty list. |
+| `Kausi … (kesken)` without a list | Shown above the no-matches line and the all-drawn line too, so `empty` and `all-drawn` carry `inProgress` | S16 puts the line under the heading on the season in progress, whatever follows it. Not above the first-season line or the failure line, which say why nothing about the season is shown. |
 | The first stored season | `getFirstStoredSeason` in `match-service.ts`, from the reads goals per game already makes; the season is answered before any prediction is read | S9's rule is about stored finished matches, not about predictions, and the TASO rule for which rows are a competition's own in a season already lives there. |
 | A season before the first | Treated as the first: no list | It cannot hold a finished match. Reached only by a hand-typed season. |
 | Which rows are a competition's | The prediction's own `competition_code`, joined to the match by its id | The log files a TASO match under the site's code (specs/052), so one join lists every group of a competition together and needs no category rule of its own. |
@@ -29,11 +30,12 @@ unchanged.
 | The match link | `/kotimaa/ottelu/:id` for TASO, `/ulkomaat/ottelu/:id` for football-data, a `RowLink` | Every covered football-data competition is under `/ulkomaat`. A link repeated per row is not prefetched (decisions/489). |
 | The gate | `canSeeAnalytics()` before either read; signed out, the match page shows nothing, not a prompt | S10. The section already prompts once for the whole of `Analyysit`; a prompt under every finished score would say a figure is there. |
 | The hourly step | `missingBacktestRows` in `prediction-backtest.ts`, pure: the baseline and Elo replayed whole and filtered against the written keys, Poisson fitted only for the days of a match lacking its row | S19. The first two take milliseconds whole. Poisson's fit per day is the backtest's cost. |
-| Poisson for a few days | `replayPoisson` takes `wanted`: a day with no wanted match is not fitted, and each fitted day is warmed by the fitted day before it | One code path for the whole backtest and the step. A warm start changes how long a fit takes, not where it ends (decisions/055), so a row written by the step equals the whole backtest's to the fit's tolerance. |
+| Poisson for a few days | `replayPoisson` takes `wanted`: a day with no wanted match is not fitted, and each fitted day is warmed by the last day fitted | One code path for the whole backtest and the step. Fitting every day to carry the fit forward is the whole backtest, 28 s an hour. A fit stops when no parameter moves by more than the tolerance, so where it stops depends a little on where it started: a row written by the step differs from the whole backtest's in the fourth decimal of a probability; see Measured. |
 | What "written" means | A key per `(source, match id, model)` of every stored backtest row, read once per run | The unique index's columns less `kind`. About 85 000 short rows once Poisson's are in. |
 | The step's place in the run | After the live rows are written, from the same read of finished matches | S19. A failure is caught, logged and reported as `backtest`; the live rows are already stored. |
 | A failed read of finished matches | Reported three times: `elo ratings`, `poisson strengths`, `backtest` | One read feeds all three, and each says what it could not do. |
 | A row written between the step's read and its write | Overwritten by the step's, through the same upsert every prediction is written with | Only a hand-run backtest or a second run overlapping this one can write it, and each computes the row from the same stored matches. A second write path that skips on conflict would be more code for the same row. |
+| A step that fails part-way | `backtested` is 0 and `backtest` is among the failures, though the batches that succeeded are stored | The count of a failed write is not known without a second read. The failure is what the run reports; the next run finds the stored rows written and writes the rest. |
 | The cached reports | Dropped when the step had rows to write, whether or not the write succeeded; not touched when nothing was missing | As the hand-run backtest (decisions/056). Most hours write nothing, and should not empty a cache for it. |
 | The report | `backtested` beside `logged`, in the `Predictions run finished` line and as `Backtested   N prediction(s)` | S19. |
 
@@ -43,7 +45,7 @@ unchanged.
 |---|---|---|
 | The list's date as `21.4.2025` | `21.04.2025`, and the spec's example now says so | `matchDateFormatter`, the format every match list on the site prints. |
 | Two strings marked proposed: the line saying draws are left out, and the line for a season whose matches were all drawn | Built as proposed | The start was given with them open; they are for Miikka to confirm or reword on the pull request. |
-| "What it writes: what `predictions -- backtest` would write for that match" | True of the baseline and Elo exactly, and of Poisson to the fit's tolerance | The warm start above. |
+| "What it writes: what `predictions -- backtest` would write for that match" | True of the baseline and Elo exactly, and of Poisson to the fourth decimal | The warm start above. |
 
 ## What the tests prove, and how
 
@@ -152,3 +154,27 @@ backtest rows, none of them Poisson's yet.
 The read of finished matches, 513 ms, is one the run already made. The last
 row is the hour after a release that adds a model, if the backtest has not
 been run by hand first; `docs/infrastructure.md` says to run it.
+
+How far a Poisson row written by the step is from the whole backtest's row of
+the same match, the largest difference in any of the three probabilities:
+
+| Days fitted | Rows | Largest difference |
+|---|---|---|
+| The last day with a match, per provider | 14 | 0,00009 |
+| The last three days | 26 | 0,00006 |
+| Every 97th match day of the history | 266 | 0,0004 |
+| Every 7th | 3 333 | 0,002 |
+
+The first two are what an hour's run does. The page prints whole percents.
+
+## After the reviews
+
+Sourcery's first full review of #623 found five things.
+
+| Finding | Outcome |
+|---|---|
+| A selective replay starts a day's fit from an older fit than the whole replay does, so its rows can differ | Measured, above, and not changed: the remedy offered, fitting every day, is the whole backtest every hour. The comment and this record no longer say the rows are equal |
+| The e2e suite's cleanup deleted every Elo backtest row of the seeded 2017 season | Fixed: it removes its own match's row, and puts back the one it found |
+| `Kausi … (kesken)` is missing above the no-matches and all-drawn lines | Fixed: `Kausi … (kesken)` without a list, above |
+| A step failing part-way reports `Backtested 0` with rows stored | Not changed: a step that fails part-way, above |
+| A report read before the step's write and cached after its drop stays 15 minutes | As decisions/055 and decisions/056 record for the hand-run backtest: nothing coordinates the two, and the cache's lifetime is the bound |

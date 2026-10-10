@@ -125,6 +125,7 @@ describe("getSeasonSurprises", () => {
 
     await expect(getSeasonSurprises("taso", "VL", 2026, 2026)).resolves.toEqual({
       status: "empty",
+      inProgress: true,
     });
   });
 

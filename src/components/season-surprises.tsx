@@ -67,7 +67,8 @@ function SurpriseItem({
 /**
  * A season's biggest surprises: a numbered list of the wins Elo thought least
  * likely, each linking to its match, or the line saying why there is none.
- * `inProgressLine` names the season, and is shown only while it is being played.
+ * `inProgressLine` names the season, and is shown above either while the
+ * season is being played.
  *
  * decisions/057-surprise-index.md
  */
@@ -78,12 +79,20 @@ export function SeasonSurprisesBody({
 }: Readonly<{ surprises: SeasonSurprises; kind: MatchSource["kind"]; inProgressLine: string }>) {
   if (surprises.status === "error") return <p>{SURPRISES_ERROR_MESSAGE}</p>;
   if (surprises.status === "first-season") return <p>{FIRST_SEASON_MESSAGE}</p>;
-  if (surprises.status === "empty") return <p>{NO_MATCHES_MESSAGE}</p>;
-  if (surprises.status === "all-drawn") return <p>{ALL_DRAWN_MESSAGE}</p>;
+
+  const season = surprises.inProgress ? <p className="mb-2 text-sm">{inProgressLine}</p> : null;
+  if (surprises.status !== "ok") {
+    return (
+      <div>
+        {season}
+        <p>{surprises.status === "empty" ? NO_MATCHES_MESSAGE : ALL_DRAWN_MESSAGE}</p>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {surprises.inProgress ? <p className="mb-2 text-sm">{inProgressLine}</p> : null}
+      {season}
       <ol className="list-decimal space-y-1 pl-6 text-sm">
         {surprises.surprises.map((surprise) => (
           <SurpriseItem key={surprise.providerMatchId} kind={kind} surprise={surprise} />

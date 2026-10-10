@@ -127,14 +127,23 @@ describe("SeasonSurprisesBody", () => {
   });
 
   it.each([
-    ["first-season", FIRST_SEASON_MESSAGE],
+    [{ status: "first-season" }, FIRST_SEASON_MESSAGE],
+    [{ status: "empty", inProgress: false }, NO_MATCHES_MESSAGE],
+    [{ status: "all-drawn", inProgress: false }, ALL_DRAWN_MESSAGE],
+    [{ status: "error" }, SURPRISES_ERROR_MESSAGE],
+  ] as const)("shows its own line and no list for %o", (surprises, message) => {
+    const { container } = renderBody(surprises);
+
+    expect(container.textContent).toBe(message);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it.each([
     ["empty", NO_MATCHES_MESSAGE],
     ["all-drawn", ALL_DRAWN_MESSAGE],
-    ["error", SURPRISES_ERROR_MESSAGE],
-  ] as const)("shows its own line and no list for %s", (status, message) => {
-    const { container } = renderBody({ status });
+  ] as const)("names a season in progress above the %s line too", (status, message) => {
+    const { container } = renderBody({ status, inProgress: true });
 
-    expect(container).toHaveTextContent(new RegExp(`^${message.replaceAll(".", "\\.")}$`));
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(container.textContent).toBe(`${LINE}${message}`);
   });
 });
