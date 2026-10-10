@@ -50,7 +50,7 @@ unchanged.
 ## What the tests prove, and how
 
 - **Every mutation below was caught**, one row each, so the count is the
-  table's length. The last thirteen are caught by the integration suite:
+  table's length. Numbers 56 to 68 are caught by the integration suite:
   they change a query, which the unit tests mock.
 
   | # | Mutation |
@@ -123,6 +123,10 @@ unchanged.
   | 66 | The match's figure from any model |
   | 67 | The match's figure from the other provider |
   | 68 | The step taking a live row for a written backtest row |
+  | 69 | The season's line missing above the no-matches and all-drawn lines |
+  | 70 | The no-matches line for all drawn |
+  | 71 | An empty season never in progress |
+  | 72 | An all-drawn season never in progress |
 
 - **Unit**: the rules (`surprise.test.ts`), the service's decisions around its
   queries (`surprise-service.test.ts`), the panel and the line
