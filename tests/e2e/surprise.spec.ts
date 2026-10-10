@@ -114,11 +114,11 @@ test.describe("Surprises, signed in", () => {
 
 test.describe("Surprises, signed out", () => {
   test("neither page carries a figure", async ({ page }) => {
-    const standings = await page.goto(STANDINGS);
-    const match = await page.goto(`/kotimaa/ottelu/${matchId}`);
-
-    for (const response of [standings, match]) {
+    for (const path of [STANDINGS, `/kotimaa/ottelu/${matchId}`]) {
+      const response = await page.goto(path);
       const html = (await response?.text()) ?? "";
+
+      expect(html).toContain("<h1");
       expect(html).not.toContain(HEADING);
       expect(html).not.toContain("Elo antoi");
     }

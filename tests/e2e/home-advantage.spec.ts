@@ -68,7 +68,7 @@ test.describe("Home advantage, signed in", () => {
       .getByRole("heading", { level: 3 })
       .allTextContents();
 
-    expect(groups).toEqual(["Kausi kaudelta", "Kilpailut rinnakkain"]);
+    expect(groups).toEqual(["Tämä kausi", "Kausi kaudelta", "Kilpailut rinnakkain"]);
   });
 });
 
