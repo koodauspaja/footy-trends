@@ -69,7 +69,7 @@ finished match, how surprising that one was.
      season named as the page's own selector names it (S8, S16)
    - A numbered list of home and away wins, most surprising first, ten at
      most (S5, S18):
-     `21.4.2025 · Ilves – HJK 3–0 · Elo antoi 6 %` — the date, the match
+     `21.04.2025 · Ilves – HJK 3–0 · Elo antoi 6 %` — the date, the match
      linking to its page, the score, and Elo's probability for that result
    - Under the list: `Yllätys on sitä suurempi, mitä pienemmän todennäköisyyden Elo antoi toteutuneelle tulokselle ennen ottelua.`
    - Then, *proposed*: `Tasapelit eivät ole mukana: Elo antaa tasapelille saman todennäköisyyden jokaisessa kilpailun ottelussa.`
