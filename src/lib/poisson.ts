@@ -542,13 +542,16 @@ export function predictPoisson(
 /**
  * Every match in kickoff order, a UTC day at a time: the day's matches are all
  * predicted from one fit of the days before it. `onPredict` sees each match
- * the fit can predict. Feed one provider at a time.
+ * the fit can predict. Feed one provider at a time. Given `wanted`, only the
+ * days holding a wanted match are fitted, and only those matches predicted.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 export function replayPoisson(
   matches: readonly PoissonMatch[],
-  onPredict: (match: PoissonMatch, prediction: PoissonPrediction) => void
+  onPredict: (match: PoissonMatch, prediction: PoissonPrediction) => void,
+  wanted: (match: PoissonMatch) => boolean = () => true
 ): void {
   const ordered = matches
     .filter(isFittable)
@@ -566,12 +569,15 @@ export function replayPoisson(
     while (end < ordered.length && utcDay((ordered[end] as PoissonMatch).kickoffAt) === day) {
       end += 1;
     }
-    // Sorted, so the window is the run of matches ending where this day starts.
-    while (!inWindow(ordered[start] as PoissonMatch, day) && start < index) start += 1;
-    fit = fitWindow(ordered.slice(start, index), day, fit);
-    for (const match of ordered.slice(index, end)) {
-      const prediction = predictPoisson(fit, match.code, match.homeTeam, match.awayTeam);
-      if (prediction !== null) onPredict(match, prediction);
+    const predicted = ordered.slice(index, end).filter(wanted);
+    if (predicted.length > 0) {
+      // Sorted, so the window is the run of matches ending where this day starts.
+      while (!inWindow(ordered[start] as PoissonMatch, day) && start < index) start += 1;
+      fit = fitWindow(ordered.slice(start, index), day, fit);
+      for (const match of predicted) {
+        const prediction = predictPoisson(fit, match.code, match.homeTeam, match.awayTeam);
+        if (prediction !== null) onPredict(match, prediction);
+      }
     }
     index = end;
   }
