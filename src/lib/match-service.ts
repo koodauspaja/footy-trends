@@ -324,6 +324,21 @@ async function tasoSeasonGoals(code: string): Promise<SeasonGoals[]> {
 }
 
 /**
+ * The earliest season a competition has a stored finished match of, or null
+ * when it has none. A failed read throws.
+ *
+ * decisions/057-surprise-index.md
+ */
+export async function getFirstStoredSeason(
+  kind: MatchSource["kind"],
+  code: string
+): Promise<number | null> {
+  const seasons =
+    kind === "football-data" ? await footballDataSeasonGoals(code) : await tasoSeasonGoals(code);
+  return seasons.length === 0 ? null : Math.min(...seasons.map((season) => season.seasonId));
+}
+
+/**
  * Every compared competition's home wins, draws and away wins, or `error` when
  * either provider's read fails: never a partial table.
  *

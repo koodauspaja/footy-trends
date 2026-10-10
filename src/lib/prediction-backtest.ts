@@ -6,10 +6,11 @@
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
-import { homeBaseline } from "./home-baseline";
+import { HOME_BASELINE_MODEL, homeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
 import { POISSON_MODEL, replayPoisson } from "./poisson";
 import type { PredictionRow } from "./prediction-log";
@@ -144,13 +145,16 @@ export function eloBacktestRows(
 
 /**
  * One `poisson-v1` backtest row per match its day's fit can predict: the fit
- * of the provider's matches on strictly earlier UTC days.
+ * of the provider's matches on strictly earlier UTC days. Given `wanted`, the
+ * rows of those matches only, and a fit only for their days.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 export function poissonBacktestRows(
   finished: readonly FinishedMatch[],
-  now: Date
+  now: Date,
+  wanted?: (match: FinishedMatch) => boolean
 ): PredictionRow[] {
   const rows: PredictionRow[] = [];
   for (const source of ["football-data", "taso"] as const) {
@@ -169,8 +173,48 @@ export function poissonBacktestRows(
           predictedAt: now,
           kickoffAt: match.kickoffAt,
         });
-      }
+      },
+      wanted
     );
   }
   return rows;
+}
+
+/**
+ * What a written backtest row is known by: its provider, match and model.
+ *
+ * decisions/057-surprise-index.md
+ */
+export function backtestKey(
+  row: Readonly<{ source: MatchSource["kind"]; providerMatchId: number; model: string }>
+): string {
+  return `${row.source}:${row.providerMatchId}:${row.model}`;
+}
+
+/**
+ * The backtest rows of every model that `written` does not hold, each what the
+ * whole backtest would write for its match. The baseline and Elo are replayed
+ * whole and filtered; Poisson is fitted only for the days of a match that
+ * lacks its row, each fit warmed by the one before, as the whole backtest's
+ * are, so it ends where that one ends.
+ *
+ * decisions/057-surprise-index.md
+ */
+export function missingBacktestRows(
+  finished: readonly FinishedMatch[],
+  written: ReadonlySet<string>,
+  now: Date
+): PredictionRow[] {
+  const missing = (rows: readonly PredictionRow[]) =>
+    rows.filter((row) => !written.has(backtestKey(row)));
+  const baseline = backtestRows(finished, HOME_BASELINE_MODEL, now);
+  return [
+    ...missing(baseline),
+    ...missing(eloBacktestRows(finished, baseline, now)),
+    ...poissonBacktestRows(
+      finished,
+      now,
+      (match) => !written.has(backtestKey({ ...match, model: POISSON_MODEL }))
+    ),
+  ];
 }

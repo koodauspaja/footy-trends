@@ -31,11 +31,13 @@ export function parseCommand(args: readonly string[]): PredictionCommand | null 
  * The run's summary, one line per fact and per failure.
  *
  * decisions/052-predictions-log.md
+ * decisions/057-surprise-index.md
  */
 export function describeRun(report: PredictionRunReport): string[] {
   return [
     `Refreshed    ${report.refreshed} competition-season(s)`,
     `Logged       ${report.logged} prediction(s)`,
+    `Backtested   ${report.backtested} prediction(s)`,
     ...report.failures.map((failure) => `Failed       ${failure}`),
   ];
 }

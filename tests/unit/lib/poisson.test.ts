@@ -563,6 +563,33 @@ describe("replayPoisson", () => {
     }
   });
 
+  it("fits only the days of a wanted match, and predicts only those matches", () => {
+    const history = league();
+    const last = history.at(-1) as PoissonMatch;
+    const seen: Array<{ id: number; prediction: PoissonPrediction }> = [];
+
+    replayPoisson(
+      history,
+      (match, prediction) => {
+        seen.push({ id: match.providerMatchId, prediction });
+      },
+      (match) => match.providerMatchId === last.providerMatchId
+    );
+
+    expect(seen.map(({ id }) => id)).toEqual([last.providerMatchId]);
+    // No earlier day was fitted to warm this one, so it is the day's own cold fit
+    // to the last digit, which the whole replay's warmed fit is not.
+    const cold = predictPoisson(
+      fitPoisson(history, utcDay(last.kickoffAt)),
+      "VL",
+      last.homeTeam,
+      last.awayTeam
+    ) as PoissonPrediction;
+    expect(seen[0]?.prediction.prediction.home).toBeCloseTo(cold.prediction.home, 12);
+    const warmed = replayed(history).at(-1)?.prediction as PoissonPrediction;
+    expect(Math.abs(warmed.prediction.home - cold.prediction.home)).toBeGreaterThan(1e-12);
+  });
+
   it("does not let matches of one day inform each other", () => {
     const earlier = [played(9, 1, 2, 2, 0), played(8, 3, 4, 1, 1)];
     const morning = (homeGoals: number) =>

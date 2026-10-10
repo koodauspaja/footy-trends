@@ -33,6 +33,7 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-se
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
@@ -152,6 +153,39 @@ describe("the hourly run", () => {
       (rows[0]?.drawProbability ?? 0) +
       (rows[0]?.awayProbability ?? 0);
     expect(sum).toBeCloseTo(1, 10);
+  });
+
+  it("writes the backtest rows of a match that has finished, once", async () => {
+    // A second finished match in the competition: unlike the first, it has history.
+    await db.insert(matches).values(
+      footballDataRow({
+        providerMatchId: IDS[9] as number,
+        kickoffAt: at(-50),
+        status: "FINISHED",
+        homeGoals: 0,
+        awayGoals: 2,
+      })
+    );
+
+    const first = await runPredictionLog(() => NOW, immediate);
+    const second = await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
+
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+      const rows = await rowsFor(IDS[9] as number, "backtest", model);
+      expect(rows).toHaveLength(1);
+      // Written by the first run and left by the second.
+      expect(rows[0]).toMatchObject({
+        source: "football-data",
+        competitionCode: "DED",
+        kickoffAt: at(-50),
+        predictedAt: NOW,
+      });
+    }
+    // The competition's first match has nothing before it.
+    expect(await rowsFor(IDS[10] as number, "backtest")).toEqual([]);
+    expect(first.backtested).toBeGreaterThanOrEqual(3);
+    expect(second.backtested).toBe(0);
+    expect(first.failures).toEqual([]);
   });
 
   it("moves a rescheduled match's row to its new kickoff", async () => {

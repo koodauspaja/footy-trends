@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
+import type { SeasonSurprises } from "@/lib/surprise";
 import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
 /**
@@ -11,20 +12,27 @@ import type { TableVolatilitySeries } from "@/lib/table-volatility";
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/050-table-volatility.md
+ * decisions/057-surprise-index.md
  */
 
-const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares, getTableVolatility } = vi.hoisted(
-  () => ({
-    canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
-    getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
-    getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
-    getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
-  })
-);
+const {
+  canSeeAnalytics,
+  getGoalsPerGame,
+  getOutcomeShares,
+  getTableVolatility,
+  getSeasonSurprises,
+} = vi.hoisted(() => ({
+  canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
+  getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
+  getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
+  getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
+  getSeasonSurprises: vi.fn<() => Promise<SeasonSurprises>>(),
+}));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
 vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
 vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
+vi.mock("@/lib/surprise-service", () => ({ getSeasonSurprises }));
 // The prompt's sign-in flow is sign-in-prompt.test.tsx's; here it only has to
 // show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
@@ -40,6 +48,7 @@ import {
   HOME_ADVANTAGE_ERROR_MESSAGE,
   HOME_ADVANTAGE_HEADING,
   IN_PROGRESS_NOTE,
+  inProgressSeasonLine,
   leftOutSentence,
   MID_SEASON_NOTE,
   NO_OWN_MATCHES_MESSAGE,
@@ -49,6 +58,7 @@ import {
   STORED_SEASONS_NOTE,
   seasonSentence,
   seasonsLeftOutSentence,
+  THIS_SEASON_HEADING,
   TOO_FEW_SEASONS_MESSAGE,
   VOLATILITY_ERROR_MESSAGE,
   VOLATILITY_HEADING,
@@ -56,6 +66,7 @@ import {
   volatilitySentence,
   windowSentence,
 } from "@/components/competition-analytics";
+import { SURPRISES_ERROR_MESSAGE, SURPRISES_HEADING } from "@/components/season-surprises";
 
 const inProgress = { seasonId: 2025, matches: 60, perGame: 3.1, inProgress: true };
 const series: GoalsPerGameSeries = {
@@ -115,6 +126,27 @@ const volatility: TableVolatilitySeries = {
   leftOut: 0,
 };
 
+const surprises: SeasonSurprises = {
+  status: "ok",
+  inProgress: true,
+  surprises: [
+    {
+      providerMatchId: 497001,
+      kickoffAt: new Date("2025-04-21T14:00:00Z"),
+      homeTeamProviderId: 57,
+      homeTeamName: "Arsenal FC",
+      awayTeamProviderId: 61,
+      awayTeamName: "Chelsea FC",
+      homeGoals: 0,
+      awayGoals: 3,
+      home: 0.7,
+      draw: 0.24,
+      away: 0.06,
+      probability: 0.06,
+    },
+  ],
+};
+
 const seasonLabel = (season: number) => `${season}/${String(season + 1).slice(2)}`;
 
 async function renderSection({
@@ -145,6 +177,8 @@ beforeEach(() => {
   getOutcomeShares.mockResolvedValue(shares);
   getTableVolatility.mockReset();
   getTableVolatility.mockResolvedValue(volatility);
+  getSeasonSurprises.mockReset();
+  getSeasonSurprises.mockResolvedValue(surprises);
 });
 
 describe("the strings the spec agreed", () => {
@@ -178,6 +212,8 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       .map((heading) => [heading.tagName, heading.textContent]);
     expect(headings).toEqual([
       ["H2", ANALYTICS_HEADING],
+      ["H3", THIS_SEASON_HEADING],
+      ["H4", SURPRISES_HEADING],
       ["H3", SEASON_BY_SEASON_HEADING],
       ["H4", GOALS_PER_GAME_HEADING],
       ["H4", VOLATILITY_HEADING],
@@ -313,6 +349,7 @@ describe("CompetitionAnalyticsSection, signed out", () => {
     expect(getGoalsPerGame).not.toHaveBeenCalled();
     expect(getOutcomeShares).not.toHaveBeenCalled();
     expect(getTableVolatility).not.toHaveBeenCalled();
+    expect(getSeasonSurprises).not.toHaveBeenCalled();
   });
 });
 
@@ -332,6 +369,7 @@ describe("CompetitionAnalyticsSection where the spec has none", () => {
       expect(getGoalsPerGame).not.toHaveBeenCalled();
       expect(getOutcomeShares).not.toHaveBeenCalled();
       expect(getTableVolatility).not.toHaveBeenCalled();
+      expect(getSeasonSurprises).not.toHaveBeenCalled();
     }
   );
 });
@@ -564,5 +602,40 @@ describe("Sijoitusten vaihtelu", () => {
     expect(screen.queryByRole("region", { name: VOLATILITY_HEADING })).toBeNull();
     expect(screen.getByRole("region", { name: GOALS_PER_GAME_HEADING })).toBeInTheDocument();
     expect(getTableVolatility).not.toHaveBeenCalled();
+  });
+});
+
+describe("Kauden suurimmat yllätykset, in the section", () => {
+  const panel = () => screen.getByRole("region", { name: SURPRISES_HEADING });
+
+  it("asks for the selected season's surprises, with the season in progress", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL", selectedSeasonId: 2024 });
+
+    expect(getSeasonSurprises).toHaveBeenCalledWith("taso", "VL", 2024, 2025);
+  });
+
+  it("names the selected season as the page does, above a list still being played", async () => {
+    await renderSection({ selectedSeasonId: 2025 });
+
+    expect(inProgressSeasonLine("2025/26")).toBe(`Kausi 2025/26 ${IN_PROGRESS_NOTE}`);
+    expect(within(panel()).getByText("Kausi 2025/26 (kesken)")).toBeInTheDocument();
+  });
+
+  it("links each match to its provider's match page", async () => {
+    await renderSection();
+    expect(within(panel()).getByRole("link")).toHaveAttribute("href", "/ulkomaat/ottelu/497001");
+  });
+
+  it("links a domestic match under /kotimaa", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+    expect(within(panel()).getByRole("link")).toHaveAttribute("href", "/kotimaa/ottelu/497001");
+  });
+
+  it("shows the failure line when the surprises cannot be read, and the other panels still", async () => {
+    getSeasonSurprises.mockResolvedValue({ status: "error" });
+    await renderSection();
+
+    expect(within(panel()).getByText(SURPRISES_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: GOALS_PER_GAME_HEADING })).toBeInTheDocument();
   });
 });

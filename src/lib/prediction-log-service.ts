@@ -6,6 +6,7 @@
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -27,9 +28,11 @@ import type { MatchSource } from "./match-source";
 import { createPacer, FOOTBALL_DATA_PER_MINUTE, type Paced, TASO_PER_MINUTE } from "./pacer";
 import { fitPoisson, type PoissonFit, utcDay } from "./poisson";
 import {
+  backtestKey,
   backtestRows,
   eloBacktestRows,
   type FinishedMatch,
+  missingBacktestRows,
   poissonBacktestRows,
 } from "./prediction-backtest";
 import {
@@ -236,19 +239,24 @@ function defaultPacers(): Record<MatchSource["kind"], Paced> {
 export type PredictionRunReport = {
   refreshed: number;
   logged: number;
+  /** Backtest rows written, of matches finished since the last backtest. */
+  backtested: number;
   /** One line per competition that failed, to refresh or to predict. */
   failures: string[];
 };
 
 /**
- * One hourly run: refresh what needs it, then log every loggable match. A
- * competition that fails to refresh is still logged from what is stored; one
- * whose baseline fails is skipped. Both are reported.
+ * One hourly run: refresh what needs it, log every loggable match, then write
+ * the backtest rows of matches finished since the last backtest. A competition
+ * that fails to refresh is still logged from what is stored; one whose
+ * baseline fails is skipped; a failed backtest step leaves the live rows
+ * written. All are reported.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/603-server-side-records.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -328,9 +336,19 @@ export async function runPredictionLog(
     });
 
   await writePredictions(rows);
+
+  const backtested = await finished
+    .then((matches) => writeMissingBacktest(matches, clock()))
+    .catch((error: unknown) => {
+      logger.error({ err: error }, "Unable to write the backtest rows for predictions");
+      failures.push("backtest");
+      return 0;
+    });
+
   const report = {
     refreshed: targets.length - refreshFailures.length,
     logged: rows.length,
+    backtested,
     failures,
   };
   logger.info(report, "Predictions run finished");
@@ -441,6 +459,53 @@ export async function readFinished(
 }
 
 /**
+ * Drops every cached report of the backtest. A failure to drop one is logged
+ * by the cache, and changes nothing else.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+async function dropBacktestReports(): Promise<void> {
+  await Promise.all(
+    (["football-data", "taso"] as const)
+      .flatMap((source) => qualityCacheKeys(source, "backtest"))
+      .map((key) => invalidateCache(key))
+  );
+}
+
+/**
+ * Writes the backtest rows no earlier backtest or run has written, and answers
+ * how many. A row that exists is left as it is. The cached reports are dropped
+ * when there was something to write, whether or not every row was written.
+ *
+ * decisions/057-surprise-index.md
+ */
+async function writeMissingBacktest(
+  finished: readonly FinishedMatch[],
+  now: Date
+): Promise<number> {
+  const stored = await db
+    .select({
+      source: predictions.source,
+      providerMatchId: predictions.providerMatchId,
+      model: predictions.model,
+    })
+    .from(predictions)
+    .where(eq(predictions.kind, "backtest"));
+  const written = new Set(
+    stored.map((row) => backtestKey({ ...row, source: row.source as MatchSource["kind"] }))
+  );
+  const rows = missingBacktestRows(finished, written, now);
+  if (rows.length === 0) return 0;
+
+  try {
+    await writePredictions(rows);
+  } finally {
+    await dropBacktestReports();
+  }
+  return rows.length;
+}
+
+/**
  * The backtest: one `backtest` row for every stored finished match with
  * history, written idempotently. Stored rows only, no provider request. The
  * cached reports of the backtest are dropped whether or not every row was
@@ -462,13 +527,8 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
     await writePredictions(rows);
   } finally {
     // A report cached before these rows would hide them for up to 15 minutes,
-    // and a write that failed part-way has stored some of them. A failure to
-    // drop it is logged by the cache, and changes nothing else.
-    await Promise.all(
-      (["football-data", "taso"] as const)
-        .flatMap((source) => qualityCacheKeys(source, "backtest"))
-        .map((key) => invalidateCache(key))
-    );
+    // and a write that failed part-way has stored some of them.
+    await dropBacktestReports();
   }
   return rows.length;
 }
