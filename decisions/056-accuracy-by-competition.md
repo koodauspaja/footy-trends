@@ -11,6 +11,7 @@ decide something the spec did not.
 | Where the rules live | `prediction-quality.ts`, pure: `competitionsOf` groups, `lowestOf` marks, and `qualityReport` takes the competition order and, optionally, the one competition to count | As specs/054: every rule is unit-tested without a database, and the service only reads and caches. |
 | The report's shape | `competitions: [{ code, matches, brier[], best[] }]` on every `ok` report, computed from all of the provider's common matches whichever competition the rest counts | The table stays on a filtered page (S9), so a filtered report carries it whole: one read and one cache entry per page, not two. |
 | A filtered report | The same read as the unfiltered one, the rows of other competitions dropped in memory after the all-models rule | The table needs every competition's rows anyway. Filtering before or after `commonMatches` gives the same matches: the rule is per match. |
+| A match's competition | The code its first model's row is filed under (`inCompetition`), for the rows and for the filter alike | Sourcery on #614. The log files every model's row of a match under one code, but nothing in the table makes it so. Grouped row by row, a match filed under two codes would give a model no rows in one of them: a mean of nothing, cached as `null`, and a page that fails on it. Grouped by match, every model has a row for every match counted. |
 | The compared competitions | `qualityCompetitions(source)`: the provider's registry (`DOMESTIC_COMPETITIONS`, `SUPPORTED_COMPETITIONS`) in its own order, kept where `COMPETITIONS` in `goals-per-game.ts` has the code | S5's order is the picker's, and the log writes rows for exactly `COMPETITIONS` (specs/052). The same list orders the rows, says which `kilpailu` filters the page, and names the cache keys. |
 | A competition outside that list | No row | The log writes none today. A code it stopped comparing would otherwise be a row whose name could not be linked. |
 | The Champions League | A row under `Ulkomaat`, as the log holds its matches | `COMPETITIONS` includes `CL`, and production has 519 judged matches of it. The spec's "cups, which no model predicts" is about the domestic cups and the national teams, which the log never writes. |
@@ -70,18 +71,38 @@ decide something the spec did not.
   | 35 | The note under the table dropped |
   | 36 | The filter in the address misnamed |
   | 37 | Integration: the competition read from another column |
+  | 38 | A match's rows grouped each by its own code |
+  | 39 | A competition's rows kept each by its own code |
+  | 40 | Integration: football-data's competition read from the match |
+  | 41 | Integration: TASO's competition read from the match |
 
-- **None survived.**
+- **None survived.** 38 to 41 came with the first review: 37 read the
+  provider's name for the code, which no fixture could mistake, where 40 and
+  41 read the stored match's code, which the first fixture could.
 - **Integration**, against Postgres: predictions filed under two competitions
   grouped by the code each carries, in the picker's order; one competition's
   report counting its matches only with the table still whole; a compared
   competition without a judged match empty.
+  The match of one fixture is stored under another competition than its
+  predictions are filed under, and TASO's under `spljp25`, so the prediction's
+  code is the one that decides.
 - **End to end**, against a production build: the table and its line; a
   competition's name opens the filtered page, its row current; the kind switch
   keeps the competition and `Kaikki kilpailut` and the provider switch drop it;
   another provider's `kilpailu` shows the unfiltered page.
 - **By eye**: the table and a filtered page at 375 px and 1280 px, light and
   dark, with six competitions seeded into the test database.
+
+## After the first review
+
+Sourcery's full review of #614 found four things.
+
+| Finding | Outcome |
+|---|---|
+| A match whose models' rows carry different codes divides by an empty set | Fixed: a match's competition, above |
+| The integration test passes if the stored match's code is read | Fixed: mutations 40 and 41 |
+| A report read before a backtest and cached after its drop stays 15 minutes | As decisions/055 records for the one key there was: nothing coordinates the two, and the cache's lifetime is the bound. The keys are more now; the window is the same |
+| A filtered page with nothing judged shows no table | S11: the empty line under the filter's line and the link back. Such a competition has no row in the table to mark |
 
 ## Measured
 
