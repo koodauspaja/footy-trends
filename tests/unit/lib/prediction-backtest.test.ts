@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { fitPoisson, type PoissonPrediction, predictPoisson, utcDay } from "@/lib/poisson";
-import { backtestRows, type FinishedMatch, poissonBacktestRows } from "@/lib/prediction-backtest";
+import {
+  backtestKey,
+  backtestRows,
+  eloBacktestRows,
+  type FinishedMatch,
+  missingBacktestRows,
+  poissonBacktestRows,
+} from "@/lib/prediction-backtest";
 
 /**
  * The rows a backtest writes.
@@ -8,6 +15,7 @@ import { backtestRows, type FinishedMatch, poissonBacktestRows } from "@/lib/pre
  * decisions/052-predictions-log.md
  * decisions/051-home-win-baseline.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -196,5 +204,89 @@ describe("poissonBacktestRows", () => {
     const rows = poissonBacktestRows([played(1, 2, 0), played(3, 1, 0, { awayTeam: 0 })], NOW);
 
     expect(rows).toEqual([]);
+  });
+});
+
+describe("backtestKey", () => {
+  it("names a row by its provider, match and model", () => {
+    expect(backtestKey({ source: "taso", providerMatchId: 5, model: "elo-v1" })).toBe(
+      "taso:5:elo-v1"
+    );
+  });
+});
+
+describe("missingBacktestRows", () => {
+  const history = () => [
+    played(1, 2, 0),
+    played(3, 1, 1, { homeTeam: 2, awayTeam: 1 }),
+    played(6, 0, 1),
+    played(6, 3, 1, { source: "football-data", code: "PL" }),
+    played(8, 0, 0, { source: "football-data", code: "PL" }),
+  ];
+  const whole = (finished: readonly FinishedMatch[]) => {
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+    return [
+      ...baseline,
+      ...eloBacktestRows(finished, baseline, NOW),
+      ...poissonBacktestRows(finished, NOW),
+    ];
+  };
+
+  it("is the whole backtest of all three models when nothing is written", () => {
+    const finished = history();
+
+    const rows = missingBacktestRows(finished, new Set(), NOW);
+
+    expect(rows).toEqual(whole(finished));
+    expect(new Set(rows.map((row) => row.model))).toEqual(
+      new Set(["home-baseline-v1", "elo-v1", "poisson-v1"])
+    );
+  });
+
+  it("is nothing when every row is written", () => {
+    const finished = history();
+    const written = new Set(whole(finished).map(backtestKey));
+
+    expect(missingBacktestRows(finished, written, NOW)).toEqual([]);
+  });
+
+  it.each(["home-baseline-v1", "elo-v1"])(
+    "is the one %s row that is not written, as the whole backtest has it",
+    (model) => {
+      const finished = history();
+      const rows = whole(finished);
+      const lacking = rows.findLast((row) => row.model === model && row.source === "taso");
+      const written = new Set(rows.filter((row) => row !== lacking).map(backtestKey));
+
+      expect(missingBacktestRows(finished, written, NOW)).toEqual([lacking]);
+    }
+  );
+
+  it("is the one Poisson row that is not written, the same to the fit's tolerance", () => {
+    const finished = history();
+    const rows = whole(finished);
+    const lacking = rows.findLast((row) => row.model === "poisson-v1" && row.source === "taso");
+    const written = new Set(rows.filter((row) => row !== lacking).map(backtestKey));
+
+    expect(missingBacktestRows(finished, written, NOW)).toEqual([
+      {
+        ...lacking,
+        homeProbability: expect.closeTo(lacking?.homeProbability as number, 3),
+        drawProbability: expect.closeTo(lacking?.drawProbability as number, 3),
+        awayProbability: expect.closeTo(lacking?.awayProbability as number, 3),
+      },
+    ]);
+  });
+
+  it("does not take one provider's written row for the other's match of the same id", () => {
+    const taso = played(1, 2, 0, { providerMatchId: 8_000 });
+    const later = played(3, 1, 0, { providerMatchId: 8_001 });
+    const written = new Set(
+      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) =>
+        backtestKey({ source: "football-data", providerMatchId: 8_001, model })
+      )
+    );
+
+    expect(missingBacktestRows([taso, later], written, NOW)).toHaveLength(3);
   });
 });

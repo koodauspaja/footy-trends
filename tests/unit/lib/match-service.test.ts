@@ -17,6 +17,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md
+ * decisions/057-surprise-index.md
  */
 
 const selectMock = vi.fn();
@@ -604,6 +605,49 @@ describe("getGoalsPerGame", () => {
       expect.objectContaining({ err: expect.any(Error), code: "VL" }),
       "Unable to read the competition's goals per game"
     );
+  });
+});
+
+describe("getFirstStoredSeason", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+  });
+
+  it("is the earliest season a football-data competition has a finished match of", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2025, matches: 380, goals: 1140 },
+      { seasonId: 2023, matches: 380, goals: 1064 },
+      { seasonId: 2024, matches: 380, goals: 1064 },
+    ]);
+
+    await expect(getFirstStoredSeason("football-data", "PL")).resolves.toBe(2023);
+  });
+
+  it("counts a TASO season only under the competition's own pair that season", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P21SM", matches: 10, goals: 30 },
+      { seasonId: 2025, competitionId: "spljp25", categoryId: "P20SM", matches: 10, goals: 25 },
+      // Another umbrella's matches a season earlier are not this competition's.
+      { seasonId: 2024, competitionId: "Liigacup24", categoryId: "P20SM", matches: 10, goals: 9 },
+    ]);
+
+    await expect(getFirstStoredSeason("taso", "P21SM")).resolves.toBe(2025);
+  });
+
+  it("is null for a competition with no finished match stored", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]);
+
+    await expect(getFirstStoredSeason("taso", "VL")).resolves.toBeNull();
+  });
+
+  it("lets a failed read through to its caller", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getFirstStoredSeason("football-data", "PL")).rejects.toThrow("connection reset");
   });
 });
 

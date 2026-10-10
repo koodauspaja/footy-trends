@@ -2,6 +2,7 @@ import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-se
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import {
@@ -18,6 +19,7 @@ import {
   type SeasonRange,
 } from "@/lib/outcome-shares";
 import { formatSeasonLabel } from "@/lib/seasons";
+import { getSeasonSurprises } from "@/lib/surprise-service";
 import {
   hasTableVolatility,
   type TableVolatilitySeries,
@@ -31,6 +33,12 @@ import { getTableVolatility } from "@/lib/table-volatility-service";
  * decisions/048-league-goals-per-game-trend.md
  */
 export const SEASON_BY_SEASON_HEADING = "Kausi kaudelta";
+/**
+ * The group of the selected season's own panels, first in the section.
+ *
+ * decisions/057-surprise-index.md
+ */
+export const THIS_SEASON_HEADING = "Tämä kausi";
 export const GOALS_PER_GAME_HEADING = "Maaleja ottelua kohden";
 export const TOO_FEW_SEASONS_MESSAGE =
   "Maaleja ottelua kohden kausittain näytetään, kun kilpailusta on tallennettu vähintään kaksi kautta.";
@@ -52,6 +60,8 @@ export const ROUNDING_NOTE =
   "Osuudet on pyöristetty, joten niiden summa voi poiketa 100 prosentista.";
 
 const SECTION_ID = "competition-analytics";
+const THIS_SEASON_ID = "competition-analytics-this-season";
+const SURPRISES_ID = "season-surprises";
 const GROUP_ID = "competition-analytics-by-season";
 const PANEL_ID = "goals-per-game";
 const VOLATILITY_ID = "table-volatility";
@@ -64,6 +74,15 @@ const HOME_ADVANTAGE_ID = "home-advantage";
  * decisions/048-league-goals-per-game-trend.md
  */
 type SeasonLabel = (seasonId: number) => string;
+
+/**
+ * The line naming the season in progress above its surprises.
+ *
+ * decisions/057-surprise-index.md
+ */
+export function inProgressSeasonLine(label: string): string {
+  return `Kausi ${label} ${IN_PROGRESS_NOTE}`;
+}
 
 /**
  * A season left out by the five-match minimum, named under the chart.
@@ -178,13 +197,15 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit`: goals per game and, on a
- * league, table movement, then `Kilpailut rinnakkain`. Gated before anything
- * is read, and awaited by the pages, not rendered as JSX.
+ * The competition standings page's `Analyysit`: the selected season's biggest
+ * surprises, then goals per game and, on a league, table movement, then
+ * `Kilpailut rinnakkain`. Gated before anything is read, and awaited by the
+ * pages, not rendered as JSX.
  *
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/050-table-volatility.md
+ * decisions/057-surprise-index.md
  */
 export async function CompetitionAnalyticsSection({
   kind,
@@ -209,7 +230,8 @@ export async function CompetitionAnalyticsSection({
     );
   }
 
-  const [series, volatility, shares] = await Promise.all([
+  const [surprises, series, volatility, shares] = await Promise.all([
+    getSeasonSurprises(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getGoalsPerGame(kind, competitionCode, activeSeasonId),
     hasTableVolatility(kind, competitionCode)
       ? getTableVolatility(kind, competitionCode, activeSeasonId)
@@ -218,6 +240,15 @@ export async function CompetitionAnalyticsSection({
   ]);
   return (
     <Section>
+      <Group heading={THIS_SEASON_HEADING} id={THIS_SEASON_ID}>
+        <ChartPanel heading={SURPRISES_HEADING} headingId={SURPRISES_ID}>
+          <SeasonSurprisesBody
+            inProgressLine={inProgressSeasonLine(seasonLabel(selectedSeasonId))}
+            kind={kind}
+            surprises={surprises}
+          />
+        </ChartPanel>
+      </Group>
       <Group heading={SEASON_BY_SEASON_HEADING} id={GROUP_ID}>
         <ChartPanel heading={GOALS_PER_GAME_HEADING} headingId={PANEL_ID}>
           <GoalsPerGameBody
