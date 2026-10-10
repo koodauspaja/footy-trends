@@ -279,6 +279,26 @@ function brierPerModel(rows: readonly JudgedPrediction[], models: readonly strin
 }
 
 /**
+ * The rows of one competition's matches. A match is of the competition its
+ * first model's row is filed under, so every model's row of a match is kept
+ * or dropped with it.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function inCompetition(
+  common: readonly JudgedPrediction[],
+  models: readonly string[],
+  code: string
+): JudgedPrediction[] {
+  const matches = new Set(
+    common
+      .filter((prediction) => prediction.model === models[0] && prediction.competitionCode === code)
+      .map((prediction) => prediction.providerMatchId)
+  );
+  return common.filter((prediction) => matches.has(prediction.providerMatchId));
+}
+
+/**
  * A row per competition of the given order that has a match every model
  * predicted, in that order.
  *
@@ -290,7 +310,7 @@ export function competitionsOf(
   order: readonly string[]
 ): CompetitionBrier[] {
   return order.flatMap((code) => {
-    const rows = common.filter((prediction) => prediction.competitionCode === code);
+    const rows = inCompetition(common, models, code);
     if (rows.length === 0) return [];
     const brier = brierPerModel(rows, models);
     return [{ code, matches: rows.length / models.length, brier, best: lowestOf(brier) }];
@@ -313,9 +333,7 @@ export function qualityReport(
 ): QualityReport {
   const everyCompetition = commonMatches(predictions, models);
   const common = (
-    competition === null
-      ? everyCompetition
-      : everyCompetition.filter((prediction) => prediction.competitionCode === competition)
+    competition === null ? everyCompetition : inCompetition(everyCompetition, models, competition)
   ).toSorted(byKickoff);
   if (common.length === 0) return { status: "empty" };
 

@@ -172,6 +172,8 @@ describe("getPredictionQuality against Postgres", () => {
         { model: "elo-v1", accuracy: 50 },
         { model: "poisson-v1", accuracy: 50 },
       ],
+      // The site's code the predictions carry, not the match's `spljp25`.
+      competitions: [{ code: "VL", matches: 2 }],
     });
     await expect(getPredictionQuality("football-data", "live", null)).resolves.toEqual({
       status: "empty",
@@ -180,13 +182,13 @@ describe("getPredictionQuality against Postgres", () => {
 
   it("groups by the competition each prediction is filed under, and counts one when given it", async () => {
     const [cupWon, cupLost, leagueWon] = IDS as [number, number, number];
-    await db
-      .insert(matches)
-      .values([
-        footballDataMatch(cupWon),
-        footballDataMatch(cupLost, { homeGoals: 0, awayGoals: 1 }),
-        footballDataMatch(leagueWon, { competitionCode: "PL" }),
-      ]);
+    await db.insert(matches).values([
+      footballDataMatch(cupWon),
+      footballDataMatch(cupLost, { homeGoals: 0, awayGoals: 1 }),
+      // Stored under the Champions League, its predictions filed under the Premier
+      // League: the prediction's code decides, not the match's.
+      footballDataMatch(leagueWon),
+    ]);
     await db
       .insert(predictions)
       .values([

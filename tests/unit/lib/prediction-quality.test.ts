@@ -5,6 +5,7 @@ import {
   calibrationOf,
   commonMatches,
   competitionsOf,
+  inCompetition,
   type JudgedPrediction,
   LOG_LOSS_FLOOR,
   logLossOf,
@@ -327,6 +328,28 @@ describe("the rows per competition", () => {
         },
       ]
     );
+  });
+
+  it("counts a match once, under its first model's competition, when its rows are filed apart", () => {
+    const apart = [
+      ...match(1, "VL", "home"),
+      judged({ model: "a", providerMatchId: 2, competitionCode: "VL" }),
+      judged({ model: "b", providerMatchId: 2, competitionCode: "M1" }),
+    ];
+
+    expect(inCompetition(apart, ["a", "b"], "VL")).toHaveLength(4);
+    expect(inCompetition(apart, ["a", "b"], "M1")).toEqual([]);
+    // Both matches under VL, each model's Brier over both: nothing divided by an empty set.
+    expect(competitionsOf(apart, ["a", "b"], ["VL", "M1"])).toEqual([
+      {
+        code: "VL",
+        matches: 2,
+        brier: [expect.closeTo(0.38, 12), expect.closeTo(0.68, 12)],
+        best: [true, false],
+      },
+    ]);
+    expect(qualityReport(apart, ["a", "b"], ["VL", "M1"], "VL")).toMatchObject({ matches: 2 });
+    expect(qualityReport(apart, ["a", "b"], ["VL", "M1"], "M1")).toEqual({ status: "empty" });
   });
 
   it("lists them in the order given, not the order the rows come in", () => {
