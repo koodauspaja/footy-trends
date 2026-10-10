@@ -192,11 +192,11 @@ export function backtestKey(
 }
 
 /**
- * The backtest rows of every model that `written` does not hold, each what the
- * whole backtest would write for its match. The baseline and Elo are replayed
+ * The backtest rows of every model that `written` does not hold. The baseline and Elo are replayed
  * whole and filtered; Poisson is fitted only for the days of a match that
- * lacks its row, each fit warmed by the one before, as the whole backtest's
- * are, so it ends where that one ends.
+ * lacks its row, each fit warmed by the last day fitted, not by the day
+ * before as the whole backtest's are, so a row differs from that one's in the
+ * fourth decimal.
  *
  * decisions/057-surprise-index.md
  */

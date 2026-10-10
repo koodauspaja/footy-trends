@@ -126,12 +126,14 @@ describe("seasonSurprises", () => {
   });
 
   it("says so when every predicted match was drawn", () => {
-    expect(seasonSurprises([match({ homeGoals: 0, awayGoals: 0 })], true)).toEqual({
-      status: "all-drawn",
-    });
+    const drawn = [match({ homeGoals: 0, awayGoals: 0 })];
+
+    expect(seasonSurprises(drawn, true)).toEqual({ status: "all-drawn", inProgress: true });
+    expect(seasonSurprises(drawn, false)).toEqual({ status: "all-drawn", inProgress: false });
   });
 
   it("says so when the season has no predicted match", () => {
-    expect(seasonSurprises([], true)).toEqual({ status: "empty" });
+    expect(seasonSurprises([], true)).toEqual({ status: "empty", inProgress: true });
+    expect(seasonSurprises([], false)).toEqual({ status: "empty", inProgress: false });
   });
 });
