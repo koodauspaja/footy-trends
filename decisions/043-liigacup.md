@@ -79,3 +79,76 @@ decided and the final is scheduled between their winners, the tree is fully
 known; drawing it with the final unplayed is what specs/015 does for MSC. The
 spec chose to list the group until the final has a winner, and that is what is
 built. It is a one-condition change if that is preferred.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **The round-robin exception in `buildGroup`.** Liigacup's and Ykkösliigacup's
+  `Lohko A` and `Lohko B` are points competitions and are tabled like a
+  league's. Told apart by structure, since points are what proved unreliable.
+- **`inPublishedOrder`.** Our order breaks a tie on points by goal difference;
+  Liigacup breaks it by the tied teams' meeting. Liigacup 2023's `Lohko B` has
+  KuPS and FC Haka level on 7, Haka ahead on goal difference and KuPS on their
+  1–0, and KuPS went through, so our order drew a table that contradicted the
+  semi-final beneath it. All or nothing: with any team unranked, TASO's
+  numbers cannot place it. Only the numbers are kept, so a gap in TASO's
+  numbering cannot put two teams at one position. Full season only: a
+  position describes the group as it stands.
+- **`listSeasonRounds`, cups.** A cup page has no round selector, and tabled
+  groups do not change that: the rounds are one short group stage, and the
+  page's other half is a playoff no round filters.
+
+Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
+
+- **`isRoundRobin`.** Asked only of a `groups-and-playoff` cup, where it tells
+  `Lohko A` from `1-4`. Points cannot: TASO sends them for knockout groups
+  too. Counted from the matches, not the provider's rows, which are one per
+  bracket slot for a knockout. Three teams is the floor because a lone final
+  is trivially "every pair met".
+- **`splitCombinedKnockout`.** Liigacup publishes its whole playoff as one
+  group, `1-4`: A1 v B2, B1 v A2, then the winners. `selectBracketRounds`
+  needs the final as its own 2-team group, so without this the playoff is
+  never drawn. It qualifies on structure alone: four teams, three matches,
+  and the last to kick off is between the winners of the other two and has a
+  winner of its own. A final still to be decided leaves the group whole,
+  listed and not drawn, and so does a third-place match. Called only for a
+  `groups-and-playoff` cup; Suomen Cup's rounds are separate groups already.
+- **`buildPlayoffBracket`.** It says which groups the tree drew because this
+  layout, the Champions League's, lists only the knockout groups the tree
+  does not show: a group is shown once, as a tree or as a list.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DomesticCompetition.cupFormat`.** `knockout`: rounds from the first match,
+  every group a round, as Suomen Cup is rendered. `groups-and-playoff`:
+  round-robin groups, then the top two of each into semi-finals and a final,
+  with the groups as tables and the playoff as a bracket below them. Declared
+  so that no shape rule can reach a knockout cup: MSC 2021's 4-team groups
+  look exactly like round-robins.
+- **Liigacup's entry.** 2023 onward only. TASO also holds a 2015 Liigacup
+  inside the `spljp15` umbrella, but 2016-2022 exist under neither scheme, and
+  that one isolated season was left out on purpose. Probed live 2026-09-28:
+  `Liigacup15` to `Liigacup22` and `Liigacup27` return no categories.
+- **`cupFormatFor`.** `knockout` is the rendering that has always existed, so
+  a bad `kilpailu` value cannot route into the newer one.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`GroupsAndPlayoff`.** Laid out as Champions League is. A drawn group is
+  not listed as well: for Liigacup the `1-4` group's three matches are the
+  tree.
+- **The bracket's place on a knockout cup's page.** Such a page has no
+  standings table to lead with, so burying the bracket under as many as ten
+  round lists, one of them 248 teams wide, would hide the most useful part
+  of the page. Each drawn round still keeps its own list below.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/cup-domestic.spec.ts` at `0fe724f` by #531.
+
+- **The 2026 playoff in `cup-domestic.spec.ts`.** KTP and KäPa won the
+  semi-finals and met in the final.
+- **The group-table test asserts tables.** It checked only headings before,
+  and so passed through the whole time #272 had turned the group tables into
+  lists.

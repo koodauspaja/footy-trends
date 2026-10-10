@@ -101,3 +101,25 @@ standings message with the season/round selectors still usable).
   first-sync round-controls gap documented above was reproduced and
   confirmed to self-heal on the next request; zero console errors
   throughout.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/matches-controls.tsx` at `48ebab4` by #531.
+
+- **`MatchesControls`.** A plain GET form so both selections work without
+  JavaScript, the pattern of `StandingsControls`. A round can briefly be
+  unknown right after a season's first sync, the known limitation the spec
+  notes.
+
+Cut from `src/components/round-select.tsx` at `48ebab4` by #531.
+
+- **`RoundSelect`.** Unlike the home page's round selector, the round is the
+  page's chunking mechanism and not an optional filter. The ◀/▶ links do not
+  go through the select's own `onChange`, so an uncontrolled select would
+  keep showing the round it was first mounted with after one of those
+  clicks.
+
+Cut from `src/lib/rounds.ts` at `48ebab4` by #531.
+
+- **`resolveCurrentRound`.** An empty season has no "current round" and is
+  the caller's own concern.

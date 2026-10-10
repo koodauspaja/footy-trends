@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The server actions behind the settings page. Nothing here may touch a real
- * database or construct better-auth: the CI unit job has no service containers
- * and no environment at all, deliberately (#158).
+ * The server actions behind the settings page. Nothing here may touch a real database or
+ * construct better-auth: the CI unit job has no service containers and no environment. A
+ * file nothing imports is absent from the coverage report, so it has a test of its own.
  *
- * Without this file the module has no test, which vitest scores as 100% — it
- * only measures files a test imports — while Sonar correctly reports 0%.
+ * decisions/024-account-settings.md
  */
+
 const {
   getSession,
   revokeOtherSessions,

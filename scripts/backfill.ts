@@ -1,21 +1,10 @@
 /**
- * One-shot backfill of the production database — entry point and guard.
+ * One-shot backfill of the production database: entry point and guard, as
+ * `DATABASE_URL=<production> npm run backfill`. It imports nothing that
+ * touches the database, and ignores the `DATABASE_URL` in `.env`.
  *
- * This file deliberately imports nothing that touches the database. `src/db`
- * constructs its Postgres client from `process.env.DATABASE_URL` at *module
- * load*, and ES imports are hoisted, so importing it here would fix the
- * connection before any of the checks below had run — and the target printed on
- * screen would not necessarily be the database written to. The real work lives
- * in `backfill-run.ts`, imported dynamically once the target is settled.
- *
- *   DATABASE_URL=<production> npm run backfill
- *   DATABASE_URL=<production> npm run backfill -- --reset=<database-name>
- *   DATABASE_URL=<production> npm run backfill -- --refetch
- *
- * `DATABASE_URL` must come from the environment. The one in `.env` is
- * deliberately ignored: this script exists to write to production, and picking
- * up a local default when the operator forgot to pass one is the failure worth
- * designing out.
+ * decisions/036-halftime-comebacks.md
+ * decisions/169-production-backfill.md
  */
 import { existsSync } from "node:fs";
 import { authoriseReset, databaseNameFrom, describeTarget } from "./backfill-plan";
@@ -28,9 +17,7 @@ function err(line = ""): void {
 }
 
 // Captured before `.env` is loaded, so `.env` cannot supply it. Blank counts as
-// missing: `DATABASE_URL= npm run backfill` otherwise passes a null check and
-// then fails deep inside the Postgres client, where the message says nothing
-// about the variable the operator forgot to fill in.
+// missing.
 const rawConnectionString = process.env.DATABASE_URL ?? "";
 const connectionString = rawConnectionString.trim() === "" ? null : rawConnectionString;
 
@@ -48,10 +35,7 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  // A connection string with no database name is refused rather than tried.
-  // Postgres would default the database to the username and the script would
-  // sit waiting on a connection, and `--reset` could never be confirmed against
-  // a name that is not there. Better to say so before anything connects.
+  // A connection string with no database name is refused, not tried.
   if (databaseNameFrom(connectionString) === null) {
     err(`DATABASE_URL names no database: ${describeTarget(connectionString)}`);
     err("Include the database in the connection string, e.g. .../railway");
@@ -59,7 +43,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  // `src/db` reads DATABASE_URL at load; restore it for the dynamic import.
+  // `src/db` reads DATABASE_URL on first use; restore it before the work loads.
   process.env.DATABASE_URL = connectionString;
 
   const args = process.argv.slice(2);
@@ -78,17 +62,8 @@ async function main(): Promise<void> {
   }
 
   const { backfill } = await import("./backfill-run");
-  /**
-   * `--refetch` fetches competition-seasons that are already stored, which the
-   * run otherwise skips. It exists for a column added after production was
-   * filled — the half-time score (specs/036) — where every stored row is
-   * complete by the old definition and empty by the new one. Without it such a
-   * column stays null until each season happens to become the active one again.
-   *
-   * It costs a full run's provider quota, so it is opt-in rather than the
-   * default. `--reset` is the other way to the same place, and throws the rows
-   * away first.
-   */
+  // `--refetch` fetches competition-seasons that are already stored, which the
+  // run otherwise skips. Opt-in: it costs a full run's provider quota.
   const refetch = args.includes("--refetch");
 
   process.exitCode = await backfill({ reset: resetArg !== undefined, refetch });

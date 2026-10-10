@@ -311,3 +311,91 @@ Unit tests: **100% statements, branches, functions and lines.**
 Integration 21. Playwright includes 8 new specs, run with `--workers=1`
 because the parallel default exhausts football-data.org's quota on the
 neighbouring pages.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`getSeasonMatches`.** Deriving the season from an id's last two digits is
+  right for `spljp26` and wrong for `maajp18`, which is season 2021. It stored
+  that bucket's rows under 2018 while every read asked for 2021, so the
+  database never answered and all five of its categories refetched on each
+  request.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`getSeasonCategoryNameMap`.** Its caller discovers which competitions a
+  season contains, where the other dresses up one it already knows. A
+  swallowed error would silently produce a season with no competitions and no
+  error state.
+
+Cut from `src/lib/country-names.ts` at `ef7eb13` by #531.
+
+- **TASO's own map.** An earlier comment on `FINNISH_COUNTRY_NAMES` claimed
+  TASO publishes Finnish names throughout and that the national-team pages
+  would get them for free. That is true of most of it and wrong in the corner
+  that matters. TASO is mostly Finnish, which is what made this easy to miss:
+  every `maajp{YYYY}` bucket is Finnish throughout, and only the older
+  `maajp18` content, the 2019 Euro qualifiers and the 2020 Nations League,
+  carries English. Eight rows, four countries.
+- **TASO's spelling.** `FINNISH_COUNTRY_NAMES` says `Bosnia ja Hertsegovina`
+  while TASO's own Finnish rows say `Bosnia-Hertsegovina`, and one country
+  must not read two ways on a single page, which was the defect: `Greece` and
+  `Kreikka` were both appearing.
+
+Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
+
+- **`loadSeason`.** `null` and an empty list must not be confused: a
+  category that cannot be read has to reach the reader as an error, because a
+  year quietly missing from a page that shows all of them is invisible.
+  "Cannot be served at all" is a lower bar than it sounds:
+  `getSeasonMatchList` answers `ok` with stored rows when a refresh fails, so
+  a TASO outage serves the database's copy, and only a category with nothing
+  stored and a failed refresh reaches `null`. Every year but the current one
+  is a finished season whose stored rows are complete, so "stale" has no
+  meaning for them; only the current year can lag, by one refresh interval.
+  Which year a match belongs to is decided by its own date, not by the
+  bucket's nominal season.
+- **`getNationalTeamYears`.** Buckets load in parallel and are regrouped by
+  the year each match was played in, because a bucket is not a calendar
+  year. The first version failed the whole page on any failure, reasoning
+  that a year missing from a page showing every year leaves no gap a reader
+  could notice. Production proved the trade wrong: this page issues up to 28
+  queries where every other issues one, so a single transient failure blanked
+  eight years of history.
+
+Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
+
+- **`?providers=1` on the health endpoint.** Making every probe call TASO
+  would be the very thing the caching rule forbids. A human debugging "every
+  page works but one" asks for it explicitly. TASO sits behind Cloudflare and
+  needs an API key plus Referer, Origin and User-Agent. `getCurrentSeason`
+  asks which seasons it publishes, so nothing has to name a competition and
+  guess wrong in January. A health endpoint that hangs until the probe times
+  out is worse than one reporting a provider as unreachable.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **`INCOMPLETE_MESSAGE`.** A failed bucket's matches were never read, and a
+  bucket is not one year, `maajp18` spans 2018 to 2021. Saying that some may
+  be missing beats naming a year that might be complete.
+- **`YearSection`.** `<details>` and not client-side state, the same shape
+  the Finnish cups use for rounds, and open by default for the same reason:
+  nothing is hidden until the reader chooses to hide it.
+
+Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
+
+- **`PickerEntry`.** A region is not necessarily one provider's:
+  `/maajoukkueet` holds two football-data tournaments and TASO-backed
+  Huuhkajat, which has no football-data code and so cannot live in
+  `SUPPORTED_COMPETITIONS`. That list also feeds `kilpailu` validation, and
+  an entry there would let `?kilpailu=…` resolve on a standings page that
+  cannot serve it. So the region page concatenates.
+
+## Moved from comments, 2026-10-07
+
+Cut from `vitest.config.ts` at `5b180e0` by #531.
+
+- **Stylesheets are outside coverage.** Vite processes
+  `import "./globals.css"` in the root layout, so once that layout gained a
+  test the file appeared in the report as a 0/0 entry.

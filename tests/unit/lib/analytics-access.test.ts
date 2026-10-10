@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+/**
+ * Who may see analytics: a signed-in reader, or the e2e override where it is
+ * allowed.
+ *
+ * decisions/030-league-position-by-matchday.md
+ */
+
 const { currentUserId, requestHeaders, loggerError } = vi.hoisted(() => ({
   currentUserId: vi.fn<() => Promise<string | null>>(),
   requestHeaders: { value: new Headers() },

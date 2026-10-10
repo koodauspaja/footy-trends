@@ -14,3 +14,11 @@
 - Form is selected from the five newest results and then rendered oldest-to-newest within that five-result window.
 - Before the provider's current season starts, season selection falls back to the most recent started previous season so the page can show the latest completed results.
 - `getCurrentSeasonId` returns the selected season's start year (e.g. `2025`), not the provider's internal `currentSeason.id` (e.g. `2403`). Verified against the live API: `GET /v4/competitions/PL/matches?season={id}` 404s, while `?season={startYear}` returns the expected finished matches. The spec's reference to `currentSeason.id` described the wrong field for this endpoint; the start year is used consistently as the `seasonId` everywhere (cache keys, the stored `seasonId` column, and the query parameter).
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **The season parameter in `getSeasonContext`.** The start year (`2025`), not
+  the `id` field (`2403`): confirmed against the live API, which answers 404
+  when passed the `id`.

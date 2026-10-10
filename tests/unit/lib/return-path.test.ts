@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ERROR_PARAM, returnPath, withError } from "@/lib/return-path";
 
+/**
+ * Where a sign-in returns the reader, and how an error is carried on that path.
+ *
+ * decisions/030-league-position-by-matchday.md
+ */
+
 describe("returnPath", () => {
   it("keeps the page's own state", () => {
     expect(returnPath("/kotimaa/joukkue/1", new URLSearchParams("kilpailu=VL&kausi=2024"))).toBe(

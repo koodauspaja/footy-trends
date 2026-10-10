@@ -7,7 +7,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** `/ulkomaat/kohtaamiset/:a/:b` — football-data's foreign competitions. See specs/042. */
+/**
+ * `/ulkomaat/kohtaamiset/:a/:b`: football-data's foreign competitions.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 const ROUTE = {
   source: { kind: "football-data", region: "foreign" },
   basePath: "/ulkomaat",

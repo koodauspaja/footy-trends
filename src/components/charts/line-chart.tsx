@@ -1,97 +1,110 @@
 /**
  * The app's line chart: one or more lines on two axes, drawn as SVG on the
- * server (specs/030, *Chart foundation*). A second line arrived with specs/032,
- * told apart by its dash rather than a colour, with `LineLegend` to name it.
+ * server. The geometry is in the exported functions, so it is tested directly.
  *
- * **Hand-rolled rather than a library**, chosen in chat on 2026-09-18: SVG
- * renders on the server with no client JavaScript, and a test can assert what
- * is drawn — the points, the scales, the direction — which a canvas would not
- * allow under this repository's coverage and mutation rules. Nothing here
- * anticipates a chart that does not exist yet.
- *
- * The geometry is in the exported functions below, so it is tested directly
- * rather than through the markup.
+ * decisions/030-league-position-by-matchday.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/050-table-volatility.md
+ * decisions/053-elo-ratings.md
+ * decisions/054-prediction-quality.md
+ * decisions/413-rounds-a-team-sat-out.md
  */
 
 export type ChartPoint = {
   x: number;
   y: number;
   /**
-   * Drawn as an open circle rather than a filled dot: a value that is on the
-   * line but that the series' subject did not produce itself — for the
-   * position chart, a round the team sat out (#413).
+   * Drawn as an open circle: a value on the line that the series' subject did
+   * not produce itself.
    */
   open?: boolean;
   /**
-   * Ringed, to pick one point out of the line — the season a page is showing
-   * (specs/048, S11).
+   * Ringed, to pick one point out of the line.
    */
   marked?: boolean;
 };
 
 /**
- * `2.2` → `2,2`: a Finnish decimal comma, one decimal by default. One is exact
- * for averages over five matches, which move in fifths; a season's average
- * takes two (`2,11`, specs/033). `toFixed` also hides floating point
- * (`0.2 × 3` is `0.6000000000000001`).
+ * `2.2` becomes `2,2`: a Finnish decimal comma, one decimal by default.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
  */
 export function formatDecimal(value: number, digits = 1): string {
   return value.toFixed(digits).replace(".", ",");
 }
 
 /**
- * `63 %`: a whole percent, a no-break space before the sign as Finnish writes
- * it, so the number and its sign never wrap apart (specs/033, Q5).
+ * `63 %`: a whole percent, with a no-break space before the sign so the two
+ * never wrap apart.
+ *
+ * decisions/033-home-vs-away.md
+ * decisions/034-clean-sheets.md
  */
 export function percentText(value: number): string {
   return `${Math.round(value)}\u00a0%`;
 }
 
-/** The drawing area, in SVG user units; `viewBox` scales it to the page. */
+/**
+ * The drawing area, in SVG user units; `viewBox` scales it to the page.
+ *
+ * decisions/030-league-position-by-matchday.md
+ */
 export const CHART = { width: 640, height: 320 } as const;
 /**
- * The gutters around the plot, in SVG user units.
+ * The gutters around the plot, in SVG user units, sized for the axis text a
+ * phone gets.
  *
- * `bottom` and `left` carry the axis labels, which are larger below `sm` (see
- * `AXIS_TEXT`): 56 keeps the x-tick row clear of the axis caption, and 72 fits
- * a three-digit y tick — the clean-sheet share axis runs to 100 — beside the
- * rotated caption without crowding it. `MARGIN` is JavaScript, so it cannot answer the
- * breakpoint the way the font does; both gutters are therefore sized for the
- * larger text and cost a few units of plot at every width.
+ * decisions/030-league-position-by-matchday.md
+ * decisions/033-home-vs-away.md
  */
 export const MARGIN = { top: 16, right: 16, bottom: 56, left: 72 } as const;
 
 /**
- * The axis font, which scales with the drawing because the text is inside the
- * `viewBox` — `text-xs` is 12 *user units*, not 12 screen pixels, and SVG has
- * no non-scaling equivalent for text.
+ * The axis font, larger below `sm`: the text is inside the `viewBox`, so it
+ * scales down with the drawing.
  *
- * At 640 units shown on a 375-px phone the drawing is about 0,54x, so today's
- * 12 units reached the reader at roughly 6 px. Enlarging the font below `sm`
- * fixes that without narrowing the drawing, which would have cost the desktop
- * canvas (#441).
+ * decisions/033-home-vs-away.md
  */
 const AXIS_TEXT = "text-[19px] sm:text-xs";
 
-/** `AXIS_TEXT`'s size below `sm`, in units — the width a phone's labels need. */
+/**
+ * `AXIS_TEXT`'s size below `sm`, in units: the width a phone's labels need.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export const PHONE_AXIS_UNITS = 19;
 
-/** A glyph's width as a share of the font size — near enough for the UI font. */
+/**
+ * A glyph's width as a share of the font size: near enough for the UI font.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 const GLYPH_WIDTH = 0.6;
 
-/** The least space between two x labels on a phone, in units. */
+/**
+ * The least space between two x labels on a phone, in units.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 const TICK_GAP = 8;
 
-/** How wide a label prints on a phone, the widest the axis text gets. */
+/**
+ * How wide a label prints on a phone, the widest the axis text gets.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 function phoneWidth(label: string): number {
   return label.length * GLYPH_WIDTH * PHONE_AXIS_UNITS;
 }
 
 /**
- * The y-axis caption as the lines it prints on: one, unless it is longer than
- * the plot is tall at a phone's font, when it breaks at the space nearest its
- * middle — `Sijoitusmuutos keskimäärin` (specs/050) ran off both ends of the
- * drawing at 375 px. A caption with no space stays whole.
+ * The y-axis caption as the lines it prints on: one, or two broken at the
+ * space nearest its middle when it is longer than the plot is tall on a phone.
+ *
+ * decisions/050-table-volatility.md
  */
 export function captionLines(label: string, plotHeight: number): string[] {
   if (phoneWidth(label) <= plotHeight) return [label];
@@ -103,7 +116,11 @@ export function captionLines(label: string, plotHeight: number): string[] {
   return breakAt === undefined ? [label] : [label.slice(0, breakAt), label.slice(breakAt + 1)];
 }
 
-/** Whether any two neighbouring labels, centred at `x`, would touch on a phone. */
+/**
+ * Whether any two neighbouring labels, centred at `x`, would touch on a phone.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolean {
   let previousEnd = Number.NEGATIVE_INFINITY;
   for (const label of labels) {
@@ -114,11 +131,10 @@ function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolea
 }
 
 /**
- * `value` mapped from `domain` onto `range`, linearly.
+ * `value` mapped from `domain` onto `range`, linearly. A domain of one value
+ * maps to the middle of the range.
  *
- * A domain of one value — a season with a single round played, a league of one
- * team — puts everything in the middle of the range rather than dividing by
- * zero.
+ * decisions/030-league-position-by-matchday.md
  */
 export function scale(
   value: number,
@@ -131,14 +147,9 @@ export function scale(
 
 /**
  * Round-number ticks from `min` to `max`, both ends included, about `count` of
- * them.
+ * them, a whole step apart.
  *
- * **Both ends are always ticks**, so an axis always labels where it starts and
- * ends: a `count` below 2 is treated as 2 rather than dropping one of them.
- *
- * The step is a whole number, because both axes here count things — rounds and
- * places. The last regular tick is dropped when it would crowd `max`, so the
- * axis never prints 37 and 38 side by side.
+ * decisions/030-league-position-by-matchday.md
  */
 export function ticksFor(min: number, max: number, count: number): number[] {
   if (max <= min) return [min];
@@ -154,23 +165,77 @@ export function ticksFor(min: number, max: number, count: number): number[] {
 }
 
 /**
- * One line on a chart. A second series is told apart by its dash, not by a
- * colour: every line is the theme's foreground, so it reads in both themes and
- * without colour vision (specs/032, Q5).
+ * One line on a chart. A second series is told apart by its dash, not a
+ * colour: every line is the theme's foreground.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/053-elo-ratings.md
+ * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 export type LineSeries = {
   /** What the line is, unique within its chart: its key, and `data-series`. */
   name: string;
   points: readonly ChartPoint[];
   dashed?: boolean;
+  /**
+   * A third style, for a reference line and not data.
+   */
+  dotted?: boolean;
+  /**
+   * A fourth style, for a third line of data.
+   */
+  dashDotted?: boolean;
+  /**
+   * `false` draws the line without a dot at every point. Marked points are
+   * still ringed.
+   */
+  dots?: boolean;
 };
 
-/** The dash pattern of a dashed series, shared with its legend sample. */
+/**
+ * The dash pattern of a dashed series, shared with its legend sample.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 const DASH = "6 4";
+/**
+ * A dotted series' pattern, as short against its gaps as a dash is long.
+ *
+ * decisions/054-prediction-quality.md
+ */
+const DOT = "2 4";
+/**
+ * A dash-dotted series' pattern: a dash, then a dot.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+const DASH_DOT = "6 4 2 4";
+
+/**
+ * The styles a line can be drawn in, besides solid.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+type LineStyle = Readonly<{ dashed?: boolean; dotted?: boolean; dashDotted?: boolean }>;
+
+/**
+ * A line's dash pattern, the same for the line and its legend sample.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
+ */
+function dashArray(style: LineStyle): string | undefined {
+  if (style.dotted) return DOT;
+  if (style.dashDotted) return DASH_DOT;
+  return style.dashed ? DASH : undefined;
+}
 
 /**
  * The extra height a chart with tick notes reserves under its x-axis, so a
- * second line under a tick clears the axis caption (specs/048, S15).
+ * second line under a tick clears the axis caption.
+ *
+ * decisions/048-league-goals-per-game-trend.md
  */
 const NOTE_ROW = 22;
 
@@ -191,14 +256,13 @@ type LineChartProps = {
   formatXTick?: (tick: number) => string;
   formatYTick?: (tick: number) => string;
   /**
-   * A second line under an x tick, or nothing — `(kesken)` under the season in
-   * progress (specs/048, S15). A chart with any note grows its bottom margin.
+   * A second line under an x tick, or nothing. A chart with any note grows its
+   * bottom margin.
    */
   xTickNote?: (tick: number) => string | undefined;
   /**
    * When the x labels would touch on a phone, label every other tick there,
-   * counting back from the last — so the latest season and its note always
-   * show — and every tick from `sm` up (specs/048, S16).
+   * counting back from the last, and every tick from `sm` up.
    */
   thinXTicksOnPhone?: boolean;
   /** The element that names the chart — its heading. */
@@ -235,9 +299,8 @@ export function LineChart({
   const top = MARGIN.top;
   const bottom = CHART.height - MARGIN.bottom - (hasNotes ? NOTE_ROW : 0);
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
-  // The last tick is centred on the plot's end, so a label or note wider than
-  // twice the margin would run off the drawing: the plot ends short of the
-  // axis by what it lacks. Every chart before specs/048 needs none.
+  // The last tick is centred on the plot's end, so the plot ends short of the
+  // axis by what a wider label or note would overhang.
   const overhang = ticks
     .slice(-1)
     .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - MARGIN.right);
@@ -313,7 +376,9 @@ export function LineChart({
 
       {series.map((line) => (
         <g
+          data-dash-dotted={line.dashDotted ? "" : undefined}
           data-dashed={line.dashed ? "" : undefined}
+          data-dotted={line.dotted ? "" : undefined}
           data-part="series"
           data-series={line.name}
           key={line.name}
@@ -322,7 +387,7 @@ export function LineChart({
             className="fill-none stroke-foreground"
             data-part="line"
             points={line.points.map((point) => `${toX(point.x)},${toY(point.y)}`).join(" ")}
-            strokeDasharray={line.dashed ? DASH : undefined}
+            strokeDasharray={dashArray(line)}
             strokeLinejoin="round"
             strokeWidth={2}
           />
@@ -340,7 +405,7 @@ export function LineChart({
                   strokeWidth={1.5}
                 />
               ))}
-            {line.points.map((point) =>
+            {(line.dots === false ? [] : line.points).map((point) =>
               point.open ? (
                 // Filled with the page's background, so the line does not show
                 // through the ring.
@@ -372,11 +437,15 @@ export function LineChart({
 
 /**
  * Which line is which, beneath a chart with more than one: a short sample of
- * each line's style beside its label, so a dash is never a riddle.
+ * each line's style beside its label.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function LineLegend({
   items,
-}: Readonly<{ items: ReadonlyArray<{ label: string; dashed?: boolean }> }>) {
+}: Readonly<{
+  items: ReadonlyArray<{ label: string } & LineStyle>;
+}>) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-muted text-sm">
       {items.map((item) => (
@@ -384,7 +453,7 @@ export function LineLegend({
           <svg aria-hidden="true" className="h-2 w-6" viewBox="0 0 24 8">
             <line
               className="stroke-foreground"
-              strokeDasharray={item.dashed ? DASH : undefined}
+              strokeDasharray={dashArray(item)}
               strokeWidth={2}
               x1={0}
               x2={24}

@@ -1,27 +1,10 @@
 /**
- * Sends one deliberate event to Sentry, using the **server** runtime's own
- * configuration, and reports whether it was accepted and flushed.
+ * Sends one deliberate event to Sentry, using the server runtime's own
+ * configuration, and reports whether it was accepted and flushed. Run it with
+ * the environment to prove: `npm run verify:sentry`.
  *
- *   SENTRY_TRACES_SAMPLE_RATE=… NEXT_PUBLIC_SENTRY_DSN=… npm run verify:sentry
- *
- * Why a script and not a route (#230): the wizard's example routes proved the
- * integration once and were deleted in #204, because anything reachable in
- * production is reachable by anyone and theirs logged through `Sentry.logger`,
- * which `LOG_LEVEL` does not govern. A script adds no surface to the deployed
- * app at all — nothing to guard, nothing to stumble into, nothing that can be
- * hit by a crawler.
- *
- * **It covers the server runtime only.** The edge runtime has no equivalent,
- * because reaching it means running code inside the edge sandbox, which a
- * command-line script cannot do. That gap is real and stated rather than
- * papered over; the client half needs no test event, since `NEXT_PUBLIC_`
- * values are inlined at build time and can be read straight out of the shipped
- * bundle.
- *
- * Run it with the environment you want to prove. Against production that means
- * production's variables, the same way `npm run backfill` takes production's
- * `DATABASE_URL` — the values in `.env` are a local convenience and prove only
- * the local configuration.
+ * decisions/230-sentry-delivery-check.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 import { existsSync } from "node:fs";
 import * as Sentry from "@sentry/nextjs";
@@ -41,7 +24,12 @@ function err(line = ""): void {
   process.stderr.write(`${line}\n`);
 }
 
-/** Long enough for a slow network, short enough that a dead one does not hang a person. */
+/**
+ * Long enough for a slow network, short enough that a dead one does not hang a
+ * person.
+ *
+ * decisions/230-sentry-delivery-check.md
+ */
 const FLUSH_TIMEOUT_MS = 10_000;
 
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -49,9 +37,8 @@ if (existsSync(".env")) process.loadEnvFile(".env");
 /**
  * What actually happened, as one of three answers.
  *
- * Named rather than nested ternaries: "no event id" and "an event id that never
- * flushed" are different failures with different causes — one is configuration,
- * the other the network — and reading them as one expression hides that.
+ * decisions/230-sentry-delivery-check.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 function outcomeOf(eventId: string | undefined, flushed: boolean): Outcome {
   if (eventId === undefined) return { kind: "not-sent" };

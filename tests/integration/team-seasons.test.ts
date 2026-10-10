@@ -6,9 +6,11 @@ import { getTeamName, getTeamSeasons } from "@/lib/team-seasons";
 
 /**
  * The grouped query against a real Postgres: which competitions and seasons a
- * club has matches for, and in what order the selector receives them. See
- * specs/022-teams-between-tiers.md.
+ * club has matches for, and in what order the selector receives them.
+ *
+ * decisions/022-teams-between-tiers.md
  */
+
 const TEAM = 994101;
 const OTHER = 994102;
 const TASO_IDS = [994001, 994002, 994003, 994004, 994005];

@@ -1,6 +1,15 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import pino from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
+
+/**
+ * The logger: its level, its redaction and its transport.
+ *
+ * decisions/278-quiet-test-logs.md
+ * decisions/574-pino-transport-target.md
+ */
 
 vi.mock("pino", () => {
   const pinoMock = vi.fn();
@@ -106,12 +115,19 @@ describe("logger", () => {
     await import("@/lib/logger");
 
     expect(mockedPino.transport).toHaveBeenCalledWith({
-      target: "@axiomhq/pino",
+      target: expect.any(String),
       options: {
         dataset: "dataset",
         token: "token",
       },
     });
+
+    // The path pino is given, not a name it has to find: inside Next's bundle it
+    // cannot.
+    const [{ target }] = mockedPino.transport.mock.calls[0] as [{ target: string }];
+    expect(path.isAbsolute(target)).toBe(true);
+    expect(target).toContain(path.join("node_modules", "@axiomhq", "pino"));
+    expect(existsSync(target)).toBe(true);
     expect(mockedPino).toHaveBeenCalledWith(
       expect.objectContaining({
         level: "warn",

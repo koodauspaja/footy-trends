@@ -2,20 +2,22 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's two folds (#416): the match list and Analyysit, each a native
+ * The team page's two folds: the match list and Analyysit, each a native
  * `<details>` that starts open and folds on its own, with no client state.
  * Signed in the way league-position.spec.ts explains.
+ *
+ * decisions/416-team-page-folds.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
  */
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/**
- * The match list's own table. Analyysit has tables of its own since specs/045
- * (`Vaikeimmat vastustajat`), so "the table on the page" no longer means this
- * one; the match list is the first fold.
- */
+// The match list's own table: Analyysit has tables of its own, so
+// "the table on the page" does not mean this one. The match list is the first
+// fold.
 function matchTable(page: Page) {
   return page.locator("details").first().getByRole("table");
 }
@@ -83,8 +85,7 @@ test("keeps no analytics value in a folded signed-out page", async ({ page }) =>
 });
 
 test("a cup page folds its match list and its Analyysit", async ({ page }) => {
-  // Both folds, since specs/040 gave a cup its analytics: it had only the
-  // match list before.
+  // Both folds: a cup has its analytics as well as the match list.
   await signedIn(page);
   await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
 

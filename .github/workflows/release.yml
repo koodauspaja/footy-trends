@@ -1,21 +1,7 @@
-# Runs the full suite against the release branch, which is what production
-# deploys from. Separate from ci.yml deliberately: this is the only place e2e
-# runs (see #81), and static analysis is *not* repeated here because a release
-# PR carries commits already reviewed on their way into main.
-#
-# The `push` trigger is not optional. Railway only offers its "Wait for CI"
-# setting when a workflow has a push trigger for the tracked branch, and that
-# setting is what stops a deploy whose tests failed. `pull_request` alone would
-# gate the merge but leave the deploy ungated.
-#
-# `workflow_dispatch` exists so this can be exercised without cutting a
-# release — the first real release should not be the first time it runs.
-#
-# Deliberately *without* ci.yml's `github.actor` guard. GitHub counts a skipped
-# required check as satisfied, so a guard that skips would let a release PR
-# merge with no tests run at all — the one hole this gate cannot have. A fork
-# pull request receives no secrets, so the e2e job fails rather than leaking
-# them, and failing is the correct outcome for an untrusted release PR.
+# Why each setting is as it is: decisions/531-configuration-files.md
+# Runs the full suite against the release branch, which production deploys
+# from. The `push` trigger is what lets Railway wait for CI before a deploy, and
+# there is no `github.actor` guard: a skipped required check counts as passed.
 name: Release
 
 on:
@@ -28,23 +14,12 @@ on:
       - release
   workflow_dispatch:
 
+# The token every job gets unless it asks for more.
+permissions:
+  contents: read
+
 # Concurrency here protects the *gate*, not the provider — those turn out to be
 # incompatible goals with this mechanism, and the gate wins.
-#
-# GitHub keeps one running and one pending run per group, and a newly queued run
-# evicts the pending one even with `cancel-in-progress: false`. So any group two
-# runs can share is a group in which a push run's status can be silently
-# dropped, and that status is what Railway's Wait for CI is waiting on. Push
-# runs therefore get a group per commit: never queued behind anything, never
-# evicted, never cancelled.
-#
-# That means overlapping live-provider load is possible, and this workflow does
-# not pretend otherwise. If football-data.org's rate limit starts producing
-# false failures, the fix is a CI-only provider key rather than a shared
-# concurrency group — a rate-limited run fails safe by blocking a deploy, while
-# an evicted push run removes the gate entirely.
-#
-# Pull-request runs supersede their own predecessors, which is only ever useful.
 concurrency:
   group: release-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -53,6 +28,7 @@ jobs:
   unit:
     name: Release — typecheck, lint and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -64,14 +40,9 @@ jobs:
           check-latest: true
 
       - name: Install dependencies
-        # `--ignore-scripts` blocks dependency lifecycle scripts, which are how a
-        # compromised package runs code on a runner holding our tokens
-        # (githubactions:S6505). Nothing here needs them: the only script in
-        # package.json is husky, which installs git hooks no CI job uses, and
-        # the two dependencies that fetch binaries — esbuild and @sentry/cli —
-        # resolve them from optional platform packages instead. Verified in #258
-        # by installing this way and running typecheck, lint, the full unit
-        # suite and a production build.
+        # `--ignore-scripts` blocks dependency lifecycle scripts, which are how
+        # a compromised package runs code on a runner holding our tokens
+        # (githubactions:S6505).
         run: npm ci --ignore-scripts
 
       - name: Typecheck
@@ -86,12 +57,13 @@ jobs:
   integration:
     name: Release — integration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: footy-trends
         ports:
           - 5432:5432
@@ -111,12 +83,9 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
+      DATABASE_URL: postgresql://postgres:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/footy-trends
       REDIS_URL: redis://localhost:6379
-      # Dummy literals, not secrets. No test completes a real Google sign-in —
-      # Google blocks automated browsers — so nothing here needs a real
-      # credential. They exist because src/lib/auth.ts fails fast on a missing
-      # variable rather than at first sign-in. See specs/023-google-oauth-login.md.
+      # Dummy literals, not secrets.
       BETTER_AUTH_SECRET: ci-not-a-real-secret-ci-not-a-real-secret
       BETTER_AUTH_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: ci-dummy-client-id
@@ -154,7 +123,7 @@ jobs:
         image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: footy-trends
         ports:
           - 5432:5432
@@ -174,12 +143,9 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/footy-trends
+      DATABASE_URL: postgresql://postgres:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/footy-trends
       REDIS_URL: redis://localhost:6379
-      # Dummy literals, not secrets. No test completes a real Google sign-in —
-      # Google blocks automated browsers — so nothing here needs a real
-      # credential. They exist because src/lib/auth.ts fails fast on a missing
-      # variable rather than at first sign-in. See specs/023-google-oauth-login.md.
+      # Dummy literals, not secrets.
       BETTER_AUTH_SECRET: ci-not-a-real-secret-ci-not-a-real-secret
       BETTER_AUTH_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: ci-dummy-client-id
@@ -188,13 +154,12 @@ jobs:
       # every spec time out against a generic error page.
       FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
       TASO_API_KEY: ${{ secrets.TASO_API_KEY }}
-      # Literals rather than `vars.*`: an undefined repository variable expands
-      # to an empty string, both of these fall back to a default when unparseable,
-      # and the suite would then run against a season floor nobody chose. These
-      # match .env.example.
+      # Literals, not `vars.*`: an undefined variable expands to an empty string,
+      # and the suite would then run against a season floor nobody chose.
       FOOTBALL_DATA_EARLIEST_SEASON: "2023"
       FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS: "3600"
-      # Switches playwright.config.ts's webServer from `next dev` to `npm start`.
+      # playwright.config.ts's webServer then serves the build made in the Build
+      # step below, and does not make one itself.
       E2E_TARGET: build
 
     steps:
@@ -210,22 +175,16 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      # Chromium only, per #81. `--with-deps` because the runner has none of
-      # the shared libraries a headless browser needs.
-      #
-      # An npm script rather than `npx`, which is allowed to fetch a package
-      # on demand and run its lifecycle scripts (githubactions:S6505, S8543).
-      # This runs the playwright already installed above, so the browser
-      # always matches the version in package-lock.json.
+      # Chromium only, through an npm script and not `npx`, which may fetch a
+      # package on demand and run its lifecycle scripts.
       - name: Install Chromium for Playwright
         run: npm run test:e2e:browser
 
       - name: Run database migrations
         run: npm run db:migrate
 
-      # Built here rather than by Playwright's webServer: a release gate should
-      # exercise what ships, and `webServer` runs a single command with a
-      # start-up timeout that a full build would blow through.
+      # Built here, as a step of its own. `E2E_TARGET: build` above keeps
+      # Playwright's webServer from building again.
       - name: Build
         run: npm run build
 
@@ -241,12 +200,11 @@ jobs:
           retention-days: 7
 
   # Only after every gate is green, and only on the merge itself — never on a
-  # pull request. A tag is effectively permanent and public, so it must not be
-  # possible to create one for a release that was rejected or that failed its
-  # tests.
+  # pull request.
   tag:
     name: Release — tag and publish
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [unit, integration, e2e]
     if: github.event_name == 'push'
     permissions:
@@ -273,22 +231,7 @@ jobs:
       - name: Work out the version
         id: version
         env:
-          # Names the first release. Set it as a repository variable before that
-          # release; there is no need to unset it afterwards, because two things
-          # keep it from touching a later one:
-          #
-          #   - once a release is tagged, the next promotion finds that tag and
-          #     derives from it, so the override is never consulted
-          #   - a rerun takes the version off the tag already on HEAD, before
-          #     the override is read at all
-          #
-          # Not "inert once any tag exists", which is what this said before and
-          # is stronger than the code gives: a repository whose *only* tags were
-          # pre-release or malformed would have no previous tag either. That is
-          # a named limitation on `firstReleaseVersion` in scripts/next-version.ts
-          # rather than an oversight — guarding it needs a second definition of
-          # "has this been tagged", and having two produced six rounds of
-          # contradictions before they were reduced back to one.
+          # Names the first release.
           FIRST_RELEASE_VERSION: ${{ vars.FIRST_RELEASE_VERSION }}
         run: |
           version="$(npm run release:version --silent -- --since-last-tag --print=version)"
@@ -306,11 +249,8 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
-            # An existing tag is only acceptable if it names *this* commit —
-            # a rerun. Pointing anywhere else means the version was already
-            # used for something else, and publishing notes against it would
-            # break the one guarantee the tag carries: that it identifies the
-            # commit the tests ran on.
+            # An existing tag is only acceptable if it names *this* commit — a
+            # rerun.
             tagged="$(git rev-list -n 1 "refs/tags/$version")"
             if [ "$tagged" != "$GITHUB_SHA" ]; then
               echo "::error::$version already exists and points at $tagged, not $GITHUB_SHA."

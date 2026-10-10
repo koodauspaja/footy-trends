@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AnalyticsSection } from "@/components/analytics-section";
 import { ContextNotices } from "@/components/context-notices";
-import { FavouriteToggle } from "@/components/favourite-toggle";
-import { MatchListTable } from "@/components/match-list-table";
-import { PageShell } from "@/components/page-shell";
-import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
-import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
+import {
+  resolveTeamIdentity,
+  TEAM_HEADING,
+  TeamPage,
+  type TeamPageData,
+  teamPageMetadata,
+} from "@/components/team-page";
 import { TeamSeasonSelector } from "@/components/team-season-selector";
-import { SEASON_AXIS } from "@/lib/analytics-axis";
 import {
   earliestSeasonFor,
   getCompetitionFormat,
@@ -16,61 +15,37 @@ import {
   parseCompetitionParam,
 } from "@/lib/competitions";
 import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
+import { getTeamElo } from "@/lib/elo-service";
+import type { NormalizedProviderMatch } from "@/lib/football-data";
 import { getWorstOpponents } from "@/lib/match-service";
-import { matchCountLabel } from "@/lib/national-team";
-import {
-  type BasePageContext,
-  type CompetitionPageOptions,
-  resolveBasePageContext,
-} from "@/lib/page-context";
+import { type CompetitionPageOptions, resolveBasePageContext } from "@/lib/page-context";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
 import {
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
-  type TeamMatchesResult,
 } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
-import {
-  getTeamName,
-  getTeamSeasons,
-  type TeamNameResult,
-  type TeamSeasonsResult,
-  teamSeasonsView,
-} from "@/lib/team-seasons";
+import { teamPanelLoaders } from "@/lib/team-panels";
 
-const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
-const TEAM_HEADING = "Joukkue";
-const NOT_FOUND_MESSAGE = "Joukkuetta ei löytynyt.";
-
-/** A team page's own `params`, on top of the shared region options. */
+/**
+ * A team page's own `params`, on top of the shared region options.
+ *
+ * decisions/016-world-cup-and-euro.md
+ */
 export type CompetitionTeamPageOptions = CompetitionPageOptions & {
   params: Promise<{ id: string }>;
 };
 
-type PageContext =
-  /** No stored match anywhere in this region — not "none this season". */
-  | { status: "not_found" }
-  | { status: "error"; competitionName: string }
-  | (Extract<BasePageContext, { status: "ok" }> & {
-      teamProviderId: number;
-      result: TeamMatchesResult;
-      teamName: string | null;
-      /** Whether the name lookup itself failed, which is an outage like any other. */
-      nameStatus: TeamNameResult["status"];
-      /** Every competition and season this club has matches for. */
-      seasons: TeamSeasonsResult;
-    });
-
-/** What the URL already said, and so what the team's own context must not contradict. */
+/**
+ * What the URL already said, and so what the team's own context must not contradict.
+ *
+ * decisions/020-context-free-team-page.md
+ */
 function filterFrom(
   params: Record<string, string | string[] | undefined>,
   region: CompetitionPageOptions["region"]
@@ -84,45 +59,42 @@ function filterFrom(
 }
 
 /**
- * Resolves everything both `generateMetadata` and the page itself need —
- * the competition, season context, resolved team, and its name (for the
- * title) — on top of `resolveBasePageContext`. Called once from each
- * (Next.js invokes them separately), but `getSeasonContext` and
- * `getTeamMatches` are wrapped in React's `cache()`, so the underlying
- * fetches only happen once per request regardless.
+ * A football-data team's page as `TeamPage` takes it. Next calls it for the
+ * metadata and the page alike; the reads beneath are `cache()`d per request.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/020-context-free-team-page.md
+ * decisions/040-cup-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
  */
-/** Which side of the match this team played, so its own name can be read off it. */
-function nameForTeam(
-  match: { homeTeamProviderId: number; homeTeamName: string; awayTeamName: string },
-  teamProviderId: number
-): string {
-  return match.homeTeamProviderId === teamProviderId ? match.homeTeamName : match.awayTeamName;
-}
-
-async function resolvePageContext(
-  id: string,
-  params: Record<string, string | string[] | undefined>,
-  region: CompetitionPageOptions["region"]
-): Promise<PageContext> {
-  const teamProviderId = Number(id);
+async function resolveTeamPage({
+  params,
+  searchParams,
+  region,
+  basePath,
+}: CompetitionTeamPageOptions): Promise<TeamPageData<NormalizedProviderMatch>> {
+  const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const teamProviderId = parseWholeNumber(id);
+  if (teamProviderId === null) return { status: "not_found" };
+  const source = { kind: "football-data", region } as const;
   // Resolved before the season context, because it decides which competition
-  // that context is fetched for. See specs/020-context-free-team-page.md.
-  const defaults = await resolveTeamDefaults(
-    { kind: "football-data", region },
-    teamProviderId,
-    filterFrom(params, region)
-  );
+  // that context is fetched for.
+  const defaults = await resolveTeamDefaults(source, teamProviderId, filterFrom(query, region));
   if (defaults.status === "not_found") return defaults;
-  if (defaults.status === "error") return { status: "error", competitionName: TEAM_HEADING };
+  if (defaults.status === "error") return { status: "error", heading: TEAM_HEADING };
 
-  const base = await resolveBasePageContext(params, region, defaults.defaults);
-  if (base.status === "error") return base;
+  const base = await resolveBasePageContext(query, region, defaults.defaults);
+  if (base.status === "error") return { status: "error", heading: base.competitionName };
+  const { competitionCode, competitionParam, competitionName, context, season, seasonId } = base;
+  const { seasonLabel } = base;
 
   const result = await getTeamMatches(
-    base.competitionCode,
+    competitionCode,
     teamProviderId,
-    base.seasonId,
-    base.context.activeSeasonId
+    seasonId,
+    context.activeSeasonId
   );
 
   // A national team is a country, and this app is Finnish.
@@ -132,13 +104,7 @@ async function resolvePageContext(
       : result;
 
   const [firstMatch] = localised.status === "ok" ? localised.matches : [];
-  const source = { kind: "football-data", region } as const;
-  const seasons = await getTeamSeasons(source, teamProviderId);
-  // The club's own name, asked for only when there is no match to read it off.
-  const name: TeamNameResult =
-    firstMatch === undefined
-      ? await getTeamName(source, teamProviderId)
-      : { status: "ok", name: nameForTeam(firstMatch, teamProviderId) };
+  const { name, seasons } = await resolveTeamIdentity(source, teamProviderId, firstMatch);
   const storedName = name.status === "ok" ? name.name : null;
   // A national team is a country, and this app is Finnish — the same treatment
   // `localised` gives the match list, applied to a name read straight from the
@@ -148,215 +114,36 @@ async function resolvePageContext(
       ? toFinnishCountryName(storedName)
       : storedName;
 
-  return { ...base, teamProviderId, result: localised, teamName, nameStatus: name.status, seasons };
-}
-
-export async function teamMetadata({
-  params,
-  searchParams,
-  region,
-}: CompetitionTeamPageOptions): Promise<Metadata> {
-  const { id } = await params;
-  const resolvedParams = (await searchParams) ?? {};
-  const resolved = await resolvePageContext(id, resolvedParams, region);
-  if (resolved.status === "not_found") return { title: NOT_FOUND_MESSAGE };
-  if (resolved.status === "error") return { title: resolved.competitionName };
+  const labelSeason = (year: number) => formatSeasonLabel(year, context.spansCalendarYears);
 
   return {
-    title:
-      resolved.teamName !== null
-        ? `${resolved.teamName} – ${resolved.competitionName} ${resolved.seasonLabel}`
-        : resolved.competitionName,
-  };
-}
-
-/**
- * A team's page for one region — `/ulkomaat` or `/maajoukkueet`. One
- * implementation for both; see specs/016-world-cup-and-euro.md.
- */
-export async function CompetitionTeamPage({
-  params,
-  searchParams,
-  region,
-  basePath,
-}: Readonly<CompetitionTeamPageOptions>) {
-  const { id } = await params;
-  const resolvedParams = (await searchParams) ?? {};
-  const resolved = await resolvePageContext(id, resolvedParams, region);
-  // A team with no stored match has no competition to name, so the page offers
-  // neither a season selector nor a standings link: every season would fail
-  // identically, and the table would be one this team never played in.
-  if (resolved.status === "not_found") {
-    return (
-      <PageShell heading={TEAM_HEADING}>
-        <p>{NOT_FOUND_MESSAGE}</p>
-      </PageShell>
-    );
-  }
-  if (resolved.status === "error") {
-    return (
-      <PageShell heading={resolved.competitionName}>
-        <p>{ERROR_MESSAGE}</p>
-      </PageShell>
-    );
-  }
-  const {
+    status: "ok",
     teamProviderId,
+    basePath,
+    favouriteSource: "football-data",
     competitionCode,
-    competitionParam,
-    competitionName,
-    context,
-    season,
+    headingCompetition: competitionName,
     seasonId,
     seasonLabel,
-    result,
+    result: localised,
     teamName,
-    nameStatus,
+    nameStatus: name.status,
     seasons,
-  } = resolved;
-
-  const heading =
-    teamName !== null ? `${teamName} – ${competitionName} ${seasonLabel}` : competitionName;
-
-  /**
-   * The toggle names the club rather than the heading, because the heading
-   * carries the competition and the season too — and a favourite follows the
-   * club across both (specs/022, specs/026-favourites.md).
-   *
-   * Nothing renders when the name is unknown: a favourite whose label cannot be
-   * resolved would be a star with nothing to say what it is following.
-   */
-  const favourite =
-    teamName === null ? null : (
-      <FavouriteToggle
-        kind="team"
-        name={teamName}
-        source="football-data"
-        teamProviderId={teamProviderId}
-      />
-    );
-
-  const played = seasons.status === "ok" ? seasons.seasons : [];
-  // Either lookup failing is an outage, and neither is a club that does not exist.
-  const lookups = nameStatus === "error" ? "error" : seasons.status;
-
-  const { offeredSeasons, seasonCompetitions, sameSeason, newest } = teamSeasonsView(
-    played,
-    seasonId,
-    {
-      season: (year) => formatSeasonLabel(year, context.spansCalendarYears),
+    lead: null,
+    notices: (
+      <ContextNotices resolved={{ competitionParam, competitionName, season, seasonLabel }} />
+    ),
+    names: {
+      season: labelSeason,
       competition: getCompetitionName,
-      href: (code, year) => `${basePath}/joukkue/${teamProviderId}?kilpailu=${code}&kausi=${year}`,
       selectable: (code, year) =>
         year >=
           earliestSeasonFor(
             code,
             resolveEarliestSeason(process.env.FOOTBALL_DATA_EARLIEST_SEASON)
           ) && year <= context.activeSeasonId,
-    }
-  );
-  // Everything the body needs, in one value: the two lookups' verdicts and
-  // where the club was instead.
-  const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
-
-  /**
-   * Every competition, league or cup (specs/040). It was league-only until
-   * then, because specs/030 Q2's rule — a league position needs a league table
-   * — was applied to the whole section rather than to the one panel that needs
-   * it. Nine of the ten are computed from results, which a cup has.
-   *
-   * `Sijoitus kierroksittain` is still absent on a cup, but that is decided by
-   * its own loader below rather than here: the panel that needs a table is the
-   * only place that knows about tables.
-   *
-   * Still only for a team with matches this season — otherwise the page
-   * already says why there is nothing to show.
-   */
-  const analyticsSection =
-    result.status === "ok"
-      ? await AnalyticsSection({
-          // A club page's periods are seasons (specs/041, S13).
-          axis: SEASON_AXIS,
-          // A failed season lookup is `played = []`, which the comparison
-          // would read as "this club has no other seasons" and say so — a
-          // database failure dressed as a fact about the club. It reports the
-          // outage instead. `not_found` is not a failure: it means the club
-          // genuinely has no stored match under this route.
-          // The same season wording the selector above the panel uses, so a
-          // record names a season the way the rest of the page does.
-          loadRecords: () =>
-            seasons.status !== "error"
-              ? getTeamStreakRecords(
-                  competitionCode,
-                  teamProviderId,
-                  context.activeSeasonId,
-                  played,
-                  (year) => formatSeasonLabel(year, context.spansCalendarYears)
-                )
-              : Promise.resolve({ status: "error" as const }),
-          loadComparison: () =>
-            seasons.status !== "error"
-              ? getTeamSeasonComparison(
-                  competitionCode,
-                  teamProviderId,
-                  seasonId,
-                  context.activeSeasonId,
-                  played
-                )
-              : Promise.resolve({ status: "error" as const }),
-          // A cup has no table to rank a position in, so the panel is absent
-          // rather than empty (specs/040, S2). Every other panel is computed
-          // from results, which a cup has.
-          loadPosition: () =>
-            getCompetitionFormat(competitionCode) === "cup"
-              ? Promise.resolve({ status: "unavailable" as const })
-              : getTeamPositionSeries(
-                  competitionCode,
-                  teamProviderId,
-                  seasonId,
-                  context.activeSeasonId
-                ),
-          loadForm: () =>
-            getTeamFormSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadGoals: () =>
-            getTeamGoalsSeries(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadHomeAway: () =>
-            getTeamHomeAwaySeries(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId
-            ),
-          loadCleanSheets: () =>
-            getTeamCleanSheetSeries(
-              competitionCode,
-              teamProviderId,
-              seasonId,
-              context.activeSeasonId
-            ),
-          loadStreaks: () =>
-            getTeamStreaks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          loadComebacks: () =>
-            getTeamComebacks(competitionCode, teamProviderId, seasonId, context.activeSeasonId),
-          // Every competition in the region and every stored season, whatever
-          // season is shown (specs/045, S4). `unavailable` on a national team's
-          // page, which is a country rather than a club (S5).
-          loadOpponents: () =>
-            getWorstOpponents({ kind: "football-data", region }, teamProviderId, basePath),
-        })
-      : null;
-
-  return (
-    <PageShell heading={heading} headingAction={favourite}>
-      <p className="mb-6">
-        <Link
-          className="text-sm hover:underline"
-          href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Sarjataulukkoon
-        </Link>
-      </p>
-      <ContextNotices resolved={{ competitionParam, competitionName, season, seasonLabel }} />
+    },
+    controls: ({ offeredSeasons, seasonCompetitions }) => (
       <TeamSeasonSelector
         basePath={basePath}
         competitionCode={competitionCode}
@@ -365,27 +152,67 @@ export async function CompetitionTeamPage({
         selectedSeasonId={seasonId}
         teamProviderId={teamProviderId}
       />
-      <TeamMatchesOutcome
-        outcome={outcome}
-        table={
-          result.status === "ok" ? (
-            <TeamPageFold
-              className="mt-4"
-              count={matchCountLabel(result.matches.length)}
-              heading={MATCHES_HEADING}
-              headingId="team-matches"
-            >
-              <MatchListTable
-                fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "" }}
-                matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
-                matches={result.matches}
-                teamHref={null}
-              />
-            </TeamPageFold>
-          ) : null
-        }
-      />
-      {analyticsSection}
-    </PageShell>
-  );
+    ),
+    fourthColumn: { header: "Kierros", render: (match) => match.matchday ?? "" },
+    loaders: (played) => ({
+      // The same season wording the selector above the panel uses, so a
+      // record names a season the way the rest of the page does.
+      loadRecords: () =>
+        getTeamStreakRecords(
+          competitionCode,
+          teamProviderId,
+          context.activeSeasonId,
+          played,
+          labelSeason
+        ),
+      loadComparison: () =>
+        getTeamSeasonComparison(
+          competitionCode,
+          teamProviderId,
+          seasonId,
+          context.activeSeasonId,
+          played
+        ),
+      // A cup has no table to rank a position in, so the panel is absent, not
+      // empty. Every other panel is computed from results, which a cup has.
+      loadPosition: () =>
+        getCompetitionFormat(competitionCode) === "cup"
+          ? Promise.resolve({ status: "unavailable" as const })
+          : getTeamPositionSeries(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId
+            ),
+      // The six result panels, over one read of the season's matches.
+      ...teamPanelLoaders({ teamProviderId, competitionCode, seasonId }, () =>
+        getTeamPanelMatches(competitionCode, teamProviderId, seasonId, context.activeSeasonId)
+      ),
+      // Every competition in the region and every stored season, whatever season
+      // is shown. `unavailable` on a national team's page: a country, not a club.
+      loadOpponents: () => getWorstOpponents(source, teamProviderId, basePath),
+      // Clubs only: national teams have no Elo.
+      loadElo: async () =>
+        region === "national-teams"
+          ? { series: { status: "unavailable" as const } }
+          : {
+              series: await getTeamElo("football-data", teamProviderId),
+              seasonLabel: labelSeason,
+            },
+    }),
+  };
+}
+
+export async function teamMetadata(options: CompetitionTeamPageOptions): Promise<Metadata> {
+  return teamPageMetadata(await resolveTeamPage(options));
+}
+
+/**
+ * A team's page for one region, `/ulkomaat` or `/maajoukkueet`. One
+ * implementation for both.
+ *
+ * decisions/016-world-cup-and-euro.md
+ */
+export async function CompetitionTeamPage(options: Readonly<CompetitionTeamPageOptions>) {
+  return TeamPage({ data: await resolveTeamPage(options) });
 }

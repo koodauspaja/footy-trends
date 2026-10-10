@@ -2,20 +2,20 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's league-position chart (specs/030), end to end.
+ * The team page's league-position chart, end to end. Signed in is simulated: the
+ * gate runs on the server, beyond `session.ts`'s interception, so a spec sends the
+ * override header, honoured only by this `_test`-database server and its flag.
  *
- * **Signed in is simulated, on purpose and only here.** The chart's gate runs
- * on the server, which `session.ts`'s browser-side interception cannot reach, so
- * a spec sends the override header instead — honoured only because this server
- * runs against a `_test` database with the flag `playwright.config.ts` sets.
- * A spec that sends no header is signed out, which is how the prompt is tested
- * on the same server.
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/413-rounds-a-team-sat-out.md
  */
 
 const HEADING = "Sijoitus kierroksittain";
 const SIGNED_OUT = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 
-/** Arsenal, and a completed season: every round is played, so every point exists. */
+// Arsenal, and a completed season: every round is played, so every point
+// exists.
 const TEAM = "/ulkomaat/joukkue/57";
 const SEASON = "kilpailu=PL&kausi=2024";
 
@@ -23,12 +23,13 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** The chart, found the way a screen reader would: an image named by its heading. */
+// The chart, found the way a screen reader would: an image named by its
+// heading.
 function chart(page: Page) {
   return page.getByRole("img", { name: HEADING });
 }
 
-/** "Sijoitus 10. kierroksen jälkeen: 3." → 3, from the chart's text alternative. */
+// "Sijoitus 10. kierroksen jälkeen: 3." → 3, from the chart's text alternative.
 async function plottedPosition(page: Page, round: number): Promise<number> {
   const sentence = page.getByText(new RegExp(`^Sijoitus ${round}\\. kierroksen jälkeen: \\d+\\.$`));
   const text = (await sentence.textContent()) ?? "";
@@ -50,11 +51,9 @@ test.describe("League position chart, signed in", () => {
   });
 
   test("plots the same position the standings page shows for that round", async ({ page }) => {
-    /**
-     * The property the feature rests on, checked against the page a reader would
-     * compare it with: the standings table after round 10, via its own round
-     * selector.
-     */
+    // The property the feature rests on, checked against the page a reader
+    // would compare it with: the standings table after round 10, via its own
+    // round selector.
     await page.goto(`${TEAM}?${SEASON}`);
     const plotted = await plottedPosition(page, 10);
     const club = (await page.getByRole("heading", { level: 1 }).textContent())?.split(" – ")[0];
@@ -88,12 +87,9 @@ test.describe("League position chart, signed in", () => {
   test("continues a Kakkonen pool through its split, below that pool's upper group", async ({
     page,
   }) => {
-    /**
-     * Kakkonen 2026's real data: three pools, each split into its own upper and
-     * lower continuation. A lower-group team's line carries on past the split,
-     * at its place in its continuation plus its own pool's upper group — and
-     * that must be the standings page's number for the same round.
-     */
+    // Kakkonen 2026: three pools, each split into its own upper and lower continuation.
+    // A lower-group team's line carries on past the split, at its place in its
+    // continuation plus its pool's upper group, as the standings page has it.
     const standings = "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2026";
     const tableUnder = (name: string) =>
       page.getByRole("heading", { name, level: 2 }).locator("xpath=following::table[1]");
@@ -134,15 +130,10 @@ test.describe("League position chart, rounds a team sat out", () => {
     await signedIn(page);
   });
 
-  test("fills a point only for a round the team played in (#413)", async ({ page }) => {
-    /**
-     * Veikkausliiga 2026's Mestaruussarja is numbered out of calendar order —
-     * KuPS's first two matches after the split are rounds 31 and 24 — so its
-     * line reaches rounds it has not played. Checked against the standings
-     * page rather than hardcoded rounds, so it holds as the season goes on:
-     * each match played fills exactly one point, because a team plays once per
-     * round, and the legend is there exactly when an open point is.
-     */
+  test("fills a point only for a round the team played in", async ({ page }) => {
+    // Veikkausliiga 2026's Mestaruussarja is numbered out of calendar order, so a
+    // line reaches rounds not yet played. Checked against the standings page, not
+    // hardcoded rounds: each match played fills one point, and the legend follows.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
     const table = page.getByRole("heading", { name: "Mestaruussarja", level: 2 });
     const row = table.locator("xpath=following::table[1]").locator("tbody tr", { hasText: "KuPS" });
@@ -167,8 +158,8 @@ test.describe("League position chart, rounds a team sat out", () => {
 
 test.describe("League position chart, signed out", () => {
   test("shows the sign-in prompt under Analyysit, in place of the charts", async ({ page }) => {
-    // One prompt for every chart on the page (specs/031, Q5), so no chart's
-    // own heading is shown to a signed-out reader.
+    // One prompt for every chart on the page, so no chart's own heading is
+    // shown to a signed-out reader.
     await page.goto(`${TEAM}?${SEASON}`);
 
     await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
@@ -179,9 +170,8 @@ test.describe("League position chart, signed out", () => {
 
   test("signs the reader in back to the same competition and season", async ({ page }) => {
     // Asserted on the request we send, as auth.spec.ts does: the round trip
-    // through Google cannot be automated, but where we ask it to return can.
-    // The prompt used to send the bare path, and a bare team URL resolves a
-    // competition and season of its own.
+    // through Google cannot be automated, but where we ask it to return can. A
+    // bare team URL would resolve a competition and season of its own.
     let body: { callbackURL?: string } | undefined;
     await page.route("**/api/auth/sign-in/social", async (route) => {
       body ??= route.request().postDataJSON();

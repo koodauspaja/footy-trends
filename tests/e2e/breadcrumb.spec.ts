@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * #207: from a competition page the only way out used to be `Etusivu` and the
- * front page. The header now carries the region too.
+ * The region crumb in the header: the way from a competition page to its
+ * region. The picker pages list competitions from configuration, not from a
+ * provider, so following the crumb costs nothing at the API.
  *
- * The picker pages themselves are cheap to reach — they list competitions from
- * configuration rather than from a provider — so following the crumb costs
- * nothing at the API.
+ * decisions/207-region-breadcrumb.md
  */
+
 const regions = [
   { name: "Kotimaa", from: "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026", to: "/kotimaa" },
   { name: "Ulkomaat", from: "/ulkomaat/ottelut?kilpailu=PL", to: "/ulkomaat" },

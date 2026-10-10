@@ -4,27 +4,18 @@ import { describe, expect, it } from "vitest";
 import { MIGRATION_TAG } from "../../../scripts/migration-name";
 
 /**
- * The migration folder's own invariants.
+ * The migration folder's own invariants: every migration is named for what it
+ * does. `npm run db:generate` refuses an unnamed one; this is the second line,
+ * for a name that arrives by any other route.
  *
- * `drizzle-kit generate` names a migration after two random words —
- * `0016_young_meteorite` — unless it is given `--name`. Seven arrived that way
- * before anyone noticed, and a name like that tells a reader nothing at the one
- * moment they need to know what a migration did: reading back through a
- * production incident.
- *
- * A written-down convention is not a check, which is why this file exists — and
- * why `npm run db:generate` refuses to create one in the first place. This is
- * the second line: it catches a name that arrives by any other route.
+ * decisions/376-named-migrations.md
  */
 
 const FOLDER = path.join(process.cwd(), "drizzle/migrations");
 
-/**
- * The rule itself lives in `scripts/migration-name.ts`, shared with the
- * generator that refuses to create a bad name. Two enforcement points, one
- * rule — a copy here would be free to drift from the one that does the
- * refusing.
- */
+// The rule itself lives in `scripts/migration-name.ts`, shared with the
+// generator that refuses to create a bad name: a copy here would be free to
+// drift from the one that does the refusing.
 const NAME = MIGRATION_TAG;
 
 type Journal = { entries: { idx: number; tag: string }[] };

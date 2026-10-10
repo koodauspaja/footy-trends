@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * The Champions League's standings and match list, end to end: one league-phase
+ * table or eight groups by season, the bracket, and a stage selector in place
+ * of rounds.
+ *
+ * decisions/014-champions-league.md
+ */
+
 test.describe("Champions League standings", () => {
   test("renders one league-phase table and the knockout bracket for 2024/25", async ({ page }) => {
     await page.goto("/ulkomaat/sarjataulukko?kilpailu=CL&kausi=2024");

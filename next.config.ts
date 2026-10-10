@@ -1,21 +1,25 @@
-// From `@sentry/nextjs/config`, not the package root: the root export is
-// deprecated as of 10.73.0 and stops working in v11, and it printed a warning
-// on every build until #293.
+/**
+ * Next's configuration: the route table behind every Finnish URL, the
+ * server-action body limit, and Sentry's build settings.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/025-custom-avatar.md
+ * decisions/042-head-to-head-view.md
+ * decisions/293-sentry-config-subpath.md
+ * decisions/527-one-route-table.md
+ */
+
+// From `@sentry/nextjs/config`, not the package root, whose export is
+// deprecated and stops working in v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 /**
  * The Finnish prefix each head-to-head route is reached by, and the directory
- * behind it (specs/042).
+ * behind it. Five, because every match page builds its link from its own
+ * prefix.
  *
- * A table rather than five near-identical entries below: every one of them
- * differs only in this pair, and the rewrite they produce is the same shape —
- * which is what a reader has to check five times otherwise, and what Sonar
- * counted as duplication.
- *
- * **Five, because every match page builds its link from its own prefix.** The
- * two national-team routes have theirs, so without them the link on Finland's
- * match pages would lead nowhere.
+ * decisions/042-head-to-head-view.md
  */
 const HEAD_TO_HEAD_PREFIXES = [
   ["/kotimaa", "/domestic"],
@@ -25,200 +29,121 @@ const HEAD_TO_HEAD_PREFIXES = [
   ["/maajoukkueet/helmarit", "/national-teams/womens-team"],
 ] as const;
 
-/** Each prefix's `kohtaamiset` route, which names two teams rather than one match. */
-const headToHeadRewrites = HEAD_TO_HEAD_PREFIXES.map(([prefix, directory]) => ({
-  source: `${prefix}/kohtaamiset/:a/:b`,
-  destination: `${directory}/head-to-head/:a/:b`,
-}));
+/**
+ * Every page: its Finnish URL, and the English App Router folder that serves
+ * it. One table, read twice: a rewrite from the URL to the folder, and a
+ * redirect from the folder's path back to the URL.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/527-one-route-table.md
+ */
+const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
+  // The account settings page.
+  ["/asetukset", "/settings"],
+  // The favourites page.
+  ["/suosikit", "/favorites"],
+  // The admin area.
+  ["/yllapito", "/admin"],
+  // The forced season refresh. `data`, not a provider's name: the page covers
+  // both Kotimaa and Ulkomaat.
+  ["/yllapito/data", "/admin/data"],
+  // The privacy policy.
+  ["/tietosuoja", "/privacy"],
+  // The terms of service.
+  ["/kayttoehdot", "/terms"],
+  ["/ennusteet", "/predictions"],
+  ["/kotimaa", "/domestic"],
+  ["/kotimaa/joukkue/:id", "/domestic/team/:id"],
+  ["/kotimaa/ottelu/:id", "/domestic/match/:id"],
+  ["/kotimaa/ottelut", "/domestic/matches"],
+  ["/kotimaa/sarjataulukko", "/domestic/standings"],
+  ["/ulkomaat", "/foreign"],
+  ["/ulkomaat/joukkue/:id", "/foreign/team/:id"],
+  ["/ulkomaat/ottelu/:id", "/foreign/match/:id"],
+  ["/ulkomaat/ottelut", "/foreign/matches"],
+  ["/ulkomaat/sarjataulukko", "/foreign/standings"],
+  ["/maajoukkueet", "/national-teams"],
+  ["/maajoukkueet/joukkue/:id", "/national-teams/team/:id"],
+  ["/maajoukkueet/ottelu/:id", "/national-teams/match/:id"],
+  ["/maajoukkueet/ottelut", "/national-teams/matches"],
+  ["/maajoukkueet/sarjataulukko", "/national-teams/standings"],
+  ["/maajoukkueet/huuhkajat", "/national-teams/mens-team"],
+  ["/maajoukkueet/helmarit", "/national-teams/womens-team"],
+  // The two national teams are TASO's, not football-data's, so their matches
+  // cannot share `/maajoukkueet/ottelu/:id`: the id spaces are independent.
+  ["/maajoukkueet/huuhkajat/ottelu/:id", "/national-teams/mens-team/match/:id"],
+  ["/maajoukkueet/helmarit/ottelu/:id", "/national-teams/womens-team/match/:id"],
+  // Each prefix's `kohtaamiset` route, which names two teams rather than one match.
+  ...HEAD_TO_HEAD_PREFIXES.map(
+    ([prefix, directory]) =>
+      [`${prefix}/kohtaamiset/:a/:b`, `${directory}/head-to-head/:a/:b`] as const
+  ),
+];
+
+/**
+ * Other spellings that lead to a page: addresses from before a move, and a
+ * Finnish prefix with an English last segment. None of them is a folder, so
+ * none has a rewrite, and each is listed by hand.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/527-one-route-table.md
+ */
+const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
+  // The foreign pages moved under /ulkomaat.
+  ["/sarjataulukko", "/ulkomaat/sarjataulukko"],
+  ["/ottelut", "/ulkomaat/ottelut"],
+  ["/joukkue/:id", "/ulkomaat/joukkue/:id"],
+  // The English paths that answered 200 before the rename. The folders
+  // they were served from are gone, so without these they 404 rather
+  // than reaching the Finnish page a bookmark or search index expects.
+  ["/standings", "/ulkomaat/sarjataulukko"],
+  ["/matches", "/ulkomaat/ottelut"],
+  ["/team/:id", "/ulkomaat/joukkue/:id"],
+  ["/kotimaa/standings", "/kotimaa/sarjataulukko"],
+  ["/kotimaa/matches", "/kotimaa/ottelut"],
+  ["/kotimaa/team/:id", "/kotimaa/joukkue/:id"],
+  // The same shape under /ulkomaat. These never answered before the
+  // move, but the spec closes the English spelling of every Finnish URL
+  // that exists now, not only the ones that once resolved.
+  ["/ulkomaat/standings", "/ulkomaat/sarjataulukko"],
+  ["/ulkomaat/matches", "/ulkomaat/ottelut"],
+  ["/ulkomaat/team/:id", "/ulkomaat/joukkue/:id"],
+  // The same shape for the third region.
+  ["/maajoukkueet/standings", "/maajoukkueet/sarjataulukko"],
+  ["/maajoukkueet/matches", "/maajoukkueet/ottelut"],
+  ["/maajoukkueet/team/:id", "/maajoukkueet/joukkue/:id"],
+  // The match pages, closed on both spellings like every URL above them.
+  ["/kotimaa/match/:id", "/kotimaa/ottelu/:id"],
+  ["/ulkomaat/match/:id", "/ulkomaat/ottelu/:id"],
+  ["/maajoukkueet/match/:id", "/maajoukkueet/ottelu/:id"],
+  ["/maajoukkueet/huuhkajat/match/:id", "/maajoukkueet/huuhkajat/ottelu/:id"],
+  ["/maajoukkueet/helmarit/match/:id", "/maajoukkueet/helmarit/ottelu/:id"],
+];
 
 const nextConfig: NextConfig = {
-  // Public URLs are Finnish; the App Router folders are English, per
-  // CLAUDE.md's split. These rewrites are the only place the two meet — the
-  // browser always shows the Finnish path.
-  async rewrites() {
-    return [
-      // The account settings page, added in specs/024-account-settings.md.
-      { source: "/asetukset", destination: "/settings" },
-      // The favourites page, added in specs/026-favourites.md.
-      { source: "/suosikit", destination: "/favorites" },
-      // The admin area, added in specs/028-admin-tools-and-roles.md.
-      { source: "/yllapito", destination: "/admin" },
-      // The forced season refresh, added in specs/029-forced-season-refresh.md.
-      // `data` rather than a provider's name: the page covers both Kotimaa and
-      // Ulkomaat, and neither belongs in the path.
-      { source: "/yllapito/data", destination: "/admin/data" },
-      // The privacy policy, added in #302.
-      { source: "/tietosuoja", destination: "/privacy" },
-      // The terms of service, added in #303.
-      { source: "/kayttoehdot", destination: "/terms" },
-      { source: "/kotimaa", destination: "/domestic" },
-      { source: "/kotimaa/joukkue/:id", destination: "/domestic/team/:id" },
-      { source: "/kotimaa/ottelu/:id", destination: "/domestic/match/:id" },
-      { source: "/kotimaa/ottelut", destination: "/domestic/matches" },
-      { source: "/kotimaa/sarjataulukko", destination: "/domestic/standings" },
-      { source: "/ulkomaat", destination: "/foreign" },
-      { source: "/ulkomaat/joukkue/:id", destination: "/foreign/team/:id" },
-      { source: "/ulkomaat/ottelu/:id", destination: "/foreign/match/:id" },
-      { source: "/ulkomaat/ottelut", destination: "/foreign/matches" },
-      { source: "/ulkomaat/sarjataulukko", destination: "/foreign/standings" },
-      { source: "/maajoukkueet", destination: "/national-teams" },
-      { source: "/maajoukkueet/joukkue/:id", destination: "/national-teams/team/:id" },
-      { source: "/maajoukkueet/ottelu/:id", destination: "/national-teams/match/:id" },
-      { source: "/maajoukkueet/ottelut", destination: "/national-teams/matches" },
-      { source: "/maajoukkueet/sarjataulukko", destination: "/national-teams/standings" },
-      { source: "/maajoukkueet/huuhkajat", destination: "/national-teams/mens-team" },
-      { source: "/maajoukkueet/helmarit", destination: "/national-teams/womens-team" },
-      // The two national teams are TASO's, not football-data's, so their
-      // matches cannot share `/maajoukkueet/ottelu/:id` — the id spaces are
-      // independent and 317 ids already exist in both tables. See
-      // specs/019-match-page.md.
-      {
-        source: "/maajoukkueet/huuhkajat/ottelu/:id",
-        destination: "/national-teams/mens-team/match/:id",
-      },
-      {
-        source: "/maajoukkueet/helmarit/ottelu/:id",
-        destination: "/national-teams/womens-team/match/:id",
-      },
-      ...headToHeadRewrites,
-    ];
+  // Public URLs are Finnish; the App Router folders are English. `ROUTES` is
+  // the only place the two meet — the browser always shows the Finnish path.
+  rewrites() {
+    return Promise.resolve(ROUTES.map(([url, folder]) => ({ source: url, destination: folder })));
   },
 
-  /**
-   * Redirects are checked before rewrites, which is what makes pairing them
-   * safe: a Finnish URL matches no redirect and is rewritten internally,
-   * and an internal rewrite never re-enters this table, so the two cannot
-   * bounce off each other. Verified on a running server — see spec 012.
-   *
-   * `permanent: true` emits 308 and preserves the request method. Query
-   * strings are forwarded automatically, so `?kilpailu=` and `?kausi=`
-   * survive without any `:path*` handling.
-   */
-  async redirects() {
-    return [
-      // English folder paths are not URLs — same rule as every entry below.
-      { source: "/settings", destination: "/asetukset", permanent: true },
-      // The favourites page, added in specs/026-favourites.md. Paired with the
-      // rewrite above, exactly as `/settings` is.
-      { source: "/favorites", destination: "/suosikit", permanent: true },
-      // The admin area, added in specs/028-admin-tools-and-roles.md. Paired
-      // with its rewrite for the same reason: the English folder path is not a
-      // URL, and leaving it answering 200 would make `/admin` the one route in
-      // the app reachable under both spellings.
-      { source: "/admin", destination: "/yllapito", permanent: true },
-      // Paired with its rewrite, for the same reason as `/admin` above.
-      { source: "/admin/data", destination: "/yllapito/data", permanent: true },
-      { source: "/privacy", destination: "/tietosuoja", permanent: true },
-      { source: "/terms", destination: "/kayttoehdot", permanent: true },
-      // The foreign pages moved under /ulkomaat.
-      { source: "/sarjataulukko", destination: "/ulkomaat/sarjataulukko", permanent: true },
-      { source: "/ottelut", destination: "/ulkomaat/ottelut", permanent: true },
-      { source: "/joukkue/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
-      // The English paths that answered 200 before the rename. The folders
-      // they were served from are gone, so without these they 404 rather
-      // than reaching the Finnish page a bookmark or search index expects.
-      { source: "/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
-      { source: "/matches", destination: "/ulkomaat/ottelut", permanent: true },
-      { source: "/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
-      { source: "/kotimaa/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
-      { source: "/kotimaa/matches", destination: "/kotimaa/ottelut", permanent: true },
-      { source: "/kotimaa/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
-      // The same shape under /ulkomaat. These never answered before the
-      // move, but the spec closes the English spelling of every Finnish URL
-      // that exists now, not only the ones that once resolved.
-      { source: "/ulkomaat/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
-      { source: "/ulkomaat/matches", destination: "/ulkomaat/ottelut", permanent: true },
-      { source: "/ulkomaat/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
-      // English folder paths are not URLs. A rewrite does not block its own
-      // target, so without these every page would answer on two addresses.
-      { source: "/domestic", destination: "/kotimaa", permanent: true },
-      { source: "/domestic/standings", destination: "/kotimaa/sarjataulukko", permanent: true },
-      { source: "/domestic/matches", destination: "/kotimaa/ottelut", permanent: true },
-      { source: "/domestic/team/:id", destination: "/kotimaa/joukkue/:id", permanent: true },
-      // The match pages added in specs/019, closed on both spellings like
-      // every URL above them.
-      { source: "/domestic/match/:id", destination: "/kotimaa/ottelu/:id", permanent: true },
-      { source: "/kotimaa/match/:id", destination: "/kotimaa/ottelu/:id", permanent: true },
-      { source: "/foreign/match/:id", destination: "/ulkomaat/ottelu/:id", permanent: true },
-      { source: "/ulkomaat/match/:id", destination: "/ulkomaat/ottelu/:id", permanent: true },
-      {
-        source: "/national-teams/match/:id",
-        destination: "/maajoukkueet/ottelu/:id",
-        permanent: true,
-      },
-      {
-        source: "/maajoukkueet/match/:id",
-        destination: "/maajoukkueet/ottelu/:id",
-        permanent: true,
-      },
-      {
-        source: "/national-teams/mens-team/match/:id",
-        destination: "/maajoukkueet/huuhkajat/ottelu/:id",
-        permanent: true,
-      },
-      {
-        source: "/maajoukkueet/huuhkajat/match/:id",
-        destination: "/maajoukkueet/huuhkajat/ottelu/:id",
-        permanent: true,
-      },
-      {
-        source: "/national-teams/womens-team/match/:id",
-        destination: "/maajoukkueet/helmarit/ottelu/:id",
-        permanent: true,
-      },
-      {
-        source: "/maajoukkueet/helmarit/match/:id",
-        destination: "/maajoukkueet/helmarit/ottelu/:id",
-        permanent: true,
-      },
-      // The same shape for the third region, added in specs/016.
-      {
-        source: "/maajoukkueet/standings",
-        destination: "/maajoukkueet/sarjataulukko",
-        permanent: true,
-      },
-      { source: "/maajoukkueet/matches", destination: "/maajoukkueet/ottelut", permanent: true },
-      {
-        source: "/maajoukkueet/team/:id",
-        destination: "/maajoukkueet/joukkue/:id",
-        permanent: true,
-      },
-      { source: "/national-teams", destination: "/maajoukkueet", permanent: true },
-      {
-        source: "/national-teams/standings",
-        destination: "/maajoukkueet/sarjataulukko",
-        permanent: true,
-      },
-      { source: "/national-teams/matches", destination: "/maajoukkueet/ottelut", permanent: true },
-      {
-        source: "/national-teams/team/:id",
-        destination: "/maajoukkueet/joukkue/:id",
-        permanent: true,
-      },
-      { source: "/foreign", destination: "/ulkomaat", permanent: true },
-      { source: "/foreign/standings", destination: "/ulkomaat/sarjataulukko", permanent: true },
-      { source: "/foreign/matches", destination: "/ulkomaat/ottelut", permanent: true },
-      { source: "/foreign/team/:id", destination: "/ulkomaat/joukkue/:id", permanent: true },
-    ];
+  // Redirects are checked before rewrites, which is what makes pairing them
+  // safe. `permanent: true` emits 308 and preserves the request method; query
+  // strings are forwarded automatically.
+  redirects() {
+    return Promise.resolve(
+      [
+        // English folder paths are not URLs.
+        ...ROUTES.map(([url, folder]) => [folder, url] as const),
+        ...OTHER_SPELLINGS,
+      ].map(([source, destination]) => ({ source, destination, permanent: true }))
+    );
   },
 
   experimental: {
     serverActions: {
-      /**
-       * Raised from Next's default of 1 MB, for the avatar upload in
-       * specs/025-custom-avatar.md.
-       *
-       * Without this the app's own 8 MB cap would be fiction: Next rejects an
-       * oversized action body with a 413 *before* the action runs, so every
-       * upload between 1 MB and 8 MB — which is most phone photographs — would
-       * fail as a rejected invocation rather than as the "image is too large"
-       * notice, and that notice would be unreachable except for files the
-       * client already refused.
-       *
-       * 10 MB against a cap of 8: the gap absorbs multipart framing, which is
-       * bytes on the wire that are not bytes of the image. The app's cap stays
-       * the one the reader meets.
-       */
+      // Raised from Next's default of 1 MB for the avatar upload, whose own cap is
+      // 8 MB: Next rejects an oversized action body before the action runs.
       bodySizeLimit: "10mb",
     },
   },
@@ -241,17 +166,13 @@ export default withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
+  // Routes browser requests to Sentry through a Next.js rewrite, past
+  // ad-blockers. The route must not match the app's middleware.
   tunnelRoute: "/monitoring",
 
   webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
+    // Automatic instrumentation of Vercel Cron Monitors. Does not yet work with
+    // App Router route handlers.
     automaticVercelMonitors: true,
 
     // Tree-shaking options for reducing bundle size

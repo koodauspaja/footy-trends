@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 
 /**
  * Both national teams are TASO-backed and have no standings page, so neither
- * is in `SUPPORTED_COMPETITIONS` nor linked to `/sarjataulukko` like the two
- * football-data tournaments beside them. That list is football-data's and
- * feeds `kilpailu` validation. See specs/018-helmarit.md.
+ * is in `SUPPORTED_COMPETITIONS` nor linked to `/sarjataulukko`.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 const MENS_TEAM_ENTRY: PickerEntry = {
   key: "mens-team",

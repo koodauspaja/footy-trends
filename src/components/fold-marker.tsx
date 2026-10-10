@@ -1,11 +1,9 @@
 /**
- * The marker every fold's summary shows: ▸ when folded, turning to ▾ when open,
- * so a heading reads as something to press (#416, #419). Without it a fold
- * shows only a pointer cursor, which a phone never shows at all.
+ * The marker every fold's summary shows: ▸ when folded, ▾ when open, so a
+ * heading reads as something to press. Pure CSS, and `aria-hidden`: the
+ * `<details>` already says whether it is open.
  *
- * Pure CSS: its `<details>` carries `group`, and `group-open` turns it. It is
- * `aria-hidden`, because the `<details>` element already tells a screen reader
- * whether it is open.
+ * decisions/419-shared-fold-marker.md
  */
 export function FoldMarker() {
   return (

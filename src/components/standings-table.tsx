@@ -15,10 +15,11 @@ const statColumns = [
 ] as const;
 
 /**
- * Nullable stat fields, so this accepts both `TeamStanding` (football-data,
- * always numeric) and `TasoTeamStanding`, whose fields are typed nullable
- * because TASO reports them optionally. A `null` renders as "–" rather
- * than a misleading `0`.
+ * One row. The stat fields are nullable, so this accepts both `TeamStanding`
+ * and `TasoTeamStanding`; a `null` renders as "–", not as a misleading `0`.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
  */
 export type StandingsRow = {
   position: number;
@@ -40,16 +41,13 @@ function cell(value: number | null): string {
 }
 
 /**
- * The Sija/Joukkue/O-V-T-H-TM-PM-ME-P/Vire table shared by `/ulkomaat/sarjataulukko`
- * and `/kotimaa/sarjataulukko` — identical markup and Finnish column
- * headers on both; only the team-link target differs.
+ * The Sija/Joukkue/O-V-T-H-TM-PM-ME-P/Vire table shared by
+ * `/ulkomaat/sarjataulukko` and `/kotimaa/sarjataulukko`; only the team-link
+ * target differs. `Joukkue` is the flexible column.
  *
- * The stats are right-aligned so digits line up by place value, which is most
- * of what a standings table is for; `Sija` stays left, where it reads as a
- * label beside the team name rather than a quantity to compare. `Joukkue` is
- * the flexible column, so the numbers stay grouped on a wide screen instead of
- * being strung across it — and every table on the page has the same columns as
- * its siblings, which they did not before. See specs/021-table-consistency.md.
+ * decisions/009-veikkausliiga.md
+ * decisions/021-table-consistency.md
+ * decisions/026-favourites.md
  */
 export function StandingsTable({
   standings,
@@ -60,14 +58,7 @@ export function StandingsTable({
   teamHref: (teamProviderId: number) => string;
   /**
    * Which provider's id space the rows are in, so a row can offer a favourite
-   * toggle (specs/026-favourites.md).
-   *
-   * Passed rather than derived from the region: `/maajoukkueet` shows
-   * football-data's World Cup standings *and* TASO's national-team pages, so
-   * the region does not decide the provider.
-   *
-   * Optional, and a table without it simply shows no stars — a bracket or a
-   * pass-through group has rows that are not teams anyone can follow.
+   * toggle. Optional: a table without it shows no stars.
    */
   favouriteSource?: FavouriteSource;
 }>) {
@@ -137,6 +128,8 @@ export function StandingsTable({
  * The column-abbreviation legend below the table. Separate from
  * `StandingsTable` because `/kotimaa/sarjataulukko` renders several tables
  * (one per group) but only one legend, at the very bottom.
+ *
+ * decisions/009-veikkausliiga.md
  */
 export function StandingsLegend() {
   return (

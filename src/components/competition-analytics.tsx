@@ -25,7 +25,11 @@ import {
 } from "@/lib/table-volatility";
 import { getTableVolatility } from "@/lib/table-volatility-service";
 
-/** The strings agreed in specs/048, each where the spec places it. */
+/**
+ * The section's strings.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export const SEASON_BY_SEASON_HEADING = "Kausi kaudelta";
 export const GOALS_PER_GAME_HEADING = "Maaleja ottelua kohden";
 export const TOO_FEW_SEASONS_MESSAGE =
@@ -54,33 +58,57 @@ const VOLATILITY_ID = "table-volatility";
 const SIDE_BY_SIDE_ID = "competition-analytics-side-by-side";
 const HOME_ADVANTAGE_ID = "home-advantage";
 
-/** How the page names a season: `2024` or `2024/25`, as its own selector does. */
+/**
+ * How the page names a season: `2024` or `2024/25`, as its own selector does.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 type SeasonLabel = (seasonId: number) => string;
 
-/** A season left out by the five-match minimum, named under the chart (S14). */
+/**
+ * A season left out by the five-match minimum, named under the chart.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export function leftOutSentence(label: string): string {
   return `Kausi ${label} näytetään, kun siitä on pelattu vähintään viisi ottelua.`;
 }
 
-/** One row of the text alternative (specs/048, UX). */
+/**
+ * One row of the text alternative.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export function seasonSentence(point: GoalsPerGamePoint, label: string): string {
   const season = point.inProgress ? `${label} ${IN_PROGRESS_NOTE}` : label;
   return `Kausi ${season}: ${formatDecimal(point.perGame)} maalia ottelua kohden, ${point.matches} ottelua.`;
 }
 
-/** One row of the movement chart's text alternative (specs/050, S15). */
+/**
+ * One row of the movement chart's text alternative.
+ *
+ * decisions/050-table-volatility.md
+ */
 export function volatilitySentence(point: VolatilityPoint, label: string): string {
   return `Kausi ${label}: sijoitus muuttui kauden puolivälistä loppuun keskimäärin ${formatDecimal(point.change)} sijaa (${point.teams} joukkuetta).`;
 }
 
-/** The completed seasons with no point, counted (specs/050, S9, S15). */
+/**
+ * The completed seasons with no point, counted.
+ *
+ * decisions/050-table-volatility.md
+ */
 export function seasonsLeftOutSentence(count: number): string {
   return count === 1
     ? "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
     : `${count} kautta puuttuu, koska niiden kierroskohtaisia taulukoita ei voida laskea.`;
 }
 
-/** `Kotietu` as printed: signed, with a real minus (specs/049, S5). */
+/**
+ * `Kotietu` as printed: signed, with a real minus.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export function advantageText(advantage: number): string {
   const points = roundedAdvantage(advantage);
   if (points > 0) return `+${points}`;
@@ -95,7 +123,9 @@ function rangeText(range: SeasonRange, spansCalendarYears: boolean): string {
 
 /**
  * The seasons the table covers, of both kinds, from the data rather than
- * literals (S18) — or nothing when it has no row at all.
+ * literals — or nothing when it has no row at all.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export function windowSentence(
   calendarYears: SeasonRange | null,
@@ -148,17 +178,13 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit` (specs/048): `Kausi kaudelta`,
- * holding goals per game and, on a league, table movement (specs/050), then
- * `Kilpailut rinnakkain`, holding home advantage and draws (specs/049, S12).
+ * The competition standings page's `Analyysit`: goals per game and, on a
+ * league, table movement, then `Kilpailut rinnakkain`. Gated before anything
+ * is read, and awaited by the pages, not rendered as JSX.
  *
- * **Its sign-in rules are the ones the team page's `Analyysit` follows**
- * (specs/048, S4): no section at all on a competition S5 does not name; the
- * gate is asked before anything is read, so a signed-out page carries no
- * value; one prompt, not one per panel.
- *
- * Awaited by the pages rather than rendered, as `AnalyticsSection` is: an
- * async component nested in JSX is not something every renderer can draw.
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/050-table-volatility.md
  */
 export async function CompetitionAnalyticsSection({
   kind,
@@ -235,9 +261,11 @@ function Group({
 }
 
 /**
- * The table of every compared competition, this one's row marked (S4). Without
+ * The table of every compared competition, this one's row marked. Without
  * a row of its own it still compares the others, and says why this one is
- * absent (S16).
+ * absent.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 function HomeAdvantageBody({
   shares,
@@ -283,7 +311,7 @@ function GoalsPerGameBody({
   if (series.status === "too-few") return <p>{TOO_FEW_SEASONS_MESSAGE}</p>;
 
   const textId = `${PANEL_ID}-text`;
-  // An `ok` series has at least two points (S10), so both ends exist.
+  // An `ok` series has at least two points, so both ends exist.
   const seasons = series.points.map((point) => point.seasonId);
   const first = Math.min(...seasons);
   const last = Math.max(...seasons);
@@ -334,9 +362,11 @@ function GoalsPerGameBody({
 }
 
 /**
- * How far the table moved after mid-season in each completed season (specs/050):
- * a line from 0, the page's own season ringed when it has a point (S13), what
- * mid-season means, and how many seasons have none (S9).
+ * How far the table moved after mid-season in each completed season:
+ * a line from 0, the page's own season ringed when it has a point, what
+ * mid-season means, and how many seasons have none.
+ *
+ * decisions/050-table-volatility.md
  */
 function VolatilityBody({
   series,
@@ -351,7 +381,7 @@ function VolatilityBody({
   if (series.status === "too-few") return <p>{VOLATILITY_TOO_FEW_MESSAGE}</p>;
 
   const textId = `${VOLATILITY_ID}-text`;
-  // An `ok` series has at least two points (S11), so both ends exist.
+  // An `ok` series has at least two points, so both ends exist.
   const seasons = series.points.map((point) => point.seasonId);
   return (
     <div>

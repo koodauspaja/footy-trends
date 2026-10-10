@@ -11,23 +11,17 @@ never silently fall behind.
 
 1. Go to https://github.com/apps/renovate
 2. Click **Install**
-3. Select the **koodauspaja** organisation
-4. Under **Repository access**, choose **Only select repositories** and pick `footy-trends`
+3. Select your organisation (this project: `koodauspaja`)
+4. Under **Repository access**, choose **Only select repositories** and pick yours
 5. Confirm the installation
-
-Renovate will open an onboarding PR titled *Configure Renovate* within a few
-minutes. Do not merge it yet — configure it first in the next step.
 
 ---
 
-## Step 2 — Create `renovate.json`
+## Step 2 — `renovate.json`
 
-Rather than accepting Renovate's default config from the onboarding PR, create
-the config file yourself so it is intentional and documented.
-
-Create file: `renovate.json` in the repo root. The committed
-[`renovate.json`](../../renovate.json) is the reference — copy it rather than a
-snapshot of it here, which would go stale the first time the real one changes.
+The configuration arrives with the clone:
+[`renovate.json`](../../renovate.json). Renovate finds it and needs no
+onboarding.
 
 A few decisions baked into this config worth knowing:
 
@@ -43,39 +37,17 @@ A few decisions baked into this config worth knowing:
 
 ---
 
-## Step 3 — Close the onboarding PR
+## Step 3 — Close the onboarding PR, if one appears
 
-Once you have committed `renovate.json`, Renovate will detect it and close its
-own onboarding PR automatically. If it does not close within a few minutes,
-close it manually — the config file is the source of truth.
+With `renovate.json` already present, Renovate should open none. Close it if
+it does: the committed file is the configuration.
 
----
-
-## Step 4 — Add Renovate to the PR actor allowlist
-
-Renovate opens PRs as the `renovate[bot]` actor. Update any workflow `if:`
-guards to let it trigger CI:
-
-```yaml
-if: |
-  github.actor == 'your-github-username' ||
-  github.actor == 'friends-github-username' ||
-  github.actor == 'renovate[bot]'
-```
-
-Apply this to `.github/workflows/sonarcloud.yml` and any other workflow files
-created later. Without this, Renovate PRs will not get SonarCloud or test
-coverage analysis.
+`ci.yml` and `sonarcloud.yml` already run for `renovate[bot]`, beside the two
+usernames of 001.
 
 ---
 
-## Step 5 — Commit and verify
-
-```bash
-git add renovate.json
-git commit -m "chore: add Renovate config"
-git push origin main
-```
+## Step 4 — Verify
 
 1. Go to your repo → **Pull requests** — Renovate may open its first batch of
    dependency PRs on the next scheduled run (Monday morning) or shortly after
@@ -86,11 +58,8 @@ git push origin main
 ---
 
 ## Done when
-- [ ] Renovate GitHub App installed on `footy-trends`
-- [ ] `renovate.json` committed to repo root
-- [ ] `renovate[bot]` added to workflow actor allowlists
-- [ ] Onboarding PR closed
+- [ ] Renovate GitHub App installed on your repository
 - [ ] First Renovate dependency PR appears and CI runs on it
 
 ## Next
-→ `012-project-init.md`
+→ `011-branch-protection.md`

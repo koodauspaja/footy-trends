@@ -1,28 +1,28 @@
 /**
- * The backtest (specs/052, S2, S10, S14): what a model would have predicted for
- * every stored finished match, from the matches of its competition that kicked
- * off strictly before it.
+ * The backtest: what a model would have predicted for every stored finished
+ * match, from the matches of its competition that kicked off strictly before
+ * it. Pure: the service reads and writes.
  *
- * Pure: `prediction-backtest-service.ts` reads each competition's finished
- * matches and writes the rows; which rows, and from what, is decided here.
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
  */
 
+import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
 import { homeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
+import { POISSON_MODEL, replayPoisson } from "./poisson";
 import type { PredictionRow } from "./prediction-log";
 
 /**
- * One finished match, its score after extra time — a shoot-out already taken
- * out, as specs/049 S3 counts it.
+ * One finished match, its score after extra time with a shoot-out taken out,
+ * with the two teams and the season, which Elo needs.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
  */
-export type FinishedMatch = {
-  source: MatchSource["kind"];
-  code: string;
-  providerMatchId: number;
-  kickoffAt: Date;
-  homeGoals: number;
-  awayGoals: number;
-};
+export type FinishedMatch = EloMatch;
 
 type Tally = { matches: number; homeWins: number; draws: number; awayWins: number };
 
@@ -35,7 +35,12 @@ function add(tally: Tally, match: FinishedMatch): Tally {
   };
 }
 
-/** The baseline from a tally, through specs/051's own rule. */
+/**
+ * The baseline from a tally, through the baseline's own rule.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/052-predictions-log.md
+ */
 function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
   return homeBaseline([
     { kind: source, code, seasonId: 0, leftToPlay: 0, spansCalendarYears: false, ...tally },
@@ -45,8 +50,9 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 /**
  * One `backtest` row per match with an earlier finished match in its
  * competition. Matches sharing a kickoff are predicted from the same tally and
- * added to it together, so neither is evidence for the other (S14); a
- * competition's first kickoff has nothing before it and gets no row.
+ * added to it together; a competition's first kickoff gets no row.
+ *
+ * decisions/052-predictions-log.md
  */
 export function backtestRows(
   finished: readonly FinishedMatch[],
@@ -91,6 +97,80 @@ export function backtestRows(
       tally = together.reduce((sum, match) => add(sum, match), tally);
       index += together.length;
     }
+  }
+  return rows;
+}
+
+/**
+ * One `elo-v1` backtest row per match the baseline backtest also predicts: the
+ * ratings the match was played at, and the draw share of the strictly earlier
+ * matches, read from `baseline`.
+ *
+ * decisions/053-elo-ratings.md
+ */
+export function eloBacktestRows(
+  finished: readonly FinishedMatch[],
+  baseline: readonly PredictionRow[],
+  now: Date
+): PredictionRow[] {
+  const drawShares = new Map(
+    baseline.map((row) => [`${row.source}:${row.providerMatchId}`, row.drawProbability])
+  );
+  const rows: PredictionRow[] = [];
+  for (const source of ["football-data", "taso"] as const) {
+    replayElo(
+      finished.filter((match) => match.source === source),
+      (match, homeRating, awayRating) => {
+        const drawShare = drawShares.get(`${match.source}:${match.providerMatchId}`);
+        if (drawShare === undefined) return;
+        const prediction = threeWay(homeRating, awayRating, drawShare);
+        rows.push({
+          source: match.source,
+          providerMatchId: match.providerMatchId,
+          competitionCode: match.code,
+          model: ELO_MODEL,
+          kind: "backtest",
+          homeProbability: prediction.home,
+          drawProbability: prediction.draw,
+          awayProbability: prediction.away,
+          predictedAt: now,
+          kickoffAt: match.kickoffAt,
+        });
+      }
+    );
+  }
+  return rows;
+}
+
+/**
+ * One `poisson-v1` backtest row per match its day's fit can predict: the fit
+ * of the provider's matches on strictly earlier UTC days.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+export function poissonBacktestRows(
+  finished: readonly FinishedMatch[],
+  now: Date
+): PredictionRow[] {
+  const rows: PredictionRow[] = [];
+  for (const source of ["football-data", "taso"] as const) {
+    replayPoisson(
+      finished.filter((match) => match.source === source),
+      (match, { prediction }) => {
+        rows.push({
+          source: match.source,
+          providerMatchId: match.providerMatchId,
+          competitionCode: match.code,
+          model: POISSON_MODEL,
+          kind: "backtest",
+          homeProbability: prediction.home,
+          drawProbability: prediction.draw,
+          awayProbability: prediction.away,
+          predictedAt: now,
+          kickoffAt: match.kickoffAt,
+        });
+      }
+    );
   }
   return rows;
 }

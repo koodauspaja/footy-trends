@@ -7,7 +7,8 @@ A Railway cron service that runs `npm run predictions -- log` hourly in
 `specs/052-predictions-log.md` (S1, S10–S12).
 
 Set up in the dashboard: Railway no longer lets a new service use
-`railway.toml` (config as code is deprecated, hard cutoff 2026-12-01).
+`railway.toml` (config as code is deprecated, hard cutoff 2026-12-01). It stays
+there: `.railway/railway.ts` declares the web service only (025).
 
 The job runs from source with tsx, so the service skips `next build`: the
 site's build needs the web service's sign-in secrets, which this service does
@@ -77,3 +78,7 @@ on #349 against the spec's estimate (about $0.11 a month).
 - [ ] A run shows in its Deployments tab each hour, exiting 0
 - [ ] The backtest has run in staging and production
 - [ ] The first week's usage is recorded on #349
+
+## Next
+
+→ `026-railway-environment-from-code.md`

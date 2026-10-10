@@ -192,3 +192,82 @@ All four URLs were re-loaded after the fix and now answer honestly, the
 - **No redirect and no canonical tag.** A bare URL renders; both spellings
   answer 200. Bouncing to a parametrised URL would break the clean link the
   feature exists to provide, and no other page in this app sets a canonical.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches_away_team_idx`.** Without it the away half scans the whole second
+  column of the head-to-head index. Single-column on purpose: the sort reads
+  from a bitmap, which has already discarded index order, so carrying
+  `kickoff_at` would buy nothing.
+- **`taso_matches_away_team_idx`.** On 20,604 stored rows: 1.03 ms and 144
+  buffers without it, 0.20 ms and 94 with.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`allDomesticCategoryIds`.** The registry is hand-maintained while TASO
+  publishes more categories than it lists, 28 in `spljp26` against the
+  picker's 20, so a row can carry a category with no page behind it. Used to
+  skip such a row when resolving a team's own context.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`defaults` in `resolveDomesticPageContext`.** Omitting it leaves the
+  region's defaults exactly as they were. When an invalid `kausi` falls back,
+  it is to the competition's default unless the resolved competition is the
+  team's own.
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **`defaults` in `resolveBasePageContext`.** Omitting it leaves the
+  region's defaults exactly as they were.
+
+Cut from `src/lib/team-context.ts` at `dc74e3e` by #531.
+
+- **`TeamContext`.** A bare team URL already resolved before this existed:
+  it meant "the region's default competition, in its default season", which
+  served 12 of 1,315 stored Finnish team ids and 20 of 315 football-data
+  ones. Everything else answered the team-not-found message on its own
+  address.
+- **`loadTeamContext`.** A route rebuilds the source and filter objects on
+  every render. `generateMetadata` and the page each ask for this once.
+- **The placeholder in `getTeamContext`.** `0` is TASO's unresolved bracket
+  slot and not a team; 22 stored rows carry it, and a page for it could only
+  ever be empty. An id the column cannot hold would otherwise fail at bind
+  time and reach the reader as an error and not a not-found.
+
+Cut from `src/lib/team-page-context.ts` at `dc74e3e` by #531.
+
+- **`seasonCandidate`.** Selectable seasons depend on the competition, and on
+  a bare URL the competition is what is still being resolved, so the filter
+  uses the value's shape and the page's existing validation still decides
+  whether it earns a notice.
+- **`resolveTeamDefaults`.** Two questions, because they have different
+  answers. A `no` to the first means the page has nothing to offer: not a
+  season selector, and not a standings link for a competition the team has
+  never played in. A season the team never played says nothing about which
+  competition the reader wanted, and falling back to the region's default
+  competition, which is what happened before, is the answer that serves 12 of
+  1,315 Finnish teams. The season itself is still honoured downstream, so an
+  unplayed season still ends at the team-not-found message, under the team's
+  own competition.
+
+Cut from `src/app/domestic/team/[id]/page.tsx` at `ef99862` by #531.
+
+- **`resolveTeamPage` on the Finnish club page.** Both context calls are
+  `cache()`d, so Next.js invoking the metadata and the page separately costs
+  one of each.
+
+Cut from `src/lib/provider-ids.ts` at `ef99862` by #531.
+
+- **`MAX_STORED_INTEGER`.** A larger value is not merely absent from the
+  table: `postgres.js` binds the parameter as an `int4`, so the query fails
+  at bind time with "integer out of range" and the page shows its error
+  state, telling a reader that something broke when they asked for a team,
+  match or season that cannot exist. Measured on
+  `/kotimaa/joukkue/99999999999`, `/kotimaa/ottelu/99999999999` and
+  `?kausi=9007199254740991`, all three of which rendered the
+  match-loading-failed message. Raw SQL is fine, as Postgres promotes the
+  column to `bigint` when it compares against a literal that large; only the
+  bound parameter fails, which is why this cannot be left to the database.

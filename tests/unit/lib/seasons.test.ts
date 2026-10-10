@@ -7,6 +7,14 @@ import {
   resolveEarliestSeason,
 } from "@/lib/seasons";
 
+/**
+ * Seasons: their labels, the earliest one, and which are selectable.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 describe("formatSeasonLabel", () => {
   it("renders the start year and the following year's last two digits", () => {
     expect(formatSeasonLabel(2024)).toBe("2024/25");
@@ -25,7 +33,19 @@ describe("resolveEarliestSeason", () => {
   });
 
   it("falls back to the default when unset, empty, or not a positive integer", () => {
-    for (const value of [undefined, "", "  ", "abc", "0", "-5", "2023.5", "2023abc"]) {
+    for (const value of [
+      undefined,
+      "",
+      "  ",
+      "abc",
+      "0",
+      "-5",
+      "2023.5",
+      "2023abc",
+      "0x7E8",
+      "2.024e3",
+      "2147483648",
+    ]) {
       expect(resolveEarliestSeason(value)).toBe(DEFAULT_EARLIEST_SEASON);
     }
   });
@@ -91,7 +111,18 @@ describe("parseSeasonParam", () => {
   });
 
   it("rejects empty, non-numeric, and malformed values", () => {
-    for (const value of ["", "  ", "abc", "2024.0", "2024abc", " 2024"]) {
+    // The last four are 2024 to `Number()`, which is a selectable season.
+    for (const value of [
+      "",
+      "  ",
+      "abc",
+      "2024.0",
+      "2024abc",
+      " 2024",
+      "0x7E8",
+      "2.024e3",
+      "-2024",
+    ]) {
       expect(parseSeasonParam(value, selectable)).toEqual({ kind: "invalid" });
     }
   });

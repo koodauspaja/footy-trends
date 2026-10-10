@@ -5,14 +5,14 @@ import {
   type GitDeps,
   type GitOutput,
 } from "../../../scripts/e2e-freshness-git";
-import { WATCHED_DIRECTORIES } from "../../../scripts/e2e-freshness-plan";
+import { WATCHED_PATHS } from "../../../scripts/e2e-freshness-plan";
 
 /**
- * The fingerprint the pre-push hook rests on: what git is asked, and what is
- * made of the answer. The spawn is injected the way `docker.ts` injects its
- * own, so which flags are passed is assertable — and those flags are the whole
- * correctness argument (`-z` for a filename with a newline in it, paths as
- * arguments rather than `--stdin-paths`).
+ * The fingerprint the pre-push hook rests on: what git is asked, and what is made
+ * of the answer. The spawn is injected, so the flags are assertable, and the flags
+ * are the correctness argument: `-z`, and paths as arguments, not `--stdin-paths`.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 
 const BINARY = "/usr/bin/git";
@@ -38,7 +38,7 @@ function deps(answers: Answers, overrides: Partial<GitDeps> = {}): GitDeps & { c
   };
 }
 
-/** NUL-separated, as `-z` produces. */
+// NUL-separated, as `-z` produces.
 const lsFiles = (...paths: string[]): GitOutput => ({
   status: 0,
   stdout: paths.join("\0"),
@@ -59,12 +59,10 @@ describe("fingerprint", () => {
     expect(fingerprint(d)).toEqual(["aaa\tsrc/a.ts", "bbb\tsrc/b.ts"]);
   });
 
-  it("asks git for tracked and untracked files, NUL-separated, under the watched directories", () => {
-    /**
-     * `-z` is load-bearing: without it git *quotes* a path needing escaping, so
-     * a filename containing a newline comes back as a literal that matches no
-     * file and drops out of the fingerprint silently.
-     */
+  it("asks git for tracked and untracked files, NUL-separated, under the watched paths", () => {
+    // `-z` is load-bearing: without it git quotes a path needing escaping, so a
+    // filename containing a newline comes back as a literal that matches no
+    // file and drops out of the fingerprint silently.
     const d = deps({ "ls-files": lsFiles(), "hash-object": hashes() });
 
     fingerprint(d);
@@ -77,7 +75,7 @@ describe("fingerprint", () => {
       "-o",
       "--exclude-standard",
       "--",
-      ...WATCHED_DIRECTORIES,
+      ...WATCHED_PATHS,
     ]);
   });
 
@@ -105,10 +103,9 @@ describe("fingerprint", () => {
   });
 
   it("reports nothing when git cannot be found, rather than an empty list", () => {
-    /**
-     * The distinction the module exists to keep: an empty fingerprint would read
-     * as "nothing is there" and the hook would pass having verified nothing.
-     */
+    // The distinction the module exists to keep: an empty fingerprint would
+    // read as "nothing is there", and the hook would pass having verified
+    // nothing.
     const d = deps({ "ls-files": lsFiles("src/a.ts") }, { find: () => null });
 
     expect(fingerprint(d)).toBeNull();
@@ -143,11 +140,9 @@ describe("fingerprint", () => {
   });
 
   it("records a symlink by its target, without asking git to open it", () => {
-    /**
-     * `git hash-object` opens the file, so it fails on a dangling link — and
-     * that failure would take the whole fingerprint with it, blocking every
-     * push over one broken symlink.
-     */
+    // `git hash-object` opens the file, so it fails on a dangling link, and
+    // that failure would take the whole fingerprint with it, blocking every
+    // push over one broken symlink.
     const d = deps(
       { "ls-files": lsFiles("src/link.ts"), "hash-object": hashes() },
       {

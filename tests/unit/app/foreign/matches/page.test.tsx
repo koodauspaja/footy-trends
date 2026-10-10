@@ -4,6 +4,17 @@ import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, RoundMatchesResult } from "@/lib/standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
+/**
+ * A foreign competition's match list, by round for a league and by stage for a
+ * cup.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/007-back-navigation.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 const getRoundMatchesMock = vi.fn<() => Promise<RoundMatchesResult>>();

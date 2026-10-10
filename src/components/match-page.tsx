@@ -1,3 +1,10 @@
+/**
+ * The match page: one match, its context, and the pair's previous meetings.
+ *
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ */
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
@@ -43,7 +50,7 @@ import {
   resolveNationalCompetitionName,
 } from "@/lib/meeting-labels";
 import type { NationalTeam } from "@/lib/national-team";
-import { isStoredInteger } from "@/lib/provider-ids";
+import { parseWholeNumber } from "@/lib/provider-ids";
 import { formatSeasonLabel } from "@/lib/seasons";
 
 const MATCH_HEADING = "Ottelu";
@@ -52,7 +59,11 @@ const ERROR_MESSAGE = "Ottelun lataaminen epäonnistui. Yritä myöhemmin uudell
 const HEAD_TO_HEAD_HEADING = "Aiemmat kohtaamiset";
 const HEAD_TO_HEAD_EMPTY = "Aiempia kohtaamisia ei löytynyt.";
 const HEAD_TO_HEAD_ERROR = "Aiempien kohtaamisten lataaminen epäonnistui.";
-/** `Kaikki kohtaamiset (24)` — the count is the argument for following it (specs/042, S10). */
+/**
+ * `Kaikki kohtaamiset (24)`: the count is the argument for following it.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export function allMeetingsLabel(count: number): string {
   return `Kaikki kohtaamiset (${count})`;
 }
@@ -60,26 +71,31 @@ export function allMeetingsLabel(count: number): string {
 const HEAD_TO_HEAD_UNAVAILABLE =
   "Aiempia kohtaamisia ei voida näyttää, koska toista joukkuetta ei tunnisteta.";
 
-/** What a route file supplies to make this page its own. */
+/**
+ * What a route file supplies to make this page its own.
+ *
+ * decisions/019-match-page.md
+ */
 export type MatchPageOptions = {
   params: Promise<{ id: string }>;
-  /** Which table the id resolves against, and under what predicate. See specs/019. */
+  /** Which table the id resolves against, and under what predicate. */
   source: MatchSource;
   /** This route's own prefix, so a head-to-head row links back into it. */
   basePath: string;
   /**
-   * Where a team name links, or `null` where no team page exists.
-   *
-   * Null on the two national-team routes: neither Finland nor its opponents have
-   * a page under `/maajoukkueet`, and #71 asks for a link to a team's *existing*
-   * page. #246 is what would change that.
+   * Where a team name links, or `null` where no team page exists: the two
+   * national-team routes.
    */
   teamBasePath: string | null;
   /** Set on the two TASO national-team routes, which name their competition through it. */
   nationalTeam?: NationalTeam;
 };
 
-/** Everything the markup needs, with every provider difference already resolved. */
+/**
+ * Everything the markup needs, with every provider difference already resolved.
+ *
+ * decisions/019-match-page.md
+ */
 type MatchView = {
   homeName: string;
   awayName: string;
@@ -100,11 +116,10 @@ type MatchView = {
 };
 
 /**
- * Whether this competition's seasons cross a calendar year, for the season label.
+ * Whether this competition's seasons cross a calendar year, for the season
+ * label. `null` when the provider cannot be reached.
  *
- * `null` when the provider cannot be reached: the match is the page, and the
- * season then shows as its bare start year rather than taking the whole page
- * down for a missing slash.
+ * decisions/019-match-page.md
  */
 async function resolveSpansCalendarYears(competitionCode: string): Promise<boolean | null> {
   try {
@@ -117,8 +132,9 @@ async function resolveSpansCalendarYears(competitionCode: string): Promise<boole
 
 /**
  * Builds a team link for a match, or always `null` where this route has no team
- * pages to link to (`/maajoukkueet/huuhkajat`, `/maajoukkueet/helmarit`) or the
- * row belongs to a competition our registry does not claim.
+ * pages or the row's competition is not in the registry.
+ *
+ * decisions/019-match-page.md
  */
 function teamHrefBuilder(
   basePath: string | null,
@@ -131,12 +147,10 @@ function teamHrefBuilder(
 }
 
 /**
- * A team's href, unless the team is a placeholder.
+ * A team's href, unless the team is a placeholder: id `0` is TASO's unresolved
+ * bracket slot, not a team.
  *
- * Id `0` is TASO's unresolved bracket slot, not a team: it renders as
- * `Tuntematon joukkue`, and `/kotimaa/joukkue/0` is a page that cannot exist.
- * Applied to both providers rather than only to TASO — `matches` has no
- * placeholder rows today, and one rule is cheaper than remembering that.
+ * decisions/019-match-page.md
  */
 function linkableTeamHref(
   teamProviderId: number,
@@ -151,16 +165,10 @@ function headToHeadRowsOf(result: PreviousMeetings): Array<FootballDataMatchRow 
 }
 
 /**
- * Where the pair's full history lives, and how many meetings it holds.
+ * Where the pair's full history lives, and how many meetings it holds. `null`
+ * for a placeholder team, an unreadable history, or no stored meeting.
  *
- * `null` for a placeholder team, which has no identity to pair — the same
- * reason the block above says `HEAD_TO_HEAD_UNAVAILABLE` rather than showing an
- * empty list — for a history that could not be read, and when the pair has no
- * stored meeting at all, since a link to an empty page is worse than no link.
- *
- * The count is the length of the history the previous meetings were taken
- * from — the same read the full page performs — so the number on the link is
- * the number of rows behind it (specs/042, S10).
+ * decisions/042-head-to-head-view.md
  */
 function allMeetingsLink(
   match: FootballDataMatchRow | TasoMatchRow,
@@ -175,7 +183,11 @@ function allMeetingsLink(
   );
 }
 
-/** The football-data half of the view: `/ulkomaat` and `/maajoukkueet`'s WC and EC. */
+/**
+ * The football-data half of the view: `/ulkomaat` and `/maajoukkueet`'s WC and EC.
+ *
+ * decisions/019-match-page.md
+ */
 async function footballDataView(
   match: FootballDataMatchRow,
   headToHead: PreviousMeetings,
@@ -221,12 +233,10 @@ async function footballDataView(
 }
 
 /**
- * What to call the competition a TASO row belonged to.
+ * What to call the competition a TASO row belonged to, or `null`: the registry's
+ * name for a domestic category, TASO's category map for a national-team one.
  *
- * Two different questions behind one line: a domestic row's category maps to a
- * competition in our own registry, while a national-team row's name lives only
- * in TASO's category map. `null` from either — an unclaimed junior category, or
- * a map that could not be read — costs one line, not the page.
+ * decisions/019-match-page.md
  */
 function tasoCompetitionName(
   team: NationalTeam | undefined,
@@ -238,7 +248,11 @@ function tasoCompetitionName(
   return domesticCode === null ? null : getDomesticCompetitionName(domesticCode);
 }
 
-/** The TASO half: `/kotimaa`, and the two national-team routes. */
+/**
+ * The TASO half: `/kotimaa`, and the two national-team routes.
+ *
+ * decisions/019-match-page.md
+ */
 async function tasoView(
   match: TasoMatchRow,
   headToHead: PreviousMeetings,
@@ -297,14 +311,14 @@ function buildView(
 }
 
 /**
- * The id is the *provider's* match id, as every team link on the site uses the
- * provider's team id — the value that survives a re-sync. A non-numeric id
- * never reaches a query.
+ * Resolves the provider's match id. A non-numeric id never reaches a query.
+ *
+ * decisions/019-match-page.md
  */
 async function resolve(options: MatchPageOptions) {
   const { id } = await options.params;
-  const providerMatchId = Number(id);
-  if (!isStoredInteger(providerMatchId)) return { status: "not_found" } as const;
+  const providerMatchId = parseWholeNumber(id);
+  if (providerMatchId === null) return { status: "not_found" } as const;
 
   const data = await getMatchPageData(options.source, providerMatchId);
   if (data.status !== "ok") return data;
@@ -349,11 +363,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
           fourthColumn={{ header: view.headToHeadHeader, render: (match) => match.label }}
         />
       )}
-      {/*
-        Offered whenever there is a history to open, including when this block
-        already shows all of it: the full page carries a record, goals and a
-        ground split that this list does not (specs/042, S9).
-      */}
+      {/* Offered whenever there is a history to open, even when this block shows all of it. */}
       {view.allMeetings !== null && (
         <p className="mt-4">
           <Link className="text-sm hover:underline" href={view.allMeetings.href}>
@@ -366,11 +376,11 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
 }
 
 /**
- * One match, in whichever region it was reached from.
+ * One match, in whichever region it was reached from. A not-found renders
+ * inside the normal page shell, not as a 404.
  *
- * Five routes share this body — see specs/019-match-page.md for why
- * `/maajoukkueet` needs two of them. A not-found renders inside the normal page
- * shell rather than as a 404, which is what the team pages already do.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
  */
 export async function MatchPage(options: Readonly<MatchPageOptions>) {
   const resolved = await resolve(options);

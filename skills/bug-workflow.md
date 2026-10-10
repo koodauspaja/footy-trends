@@ -6,10 +6,8 @@ specified or obviously intended, as opposed to new product work.
 
 Bugs go directly from a GitHub issue to a pull request. They do not require a
 new feature spec. Reference the existing spec that describes the correct
-behavior, if one governs the broken area. A decision record is not required
-by default, but write one if the fix involves a genuinely non-obvious
-tradeoff — the same latitude already given to chores and to judgment calls
-made during feature work.
+behavior, if one governs the broken area. A decision record is written
+whenever the fix changes something meaningful, as for a chore.
 
 When to use
 - A bug issue is ready to be implemented.
@@ -60,7 +58,12 @@ Workflow
    `specs/NNN-*.md`. See `skills/open-pr.md` step 1.
 4. Fix the root cause, not just the symptom. Keep the change scoped to the
    bug — do not fold in unrelated cleanup or refactoring.
-   - Keep code, comments, and documentation in English.
+   - Before changing code, look up why it is the way it is: the decision
+     records its comments link to, then `decisions/` and `specs/` searched for
+     its file and function names, then its history (`git log -L`, `git log -S`).
+     A normal step of every change, not a fallback.
+   - Keep code, comments, and documentation in English, and comments in the
+     shape `CLAUDE.md` gives.
 5. Add or update a test that fails before the fix and passes after —
    ideally the exact scenario from the issue's repro steps. A bug fix
    without a regression test is incomplete, unless the bug has no
@@ -74,13 +77,13 @@ Workflow
    - Run all three when the change crosses multiple surfaces or when the
      issue does not define narrower checks.
 7. Decide whether a decision record is warranted:
-   - Default: no. Most bug fixes are a straightforward correction with
-     nothing worth recording beyond the issue and the diff itself.
-   - Write one (`decisions/NNN-bug-name.md`) only if the fix involved a
-     real tradeoff — for example, multiple valid remediation approaches,
-     a deliberate deviation from the obvious fix, or a root cause that
-     surprised the investigation. If in doubt, ask the user rather than
-     guessing either way.
+   - Write one (`decisions/NNN-bug-name.md`, numbered by the issue) whenever
+     the fix changes something meaningful: a rule, a behaviour a reader relies
+     on, a tradeoff, a root cause that surprised the investigation.
+   - A fix with nothing to explain beyond the issue and the diff writes none.
+     If in doubt, ask the user rather than guessing either way.
+   - Records are added, not edited: a later one says which earlier one it
+     overrides.
 8. Commit the change with a conventional commit message that references the
    issue, for example: `fix: correct season rollover off-by-one (#NNN)`.
 9. **Tick the issue's checkboxes before opening the pull request.** Go through the
@@ -112,6 +115,10 @@ Workflow
     and closed with all eight boxes empty.
 
 10. Push the bug branch and open a pull request against `main`.
+   - **Before the push, review your own diff**: the pass in
+     `skills/self-review.md` and the `code-review` skill at its lowest effort,
+     with what they find fixed first, per `skills/open-pr.md` step 5. The pull
+     request's Checklist has a box for it.
    - Link the originating GitHub issue with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or `Refs #NNN`.
      Only a closing keyword makes GitHub populate the PR↔issue link; the
@@ -133,8 +140,9 @@ Workflow
     `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
     every changed path is on that document's short allowlist of unreviewable
     files (documentation and workflows are **not** on it), unresolved review
-    threads must be read immediately before merging, and a light re-check
-    after fix commits is not a full review. Either Miikka or Kalle may be the
+    threads must be read immediately before merging, and the quick check
+    after a push is not a full review: `npm run check:sourcery -- <PR>` says
+    which one the head has, and must exit 0. Either Miikka or Kalle may be the
     reviewer.
 
 Important rules
@@ -144,8 +152,8 @@ Important rules
 - This workflow intentionally does not use `skills/write-spec.md` or create a
   new file under `specs/` — a bug fix corrects behavior against what's
   already specified or intended, it doesn't specify new behavior.
-- This workflow does not create a file under `decisions/` by default; see
-  step 7 for the exception.
+- A file under `decisions/` is written per step 7, and never as a
+  placeholder.
 - Never begin implementation (branch creation, code, or tests) before the work
   is authorised — a human-set `Ready` card, or a human saying to start.
   Confirming scope in chat is neither of those. The AI never moves a card to

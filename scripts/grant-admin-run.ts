@@ -5,13 +5,10 @@ import { user } from "../src/db/schema";
 import { ambiguousAccount, describeOutcome, noSuchAccount, type Request } from "./grant-admin-plan";
 
 /**
- * The database half of `grant-admin.ts`.
+ * The database half of `grant-admin.ts`. Its own pool, not `src/db`: the
+ * connection string is an argument, never read from the environment.
  *
- * Its own pool rather than `src/db`, because that module reads
- * `process.env.DATABASE_URL` at import time and this script's whole point is
- * that the operator passes the target explicitly. Taking the connection string
- * as an argument makes the target impossible to get wrong by forgetting a
- * variable.
+ * decisions/371-grant-admin-script.md
  */
 export type RunResult = { ok: boolean; message: string };
 
@@ -22,51 +19,13 @@ export async function setRole(connectionString: string, request: Request): Promi
   try {
     const db = drizzle(client);
 
-    /**
-     * Read, decide, write and read back inside one transaction.
-     *
-     * Three separate statements could interleave with another writer — the app
-     * itself has `/yllapito`, which changes roles — and the script would then
-     * report a transition that did not happen, or miss one that did. That is
-     * the failure this script exists to remove, so it would be a poor one to
-     * leave in.
-     *
-     * **Every matching row is locked**, not one. The query below matches on
-     * `lower(email)`, which can find more than one account because the unique
-     * index is on the raw text; locking them all together is what makes the
-     * count it takes trustworthy.
-     *
-     * **Serializable**, because that count is a *predicate* and `for update`
-     * cannot lock a row that does not exist yet. Row locks make the rows it
-     * found stable, but another transaction — better-auth creating an account
-     * as somebody signs in — can insert a new case variant a moment later.
-     * Under `read committed` this script would then grant admin to one account
-     * while a second matching one existed, and report success. Serializable
-     * makes Postgres detect that and abort rather than commit on a premise that
-     * stopped being true; the script reports a failure, nothing is written, and
-     * running it again reads the world as it now is.
-     *
-     * The structural fix is a case-insensitive unique index on `user.email`, so
-     * two variants could never coexist. That is a schema change to the app
-     * rather than to this script, and it would have to deal with any duplicates
-     * already stored, so it is deliberately not done here.
-     */
+    // Read, decide, write and read back inside one transaction, with every
+    // matching row locked. Serializable, because the count of matches is a
+    // predicate that a row lock cannot hold still.
     return await db.transaction(
       async (tx) => {
-        /**
-         * Every row whose address matches, once case is ignored — locked together.
-         *
-         * `lower()` on both sides, because the column holds whatever Google sent
-         * and a normalised input compared against a raw column reports an account
-         * stored as `Matti@Example.FI` as nonexistent.
-         *
-         * But the unique index is on the **raw** text and so is case-sensitive,
-         * which means this predicate can match more than one account. Selecting
-         * them all and locking them all is what makes the count below trustworthy
-         * — an earlier version took `.limit(1).for("update")`, locked one row, and
-         * then updated every match, so a single command could change two accounts
-         * and report one.
-         */
+        // Every row whose address matches once case is ignored, locked together:
+        // `lower()` on both sides can match more than one account.
         const matches = await tx
           .select({ id: user.id, email: user.email, role: user.role })
           .from(user)

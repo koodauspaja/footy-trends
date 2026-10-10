@@ -288,3 +288,92 @@ Publishing the OAuth consent screen is **#264**. Until then only Google accounts
 on the test-user list can sign in — everyone else is refused by Google before
 reaching the app, which is why the failure notice names no cause: distinguishing
 "you cancelled" from "you are not on the list" would leak the list.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **`required`.** With no secret, better-auth still constructs and the header
+  still renders; the break only appears when someone clicks `Kirjaudu sisään`
+  in production.
+- **`auth`.** Google is the only provider and sessions live in Postgres. When
+  it was added nothing gated on a session: it existed so that later features
+  had a real user to attach to.
+- **`session.cookieCache`.** Database sessions on purpose: signing out revokes
+  immediately. The cookie cache would remove the per-request lookup by
+  carrying the session in a signed cookie for a TTL, and bring back the
+  revocation delay database sessions were chosen to avoid. It stays off until
+  something measures the lookup as a problem.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **The four auth tables.** Written by hand and not by
+  `@better-auth/cli generate`: the CLI was published at 1.4.21 against the
+  1.7.3 library this repository pinned, and a generated file arrives without
+  comments. The column list is from
+  `@better-auth/core/dist/db/get-tables.mjs` at 1.7.3.
+- **Primary keys are `text`, not `serial`.** better-auth generates its own
+  string ids; an integer key would need its `useNumberId` mode and a matching
+  adapter config. No auth table references a match table or the reverse, so
+  the inconsistency is contained.
+- **Model names are singular.** `user`, `session`, `account` and
+  `verification` are better-auth's defaults; renaming them buys a naming
+  convention at the cost of a mapping in every adapter call.
+- **camelCase properties.** The Drizzle adapter resolves a field with
+  `schemaModel[fieldName]` and throws if it is absent, so the SQL column names
+  are free to stay snake_case.
+- **`account`'s tokens.** better-auth marks all three `returned: false`, so they
+  are never serialised to the client, and nothing in this app reads them: the
+  only scopes requested are `openid email profile`, which need no API call
+  after sign-in.
+- **`verification`.** Without the table sign-in fails at the callback, not at
+  startup.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **`MESSAGES`.** The failure is carried in the URL, not in component state.
+  Google reports its own failures by sending the reader back to
+  `errorCallbackURL`, so the query string is already the channel for one half;
+  using it for the other half too means one notice with one source. An object
+  literal would answer `MESSAGES["__proto__"]` with `Object.prototype`, and
+  `constructor` and `toString` with functions, none of which `??` treats as
+  absent, so each would reach `Notice` as a non-string child and throw during
+  render.
+- **`AuthButtons`.** A server-side session read would put a Postgres query
+  above `/`, `/kotimaa`, `/ulkomaat` and `/maajoukkueet`, the four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN`. That guard
+  exists because a data-backed page was once prerendered, every query failed
+  at build time against Railway's runtime-only private network, and the error
+  state was baked into the static output while the build exited 0.
+- **The pending state in `AuthButtons`.** A wrong state is worse than an absent
+  one, and a reserved width keeps the header from reflowing when the session
+  lands.
+- **`SignInError`.** A cancelled consent screen, a provider error and a state
+  that did not survive all say the same thing. Google's `error` parameter
+  tells them apart, but the reader's next action is identical: try again.
+- **`AuthControls`.** Without the boundary `useSearchParams` opts the whole
+  route out of prerendering. The fallback is `null` and not a placeholder: on
+  the four prerendered pages it is what ships in the static HTML.
+
+Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
+
+- **The header wraps.** A narrow viewport with the longest breadcrumb
+  (`Maajoukkueet`) and a long Google display name overflows a single
+  non-wrapping row, pushing the sign-out control off-screen. The repo's
+  instinct is to wrap a long name and not cut it, as `data-table.tsx` does.
+
+Cut from `src/lib/auth-client.ts` at `48ebab4` by #531.
+
+- **No `baseURL` on `authClient`.** The origin is correct in every
+  environment we run (localhost, a Railway preview, production) without a
+  build-time `NEXT_PUBLIC_` variable that would be inlined at build and
+  wrong the moment the host differs.
+
+Cut from `src/lib/auth-profile.ts` at `48ebab4` by #531.
+
+- **`auth-profile.ts`.** Its own module and not a closure inside `auth.ts`,
+  so it can be tested without constructing better-auth: `auth.ts` reads four
+  environment variables at import and throws without them, which is what the
+  CI unit job has none of. Google returns a name under the `profile` scope,
+  so the fallbacks guard a contract and not an expected path; a failed
+  insert there would show the reader only a generic error.

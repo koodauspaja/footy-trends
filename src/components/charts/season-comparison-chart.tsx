@@ -3,21 +3,21 @@ import type { ComparisonRow, Measure } from "@/lib/season-comparison";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
 
-/** `2,11`: a per-match average, two decimals, as `Koti- ja vierastilastot` prints them. */
+/**
+ * `2,11`: a per-match average, two decimals, as `Koti- ja vierastilastot` prints them.
+ *
+ * decisions/038-season-against-history.md
+ */
 function perMatchText(value: number): string {
   return formatDecimal(value, 2);
 }
 
 /**
- * How each measure is scaled and printed.
+ * How each measure is scaled and printed: points 0–3, goals 0–4, a percentage
+ * 0–100. A position is a share of its table, and is not inverted.
  *
- * The scales are `Koti- ja vierastilastot`'s (specs/033, Q3), so the same
- * measure is drawn the same length in both panels: points 0–3, goals 0–4,
- * a percentage 0–100.
- *
- * **A position is a share of its table, and is not inverted.** A short bar is a
- * high finish, which is how `Päästetyt maalit` already reads on this page —
- * inverting only this row would make one of the two rules wrong.
+ * decisions/033-home-vs-away.md
+ * decisions/038-season-against-history.md
  */
 const MEASURES: Record<Measure, { label: string; max: number }> = {
   position: { label: "Sijoitus", max: 1 },
@@ -30,20 +30,20 @@ const MEASURES: Record<Measure, { label: string; max: number }> = {
 
 /**
  * The baseline column, named once for the legend and the text alternative. The
- * filled column names the page's own period instead, so it comes from the axis
- * — `Tämä kausi` on a club page, `Tämä vuosi` on a national-team one
- * (specs/041, S11).
+ * filled column names the page's own period, so it comes from the axis.
+ *
+ * decisions/038-season-against-history.md
+ * decisions/041-national-team-analytics.md
  */
 export const BASELINE_LABEL = "Tavallisesti";
 
 /**
- * A measure's printed value: `–` for no value, never `0`, which would read as a
- * real zero (specs/033, Q7).
+ * A measure's printed value: `–` for no value, never `0`. A position prints as
+ * a place in the selected season's table, `3.` for the season and `5,8.` for
+ * an average of others, and as `–` without a table.
  *
- * A position is printed as the place it is, in the selected season's table —
- * `3.` for the season itself and `5,8.` for an average of other seasons, which
- * is a place no one finished in and is why it keeps its decimal. Without a
- * table to put it in, a share is not a place, so it prints as `–`.
+ * decisions/033-home-vs-away.md
+ * decisions/038-season-against-history.md
  */
 export function measureText(
   measure: Measure,
@@ -64,9 +64,10 @@ export function measureText(
 
 /**
  * One row of the text alternative, per measure.
- *
  * A position already ends in its ordinal period — `6,0.` — so the sentence does
  * not add a second one and read `6,0..`.
+ *
+ * decisions/038-season-against-history.md
  */
 export function comparisonSentence(
   label: string,
@@ -82,6 +83,8 @@ export function comparisonSentence(
  * The selected season beside what is usual for the club: a row per measure, a
  * filled bar for this season and an outlined one for the baseline, the values
  * printed and listed as text.
+ *
+ * decisions/038-season-against-history.md
  */
 export function SeasonComparisonChart({
   axis,

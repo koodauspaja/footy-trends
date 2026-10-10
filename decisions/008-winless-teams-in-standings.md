@@ -28,3 +28,12 @@ The roster-seeding loop and the stats-accumulation loop both need "look up this 
 - 12 integration tests passing locally against real PostgreSQL and Redis (via `docker compose up -d` + `npm run db:migrate`), including the two updated above.
 - Full local e2e suite (17 tests, `npm run test:e2e`) run against the dev server and real football-data.org data — all pass, confirming no regression. No new e2e test added for this feature itself: it only changes what data renders into the existing standings table, no new interaction or navigation to click through.
 - Manual verification against the real dev server: as of this writing, La Liga's 2026/27 season (`/sarjataulukko?kilpailu=PD`) has 8 teams with no finished match yet — Real Madrid, Barcelona, Athletic Club, Osasuna, Celta Vigo, Betis, Real Sociedad, Valencia. All 8 render correctly at `0` across every column with an empty "Vire" cell, sorted alphabetically between the teams with points above and the teams with a loss's negative goal difference below — a live, unstaged confirmation of the exact scenario this spec describes. (Also verified the full pipeline once against a synthetic scheduled match seeded directly into a completed past season, to check the case before any real competition happened to be in this state.)
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`rosterMatches` in `calculateStandings`.** Passing the season's full
+  match list, finished and scheduled alike, is what makes a winless team with
+  only upcoming fixtures show a 0-played row and not be absent. A caller only
+  interested in finished-match stats can omit it.

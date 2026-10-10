@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FINLAND_TEAM_ID } from "@/lib/national-team";
 import {
   finishedHistory,
@@ -13,15 +13,18 @@ import {
 import type { NationalTeamMatch, NationalTeamYear } from "@/lib/national-team-service";
 
 /**
- * The analytics behind a national-team page (specs/041).
+ * The analytics behind a national-team page. Two axes are under test: the charts read the whole
+ * history, `Muut vuodet` reads calendar years, and one year would pass for either. Fixtures
+ * carry `FINLAND_TEAM_ID` on Finland's side, the step `national-team.test.ts` owns.
  *
- * Two axes are under test and they are not the same: the charts read the whole
- * history, `Muut vuodet` reads calendar years. A test that only ever used one
- * year would pass for either.
- *
- * Every fixture already carries `FINLAND_TEAM_ID` on Finland's side, because
- * the read boundary put it there — `national-team.test.ts` owns that step.
+ * decisions/041-national-team-analytics.md
+ * decisions/045-bogey-teams.md
+ * decisions/053-elo-ratings.md
+ * decisions/530-one-team-panel-builder.md
  */
+
+const loggerErrorMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
 
 let nextId = 1;
 
@@ -51,7 +54,7 @@ function match(
   };
 }
 
-/** Finland at home, winning by `scored`–`conceded`. */
+// Finland at home, winning by `scored`–`conceded`.
 function home(year: number, day: number, scored: number, conceded: number): NationalTeamMatch {
   return match({
     kickoffAt: new Date(`${year}-06-${String(day).padStart(2, "0")}T18:00:00Z`),
@@ -60,7 +63,7 @@ function home(year: number, day: number, scored: number, conceded: number): Nati
   });
 }
 
-/** Finland away, so the sentinel has to be read off the other side. */
+// Finland away, so the sentinel has to be read off the other side.
 function away(year: number, day: number, scored: number, conceded: number): NationalTeamMatch {
   return match({
     kickoffAt: new Date(`${year}-09-${String(day).padStart(2, "0")}T18:00:00Z`),
@@ -80,7 +83,7 @@ function scheduled(year: number, day: number): NationalTeamMatch {
   });
 }
 
-/** The service's own shape: newest year first, chronological within a year. */
+// The service's own shape: newest year first, chronological within a year.
 function years(...entries: Array<[number, NationalTeamMatch[]]>): NationalTeamYear[] {
   return entries.map(([year, matches]) => ({ year, matches }));
 }
@@ -129,7 +132,7 @@ describe("selectedYear", () => {
   });
 
   it("skips a newer year whose matches are all ahead of it", () => {
-    // January, with the year's fixtures published and none played (specs/041, S6).
+    // January, with the year's fixtures published and none played.
     const given = years([2026, [scheduled(2026, 20)]], [2025, [home(2025, 1, 2, 0)]]);
 
     expect(selectedYear(given)).toBe(2025);
@@ -163,7 +166,7 @@ describe("readYear", () => {
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
       // A year here spans friendlies, qualifiers and a tournament at once, so
-      // the competition cannot tell one period from another (specs/041, S8).
+      // the competition cannot tell one period from another.
       expect(result.read.competition).toBe("2026");
       expect(result.read.finished).toHaveLength(1);
       // Every match, scheduled included: the comparison needs the period's length.
@@ -204,8 +207,14 @@ describe("nationalTeamAnalytics", () => {
     expect(await nationalTeamAnalytics(given).loadPosition()).toEqual({ status: "unavailable" });
   });
 
-  it("has no opponents panel: Finland and its opponents have no id stable across categories (specs/045, S5)", async () => {
+  it("has no opponents panel: Finland and its opponents have no id stable across categories", async () => {
     expect(await nationalTeamAnalytics(given).loadOpponents()).toEqual({ status: "unavailable" });
+  });
+
+  it("has no Elo: national teams are not rated", async () => {
+    expect(await nationalTeamAnalytics(given).loadElo()).toEqual({
+      series: { status: "unavailable" },
+    });
   });
 
   it("reads Finland on both sides of the fixture, across every year", async () => {
@@ -226,7 +235,7 @@ describe("nationalTeamAnalytics", () => {
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
     // Five matches over three years, and the running total is the whole
-    // history's: 3 + 1 + 0 + 1 + 2 scored (specs/041, S3).
+    // history's: 3 + 1 + 0 + 1 + 2 scored.
     expect(result.totals).toHaveLength(5);
     expect(result.totals.at(-1)).toMatchObject({ scored: 7, conceded: 4 });
   });
@@ -303,10 +312,10 @@ describe("nationalTeamAnalytics", () => {
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
     expect(result.seasons).toBe(2);
-    // The baseline's periods are named by year (specs/041, S8).
+    // The baseline's periods are named by year.
     expect(result.competitions).toEqual(["2024", "2025"]);
     // A knockout, a friendly and a qualifier rank nobody, so the row is gone
-    // rather than shown as `–` (specs/041, S7).
+    // and not shown as `–`.
     expect(result.rows.map((row) => row.measure)).not.toContain("position");
     expect(result.rows).not.toEqual([]);
   });
@@ -358,9 +367,28 @@ describe("nationalTeamAnalytics", () => {
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
-    // Three wins, and the run is not cut at the year boundary (specs/041, S4).
+    // Three wins, and the run is not cut at the year boundary.
     expect(result.records.wins).toEqual({ length: 3, from: "2025", to: "2026" });
-    // Not the competitions met: how far back the records reach (specs/041, S12).
+    // Not the competitions met: how far back the records reach.
     expect(result.scope).toBe("2025–2026");
+  });
+
+  it("shows a panel's error, and logs whose it was, when its history cannot be read", async () => {
+    // A row no panel can read: the throw must not escape and take the whole
+    // page with it.
+    const broken = [{ year: 2026, matches: [null as unknown as NationalTeamMatch] }];
+    const loaders = nationalTeamAnalytics(broken);
+
+    expect(await loaders.loadForm()).toEqual({ status: "error" });
+    expect(await loaders.loadStreaks()).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      {
+        err: expect.any(Error),
+        teamProviderId: FINLAND_TEAM_ID,
+        competitionCode: NATIONAL_TEAM_PERIOD_CODE,
+      },
+      "Unable to read the matches a team's panels count"
+    );
   });
 });

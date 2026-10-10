@@ -2,13 +2,8 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
 import { matches } from "@/db/schema";
-import { type CleanSheetSeries, cleanSheetSeries } from "./clean-sheets";
-import { type ComebacksSeries, comebacksOf } from "./comebacks";
 import { getCompetitionFormat, getCompetitionName, regionOfCompetition } from "./competitions";
 import { getSeasonMatches, type NormalizedProviderMatch } from "./football-data";
-import { type FormSeries, formSeries } from "./form-series";
-import { type GoalsSeries, goalsSeries } from "./goals-series";
-import { type HomeAwaySeries, homeAwayStats } from "./home-away";
 import { logger } from "./logger";
 import { type PositionSeries, singleTableSeries } from "./position-series";
 import { redis } from "./redis";
@@ -27,20 +22,17 @@ import {
   toFinishedMatches,
 } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
-import { type StreaksSeries, streaksOf } from "./streaks";
 import { type SeasonMovement, singleTableMovement } from "./table-volatility";
+import type { TeamPanelMatches } from "./team-panels";
 import type { TeamSeason } from "./team-seasons";
 
 const STANDINGS_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * The Redis key a competition-season's *computed* table caches under.
+ * The Redis key a competition-season's computed table caches under, exported
+ * so a forced refresh clears it too.
  *
- * Exported because a forced refresh has to clear it too, and this is the one
- * that is easy to miss: the database write genuinely succeeds, so without
- * clearing this the page keeps serving the old standings for up to fifteen
- * minutes after the data is already correct. See
- * specs/029-forced-season-refresh.md.
+ * decisions/029-forced-season-refresh.md
  */
 export function standingsCacheKey(competitionCode: string, seasonId: number): string {
   return `standings:${competitionCode}:${seasonId}`;
@@ -65,9 +57,8 @@ export type StandingsRequest = {
   /** The newest started season, used to decide whether `seasonId` is still being played. */
   activeSeasonId: number;
   /**
-   * Restricts standings to matches with `matchday <= round`. Bypasses the
-   * season-level cache, which only stores the full-season result — see
-   * specs/003-standings-after-selected-round.md.
+   * Restricts standings to matches with `matchday <= round`, and bypasses the
+   * season-level cache, which stores only the full-season result.
    */
   round?: number;
 };
@@ -84,10 +75,18 @@ export type RoundMatchesResult =
   | { status: "error" };
 
 type StoredMatch = typeof matches.$inferSelect;
-/** A match from either the DB or a fresh provider fetch — see football-data.ts. */
+/**
+ * A match from either the database or a fresh provider fetch.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ */
 type MatchRow = NormalizedProviderMatch;
 
-/** Matches with no known matchday are excluded once a round filter applies. */
+/**
+ * Matches with no known matchday are excluded once a round filter applies.
+ *
+ * decisions/003-standings-after-selected-round.md
+ */
 function filterByRound<T extends { matchday: number | null }>(
   matchList: T[],
   round: number | undefined
@@ -99,21 +98,12 @@ function filterByRound<T extends { matchday: number | null }>(
 type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
 
 /**
- * Reads a season's stored matches and refreshes them from the provider when
- * stale, per `needsRefresh`. Shared by `getStandings` and
- * `getTeamMatches` so both see the same season data through one sync path —
- * see specs/004-listing-matches-for-selected-team.md.
+ * A season's stored matches, refreshed from the provider when `needsRefresh`
+ * says so. Never throws: a failed refresh serves what is stored, flagged.
+ * `cache()`d, so every reader of a season in one request shares a read.
  *
- * Never throws: a failed refresh falls back to whatever is already stored,
- * with `refreshFailed: true` so callers can distinguish "stale but present"
- * from "genuinely nothing to show" when deciding between an empty and an
- * error result.
- *
- * Wrapped in React's `cache()` since specs/030, the way the TASO service's
- * counterpart already is: the team page reads the season once for its match
- * list, and the position chart asks for the same season in the same request.
- * One read serves both, so the chart adds no database read and no provider
- * request of its own.
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/030-league-position-by-matchday.md
  */
 const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   competitionCode: string,
@@ -182,15 +172,10 @@ export async function getStandings({
 }
 
 /**
- * This team's league position after each round of a season, for the team
- * page's chart (specs/030).
+ * This team's league position after each round, from the same cached season
+ * read; each table is the standings page's for that round.
  *
- * Reads the season through the same cached sync as `getTeamMatches`, so on the
- * team page it costs no read and no provider request of its own — and never one
- * per round: `getStandings({ round })` is deliberately not used, because it
- * re-reads the season on every call. Each table is `calculateStandings` with
- * the arguments `getStandings({ round })` gives it, so a plotted position always
- * equals the standings page's for that round.
+ * decisions/030-league-position-by-matchday.md
  */
 export async function getTeamPositionSeries(
   competitionCode: string,
@@ -220,20 +205,18 @@ export async function getTeamPositionSeries(
 }
 
 /**
- * This team's form after each match of a season, for the team page's chart
- * (specs/031).
+ * The season's finished matches for the team's result panels, from the same
+ * cached read. Nothing stored is empty, unless the refresh failed: an error.
  *
- * The same cached season read as `getTeamMatches` and the position chart, so on
- * the team page it costs no read and no provider request of its own. Every
- * finished match of this league season counts, as it does in the standings
- * table's `Vire` column.
+ * decisions/031-rolling-form-trend.md
+ * decisions/530-one-team-panel-builder.md
  */
-export async function getTeamFormSeries(
+export async function getTeamPanelMatches(
   competitionCode: string,
   teamProviderId: number,
   seasonId: number,
   activeSeasonId: number
-): Promise<FormSeries> {
+): Promise<TeamPanelMatches> {
   try {
     const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
       competitionCode,
@@ -242,113 +225,22 @@ export async function getTeamFormSeries(
     );
     if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
 
-    return formSeries(toFinishedMatches(seasonMatches), teamProviderId);
+    return { status: "ok", finished: toFinishedMatches(seasonMatches) };
   } catch (error) {
     logger.error(
       { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the form series"
+      "Unable to read the matches a team's panels count"
     );
     return { status: "error" };
   }
 }
 
 /**
- * This team's goals scored and conceded across a season, for the team page's
- * two goals charts (specs/032). The same cached season read, and exactly the
- * matches the form chart counts.
- */
-export async function getTeamGoalsSeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<GoalsSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return goalsSeries(toFinishedMatches(seasonMatches), teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the goals series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * This team's season split into home and away, for the team page's
- * `Koti- ja vierastilastot` panel (specs/033). The same cached season read, and
- * exactly the matches the form and goals charts count.
- */
-export async function getTeamHomeAwaySeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<HomeAwaySeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...homeAwayStats(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the home and away series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * How often this team kept a clean sheet, after each match of a season, for the
- * team page's `Nollapelit` chart (specs/034). The same cached season read, and
- * exactly the matches the other result charts count.
- */
-export async function getTeamCleanSheetSeries(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<CleanSheetSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return cleanSheetSeries(toFinishedMatches(seasonMatches), teamProviderId);
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the clean-sheet series"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * The selected season against this club's other stored seasons, for the team
- * page's `Tämä kausi verrattuna` panel (specs/038).
+ * The selected season against the club's others, as `seasonsBeside` picks them;
+ * a cup is measured without the ranked measures, having no table.
  *
- * **League seasons only** (S6): a cup has no table to rank a position in, and a
- * short knockout run folded into a per-match average distorts it.
- *
- * **No provider request for a past season.** `needsRefresh` returns `false` for
- * any season with stored rows that is not the active one, and every season
- * `getTeamSeasons` reports has rows — so the reads below are the database's.
+ * decisions/038-season-against-history.md
+ * decisions/040-cup-analytics.md
  */
 export async function getTeamSeasonComparison(
   competitionCode: string,
@@ -376,12 +268,10 @@ export async function getTeamSeasonComparison(
 }
 
 /**
- * This club's records across every stored season, for the team page's
- * `Ennätykset` panel (specs/039).
+ * This club's records across every stored season. `label` is the page's own
+ * season wording, so a record names a season as the selector does.
  *
- * `label` is the page's own season wording, passed in so a record names a
- * season exactly as the selector above it does — plain years domestically,
- * `2024/25` abroad.
+ * decisions/039-streak-records.md
  */
 export function getTeamStreakRecords(
   competitionCode: string,
@@ -404,23 +294,10 @@ export function getTeamStreakRecords(
 }
 
 /**
- * A baseline season must be a competition the registry **knows** to be a
- * league, not merely one it cannot prove is a cup.
+ * Which of the club's seasons belong beside this one: its league seasons across
+ * divisions, or for a cup only that cup's.
  *
- * `getCompetitionFormat` answers `"league"` for an unknown code by design, so
- * testing the format alone would let a competition the app no longer carries —
- * stored rows outliving their registry entry — into the baseline, contributing
- * its matches to every pooled rate and its raw code to the panel's
- * `Verrattuna …` line, where a Finnish sentence would name it `PL`.
- */
-/**
- * Which of the club's seasons belong beside the one being looked at
- * (specs/040, S5).
- *
- * A league page compares against the club's league seasons, across divisions.
- * A cup page compares against **that cup's** other seasons only: a cup run
- * measured against a league season is the mixing S1 forbids, arriving by
- * another route.
+ * decisions/040-cup-analytics.md
  */
 function seasonsBeside(competitionCode: string): (code: string) => boolean {
   return getCompetitionFormat(competitionCode) === "cup"
@@ -428,6 +305,12 @@ function seasonsBeside(competitionCode: string): (code: string) => boolean {
     : isLeagueCompetition;
 }
 
+/**
+ * A competition the registry knows to be a league: `getCompetitionFormat` calls
+ * an unknown code one, and stored rows can outlive their registry entry.
+ *
+ * decisions/038-season-against-history.md
+ */
 function isLeagueCompetition(competitionCode: string): boolean {
   return (
     regionOfCompetition(competitionCode) !== null &&
@@ -436,20 +319,10 @@ function isLeagueCompetition(competitionCode: string): boolean {
 }
 
 /**
- * One season as `compareSeasons` needs it.
+ * One season as `compareSeasons` needs it: nothing stored is `empty`, a failed
+ * refresh with nothing stored `error`, and stale rows are served.
  *
- * A season with nothing stored is `empty` — an ordinary season to leave out —
- * while a season whose refresh failed and left nothing is `error`, the same
- * distinction every other panel's service draws.
- *
- * **Stale stored rows are served, not refused** (specs/038, S12). A refresh
- * that fails while rows exist is `refreshFailed` with those rows, and
- * `getStandings` and every per-season panel render them rather than erroring —
- * "falls back to stored standings when the provider refresh fails" is an
- * asserted behaviour, not an accident. Erroring only here would make this one
- * panel disagree with the eight beside it on the same page, about the same
- * season, from the same read. Only the active season can reach this at all: a
- * past season with rows never refreshes.
+ * decisions/038-season-against-history.md
  */
 async function readSeasonFor(
   competitionCode: string,
@@ -482,74 +355,10 @@ async function readSeasonFor(
 }
 
 /**
- * This team's streaks in a season, for the team page's `Putket` panel
- * (specs/035). The same cached season read, and exactly the matches the other
- * result panels count.
- */
-export async function getTeamStreaks(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<StreaksSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...streaksOf(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the streaks"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * What became of this team's matches after half-time — deficits rescued and
- * leads given away — for the team page's `Kääntyneet ottelut` panel
- * (specs/036, specs/037). The same cached season read, and exactly the matches
- * the other result panels count.
- */
-export async function getTeamComebacks(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number
-): Promise<ComebacksSeries> {
-  try {
-    const { matches: seasonMatches, refreshFailed } = await getSyncedSeasonMatches(
-      competitionCode,
-      seasonId,
-      activeSeasonId
-    );
-    if (seasonMatches.length === 0 && refreshFailed) return { status: "error" };
-
-    return { status: "ok", ...comebacksOf(toFinishedMatches(seasonMatches), teamProviderId) };
-  } catch (error) {
-    logger.error(
-      { err: error, competitionCode, seasonId, teamProviderId },
-      "Unable to compute the comebacks"
-    );
-    return { status: "error" };
-  }
-}
-
-/**
- * A team's full match list for a season — played and upcoming — sorted by
- * kickoff time. A team is only known to exist here through its matches;
- * there is no independent teams table, so a team id that appears in no
- * stored match for the season is indistinguishable from an unknown id (both
- * report `"not_found"`).
+ * A team's full match list for a season, by kickoff. With no teams table, an id
+ * in no stored match is `"not_found"`. `cache()`d for the metadata and the page.
  *
- * Wrapped in React's `cache()` so the team page's `generateMetadata` (which
- * needs the team's first match to name the page) and its default export
- * share one call per request instead of hitting the database twice.
+ * decisions/004-listing-matches-for-selected-team.md
  */
 export const getTeamMatches = cache(async function getTeamMatches(
   competitionCode: string,
@@ -582,10 +391,10 @@ export const getTeamMatches = cache(async function getTeamMatches(
 });
 
 /**
- * Every match for one round (matchday) of a season, all teams — shares the
- * same sync path as `getStandings` and `getTeamMatches`. When
- * `round` is `undefined`, resolves and returns the season's current round
- * instead of requiring the caller to already know it.
+ * Every match of one round of a season, through the same sync; without a
+ * `round`, the season's current one.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export async function getRoundMatches(
   competitionCode: string,
@@ -628,15 +437,10 @@ export type CupSeasonResult =
   | { status: "error" };
 
 /**
- * A cup season's full match list — every stage, played and upcoming alike.
+ * A cup season's full match list, every stage, from which its page derives
+ * everything. `cache()`d for the metadata and the page.
  *
- * Cup pages derive everything (phase tables, stage list, bracket) from one
- * match list rather than from three separate queries, because all three answer
- * questions about the same season and the provider returns it in a single
- * response anyway.
- *
- * Wrapped in React's `cache()` for the same reason as `getTeamMatches`: a
- * page's `generateMetadata` and its default export both resolve it.
+ * decisions/014-champions-league.md
  */
 export const getCupSeason = cache(async function getCupSeason(
   competitionCode: string,
@@ -660,7 +464,11 @@ export const getCupSeason = cache(async function getCupSeason(
   }
 });
 
-/** The highest matchday with at least one stored match for the season, or null if none. */
+/**
+ * The highest matchday with at least one stored match for the season, or null if none.
+ *
+ * decisions/003-standings-after-selected-round.md
+ */
 export async function getMaxMatchday(
   competitionCode: string,
   seasonId: number
@@ -673,11 +481,10 @@ export async function getMaxMatchday(
 }
 
 /**
- * A completed season's results never change, so it is fetched at most once and
- * the freshness threshold does not apply to it. Only the season currently being
- * played is re-checked against the provider.
+ * Whether to ask the provider: a season with nothing stored, or a stale active
+ * one. `storedMatches` must be ordered newest `updatedAt` first.
  *
- * `storedMatches` must be ordered newest `updatedAt` first.
+ * decisions/002-season-selector-and-backfill.md
  */
 export function needsRefresh(
   seasonId: number,
@@ -692,13 +499,10 @@ export function needsRefresh(
 }
 
 /**
- * Each completed season's table movement in one foreign competition, for its
- * standings page's `Sijoitusten vaihtelu` (specs/050).
+ * Each completed season's table movement in one foreign competition, from
+ * stored rows only, never asking the provider.
  *
- * **Stored rows only** (S4): one read of every season before the season in
- * progress (S3), never `getSyncedSeasonMatches`, which asks the provider for a
- * season with nothing stored. Each season's tables are then the standings
- * page's own, through `singleTableMovement` (S1).
+ * decisions/050-table-volatility.md
  */
 export async function getSeasonMovements(
   competitionCode: string,
@@ -722,11 +526,9 @@ function toResult(standings: TeamStanding[]): StandingsResult {
 }
 
 /**
- * Every season this app holds matches for, in one foreign competition.
+ * Every season we hold matches for in one foreign competition, asked here as this owns `matches`.
  *
- * Lives here rather than in `force-refresh.ts` because this module owns the
- * `matches` table: a caller asking "what do we hold" should not have to know
- * which columns answer it. See specs/029-forced-season-refresh.md.
+ * decisions/029-forced-season-refresh.md
  */
 export async function storedForeignSeasons(competitionCode: string): Promise<Set<number>> {
   const rows = await db

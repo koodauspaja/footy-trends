@@ -49,3 +49,35 @@ page itself, for Arsenal 2024/25 and for KuPS across Veikkausliiga 2026's split.
   `Analyysit` and the prompt, and after signing in sees no section. This is
   #331's case, unchanged: the gate runs before the series are computed, so the
   signed-out page cannot know.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **`AnalyticsSection`'s gate.** One prompt and not one per panel, shown
+  before any loader is called, so a signed-out page is never computed from,
+  and never carries, any analytics value. A server component awaited by the
+  team pages and not rendered, the shape `CompetitionTeamPage` already uses.
+  A league season with no table shows no section.
+
+Cut from `src/lib/form-series.ts` at `dc74e3e` by #531.
+
+- **`form-series.ts`.** `calculateStandings` takes a team's last five
+  finished matches in kickoff order for the `Vire` column; this takes the
+  same five after every match, so the last point is the column's own value in
+  points. Kickoff order, not round order, is what keeps TASO's out-of-order
+  round numbers out of it. The services decide which matches count.
+- **The order in `formSeries`.** Kickoff, then provider match id: one team
+  never has two matches at one kickoff, but a stable order costs nothing if
+  the data ever does.
+
+Cut from `src/components/charts/form-chart.tsx` at `48ebab4` by #531.
+
+- **`FormChart`'s axis.** More points is higher, the other way up from the
+  position chart beside it. The text is a list for a screen reader, as on
+  the position chart.
+
+Cut from `src/components/league-position-section.tsx` at `48ebab4` by #531.
+
+- **`positionPanel` is a function.** So the section can tell an absent panel
+  from a present one. The sign-in gate is the section's, not the panel's.

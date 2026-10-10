@@ -17,12 +17,11 @@ type CupMatchesControlsProps = {
 };
 
 /**
- * Season + stage selector for a cup's match list at `/ulkomaat/ottelut` — the
- * cup counterpart to `MatchesControls`, which selects a round instead.
+ * Season and stage selector for a cup's match list at `/ulkomaat/ottelut`.
+ * `kierros` is dropped and `vaihe` set; the stage select renders only once a
+ * stage is known.
  *
- * `kierros` is dropped and `vaihe` set, so switching between a league and a
- * cup cannot leave a stale round in the query string. Like `MatchesControls`,
- * the stage select only renders once a stage is actually known.
+ * decisions/014-champions-league.md
  */
 export function CupMatchesControls({
   basePath,
@@ -52,10 +51,9 @@ export function CupMatchesControls({
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
-        // The stage is deliberately not carried across a season change: the
-        // seasons of a cup do not share a stage list (2023/24 had a group
-        // stage, 2024/25 a league phase), so a stage valid in one can be
-        // absent from the next.
+        // The stage is not carried across a season change: a cup's seasons do
+        // not share a stage list, so a stage valid in one can be absent from
+        // the next.
         onChange={(seasonId) => navigate(seasonId, undefined)}
       />
       {selectedStage !== undefined && availableStages.length > 0 && (

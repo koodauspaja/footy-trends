@@ -1,9 +1,11 @@
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { headToHeadRecord } from "@/lib/head-to-head";
 import {
+  FOOTBALL_DATA_AWAY_GOALS,
+  FOOTBALL_DATA_HOME_GOALS,
   getCompetitionAverages,
   getGoalsPerGame,
   getHeadToHeadHistory,
@@ -17,13 +19,22 @@ import {
 import { toFinishedMatches } from "@/lib/standings";
 
 /**
- * The match page's two queries against a real Postgres — the lookup by provider
- * id, and the head-to-head selection whose every clause is a decision in
- * specs/019-match-page.md.
+ * The match page's queries, and the reads built on the same rows, against a
+ * real Postgres. Fixture ids are far above anything either provider issues,
+ * and are deleted either side of every test.
  *
- * Fixture ids are far above anything either provider issues, and are deleted
- * either side of every test.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
+ * decisions/492-shootout-out-of-the-score.md
+ * decisions/528-one-shootout-rule.md
  */
+
 const HOME = 991101;
 const AWAY = 991102;
 const OTHER = 991103;
@@ -258,12 +269,8 @@ describe("the head-to-head selection", () => {
   });
 });
 
-/**
- * The full history behind specs/042, against the real schema.
- *
- * What it must differ from the block above in, and only in: no anchor, no
- * limit, and no exclusion of the match linked from.
- */
+// The full history: unlike the block above, no anchor, no limit, and no
+// exclusion of the match linked from.
 describe("the head-to-head history", () => {
   const DOMESTIC = { kind: "taso", bucket: "domestic" } as const;
 
@@ -292,7 +299,7 @@ describe("the head-to-head history", () => {
 
   it("includes a meeting played after the one a reader arrived from", async () => {
     // The match page anchors on its own kickoff because it is context for that
-    // fixture. A history of the pair is not (specs/042, S4).
+    // fixture. A history of the pair is not.
     await db
       .insert(tasoMatches)
       .values([
@@ -367,12 +374,82 @@ describe("the head-to-head history", () => {
   });
 });
 
-describe("the competition averages (specs/044)", () => {
+describe("a football-data score without its shoot-out", () => {
+  it("is the same from SQL as from the tables' own rule, half a shoot-out included", async () => {
+    const rows = [
+      // Both sides stored: 0–0 after extra time.
+      footballDataRow({ providerMatchId: 991001, penaltiesHome: 3, penaltiesAway: 4 }),
+      // Half a shoot-out is not one: the score stays as stored.
+      footballDataRow({ providerMatchId: 991002, penaltiesHome: 3, penaltiesAway: null }),
+      footballDataRow({ providerMatchId: 991003, penaltiesHome: null, penaltiesAway: 4 }),
+      footballDataRow({ providerMatchId: 991004 }),
+    ].map((row) => ({ ...row, homeGoals: 3, awayGoals: 4 }));
+    await db.insert(matches).values(rows);
+
+    const fromSql = await db
+      .select({
+        providerMatchId: matches.providerMatchId,
+        homeGoals: sql<number>`${FOOTBALL_DATA_HOME_GOALS}`.mapWith(Number),
+        awayGoals: sql<number>`${FOOTBALL_DATA_AWAY_GOALS}`.mapWith(Number),
+      })
+      .from(matches)
+      .where(inArray(matches.providerMatchId, FD_IDS))
+      .orderBy(matches.providerMatchId);
+
+    expect(fromSql).toEqual([
+      { providerMatchId: 991001, homeGoals: 0, awayGoals: 0 },
+      { providerMatchId: 991002, homeGoals: 3, awayGoals: 4 },
+      { providerMatchId: 991003, homeGoals: 3, awayGoals: 4 },
+      { providerMatchId: 991004, homeGoals: 3, awayGoals: 4 },
+    ]);
+    // The other path: the stored rows, through the rule the tables use.
+    const stored = await db
+      .select()
+      .from(matches)
+      .where(inArray(matches.providerMatchId, FD_IDS))
+      .orderBy(matches.providerMatchId);
+    expect(fromSql).toEqual(
+      toFinishedMatches(stored).map(({ providerMatchId, homeGoals, awayGoals }) => ({
+        providerMatchId,
+        homeGoals,
+        awayGoals,
+      }))
+    );
+  });
+
+  it("counts a half-stored shoot-out's whole score in the goals per game", async () => {
+    await db.insert(matches).values([
+      footballDataRow({
+        providerMatchId: 991001,
+        homeGoals: 3,
+        awayGoals: 4,
+        penaltiesHome: 3,
+        penaltiesAway: null,
+      }),
+    ]);
+
+    const result = await getCompetitionAverages([
+      { scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] } },
+    ]);
+
+    expect(result).toEqual({
+      status: "ok",
+      rows: [
+        {
+          scope: { kind: "football-data", competitionCode: "PL", seasonIds: [SEASON] },
+          competition: { home: 3, away: 4 },
+        },
+      ],
+    });
+  });
+});
+
+describe("the competition averages", () => {
   it("averages exactly the football-data seasons given, finished matches only", async () => {
     await db.insert(matches).values([
       footballDataRow({ providerMatchId: 991001, homeGoals: 3, awayGoals: 1 }),
-      // A 0–0 settled on penalties, stored with the shoot-out in it (#492):
-      // its goals are 0–0.
+      // A 0–0 settled on penalties, stored with the shoot-out in it: its goals are
+      // 0–0.
       footballDataRow({
         providerMatchId: 991002,
         homeGoals: 3,
@@ -380,7 +457,7 @@ describe("the competition averages (specs/044)", () => {
         penaltiesHome: 3,
         penaltiesAway: 4,
       }),
-      // Another season of the same competition: outside the scope (S7).
+      // Another season of the same competition: outside the scope.
       footballDataRow({
         providerMatchId: 991003,
         seasonId: SEASON + 1,
@@ -464,7 +541,7 @@ describe("the competition averages (specs/044)", () => {
   });
 });
 
-describe("a club's worst opponents (specs/045)", () => {
+describe("a club's worst opponents", () => {
   it("reads both orientations, finished matches only, inside the club's own bucket", async () => {
     await db.insert(tasoMatches).values([
       // Three losses to AWAY, two at home and one away: one opponent, 0 points.
@@ -504,7 +581,7 @@ describe("a club's worst opponents (specs/045)", () => {
     });
   });
 
-  it("agrees with the head-to-head page for the same pair (S4)", async () => {
+  it("agrees with the head-to-head page for the same pair", async () => {
     await db.insert(tasoMatches).values([
       tasoRow({ providerMatchId: 991013, homeGoals: 2, awayGoals: 2 }),
       tasoRow({ providerMatchId: 991014, homeGoals: 0, awayGoals: 1 }),
@@ -523,8 +600,8 @@ describe("a club's worst opponents (specs/045)", () => {
 
     const series = await getWorstOpponents({ kind: "taso", bucket: "domestic" }, HOME, "/kotimaa");
     const history = await getHeadToHeadHistory({ kind: "taso", bucket: "domestic" }, HOME, AWAY);
-    // The page's own record, from the page's own read — not just its length
-    // (Sourcery, on #478): a swapped side keeps the count and changes this.
+    // The page's own record, from the page's own read, not just its length: a
+    // swapped side keeps the count and changes this.
     const record =
       history.status === "ok"
         ? headToHeadRecord(toFinishedMatches(history.matches as TasoMatchRow[]), HOME)
@@ -540,8 +617,8 @@ describe("a club's worst opponents (specs/045)", () => {
   });
 });
 
-describe("a team's latest form (specs/047)", () => {
-  /** A finished match for HOME on `day` of September 2026, home or away. */
+describe("a team's latest form", () => {
+  // A finished match for HOME on `day` of September 2026, home or away.
   function played(
     id: number,
     day: number,
@@ -570,7 +647,7 @@ describe("a team's latest form (specs/047)", () => {
       played(991018, 1, HOME, 0, 3),
       played(991019, 5, HOME, 2, 0),
       played(991020, 9, OTHER, 1, 1),
-      // Another competition in the same bucket: counted (S5).
+      // Another competition in the same bucket: counted.
       played(991021, 12, HOME, 0, 1, { categoryId: "MSC", competitionCode: "spljp90" }),
       played(991022, 15, OTHER, 3, 2),
       played(991023, 19, HOME, 1, 0),
@@ -608,17 +685,15 @@ describe("a team's latest form (specs/047)", () => {
   });
 });
 
-describe("a competition's goals per game (specs/048)", () => {
-  /**
-   * Codes no provider uses, because this reads a competition's whole stored
-   * history and the real ones hold other suites' fixtures. A code the registry
-   * does not know reads as the `spljp{YY}` umbrella under its own category.
-   */
+describe("a competition's goals per game", () => {
+  // Codes no provider uses, because this reads a competition's whole stored
+  // history and the real ones hold other suites' fixtures. A code the registry
+  // does not know reads as the `spljp{YY}` umbrella under its own category.
   const FD_CODE = "ZZ48";
   const TASO_CODE = "ZZ48T";
   const umbrella = (season: number) => `spljp${String(season % 100).padStart(2, "0")}`;
 
-  /** Five finished matches of one season, `goals` each: enough to draw (S8). */
+  // Five finished matches of one season, `goals` each: enough to draw.
   function fiveOf<T>(row: (id: number) => T, firstId: number): T[] {
     return Array.from({ length: 5 }, (_, index) => row(firstId + index));
   }
@@ -635,13 +710,12 @@ describe("a competition's goals per game (specs/048)", () => {
           }),
         991001
       ),
-      // A second stage of the same season is the same season (S6).
+      // A second stage of the same season is the same season.
       footballDataRow({
         providerMatchId: 991006,
         competitionCode: FD_CODE,
         stage: "PLAYOFFS",
-        // 0–0 settled on penalties, stored with the shoot-out in it: no goals
-        // (#492).
+        // 0–0 settled on penalties, stored with the shoot-out in it: no goals.
         homeGoals: 4,
         awayGoals: 3,
         penaltiesHome: 4,
@@ -658,7 +732,7 @@ describe("a competition's goals per game (specs/048)", () => {
           }),
         991007
       ),
-      // Unplayed, and a finished match without its score: neither counts (S1).
+      // Unplayed, and a finished match without its score: neither counts.
       footballDataRow({
         providerMatchId: 991012,
         competitionCode: FD_CODE,
@@ -725,14 +799,14 @@ describe("a competition's goals per game (specs/048)", () => {
         homeGoals: 9,
         awayGoals: 9,
       }),
-      // A later season with too few matches to draw: named, not drawn (S14).
+      // A later season with too few matches to draw: named, not drawn.
       tasoRow({
         providerMatchId: 991012,
         competitionCode: umbrella(SEASON + 2),
         seasonId: SEASON + 2,
         categoryId: TASO_CODE,
       }),
-      // Being played: a score so far, not a result (S1).
+      // Being played: a score so far, not a result.
       tasoRow({
         providerMatchId: 991013,
         competitionCode: umbrella(SEASON),
@@ -754,12 +828,10 @@ describe("a competition's goals per game (specs/048)", () => {
   });
 });
 
-describe("the competitions' home advantage (specs/049)", () => {
-  /**
-   * The read spans every compared competition, which other suites' fixtures
-   * share, so each test measures what its own rows add: counts before and
-   * after, in seasons nothing else stores.
-   */
+describe("the competitions' home advantage", () => {
+  // The read spans every compared competition, which other suites' fixtures
+  // share, so each test measures what its own rows add, in seasons nothing
+  // else stores.
   async function countsOf(kind: "football-data" | "taso", code: string) {
     const result = await getOutcomeShares();
     if (result.status !== "ok") throw new Error("the read failed");
@@ -783,8 +855,8 @@ describe("the competitions' home advantage (specs/049)", () => {
       footballDataRow({ providerMatchId: id++, competitionCode: "DED", ...overrides });
 
     await db.insert(matches).values([
-      // 2030, played into 2031: a home win, an away win, and a playoff tie
-      // settled on penalties — stored as 5–4, really 1–1 (S3).
+      // 2030, played into 2031: a home win, an away win, and a playoff tie settled
+      // on penalties, stored as 5–4 and really 1–1.
       row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 2, awayGoals: 0 }),
       row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 0, awayGoals: 1 }),
       row({
@@ -796,7 +868,7 @@ describe("the competitions' home advantage (specs/049)", () => {
         penaltiesHome: 4,
         penaltiesAway: 3,
       }),
-      // Awarded with a score, never played to a result: not finished (S3).
+      // Awarded with a score, never played to a result: not finished.
       row({
         seasonId: 2030,
         kickoffAt: kickoff(2031),
@@ -813,7 +885,7 @@ describe("the competitions' home advantage (specs/049)", () => {
         awayGoals: null,
       }),
       row({ seasonId: 2030, kickoffAt: kickoff(2031), homeGoals: 3, awayGoals: null }),
-      // 2031 still has a match to play: none of it counts (S19).
+      // 2031 still has a match to play: none of it counts.
       row({ seasonId: 2031, kickoffAt: kickoff(2032), homeGoals: 4, awayGoals: 0 }),
       row({
         seasonId: 2031,
@@ -874,12 +946,10 @@ describe("the competitions' home advantage (specs/049)", () => {
   });
 });
 
-describe("a competition's home-win baseline (specs/051)", () => {
-  /**
-   * The read spans a competition's whole stored history, which other suites'
-   * fixtures share, so each test measures what its own rows add — as the
-   * specs/049 block above does — in seasons nothing else stores.
-   */
+describe("a competition's home-win baseline", () => {
+  // The read spans a competition's whole stored history, which other suites'
+  // fixtures share, so each test measures what its own rows add, in seasons
+  // nothing else stores.
   async function countsOf(kind: "football-data" | "taso", code: string) {
     const result = await getHomeBaseline(kind, code);
     if (result.status === "error") throw new Error("the read failed");
@@ -915,7 +985,7 @@ describe("a competition's home-win baseline (specs/051)", () => {
       footballDataRow({ providerMatchId: id++, competitionCode: "DED", ...overrides });
 
     await db.insert(matches).values([
-      // Below the football-data plan floor: counted all the same (S2).
+      // Below the football-data plan floor: counted all the same.
       row({ seasonId: 2010, kickoffAt: kickoff(2011), homeGoals: 0, awayGoals: 2 }),
       // A tie settled on penalties — stored as 5–4, really 1–1.
       row({

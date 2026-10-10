@@ -7,6 +7,13 @@ import {
   tableMinWidth,
 } from "@/components/data-table";
 
+/**
+ * The shared table: its columns come from one scale.
+ *
+ * decisions/021-table-consistency.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
+
 type Row = { id: number; name: string; points: number };
 
 const rows: Row[] = [
@@ -100,7 +107,7 @@ describe("DataTable", () => {
     expect(screen.queryByRole("cell")).not.toBeInTheDocument();
   });
 
-  it("marks the current row, and only it, for the eye and for a screen reader (specs/049)", () => {
+  it("marks the current row, and only it, for the eye and for a screen reader", () => {
     render(
       <DataTable
         columns={columns}

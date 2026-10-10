@@ -8,24 +8,25 @@ import {
 } from "../../../scripts/issue-boxes-plan";
 
 /**
- * The rule from #463: no checkbox on a pull request's issue is both unticked
- * and unexplained.
+ * The rule that no checkbox on a pull request's issue is both unticked and unexplained.
+ * The explained cases are quoted from issues that carry one, not written to fit the
+ * regex: an invented shape would agree with itself and disagree with the repository.
  *
- * The explained cases are quoted from the issues that actually carry one —
- * #448, #426 and #406 — rather than written to fit the regex. An invented
- * shape would make this file agree with itself and disagree with the
- * repository, which is the one way this check can be wrong and look right.
+ * decisions/463-bare-issue-boxes-fail.md
+ * decisions/038-season-against-history.md
+ * decisions/406-safe-and-destructive-resets.md
+ * decisions/467-deterministic-integration-suite.md
  */
 
-/** #448, which could not tick a box it had only unit-tested. */
+// An issue that could not tick a box it had only unit-tested.
 const ISSUE_448 =
   "- [ ] A club with no other stored league season sees `Joukkueelle ei löydy otteluita muilta kausilta.` and the panel still renders — **not ticked: verified by unit test, not on a live page.** See the comment below.";
 
-/** #426, whose reason is a sentence rather than the words "not ticked". */
+// An issue whose reason is a sentence, not the words "not ticked".
 const ISSUE_426 =
   "- [ ] Each one has its own issue and spec before any code — **the six issues exist; no spec is written yet, which is correct, because no code has started.** Left unticked rather than ticked on half of it.";
 
-/** #406, whose reason wraps onto the next line, as GitHub stores it. */
+// An issue whose reason wraps onto the next line, as GitHub stores it.
 const ISSUE_406 = [
   "- [ ] `INSTALL.md` (#400) describes both, once it exists — **not done: INSTALL.md",
   "  does not exist yet, so there is nothing to describe them in.**",
@@ -39,8 +40,7 @@ describe("closedIssues", () => {
   });
 
   it("finds one inside backticks and mid-sentence, because GitHub does too", () => {
-    // The repository has been caught by exactly this: a closing keyword in
-    // prose closes the issue just the same.
+    // A closing keyword in prose closes the issue just the same.
     expect(closedIssues("the commit body said `Closes #158` in passing")).toEqual([158]);
   });
 
@@ -71,16 +71,9 @@ describe("boxesIn", () => {
     ]);
   });
 
-  /**
-   * What counts as a reason, and what does not — one table, because every row
-   * asks the same question of a different body and a list of near-identical
-   * `it`s hides the shape.
-   *
-   * The true rows are quoted from the issues that carry a reason (#448, #426,
-   * #406) rather than written to fit the regex. The false ones are the two
-   * halves of its shape, each of which appears in ordinary criterion text:
-   * #467's first box opens with an em dash, and #463's scope bolds a phrase.
-   */
+  // What counts as a reason and what does not, in one table: every row asks the same question
+  // of a different body. The false rows are the two halves of the reason's shape, each of which
+  // appears in ordinary criterion text: an opening em dash, and a bolded phrase.
   it.each([
     ["#448's em dash and bold", ISSUE_448, true],
     ["#426's reason, which never says the words not ticked", ISSUE_426, true],
@@ -119,11 +112,9 @@ describe("boxesIn", () => {
   });
 
   it("ignores a checkbox drawn inside a fenced code block", () => {
-    /**
-     * An issue explaining this convention shows an example of a bare box. It
-     * is documentation, not a criterion — reporting it would make the check
-     * call a document about itself a failure.
-     */
+    // An issue explaining this convention shows an example of a bare box. It is
+    // documentation, not a criterion: reporting it would make the check call a
+    // document about itself a failure.
     const body = [
       "- [x] a real one",
       "",

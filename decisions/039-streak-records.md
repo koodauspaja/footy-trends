@@ -76,3 +76,58 @@ meant by "verified separately".
   not for this change, and belongs in its own issue.
 - **Ten panels.** #424 was filed at five. This does not block it, but it grows
   it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
+
+- **`leagueSeasons`.** Split out because the record book counts every stored
+  season while the comparison excludes the one being looked at. "Which seasons
+  are league seasons" must mean the same to both, or the two panels would
+  disagree about what a club's history is.
+
+Cut from `src/lib/streak-records.ts` at `94397a8` by #531.
+
+- **`streak-records.ts`.** The rule is stated as "consecutive seasons of the
+  same competition" and not as "the same competition" because that rejects
+  three things with one test: a relegation, a promotion, and a season the app
+  never fetched, whose absence would otherwise let the seasons either side
+  of it look adjacent.
+- **`StreakRecord`.** Named by season and not by match number: match 37 of a
+  run spanning three seasons is not something a reader can find.
+- **`seasonBlocks`.** A club promoted mid-history keeps one block per spell in
+  each division, which is what a supporter means by "our best run in
+  Veikkausliiga". The newest block coming last is how the tie-break is
+  decided.
+- **`labelAt`.** It throws where it could return a label that prints as
+  `Kausi ` and reads as a season. `streaksOf` numbers its runs over exactly
+  the array passed here, so the state is unreachable in production; the
+  services catch the throw and report an error, not a record that names no
+  season.
+- **`streakRecords`.** Each block's matches are counted as one sequence, so a
+  run that ends a season and continues into the next is one run. The most
+  recent of two equal records is the one a reader remembers, and the only one
+  that can still be extended.
+- **`recordsFor`.** The providers differ in how a season is found and in what
+  counts as a league, and in nothing else, as for `comparisonFor`. `label`
+  comes from the page because how a season is written differs by provider:
+  plain years domestically, `2024/25` abroad. A record is not an average, so
+  a missing season could only make one too small and not wrong in kind, but
+  the comparison beside it fails for the same reason, and one rule across
+  both beats a defensible difference.
+
+Cut from `src/components/streak-records-section.tsx` at `ef99862` by #531.
+
+- **`seasonSpanText`.** Match 37 of a run spanning two seasons is not
+  something a reader can find. `Putket` keeps `Ottelut 5–9` for the season it
+  shows: the two panels answer different questions, so a different unit for
+  "when" is honest and not inconsistent.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/integration/standings.test.ts` at `79f2c6a` by #531.
+
+- **`clearFixtures` in `standings.test.ts`.** Leaving the second season
+  behind let one test's rows reach the next one's baseline; found when a
+  records test made a comparison test read 1,5 points a match where it
+  expected 0.

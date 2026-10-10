@@ -1,31 +1,27 @@
 /**
- * The parts of the services preflight that touch Postgres and the clock.
- * `services-plan.ts` decides what the answers mean, `docker.ts` does the
- * container side, and this only gathers and waits.
+ * The parts of the services preflight that touch Postgres and the clock: this
+ * only gathers and waits. Not unit tested: a test of a socket asserts against
+ * whatever this machine happens to be running.
  *
- * Not unit tested, and listed in `sonar.coverage.exclusions` for the same
- * reason the other runners are: a test of a socket asserts against whatever
- * this machine happens to be running.
+ * decisions/399-local-commands-start-the-database.md
+ * decisions/406-safe-and-destructive-resets.md
  */
 import { spawn } from "node:child_process";
 import postgres from "postgres";
 import { databaseNameOf, probeUrls } from "./services-plan";
 
-/** How long a single probe waits before calling the server unreachable. */
+/**
+ * How long a single probe waits before calling the server unreachable.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
 const PROBE_TIMEOUT_SECONDS = 2;
 
 /**
- * Whether a Postgres on that URL will answer a query — not merely whether
+ * Whether a Postgres on that URL will answer a query, not merely whether
  * something holds the port open.
  *
- * A TCP connect would be cheaper and is what the first draft did, but it says
- * yes the moment the container binds, which is before the server accepts
- * clients on a first run. Asking for `select 1` is the difference between "the
- * port is open" and "you can migrate now".
- *
- * **Connects to `postgres`, not to the application's database.** That one
- * always exists, so a refusal means the server is not up rather than that the
- * database has not been created yet — two states with very different fixes.
+ * decisions/399-local-commands-start-the-database.md
  */
 export async function postgresAcceptsQueries(url: string): Promise<boolean> {
   for (const candidate of probeUrls(url)) {
@@ -34,7 +30,11 @@ export async function postgresAcceptsQueries(url: string): Promise<boolean> {
   return false;
 }
 
-/** One connection attempt, to exactly the database this URL names. */
+/**
+ * One connection attempt, to exactly the database this URL names.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
 async function answers(url: string): Promise<boolean> {
   const sql = postgres(url, {
     max: 1,
@@ -58,7 +58,11 @@ async function answers(url: string): Promise<boolean> {
   }
 }
 
-/** Runs a command to completion, inheriting stdio, and resolves its exit code. */
+/**
+ * Runs a command to completion, inheriting stdio, and resolves its exit code.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
 export function run(command: string, args: readonly string[]): Promise<number> {
   return new Promise((resolve) => {
     const child = spawn(command, [...args], { stdio: "inherit" });
@@ -70,14 +74,10 @@ export function run(command: string, args: readonly string[]): Promise<number> {
 }
 
 /**
- * Drops the database a URL names, connecting to the server's own `postgres`
- * database to do it — `drop database` cannot run from inside the database being
- * dropped.
+ * Drops the database a URL names, from the server's own `postgres` database
+ * and `with (force)`.
  *
- * `with (force)` because the suites' database routinely has connections left
- * open by a run that was interrupted, and without it the drop fails with
- * "database is being accessed by other users" — which is true, and not a reason
- * to keep a database nobody wants.
+ * decisions/406-safe-and-destructive-resets.md
  */
 export async function dropDatabase(url: string): Promise<boolean> {
   const name = databaseNameOf(url);

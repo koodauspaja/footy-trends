@@ -22,9 +22,18 @@ import {
   wantsDevServer,
 } from "../../../scripts/setup-plan";
 
+/**
+ * The decisions behind `npm run setup`: what goes into `.env`, which
+ * credentials are this project's to keep, and what the documents say about
+ * versions.
+ *
+ * decisions/400-one-command-setup.md
+ * decisions/292-sonar-zero-open-issues.md
+ */
+
 const EXAMPLE = readFileSync(".env.example", "utf8");
 
-/** Deterministic secrets, numbered so a test can tell which call produced which. */
+// Deterministic secrets, numbered so a test can tell which call produced which.
 function secrets() {
   let n = 0;
   return () => {
@@ -34,11 +43,9 @@ function secrets() {
 }
 
 describe(".env.example", () => {
-  /**
-   * #400's acceptance criterion, as a mechanism: the file is tracked, so a value
-   * in any of these is a credential in git history. `planEnv` generates them
-   * precisely so that nobody is tempted to ship one.
-   */
+  // The file is tracked, so a value in any of these is a credential in git
+  // history. `planEnv` generates them precisely so that nobody is tempted to
+  // ship one.
   it.each([
     "DATABASE_URL",
     "FOOTY_POSTGRES_PASSWORD",
@@ -81,20 +88,18 @@ describe("composePasswordOf", () => {
     ["another port", "postgresql://postgres:secret@localhost:6543/footy-trends"],
     ["another host", "postgresql://postgres:secret@db.example.com:5432/footy-trends"],
     ["another user", "postgresql://user:password@localhost:5432/footy-trends"],
-    // The same server, and even the same user, but somebody else's database —
+    // The same server, and even the same user, but somebody else's database:
     // another project's containers publish 5432 too. Its password is not this
-    // project's to adopt. Raised in review on #409.
+    // project's to adopt.
     ["another database on the same server", "postgresql://postgres:secret@localhost:5432/otherdb"],
   ])("says nothing about %s", (_, url) => {
     expect(composePasswordOf(url)).toBeNull();
   });
 
   it("tells a credential it cannot decode apart from another server", () => {
-    /**
-     * These shared `null` until review on #409, and they need opposite handling:
-     * another server is somebody's choice, while a broken credential for *this*
-     * database is a file setup must not build on.
-     */
+    // These two need opposite handling: another server is somebody's choice,
+    // while a broken credential for this database is a file setup must not
+    // build on.
     expect(composeCredential("postgresql://postgres:%E0%A4%A@localhost:5432/footy-trends")).toEqual(
       { kind: "unreadable" }
     );
@@ -193,11 +198,9 @@ describe("planEnv", () => {
   });
 
   it("changes nothing on a second run", () => {
-    /**
-     * The acceptance criterion that matters most: the password is what the
-     * Postgres volume was initialised with, and regenerating it would lock the
-     * developer out of their own database.
-     */
+    // The acceptance criterion that matters most: the password is what the
+    // Postgres volume was initialised with, and regenerating it would lock the
+    // developer out of their own database.
     const first = planEnv({ existing: null, example: EXAMPLE, secret: secrets() });
     const second = planEnv({
       existing: first.text,
@@ -225,7 +228,7 @@ describe("planEnv", () => {
     expect(parseEnv(plan.text).DATABASE_URL).toBe(composeDatabaseUrl("generated1"));
   });
 
-  it("adopts the password a pre-#292 .env kept only in DATABASE_URL", () => {
+  it("adopts the password an older .env kept only in DATABASE_URL", () => {
     const existing =
       "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
@@ -237,12 +240,9 @@ describe("planEnv", () => {
   });
 
   it("refuses to adopt a password it cannot write, and changes nothing", () => {
-    /**
-     * `…:ab%23cd@…` decodes to `ab#cd`, and `#` starts a comment in an unquoted
-     * `.env` value. Writing it threw, so setup died on an existing `.env` it was
-     * meant to repair — raised in review on #409. The password is the one the
-     * volume was created with, so a substitute would fail to connect.
-     */
+    // `…:ab%23cd@…` decodes to `ab#cd`, and `#` starts a comment in an unquoted `.env`
+    // value. The password is the one the volume was created with, so no substitute will
+    // do: setup writes nothing and tells the developer to write it themselves, quoted.
     const existing =
       "DATABASE_URL=postgresql://postgres:ab%23cd@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
@@ -265,11 +265,9 @@ describe("planEnv", () => {
   });
 
   it("stops on a URL for this database whose credential cannot be decoded", () => {
-    /**
-     * Before #409's review this read as "some other server", so setup wrote a
-     * fresh password beside the broken URL and handed migration a connection
-     * string that could not work.
-     */
+    // A broken credential for this database is not "some other server": a fresh
+    // password beside the broken URL would hand migration a connection string
+    // that cannot work.
     const existing =
       "DATABASE_URL=postgresql://postgres:%E0%A4%A@localhost:5432/footy-trends\nFOOTY_POSTGRES_PASSWORD=\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
@@ -280,12 +278,9 @@ describe("planEnv", () => {
   });
 
   it("does not adopt a password from another database on the same server", () => {
-    /**
-     * `FOOTY_POSTGRES_PASSWORD` is what *this* project's container is created
-     * with, so taking it from a URL that names another database mixes two
-     * systems' credentials. What the developer pointed `DATABASE_URL` at is left
-     * alone, as any other URL that is not ours would be.
-     */
+    // `FOOTY_POSTGRES_PASSWORD` is what this project's container is created with,
+    // so taking it from a URL that names another database mixes two systems'
+    // credentials. What the developer pointed `DATABASE_URL` at is left alone.
     const existing =
       "DATABASE_URL=postgresql://postgres:othersecret@localhost:5432/otherdb\nFOOTY_POSTGRES_PASSWORD=\n";
     const plan = planEnv({ existing, example: EXAMPLE, secret: secrets() });
@@ -439,12 +434,9 @@ describe("exportedOverrideMessage", () => {
   });
 
   it("counts an exported empty value, which the child still inherits", () => {
-    /**
-     * Measured on Node 24: with `DATABASE_URL=` exported, `loadEnvFile` leaves
-     * it `""`, because a variable that is already set is not overwritten. The
-     * child would migrate with no connection string while `.env` held a good
-     * one. This test asserted the opposite until review on #409.
-     */
+    // With `DATABASE_URL=` exported, `loadEnvFile` leaves it `""`, because a
+    // variable that is already set is not overwritten: the child would migrate
+    // with no connection string while `.env` held a good one.
     const message = exportedOverrideMessage({ DATABASE_URL: "" }, ENV);
 
     expect(message).toContain("DATABASE_URL is exported in this shell");
@@ -493,10 +485,8 @@ describe("npm version", () => {
   });
 
   it("matches the version every document states", () => {
-    /**
-     * #400 found README.md saying 12.0.1 while package.json pinned 12.0.2. The
-     * pin is the source; any `npm 12.x.y` a document states must agree with it.
-     */
+    // The pin in package.json is the source; any `npm 12.x.y` a document states
+    // must agree with it.
     const pinned = /^npm@(.+)$/.exec(
       (JSON.parse(readFileSync("package.json", "utf8")) as { packageManager: string })
         .packageManager

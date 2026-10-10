@@ -1,17 +1,18 @@
 /**
- * How often a team keeps a clean sheet, after each match of a season — the data
- * behind the team page's `Nollapelit` chart (specs/034).
+ * How often a team keeps a clean sheet, after each match of a season: the data
+ * behind the team page's `Nollapelit` chart. A running share, not a window,
+ * over the matches the other result charts count.
  *
- * A **running** share, not a window: a five-match window of so rare an event
- * takes only six values and sits at zero a quarter of the time, which reads as
- * missing data rather than as a run without a shut-out (specs/034, Q2).
- *
- * Counted over exactly the matches the other result charts count, in their
- * order; the services pass them in.
+ * decisions/034-clean-sheets.md
+ * decisions/031-rolling-form-trend.md
  */
 import { goalsFor, type ResultMatch, teamMatchesInOrder } from "./form-series";
 
-/** The share after the team's `match`-th match, and the count behind it. */
+/**
+ * The share after the team's `match`-th match, and the count behind it.
+ *
+ * decisions/034-clean-sheets.md
+ */
 export type CleanSheetPoint = {
   match: number;
   /** Clean sheets so far. The text alternative prints `kept`/`match`. */
@@ -22,7 +23,7 @@ export type CleanSheetPoint = {
 
 export type CleanSheetSeries =
   | { status: "ok"; points: CleanSheetPoint[] }
-  /** No league table for this team's season, so no panel (specs/031, Q2). */
+  /** No league table for this team's season, so no panel. */
   | { status: "unavailable" }
   | { status: "error" };
 
@@ -30,6 +31,8 @@ export type CleanSheetSeries =
  * The running clean-sheet share after each of this team's finished matches.
  * `finished` may hold every team's matches; only this team's count, read from
  * its own side of each fixture.
+ *
+ * decisions/034-clean-sheets.md
  */
 export function cleanSheetSeries(
   finished: readonly ResultMatch[],

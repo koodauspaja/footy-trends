@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * The region and competition pickers, end to end.
+ *
+ * decisions/006-other-competitions.md
+ * decisions/009-veikkausliiga.md
+ */
+
 test.describe("Region and competition pickers", () => {
   test("chooses a region, then lists competitions and navigates to the chosen one's standings", async ({
     page,

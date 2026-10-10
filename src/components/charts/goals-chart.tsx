@@ -1,26 +1,42 @@
 import type { GoalsPoint } from "@/lib/goals-series";
 import { formatDecimal, LineChart, LineLegend, ticksFor } from "./line-chart";
 
-/** About this many labelled matches on the x-axis, as the form chart. */
+/**
+ * About this many labelled matches on the x-axis, as the form chart.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 const TICK_COUNT = 7;
 
 /**
- * The rolling chart's y-axis top: one value for every league and season
- * (specs/032, Q3). Measured over 118 top-tier team-seasons, no five-match
- * average passed 4.4; averaging 5 takes 25 goals in five matches.
+ * The rolling chart's y-axis top: one value for every league and season.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export const ROLLING_TOP = 5;
 
-/** The legend, the standings table's own titles for `TM` and `PM`. */
+/**
+ * The legend, the standings table's own titles for `TM` and `PM`.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export const SCORED_LABEL = "Tehdyt maalit";
 export const CONCEDED_LABEL = "Päästetyt maalit";
 
-/** One row of the rolling chart's text alternative (specs/032, Q4). */
+/**
+ * One row of the rolling chart's text alternative.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export function rollingSentence(point: GoalsPoint): string {
   return `Maalit ${point.match}. ottelun jälkeen: tehdyt ${formatDecimal(point.scored)}, päästetyt ${formatDecimal(point.conceded)} ottelua kohden.`;
 }
 
-/** One row of the running-total chart's text alternative (specs/032, Q1). */
+/**
+ * One row of the running-total chart's text alternative.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export function totalsSentence(point: GoalsPoint): string {
   return `Maalit yhteensä ${point.match}. ottelun jälkeen: tehdyt ${point.scored}, päästetyt ${point.conceded}.`;
 }
@@ -28,7 +44,9 @@ export function totalsSentence(point: GoalsPoint): string {
 /**
  * The running totals' y-axis top: the team's highest total, rounded up to a
  * whole ten, and never below ten. One fixed value cannot serve a Bundesliga
- * attack with 99 goals and a Veikkausliiga side with 30 (specs/032, Q1).
+ * attack with 99 goals and a Veikkausliiga side with 30.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function totalsTop(points: readonly GoalsPoint[]): number {
   const highest = Math.max(0, ...points.flatMap((point) => [point.scored, point.conceded]));
@@ -36,9 +54,10 @@ export function totalsTop(points: readonly GoalsPoint[]): number {
 }
 
 /**
- * A tick on every whole ten up to `top`, which is itself a ten. The most goals
- * in the stored top-tier seasons was 99 — an axis to 100, eleven labels, which
- * the chart's height holds.
+ * A tick on every whole ten up to `top`, which is itself a ten. Eleven labels
+ * at most fit the chart's height.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function totalsTicks(top: number): number[] {
   return Array.from({ length: top / 10 + 1 }, (_, index) => index * 10);
@@ -46,11 +65,10 @@ export function totalsTicks(top: number): number[] {
 
 /**
  * Goals scored and conceded after each of the team's matches: scored a solid
- * line, conceded a dashed one, both in the foreground colour, with a legend
- * beneath — told apart by shape, not colour (specs/032, Q5).
+ * line, conceded a dashed one, told apart by shape, not colour. A value above
+ * `yTop` is drawn at the top edge; its text row states the true value.
  *
- * A value above `yTop` is drawn at the top edge; its text row still states the
- * true value (specs/032, Q3a). Only the rolling chart has a fixed top to meet.
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function GoalsChart({
   title,

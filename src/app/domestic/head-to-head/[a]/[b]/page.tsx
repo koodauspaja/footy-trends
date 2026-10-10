@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * `/kotimaa/kohtaamiset/:a/:b` resolves against `taso_matches`, excluding the
- * national-team buckets that share the table. See specs/042.
+ * national-team buckets that share the table.
+ *
+ * decisions/042-head-to-head-view.md
  */
 const ROUTE = {
   source: { kind: "taso", bucket: "domestic" },

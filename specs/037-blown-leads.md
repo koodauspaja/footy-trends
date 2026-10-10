@@ -101,7 +101,8 @@ end, as specs/036 is.
 
 **No new read and no new provider request.** The half-time columns already
 travel with the season's matches the team page loads, and the existing
-`getTeamComebacks` on both services already returns them. This adds arithmetic
+`loadComebacks` of `teamPanelLoaders` (`src/lib/team-panels.ts`) already returns
+them for both providers. This adds arithmetic
 to a function that has already been called, not a call.
 
 ## Edge Cases
@@ -192,8 +193,8 @@ Written against the answers under *Decisions*.
 - `specs/036-halftime-comebacks.md` — its strings table records
   `Käännetyt ottelut`, which this renames; the note belongs there rather than
   leaving the older spec contradicting the page
-- `src/lib/comebacks.ts`, `src/components/comebacks-section.tsx`, both standings
-  services' `getTeamComebacks`
+- `src/lib/comebacks.ts`, `src/components/comebacks-section.tsx`, and
+  `loadComebacks` in `src/lib/team-panels.ts`
 - `decisions/037-blown-leads.md`, written by the implementing agent
 
 ## Decisions

@@ -2,18 +2,11 @@ import { accessSync, constants, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
 /**
- * Where the command-line tools these scripts run actually live, from #292.
+ * Where the command-line tools these scripts run actually live: named places,
+ * never a name resolved through `PATH`. `GIT_EXECUTABLE`, `DOCKER_EXECUTABLE`
+ * and the like override them, and must be absolute.
  *
- * **Why not just `spawnSync("git", …)`.** That resolves the name through
- * `PATH`, so which program runs depends on what happens to be earlier in it —
- * Sonar flags it, and is right to. A `git` dropped into a writeable directory
- * ahead of `/usr/bin` would be run by the pre-push hook with the repository
- * already in hand.
- *
- * The tools here are ordinary system installs in ordinary places, so naming
- * those places costs nothing and removes the question. When a machine keeps one
- * somewhere else — nix, asdf, a container — `GIT_EXECUTABLE` and
- * `DOCKER_EXECUTABLE` say where, and they must be absolute for the same reason.
+ * decisions/292-sonar-zero-open-issues.md
  */
 
 const CANDIDATES = {
@@ -31,6 +24,7 @@ const CANDIDATES = {
     "/opt/homebrew/bin/gh",
     String.raw`C:\Program Files\GitHub CLI\gh.exe`,
   ],
+  railway: ["/usr/bin/railway", "/usr/local/bin/railway", "/opt/homebrew/bin/railway"],
   docker: [
     "/usr/bin/docker",
     "/usr/local/bin/docker",
@@ -44,41 +38,19 @@ const CANDIDATES = {
 export type Tool = keyof typeof CANDIDATES;
 
 /**
- * What Windows treats as runnable **and Node can actually launch**.
+ * What Windows treats as runnable and Node can actually launch: `.exe` only.
+ * `spawnSync` cannot start a `.cmd` or `.bat` without a shell.
  *
- * `.cmd` and `.bat` are programs as far as Windows is concerned, and accepting
- * them was the obvious generalisation — a Windows git install really can put
- * `git.cmd` on the path. But `spawnSync` and `execFileSync` cannot start a
- * batch file without `{ shell: true }`, which the callers do not pass and
- * should not: the whole point of this module is that the command is a path we
- * chose, not a string a shell interprets.
- *
- * So accepting them would hand back a path that resolves and then fails to
- * spawn, which is exactly the failure this check exists to prevent.
+ * decisions/292-sonar-zero-open-issues.md
  */
 const WINDOWS_SUFFIXES = [".exe"];
 
 /**
- * Whether a path *looks* like something we can run — a screen, not a proof.
+ * Whether a path looks like something we can run: a screen, not a proof. On
+ * POSIX a file with the execute bit; on Windows the name, as `X_OK` there
+ * succeeds for any readable file.
  *
- * Existence alone is not enough: a directory named `git`, or a file without the
- * execute bit, would be returned as the binary and fail at `spawnSync` with a
- * message about the spawn rather than the path, and with the remaining
- * candidates never tried. This rules those out.
- *
- * **What it cannot do is promise the file will start**, and the name says
- * `looks` because of it. A `.exe` may be a text file with an `.exe` name; a
- * POSIX file with the execute bit may be a corrupt binary or a script with a
- * bad shebang. Neither platform's cheap check is a guarantee — reading a PE or
- * ELF header would only move the line, since a truncated binary passes that
- * too.
- *
- * The value is in the failures it does catch, which are the ones that actually
- * happen: a directory, a data file, an override pointing at the wrong thing.
- *
- * **Windows is a different question, not the same one.** `accessSync(path,
- * X_OK)` there succeeds for any readable file, so a permission check would mean
- * nothing — the name is what Windows goes on, and what `spawnSync` can start.
+ * decisions/292-sonar-zero-open-issues.md
  */
 export function looksRunnable(path: string, platform: NodeJS.Platform): boolean {
   try {
@@ -95,7 +67,11 @@ export function looksRunnable(path: string, platform: NodeJS.Platform): boolean 
   }
 }
 
-/** The environment variable that overrides the search for one tool. */
+/**
+ * The environment variable that overrides the search for one tool.
+ *
+ * decisions/292-sonar-zero-open-issues.md
+ */
 export function overrideNameFor(tool: Tool): string {
   return `${tool.toUpperCase()}_EXECUTABLE`;
 }
@@ -103,20 +79,15 @@ export function overrideNameFor(tool: Tool): string {
 /**
  * The absolute path to run `tool` from, or `null` when it cannot be found.
  *
- * `null` rather than a throw, because every caller already has a meaning for
- * "this tool could not answer": the freshness check warns, the docker probe
- * reports not running. A missing tool is not different in kind from a tool that
- * failed.
+ * decisions/292-sonar-zero-open-issues.md
  */
 export function executablePath(
   tool: Tool,
   {
     env = process.env,
     platform = process.platform,
-    // Injected rather than mocked. `node:fs` is a builtin whose namespace does
-    // not reliably take a partial module mock, and a test that silently falls
-    // through to the real filesystem asserts whatever this machine happens to
-    // have installed.
+    // Injected, not mocked: a partial mock of `node:fs` can fall through to the
+    // real filesystem.
     exists = (candidate: string) => looksRunnable(candidate, platform),
   }: {
     env?: Record<string, string | undefined>;

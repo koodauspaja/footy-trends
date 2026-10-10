@@ -110,3 +110,108 @@ Thirteen mutations, all caught: eleven by the unit suite, and two only by the
 integration suite — *folding one side instead of both*, and *not escaping `%`*.
 Those two are exactly the SQL-semantics ones, so the split is the point rather
 than a gap.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
+
+- **`TASO_NATIONAL_BUCKET_PREFIX`.** A list of ids would silently send next
+  season's teams to the wrong place.
+- **`FavouriteTeamView`.** The competition and season serve `specs/027`, where
+  `FC Honka` is nine teams.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`*_team_name_folded_idx`.** An index on the raw column cannot serve a query
+  on `translate(lower(...))`. `translate` and not `unaccent`: the extension is
+  not installed, and `unaccent` is not `IMMUTABLE`, so it cannot be indexed.
+  A leading-wildcard `LIKE '%x%'` cannot use a B-tree, which is why the
+  substring query has to be measured at production scale before it is
+  trusted.
+
+Cut from `src/lib/team-search.ts` at `94397a8` by #531.
+
+- **`team-search.ts`, two steps.** Doing both in one query would show a club's
+  old name whenever an old name is what matched, the opposite of useful for
+  someone searching a club they remember under a former name.
+- **`MAX_RESULTS`.** Agreed, not measured. A reader who cannot find their team
+  in twenty should type more, and one common name fills half of that on its
+  own: `FC Honka` alone carries nine distinct ids.
+- **`FOLD_FROM`.** `unaccent` is available but not installed, so it would need
+  a `CREATE EXTENSION` migration and the privilege to run it, for a fold three
+  character pairs describe completely. `translate` is also `IMMUTABLE`, which
+  `unaccent` is not, so an expression index over it is possible.
+- **`foldTerm`.** Folding only the stored name finds `Järvenpää` from
+  `jarvenpaa` but not from `Järvenpää`; folding only the term does the
+  reverse.
+- **`escapeLike`.** One `%` matches every team there is. One pass and not
+  three: escaping them separately has to do the backslash first, or the
+  escapes it inserts get escaped again, and a rule whose correctness depends
+  on statement order is one somebody reorders. `$&` is the matched character,
+  so each is prefixed exactly once.
+- **The four queries in `searchTeams`.** They mirror `resolveTeamNames`.
+  `distinct on` collapses each team to its newest matching row, so a club with
+  two hundred matches contributes one. `distinct on (id)` requires the sort to
+  begin with `id`, so a `LIMIT` on that query keeps the twenty lowest ids: a
+  club that played last week dropped for one inactive since 2019, purely
+  because its id is larger. With the cap on the outer select the ranking is
+  by recency and no more than `MAX_RESULTS` rows per query leave Postgres, so
+  a short common term like `ja` cannot pull every matching team into memory.
+- **`PLACEHOLDER_TEAM_ID` in `team-search.ts`.** The match page already keeps
+  both off: the unresolved bracket slot and the team with no name.
+
+Cut from `src/components/team-search.tsx` at `ef7eb13` by #531.
+
+- **`team-search.tsx`.** Client-side like `favourite-toggle.tsx`, and for
+  the same reason: the header is on every page, including the four
+  `tests/unit/app/rendering-mode.test.ts` keeps prerendered, and reading the
+  session on the server would cost those pages their prerendering. It imports
+  `team-search-actions` by name; Next replaces a `"use server"` module with a
+  network stub in the client bundle, so better-auth and the database stay out
+  of it. The types come from `team-search.ts` as types only, which are
+  erased. The mock is needed for the reason noted in `favourite-toggle.tsx`:
+  the broadcast channel outlives its jsdom.
+- **`secondaryLine`.** The first version got this wrong. A bare `2026` does
+  not disambiguate two teams sharing a name, the one thing the line exists
+  for, and a placeholder like `Tuntematon · 2026` tells the reader less than
+  no line at all. A TASO national-team category has no name in any registry
+  the app carries, so that is the case this covers.
+- **`latestSubmission`.** Two searches in flight resolve in whatever order
+  the network gives them, and the reader would be left looking at results
+  for a term they had already replaced, silently and indistinguishable from
+  a correct answer. The closure that checks the ref is created before the
+  re-render. Refusing to submit while one is pending would also close the
+  race, but by discarding what the reader asked for; the latest intent wins.
+- **`mounted`.** The header is server-rendered on every page and prerendered
+  on four of them, where there is no session.
+
+Cut from `src/lib/team-search-actions.ts` at `48ebab4` by #531.
+
+- **`TeamSearchResult`'s reason.** A short term needs another character, a
+  failure needs another attempt, and a signed-out caller needs nothing at
+  all: the field is not offered to them.
+- **`searchTeamsAction`.** Hiding the field from a signed-out reader is a UX
+  decision; the check in the action is the gate, as a server action is a
+  public endpoint whether or not anything renders a control for it. The
+  module is imported by name from a client component, and a static import
+  of `@/lib/auth` would put better-auth into that bundle's graph, the
+  failure that cost 114 CI tests.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/integration/team-search.test.ts` at `79f2c6a` by #531.
+
+- **The fixture ids in `team-search.test.ts`.** The cap test inserts
+  twenty-five rows of its own. Listing ids separately meant a failure before
+  its manual cleanup left them in the shared database, to contaminate every
+  later test and every later run.
+
+Cut from `tests/e2e/team-search.spec.ts` at `0fe724f` by #531.
+
+- **The no-JavaScript test in `team-search.spec.ts`.** The previous version
+  asserted only that the served HTML did not contain `Hae joukkuetta`, which
+  `TeamSearch` guarantees by returning null before hydration. It passed with
+  the component deleted, and with the page turned dynamic, and review caught
+  it.

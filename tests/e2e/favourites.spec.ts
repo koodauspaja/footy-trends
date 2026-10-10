@@ -2,15 +2,13 @@ import { expect, test } from "@playwright/test";
 import { signedInAs, waitForSession } from "./session";
 
 /**
- * Favourites, from specs/026-favourites.md.
+ * Favourites, as far as a browser shows them: the star reads the session the
+ * browser has, so intercepting `/api/auth/get-session` reaches what it renders. A
+ * write reads a real cookie and refuses; the unit and integration suites cover it.
  *
- * The star is a client component that reads the session the browser already
- * has, so — unlike `/asetukset`, whose boundary `settings.spec.ts` documents —
- * intercepting `/api/auth/get-session` really does reach what it renders. What
- * it cannot reach is a *write*: the server action reads a real cookie, sees
- * none, and refuses. So this file covers what is shown, and the writes are
- * covered by the unit and integration suites.
+ * decisions/026-favourites.md
  */
+
 test.describe("Favourites, signed out", () => {
   test("explains itself instead of redirecting", async ({ page }) => {
     await page.goto("/suosikit");
@@ -69,12 +67,9 @@ test.describe("Favourites, signed in", () => {
   });
 
   test("keeps the picker pages prerendered even with a client star on them", async ({ page }) => {
-    /**
-     * The risk this feature actually ran (#182): a toggle on `/kotimaa` costing
-     * the page its prerendering. `tests/unit/app/rendering-mode.test.ts` guards
-     * the build output; this checks the page still arrives with its content in
-     * the HTML, before any JavaScript runs.
-     */
+    // A toggle on `/kotimaa` must not cost the page its prerendering.
+    // `tests/unit/app/rendering-mode.test.ts` guards the build output; this checks
+    // the page arrives with its content in the HTML, before any JavaScript runs.
     await page.route("**/*.js", (route) => route.abort());
     const response = await page.goto("/kotimaa");
 
@@ -97,12 +92,9 @@ test.describe("Favourites, signed in", () => {
     // for the stars to finish arriving and says what it saw when it fails
     // (Sonar S5906).
     await expect(stars).toHaveCount(rows);
-    /**
-     * Each star names its own team: twenty identical buttons would be unusable
-     * with a screen reader. Scoped to one table, because a Veikkausliiga season
-     * splits into a runkosarja and two jatkosarjat — the same club really does
-     * appear in two of them, and really does get a star in each.
-     */
+    // Each star names its own team, for a screen reader. Scoped to one table: a
+    // Veikkausliiga season splits into a runkosarja and two jatkosarjat, so the
+    // same club appears in two of them and gets a star in each.
     const labels = await page
       .locator("table")
       .first()
@@ -111,6 +103,23 @@ test.describe("Favourites, signed in", () => {
     expect(labels.length).toBeGreaterThan(1);
     expect(new Set(labels).size).toBe(labels.length);
   });
+
+  // A Finnish club's page is its own copy of the team page, so the star is
+  // checked on it as well.
+  for (const [region, path, club] of [
+    ["kotimaa", "/kotimaa/joukkue/60987", "Inter"],
+    ["ulkomaat", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024", "Arsenal"],
+  ] as const) {
+    test(`puts one star beside the club's name on a /${region} team page`, async ({ page }) => {
+      await signedInAs(page, "Matti Meikäläinen");
+      await page.goto(path);
+      await waitForSession(page);
+
+      const star = page.getByRole("main").getByRole("button", { name: /^Lisää suosikkeihin: / });
+      await expect(star).toHaveCount(1);
+      await expect(star).toHaveAccessibleName(new RegExp(club));
+    });
+  }
 
   test("reaches the favourites page from the account menu", async ({ page }) => {
     await signedInAs(page, "Matti Meikäläinen");

@@ -1,22 +1,39 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import NextError from "next/error";
 import { useEffect } from "react";
 
+/**
+ * The page Next renders when the app itself has failed, in place of the root
+ * layout. It leans on nothing of the app's own, and the way home is a plain
+ * link, not a `Link`, so it is a full page load.
+ *
+ * decisions/533-finnish-error-pages.md
+ */
 export default function GlobalError({ error }: Readonly<{ error: Error & { digest?: string } }>) {
   useEffect(() => {
     Sentry.captureException(error);
   }, [error]);
 
   return (
-    <html lang="en">
+    // `colorScheme` so a reader in dark mode is not handed a white page: the
+    // app's stylesheet, which would have decided it, is not loaded here.
+    <html lang="fi" style={{ colorScheme: "light dark" }}>
       <body>
-        {/* `NextError` is the default Next.js error page component. Its type
-        definition requires a `statusCode` prop. However, since the App Router
-        does not expose status codes for errors, we simply pass 0 to render a
-        generic error message. */}
-        <NextError statusCode={0} />
+        <main
+          style={{
+            fontFamily: "system-ui, sans-serif",
+            margin: "0 auto",
+            maxWidth: "40rem",
+            padding: "3rem 1rem",
+          }}
+        >
+          <h1>Jokin meni vikaan</h1>
+          <p>Sivun lataaminen epäonnistui. Yritä hetken kuluttua uudelleen.</p>
+          <p>
+            <a href="/">Etusivulle</a>
+          </p>
+        </main>
       </body>
     </html>
   );

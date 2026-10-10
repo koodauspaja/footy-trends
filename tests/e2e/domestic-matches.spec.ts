@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * Veikkausliiga's season-wide match list, end to end.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/019-match-page.md
+ */
+
 test.describe("Domestic season-wide match list (Veikkausliiga)", () => {
   test("shows the season's matches with date, teams, result, and group name columns", async ({
     page,
@@ -17,8 +24,8 @@ test.describe("Domestic season-wide match list (Veikkausliiga)", () => {
   test("links a team name from the match list to its team page", async ({ page }) => {
     await page.goto("/kotimaa/ottelut?kausi=2020");
 
-    // The `Ottelu` cell, not the row: the `Pvm` cell now links to the match
-    // page (specs/019), so the row's first link is no longer a team.
+    // The `Ottelu` cell, not the row: the `Pvm` cell links to the match page,
+    // so the row's first link is not a team.
     const firstTeamLink = page
       .locator("table tbody tr")
       .first()

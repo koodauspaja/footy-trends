@@ -3,6 +3,13 @@ import { baselineCompetition, HOME_BASELINE_MODEL, homeBaseline } from "@/lib/ho
 import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-service";
 import type { SeasonOutcomes } from "@/lib/outcome-shares";
 
+/**
+ * The home-win baseline: its model name, which competitions have one, and the
+ * prediction.
+ *
+ * decisions/051-home-win-baseline.md
+ */
+
 function season(overrides: Partial<SeasonOutcomes> = {}): SeasonOutcomes {
   return {
     kind: "taso",
@@ -38,14 +45,14 @@ function taso(overrides: Partial<TasoMatchRow> = {}): StoredMatch {
   } as StoredMatch;
 }
 
-describe("HOME_BASELINE_MODEL (S10)", () => {
+describe("HOME_BASELINE_MODEL", () => {
   it("names the model and its version for the predictions log", () => {
     expect(HOME_BASELINE_MODEL).toBe("home-baseline-v1");
   });
 });
 
 describe("baselineCompetition", () => {
-  it("predicts a scheduled or timed match in a compared competition (S3, S5)", () => {
+  it("predicts a scheduled or timed match in a compared competition", () => {
     expect(baselineCompetition(footballData())).toEqual({ kind: "football-data", code: "PL" });
     expect(baselineCompetition(footballData({ status: "SCHEDULED" }))).toEqual({
       kind: "football-data",
@@ -64,12 +71,12 @@ describe("baselineCompetition", () => {
     "SUSPENDED",
     "CANCELLED",
     "AWARDED",
-  ])("predicts nothing for a %s match (S3)", (status) => {
+  ])("predicts nothing for a %s match", (status) => {
     expect(baselineCompetition(footballData({ status }))).toBeNull();
     expect(baselineCompetition(taso({ status }))).toBeNull();
   });
 
-  it("predicts nothing in a cup, the World Cup or a national team's match (S5)", () => {
+  it("predicts nothing in a cup, the World Cup or a national team's match", () => {
     expect(baselineCompetition(footballData({ competitionCode: "WC" }))).toBeNull();
     expect(baselineCompetition(footballData({ competitionCode: "EC" }))).toBeNull();
     expect(baselineCompetition(taso({ categoryId: "MSC" }))).toBeNull();
@@ -97,7 +104,7 @@ describe("baselineCompetition", () => {
 });
 
 describe("homeBaseline", () => {
-  it("sums every season into three shares of the finished matches (S1, S2)", () => {
+  it("sums every season into three shares of the finished matches", () => {
     const result = homeBaseline([
       season({ seasonId: 2015, matches: 10, homeWins: 5, draws: 3, awayWins: 2 }),
       season({ seasonId: 2026, matches: 30, homeWins: 12, draws: 9, awayWins: 9, leftToPlay: 6 }),
@@ -114,7 +121,7 @@ describe("homeBaseline", () => {
     });
   });
 
-  it("counts the season in progress, matches still to play and all (S2)", () => {
+  it("counts the season in progress, matches still to play and all", () => {
     const result = homeBaseline([season({ seasonId: 2026, leftToPlay: 120 })]);
 
     expect(result).toMatchObject({
@@ -149,7 +156,7 @@ describe("homeBaseline", () => {
     expect(result).toMatchObject({ spansCalendarYears: true });
   });
 
-  it("is empty with no finished match, and a percentage from the first one (S9, S11)", () => {
+  it("is empty with no finished match, and a percentage from the first one", () => {
     expect(homeBaseline([])).toEqual({ status: "empty" });
     expect(
       homeBaseline([season({ matches: 0, homeWins: 0, draws: 0, awayWins: 0, leftToPlay: 90 })])
