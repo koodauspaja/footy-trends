@@ -33,6 +33,7 @@ unchanged.
 | What "written" means | A key per `(source, match id, model)` of every stored backtest row, read once per run | The unique index's columns less `kind`. About 85 000 short rows once Poisson's are in. |
 | The step's place in the run | After the live rows are written, from the same read of finished matches | S19. A failure is caught, logged and reported as `backtest`; the live rows are already stored. |
 | A failed read of finished matches | Reported three times: `elo ratings`, `poisson strengths`, `backtest` | One read feeds all three, and each says what it could not do. |
+| A row written between the step's read and its write | Overwritten by the step's, through the same upsert every prediction is written with | Only a hand-run backtest or a second run overlapping this one can write it, and each computes the row from the same stored matches. A second write path that skips on conflict would be more code for the same row. |
 | The cached reports | Dropped when the step had rows to write, whether or not the write succeeded; not touched when nothing was missing | As the hand-run backtest (decisions/056). Most hours write nothing, and should not empty a cache for it. |
 | The report | `backtested` beside `logged`, in the `Predictions run finished` line and as `Backtested   N prediction(s)` | S19. |
 
@@ -40,7 +41,7 @@ unchanged.
 
 | The spec | Built | Why |
 |---|---|---|
-| The list's date as `21.4.2025` | `21.04.2025` | `matchDateFormatter`, the format every match list on the site prints. |
+| The list's date as `21.4.2025` | `21.04.2025`, and the spec's example now says so | `matchDateFormatter`, the format every match list on the site prints. |
 | Two strings marked proposed: the line saying draws are left out, and the line for a season whose matches were all drawn | Built as proposed | The start was given with them open; they are for Miikka to confirm or reword on the pull request. |
 | "What it writes: what `predictions -- backtest` would write for that match" | True of the baseline and Elo exactly, and of Poisson to the fit's tolerance | The warm start above. |
 
