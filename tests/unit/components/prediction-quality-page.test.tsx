@@ -4,20 +4,26 @@ import type { QualityReport } from "@/lib/prediction-quality";
 import type { QualityResult } from "@/lib/prediction-quality-service";
 
 /**
- * The `/ennusteet` page: its switches, its tables and the calibration chart.
+ * The `/ennusteet` page: its switches, its tables, the calibration chart and
+ * the page of one competition.
  *
  * decisions/054-prediction-quality.md
  * decisions/050-table-volatility.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
-  getPredictionQuality: vi.fn<(source: string, kind: string) => Promise<QualityResult>>(),
+  getPredictionQuality:
+    vi.fn<(source: string, kind: string, competition: string | null) => Promise<QualityResult>>(),
 }));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
-vi.mock("@/lib/prediction-quality-service", () => ({ getPredictionQuality }));
+vi.mock("@/lib/prediction-quality-service", () => ({
+  getPredictionQuality,
+  qualityCompetitions: (source: string) => (source === "taso" ? ["VL", "M1L", "M1"] : ["PL"]),
+}));
 vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
@@ -25,11 +31,15 @@ vi.mock("@/components/sign-in-prompt", () => ({
 import {
   ACCURACY_HEADING,
   ACCURACY_NOTE,
+  ALL_COMPETITIONS_LINK,
   BACKTEST_NOTE,
   BINS_OMITTED_NOTE,
   BRIER_NOTE,
+  BY_COMPETITION_HEADING,
+  BY_COMPETITION_NOTE,
   CALIBRATION_HEADING,
   CALIBRATION_NOTE,
+  filteredSentence,
   LOG_LOSS_NOTE,
   modelLabel,
   NO_JUDGED,
@@ -92,6 +102,10 @@ const report: Extract<QualityReport, { status: "ok" }> = {
     },
   ],
   binsOmitted: true,
+  competitions: [
+    { code: "VL", matches: 1520, brier: [0.6123, 0.5981, 0.6034], best: [false, true, false] },
+    { code: "M1", matches: 98, brier: [0.6294, 0.6294, 0.6401], best: [true, true, false] },
+  ],
 };
 
 async function renderPage(params = {}) {
@@ -100,23 +114,48 @@ async function renderPage(params = {}) {
 
 describe("parseQualityParams", () => {
   it("defaults to the domestic backtest", () => {
-    expect(parseQualityParams({})).toEqual({ source: "taso", kind: "backtest" });
+    expect(parseQualityParams({})).toEqual({
+      source: "taso",
+      kind: "backtest",
+      competition: null,
+    });
   });
 
   it("reads ulkomaat and ennakkoon, and nothing else", () => {
     expect(parseQualityParams({ alue: "ulkomaat", tyyppi: "ennakkoon" })).toEqual({
       source: "football-data",
       kind: "live",
+      competition: null,
     });
     expect(parseQualityParams({ alue: "mars", tyyppi: "huomenna" })).toEqual({
       source: "taso",
       kind: "backtest",
+      competition: null,
     });
     // Repeated, Next gives an array: not a value the page names, so the default.
     expect(parseQualityParams({ alue: ["ulkomaat", "ulkomaat"], tyyppi: ["ennakkoon"] })).toEqual({
       source: "taso",
       kind: "backtest",
+      competition: null,
     });
+  });
+
+  it("reads a kilpailu that is one of the provider's compared competitions", () => {
+    expect(parseQualityParams({ kilpailu: "M1" })).toMatchObject({
+      source: "taso",
+      competition: "M1",
+    });
+    expect(parseQualityParams({ alue: "ulkomaat", kilpailu: "PL" })).toMatchObject({
+      source: "football-data",
+      competition: "PL",
+    });
+  });
+
+  it("ignores a kilpailu that is unknown, the other provider's, or repeated", () => {
+    expect(parseQualityParams({ kilpailu: "XX" }).competition).toBeNull();
+    expect(parseQualityParams({ kilpailu: "PL" }).competition).toBeNull();
+    expect(parseQualityParams({ alue: "ulkomaat", kilpailu: "VL" }).competition).toBeNull();
+    expect(parseQualityParams({ kilpailu: ["VL", "VL"] }).competition).toBeNull();
   });
 });
 
@@ -128,6 +167,10 @@ describe("the sentences", () => {
     expect(windowSentence(12, 2026, 2026)).toBe(
       "12 ottelua vuodelta 2026, joille kaikki mallit ovat antaneet ennusteen."
     );
+  });
+
+  it("names the one competition the page counts", () => {
+    expect(filteredSentence("Veikkausliiga")).toBe("Näytetään vain kilpailu Veikkausliiga.");
   });
 
   it("says how many matches the rolling chart still lacks", () => {
@@ -173,13 +216,13 @@ describe("PredictionQualityPage", () => {
       "href",
       "/ennusteet?alue=kotimaa&tyyppi=ennakkoon"
     );
-    expect(getPredictionQuality).toHaveBeenCalledWith("taso", "backtest");
+    expect(getPredictionQuality).toHaveBeenCalledWith("taso", "backtest", null);
   });
 
   it("reads the provider and kind the parameters name, and keeps the other switch", async () => {
     await renderPage({ alue: "ulkomaat", tyyppi: "ennakkoon" });
 
-    expect(getPredictionQuality).toHaveBeenCalledWith("football-data", "live");
+    expect(getPredictionQuality).toHaveBeenCalledWith("football-data", "live", null);
     expect(screen.getByRole("link", { name: "Kotimaa" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Jälkikäteen lasketut" })).not.toHaveAttribute(
       "aria-current"
@@ -381,6 +424,125 @@ describe("PredictionQualityPage", () => {
     await renderPage();
 
     expect(screen.queryByText(BINS_OMITTED_NOTE)).not.toBeInTheDocument();
+  });
+
+  it("shows each competition's matches and Brier per model, the row's lowest bold and a tie both", async () => {
+    await renderPage();
+
+    const panel = screen.getByRole("region", { name: BY_COMPETITION_HEADING });
+    expect(BY_COMPETITION_HEADING).toBe("Kilpailuittain");
+    const cells = within(panel)
+      .getAllByRole("row")
+      .map((row) => [...row.querySelectorAll("th, td")].map((cell) => cell.textContent));
+    expect(cells).toEqual([
+      ["Kilpailu", "Ottelut", "Perustaso", "Elo", "Poisson"],
+      ["Veikkausliiga", "1\u00a0520", "0,612", "0,598", "0,603"],
+      ["Ykkönen", "98", "0,629", "0,629", "0,640"],
+    ]);
+    expect([...panel.querySelectorAll("strong")].map((bold) => bold.textContent)).toEqual([
+      "0,598",
+      "0,629",
+      "0,629",
+    ]);
+    expect(within(panel).getByText(BY_COMPETITION_NOTE)).toBeInTheDocument();
+    expect(BY_COMPETITION_NOTE).toBe(
+      "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi."
+    );
+  });
+
+  it("links each competition's name to the page filtered to it, the provider and kind kept", async () => {
+    await renderPage({ tyyppi: "ennakkoon" });
+
+    expect(screen.getByRole("link", { name: "Veikkausliiga" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon&kilpailu=VL"
+    );
+    expect(screen.getByRole("link", { name: "Ykkönen" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon&kilpailu=M1"
+    );
+    expect(screen.getByRole("link", { name: "Veikkausliiga" })).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("link", { name: ALL_COMPETITIONS_LINK })).not.toBeInTheDocument();
+  });
+
+  it("names football-data's competitions from its own registry", async () => {
+    getPredictionQuality.mockResolvedValue({
+      ...report,
+      competitions: [
+        { code: "PL", matches: 380, brier: [0.6, 0.59, 0.58], best: [false, false, true] },
+      ],
+    });
+    await renderPage({ alue: "ulkomaat" });
+
+    expect(screen.getByRole("link", { name: "Valioliiga" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=ulkomaat&tyyppi=jalkikateen&kilpailu=PL"
+    );
+  });
+
+  it("filtered, reads that competition, says so with a link back and marks its row current", async () => {
+    const { container } = render(await PredictionQualityPage({ params: { kilpailu: "M1" } }));
+
+    expect(getPredictionQuality).toHaveBeenCalledWith("taso", "backtest", "M1");
+    expect(container.textContent).toContain(filteredSentence("Ykkönen"));
+    expect(ALL_COMPETITIONS_LINK).toBe("Kaikki kilpailut");
+    expect(screen.getByRole("link", { name: ALL_COMPETITIONS_LINK })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen"
+    );
+    expect(screen.getByRole("link", { name: "Ykkönen" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Veikkausliiga" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("filtered, the kind switch keeps the competition and the provider switch drops it", async () => {
+    await renderPage({ kilpailu: "M1" });
+
+    expect(screen.getByRole("link", { name: "Ennakkoon tehdyt" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon&kilpailu=M1"
+    );
+    expect(screen.getByRole("link", { name: "Jälkikäteen lasketut" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=M1"
+    );
+    expect(screen.getByRole("link", { name: "Ulkomaat" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=ulkomaat&tyyppi=jalkikateen"
+    );
+    expect(screen.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen"
+    );
+  });
+
+  it("shows the unfiltered page for a kilpailu of the other provider", async () => {
+    const { container } = render(await PredictionQualityPage({ params: { kilpailu: "PL" } }));
+
+    expect(getPredictionQuality).toHaveBeenCalledWith("taso", "backtest", null);
+    expect(container.textContent).not.toContain("Näytetään vain kilpailu");
+    expect(screen.getByRole("link", { name: "Ennakkoon tehdyt" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon"
+    );
+  });
+
+  it("filtered with no judged match, keeps the line and the link back above the empty line", async () => {
+    getPredictionQuality.mockResolvedValue({ status: "empty" });
+    const { container } = render(
+      await PredictionQualityPage({ params: { kilpailu: "M1L", tyyppi: "ennakkoon" } })
+    );
+
+    expect(container.textContent).toContain(filteredSentence("Ykkösliiga"));
+    expect(screen.getByRole("link", { name: ALL_COMPETITIONS_LINK })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon"
+    );
+    expect(screen.getByText(NO_JUDGED)).toBeInTheDocument();
+    const line = screen.getByText(NO_JUDGED);
+    const link = screen.getByRole("link", { name: ALL_COMPETITIONS_LINK });
+    // The sentence and its link are one paragraph, and that paragraph comes first.
+    expect(link.parentElement?.textContent).toContain(filteredSentence("Ykkösliiga"));
+    expect(link.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("says so when no prediction has been judged yet", async () => {

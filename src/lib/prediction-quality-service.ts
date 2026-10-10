@@ -4,13 +4,17 @@
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 
 import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { getCached } from "./cache";
+import { SUPPORTED_COMPETITIONS } from "./competitions";
+import { DOMESTIC_COMPETITIONS } from "./domestic-competitions";
 import { ELO_MODEL } from "./elo";
+import { COMPETITIONS } from "./goals-per-game";
 import { HOME_BASELINE_MODEL } from "./home-baseline";
 import { logger } from "./logger";
 import { FOOTBALL_DATA_AWAY_GOALS, FOOTBALL_DATA_HOME_GOALS } from "./match-service";
@@ -54,13 +58,43 @@ const CACHE_TTL_SECONDS = 15 * 60;
 export type QualityResult = QualityReport | { status: "error" };
 
 /**
- * Where one provider's and kind's report is cached.
+ * A provider's compared competitions, in the order its picker lists them. The
+ * rows per competition come in this order, and only these filter the page.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function qualityCompetitions(source: MatchSource["kind"]): string[] {
+  const registry = source === "taso" ? DOMESTIC_COMPETITIONS : SUPPORTED_COMPETITIONS;
+  return registry.map(({ code }) => code).filter((code) => COMPETITIONS[source].has(code));
+}
+
+/**
+ * Where one provider's and kind's report is cached: of all its competitions,
+ * or of one.
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
-export function qualityCacheKey(source: MatchSource["kind"], kind: PredictionKind): string {
-  return `quality:v2:${source}:${kind}`;
+export function qualityCacheKey(
+  source: MatchSource["kind"],
+  kind: PredictionKind,
+  competition: string | null = null
+): string {
+  const key = `quality:v3:${source}:${kind}`;
+  return competition === null ? key : `${key}:${competition}`;
+}
+
+/**
+ * Every key a provider's and kind's reports are cached under.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function qualityCacheKeys(source: MatchSource["kind"], kind: PredictionKind): string[] {
+  return [
+    qualityCacheKey(source, kind),
+    ...qualityCompetitions(source).map((code) => qualityCacheKey(source, kind, code)),
+  ];
 }
 
 function outcomeOf(home: number, away: number): Outcome {
@@ -71,6 +105,7 @@ function outcomeOf(home: number, away: number): Outcome {
 type Row = {
   model: string;
   providerMatchId: number;
+  competitionCode: string;
   seasonId: number;
   kickoffAt: Date;
   home: number;
@@ -95,6 +130,7 @@ async function readJudged(source: MatchSource["kind"], kind: PredictionKind): Pr
   const probabilities = {
     model: predictions.model,
     providerMatchId: predictions.providerMatchId,
+    competitionCode: predictions.competitionCode,
     home: predictions.homeProbability,
     draw: predictions.drawProbability,
     away: predictions.awayProbability,
@@ -147,23 +183,36 @@ async function readJudged(source: MatchSource["kind"], kind: PredictionKind): Pr
 }
 
 /**
- * One provider's and kind's report, cached 15 minutes, or `error`.
+ * One provider's and kind's report, cached 15 minutes, or `error`: of all its
+ * competitions, or of the one given, which is one of `qualityCompetitions`.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export async function getPredictionQuality(
   source: MatchSource["kind"],
-  kind: PredictionKind
+  kind: PredictionKind,
+  competition: string | null
 ): Promise<QualityResult> {
   try {
-    return await getCached(qualityCacheKey(source, kind), CACHE_TTL_SECONDS, async () => {
-      const judged: JudgedPrediction[] = (await readJudged(source, kind)).map(
-        ({ homeGoals, awayGoals, ...row }) => ({ ...row, outcome: outcomeOf(homeGoals, awayGoals) })
-      );
-      return qualityReport(judged, QUALITY_MODELS);
-    });
+    return await getCached(
+      qualityCacheKey(source, kind, competition),
+      CACHE_TTL_SECONDS,
+      async () => {
+        const judged: JudgedPrediction[] = (await readJudged(source, kind)).map(
+          ({ homeGoals, awayGoals, ...row }) => ({
+            ...row,
+            outcome: outcomeOf(homeGoals, awayGoals),
+          })
+        );
+        return qualityReport(judged, QUALITY_MODELS, qualityCompetitions(source), competition);
+      }
+    );
   } catch (error) {
-    logger.error({ err: error, source, kind }, "Unable to read the prediction quality");
+    logger.error(
+      { err: error, source, kind, ...(competition === null ? {} : { competition }) },
+      "Unable to read the prediction quality"
+    );
     return { status: "error" };
   }
 }

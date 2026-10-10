@@ -19,6 +19,7 @@ import { getPredictionQuality } from "@/lib/prediction-quality-service";
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/056-accuracy-by-competition.md
  */
 
 const IDS = Array.from({ length: 8 }, (_, index) => 986_001 + index);
@@ -47,16 +48,18 @@ function footballDataMatch(
   };
 }
 
-// Every model's live predictions for a match, each certain of a home win.
+// Every model's live predictions for a match, each certain of a home win, filed
+// under the site's code for its competition, as the log files them.
 function predicted(
   id: number,
   source: "football-data" | "taso",
-  models: readonly string[] = MODELS
+  models: readonly string[] = MODELS,
+  competitionCode = source === "taso" ? "VL" : "CL"
 ): Array<typeof predictions.$inferInsert> {
   return models.map((model) => ({
     source,
     providerMatchId: id,
-    competitionCode: source === "taso" ? "spljp25" : "CL",
+    competitionCode,
     model,
     kind: "live",
     homeProbability: 1,
@@ -121,7 +124,7 @@ describe("getPredictionQuality against Postgres", () => {
       }))
     );
 
-    const report = await getPredictionQuality("football-data", "live");
+    const report = await getPredictionQuality("football-data", "live", null);
 
     expect(report).toMatchObject({
       status: "ok",
@@ -159,7 +162,7 @@ describe("getPredictionQuality against Postgres", () => {
     await db.insert(matches).values(footballDataMatch(won));
     await db.insert(predictions).values([...predicted(won, "taso"), ...predicted(lost, "taso")]);
 
-    const report = await getPredictionQuality("taso", "live");
+    const report = await getPredictionQuality("taso", "live", null);
 
     expect(report).toMatchObject({
       status: "ok",
@@ -169,8 +172,48 @@ describe("getPredictionQuality against Postgres", () => {
         { model: "elo-v1", accuracy: 50 },
         { model: "poisson-v1", accuracy: 50 },
       ],
+      // The site's code the predictions carry, not the match's `spljp25`.
+      competitions: [{ code: "VL", matches: 2 }],
     });
-    await expect(getPredictionQuality("football-data", "live")).resolves.toEqual({
+    await expect(getPredictionQuality("football-data", "live", null)).resolves.toEqual({
+      status: "empty",
+    });
+  });
+
+  it("groups by the competition each prediction is filed under, and counts one when given it", async () => {
+    const [cupWon, cupLost, leagueWon] = IDS as [number, number, number];
+    await db.insert(matches).values([
+      footballDataMatch(cupWon),
+      footballDataMatch(cupLost, { homeGoals: 0, awayGoals: 1 }),
+      // Stored under the Champions League, its predictions filed under the Premier
+      // League: the prediction's code decides, not the match's.
+      footballDataMatch(leagueWon),
+    ]);
+    await db
+      .insert(predictions)
+      .values([
+        ...predicted(cupWon, "football-data"),
+        ...predicted(cupLost, "football-data"),
+        ...predicted(leagueWon, "football-data", MODELS, "PL"),
+      ]);
+
+    // The picker lists the Premier League before the Champions League.
+    const competitions = [
+      { code: "PL", matches: 1, brier: [0, 0, 0], best: [true, true, true] },
+      { code: "CL", matches: 2, brier: [1, 1, 1], best: [true, true, true] },
+    ];
+    await expect(getPredictionQuality("football-data", "live", null)).resolves.toMatchObject({
+      status: "ok",
+      matches: 3,
+      competitions,
+    });
+    await expect(getPredictionQuality("football-data", "live", "PL")).resolves.toMatchObject({
+      status: "ok",
+      matches: 1,
+      totals: [{ accuracy: 100 }, { accuracy: 100 }, { accuracy: 100 }],
+      competitions,
+    });
+    await expect(getPredictionQuality("football-data", "live", "ELC")).resolves.toEqual({
       status: "empty",
     });
   });

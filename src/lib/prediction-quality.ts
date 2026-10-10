@@ -4,6 +4,7 @@
  * predictions with their results, and every figure is computed here.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 
 /**
@@ -17,10 +18,12 @@ export type Outcome = "home" | "draw" | "away";
  * One logged prediction whose match has a result.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export type JudgedPrediction = {
   model: string;
   providerMatchId: number;
+  competitionCode: string;
   seasonId: number;
   kickoffAt: Date;
   home: number;
@@ -49,6 +52,13 @@ export const CALIBRATION_MINIMUM = 50;
  * decisions/054-prediction-quality.md
  */
 export const LOG_LOSS_FLOOR = 0.001;
+
+/**
+ * A Brier score and a log-loss are shown, and compared, to this many decimals.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export const SCORE_DECIMALS = 3;
 
 const OUTCOMES: readonly Outcome[] = ["home", "draw", "away"];
 
@@ -135,6 +145,20 @@ export type SeasonBrier = {
   brier: number[];
 };
 
+/**
+ * One competition's row: its judged matches and each model's Brier score.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export type CompetitionBrier = {
+  code: string;
+  matches: number;
+  /** Per model, in the report's model order. */
+  brier: number[];
+  /** Per model: whether its score is the row's lowest as shown, a tie marking each. */
+  best: boolean[];
+};
+
 export type CalibrationBin = {
   /** The bin's lower edge, 0–90 in tens. */
   from: number;
@@ -147,6 +171,7 @@ export type CalibrationBin = {
  * JSON-safe, so the service can cache it as it is.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export type QualityReport =
   | { status: "empty" }
@@ -164,6 +189,8 @@ export type QualityReport =
       calibration: Array<{ model: string; bins: CalibrationBin[] }>;
       /** Whether any bin was left off, so the page says so. */
       binsOmitted: boolean;
+      /** Every competition with a judged match, whichever one the rest counts. */
+      competitions: CompetitionBrier[];
     };
 
 const mean = (values: readonly number[]) =>
@@ -229,16 +256,85 @@ export function calibrationOf(predictions: readonly JudgedPrediction[]): Calibra
 }
 
 /**
- * Every figure for one provider and kind: only the matches every model
- * predicted, each model judged on them.
+ * Which of a row's scores are its lowest, compared as the page shows them.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function lowestOf(scores: readonly number[]): boolean[] {
+  const shown = scores.map((value) => Number(value.toFixed(SCORE_DECIMALS)));
+  const lowest = Math.min(...shown);
+  return shown.map((value) => value === lowest);
+}
+
+/**
+ * Each model's Brier score over the same rows, in the models' order.
  *
  * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
+ */
+function brierPerModel(rows: readonly JudgedPrediction[], models: readonly string[]): number[] {
+  return models.map((model) =>
+    mean(rows.filter((prediction) => prediction.model === model).map(brierOf))
+  );
+}
+
+/**
+ * The rows of one competition's matches. A match is of the competition its
+ * first model's row is filed under, so every model's row of a match is kept
+ * or dropped with it.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function inCompetition(
+  common: readonly JudgedPrediction[],
+  models: readonly string[],
+  code: string
+): JudgedPrediction[] {
+  const matches = new Set(
+    common
+      .filter((prediction) => prediction.model === models[0] && prediction.competitionCode === code)
+      .map((prediction) => prediction.providerMatchId)
+  );
+  return common.filter((prediction) => matches.has(prediction.providerMatchId));
+}
+
+/**
+ * A row per competition of the given order that has a match every model
+ * predicted, in that order.
+ *
+ * decisions/056-accuracy-by-competition.md
+ */
+export function competitionsOf(
+  common: readonly JudgedPrediction[],
+  models: readonly string[],
+  order: readonly string[]
+): CompetitionBrier[] {
+  return order.flatMap((code) => {
+    const rows = inCompetition(common, models, code);
+    if (rows.length === 0) return [];
+    const brier = brierPerModel(rows, models);
+    return [{ code, matches: rows.length / models.length, brier, best: lowestOf(brier) }];
+  });
+}
+
+/**
+ * Every figure for one provider and kind: only the matches every model
+ * predicted, each model judged on them. Given a competition, every figure but
+ * the rows per competition counts that competition's matches only.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/056-accuracy-by-competition.md
  */
 export function qualityReport(
   predictions: readonly JudgedPrediction[],
-  models: readonly string[]
+  models: readonly string[],
+  competitionOrder: readonly string[],
+  competition: string | null = null
 ): QualityReport {
-  const common = commonMatches(predictions, models).toSorted(byKickoff);
+  const everyCompetition = commonMatches(predictions, models);
+  const common = (
+    competition === null ? everyCompetition : inCompetition(everyCompetition, models, competition)
+  ).toSorted(byKickoff);
   if (common.length === 0) return { status: "empty" };
 
   // One row per match and model (the log's unique key), so a model's rows are
@@ -274,12 +370,11 @@ export function qualityReport(
       return {
         seasonId,
         matches: inSeason.length / models.length,
-        brier: models.map((model) =>
-          mean(inSeason.filter((prediction) => prediction.model === model).map(brierOf))
-        ),
+        brier: brierPerModel(inSeason, models),
       };
     }),
     calibration,
     binsOmitted: calibration.some(({ bins }) => bins.some((bin) => bin.observed === null)),
+    competitions: competitionsOf(everyCompetition, models, competitionOrder),
   };
 }

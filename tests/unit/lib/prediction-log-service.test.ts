@@ -59,6 +59,18 @@ vi.mock("@/lib/logger", () => ({
   logger: { error: mocks.loggerError, info: mocks.loggerInfo },
 }));
 vi.mock("@/lib/cache", () => ({ invalidateCache: mocks.invalidateCache }));
+
+// Every key a backtest's reports are cached under: each provider's own, then one per competition.
+const DROPPED_KEYS = [
+  ["quality:v3:football-data:backtest"],
+  ...["PL", "ELC", "FL1", "BL1", "SA", "DED", "PPL", "PD", "BSA", "CL"].map((code) => [
+    `quality:v3:football-data:backtest:${code}`,
+  ]),
+  ["quality:v3:taso:backtest"],
+  ...["VL", "M1L", "M1", "M2", "NL", "N1", "P21SM", "P211", "P18SM", "T18SM"].map((code) => [
+    `quality:v3:taso:backtest:${code}`,
+  ]),
+];
 // The real fit, behind a spy one test makes fail.
 vi.mock("@/lib/poisson", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/poisson")>();
@@ -546,10 +558,7 @@ describe("runPredictionBacktest", () => {
     finishWrite();
     await run;
 
-    expect(mocks.invalidateCache.mock.calls).toEqual([
-      ["quality:v2:football-data:backtest"],
-      ["quality:v2:taso:backtest"],
-    ]);
+    expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
   });
 
   it("still answers with the rows written when a cached report cannot be dropped", async () => {
@@ -569,10 +578,7 @@ describe("runPredictionBacktest", () => {
     mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
 
     await expect(runPredictionBacktest(NOW)).rejects.toThrow("connection reset");
-    expect(mocks.invalidateCache.mock.calls).toEqual([
-      ["quality:v2:football-data:backtest"],
-      ["quality:v2:taso:backtest"],
-    ]);
+    expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
   });
 
   const played = (day: number, home: number, away: number, overrides = {}) => ({
