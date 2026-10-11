@@ -50,7 +50,7 @@ unchanged.
 ## What the tests prove, and how
 
 - **Every mutation below was caught**, one row each, so the count is the
-  table's length. Numbers 56 to 68 are caught by the integration suite:
+  table's length. Numbers 56 to 68 and 75 are caught by the integration suite:
   they change a query, which the unit tests mock.
 
   | # | Mutation |
@@ -127,6 +127,9 @@ unchanged.
   | 70 | The no-matches line for all drawn |
   | 71 | An empty season never in progress |
   | 72 | An all-drawn season never in progress |
+  | 73 | Draws ranked, cut to ten, then removed |
+  | 74 | The Poisson window moved one match per fitted day |
+  | 75 | The TASO list reading unfinished matches |
 
 - **Unit**: the rules (`surprise.test.ts`), the service's decisions around its
   queries (`surprise-service.test.ts`), the panel and the line
@@ -155,6 +158,11 @@ backtest rows, none of them Poisson's yet.
 | The last three days' matches missing | 78, 26 per model | 333 ms |
 | As production stood: every Poisson row missing | 28 255 | 28,5 s |
 
+"Nothing missing" is every row the step can write being written. A match no
+model can ever predict, such as those of a competition's first stored day,
+stays without a row and is looked at again every hour; for Poisson that is a
+fit of its day. The 175 ms includes them.
+
 The read of finished matches, 513 ms, is one the run already made. The last
 row is the hour after a release that adds a model, if the backtest has not
 been run by hand first; `docs/infrastructure.md` says to run it.
@@ -182,3 +190,16 @@ Sourcery's first full review of #623 found five things.
 | `Kausi … (kesken)` is missing above the no-matches and all-drawn lines | Fixed: `Kausi … (kesken)` without a list, above |
 | A step failing part-way reports `Backtested 0` with rows stored | Not changed: a step that fails part-way, above |
 | A report read before the step's write and cached after its drop stays 15 minutes | As decisions/055 and decisions/056 record for the hand-run backtest: nothing coordinates the two, and the cache's lifetime is the bound |
+
+A second review, by another Claude session on 2026-10-11 while Sourcery's
+budget was out, found no defect and seven smaller things.
+
+| Finding | Outcome |
+|---|---|
+| No test fails when draws are ranked, cut to ten and then removed | Fixed: mutation 73 |
+| No test fails when a day fitted after skipped days keeps matches past the horizon | Fixed: mutation 74 |
+| The domestic list's finished filter is untested | Fixed: mutation 75 |
+| Matches Poisson can never predict are fitted again every hour | Measured already, and now said: the note under Measured |
+| A test's name still called the step's Poisson row the same to the fit's tolerance | Renamed |
+| The panel's comment said the season's line is shown above every line | Reworded |
+| The first-season line says Elo has no earlier matches, which S17's own reasoning says is not so for Ykkösliiga | For Miikka: S17 is his wording |
