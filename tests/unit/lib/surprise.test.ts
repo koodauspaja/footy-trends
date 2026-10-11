@@ -118,6 +118,22 @@ describe("seasonSurprises", () => {
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([2]);
   });
 
+  it("gives a draw none of the ten places", () => {
+    // Twelve wins, and three draws Elo thought less likely than any of them.
+    const wins = Array.from({ length: 12 }, (_, index) =>
+      match({ providerMatchId: index + 1, home: (30 + index) / 100 })
+    );
+    const draws = Array.from({ length: 3 }, (_, index) =>
+      match({ providerMatchId: 101 + index, homeGoals: 1, awayGoals: 1, draw: 0.01 })
+    );
+
+    const result = seasonSurprises([...draws, ...wins], false);
+
+    expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+  });
+
   it("lists fewer than ten when the season has fewer", () => {
     const result = seasonSurprises([match()], true);
 

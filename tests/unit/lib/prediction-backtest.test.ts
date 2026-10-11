@@ -262,7 +262,7 @@ describe("missingBacktestRows", () => {
     }
   );
 
-  it("is the one Poisson row that is not written, the same to the fit's tolerance", () => {
+  it("is the one Poisson row that is not written, the whole backtest's to three decimals", () => {
     const finished = history();
     const rows = whole(finished);
     const lacking = rows.findLast((row) => row.model === "poisson-v1" && row.source === "taso");

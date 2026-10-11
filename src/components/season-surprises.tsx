@@ -67,8 +67,8 @@ function SurpriseItem({
 /**
  * A season's biggest surprises: a numbered list of the wins Elo thought least
  * likely, each linking to its match, or the line saying why there is none.
- * `inProgressLine` names the season, and is shown above either while the
- * season is being played.
+ * `inProgressLine` names the season, and is shown while it is being played:
+ * above the list, the no-matches line and the all-drawn line.
  *
  * decisions/057-surprise-index.md
  */

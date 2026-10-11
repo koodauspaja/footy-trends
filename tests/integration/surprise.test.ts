@@ -168,6 +168,8 @@ describe("getSeasonSurprises against Postgres", () => {
       tasoMatch(4, { categoryId: "M1" }),
       // Finished without a score.
       tasoMatch(5, { homeGoals: null, awayGoals: null }),
+      // In play with a score so far.
+      tasoMatch(6, { status: "IN_PLAY" }),
     ]);
     await db.insert(predictions).values([
       // The season before has its own row.
@@ -177,6 +179,7 @@ describe("getSeasonSurprises against Postgres", () => {
       predicted(3, "taso"),
       predicted(4, "taso", { competitionCode: "M1", homeProbability: 0.01 }),
       predicted(5, "taso", { homeProbability: 0.01 }),
+      predicted(6, "taso", { homeProbability: 0.01 }),
     ]);
 
     const result = await getSeasonSurprises("taso", "VL", 1981, 1981);
