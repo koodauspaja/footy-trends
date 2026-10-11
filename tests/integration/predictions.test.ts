@@ -26,8 +26,10 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-se
 
 /**
  * The predictions log against a real Postgres. The hourly run is set in 2099
- * and the backtest in 1990, so each reads only this suite's rows; every
- * predictions row it causes is deleted either side of each test.
+ * and the backtest in 1990, so the live rows and the rows asserted on are this
+ * suite's. Both also backtest every finished match stored, other suites'
+ * included, so every backtest row in the database is deleted either side of
+ * each test, with this suite's own rows.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md

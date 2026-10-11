@@ -34,7 +34,7 @@ unchanged.
 | What "written" means | A key per `(source, match id, model)` of every stored backtest row, read once per run | The unique index's columns less `kind`. About 85 000 short rows once Poisson's are in. |
 | The step's place in the run | After the live rows are written, from the same read of finished matches | S19. A failure is caught, logged and reported as `backtest`; the live rows are already stored. |
 | A failed read of finished matches | Reported three times: `elo ratings`, `poisson strengths`, `backtest` | One read feeds all three, and each says what it could not do. |
-| A row written between the step's read and its write | Overwritten by the step's, through the same upsert every prediction is written with | Only a hand-run backtest or a second run overlapping this one can write it, and each computes the row from the same stored matches. A second write path that skips on conflict would be more code for the same row. |
+| A row written between the step's read and its write | Overwritten by the step's, through the same upsert every prediction is written with | Only a hand-run backtest or a second run overlapping this one can write it, and each computes the row from the same stored matches: the same row for the baseline and Elo, and for Poisson the same to the fourth decimal, as under Measured. A second write path that skips on conflict would be more code for the same row. |
 | A step that fails part-way | `backtested` is 0 and `backtest` is among the failures, though the batches that succeeded are stored | The count of a failed write is not known without a second read. The failure is what the run reports; the next run finds the stored rows written and writes the rest. |
 | The cached reports | Dropped when the step had rows to write, whether or not the write succeeded; not touched when nothing was missing | As the hand-run backtest (decisions/056). Most hours write nothing, and should not empty a cache for it. |
 | The report | `backtested` beside `logged`, in the `Predictions run finished` line and as `Backtested   N prediction(s)` | S19. |
@@ -203,6 +203,16 @@ budget was out, found no defect and seven smaller things.
 | A test's name still called the step's Poisson row the same to the fit's tolerance | Renamed |
 | The panel's comment said the season's line is shown above every line | Reworded |
 | The first-season line says Elo has no earlier matches, which S17's own reasoning says is not so for Ykkösliiga | Reworded, on Miikka's word on 2026-10-11: the competition has no earlier matches for the prediction to rest on, which is what the draw share lacks in every competition's first season. The spec's S17 carries the new line |
+
+A third read, the same way and on the same day, found one stale comment and
+one sentence of this record.
+
+| Finding | Outcome |
+|---|---|
+| `tests/integration/predictions.test.ts` still said each run reads only that suite's rows | Reworded: the hourly run backtests every finished match stored, and the suite deletes every backtest row around each test |
+| The row on a write between the step's read and its write read as if a Poisson row were identical | Reworded, above |
+| The step does not run in an hour whose live write fails | Not changed: the run fails as it did before, and the next hour writes what is missing |
+| A killed e2e run leaves its seeded row to be taken for the original | Not changed: only after a killed run, and only in the test database |
 
 Sonar found one thing on the pull request: `replayPoisson` had grown to a
 cognitive complexity of 17, over its limit of 15, with the `wanted` branch.
