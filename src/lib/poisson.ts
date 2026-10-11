@@ -540,6 +540,21 @@ export function predictPoisson(
 }
 
 /**
+ * Where the UTC day of the match at `index` ends in a kickoff-ordered list:
+ * the index of the first match of a later day.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+function endOfDay(ordered: readonly PoissonMatch[], index: number): number {
+  const day = utcDay((ordered[index] as PoissonMatch).kickoffAt);
+  let end = index;
+  while (end < ordered.length && utcDay((ordered[end] as PoissonMatch).kickoffAt) === day) {
+    end += 1;
+  }
+  return end;
+}
+
+/**
  * Every match in kickoff order, a UTC day at a time: the day's matches are all
  * predicted from one fit of the days before it. `onPredict` sees each match
  * the fit can predict. Feed one provider at a time. Given `wanted`, only the
@@ -565,10 +580,7 @@ export function replayPoisson(
   let index = 0;
   while (index < ordered.length) {
     const day = utcDay((ordered[index] as PoissonMatch).kickoffAt);
-    let end = index;
-    while (end < ordered.length && utcDay((ordered[end] as PoissonMatch).kickoffAt) === day) {
-      end += 1;
-    }
+    const end = endOfDay(ordered, index);
     const predicted = ordered.slice(index, end).filter(wanted);
     if (predicted.length > 0) {
       // Sorted, so the window is the run of matches ending where this day starts.
