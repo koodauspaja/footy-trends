@@ -17,7 +17,7 @@ export const SURPRISES_NOTE =
 export const DRAWS_LEFT_OUT_NOTE =
   "Tasapelit eivät ole mukana: Elo antaa tasapelille saman todennäköisyyden jokaisessa kilpailun ottelussa.";
 export const FIRST_SEASON_MESSAGE =
-  "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: Elolla ei ole silloin vielä aiempia otteluita, joihin nojata.";
+  "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi.";
 export const NO_MATCHES_MESSAGE = "Kaudelta ei ole vielä pelattuja otteluita.";
 export const ALL_DRAWN_MESSAGE = "Kauden ottelut ovat toistaiseksi päättyneet tasan.";
 export const SURPRISES_ERROR_MESSAGE = "Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.";

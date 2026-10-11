@@ -54,7 +54,7 @@ finished match, how surprising that one was.
 | S14 | Which matches count | **A finished match with both scores and an `elo-v1` backtest row — Elo's row alone, whatever the other models have** | Miikka, 2026-10-10 (Q14). `/ennusteet` judges only matches all three models predicted (specs/055 S18); #354 is about Elo, so this spec calls its matches *predicted*, not *judged*. |
 | S15 | Logging | **As in Logging** | Miikka, 2026-10-10 (Q15). The section did not exist when this spec was written. |
 | S16 | Where `(kesken)` goes | **A line under the panel's heading, `Kausi 2026 (kesken)`, shown only for the season in progress** | Miikka, 2026-10-10 (Q16). The heading names no season to label. |
-| S17 | The first-season line | **`Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: Elolla ei ole silloin vielä aiempia otteluita, joihin nojata.`**; the rule stays the competition's first stored season | Miikka, 2026-10-10 (Q17): "as suggested is good". Premier League 2023 and Ykkösliiga 2024, each its competition's first stored season, both contain a result Elo gave 0,0 %. The earlier line said every team starts from the same number, which is false for Ykkösliiga: its clubs arrived in 2024 with ratings from 2015 on. |
+| S17 | The first-season line | **`Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi.`**; the rule stays the competition's first stored season | Miikka, 2026-10-10 (Q17): "as suggested is good", for a line that said Elo had no earlier matches; reworded on 2026-10-11 ("do what feels good"), because for Ykkösliiga Elo had them and the competition did not. Premier League 2023 and Ykkösliiga 2024, each its competition's first stored season, both contain a result Elo gave 0,0 %. The earlier line said every team starts from the same number, which is false for Ykkösliiga: its clubs arrived in 2024 with ratings from 2015 on. |
 | S18 | Draws | **Left out: the list ranks home and away wins only, and a drawn match shows no line on its page.** A shoot-out is a draw. Overrides S6 | Miikka, 2026-10-10 (Q18). Elo's draw probability is the competition's draw share (specs/053 S4), about 25 % for every match, so lists filled with draws all showing one figure in date order; see Measured. |
 | S19 | The hourly step | **Only missing rows, of all three models; a written row is not rewritten by the run; after the live rows, and a failure leaves them, is reported and exits non-zero; the summary gains `Backtested   N prediction(s)`** | Miikka, 2026-10-10 (Q19). A whole backtest every hour would take about 32 s and rewrite some 85 000 rows. All three models, so `/ennusteet`'s `Jälkikäteen lasketut` stays current too. |
 
@@ -79,7 +79,7 @@ that one side won: `Elo antoi tälle tulokselle 8 %.`
 
 | String | When |
 |---|---|
-| `Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: Elolla ei ole silloin vielä aiempia otteluita, joihin nojata.` | The competition's first stored season (S9, S17) |
+| `Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi.` | The competition's first stored season (S9, S17) |
 | `Kaudelta ei ole vielä pelattuja otteluita.` | No predicted match in the season (S12) |
 | *Proposed:* `Kauden ottelut ovat toistaiseksi päättyneet tasan.` | Predicted matches in the season, every one a draw (S18) |
 | `Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.` | The read failed |

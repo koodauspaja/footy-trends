@@ -49,7 +49,7 @@ export type SeasonSurprises =
       /** The season still being played, labelled `(kesken)`. */
       inProgress: boolean;
     }
-  /** The competition's first stored season, which Elo has nothing behind. */
+  /** The competition's first stored season, which has no history of its own behind it. */
   | { status: "first-season" }
   /** No predicted match in the season. */
   | { status: "empty"; inProgress: boolean }

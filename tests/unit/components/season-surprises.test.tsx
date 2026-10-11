@@ -55,7 +55,7 @@ describe("the strings the spec agreed", () => {
       "Tasapelit eivät ole mukana: Elo antaa tasapelille saman todennäköisyyden jokaisessa kilpailun ottelussa."
     );
     expect(FIRST_SEASON_MESSAGE).toBe(
-      "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: Elolla ei ole silloin vielä aiempia otteluita, joihin nojata."
+      "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi."
     );
     expect(NO_MATCHES_MESSAGE).toBe("Kaudelta ei ole vielä pelattuja otteluita.");
     expect(ALL_DRAWN_MESSAGE).toBe("Kauden ottelut ovat toistaiseksi päättyneet tasan.");

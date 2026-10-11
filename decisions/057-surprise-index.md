@@ -202,4 +202,4 @@ budget was out, found no defect and seven smaller things.
 | Matches Poisson can never predict are fitted again every hour | Measured already, and now said: the note under Measured |
 | A test's name still called the step's Poisson row the same to the fit's tolerance | Renamed |
 | The panel's comment said the season's line is shown above every line | Reworded |
-| The first-season line says Elo has no earlier matches, which S17's own reasoning says is not so for Ykkösliiga | For Miikka: S17 is his wording |
+| The first-season line says Elo has no earlier matches, which S17's own reasoning says is not so for Ykkösliiga | Reworded, on Miikka's word on 2026-10-11: the competition has no earlier matches for the prediction to rest on, which is what the draw share lacks in every competition's first season. The spec's S17 carries the new line |
