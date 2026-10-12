@@ -274,9 +274,10 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   });
 
   it("asks for the forecast of the page's own season, with the season in progress", async () => {
-    await renderSection({ kind: "taso", competitionCode: "VL", selectedSeasonId: 2025 });
+    await renderSection({ kind: "taso", competitionCode: "VL" });
 
-    expect(getSeasonForecast).toHaveBeenCalledWith("taso", "VL", 2025, 2025);
+    // The page's season first, then the season in progress: 2024 is a finished one.
+    expect(getSeasonForecast).toHaveBeenCalledWith("taso", "VL", 2024, 2025);
   });
 
   it("links the forecast to the models' record in this competition", async () => {
