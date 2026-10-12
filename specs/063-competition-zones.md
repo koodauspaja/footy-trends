@@ -22,8 +22,7 @@ shows them as published (S1).
 ### In scope
 
 - The zones of each group of five competitions (S4), per season, stored as TASO
-  publishes them (S1, S4,
-  S10).
+  publishes them (S1, S10).
 - Those competitions' standings pages marking them in each group's table
   and naming them under it (S6–S9).
 - The number of teams a regular season sends to each continuation group, kept
@@ -32,11 +31,11 @@ shows them as published (S1).
 ### Out of scope
 
 - The foreign leagues: football-data publishes no zones, so they need a
-  hand-maintained registry, a feature of its own (S2).
+  hand-maintained registry: #634 (S2).
 - European places: TASO labels `Mestaruussarja` with medals only (S3).
 - Any change to the season simulation (specs/061, not yet merged): swapping its
   top-three and bottom-three columns for real zones, and its upper-group column
-  before a split, is a follow-up that reads this (S11).
+  before a split, is #635, which reads this (S11).
 - Seasons TASO gives no labels for: before 2021 or 2022, by competition (S5).
 - Miesten Kakkonen and the junior competitions, in every season (S4).
 - Cups, and any group not drawn as a table.
@@ -57,7 +56,7 @@ shows them as published (S1).
 | S8 | An earlier round in the round selector | **The same zones on that round's order** | Miikka, 2026-10-12 (Q8). |
 | S9 | Where the labels go | **A list under each group's table**, not a column | Miikka, 2026-10-12 (Q9). The table is already at its width at 375 px. |
 | S10 | Storage and past seasons | **A new table written with the group's rows, and a one-off backfill that writes levels only.** A forced refresh rewrites the levels without listing them in its diff | Miikka, 2026-10-12 (Q10): "agree". A normal refetch of a finished season is unsafe while #628 is open. |
-| S11 | The season simulation | **A follow-up issue, after #627 merges**; this feature changes nothing in specs/061 | Miikka, 2026-10-12 (Q11): "agree". |
+| S11 | The season simulation | **#635, after #627 merges**; this feature changes nothing in specs/061 | Miikka, 2026-10-12 (Q11): "agree". |
 | S12 | Caching and logging | **No new cache; the two lines in Logging** | Miikka, 2026-10-12 (Q12). |
 | S13 | Who sees it | **Everyone**, signed in or out | Miikka, 2026-10-12 (Q13): "this is not analytics, so yes". |
 | S14 | The strings | **As in UX / UI** | Miikka, 2026-10-12 (Q14). |
@@ -223,4 +222,4 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 **None.** Q1–Q14 were answered in chat on 2026-10-12 and are recorded as
 S1–S14, and the spec was confirmed the same day. #634 (zones for the foreign
-leagues) was filed from S2.
+leagues) was filed from S2 and #635 (the simulation's zone columns) from S11.
