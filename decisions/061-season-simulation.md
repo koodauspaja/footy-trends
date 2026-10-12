@@ -79,7 +79,7 @@ decide something the spec did not.
   | 27 | The bottom three as the bottom two, in the runs |
   | 28 | The bottom three as the bottom two, in the bounds |
   | 29 | Last place counted one place up |
-  | 30 | Expected points from the current table |
+  | 30 | Expected points not the runs' points |
   | 31 | A fixture's home side taken for both |
   | 32 | First place the title in every table |
   | 33 | First place the title only by the group's name |
@@ -154,6 +154,9 @@ decide something the spec did not.
   | 102 | Every season called a split one |
   | 103 | No season called a split one |
   | 104 | One table or several counted after the continued group is dropped |
+  | 105 | The bottom three's bounds swapped |
+  | 106 | A domestic forecast from stale rows kept in the cache |
+  | 107 | TASO's failed refresh not passed on |
 
 - **Two first survived and were closed with a test**: the bottom three counted
   as the bottom two in the runs (27: every bottom-three figure asserted was a
@@ -170,12 +173,11 @@ decide something the spec did not.
   season of two pools, one with a fixture left and an abandoned match and one
   finished; and the same season with TASO's points disagreeing for one pool,
   which is then left out.
-- **End to end**, on the Premier League's real season in progress: the panel
-  first in `Tämä kausi`, the standings page's own teams in its order, a figure
-  in every cell, and the link landing on `/ennusteet` for the competition; a
-  finished season with no panel; signed out, no heading and no figure in the
-  HTML. Between seasons the test accepts the no-fixtures line instead of a
-  table. It drops the cached fit and forecast once the seasons are stored: on
+- **End to end**, on a real season in progress, the Premier League's or, while
+  that is between seasons, Série A's: the panel first in `Tämä kausi`, the
+  standings page's own teams in its order, a figure in every cell, and the
+  link landing on `/ennusteet` for the competition; a finished season with no
+  panel; signed out, no heading and no figure in the HTML. It drops the cached fit and forecast once the seasons are stored: on
   a fresh database the fit can have been cached before any Premier League
   match was.
 
@@ -212,3 +214,37 @@ the median of nine:
 A miss also reads the season, which the page has read already, and the
 provider's fit, which is cached for the match pages (a cold fit 122 ms,
 decisions/055). It happens at most once per league per 15 minutes.
+
+**Inside Railway**, the same function and the same tables, run by Miikka in
+staging's web container on 2026-10-12 (Node 24.21.0):
+
+| Table | Fixtures | Median | Slowest of nine |
+|---|---|---|---|
+| 24 teams, the Championship on 2026-10-12 | 446 | 193 ms | 260 ms |
+| 24 teams, its whole season | 552 | 213 ms | 317 ms |
+| 20 teams | 321 | 138 ms | 148 ms |
+| 6 teams, a split group | 17 | 12 ms | 16 ms |
+
+About twice the laptop's time. A miss holds the server for a fifth of a
+second at the most, for the largest league, so S10 stands: computed on a page
+view and cached. It was timed before the function was split for Sonar; on the
+laptop the split changed nothing (97 ms against 98).
+
+## After the reviews
+
+Sonar found one thing on the pull request: `simulateTable` had a cognitive
+complexity of 25, over its limit of 15. A run's results are now `playOnce` and
+its count `count`; the function does what it did, in the same time.
+
+Sourcery's first full review of #627, of 6ae9a0c on 2026-10-12, found eight
+things.
+
+| Finding | Outcome |
+|---|---|
+| A domestic forecast made from stored rows TASO could not refresh was cached for 15 minutes, as football-data's was not | Fixed: `getSeasonTables` passes on whether the matches' refresh failed, and such a forecast is shown and not kept. A failed refresh of the group rows alone is not seen: `getSyncedGroupTeams` answers its stored rows either way, as it does for the standings page |
+| Last place's and the bottom three's bounds are passed the wrong way round | Not a defect: a team can end last when it is last at its worst, and is certain to when it is last even at its best, so for the bottom places the worst case is the one that says "possible". The parameters were named for the top places; they are now `possible` and `certain`. Mutations swap the bounds of last place and of the bottom three, and both fail |
+| The forecast's table is computed from the stored matches while the standings page may serve its own cached table, so the two can differ | Not changed. The forecast's table and its fixtures come from one read, which is what keeps a just-finished match from being both out of the table and out of the fixtures. The page's cached table can be up to 15 minutes older than it, as the forecast's own cache can be than the page |
+| Two requests missing the cache together can leave the older result in it | Not changed: the cache helper's behaviour for every cached read on the site, bounded by the 15 minutes, as decisions/055 and 056 record |
+| A failed fit is logged by the fit's service and again by this one | Not changed, and as the table above says: the first line says the fit failed, the second which page lost its forecast |
+| Between seasons the end-to-end test returned at the no-fixtures line without checking a forecast | Fixed: it takes the first of the Premier League and Série A that has a table, and fails if neither does. One plays from August to May and the other from April to December |
+| Two declaration comments without their record | Fixed, with the three others of the same kind in the two files |
