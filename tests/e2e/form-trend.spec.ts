@@ -64,10 +64,11 @@ test.describe("Form chart, signed in", () => {
   test("ends at the Vire the standings table shows — across a Veikkausliiga split", async ({
     page,
   }) => {
-    // KuPS, 2026: the Mestaruussarja table counts the regular season too, so
+    // KuPS, 2022: the Mestaruussarja table counts the regular season too, so
     // its Vire and its O span the split, as the chart does. Read from the
-    // standings page, not hardcoded, so it holds as the season goes on.
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+    // standings page, not hardcoded. A season long over: while one is being
+    // played, the provider's table trails its results for hours after a match.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2022");
     const row = page
       .getByRole("heading", { name: "Mestaruussarja", level: 2 })
       .locator("xpath=following::table[1]")
