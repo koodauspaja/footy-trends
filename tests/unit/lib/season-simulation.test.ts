@@ -152,6 +152,23 @@ describe("simulateTable", () => {
     ]);
   });
 
+  it("counts an open place in the bottom three run by run", () => {
+    // Team 2 passes team 1, which ends second of four: in the bottom three,
+    // though it could still have finished first.
+    const rows = simulateTable(
+      [row(1, 3), row(2, 3), row(3, 0), row(4, 0)],
+      [fixture(2, 3, DRAWN), fixture(1, 4, AWAY_WINS)],
+      10
+    );
+
+    expect(rows.map((team) => team.bottomThree)).toEqual([
+      { share: 1, settled: false },
+      { share: 0, settled: false },
+      { share: 1, settled: true },
+      { share: 1, settled: true },
+    ]);
+  });
+
   it("settles every place of a table with no fixture left", () => {
     const rows = simulateTable([row(1, 9), row(2, 6), row(3, 3)], [], 10);
 

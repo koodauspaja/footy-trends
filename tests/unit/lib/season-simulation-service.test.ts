@@ -350,8 +350,14 @@ describe("the cache", () => {
 });
 
 describe("failure", () => {
-  const logged = (source: string, code: string) => [
-    expect.objectContaining({ err: expect.any(Error), source, code, seasonId: SEASON }),
+  // The line says which read failed, in the error it carries.
+  const logged = (source: string, code: string, message: string) => [
+    {
+      err: expect.objectContaining({ message }),
+      source,
+      code,
+      seasonId: SEASON,
+    },
     "Unable to simulate the season",
   ];
 
@@ -361,7 +367,9 @@ describe("failure", () => {
     expect(await getSeasonForecast("football-data", "PL", SEASON, SEASON)).toEqual({
       status: "error",
     });
-    expect(mocks.loggerError.mock.calls).toEqual([logged("football-data", "PL")]);
+    expect(mocks.loggerError.mock.calls).toEqual([
+      logged("football-data", "PL", "The season's matches could not be read"),
+    ]);
   });
 
   it("is its own case when the fit cannot be read, and is logged", async () => {
@@ -374,21 +382,25 @@ describe("failure", () => {
     expect(await getSeasonForecast("football-data", "PL", SEASON, SEASON)).toEqual({
       status: "error",
     });
-    expect(mocks.loggerError.mock.calls).toEqual([logged("football-data", "PL")]);
+    expect(mocks.loggerError.mock.calls).toEqual([
+      logged("football-data", "PL", "The Poisson fit could not be read"),
+    ]);
   });
 
   it("is its own case when a domestic season's tables cannot be read, and is logged", async () => {
     mocks.getSeasonTables.mockResolvedValue({ status: "error" });
 
     expect(await getSeasonForecast("taso", "VL", SEASON, SEASON)).toEqual({ status: "error" });
-    expect(mocks.loggerError.mock.calls).toEqual([logged("taso", "VL")]);
+    expect(mocks.loggerError.mock.calls).toEqual([
+      logged("taso", "VL", "The season's tables could not be read"),
+    ]);
   });
 
   it("is its own case when a read throws, and is logged", async () => {
     mocks.getSeasonTables.mockRejectedValue(new Error("connection refused"));
 
     expect(await getSeasonForecast("taso", "VL", SEASON, SEASON)).toEqual({ status: "error" });
-    expect(mocks.loggerError.mock.calls).toEqual([logged("taso", "VL")]);
+    expect(mocks.loggerError.mock.calls).toEqual([logged("taso", "VL", "connection refused")]);
   });
 });
 
