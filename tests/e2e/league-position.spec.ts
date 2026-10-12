@@ -87,15 +87,17 @@ test.describe("League position chart, signed in", () => {
   test("continues a Kakkonen pool through its split, below that pool's upper group", async ({
     page,
   }) => {
-    // Kakkonen 2026: three pools, each split into its own upper and lower continuation.
+    // Kakkonen 2024: three pools, each split into its own upper and lower continuation.
     // A lower-group team's line carries on past the split, at its place in its
     // continuation plus its pool's upper group, as the standings page has it.
-    const standings = "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2026";
+    // A season long over, whose tables at the provider no longer move: in the days
+    // after a season ends they lag its results and differ from one read to the next.
+    const standings = "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2024";
     const tableUnder = (name: string) =>
       page.getByRole("heading", { name, level: 2 }).locator("xpath=following::table[1]");
 
     await page.goto(standings);
-    // Six per pool, as the 2026 regulations have it. Asserted with the
+    // Six per pool, as the 2024 regulations had it. Asserted with the
     // auto-waiting matcher, because `count()` does not wait for a page that is
     // still streaming.
     const upperSize = 6;
