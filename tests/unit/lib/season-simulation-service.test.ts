@@ -185,6 +185,7 @@ describe("a football-data league", () => {
         "single",
         [
           {
+            groupId: 0,
             groupName: null,
             simulated: true,
             // Teams 2 and 3 drew, and team 2 lost to team 1 by two.
@@ -217,6 +218,7 @@ describe("a football-data league", () => {
         "single",
         [
           {
+            groupId: 0,
             groupName: null,
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
@@ -239,6 +241,7 @@ describe("a football-data league", () => {
         "single",
         [
           {
+            groupId: 0,
             groupName: null,
             simulated: true,
             rows: [row(1, 3), row(2, 0)],
@@ -266,6 +269,7 @@ describe("a football-data league", () => {
         "single",
         [
           {
+            groupId: 0,
             groupName: null,
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
@@ -349,6 +353,27 @@ describe("the cache", () => {
 
     expect(forecast.status).toBe("ok");
     expect(fetched.map((result) => result.degraded)).toEqual([refreshFailed]);
+  });
+});
+
+describe("the cache, when there is no panel", () => {
+  it("does not keep 'no panel' made from stored rows the provider could not refresh", async () => {
+    const fetched: Array<{ degraded: boolean }> = [];
+    mocks.getCachedUnlessDegraded.mockImplementation(async (_key, _ttl, fetcher) => {
+      const result = await fetcher();
+      fetched.push(result);
+      return result.value;
+    });
+    // Serie A is not in the fit, and its season is stale.
+    mocks.getLeagueSeasonMatches.mockResolvedValue({
+      matches: [stored(1, 2, [1, 0]), stored(2, 1, null)],
+      refreshFailed: true,
+    });
+
+    expect(await getSeasonForecast("football-data", "SA", SEASON, SEASON)).toEqual({
+      status: "unavailable",
+    });
+    expect(fetched.map((result) => result.degraded)).toEqual([true]);
   });
 });
 
@@ -436,6 +461,7 @@ describe("a domestic league", () => {
     mocks.getSeasonTables.mockResolvedValue({ status: "ok", tables, refreshFailed: false });
   }
   const asInput = (table: SeasonTable, simulated = true) => ({
+    groupId: table.groupId,
     groupName: table.groupName,
     simulated,
     rows: table.standings.map(({ teamProviderId, teamName, points }) => ({

@@ -201,10 +201,9 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit`: the season in progress's
- * forecast on a league and the selected season's biggest surprises, then goals
- * per game and, on a league, table movement, then `Kilpailut rinnakkain`.
- * Gated before anything is read, and awaited by the pages, not rendered as JSX.
+ * The competition standings page's `Analyysit`: this season's forecast and
+ * surprises, then goals per game and table movement, then `Kilpailut
+ * rinnakkain`. Gated before anything is read; awaited by the pages, not JSX.
  *
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md

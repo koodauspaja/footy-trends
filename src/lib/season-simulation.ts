@@ -180,8 +180,8 @@ function playOnce(
 }
 
 /**
- * One run's final table, counted: `order` holds the places of the current
- * table, best first.
+ * One run's final table, counted. `order` is this run's ranking: places of
+ * the current table, best first.
  *
  * decisions/061-season-simulation.md
  */
@@ -198,11 +198,9 @@ function count(tally: Tally, order: readonly number[], points: readonly number[]
 }
 
 /**
- * A table's forecast: every fixture drawn `runs` times from its probabilities,
- * ranked by points and then by the current order. A fixture with a side
- * outside the table is left out. A place is settled when a team winning
- * everything while nobody else gains a point cannot reach it, or a team losing
- * everything while everyone else wins all of theirs still holds it.
+ * A table's forecast: every fixture drawn `runs` times, each run ranked by
+ * points and then the current order. A place is settled when the team's best
+ * and worst possible finishes fall on the same side of it.
  *
  * decisions/061-season-simulation.md
  */
@@ -250,7 +248,10 @@ export function simulateTable(
   }
 
   return table.map((row, position) => {
-    // The fewest and the most teams that can still end above this one.
+    // The fewest teams that can still end above this one (it wins everything,
+    // nobody else gains a point) and the most (it loses everything, everyone
+    // else wins all of theirs). A top place is possible at its best and certain
+    // at its worst; for a bottom place the two swap.
     const best = teamsAbove(position, most[position] as number, current);
     const worst = teamsAbove(position, current[position] as number, most);
     const share = (counts: readonly number[]) => (counts[position] as number) / runs;
@@ -288,6 +289,8 @@ export type ForecastLayout = "single" | "several" | "before-split";
  * decisions/061-season-simulation.md
  */
 export type SeasonTableInput = {
+  /** The stored group's id, or 0 for a league with one table and no groups. */
+  groupId: number;
   groupName: string | null;
   simulated: boolean;
   rows: TableRow[];
@@ -300,6 +303,7 @@ export type SeasonTableInput = {
  * decisions/061-season-simulation.md
  */
 export type ForecastTable = {
+  groupId: number;
   groupName: string | null;
   decidesTitle: boolean;
   rows: ForecastRow[];
@@ -319,8 +323,8 @@ export type SeasonForecast =
   | { status: "error" };
 
 /**
- * The forecast of every simulated table of a season. A fixture the model
- * cannot predict is left out.
+ * The forecast of every simulated table of a season. Nothing is left to play
+ * only when no table has a fixture, simulated or not.
  *
  * decisions/061-season-simulation.md
  */
@@ -330,13 +334,18 @@ export function seasonForecast(
   predict: (homeTeam: number, awayTeam: number) => { prediction: ThreeWay } | null
 ): Exclude<SeasonForecast, { status: "unavailable" | "error" }> {
   const simulated = tables.filter((table) => table.simulated);
-  if (simulated.length === 0) return { status: "not-simulated" };
-  if (simulated.every((table) => table.fixtures.length === 0)) return { status: "no-fixtures" };
+  const toPlay = (list: readonly SeasonTableInput[]) =>
+    list.some((table) => table.fixtures.length > 0);
+  if (!toPlay(simulated)) {
+    // The fixtures that are left are all in tables that are not ours.
+    return { status: toPlay(tables) || simulated.length === 0 ? "not-simulated" : "no-fixtures" };
+  }
 
   return {
     status: "ok",
     layout,
     tables: simulated.map((table) => ({
+      groupId: table.groupId,
       groupName: table.groupName,
       decidesTitle: layout === "single" || table.groupName === TITLE_GROUP_NAME,
       rows: simulateTable(

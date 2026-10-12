@@ -50,7 +50,13 @@ function team(teamProviderId: number, overrides: Partial<ForecastRow> = {}): For
 }
 
 function table(overrides: Partial<ForecastTable> = {}): ForecastTable {
-  return { groupName: null, decidesTitle: true, rows: [team(1), team(2)], ...overrides };
+  return {
+    groupId: 1,
+    groupName: null,
+    decidesTitle: true,
+    rows: [team(1), team(2)],
+    ...overrides,
+  };
 }
 
 const headers = (container: HTMLElement = document.body) =>
@@ -154,7 +160,12 @@ describe("SeasonForecastBody", () => {
           layout: "several",
           tables: [
             table({ groupName: "Mestaruussarja", rows: [team(1), team(2)] }),
-            table({ groupName: "Karsintasarja", decidesTitle: false, rows: [team(3), team(4)] }),
+            table({
+              groupId: 2,
+              groupName: "Karsintasarja",
+              decidesTitle: false,
+              rows: [team(3), team(4)],
+            }),
           ],
         }}
         qualityHref={HREF}
@@ -267,5 +278,31 @@ describe("SeasonForecastBody", () => {
     expect(container.textContent).toBe(message);
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("two tables under one name", () => {
+  it("are told apart by their group ids, not their names", () => {
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args) => {
+      errors.push(args);
+    });
+    render(
+      <SeasonForecastBody
+        forecast={{
+          status: "ok",
+          layout: "several",
+          tables: [
+            table({ groupId: 4, groupName: "Lohko", rows: [team(1)] }),
+            table({ groupId: 5, groupName: "Lohko", rows: [team(2)] }),
+          ],
+        }}
+        qualityHref={HREF}
+      />
+    );
+    spy.mockRestore();
+
+    expect(screen.getAllByRole("table")).toHaveLength(2);
+    expect(errors).toEqual([]);
   });
 });

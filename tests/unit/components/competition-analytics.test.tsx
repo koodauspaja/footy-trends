@@ -163,6 +163,7 @@ const forecast: SeasonForecast = {
   layout: "single",
   tables: [
     {
+      groupId: 0,
       groupName: null,
       decidesTitle: true,
       rows: [

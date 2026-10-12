@@ -4,19 +4,19 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 
 /**
  * `Kauden ennuste` on a league's standings page, end to end, on a real season
- * in progress: the Premier League's, or Série A's while that is between
- * seasons. Signed in the way league-position.spec.ts explains. No value is
- * named: the figures move with every result.
+ * in progress. Signed in the way league-position.spec.ts explains. No value
+ * is named: the figures move with every result.
  *
  * decisions/061-season-simulation.md
  */
 
 const STANDINGS = (code: string) => `/ulkomaat/sarjataulukko?kilpailu=${code}`;
 const PL = STANDINGS("PL");
-// The Premier League plays from August to May and Série A from April to
-// December: whatever the time of year, one of them has fixtures left.
+// Their seasons end at different times of year, so one of them always has
+// fixtures left.
 const LEAGUES = ["PL", "BSA"];
 const HEADING = "Kauden ennuste";
+const NO_FIXTURES = "Kaudella ei ole enää pelaamattomia otteluita.";
 const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 
 // The fit and the forecasts are cached for 15 minutes. On a database that held
@@ -50,24 +50,25 @@ test.describe("Season forecast, signed in", () => {
   });
 
   test("a league in progress shows every team's forecast first in Tämä kausi", async ({ page }) => {
-    // Opening a season stores it: each league's season in progress and the
-    // one before it, so the fit has its matches.
+    // The first of the leagues with a fixture left to play. The second is
+    // opened only when the first has none: the provider's key is shared.
+    let league: string | undefined;
     for (const code of LEAGUES) {
+      // Opening a season stores it: the season in progress and the one before
+      // it, so the fit has the league's matches.
       await page.goto(STANDINGS(code));
       const [, previous] = await seasonsOffered(page);
       if (previous !== undefined) await page.goto(`${STANDINGS(code)}&kausi=${previous}`);
-    }
-    await dropCaches();
+      await dropCaches();
 
-    // The first of the leagues with a fixture left to play.
-    let league: string | undefined;
-    for (const code of LEAGUES) {
       await page.goto(STANDINGS(code));
       await expect(forecastPanel(page)).toBeVisible();
       if ((await forecastPanel(page).getByRole("table").count()) > 0) {
         league = code;
         break;
       }
+      // Without a table the panel may only be saying that nothing is left.
+      await expect(forecastPanel(page).getByRole("paragraph")).toHaveText(NO_FIXTURES);
     }
     expect(league, "neither league has a fixture left to play").toBeDefined();
 

@@ -1,13 +1,13 @@
 /**
  * A competition's season forecast for its standings page: the tables and
- * remaining fixtures read as the page reads them, each fixture predicted from
- * the provider's cached Poisson fit, cached in Redis for 15 minutes. The
- * simulation itself is `season-simulation.ts`.
+ * fixtures read as the page reads them, predicted from the provider's cached
+ * Poisson fit, and cached for 15 minutes. `season-simulation.ts` simulates.
  *
  * decisions/061-season-simulation.md
  */
 
 import { getCachedUnlessDegraded } from "./cache";
+import { REGULAR_SEASON } from "./cup-stages";
 import { categoryIdForSeason, competitionIdForSeason } from "./domestic-competitions";
 import { logger } from "./logger";
 import type { MatchSource } from "./match-source";
@@ -33,13 +33,6 @@ import { getSeasonTables, hasCarryOver } from "./taso-standings-service";
 const FORECAST_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * football-data's stage for a league's own matches; older rows carry none.
- *
- * decisions/061-season-simulation.md
- */
-const REGULAR_SEASON = "REGULAR_SEASON";
-
-/**
  * A season's tables and fixtures, or null when nothing is stored. `stale`
  * when the provider could not be asked and stored rows were served.
  *
@@ -59,7 +52,8 @@ async function footballDataSeason(
   activeSeasonId: number
 ): Promise<SeasonRead> {
   const { matches, refreshFailed } = await getLeagueSeasonMatches(code, seasonId, activeSeasonId);
-  // A league's play-offs are stored under its code: neither in the table nor played out.
+  // A league's play-offs are stored under its code: neither in the table nor
+  // played out. A row stored without a stage counts as the league's own.
   const regular = matches.filter((match) => (match.stage ?? REGULAR_SEASON) === REGULAR_SEASON);
   if (regular.length === 0) {
     if (refreshFailed) throw new Error("The season's matches could not be read");
@@ -71,6 +65,7 @@ async function footballDataSeason(
     stale: refreshFailed,
     tables: [
       {
+        groupId: 0,
         groupName: null,
         simulated: true,
         rows: calculateStandings(toFinishedMatches(regular), regular),
@@ -96,7 +91,8 @@ async function tasoSeason(
     return null;
   }
 
-  // A group others carry points over from has been continued: its teams are in those.
+  // A group others carry points over from has been continued: its teams are in
+  // those. The parent is the carry-over configuration's, not anything stored.
   const continued = new Set(season.tables.map((table) => table.parentGroupId));
   const tabled = season.tables.filter((table) => table.kind !== "match-list");
   const splitLastSeason = hasCarryOver(
@@ -114,6 +110,7 @@ async function tasoSeason(
     tables: tabled
       .filter((table) => !continued.has(table.groupId))
       .map((table) => ({
+        groupId: table.groupId,
         groupName: table.groupName,
         simulated: table.kind === "own-calculated",
         rows: table.standings,

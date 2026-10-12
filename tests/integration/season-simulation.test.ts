@@ -17,11 +17,9 @@ vi.mock("@/lib/cache", () => ({
 import { getSeasonForecast } from "@/lib/season-simulation-service";
 
 /**
- * The season forecast's reads against a real Postgres, for both providers: the
- * table and the fixtures of a season in progress, and the fit of the stored
- * matches. The season is 2090, which no provider is asked about because its
- * rows are fresh; its played matches are dated this month so that the fit
- * holds them.
+ * The season forecast's reads against a real Postgres, for both providers.
+ * Season 2090's rows are fresh, so no provider is asked; its played matches
+ * are dated this month, so the fit holds them.
  *
  * decisions/061-season-simulation.md
  */

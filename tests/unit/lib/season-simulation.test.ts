@@ -241,6 +241,7 @@ describe("simulateTable", () => {
 describe("seasonForecast", () => {
   function table(overrides: Partial<SeasonTableInput> = {}): SeasonTableInput {
     return {
+      groupId: 0,
       groupName: null,
       simulated: true,
       rows: [row(1, 3), row(2, 0)],
@@ -258,6 +259,7 @@ describe("seasonForecast", () => {
       layout: "single",
       tables: [
         {
+          groupId: 0,
           groupName: null,
           decidesTitle: true,
           rows: simulateTable([row(1, 3), row(2, 0)], [{ homeTeam: 1, awayTeam: 2, ...homeWin() }]),
@@ -323,10 +325,31 @@ describe("seasonForecast", () => {
     ]);
   });
 
-  it("has nothing to play out when no simulated table has a fixture left", () => {
+  it("has nothing to play out when no table of the season has a fixture left", () => {
+    expect(
+      seasonForecast(
+        "several",
+        [table({ fixtures: [] }), table({ simulated: false, fixtures: [] })],
+        homeWin
+      )
+    ).toEqual({ status: "no-fixtures" });
+  });
+
+  it("does not say nothing is left when a table that is not ours still has a fixture", () => {
+    // Ours is finished; the fixtures left are in a table shown from TASO's numbers.
     expect(
       seasonForecast("several", [table({ fixtures: [] }), table({ simulated: false })], homeWin)
-    ).toEqual({ status: "no-fixtures" });
+    ).toEqual({ status: "not-simulated" });
+  });
+
+  it("carries each table's group id", () => {
+    const forecast = seasonForecast(
+      "several",
+      [table({ groupId: 4, groupName: "A" }), table({ groupId: 7, groupName: "B" })],
+      homeWin
+    );
+
+    expect(forecast.status === "ok" && forecast.tables.map((each) => each.groupId)).toEqual([4, 7]);
   });
 
   it("leaves out a table that is not ours, and says so when none is", () => {

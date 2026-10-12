@@ -216,7 +216,7 @@ export function SeasonForecastBody({
     <div>
       {forecast.tables.map((table) => (
         <ForecastTableView
-          key={table.groupName}
+          key={table.groupId}
           layout={forecast.layout}
           table={named ? table : { ...table, groupName: null }}
         />
