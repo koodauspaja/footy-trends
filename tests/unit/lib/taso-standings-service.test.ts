@@ -7,12 +7,14 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getSeasonTables,
   getTasoSeasonMovements,
   getTeamMatches,
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
+  hasCarryOver,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
@@ -47,6 +49,7 @@ import { teamPanelLoaders } from "@/lib/team-panels";
  * decisions/040-cup-analytics.md
  * decisions/043-liigacup.md
  * decisions/050-table-volatility.md
+ * decisions/061-season-simulation.md
  * decisions/272-group-standings-endpoint.md
  * decisions/281-missing-carry-over-entry.md
  * decisions/284-provider-id-validation.md
@@ -4265,5 +4268,108 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
       "Unable to read the matches a TASO team's panels count"
     );
+  });
+});
+
+describe("getSeasonTables", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const upcoming = {
+    status: "SCHEDULED",
+    homeGoals: null,
+    awayGoals: null,
+  };
+
+  it("gives each stored group its table, its own matches of every status, and its parent", async () => {
+    const regular = match({ providerMatchId: 1, groupId: 1 });
+    const played = match({
+      providerMatchId: 2,
+      groupId: 2,
+      groupName: "Mestaruussarja",
+      matchday: 23,
+      homeGoals: 0,
+      awayGoals: 0,
+    });
+    const toPlay = match({
+      providerMatchId: 3,
+      groupId: 2,
+      groupName: "Mestaruussarja",
+      matchday: 24,
+      homeTeamProviderId: 2,
+      homeTeamName: "KuPS",
+      awayTeamProviderId: 1,
+      awayTeamName: "HJK",
+      ...upcoming,
+    });
+    mockStoredMatches([regular, played, toPlay]);
+
+    const [season, standings] = await Promise.all([
+      getSeasonTables(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON),
+      getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined),
+    ]);
+
+    const groups = standings.status === "ok" ? standings.groups : [];
+    expect(season).toEqual({
+      status: "ok",
+      tables: [
+        {
+          groupId: 1,
+          groupName: "Runkosarja",
+          kind: "own-calculated",
+          standings: groups[0]?.kind === "own-calculated" ? groups[0].standings : null,
+          matches: [regular],
+          parentGroupId: null,
+        },
+        {
+          groupId: 2,
+          groupName: "Mestaruussarja",
+          kind: "own-calculated",
+          standings: groups[1]?.kind === "own-calculated" ? groups[1].standings : null,
+          matches: [played, toPlay],
+          parentGroupId: 1,
+        },
+      ],
+    });
+    // The carried points are in the continuation group's table: a win and a draw.
+    expect(
+      season.status === "ok" && season.tables[1]?.standings.map((team) => team.points)
+    ).toEqual([4, 1]);
+  });
+
+  it("gives a group shown from TASO's own numbers no table of ours", async () => {
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 9, played: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 3 }),
+      ]
+    );
+
+    const season = await getSeasonTables(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(season.status === "ok" && season.tables).toMatchObject([
+      { groupId: 1, kind: "pass-through", standings: [] },
+    ]);
+  });
+
+  it("reports a season with nothing stored as empty", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getSeasonTables(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "empty" });
+  });
+});
+
+describe("hasCarryOver", () => {
+  it("is true for a category's season with a continuation group, and false otherwise", () => {
+    expect(hasCarryOver("VL", "spljp25")).toBe(true);
+    expect(hasCarryOver("VL", "spljp20")).toBe(false);
+    expect(hasCarryOver("M1L", "spljp25")).toBe(false);
+    expect(hasCarryOver("P18SM", "spljp25")).toBe(false);
   });
 });

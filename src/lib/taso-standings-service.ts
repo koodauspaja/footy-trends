@@ -1813,6 +1813,66 @@ export async function getSeasonStandings(
 }
 
 /**
+ * One stored group of a season for the season forecast: how it renders, our
+ * table when it is ours, its own matches of every status, and the group it
+ * carries points over from.
+ *
+ * decisions/061-season-simulation.md
+ */
+export type SeasonTable = {
+  groupId: number;
+  groupName: string;
+  kind: GroupStandingsResult["kind"];
+  /** Empty unless the group is `own-calculated`. */
+  standings: TeamStanding[];
+  matches: MatchRow[];
+  parentGroupId: number | null;
+};
+
+/**
+ * Every stored group of a season as the standings page classifies it, read
+ * through the page's own refresh of matches and group rows.
+ *
+ * decisions/061-season-simulation.md
+ */
+export async function getSeasonTables(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<{ status: "ok"; tables: SeasonTable[] } | { status: "empty" | "error" }> {
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") return { status: classified.status };
+
+  return {
+    status: "ok",
+    tables: classified.groups.map((group) => ({
+      groupId: group.groupId,
+      groupName: group.groupName,
+      kind: group.kind,
+      standings: group.kind === "own-calculated" ? group.standings : [],
+      matches: classified.matches.filter((match) => match.groupId === group.groupId),
+      parentGroupId: parentGroupId(categoryId, competitionId, group.groupId),
+    })),
+  };
+}
+
+/**
+ * Whether any group of a category's season carries points over from another:
+ * the season split.
+ *
+ * decisions/061-season-simulation.md
+ */
+export function hasCarryOver(categoryId: string, competitionId: string): boolean {
+  return CARRY_OVER_CONFIG[categoryId]?.[competitionId] !== undefined;
+}
+
+/**
  * One group's rendering: a match list when it has no table, our table when it
  * reproduces TASO's points, and TASO's own numbers when it does not.
  *
