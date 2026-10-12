@@ -161,6 +161,9 @@ decide something the spec did not.
   failed fit not thrown (64: reading the missing fit threw anyway, so the
   failure was still reported; the log's error is now asserted to name the read
   that failed, for all three).
+- **Four of them were run against the integration suite too** (46, 51, 62,
+  63: play-off matches counted, fixtures of every status for each provider,
+  a pass-through table simulated), and each failed it.
 - **Integration**, against Postgres, the cache passed through: a foreign
   league's season with a postponed fixture, a cancelled one and two play-off
   matches, where only the regular season's fixtures add points; a domestic
