@@ -49,7 +49,7 @@ or the bottom, and its expected points.
 | S7 | Where | **The standings page, specs/057's `Tämä kausi`, a panel `Kauden ennuste`, the season in progress only, above `Kauden suurimmat yllätykset`** | Miikka, 2026-10-01 (Q7); its place in the group, 2026-10-12. |
 | S8 | What it shows | **Per team in table order. A season with one table: `Odotetut pisteet`, `Mestaruus`, `Kolmen parhaan joukossa`, `Kolmen huonoimman joukossa`. A season with several tables (split groups, pools): per table `Odotetut pisteet`, first place, last place (S19).** Overrides top three and bottom three in every table | Miikka, 2026-10-12: "your suggestion is good". In a six-team group top three and bottom three are one figure said twice. Real zones are #518. |
 | S9 | Rounding | **Whole percentages, `< 1 %` below one, `0 %` only when impossible; points to one decimal**; `100 %` is S18 | Miikka, 2026-10-01 (Q9). |
-| S10 | Computing | **On a page view, per competition-season, Redis 15 minutes** | Miikka, 2026-10-01 (Q10). Measured on 2026-10-12: the largest league is a tenth of a second. |
+| S10 | Computing | **On a page view, per competition-season, Redis 15 minutes** | Miikka, 2026-10-01 (Q10). Measured on 2026-10-12: the largest league takes a tenth of a second on a laptop and a fifth inside Railway. |
 | S11 | Access | **Signed in only** | Miikka, 2026-10-01 (Q11). |
 | S12 | Two rules | **A fixture postponed without a date is still simulated; Kakkonen's pools are each their own table.** The third rule of 2026-10-01, a result stored by the hourly run, is dropped | Miikka, 2026-10-01, and 2026-10-12: "your suggestion is good". The cost does not need it, it would need a table, and staging has no hourly run. |
 | S13 | A remaining fixture | **A stored match of the season in a table that is simulated (S15), with no result, both sides real teams, unless its status says it will not be played as listed: football-data's `CANCELLED` and `AWARDED`, TASO's `Abandoned`.** Every other status without a result is to be played: `SCHEDULED`, `TIMED`, `POSTPONED`, and a match being played | Decided for Miikka, 2026-10-12: "make a consistent decision and wording". A cancelled match comes back when the provider lists it again; an abandoned one from August would otherwise be simulated all winter. |
@@ -100,8 +100,8 @@ first in specs/057's group `Tämä kausi` (S7):
 | Each fixture's probabilities | `poisson-v1` from the provider's cached fit (S1, S3): `predictPoisson`'s three outcomes. A team absent from the fit is an average side (specs/055 S4) |
 | A run | Each fixture drawn from its three probabilities with the seeded generator (S2); points added; ranked by points, then current order (S4) |
 | Figures | Over 10 000 runs: mean points; the share of runs finishing first, last, in the top three and in the bottom three (S8) |
-| "Impossible" | A team that wins every fixture it has left, while no other team gains a point, still ranks below the place: `0 %` only then (S9) |
-| "Decided" | A team that loses every fixture it has left, while every other team wins all of theirs, still holds the place: `100 %` only then (S18) |
+| "Impossible" | A top place (first, the top three): a team that wins every fixture it has left, while no other team gains a point, still ranks below it. A bottom place (last, the bottom three): a team that loses every fixture it has left, while every other team wins all of theirs, still ranks above it. `0 %` only then (S9) |
+| "Decided" | A top place: a team that loses every fixture it has left, while every other team wins all of theirs, still holds it. A bottom place: a team that wins every fixture it has left, while no other team gains a point, is still in it. `100 %` only then (S18) |
 | Before a split | S20, from the carry-over configuration the standings already keep |
 | Cache | Per competition-season, Redis, 15 minutes (S10). It sits on the table's and the fit's own 15 minutes |
 | Access | `canSeeAnalytics()` first (S11) |
@@ -112,6 +112,7 @@ first in specs/057's group `Tämä kausi` (S7):
 |---|---|
 | A finished season | No panel (Scope) |
 | The season in progress with no fixture left in any table | The no-fixtures line |
+| Fixtures left only in tables that are not simulated | The line of S15, not the no-fixtures line |
 | A season in progress with no match played yet | Simulated from a table of zeros, in the standings page's order |
 | A fixture postponed without a date | Still simulated: it is to be played (S12) |
 | A match being played | A remaining fixture until it is stored finished (S13) |
@@ -133,7 +134,8 @@ first in specs/057's group `Tämä kausi` (S7):
 ## Performance & Limits
 
 Measured on production's data, read-only, from a laptop on 2026-10-12, 10 000
-runs each:
+runs each, with the prototype the decisions were taken on. The function as
+shipped, and the same inside Railway, are in the decision record's Measured:
 
 | League | Teams | Fixtures left | One simulation |
 |---|---|---|---|

@@ -21,8 +21,10 @@ decide something the spec did not.
 | The season's read, TASO | `getSeasonTables`: `classifySeasonGroups`' groups with each one's own matches and its parent group | S16. The classification is the page's, so a group is simulated exactly when the page shows our table for it. |
 | A group that has been continued | Not shown: after a split the regular season's teams are all in its continuation groups | S5 says each group's stored fixtures; the regular season's table would otherwise stand beside them with every place settled. |
 | One table or several | One when the season has one table-keeping group, own or pass-through; a match list is not counted, and a group that has been continued is | S8. A promotion play-off stored as a match list does not turn a single-table league into pools. A season that has split is several even when one group continues it, as Kansallinen Liiga's `Mestaruussarja` does: six teams, where top three and bottom three are one figure. The local review before the first push read this as a defect; it is the rule, and a test now says so. |
-| Before a split (S20) | `hasCarryOver` for the season before, and no stored group with a parent in this one | The carry-over configuration is what records that a season split. "The previous stored season" is read as the season before: a league missing a year is not a case any covered competition has. |
+| Before a split (S20) | `hasCarryOver` for the season before, and no stored group with a configured parent in this one | The carry-over configuration is what records that a season split, for last season and for this one. Between a split being stored and its entry being added by hand (decisions/281, which logs it), this season still reads as before its split: the standings then lack the carried points too, and the continuation groups are usually shown from TASO's numbers, so the forecast says it is not calculated. "The previous stored season" is read as the season before: a league missing a year is not a case any covered competition has. |
 | A pass-through table | `simulated: false`; when no table of the season is ours, the line of S15 | S15. |
+| Nothing left to play | Only when no table of the season has a fixture, simulated or not. When the fixtures left are all in tables that are not ours, the line of S15 | The spec's edge case says "in any table". The first version looked at the simulated tables only, and could say nothing was left with rounds to play; the second review found it. |
+| A table's key | The stored group's id, 0 for a league with no groups | As the standings page keys its groups. Two groups of a season could share a name. |
 | A season with nothing stored | No panel | The no-fixtures line says matches have been played. Reached only before a new season's fixtures are published. |
 | A competition the fit has no match of | No panel | Spec, Edge Cases. `predictPoisson` cannot predict there. |
 | A fixture the model cannot predict | Left out of the run | `predictPoisson` answers null only for a placeholder side or a missing competition, and both are excluded before it is asked. |
@@ -157,6 +159,10 @@ decide something the spec did not.
   | 105 | The bottom three's bounds swapped |
   | 106 | A domestic forecast from stale rows kept in the cache |
   | 107 | TASO's failed refresh not passed on |
+  | 108 | Nothing left though a table that is not ours has a fixture |
+  | 109 | A table's group id not carried |
+  | 110 | No panel from a stale read kept in the cache |
+  | 111 | A season's tables keyed by their names |
 
 - **Two first survived and were closed with a test**: the bottom three counted
   as the bottom two in the runs (27: every bottom-three figure asserted was a
@@ -225,8 +231,8 @@ staging's web container on 2026-10-12 (Node 24.21.0):
 | 20 teams | 321 | 138 ms | 148 ms |
 | 6 teams, a split group | 17 | 12 ms | 16 ms |
 
-About twice the laptop's time. A miss holds the server for a fifth of a
-second at the most, for the largest league, so S10 stands: computed on a page
+About twice the laptop's time. A miss holds the server for about a fifth of a
+second for the largest league, a third at the slowest measured, so S10 stands: computed on a page
 view and cached. It was timed before the function was split for Sonar; on the
 laptop the split changed nothing (97 ms against 98).
 
@@ -246,5 +252,26 @@ things.
 | The forecast's table is computed from the stored matches while the standings page may serve its own cached table, so the two can differ | Not changed. The forecast's table and its fixtures come from one read, which is what keeps a just-finished match from being both out of the table and out of the fixtures. The page's cached table can be up to 15 minutes older than it, as the forecast's own cache can be than the page |
 | Two requests missing the cache together can leave the older result in it | Not changed: the cache helper's behaviour for every cached read on the site, bounded by the 15 minutes, as decisions/055 and 056 record |
 | A failed fit is logged by the fit's service and again by this one | Not changed, and as the table above says: the first line says the fit failed, the second which page lost its forecast |
-| Between seasons the end-to-end test returned at the no-fixtures line without checking a forecast | Fixed: it takes the first of the Premier League and Série A that has a table, and fails if neither does. One plays from August to May and the other from April to December |
+| Between seasons the end-to-end test returned at the no-fixtures line without checking a forecast | Fixed: it takes the first of the Premier League and Série A that has a table, and fails if neither does. Their seasons end at different times of year |
 | Two declaration comments without their record | Fixed, with the three others of the same kind in the two files |
+
+A second review, by another Claude session on 2026-10-12 while Sourcery's
+budget was out, read 038ac69 and found ten things.
+
+| Finding | Outcome |
+|---|---|
+| The end-to-end test moved to the second league on any panel without a table, the failure line included | Fixed: it asserts the no-fixtures line before moving on |
+| The spec's "Impossible" and "Decided" rows, and `simulateTable`'s comment, stated the rule for top places only | Reworded in all three: for a bottom place the two cases swap |
+| The timings disagreed: "a fifth of a second at the most" beside a slowest of 317 ms, and the spec's S10 still a tenth | Reworded here and in S10; the spec's table is named as the prototype's |
+| A split stored before its carry-over entry exists reads as before the split, and could say nothing was left | Fixed in part: nothing is said to be left while any table has a fixture. The rest is the standings' own gap in that window, named in the table above |
+| The pull request said the forecast's table is the page's "by construction" | Reworded: the same stored matches, read through the page's refresh |
+| Série A's months were wrong | The months are gone: the two seasons end at different times of year |
+| `REGULAR_SEASON` defined a second time | It is `cup-stages.ts`'s now |
+| A season's tables were keyed by name | Keyed by group id |
+| A stale read whose competition the fit lacks cached "no panel" for 15 minutes, and no test said otherwise | A test now does; the code was right |
+| `count`'s comment read as if `order` were the current table's order | Reworded |
+
+It also noted comments running past three lines, which are trimmed, that
+`classifySeasonGroups`' comment named two callers of three, and that the
+end-to-end test opened Série A on every run; it is opened only when the
+Premier League has no table.
