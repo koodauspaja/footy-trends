@@ -166,10 +166,18 @@ with nothing done in Railway.
 ### The predictions cron
 
 `npm run predictions -- log`, hourly on the hour (UTC), production only
-(specs/052). It skips `next build`. It writes `live` rows to `predictions`.
-`backtest` rows are written by hand, per environment, after any release that
-adds a model: `DATABASE_URL=<that environment> npm run predictions -- backtest`,
-from a checkout of the commit that environment runs.
+(specs/052). It skips `next build`. It writes `live` rows to `predictions`,
+and then the `backtest` rows of finished matches that have none, of every
+model (specs/057); a row that exists is left as it is.
+
+The whole backtest is still run by hand, per environment:
+`DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
+checkout of the commit that environment runs. It rewrites every row.
+
+- **After a release that adds a model**, so the hour's run does not compute
+  the model's whole history: it would, in about 30 s.
+- **On staging, whenever its backtest rows should be current**: nothing
+  scheduled runs there.
 
 ## Databases
 

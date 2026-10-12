@@ -26,13 +26,16 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-se
 
 /**
  * The predictions log against a real Postgres. The hourly run is set in 2099
- * and the backtest in 1990, so each reads only this suite's rows; every
- * predictions row it causes is deleted either side of each test.
+ * and the backtest in 1990, so the live rows and the rows asserted on are this
+ * suite's. Both also backtest every finished match stored, other suites'
+ * included, so every backtest row in the database is deleted either side of
+ * each test, with this suite's own rows.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
@@ -152,6 +155,55 @@ describe("the hourly run", () => {
       (rows[0]?.drawProbability ?? 0) +
       (rows[0]?.awayProbability ?? 0);
     expect(sum).toBeCloseTo(1, 10);
+  });
+
+  it("writes the backtest rows of a match that has finished, once", async () => {
+    // A second finished match in the competition: unlike the first, it has history.
+    await db.insert(matches).values(
+      footballDataRow({
+        providerMatchId: IDS[9] as number,
+        kickoffAt: at(-50),
+        status: "FINISHED",
+        homeGoals: 0,
+        awayGoals: 2,
+      })
+    );
+
+    // Logged before it kicked off, as every match is: a live row is not a backtest row.
+    await db.insert(predictions).values(
+      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) => ({
+        source: "football-data",
+        providerMatchId: IDS[9] as number,
+        competitionCode: "DED",
+        model,
+        kind: "live",
+        homeProbability: 0.5,
+        drawProbability: 0.3,
+        awayProbability: 0.2,
+        predictedAt: at(-51),
+        kickoffAt: at(-50),
+      }))
+    );
+
+    const first = await runPredictionLog(() => NOW, immediate);
+    const second = await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
+
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+      const rows = await rowsFor(IDS[9] as number, "backtest", model);
+      expect(rows).toHaveLength(1);
+      // Written by the first run and left by the second.
+      expect(rows[0]).toMatchObject({
+        source: "football-data",
+        competitionCode: "DED",
+        kickoffAt: at(-50),
+        predictedAt: NOW,
+      });
+    }
+    // The competition's first match has nothing before it.
+    expect(await rowsFor(IDS[10] as number, "backtest")).toEqual([]);
+    expect(first.backtested).toBeGreaterThanOrEqual(3);
+    expect(second.backtested).toBe(0);
+    expect(first.failures).toEqual([]);
   });
 
   it("moves a rescheduled match's row to its new kickoff", async () => {

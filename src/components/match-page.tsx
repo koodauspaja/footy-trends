@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 import { MatchPrediction } from "@/components/match-prediction";
+import { MatchSurprise } from "@/components/match-surprise";
 import { PageShell } from "@/components/page-shell";
 import { getCompetitionName } from "@/lib/competitions";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
@@ -381,6 +382,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
  *
  * decisions/019-match-page.md
  * decisions/042-head-to-head-view.md
+ * decisions/057-surprise-index.md
  */
 export async function MatchPage(options: Readonly<MatchPageOptions>) {
   const resolved = await resolve(options);
@@ -397,7 +399,10 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
   }
 
   const { view, data } = resolved;
-  const prediction = await MatchPrediction({ stored: data.match });
+  const [prediction, surprise] = await Promise.all([
+    MatchPrediction({ stored: data.match }),
+    MatchSurprise({ stored: data.match }),
+  ]);
 
   return (
     <PageShell heading={`${view.homeName} – ${view.awayName}`}>
@@ -408,6 +413,7 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
         <span className="mx-3 font-semibold">{view.score}</span>
         <TeamName href={view.awayHref} isWinner={view.winnerSide === "away"} name={view.awayName} />
       </p>
+      {surprise}
       <p className="mb-1 text-sm text-muted">{view.kickoff}</p>
       {view.contextLines.map((line) => (
         <p className="text-sm text-muted" key={line}>
