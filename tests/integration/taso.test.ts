@@ -428,3 +428,119 @@ describe("synchronizeGroupTeams concurrency", () => {
     expect(stored).toHaveLength(3);
   });
 });
+
+describe("synchronizeGroupTeams and a table TASO serves as unplayed", () => {
+  const season = 901103;
+
+  function row(
+    groupId: number,
+    teamProviderId: number,
+    points: number,
+    played: number,
+    startingPoints = 0
+  ) {
+    return {
+      categoryId: "VL",
+      competitionCode: "spljp99",
+      seasonId: season,
+      groupId,
+      teamProviderId,
+      teamName: `Team ${teamProviderId}`,
+      startingPoints,
+      points,
+      played,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+    };
+  }
+
+  // The page's refresh and the backfill carry; `replace` is an administrator's refresh.
+  async function sync(rows: ReturnType<typeof row>[], { replace = false } = {}) {
+    await synchronizeGroupTeams(
+      "VL",
+      "spljp99",
+      season,
+      rows as Parameters<typeof synchronizeGroupTeams>[3],
+      db,
+      { carryStartingPoints: !replace }
+    );
+  }
+
+  async function stored() {
+    const rows = await db.select().from(tasoGroupTeams).where(eq(tasoGroupTeams.seasonId, season));
+    return rows
+      .map((team) => [
+        team.groupId,
+        team.teamProviderId,
+        team.points,
+        team.played,
+        team.startingPoints,
+      ])
+      .sort(
+        (left, right) => Number(left[0]) - Number(right[0]) || Number(left[1]) - Number(right[1])
+      );
+  }
+
+  it("writes the unplayed group with each team's stored starting points, and the other group as it comes", async () => {
+    await sync([
+      row(1, 1, 30, 18),
+      row(2, 1, 31, 24, 26),
+      row(2, 2, 25, 24, -3),
+      row(2, 3, 20, 24),
+    ]);
+
+    // Group 1 moves on a match; group 2 comes back at zero, a team gone from it.
+    await sync([row(1, 1, 33, 19), row(2, 1, 0, 0), row(2, 2, 0, 0)]);
+
+    expect(await stored()).toEqual([
+      [1, 1, 33, 19, 0],
+      [2, 1, 0, 0, 26],
+      [2, 2, 0, 0, -3],
+    ]);
+  });
+
+  it("carries the starting points again on the next unplayed snapshot, and drops them for one with figures", async () => {
+    await sync([row(2, 1, 31, 24, 26)]);
+    await sync([row(2, 1, 0, 0)]);
+    await sync([row(2, 1, 0, 0)]);
+    expect(await stored()).toEqual([[2, 1, 0, 0, 26]]);
+
+    await sync([row(2, 1, 34, 25, 27)]);
+    expect(await stored()).toEqual([[2, 1, 34, 25, 27]]);
+  });
+
+  it("takes a group with figures as it comes, a lifted deduction included", async () => {
+    await sync([row(1, 1, 27, 18, -3), row(2, 1, 5, 2)]);
+
+    // Group 2 comes back unplayed. Group 1 has figures and no deduction any
+    // more: that is TASO's answer, and nothing stored is put back into it.
+    await sync([row(1, 1, 33, 19), row(2, 1, 0, 0)]);
+
+    expect(await stored()).toEqual([
+      [1, 1, 33, 19, 0],
+      [2, 1, 0, 0, 0],
+    ]);
+  });
+
+  it("keeps each group's starting points apart when two come back unplayed with the same team", async () => {
+    await sync([row(2, 1, 31, 24, 26), row(3, 1, 12, 6, -3)]);
+
+    await sync([row(2, 1, 0, 0), row(3, 1, 0, 0)]);
+
+    expect(await stored()).toEqual([
+      [2, 1, 0, 0, 26],
+      [3, 1, 0, 0, -3],
+    ]);
+  });
+
+  it("replaces the rows, starting points and all, when it is not asked to carry them", async () => {
+    await sync([row(2, 1, 31, 24, 26)]);
+
+    await sync([row(2, 1, 0, 0)], { replace: true });
+
+    expect(await stored()).toEqual([[2, 1, 0, 0, 0]]);
+  });
+});

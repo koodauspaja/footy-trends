@@ -375,6 +375,10 @@ selector's floor — 2024 for Ykkösliiga, 2015 for the rest.
       published points exactly, for all 71 entries.
 - [ ] A group whose calculation disagrees with TASO's published points renders
       TASO's numbers, no round selector, and the Finnish footnote.
+      Since #628, one exception: where TASO reports a group's table as
+      unplayed, lists no team our table lacks, and ours can be calculated
+      without it, the group renders our own
+      (`decisions/628-zeroed-continuation-tables.md`).
 - [ ] A group with matches but no team rows renders as a match list.
 - [ ] A forfeited match counts toward the table.
 - [ ] A past season's heading shows that season's own name, with `nykyisin
