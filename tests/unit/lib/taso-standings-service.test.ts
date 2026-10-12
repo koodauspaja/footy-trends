@@ -3163,6 +3163,18 @@ describe("getTeamPositionSeries", () => {
     expect(group?.kind).toBe("pass-through");
   });
 
+  it("keeps TASO's rows for an unplayed seeded group when one team's starting point is missing", async () => {
+    // A team with none stored would be calculated without its seed beside
+    // teams that have theirs: a table that looks right and is not.
+    const group = await lowerGroup(
+      (row, index) => ({ ...zeroed(row), startingPoints: index === 0 ? 3 : 0 }),
+      [],
+      "spljp24"
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
   it("keeps TASO's rows for an unplayed seeded group whose rows report no starting points", async () => {
     const group = await lowerGroup(
       (row) => ({ ...zeroed(row), startingPoints: null }),

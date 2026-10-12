@@ -35,7 +35,7 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
 | Decision | Choice | Why |
 |---|---|---|
 | What counts as unplayed | `isUnplayedTable`: points reported for some team, and no team with a match played or a point; a null counted as none. Starting points are not asked about | It is what TASO serves, measured below. A knockout group, whose rows report no points at all, is not a table |
-| Where our own table can stand in | `calculableWithoutTaso`: the group's carry-over is configured, and a seeded group still has a starting point on some row | An unseeded configured group is calculated from its matches and its parent's. A seeded one starts from TASO's starting points, so without them ours would count the group's own matches alone. A group with no entry may be a continuation calculated without its parent |
+| Where our own table can stand in | `calculableWithoutTaso`: the group's carry-over is configured, and in a seeded group every team has a non-zero starting point | An unseeded configured group is calculated from its matches and its parent's. A seeded one starts from TASO's starting points, so a team without one would be calculated from the group's own matches alone, beside teams that have theirs. A zero cannot be told from a starting point TASO has zeroed, so it counts as missing; a team that truly took no point in the regular season leaves its group as TASO's rows. A group with no entry may be a continuation calculated without its parent |
 | A group with no carry-over entry | TASO's rows, as before | No regular-season group has been seen unplayed, and an unconfigured continuation cannot be told from one |
 | The teams in an unplayed table | Every team it lists must be in our table, a team with no points reported included; otherwise TASO's rows | Ours is built from the matches and would drop a team that has none. A table with figures is checked as it always was, on the teams TASO gives points to |
 | Where the rule lives | `reproducesTasoPoints`, the one function that compares | No second rule decides how a group renders |
@@ -78,10 +78,6 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
   points.
 - **A starting point TASO truly lifts while a group has no match played** is
   carried all the same. A forced refresh clears it.
-- **A team that joins a seeded group in the very snapshot that comes back
-  unplayed** has no stored starting point to carry, and is calculated without
-  its seed while the others have theirs. Not seen; a forced refresh once TASO
-  serves the table again corrects it.
 - **An unplayed table served as nulls, not zeros,** has not been seen and is
   not handled: it is taken as a group with no table.
 - **A table that trails its own results** during a season is a different
@@ -111,22 +107,23 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
   | 8 | Every table checked on all its rows |
   | 9 | A group with no carry-over entry trusted |
   | 10 | A seeded group without its starting points trusted |
-  | 11 | A seeded group never trusted |
-  | 12 | Nothing carried, against the unit tests |
-  | 13 | Nothing carried, against Postgres |
-  | 14 | Carried over a starting point the snapshot reports |
-  | 15 | Carried by team alone, across groups, against Postgres |
-  | 16 | The stored rows read for the whole season, against Postgres |
-  | 17 | Carried though not asked, against the unit tests |
-  | 18 | Carried though not asked, against Postgres |
-  | 19 | Stored rows read when no group is unplayed |
-  | 20 | Decided from the raw rows, not the ones written |
-  | 21 | The page's refresh not asking to carry |
-  | 22 | The backfill not asking to carry |
+  | 11 | A seeded group trusted with one team's starting point missing |
+  | 12 | A seeded group never trusted |
+  | 13 | Nothing carried, against the unit tests |
+  | 14 | Nothing carried, against Postgres |
+  | 15 | Carried over a starting point the snapshot reports |
+  | 16 | Carried by team alone, across groups, against Postgres |
+  | 17 | The stored rows read for the whole season, against Postgres |
+  | 18 | Carried though not asked, against the unit tests |
+  | 19 | Carried though not asked, against Postgres |
+  | 20 | Stored rows read when no group is unplayed |
+  | 21 | Decided from the raw rows, not the ones written |
+  | 22 | The page's refresh not asking to carry |
+  | 23 | The backfill not asking to carry |
 
 - **Two first survived and were closed.** A condition that repeated what the
   narrower read already ensures was removed, and two Postgres tests were
-  sharpened so that 15 and 16 fail: two groups coming back unplayed with the
+  sharpened so that 16 and 17 fail: two groups coming back unplayed with the
   same team, and a group with figures whose deduction has been lifted.
 - **Against Postgres**: an unplayed group is written with each team's stored
   starting points while another group moves on and a team TASO dropped goes;
@@ -136,6 +133,14 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
   replaces them.
 - **The backfill's call is read from its source**, as its other choices are:
   the script is run, not imported.
+
+## After the review
+
+Sourcery's review of this design found one thing.
+
+| Finding | Outcome |
+|---|---|
+| A seeded group with a starting point on one team and none on another was shown as ours, the second team calculated without its seed | Fixed: every team of a seeded group must have one. Mutation 11 |
 
 ## How it got here
 

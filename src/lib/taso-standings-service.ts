@@ -1086,15 +1086,16 @@ function isUnplayedTable(
 
 /**
  * Whether an unplayed table for this group can be answered with our own: its
- * carry-over is configured, and a seeded one still has the starting points
- * its table is calculated from. With no entry, ours would lack the parent's
- * matches.
+ * carry-over is configured, and in a seeded one every team still has the
+ * starting point its row is calculated from. With no entry, ours would lack
+ * the parent's matches.
  *
  * decisions/628-zeroed-continuation-tables.md
  */
 function calculableWithoutTaso(entry: CarryOverEntry | null, teamRows: StoredGroupTeam[]): boolean {
   if (entry === null) return false;
-  return !entry.seeded || teamRows.some((row) => (row.startingPoints ?? 0) !== 0);
+  // A zero cannot be told from a starting point TASO has zeroed, so it counts as missing.
+  return !entry.seeded || teamRows.every((row) => (row.startingPoints ?? 0) !== 0);
 }
 
 /**
