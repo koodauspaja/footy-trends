@@ -464,6 +464,19 @@ describe("a domestic league", () => {
     ]);
   });
 
+  it("shows a lone continuation group as one of several, not as the league's single table", async () => {
+    // Kansallinen Liiga's shape: the regular season, then one group of its top six.
+    const upper = group({ groupId: 2, groupName: "Mestaruussarja", parentGroupId: 1 });
+    tablesOf(group({ groupId: 1, groupName: "Runkosarja", matches: [] }), upper);
+
+    const forecast = await getSeasonForecast("taso", "VL", SEASON, SEASON);
+
+    expect(forecast).toMatchObject({ status: "ok", layout: "several" });
+    expect(forecast.status === "ok" && forecast.tables.map((table) => table.groupName)).toEqual([
+      "Mestaruussarja",
+    ]);
+  });
+
   it("plays out only a group's own remaining matches", async () => {
     const pool = group({
       groupId: 1,

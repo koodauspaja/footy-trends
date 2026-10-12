@@ -20,7 +20,7 @@ decide something the spec did not.
 | The season's read, football-data | `getLeagueSeasonMatches`, which is the standings page's own cached read under a name | S16. One read per request shared with the page; a stale season is refreshed on the page's own rule. |
 | The season's read, TASO | `getSeasonTables`: `classifySeasonGroups`' groups with each one's own matches and its parent group | S16. The classification is the page's, so a group is simulated exactly when the page shows our table for it. |
 | A group that has been continued | Not shown: after a split the regular season's teams are all in its continuation groups | S5 says each group's stored fixtures; the regular season's table would otherwise stand beside them with every place settled. |
-| One table or several | One when the season has one table-keeping group, own or pass-through; a match list is not counted | S8. A promotion play-off stored as a match list does not turn a single-table league into pools. |
+| One table or several | One when the season has one table-keeping group, own or pass-through; a match list is not counted, and a group that has been continued is | S8. A promotion play-off stored as a match list does not turn a single-table league into pools. A season that has split is several even when one group continues it, as Kansallinen Liiga's `Mestaruussarja` does: six teams, where top three and bottom three are one figure. The local review before the first push read this as a defect; it is the rule, and a test now says so. |
 | Before a split (S20) | `hasCarryOver` for the season before, and no stored group with a parent in this one | The carry-over configuration is what records that a season split. "The previous stored season" is read as the season before: a league missing a year is not a case any covered competition has. |
 | A pass-through table | `simulated: false`; when no table of the season is ours, the line of S15 | S15. |
 | A season with nothing stored | No panel | The no-fixtures line says matches have been played. Reached only before a new season's fixtures are published. |
@@ -153,6 +153,7 @@ decide something the spec did not.
   | 101 | A group without its parent |
   | 102 | Every season called a split one |
   | 103 | No season called a split one |
+  | 104 | One table or several counted after the continued group is dropped |
 
 - **Two first survived and were closed with a test**: the bottom three counted
   as the bottom two in the runs (27: every bottom-three figure asserted was a

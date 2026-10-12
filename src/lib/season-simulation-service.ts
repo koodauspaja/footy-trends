@@ -98,6 +98,7 @@ async function tasoSeason(
     competitionIdForSeason(code, seasonId - 1)
   );
   const hasSplit = season.tables.some((table) => table.parentGroupId !== null);
+  // Counted with the continued group: a season that has split is never a single table.
   let layout: ForecastLayout = tabled.length === 1 ? "single" : "several";
   if (!hasSplit && splitLastSeason) layout = "before-split";
 
