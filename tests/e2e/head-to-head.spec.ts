@@ -171,7 +171,11 @@ test.describe("The rivalry, signed in", () => {
   });
 
   test("reads Nykyinen vire, then Keskinäinen historia", async ({ page }) => {
-    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+    const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
+
+    // A real pair has a next meeting stored for part of the year only, and its
+    // group is rivalry-prediction.spec.ts's to prove.
+    expect(headings.filter((heading) => heading !== "Seuraava kohtaaminen")).toEqual([
       "Nykyinen vire",
       "Keskinäinen historia",
     ]);

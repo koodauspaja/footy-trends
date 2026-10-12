@@ -14,6 +14,7 @@ import type { PoissonFitResult } from "@/lib/poisson-service";
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/058-rivalry-prediction.md
  */
 
 const { canSeeAnalytics, getHomeBaseline, getEloRatings, getPoissonFit } = vi.hoisted(() => ({
@@ -47,6 +48,7 @@ import {
   PREDICTION_ERROR_MESSAGE,
   PREDICTION_HEADING,
   PREDICTION_SIGNED_OUT_MESSAGE,
+  PredictionBody,
   poissonSentence,
   QUALITY_LINK,
 } from "@/components/match-prediction";
@@ -256,12 +258,40 @@ describe("MatchPrediction", () => {
       baselineSentence(baseline),
       eloSentence("HJK", 1500, "KuPS", 1560),
       POISSON_LINE,
+      "Ennuste perustuu tähän mennessä pelattuihin otteluihin ja muuttuu, kun uusia pelataan.",
       ROUNDING_NOTE,
       QUALITY_LINK,
     ]);
-    // The models' track record, from every `Ennuste`.
-    expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute("href", "/ennusteet");
     expect(getHomeBaseline).toHaveBeenCalledWith("taso", "VL");
+  });
+
+  it("links to the models' track record in the match's own competition", async () => {
+    await renderPanel();
+
+    expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL"
+    );
+  });
+
+  it("links a football-data match to its competition under Ulkomaat", async () => {
+    await renderPanel({
+      source: "football-data",
+      match: {
+        competitionCode: "PL",
+        seasonId: 2026,
+        status: "TIMED",
+        homeTeamProviderId: 11,
+        homeTeamName: "Arsenal FC",
+        awayTeamProviderId: 22,
+        awayTeamName: "Chelsea FC",
+      },
+    } as StoredMatch);
+
+    expect(screen.getByRole("link", { name: QUALITY_LINK })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=ulkomaat&tyyppi=jalkikateen&kilpailu=PL"
+    );
   });
 
   it("reads the match's own competition", async () => {
@@ -357,5 +387,38 @@ describe("MatchPrediction", () => {
     const { container } = await renderPanel(upcoming("SCHEDULED", { categoryId: "MSC" }));
 
     expect(container.firstChild).toBeEmptyDOMElement();
+  });
+});
+
+describe("PredictionBody", () => {
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(false);
+    getHomeBaseline.mockReset().mockResolvedValue(baseline);
+    getEloRatings.mockReset().mockResolvedValue(ratings);
+    getPoissonFit.mockReset().mockResolvedValue(poisson);
+  });
+
+  it("is the panel's rows and lines without its heading, and leaves the gate to its caller", async () => {
+    const body = await PredictionBody({
+      stored: upcoming(),
+      competition: { kind: "taso", code: "VL" },
+    });
+    const { container } = render(<div>{body}</div>);
+
+    expect(tableRows().map(([model]) => model)).toEqual([BASELINE_ROW, ELO_ROW, POISSON_ROW]);
+    expect([...container.querySelectorAll("p")].map((line) => line.textContent)).toContain(
+      POISSON_LINE
+    );
+    expect(screen.getByRole("link", { name: QUALITY_LINK })).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(canSeeAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("reads the models for the competition it is given", async () => {
+    await PredictionBody({ stored: upcoming(), competition: { kind: "taso", code: "M1L" } });
+
+    expect(getHomeBaseline).toHaveBeenCalledWith("taso", "M1L");
+    expect(getEloRatings).toHaveBeenCalledWith("taso");
+    expect(getPoissonFit).toHaveBeenCalledWith("taso");
   });
 });

@@ -4,6 +4,8 @@ import type {
   CompetitionAverages,
   FootballDataMatchRow,
   HeadToHeadResult,
+  NextMeeting,
+  StoredMatch,
   TasoMatchRow,
   TeamForm,
 } from "@/lib/match-service";
@@ -11,13 +13,15 @@ import type { MatchSource } from "@/lib/match-source";
 import { MENS_TEAM } from "@/lib/national-team";
 
 /**
- * The full head-to-head page: its sections (two signed out, four signed in, and a form group
- * while the rivalry is current), the ids it resolves, and the cases with nothing to show. The
+ * The full head-to-head page: its sections (two signed out, four signed in, a form group while
+ * the rivalry is current, and the next meeting's group when one is stored and predicted), the
+ * ids it resolves, and the cases with nothing to show. The
  * record's arithmetic is `head-to-head.test.ts`'s and the row labels are `meeting-labels`'.
  *
  * decisions/042-head-to-head-view.md
  * decisions/044-scorelines-and-goal-averages.md
  * decisions/047-rivalry-page.md
+ * decisions/058-rivalry-prediction.md
  * decisions/529-one-whole-number-parser.md
  */
 
@@ -35,11 +39,37 @@ const getTeamFormMock = vi.fn(
   async (_source: MatchSource, _team: number): Promise<TeamForm> => ({ status: "too-few" })
 );
 
+const getNextMeetingMock = vi.fn(
+  async (
+    _source: MatchSource,
+    _first: number,
+    _second: number,
+    _now: Date
+  ): Promise<NextMeeting> => ({
+    status: "ok",
+    match: null,
+  })
+);
+// `Ennuste`'s rows and lines are match-prediction.test.tsx's. Here the body
+// only has to show which match and competition it was given.
+const predictionBodyMock = vi.fn(
+  async ({
+    stored,
+    competition,
+  }: {
+    stored: StoredMatch;
+    competition: { kind: string; code: string };
+  }) => <p>{`ennuste ${competition.kind} ${competition.code} ${stored.match.providerMatchId}`}</p>
+);
+
 vi.mock("@/lib/match-service", () => ({
   getHeadToHeadHistory: getHeadToHeadHistoryMock,
   getCompetitionAverages: getCompetitionAveragesMock,
   getTeamForm: getTeamFormMock,
+  getNextMeeting: getNextMeetingMock,
 }));
+
+vi.mock("@/components/match-prediction", () => ({ PredictionBody: predictionBodyMock }));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
 // The prompt's button and its sign-in flow are sign-in-prompt.test.tsx's. Here
@@ -105,6 +135,8 @@ warmModules(() => import("@/components/head-to-head-page"));
 // reader of whichever ran before it.
 beforeEach(() => {
   canSeeAnalyticsMock.mockResolvedValue(false);
+  // No next meeting unless a test stores one.
+  getNextMeetingMock.mockResolvedValue({ status: "ok", match: null });
   // The tests of the list and the analysis describe the page with no form
   // group: in 2030 their 2024–2025 fixtures are a rivalry no longer played. The
   // rivalry's tests set their own date.
@@ -868,5 +900,248 @@ describe("the rivalry: current form beside the history", () => {
 
     expect(h2s()).toEqual(["Yhteenveto", "Tulokset", "Kohtaamiset"]);
     expect(getTeamFormMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("the next meeting, predicted", () => {
+  const NOW = new Date("2026-09-29T12:00:00Z");
+
+  // HJK at home to KuPS on 4 October at 17.00 in Helsinki, in Veikkausliiga.
+  function next(over: Partial<TasoMatchRow> = {}): NextMeeting {
+    return {
+      status: "ok",
+      match: {
+        source: "taso",
+        match: meeting({
+          providerMatchId: 77,
+          competitionCode: "spljp26",
+          seasonId: 2026,
+          status: "SCHEDULED",
+          kickoffAt: new Date("2026-10-04T14:00:00Z"),
+          homeGoals: null,
+          awayGoals: null,
+          winner: null,
+          ...over,
+        }),
+      },
+    };
+  }
+
+  function h2s(): Array<string | null> {
+    return screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.setSystemTime(NOW);
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1, kickoffAt: new Date("2025-07-12T16:00:00Z") })],
+    });
+    getNextMeetingMock.mockResolvedValue(next());
+  });
+
+  it("puts Seuraava kohtaaminen first, above the form and the history", async () => {
+    await renderPage();
+
+    expect(h2s()).toEqual(["Seuraava kohtaaminen", "Nykyinen vire", "Keskinäinen historia"]);
+  });
+
+  it("shows the kickoff as the match page formats it, the competition, and the match linking to its page", async () => {
+    await renderPage();
+
+    const group = screen.getByRole("region", { name: "Seuraava kohtaaminen" });
+    expect(within(group).getByText("04.10.2026 klo 17.00 · Veikkausliiga")).toBeInTheDocument();
+    expect(within(group).getByRole("link", { name: "HJK – KuPS" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/77"
+    );
+  });
+
+  it("names the home side first, whichever team the URL names first", async () => {
+    getNextMeetingMock.mockResolvedValue(
+      next({
+        homeTeamProviderId: KUPS,
+        homeTeamName: "KuPS",
+        awayTeamProviderId: HJK,
+        awayTeamName: "HJK",
+      })
+    );
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: "KuPS – HJK" })).toBeInTheDocument();
+  });
+
+  it("asks for the pair's next meeting in the page's own source, as of now", async () => {
+    await renderPage();
+
+    expect(getNextMeetingMock).toHaveBeenCalledWith(ROUTE.source, HJK, KUPS, NOW);
+  });
+
+  it("shows that match's Ennuste body inside the group, for the competition the models know it by", async () => {
+    await renderPage();
+
+    const group = screen.getByRole("region", { name: "Seuraava kohtaaminen" });
+    expect(within(group).getByText("ennuste taso VL 77")).toBeInTheDocument();
+    expect(predictionBodyMock).toHaveBeenCalledWith({
+      stored: (next() as Extract<NextMeeting, { status: "ok" }>).match,
+      competition: { kind: "taso", code: "VL" },
+    });
+  });
+
+  it("has no group when no meeting is stored", async () => {
+    getNextMeetingMock.mockResolvedValue({ status: "ok", match: null });
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+    expect(predictionBodyMock).not.toHaveBeenCalled();
+  });
+
+  it("has no group, and computes no prediction, when the next meeting is a cup tie the models do not cover", async () => {
+    getNextMeetingMock.mockResolvedValue(next({ categoryId: "MSC" }));
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+    expect(predictionBodyMock).not.toHaveBeenCalled();
+  });
+
+  it("has no group when the read fails, and keeps the rest of the page", async () => {
+    getNextMeetingMock.mockResolvedValue({ status: "error" });
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+    expect(screen.getByRole("heading", { level: 3, name: "Kohtaamiset" })).toBeInTheDocument();
+    expect(predictionBodyMock).not.toHaveBeenCalled();
+  });
+
+  it("heads the next meeting and the history when the rivalry's form is hidden", async () => {
+    getHeadToHeadHistoryMock.mockResolvedValue({
+      status: "ok",
+      matches: [meeting({ providerMatchId: 1, kickoffAt: new Date("2023-07-12T16:00:00Z") })],
+    });
+    await renderPage();
+
+    expect(h2s()).toEqual(["Seuraava kohtaaminen", "Keskinäinen historia"]);
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
+    ).toEqual(["Yhteenveto", "Tulokset", "Maalit kilpailuittain", "Kohtaamiset"]);
+    expect(getTeamFormMock).not.toHaveBeenCalled();
+  });
+
+  it("signed out, reads no next meeting and leaves the page as it was", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(false);
+    await renderPage();
+
+    expect(h2s()).toEqual(["Yhteenveto", "Kohtaamiset"]);
+    expect(getNextMeetingMock).not.toHaveBeenCalled();
+    expect(predictionBodyMock).not.toHaveBeenCalled();
+  });
+
+  it("reads no next meeting on a TASO national-team route", async () => {
+    const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+    render(
+      await HeadToHeadPage({
+        source: { kind: "taso", bucket: "national" },
+        basePath: "/maajoukkueet/huuhkajat",
+        nationalTeam: MENS_TEAM,
+        params: Promise.resolve({ a: "1", b: "2" }),
+      })
+    );
+
+    expect(h2s()).toEqual(["Yhteenveto", "Tulokset", "Kohtaamiset"]);
+    expect(getNextMeetingMock).not.toHaveBeenCalled();
+  });
+
+  describe("on football-data", () => {
+    function fdRow(over: Partial<FootballDataMatchRow>): FootballDataMatchRow {
+      return {
+        id: 900,
+        providerMatchId: 900,
+        competitionCode: "PL",
+        seasonId: 2026,
+        kickoffAt: new Date("2025-12-06T15:00:00Z"),
+        matchday: 15,
+        status: "FINISHED",
+        stage: "REGULAR_SEASON",
+        groupName: null,
+        homeTeamProviderId: 57,
+        homeTeamName: "Arsenal FC",
+        awayTeamProviderId: 61,
+        awayTeamName: "Chelsea FC",
+        homeGoals: 1,
+        awayGoals: 1,
+        updatedAt: new Date("2025-12-07T00:00:00Z"),
+        ...over,
+      } as FootballDataMatchRow;
+    }
+
+    async function renderRoute(region: "foreign" | "national-teams", basePath: string) {
+      const { HeadToHeadPage } = await import("@/components/head-to-head-page");
+      render(
+        await HeadToHeadPage({
+          source: { kind: "football-data", region },
+          basePath,
+          params: Promise.resolve({ a: "57", b: "61" }),
+        })
+      );
+    }
+
+    it("names a foreign competition from its own registry and links within the route", async () => {
+      getHeadToHeadHistoryMock.mockResolvedValue({ status: "ok", matches: [fdRow({})] });
+      getNextMeetingMock.mockResolvedValue({
+        status: "ok",
+        match: {
+          source: "football-data",
+          match: fdRow({
+            providerMatchId: 901,
+            status: "TIMED",
+            kickoffAt: new Date("2027-01-16T15:00:00Z"),
+            homeTeamProviderId: 61,
+            homeTeamName: "Chelsea FC",
+            awayTeamProviderId: 57,
+            awayTeamName: "Arsenal FC",
+            homeGoals: null,
+            awayGoals: null,
+          }),
+        },
+      });
+      await renderRoute("foreign", "/ulkomaat");
+
+      const group = screen.getByRole("region", { name: "Seuraava kohtaaminen" });
+      expect(within(group).getByText("16.01.2027 klo 17.00 · Valioliiga")).toBeInTheDocument();
+      expect(within(group).getByRole("link", { name: "Chelsea FC – Arsenal FC" })).toHaveAttribute(
+        "href",
+        "/ulkomaat/ottelu/901"
+      );
+      expect(within(group).getByText("ennuste football-data PL 901")).toBeInTheDocument();
+    });
+
+    it("has no group on the national-team route, whose competitions the models do not cover", async () => {
+      getHeadToHeadHistoryMock.mockResolvedValue({
+        status: "ok",
+        matches: [fdRow({ competitionCode: "EC" })],
+      });
+      getNextMeetingMock.mockResolvedValue({
+        status: "ok",
+        match: {
+          source: "football-data",
+          match: fdRow({
+            providerMatchId: 902,
+            competitionCode: "WC",
+            status: "SCHEDULED",
+            kickoffAt: new Date("2026-11-16T15:00:00Z"),
+            homeGoals: null,
+            awayGoals: null,
+          }),
+        },
+      });
+      await renderRoute("national-teams", "/maajoukkueet");
+
+      expect(
+        screen.queryByRole("heading", { name: "Seuraava kohtaaminen" })
+      ).not.toBeInTheDocument();
+      expect(predictionBodyMock).not.toHaveBeenCalled();
+    });
   });
 });

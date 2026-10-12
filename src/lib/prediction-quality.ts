@@ -5,7 +5,12 @@
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/058-rivalry-prediction.md
  */
+
+import { getCompetitionName } from "./competitions";
+import { getDomesticCompetitionName } from "./domestic-competitions";
+import type { MatchSource } from "./match-source";
 
 /**
  * What happened, from the home side's point of view.
@@ -377,4 +382,32 @@ export function qualityReport(
     binsOmitted: calibration.some(({ bins }) => bins.some((bin) => bin.observed === null)),
     competitions: competitionsOf(everyCompetition, models, competitionOrder),
   };
+}
+
+/**
+ * The page's address for a provider and a kind, filtered to one competition
+ * when one is given.
+ *
+ * decisions/056-accuracy-by-competition.md
+ * decisions/058-rivalry-prediction.md
+ */
+export function qualityHref(
+  source: MatchSource["kind"],
+  kind: "backtest" | "live",
+  competition: string | null = null
+): string {
+  const regionSlug = source === "taso" ? "kotimaa" : "ulkomaat";
+  const kindSlug = kind === "backtest" ? "jalkikateen" : "ennakkoon";
+  const filter = competition === null ? "" : `&kilpailu=${competition}`;
+  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}${filter}`;
+}
+
+/**
+ * A compared competition's name, from its provider's registry.
+ *
+ * decisions/056-accuracy-by-competition.md
+ * decisions/058-rivalry-prediction.md
+ */
+export function comparedCompetitionName(source: MatchSource["kind"], code: string): string {
+  return source === "taso" ? getDomesticCompetitionName(code) : getCompetitionName(code);
 }

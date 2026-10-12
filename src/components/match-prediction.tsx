@@ -6,11 +6,16 @@ import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_HOME_ADVANTAGE, predictElo } from "@/lib/elo";
 import { type EloRatings, getEloRatings } from "@/lib/elo-service";
-import { baselineCompetition, type HomeBaseline } from "@/lib/home-baseline";
+import {
+  type BaselineCompetition,
+  baselineCompetition,
+  type HomeBaseline,
+} from "@/lib/home-baseline";
 import { teamDisplayName } from "@/lib/match-detail";
 import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
 import { type PoissonPrediction, predictPoisson } from "@/lib/poisson";
 import { getPoissonFit, type PoissonFitResult } from "@/lib/poisson-service";
+import { qualityHref } from "@/lib/prediction-quality";
 import { formatSeasonLabel } from "@/lib/seasons";
 
 /**
@@ -37,11 +42,20 @@ export const ELO_ROW = "Elo";
 export const POISSON_ROW = "Poisson";
 export const POISSON_ERROR_MESSAGE = "Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.";
 /**
- * The link to the models' track record, from every `Ennuste`.
+ * The link to the models' track record in the match's competition, from every
+ * `Ennuste`.
  *
  * decisions/054-prediction-quality.md
+ * decisions/058-rivalry-prediction.md
  */
 export const QUALITY_LINK = "Kuinka hyvin ennusteet ovat osuneet?";
+/**
+ * The line saying a prediction is of today, however far ahead its match is.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+export const MOVES_NOTE =
+  "Ennuste perustuu tähän mennessä pelattuihin otteluihin ja muuttuu, kun uusia pelataan.";
 
 const SAME_FOR_EVERY_MATCH =
   "Ei huomioi joukkueita, joten ennuste on sama jokaiselle kilpailun ottelulle.";
@@ -165,8 +179,10 @@ function PredictionTable({ rows }: Readonly<{ rows: readonly PredictionRow[] }>)
  *
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/058-rivalry-prediction.md
  */
 type Sides = {
+  kind: BaselineCompetition["kind"];
   code: string;
   homeTeam: number;
   awayTeam: number;
@@ -252,14 +268,43 @@ function Body({
       )}
       {elo.status === "error" ? <p className="mt-2">{ELO_ERROR_MESSAGE}</p> : null}
       {poisson.status === "error" ? <p className="mt-2">{POISSON_ERROR_MESSAGE}</p> : null}
+      <p className="mt-2 text-muted text-sm">{MOVES_NOTE}</p>
       <p className="mt-2 text-muted text-sm">{ROUNDING_NOTE}</p>
       <p className="mt-2 text-sm">
-        <Link className="hover:underline" href="/ennusteet">
+        <Link className="hover:underline" href={qualityHref(sides.kind, "backtest", sides.code)}>
           {QUALITY_LINK}
         </Link>
       </p>
     </div>
   );
+}
+
+/**
+ * `Ennuste` without its heading, for a match `baselineCompetition` has placed:
+ * the three models' reads, then their rows and lines. The caller gates it.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+export async function PredictionBody({
+  stored,
+  competition,
+}: Readonly<{ stored: StoredMatch; competition: BaselineCompetition }>) {
+  const [baseline, elo, poisson] = await Promise.all([
+    getHomeBaseline(competition.kind, competition.code),
+    getEloRatings(competition.kind),
+    getPoissonFit(competition.kind),
+  ]);
+  const { match } = stored;
+  const sides = {
+    kind: competition.kind,
+    code: competition.code,
+    homeTeam: match.homeTeamProviderId,
+    awayTeam: match.awayTeamProviderId,
+    homeName: teamDisplayName(match.homeTeamProviderId, match.homeTeamName),
+    awayName: teamDisplayName(match.awayTeamProviderId, match.awayTeamName),
+    seasonId: match.seasonId,
+  };
+  return <Body baseline={baseline} elo={elo} poisson={poisson} sides={sides} />;
 }
 
 /**
@@ -278,24 +323,11 @@ export async function MatchPrediction({ stored }: Readonly<{ stored: StoredMatch
   if (competition === null) return null;
 
   const signedIn = await canSeeAnalytics();
-  let body: React.ReactNode = <SignInPrompt message={PREDICTION_SIGNED_OUT_MESSAGE} />;
-  if (signedIn) {
-    const [baseline, elo, poisson] = await Promise.all([
-      getHomeBaseline(competition.kind, competition.code),
-      getEloRatings(competition.kind),
-      getPoissonFit(competition.kind),
-    ]);
-    const { match } = stored;
-    const sides = {
-      code: competition.code,
-      homeTeam: match.homeTeamProviderId,
-      awayTeam: match.awayTeamProviderId,
-      homeName: teamDisplayName(match.homeTeamProviderId, match.homeTeamName),
-      awayName: teamDisplayName(match.awayTeamProviderId, match.awayTeamName),
-      seasonId: match.seasonId,
-    };
-    body = <Body baseline={baseline} elo={elo} poisson={poisson} sides={sides} />;
-  }
+  const body = signedIn ? (
+    await PredictionBody({ stored, competition })
+  ) : (
+    <SignInPrompt message={PREDICTION_SIGNED_OUT_MESSAGE} />
+  );
 
   return (
     <section aria-labelledby={HEADING_ID} className="mt-10">
