@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
-import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 import { QUALITY_LINK } from "@/components/match-prediction";
 import type {
   Chance,
@@ -47,18 +46,38 @@ export function chanceText(chance: Chance): string {
   return percentText(chance.share * 100);
 }
 
+/**
+ * One column: its heading, what a row prints in it, and its width in pixels.
+ * The team's column has none and takes what is left.
+ *
+ * decisions/061-season-simulation.md
+ */
+type ForecastColumn = {
+  key: string;
+  header: string;
+  width?: number;
+  text: (row: ForecastRow) => string;
+};
+
+/**
+ * Column widths, and the least the team's name may have before the table
+ * scrolls sideways. First and last place fit a phone; the five columns of a
+ * single table do not, and scroll there.
+ *
+ * decisions/061-season-simulation.md
+ */
+const POINTS_WIDTH = 72;
+const CHANCE_WIDTH = 76;
+const WIDE_CHANCE_WIDTH = 96;
+const TEAM_MINIMUM = 112;
+
 function chanceColumn(
   key: string,
   header: string,
+  width: number,
   chance: (row: ForecastRow) => Chance
-): DataTableColumn<ForecastRow> {
-  return {
-    key,
-    header,
-    width: COLUMN_WIDTHS.label,
-    align: "right",
-    render: (row) => chanceText(chance(row)),
-  };
+): ForecastColumn {
+  return { key, header, width, text: (row) => chanceText(chance(row)) };
 }
 
 /**
@@ -68,59 +87,107 @@ function chanceColumn(
  *
  * decisions/061-season-simulation.md
  */
-function columnsFor(
-  layout: ForecastLayout,
-  decidesTitle: boolean
-): Array<DataTableColumn<ForecastRow>> {
-  const shared: Array<DataTableColumn<ForecastRow>> = [
-    {
-      key: "team",
-      header: FORECAST_TEAM_HEADER,
-      width: "flex",
-      render: (row) => row.teamName,
-      rowHeader: true,
-    },
+function columnsFor(layout: ForecastLayout, decidesTitle: boolean): ForecastColumn[] {
+  const shared: ForecastColumn[] = [
+    { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
     {
       key: "points",
       header: EXPECTED_POINTS_HEADER,
-      width: COLUMN_WIDTHS.score,
-      align: "right",
-      render: (row) => formatDecimal(row.expectedPoints),
+      width: POINTS_WIDTH,
+      text: (row) => formatDecimal(row.expectedPoints),
     },
   ];
   if (layout === "before-split") {
-    return [...shared, chanceColumn("first", REGULAR_SEASON_WIN_HEADER, (row) => row.first)];
+    return [
+      ...shared,
+      chanceColumn("first", REGULAR_SEASON_WIN_HEADER, WIDE_CHANCE_WIDTH, (row) => row.first),
+    ];
   }
 
-  const first = chanceColumn(
-    "first",
-    decidesTitle ? TITLE_HEADER : TABLE_WIN_HEADER,
-    (row) => row.first
-  );
+  const firstHeader = decidesTitle ? TITLE_HEADER : TABLE_WIN_HEADER;
   return layout === "single"
     ? [
         ...shared,
-        first,
-        chanceColumn("top-three", TOP_THREE_HEADER, (row) => row.topThree),
-        chanceColumn("bottom-three", BOTTOM_THREE_HEADER, (row) => row.bottomThree),
+        chanceColumn("first", firstHeader, WIDE_CHANCE_WIDTH, (row) => row.first),
+        chanceColumn("top-three", TOP_THREE_HEADER, WIDE_CHANCE_WIDTH, (row) => row.topThree),
+        chanceColumn(
+          "bottom-three",
+          BOTTOM_THREE_HEADER,
+          WIDE_CHANCE_WIDTH,
+          (row) => row.bottomThree
+        ),
       ]
-    : [...shared, first, chanceColumn("last", TABLE_LAST_HEADER, (row) => row.last)];
+    : [
+        ...shared,
+        chanceColumn("first", firstHeader, CHANCE_WIDTH, (row) => row.first),
+        chanceColumn("last", TABLE_LAST_HEADER, CHANCE_WIDTH, (row) => row.last),
+      ];
 }
 
+/**
+ * One table's forecast, under the group's name when it has one. Fixed column
+ * widths, so the tables of a season line up; narrower than `DataTable`'s,
+ * whose 240px name column would push the chances off a phone's screen.
+ *
+ * decisions/061-season-simulation.md
+ */
 function ForecastTableView({
   table,
   layout,
 }: Readonly<{ table: ForecastTable; layout: ForecastLayout }>) {
+  const columns = columnsFor(layout, table.decidesTitle);
+  const [team, ...figures] = columns as [ForecastColumn, ...ForecastColumn[]];
+  const minWidth = figures.reduce(
+    (total, column) => total + (column.width as number),
+    TEAM_MINIMUM
+  );
   return (
     <div className="mt-2">
       {table.groupName === null ? null : (
         <h5 className="mb-1 font-medium text-sm">{table.groupName}</h5>
       )}
-      <DataTable
-        columns={columnsFor(layout, table.decidesTitle)}
-        rowKey={(row) => row.teamProviderId}
-        rows={table.rows}
-      />
+      <div className="overflow-x-auto">
+        <table className="w-full table-fixed text-sm" style={{ minWidth: `${minWidth}px` }}>
+          <colgroup>
+            {columns.map((column) => (
+              <col
+                key={column.key}
+                style={column.width === undefined ? undefined : { width: `${column.width}px` }}
+              />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="border-border border-b text-muted">
+              <th className="py-2 pr-2 text-left align-bottom font-medium" scope="col">
+                {team.header}
+              </th>
+              {figures.map((column) => (
+                <th
+                  className="py-2 pl-2 text-right align-bottom font-medium"
+                  key={column.key}
+                  scope="col"
+                >
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row) => (
+              <tr className="border-border-subtle border-b" key={row.teamProviderId}>
+                <th className="py-2 pr-2 text-left font-semibold" scope="row">
+                  {team.text(row)}
+                </th>
+                {figures.map((column) => (
+                  <td className="py-2 pl-2 text-right tabular-nums" key={column.key}>
+                    {column.text(row)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

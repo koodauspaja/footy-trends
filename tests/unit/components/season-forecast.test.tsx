@@ -208,6 +208,41 @@ describe("SeasonForecastBody", () => {
     expect(screen.getByText(BEFORE_SPLIT_NOTE)).toBeDefined();
   });
 
+  it("keeps first and last place within a phone's width, and lets a single table scroll", () => {
+    const widths = (layout: "single" | "several" | "before-split") => {
+      const { container, unmount } = render(
+        <SeasonForecastBody
+          forecast={{ status: "ok", layout, tables: [table({ groupName: "Lohko A" })] }}
+          qualityHref={HREF}
+        />
+      );
+      const found = {
+        minWidth: (container.querySelector("table") as HTMLTableElement).style.minWidth,
+        columns: [...container.querySelectorAll("col")].map((col) => col.style.width),
+        scrolls: container.querySelector("table")?.parentElement?.className,
+      };
+      unmount();
+      return found;
+    };
+
+    // A phone's 375px less the page's two 16px gutters is 343px.
+    expect(widths("several")).toEqual({
+      minWidth: "336px",
+      columns: ["", "72px", "76px", "76px"],
+      scrolls: "overflow-x-auto",
+    });
+    expect(widths("before-split")).toEqual({
+      minWidth: "280px",
+      columns: ["", "72px", "96px"],
+      scrolls: "overflow-x-auto",
+    });
+    expect(widths("single")).toEqual({
+      minWidth: "472px",
+      columns: ["", "72px", "96px", "96px", "96px"],
+      scrolls: "overflow-x-auto",
+    });
+  });
+
   it("says how the figures were made, and links to the model's record", () => {
     render(
       <SeasonForecastBody
