@@ -103,13 +103,13 @@ after its live rows are written (S13, S19):
 
 | | |
 |---|---|
-| What it writes | A `backtest` row, of each of the three models, for every finished match that has none of that model — what `predictions -- backtest` would write for that match |
+| What it writes | A `backtest` row, of each of the three models, for every finished match that has none of that model — what `predictions -- backtest` would write for that match: the same row for the baseline and Elo, and for Poisson a row that can differ in the fourth decimal of a probability, because only the days with a missing row are fitted |
 | What it leaves | A backtest row that exists, even when an earlier match's result arrived or changed after it was written. `predictions -- backtest` by hand still rewrites every row, and is still run after a release that adds a model |
 | If it fails | The live rows stand; the run reports `backtest` among its failures and exits non-zero |
 | Afterwards | The `/ennusteet` backtest reports are dropped from the cache, as the hand-run backtest drops them (specs/056) |
 | Where | Production, where the cron runs. Staging has no cron (specs/052 S11) and is backtested by hand, as now |
 
-**Caching:** none, as specs/049 — one indexed join for one competition-season.
+**Caching:** none, as specs/049 — one join for one competition-season, 6 ms on production (decisions/057, Measured).
 
 ## Edge Cases
 
@@ -129,7 +129,7 @@ after its live rows are written (S13, S19):
 
 ## Performance & Limits
 
-One indexed read of a competition-season's predicted matches.
+One read of a competition-season's predicted matches. It scans `predictions`, which has no index by competition: 6 ms at 57 000 rows, measured, and no index is added for it.
 
 The hourly run's new step replays what it already reads. A whole backtest
 takes about 32 s, most of it Poisson's fit per match day (decisions/055), so

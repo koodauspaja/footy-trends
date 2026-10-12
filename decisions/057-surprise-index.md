@@ -9,6 +9,10 @@ specs/052 S10: backtest rows are no longer written by hand only. The hourly
 run writes the ones that are missing (S13, S19). The whole backtest by hand is
 unchanged.
 
+It also adds to `decisions/603-server-side-records.md`: the hourly run's
+`Predictions run finished` line carries `backtested` beside `refreshed`,
+`logged` and `failures`.
+
 ## Decisions taken
 
 | Decision | Choice | Why |
@@ -179,6 +183,20 @@ the same match, the largest difference in any of the three probabilities:
 
 The first two are what an hour's run does. The page prints whole percents.
 
+The season's list on production, read-only, on 2026-10-12, with `predictions`
+at 56 808 rows:
+
+| Read | Plan | Time |
+|---|---|---|
+| Premier League 2025 | A sequential scan of `predictions`, hashed against the season's matches | 5,5 ms |
+| Veikkausliiga 2026 | Sequential scans of `predictions` and `taso_matches` | 5,9 ms |
+| Kakkonen 2026, the largest domestic competition | The same | 6,0 ms |
+
+The table's one index starts with the provider and the match id, so a read by
+competition scans it. The log grows by roughly 9 000 rows a year, three models
+over some 3 000 matches, so the scan stays in single milliseconds for years;
+no index is added, and the spec no longer calls the read indexed.
+
 ## After the reviews
 
 Sourcery's first full review of #623 found five things.
@@ -217,3 +235,12 @@ one sentence of this record.
 Sonar found one thing on the pull request: `replayPoisson` had grown to a
 cognitive complexity of 17, over its limit of 15, with the `wanted` branch.
 Finding where a day ends is now `endOfDay`; the replay does what it did.
+
+Sourcery's second full review, of f170615 on 2026-10-12, found four things.
+
+| Finding | Outcome |
+|---|---|
+| The season reads scan `predictions`, which has no index by competition | Measured, above, and no index added: 6 ms. The spec said "indexed" and no longer does |
+| The spec's "What it writes" row promised the whole backtest's exact rows | Reworded in the spec: Poisson's can differ in the fourth decimal |
+| `decisions/603-server-side-records.md` lists the hourly run's fields without `backtested` | Records are not edited; this one now says at its head that it adds the field |
+| `missingBacktestRows`'s comment carried the measured difference | Cut: the comment says what the function does, and the difference is under Measured |
