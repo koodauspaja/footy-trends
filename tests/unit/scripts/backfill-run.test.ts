@@ -12,6 +12,7 @@ import { canSkip } from "../../../scripts/backfill-plan";
  * decisions/219-backfill-season-from-the-provider.md
  * decisions/011-current-season-discovery.md
  * decisions/036-halftime-comebacks.md
+ * decisions/628-zeroed-continuation-tables.md
  */
 
 const RAW = readFileSync(path.join(process.cwd(), "scripts", "backfill-run.ts"), "utf8");
@@ -127,5 +128,14 @@ describe("the backfill's refetch flag", () => {
 
     expect(entryPoint).toMatch(/refetch\s*=\s*args\.includes\("--refetch"\)/);
     expect(entryPoint).toMatch(/backfill\(\{[^}]*refetch/);
+  });
+});
+
+// A refetch replaces every stored group row with what TASO serves today, with
+// nobody shown a diff. The starting points are the one thing in those rows the
+// matches cannot give back, so the script asks the sync to carry them.
+describe("the backfill's group standings", () => {
+  it("carries stored starting points into a group TASO now serves as unplayed", () => {
+    expect(SOURCE).toMatch(/synchronizeGroupTeams\([^)]*carryStartingPoints:\s*true/s);
   });
 });
