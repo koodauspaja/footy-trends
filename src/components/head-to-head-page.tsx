@@ -1,13 +1,16 @@
 /**
  * The head-to-head page: every stored meeting between two teams, their record,
- * scorelines and goal averages, and both teams' current form.
+ * scorelines and goal averages, both teams' current form, and their next
+ * meeting as the models predict it.
  *
  * decisions/042-head-to-head-view.md
  * decisions/044-scorelines-and-goal-averages.md
  * decisions/047-rivalry-page.md
+ * decisions/058-rivalry-prediction.md
  */
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import { formatDecimal } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
@@ -17,6 +20,7 @@ import {
   MatchListTable,
   matchDateFormatter,
 } from "@/components/match-list-table";
+import { PredictionBody } from "@/components/match-prediction";
 import { PageShell } from "@/components/page-shell";
 import { RowLink } from "@/components/row-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
@@ -39,11 +43,13 @@ import {
   scoreGrid,
   spansCalendarYears,
 } from "@/lib/head-to-head";
-import { PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
+import { baselineCompetition } from "@/lib/home-baseline";
+import { formatKickoff, PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
   getCompetitionAverages,
   getHeadToHeadHistory,
+  getNextMeeting,
   getTeamForm,
   type HeadToHeadResult,
   type TasoMatchRow,
@@ -58,6 +64,7 @@ import {
   labelTasoRows,
 } from "@/lib/meeting-labels";
 import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
+import { comparedCompetitionName } from "@/lib/prediction-quality";
 import { parseWholeNumber } from "@/lib/provider-ids";
 import { toFinishedMatches } from "@/lib/standings";
 
@@ -75,11 +82,12 @@ const AVERAGES_NOTE =
   "Kotijoukkueen maalit ensin. Kilpailun keskiarvo lasketaan niiden kausien otteluista, joina joukkueet kohtasivat siinä.";
 export const AVERAGES_ERROR_MESSAGE = "Keskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
 /**
- * The two group headings, `FORM_GROUP_HEADING` and `HISTORY_GROUP_HEADING`,
- * shown only together.
+ * The group headings, shown only when the history is not the page's one group.
  *
  * decisions/047-rivalry-page.md
+ * decisions/058-rivalry-prediction.md
  */
+export const NEXT_GROUP_HEADING = "Seuraava kohtaaminen";
 export const FORM_GROUP_HEADING = "Nykyinen vire";
 export const HISTORY_GROUP_HEADING = "Keskinäinen historia";
 
@@ -250,7 +258,7 @@ async function buildView(
 }
 
 /**
- * A section's heading level: `h2` on its own, `h3` once the two groups wrap
+ * A section's heading level: `h2` on its own, `h3` once groups wrap
  * the sections.
  *
  * decisions/047-rivalry-page.md
@@ -475,27 +483,68 @@ async function loadAverages(view: View): Promise<Averages> {
 }
 
 /**
- * Both analysis sections' data, or `null` for a signed-out reader: the gate
- * comes first. The TASO national-team routes have no averages.
+ * What `Seuraava kohtaaminen` shows: the meeting's line, the match and its
+ * page, and `Ennuste`'s body for it.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+type NextGroup = { line: string; match: string; href: string; prediction: React.ReactNode };
+
+/**
+ * The pair's next meeting with its predictions, or `null`: none stored, one in
+ * a competition the models do not cover, or a read that failed.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+async function loadNext(
+  view: View,
+  { source, basePath }: HeadToHeadPageOptions,
+  now: Date
+): Promise<NextGroup | null> {
+  const next = await getNextMeeting(source, view.firstId, view.secondId, now);
+  if (next.status !== "ok" || next.match === null) return null;
+  const competition = baselineCompetition(next.match);
+  if (competition === null) return null;
+
+  const { match } = next.match;
+  const home = teamDisplayName(match.homeTeamProviderId, match.homeTeamName);
+  const away = teamDisplayName(match.awayTeamProviderId, match.awayTeamName);
+  return {
+    line: `${formatKickoff(match.kickoffAt)} · ${comparedCompetitionName(competition.kind, competition.code)}`,
+    match: `${home} – ${away}`,
+    href: `${basePath}/ottelu/${match.providerMatchId}`,
+    prediction: await PredictionBody({ stored: next.match, competition }),
+  };
+}
+
+/**
+ * Both analysis sections' data, the form and the next meeting, or `null` for a
+ * signed-out reader: the gate comes first. The TASO national-team routes have
+ * the grid alone.
  *
  * decisions/044-scorelines-and-goal-averages.md
+ * decisions/047-rivalry-page.md
+ * decisions/058-rivalry-prediction.md
  */
 async function loadAnalysis(
   view: View,
-  source: HeadToHeadPageOptions["source"],
+  options: HeadToHeadPageOptions,
   today: Date
 ): Promise<{
   grid: ScoreGrid;
   averages: Averages | null;
   form: { first: TeamForm; second: TeamForm } | null;
+  next: NextGroup | null;
 } | null> {
   if (!(await canSeeAnalytics())) return null;
+  const { source } = options;
   const isTasoNational = source.kind === "taso" && source.bucket === "national";
-  const [averages, form] = await Promise.all([
+  const [averages, form, next] = await Promise.all([
     isTasoNational ? null : loadAverages(view),
     isTasoNational ? null : loadForm(view, source, today),
+    isTasoNational ? null : loadNext(view, options, today),
   ]);
-  return { grid: scoreGrid(view.analysed, view.firstId), averages, form };
+  return { grid: scoreGrid(view.analysed, view.firstId), averages, form, next };
 }
 
 /**
@@ -667,10 +716,12 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
   }
 
   const { view } = resolved;
-  const analysis = await loadAnalysis(view, options.source, new Date());
-  // The groups appear only together, and only with the form.
+  const analysis = await loadAnalysis(view, options, new Date());
+  // A group is headed only when the history is not the only one.
   const form = analysis?.form ?? null;
-  const level: Level = form === null ? 2 : 3;
+  const next = analysis?.next ?? null;
+  const grouped = form !== null || next !== null;
+  const level: Level = grouped ? 3 : 2;
   const history = (
     <>
       <Summary level={level} view={view} />
@@ -692,28 +743,41 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
 
   return (
     <PageShell heading={`${HEADING}: ${view.first} – ${view.second}`}>
-      {form === null ? (
-        history
-      ) : (
+      {grouped ? (
         <>
-          <Group heading={FORM_GROUP_HEADING} id="h2h-form">
-            <FormBlock
-              basePath={options.basePath}
-              form={form.first}
-              id="h2h-form-first"
-              name={view.first}
-            />
-            <FormBlock
-              basePath={options.basePath}
-              form={form.second}
-              id="h2h-form-second"
-              name={view.second}
-            />
-          </Group>
+          {next === null ? null : (
+            <Group heading={NEXT_GROUP_HEADING} id="h2h-next">
+              <p className="text-muted text-sm">{next.line}</p>
+              <p className="mt-1 mb-4 font-medium text-lg">
+                <Link className="hover:underline" href={next.href}>
+                  {next.match}
+                </Link>
+              </p>
+              {next.prediction}
+            </Group>
+          )}
+          {form === null ? null : (
+            <Group heading={FORM_GROUP_HEADING} id="h2h-form">
+              <FormBlock
+                basePath={options.basePath}
+                form={form.first}
+                id="h2h-form-first"
+                name={view.first}
+              />
+              <FormBlock
+                basePath={options.basePath}
+                form={form.second}
+                id="h2h-form-second"
+                name={view.second}
+              />
+            </Group>
+          )}
           <Group heading={HISTORY_GROUP_HEADING} id="h2h-history">
             {history}
           </Group>
         </>
+      ) : (
+        history
       )}
     </PageShell>
   );

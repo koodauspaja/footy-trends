@@ -18,6 +18,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md
  * decisions/057-surprise-index.md
+ * decisions/058-rivalry-prediction.md
  */
 
 const selectMock = vi.fn();
@@ -329,6 +330,54 @@ describe("getHeadToHeadHistory", () => {
 
     expect(await getHeadToHeadHistory(DOMESTIC, 1, 2)).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalled();
+  });
+});
+
+describe("getNextMeeting", () => {
+  const NOW = new Date("2026-09-29T12:00:00Z");
+
+  it("answers a TASO source with the row its table holds, tagged as TASO's", async () => {
+    const row = tasoRow({ providerMatchId: 5, status: "SCHEDULED" });
+    selectMock.mockReturnValue([row]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({
+      status: "ok",
+      match: { source: "taso", match: row },
+    });
+  });
+
+  it("answers a football-data source with its own table's row, tagged as football-data's", async () => {
+    const row = footballDataRow({ providerMatchId: 6, status: "TIMED" });
+    selectMock.mockReturnValue([row]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(FOREIGN, 57, 61, NOW)).toEqual({
+      status: "ok",
+      match: { source: "football-data", match: row },
+    });
+  });
+
+  it("has no match when neither table stores an upcoming meeting", async () => {
+    selectMock.mockReturnValue([]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({ status: "ok", match: null });
+    expect(await getNextMeeting(FOREIGN, 1, 2, NOW)).toEqual({ status: "ok", match: null });
+  });
+
+  it("reports a failed read as an error, and logs it with both team ids", async () => {
+    const failure = new Error("connection lost");
+    selectMock.mockImplementation(() => {
+      throw failure;
+    });
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: failure, first: 1, second: 2 },
+      "Unable to read the pair's next meeting"
+    );
   });
 });
 

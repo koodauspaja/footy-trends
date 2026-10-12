@@ -4,15 +4,15 @@ import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
-import { getCompetitionName } from "@/lib/competitions";
-import { getDomesticCompetitionName } from "@/lib/domestic-competitions";
 import { ELO_MODEL } from "@/lib/elo";
 import { HOME_BASELINE_MODEL } from "@/lib/home-baseline";
 import type { MatchSource } from "@/lib/match-source";
 import { POISSON_MODEL } from "@/lib/poisson";
 import {
   type CalibrationBin,
+  comparedCompetitionName,
   type QualityReport,
+  qualityHref,
   type RollingPoint,
   SCORE_DECIMALS,
 } from "@/lib/prediction-quality";
@@ -159,21 +159,6 @@ export function parseQualityParams(params: QualityParams): {
     competition:
       typeof named === "string" && qualityCompetitions(source).includes(named) ? named : null,
   };
-}
-
-function hrefFor(
-  source: MatchSource["kind"],
-  kind: PredictionKind,
-  competition: string | null = null
-): string {
-  const regionSlug = source === "taso" ? "kotimaa" : "ulkomaat";
-  const kindSlug = kind === "backtest" ? "jalkikateen" : "ennakkoon";
-  const filter = competition === null ? "" : `&kilpailu=${competition}`;
-  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}${filter}`;
-}
-
-function competitionName(source: MatchSource["kind"], code: string): string {
-  return source === "taso" ? getDomesticCompetitionName(code) : getCompetitionName(code);
 }
 
 function Switch({
@@ -341,9 +326,9 @@ function CompetitionTable({
               <SameRouteLink
                 aria-current={row.code === competition ? "page" : undefined}
                 className={row.code === competition ? "font-semibold" : "underline"}
-                href={hrefFor(source, kind, row.code)}
+                href={qualityHref(source, kind, row.code)}
               >
-                {competitionName(source, row.code)}
+                {comparedCompetitionName(source, row.code)}
               </SameRouteLink>
             </th>
             <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums">
@@ -511,10 +496,10 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       <div className="flex flex-col gap-2">
         <Switch
           options={[
-            { label: "Kotimaa", href: hrefFor("taso", kind), current: source === "taso" },
+            { label: "Kotimaa", href: qualityHref("taso", kind), current: source === "taso" },
             {
               label: "Ulkomaat",
-              href: hrefFor("football-data", kind),
+              href: qualityHref("football-data", kind),
               current: source === "football-data",
             },
           ]}
@@ -523,12 +508,12 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
           options={[
             {
               label: "Jälkikäteen lasketut",
-              href: hrefFor(source, "backtest", competition),
+              href: qualityHref(source, "backtest", competition),
               current: kind === "backtest",
             },
             {
               label: "Ennakkoon tehdyt",
-              href: hrefFor(source, "live", competition),
+              href: qualityHref(source, "live", competition),
               current: kind === "live",
             },
           ]}
@@ -536,8 +521,8 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       </div>
       {competition === null ? null : (
         <p className="mt-4 text-sm">
-          {filteredSentence(competitionName(source, competition))}{" "}
-          <SameRouteLink className="underline" href={hrefFor(source, kind)}>
+          {filteredSentence(comparedCompetitionName(source, competition))}{" "}
+          <SameRouteLink className="underline" href={qualityHref(source, kind)}>
             {ALL_COMPETITIONS_LINK}
           </SameRouteLink>
         </p>

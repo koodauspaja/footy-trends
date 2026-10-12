@@ -11,6 +11,7 @@ import {
   getHeadToHeadHistory,
   getHomeBaseline,
   getMatchPageData,
+  getNextMeeting,
   getOutcomeShares,
   getTeamForm,
   getWorstOpponents,
@@ -371,6 +372,136 @@ describe("the head-to-head history", () => {
     expect(page.headToHead.matches.map((row) => row.providerMatchId)).toEqual([991001]);
     expect(page.headToHead.total).toBe(history.matches.length);
     expect(page.headToHead.total).toBe(3);
+  });
+});
+
+describe("the pair's next meeting", () => {
+  const DOMESTIC = { kind: "taso", bucket: "domestic" } as const;
+  const NATIONAL = { kind: "taso", bucket: "national" } as const;
+  const FOREIGN = { kind: "football-data", region: "foreign" } as const;
+  const NATIONAL_TEAMS = { kind: "football-data", region: "national-teams" } as const;
+  const NOW = new Date("2026-09-01T12:00:00Z");
+  const SOON = new Date("2026-09-12T15:00:00Z");
+  const LATER = new Date("2026-10-03T15:00:00Z");
+
+  function unplayed(overrides: Partial<typeof tasoMatches.$inferInsert>) {
+    return tasoRow({ status: "SCHEDULED", homeGoals: null, awayGoals: null, ...overrides });
+  }
+
+  function nextId(result: Awaited<ReturnType<typeof getNextMeeting>>) {
+    return result.status === "ok" ? (result.match?.match.providerMatchId ?? null) : result.status;
+  }
+
+  it("is the earliest unplayed meeting after now, either side at home, the lower id on a shared kickoff", async () => {
+    await db.insert(tasoMatches).values([
+      // Later, and stored first, so neither insertion order nor a descending
+      // sort can pass for the earliest.
+      unplayed({ providerMatchId: 991006, kickoffAt: LATER }),
+      // The same kickoff twice: the lower id is the answer, with the pair's
+      // sides the other way round.
+      unplayed({ providerMatchId: 991005, kickoffAt: SOON }),
+      unplayed({
+        providerMatchId: 991004,
+        kickoffAt: SOON,
+        homeTeamProviderId: AWAY,
+        awayTeamProviderId: HOME,
+      }),
+      // Earlier than all of them, and none of them the next meeting: played,
+      // kicked off at this very moment with its status lagging, postponed, and
+      // another pair's.
+      tasoRow({ providerMatchId: 991001, kickoffAt: new Date("2026-09-02T15:00:00Z") }),
+      unplayed({ providerMatchId: 991002, kickoffAt: NOW }),
+      unplayed({
+        providerMatchId: 991003,
+        kickoffAt: new Date("2026-09-03T15:00:00Z"),
+        status: "POSTPONED",
+      }),
+      unplayed({
+        providerMatchId: 991007,
+        kickoffAt: new Date("2026-09-04T15:00:00Z"),
+        awayTeamProviderId: OTHER,
+      }),
+    ]);
+
+    const result = await getNextMeeting(DOMESTIC, HOME, AWAY, NOW);
+
+    expect(result.status === "ok" && result.match?.source).toBe("taso");
+    expect(nextId(result)).toBe(991004);
+    // The same meeting whichever team is named first.
+    expect(nextId(await getNextMeeting(DOMESTIC, AWAY, HOME, NOW))).toBe(991004);
+  });
+
+  it("has none when the pair's only stored meetings are played or past", async () => {
+    await db
+      .insert(tasoMatches)
+      .values([
+        tasoRow({ providerMatchId: 991001, kickoffAt: LATER }),
+        unplayed({ providerMatchId: 991002, kickoffAt: new Date("2026-08-30T15:00:00Z") }),
+      ]);
+
+    expect(await getNextMeeting(DOMESTIC, HOME, AWAY, NOW)).toEqual({ status: "ok", match: null });
+  });
+
+  it("keeps the club game and the national teams apart", async () => {
+    await db
+      .insert(tasoMatches)
+      .values([
+        unplayed({ providerMatchId: 991001, kickoffAt: SOON, competitionCode: "maajp90" }),
+        unplayed({ providerMatchId: 991002, kickoffAt: LATER }),
+      ]);
+
+    expect(nextId(await getNextMeeting(DOMESTIC, HOME, AWAY, NOW))).toBe(991002);
+    expect(nextId(await getNextMeeting(NATIONAL, HOME, AWAY, NOW))).toBe(991001);
+  });
+
+  it("reads football-data's table within the route's region, a TIMED match as upcoming as a SCHEDULED one", async () => {
+    const fixture = (overrides: Partial<typeof matches.$inferInsert>) =>
+      footballDataRow({ status: "TIMED", homeGoals: null, awayGoals: null, ...overrides });
+    await db.insert(matches).values([
+      fixture({ providerMatchId: 991003, kickoffAt: LATER, status: "SCHEDULED" }),
+      fixture({
+        providerMatchId: 991002,
+        kickoffAt: SOON,
+        homeTeamProviderId: AWAY,
+        awayTeamProviderId: HOME,
+      }),
+      // Earlier still, in a World Cup: the national-team region's, not this one's.
+      fixture({
+        providerMatchId: 991001,
+        kickoffAt: new Date("2026-09-05T15:00:00Z"),
+        competitionCode: "WC",
+      }),
+      // Played, kicked off already, and another pair's.
+      footballDataRow({ providerMatchId: 991004, kickoffAt: new Date("2026-09-02T15:00:00Z") }),
+      fixture({ providerMatchId: 991005, kickoffAt: NOW }),
+      fixture({
+        providerMatchId: 991006,
+        kickoffAt: new Date("2026-09-04T15:00:00Z"),
+        awayTeamProviderId: OTHER,
+      }),
+    ]);
+
+    const result = await getNextMeeting(FOREIGN, HOME, AWAY, NOW);
+
+    expect(result.status === "ok" && result.match?.source).toBe("football-data");
+    expect(nextId(result)).toBe(991002);
+    expect(nextId(await getNextMeeting(NATIONAL_TEAMS, HOME, AWAY, NOW))).toBe(991001);
+  });
+
+  it("takes the lower id of two football-data meetings sharing a kickoff", async () => {
+    await db.insert(matches).values(
+      [991008, 991007].map((providerMatchId) =>
+        footballDataRow({
+          providerMatchId,
+          kickoffAt: SOON,
+          status: "SCHEDULED",
+          homeGoals: null,
+          awayGoals: null,
+        })
+      )
+    );
+
+    expect(nextId(await getNextMeeting(FOREIGN, HOME, AWAY, NOW))).toBe(991007);
   });
 });
 
