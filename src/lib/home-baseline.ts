@@ -28,8 +28,11 @@ export const HOME_BASELINE_MODEL = "home-baseline-v1";
  * finished, postponed, suspended or cancelled gets no prediction.
  *
  * decisions/051-home-win-baseline.md
+ * decisions/058-rivalry-prediction.md
  */
-const UPCOMING: ReadonlySet<string> = new Set(["SCHEDULED", "TIMED"]);
+export const UPCOMING_STATUSES: readonly string[] = ["SCHEDULED", "TIMED"];
+
+const UPCOMING: ReadonlySet<string> = new Set(UPCOMING_STATUSES);
 
 export type HomeBaseline =
   | {
@@ -50,6 +53,13 @@ export type HomeBaseline =
   | { status: "error" };
 
 /**
+ * A compared competition, as the models know it: the provider and its code.
+ *
+ * decisions/051-home-win-baseline.md
+ */
+export type BaselineCompetition = { kind: MatchSource["kind"]; code: string };
+
+/**
  * The competition a match is predicted from, or `null` when it gets no
  * prediction: not upcoming, or not a compared competition. A TASO match is
  * filed by its `(competition_id, category_id)` pair.
@@ -57,9 +67,7 @@ export type HomeBaseline =
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md
  */
-export function baselineCompetition(
-  stored: StoredMatch
-): { kind: MatchSource["kind"]; code: string } | null {
+export function baselineCompetition(stored: StoredMatch): BaselineCompetition | null {
   if (!UPCOMING.has(stored.match.status)) return null;
 
   if (stored.source === "football-data") {

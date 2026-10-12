@@ -171,6 +171,7 @@ export function ticksFor(min: number, max: number, count: number): number[] {
  * decisions/032-goals-scored-vs-conceded.md
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
 export type LineSeries = {
   /** What the line is, unique within its chart: its key, and `data-series`. */
@@ -181,6 +182,10 @@ export type LineSeries = {
    * A third style, for a reference line and not data.
    */
   dotted?: boolean;
+  /**
+   * A fourth style, for a third line of data.
+   */
+  dashDotted?: boolean;
   /**
    * `false` draws the line without a dot at every point. Marked points are
    * still ringed.
@@ -200,14 +205,29 @@ const DASH = "6 4";
  * decisions/054-prediction-quality.md
  */
 const DOT = "2 4";
+/**
+ * A dash-dotted series' pattern: a dash, then a dot.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+const DASH_DOT = "6 4 2 4";
+
+/**
+ * The styles a line can be drawn in, besides solid.
+ *
+ * decisions/055-poisson-goal-model.md
+ */
+type LineStyle = Readonly<{ dashed?: boolean; dotted?: boolean; dashDotted?: boolean }>;
 
 /**
  * A line's dash pattern, the same for the line and its legend sample.
  *
  * decisions/054-prediction-quality.md
+ * decisions/055-poisson-goal-model.md
  */
-function dashArray(style: Readonly<{ dashed?: boolean; dotted?: boolean }>): string | undefined {
+function dashArray(style: LineStyle): string | undefined {
   if (style.dotted) return DOT;
+  if (style.dashDotted) return DASH_DOT;
   return style.dashed ? DASH : undefined;
 }
 
@@ -356,6 +376,7 @@ export function LineChart({
 
       {series.map((line) => (
         <g
+          data-dash-dotted={line.dashDotted ? "" : undefined}
           data-dashed={line.dashed ? "" : undefined}
           data-dotted={line.dotted ? "" : undefined}
           data-part="series"
@@ -423,7 +444,7 @@ export function LineChart({
 export function LineLegend({
   items,
 }: Readonly<{
-  items: ReadonlyArray<{ label: string; dashed?: boolean; dotted?: boolean }>;
+  items: ReadonlyArray<{ label: string } & LineStyle>;
 }>) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-muted text-sm">

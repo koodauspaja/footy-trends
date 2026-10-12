@@ -6,7 +6,20 @@
  * decisions/042-head-to-head-view.md
  */
 
-import { and, desc, eq, gte, inArray, isNotNull, like, notLike, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  like,
+  notLike,
+  or,
+  sql,
+} from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
@@ -35,7 +48,7 @@ import {
   spansCalendarYears,
   worstOpponents,
 } from "./head-to-head";
-import { type HomeBaseline, homeBaseline } from "./home-baseline";
+import { type HomeBaseline, homeBaseline, UPCOMING_STATUSES } from "./home-baseline";
 import { logger } from "./logger";
 import { hasPlaceholderTeam } from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
@@ -243,6 +256,77 @@ async function tasoHistory(
 const FINISHED_STATUS = "FINISHED";
 
 /**
+ * The pair's next stored meeting, `null` when none is stored, or `error`.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+export type NextMeeting = { status: "ok"; match: StoredMatch | null } | { status: "error" };
+
+/**
+ * The pair's earliest meeting not yet kicked off at `now`, whichever side is
+ * at home, in the source's own region. A kickoff that has passed is not
+ * upcoming, whatever its status still says.
+ *
+ * decisions/058-rivalry-prediction.md
+ */
+export async function getNextMeeting(
+  source: MatchSource,
+  first: number,
+  second: number,
+  now: Date
+): Promise<NextMeeting> {
+  try {
+    if (source.kind === "taso") {
+      const [match] = await db
+        .select()
+        .from(tasoMatches)
+        .where(
+          and(
+            or(
+              and(
+                eq(tasoMatches.homeTeamProviderId, first),
+                eq(tasoMatches.awayTeamProviderId, second)
+              ),
+              and(
+                eq(tasoMatches.homeTeamProviderId, second),
+                eq(tasoMatches.awayTeamProviderId, first)
+              )
+            ),
+            inArray(tasoMatches.status, [...UPCOMING_STATUSES]),
+            gt(tasoMatches.kickoffAt, now),
+            tasoBucketPredicate(source.bucket)
+          )
+        )
+        .orderBy(asc(tasoMatches.kickoffAt), asc(tasoMatches.providerMatchId))
+        .limit(1);
+      return { status: "ok", match: match === undefined ? null : { source: "taso", match } };
+    }
+
+    const codes = competitionsInRegion(source.region).map((competition) => competition.code);
+    const [match] = await db
+      .select()
+      .from(matches)
+      .where(
+        and(
+          or(
+            and(eq(matches.homeTeamProviderId, first), eq(matches.awayTeamProviderId, second)),
+            and(eq(matches.homeTeamProviderId, second), eq(matches.awayTeamProviderId, first))
+          ),
+          inArray(matches.status, [...UPCOMING_STATUSES]),
+          gt(matches.kickoffAt, now),
+          inArray(matches.competitionCode, codes)
+        )
+      )
+      .orderBy(asc(matches.kickoffAt), asc(matches.providerMatchId))
+      .limit(1);
+    return { status: "ok", match: match === undefined ? null : { source: "football-data", match } };
+  } catch (error) {
+    logger.error({ err: error, first, second }, "Unable to read the pair's next meeting");
+    return { status: "error" };
+  }
+}
+
+/**
  * Whether a football-data row has a shoot-out stored, both sides. The stored
  * score includes one, and every aggregate here subtracts it, as
  * `withoutShootout` does for the tables.
@@ -321,6 +405,21 @@ async function tasoSeasonGoals(code: string): Promise<SeasonGoals[]> {
         row.categoryId === categoryIdForSeason(code, row.seasonId)
     )
     .map(({ seasonId, matches: count, goals }) => ({ seasonId, matches: count, goals }));
+}
+
+/**
+ * The earliest season a competition has a stored finished match of, or null
+ * when it has none. A failed read throws.
+ *
+ * decisions/057-surprise-index.md
+ */
+export async function getFirstStoredSeason(
+  kind: MatchSource["kind"],
+  code: string
+): Promise<number | null> {
+  const seasons =
+    kind === "football-data" ? await footballDataSeasonGoals(code) : await tasoSeasonGoals(code);
+  return seasons.length === 0 ? null : Math.min(...seasons.map((season) => season.seasonId));
 }
 
 /**
