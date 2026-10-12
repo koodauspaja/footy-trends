@@ -78,6 +78,9 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
   points.
 - **A starting point TASO truly lifts while a group has no match played** is
   carried all the same. A forced refresh clears it.
+- **A seeded group whose starting points were already replaced by zeros**,
+  before this change or by a forced refresh, has nothing left to carry. It
+  keeps TASO's rows, as before, until TASO serves the table again.
 - **An unplayed table served as nulls, not zeros,** has not been seen and is
   not handled: it is taken as a group with no table.
 - **A table that trails its own results** during a season is a different
@@ -136,11 +139,14 @@ Nothing else is kept from the stored rows, so nothing in them can go stale.
 
 ## After the review
 
-Sourcery's review of this design found one thing.
+Sourcery's three reviews of this design found three things, three more, then three.
 
 | Finding | Outcome |
 |---|---|
 | A seeded group with a starting point on one team and none on another was shown as ours, the second team calculated without its seed | Fixed: every team of a seeded group must have one. Mutation 11 |
+| Starting points lost before this change cannot be restored | Not changed: there is no source to restore them from. It is listed under what is not solved |
+| Two syncs at once, with different teams or groups in their snapshots, can leave rows of both | Not changed: the delete and the upsert are as they were (decisions/196), and so is that outcome |
+| Two declaration comments ran to four lines | Shortened to three |
 
 ## How it got here
 

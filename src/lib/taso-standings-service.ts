@@ -752,10 +752,9 @@ export async function synchronizeGroupTeams(
 }
 
 /**
- * The snapshot, with the starting points stored for a team put back where a
- * group has come back unplayed and without them. A table's other figures are
- * the matches'; a deduction or a carried total is TASO's alone. Reads nothing
- * when no group of the snapshot is unplayed.
+ * The snapshot, with each team's stored starting point put back where a group
+ * has come back unplayed and without it: the one figure the matches cannot
+ * give back. Reads nothing when no group of the snapshot is unplayed.
  *
  * decisions/628-zeroed-continuation-tables.md
  */
@@ -1087,8 +1086,7 @@ function isUnplayedTable(
 /**
  * Whether an unplayed table for this group can be answered with our own: its
  * carry-over is configured, and in a seeded one every team still has the
- * starting point its row is calculated from. With no entry, ours would lack
- * the parent's matches.
+ * starting point its row is calculated from.
  *
  * decisions/628-zeroed-continuation-tables.md
  */
