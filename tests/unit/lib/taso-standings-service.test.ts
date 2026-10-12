@@ -3017,9 +3017,10 @@ describe("getTeamPositionSeries", () => {
   async function lowerGroup(
     change: (row: ReturnType<typeof groupTeam>, index: number) => ReturnType<typeof groupTeam>,
     listed: ReturnType<typeof groupTeam>[] = [],
-    competitionId = SPLIT_SEASON
+    competitionId = SPLIT_SEASON,
+    stored: (match: ReturnType<typeof game>) => boolean = () => true
   ) {
-    const matches = splitSeason(competitionId);
+    const matches = splitSeason(competitionId).filter(stored);
     let index = 0;
     const rows = verifiedRows(matches, competitionId).map((row) =>
       row.groupId === 3 ? change(row, index++) : row
@@ -3132,6 +3133,20 @@ describe("getTeamPositionSeries", () => {
   it("keeps TASO's numbers when it reports points and no matches played", async () => {
     // Points without a match are a carried total, not an unplayed table.
     const group = await lowerGroup((row) => ({ ...row, points: 40, played: 0 }));
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's rows for an unplayed split group when a team's regular-season matches are not stored", async () => {
+    // Team 3's regular season is missing: its row would count the split
+    // group's own match alone, beside a team whose row counts both.
+    const group = await lowerGroup(
+      zeroed,
+      [],
+      SPLIT_SEASON,
+      (match) =>
+        match.groupId !== 1 || (match.homeTeamProviderId !== 3 && match.awayTeamProviderId !== 3)
+    );
 
     expect(group?.kind).toBe("pass-through");
   });

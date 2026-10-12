@@ -1085,15 +1085,21 @@ function isUnplayedTable(
 
 /**
  * Whether an unplayed table for this group can be answered with our own: its
- * carry-over is configured, and in a seeded one every team still has the
- * starting point its row is calculated from.
+ * carry-over is configured, and every team has what its row is calculated
+ * from, a starting point where seeded and the parent group's matches where not.
  *
  * decisions/628-zeroed-continuation-tables.md
  */
-function calculableWithoutTaso(entry: CarryOverEntry | null, teamRows: StoredGroupTeam[]): boolean {
+function calculableWithoutTaso(
+  entry: CarryOverEntry | null,
+  teamRows: StoredGroupTeam[],
+  seasonMatches: MatchRow[]
+): boolean {
   if (entry === null) return false;
   // A zero cannot be told from a starting point TASO has zeroed, so it counts as missing.
-  return !entry.seeded || teamRows.every((row) => (row.startingPoints ?? 0) !== 0);
+  if (entry.seeded) return teamRows.every((row) => (row.startingPoints ?? 0) !== 0);
+  const inParent = teamIdsInGroup(seasonMatches, entry.parent);
+  return teamRows.every((row) => inParent.has(row.teamProviderId));
 }
 
 /**
@@ -1108,7 +1114,8 @@ function calculableWithoutTaso(entry: CarryOverEntry | null, teamRows: StoredGro
 function reproducesTasoPoints(
   standings: TeamStanding[],
   teamRows: StoredGroupTeam[],
-  entry: CarryOverEntry | null
+  /** Whether our table could stand in for an unplayed one of TASO's. */
+  calculable: boolean
 ): boolean {
   // At least one row has points: `buildGroup` returns before calling this
   // when none does.
@@ -1117,7 +1124,7 @@ function reproducesTasoPoints(
   );
 
   const calculated = new Set(standings.map((team) => team.teamProviderId));
-  const unplayed = isUnplayedTable(teamRows) && calculableWithoutTaso(entry, teamRows);
+  const unplayed = calculable && isUnplayedTable(teamRows);
 
   return (
     standings.every((team) => {
@@ -1959,7 +1966,8 @@ function buildGroup(
   }
 
   const entry = carryOverEntry(categoryId, competitionId, groupId);
-  if (!reproducesTasoPoints(fullSeason, teamRows, entry)) {
+  const calculable = calculableWithoutTaso(entry, teamRows, seasonMatches);
+  if (!reproducesTasoPoints(fullSeason, teamRows, calculable)) {
     return {
       kind: "pass-through",
       groupId,
