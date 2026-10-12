@@ -1087,6 +1087,8 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
       groups: GroupStandingsResult[];
       /** Returned so a caller never reads them a second time. */
       teamRows: StoredGroupTeam[];
+      /** The matches are stored rows TASO could not be asked to refresh. */
+      refreshFailed: boolean;
     }
   | { status: "empty" | "error" }
 > {
@@ -1110,7 +1112,7 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
     .sort((left, right) => left - right)
     .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId));
 
-  return { status: "ok", matches: seasonMatches, groups, teamRows };
+  return { status: "ok", matches: seasonMatches, groups, teamRows, refreshFailed };
 });
 
 /**
@@ -1831,7 +1833,8 @@ export type SeasonTable = {
 
 /**
  * Every stored group of a season as the standings page classifies it, read
- * through the page's own refresh of matches and group rows.
+ * through the page's own refresh of matches and group rows. `refreshFailed`
+ * when the matches are stored rows TASO could not be asked to refresh.
  *
  * decisions/061-season-simulation.md
  */
@@ -1840,7 +1843,9 @@ export async function getSeasonTables(
   competitionId: string,
   seasonId: number,
   activeSeasonId: number
-): Promise<{ status: "ok"; tables: SeasonTable[] } | { status: "empty" | "error" }> {
+): Promise<
+  { status: "ok"; tables: SeasonTable[]; refreshFailed: boolean } | { status: "empty" | "error" }
+> {
   const classified = await classifySeasonGroups(
     categoryId,
     competitionId,
@@ -1851,6 +1856,7 @@ export async function getSeasonTables(
 
   return {
     status: "ok",
+    refreshFailed: classified.refreshFailed,
     tables: classified.groups.map((group) => ({
       groupId: group.groupId,
       groupName: group.groupName,

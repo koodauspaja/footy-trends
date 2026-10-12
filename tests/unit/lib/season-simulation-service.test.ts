@@ -23,7 +23,10 @@ const mocks = vi.hoisted(() => ({
         competitionId: string,
         season: number,
         active: number
-      ) => Promise<{ status: "ok"; tables: SeasonTable[] } | { status: "empty" | "error" }>
+      ) => Promise<
+        | { status: "ok"; tables: SeasonTable[]; refreshFailed: boolean }
+        | { status: "empty" | "error" }
+      >
     >(),
   hasCarryOver: vi.fn<(categoryId: string, competitionId: string) => boolean>(),
   loggerError: vi.fn(),
@@ -349,6 +352,30 @@ describe("the cache", () => {
   });
 });
 
+describe("the cache, for a domestic league", () => {
+  it.each([
+    [true, "a forecast from stored rows TASO could not refresh is not kept"],
+    [false, "a forecast from a fresh read is kept"],
+  ])("marks the value degraded: %s — %s", async (refreshFailed) => {
+    const fetched: Array<{ degraded: boolean }> = [];
+    mocks.getCachedUnlessDegraded.mockImplementation(async (_key, _ttl, fetcher) => {
+      const result = await fetcher();
+      fetched.push(result);
+      return result.value;
+    });
+    mocks.getSeasonTables.mockResolvedValue({
+      status: "ok",
+      tables: [group({ groupId: 1 })],
+      refreshFailed,
+    });
+
+    const forecast = await getSeasonForecast("taso", "VL", SEASON, SEASON);
+
+    expect(forecast.status).toBe("ok");
+    expect(fetched.map((result) => result.degraded)).toEqual([refreshFailed]);
+  });
+});
+
 describe("failure", () => {
   // The line says which read failed, in the error it carries.
   const logged = (source: string, code: string, message: string) => [
@@ -406,7 +433,7 @@ describe("failure", () => {
 
 describe("a domestic league", () => {
   function tablesOf(...tables: SeasonTable[]) {
-    mocks.getSeasonTables.mockResolvedValue({ status: "ok", tables });
+    mocks.getSeasonTables.mockResolvedValue({ status: "ok", tables, refreshFailed: false });
   }
   const asInput = (table: SeasonTable, simulated = true) => ({
     groupName: table.groupName,

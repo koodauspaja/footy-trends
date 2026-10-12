@@ -32,12 +32,18 @@ import { getSeasonTables, hasCarryOver } from "./taso-standings-service";
  */
 const FORECAST_CACHE_TTL_SECONDS = 15 * 60;
 
-/** football-data's stage for a league's own matches; older rows carry none. */
+/**
+ * football-data's stage for a league's own matches; older rows carry none.
+ *
+ * decisions/061-season-simulation.md
+ */
 const REGULAR_SEASON = "REGULAR_SEASON";
 
 /**
  * A season's tables and fixtures, or null when nothing is stored. `stale`
  * when the provider could not be asked and stored rows were served.
+ *
+ * decisions/061-season-simulation.md
  */
 type SeasonRead = { layout: ForecastLayout; tables: SeasonTableInput[]; stale: boolean } | null;
 
@@ -104,7 +110,7 @@ async function tasoSeason(
 
   return {
     layout,
-    stale: false,
+    stale: season.refreshFailed,
     tables: tabled
       .filter((table) => !continued.has(table.groupId))
       .map((table) => ({

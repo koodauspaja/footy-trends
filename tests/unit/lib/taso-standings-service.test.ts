@@ -4313,6 +4313,7 @@ describe("getSeasonTables", () => {
     const groups = standings.status === "ok" ? standings.groups : [];
     expect(season).toEqual({
       status: "ok",
+      refreshFailed: false,
       tables: [
         {
           groupId: 1,
@@ -4352,6 +4353,20 @@ describe("getSeasonTables", () => {
     expect(season.status === "ok" && season.tables).toMatchObject([
       { groupId: 1, kind: "pass-through", standings: [] },
     ]);
+  });
+
+  it("says when the matches are stored rows TASO could not refresh", async () => {
+    // Stale rows of the season in progress, and a provider that does not answer.
+    mockStoredMatches([
+      match({ seasonId: ACTIVE_SEASON, updatedAt: new Date(Date.now() - 60 * 60 * 1000) }),
+    ]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO is down"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("TASO is down"));
+
+    const season = await getSeasonTables(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(season).toMatchObject({ status: "ok", refreshFailed: true });
+    expect(season.status === "ok" && season.tables.map((table) => table.groupId)).toEqual([1]);
   });
 
   it("reports a season with nothing stored as empty", async () => {
