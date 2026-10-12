@@ -75,8 +75,10 @@ test.describe("Home and away panel, signed in", () => {
   });
 
   test("adds up to the table's row — across a Veikkausliiga split", async ({ page }) => {
-    // KuPS, 2026: the Mestaruussarja row counts the regular season too.
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+    // KuPS, 2022: the Mestaruussarja row counts the regular season too. A
+    // season long over: while one is being played, the provider's table trails
+    // its results for hours after a match.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2022");
     const row = page
       .getByRole("heading", { name: "Mestaruussarja", level: 2 })
       .locator("xpath=following::table[1]")
