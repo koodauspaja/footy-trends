@@ -204,7 +204,10 @@ async function backfillTasoSeason(
     if (!hasGroups) {
       const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
       const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
+      // A table TASO now serves at zero keeps the starting points stored for it.
+      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams, undefined, {
+        carryStartingPoints: true,
+      });
       groupCount = `${teams.length} group rows`;
     }
 

@@ -15,6 +15,7 @@ import type { TableVolatilitySeries } from "@/lib/table-volatility";
  * decisions/050-table-volatility.md
  * decisions/057-surprise-index.md
  * decisions/061-season-simulation.md
+ * decisions/629-fold-side-by-side.md
  */
 
 const {
@@ -415,6 +416,35 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       expect(screen.queryByText(STORED_SEASONS_NOTE)).toBeNull();
     }
   );
+});
+
+describe("Kilpailut rinnakkain, folded", () => {
+  it("is the one group a reader opens, closed on every load, its heading the thing to press", async () => {
+    const { container } = await renderSection();
+
+    const folds = [...container.querySelectorAll("details")];
+    expect(folds).toHaveLength(1);
+    const [fold] = folds;
+    expect(fold?.open).toBe(false);
+    // The marker, hidden from assistive technology, then the group's heading.
+    const summary = fold?.querySelector("summary");
+    expect(summary?.textContent).toBe(`▸${SIDE_BY_SIDE_HEADING}`);
+    expect(summary?.querySelector("[aria-hidden=true]")?.textContent).toBe("▸");
+    expect(summary?.querySelector("h3")?.textContent).toBe(SIDE_BY_SIDE_HEADING);
+  });
+
+  it("holds the comparison table and nothing of the other groups", async () => {
+    const { container } = await renderSection();
+
+    const fold = container.querySelector("details");
+    const headings = [...(fold?.querySelectorAll("h3, h4") ?? [])].map((h) => h.textContent);
+    expect(headings).toEqual([SIDE_BY_SIDE_HEADING, HOME_ADVANTAGE_HEADING]);
+    expect(fold?.querySelector("table")).not.toBeNull();
+    // Still the group's own region, named by its heading.
+    expect(fold?.parentElement?.getAttribute("aria-labelledby")).toBe(
+      fold?.querySelector("h3")?.id
+    );
+  });
 });
 
 describe("CompetitionAnalyticsSection, signed out", () => {
