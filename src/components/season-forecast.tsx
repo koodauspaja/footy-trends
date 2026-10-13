@@ -34,6 +34,20 @@ export const NOT_SIMULATED_MESSAGE =
   "Kauden ennustetta ei lasketa, koska sarjataulukko näytetään Palloliiton tiedoista sellaisenaan.";
 
 /**
+ * The line naming the tables a forecast leaves out, joined as Finnish joins a
+ * list. Only ever given one or more.
+ *
+ * decisions/638-forecast-names-left-out-groups.md
+ */
+export function leftOutText(names: readonly string[]): string {
+  if (names.length === 1) {
+    return `${names[0]} ei ole mukana, koska sen sarjataulukko näytetään Palloliiton tiedoista sellaisenaan.`;
+  }
+  const listed = `${names.slice(0, -1).join(", ")} ja ${names.at(-1)}`;
+  return `${listed} eivät ole mukana, koska niiden sarjataulukot näytetään Palloliiton tiedoista sellaisenaan.`;
+}
+
+/**
  * A chance as printed: a whole percent, `< 1 %` below one and `> 99 %` from
  * 99,5 up, with `0 %` and `100 %` kept for a place the table has settled.
  *
@@ -193,11 +207,12 @@ function ForecastTableView({
 }
 
 /**
- * The season forecast: a table per simulated table of the season, what the
- * figures are, and a link to the model's record in the competition, or the
- * line saying why there is no forecast.
+ * The season forecast: a table per simulated table of the season, the tables
+ * left out, what the figures are, and a link to the model's record in the
+ * competition, or the line saying why there is no forecast.
  *
  * decisions/061-season-simulation.md
+ * decisions/638-forecast-names-left-out-groups.md
  */
 export function SeasonForecastBody({
   forecast,
@@ -221,6 +236,9 @@ export function SeasonForecastBody({
           table={named ? table : { ...table, groupName: null }}
         />
       ))}
+      {forecast.leftOut.length === 0 ? null : (
+        <p className="mt-2 text-muted text-sm">{leftOutText(forecast.leftOut)}</p>
+      )}
       <p className="mt-2 text-muted text-sm">{FORECAST_NOTE}</p>
       {forecast.layout === "before-split" ? (
         <p className="mt-2 text-muted text-sm">{BEFORE_SPLIT_NOTE}</p>

@@ -311,22 +311,26 @@ export type ForecastTable = {
 
 /**
  * A season's forecast, or why there is none: nothing left to play, no table
- * of ours to simulate, nothing to show at all, or a failure.
+ * of ours to simulate, nothing to show at all, or a failure. `leftOut` names
+ * the tables that are not ours, beside the ones that were simulated.
  *
  * decisions/061-season-simulation.md
+ * decisions/638-forecast-names-left-out-groups.md
  */
 export type SeasonForecast =
-  | { status: "ok"; layout: ForecastLayout; tables: ForecastTable[] }
+  | { status: "ok"; layout: ForecastLayout; tables: ForecastTable[]; leftOut: string[] }
   | { status: "no-fixtures" }
   | { status: "not-simulated" }
   | { status: "unavailable" }
   | { status: "error" };
 
 /**
- * The forecast of every simulated table of a season. Nothing is left to play
- * only when no table has a fixture, simulated or not.
+ * The forecast of every simulated table of a season, and the names of the
+ * tables left out. Nothing is left to play only when no table has a fixture,
+ * simulated or not.
  *
  * decisions/061-season-simulation.md
+ * decisions/638-forecast-names-left-out-groups.md
  */
 export function seasonForecast(
   layout: ForecastLayout,
@@ -356,5 +360,8 @@ export function seasonForecast(
         })
       ),
     })),
+    leftOut: tables.flatMap((table) =>
+      table.simulated || table.groupName === null ? [] : [table.groupName]
+    ),
   };
 }

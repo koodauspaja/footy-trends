@@ -1,12 +1,19 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Chance, ForecastRow, ForecastTable } from "@/lib/season-simulation";
+import type {
+  Chance,
+  ForecastLayout,
+  ForecastRow,
+  ForecastTable,
+  SeasonForecast,
+} from "@/lib/season-simulation";
 
 /**
  * The season forecast panel: its three column sets, how a chance is printed,
  * its lines and its link.
  *
  * decisions/061-season-simulation.md
+ * decisions/638-forecast-names-left-out-groups.md
  */
 
 // `Ennuste`'s own link string; its component reads the models, which this panel does not.
@@ -23,6 +30,7 @@ import {
   FORECAST_HEADING,
   FORECAST_NOTE,
   FORECAST_TEAM_HEADER,
+  leftOutText,
   NO_FIXTURES_MESSAGE,
   NOT_SIMULATED_MESSAGE,
   REGULAR_SEASON_WIN_HEADER,
@@ -57,6 +65,14 @@ function table(overrides: Partial<ForecastTable> = {}): ForecastTable {
     rows: [team(1), team(2)],
     ...overrides,
   };
+}
+
+function ok(
+  layout: ForecastLayout,
+  tables: ForecastTable[],
+  leftOut: string[] = []
+): Extract<SeasonForecast, { status: "ok" }> {
+  return { status: "ok", layout, tables, leftOut };
 }
 
 const headers = (container: HTMLElement = document.body) =>
@@ -102,6 +118,23 @@ describe("the strings the spec agreed", () => {
   });
 });
 
+describe("leftOutText", () => {
+  it("names one table left out", () => {
+    expect(leftOutText(["Mestaruussarja"])).toBe(
+      "Mestaruussarja ei ole mukana, koska sen sarjataulukko näytetään Palloliiton tiedoista sellaisenaan."
+    );
+  });
+
+  it("joins two with ja, and more with commas before it", () => {
+    expect(leftOutText(["Mestaruussarja", "Haastajasarja"])).toBe(
+      "Mestaruussarja ja Haastajasarja eivät ole mukana, koska niiden sarjataulukot näytetään Palloliiton tiedoista sellaisenaan."
+    );
+    expect(leftOutText(["Lohko A", "Lohko B", "Lohko C"])).toBe(
+      "Lohko A, Lohko B ja Lohko C eivät ole mukana, koska niiden sarjataulukot näytetään Palloliiton tiedoista sellaisenaan."
+    );
+  });
+});
+
 describe("chanceText", () => {
   it("prints a whole percent", () => {
     expect(chanceText(open(0.614))).toBe("61 %");
@@ -129,7 +162,7 @@ describe("SeasonForecastBody", () => {
   it("shows a season with one table: points, the title, top three and bottom three", () => {
     render(
       <SeasonForecastBody
-        forecast={{ status: "ok", layout: "single", tables: [table({ groupName: "Ykkösliiga" })] }}
+        forecast={ok("single", [table({ groupName: "Ykkösliiga" })])}
         qualityHref={HREF}
       />
     );
@@ -157,6 +190,7 @@ describe("SeasonForecastBody", () => {
       <SeasonForecastBody
         forecast={{
           status: "ok",
+          leftOut: [],
           layout: "several",
           tables: [
             table({ groupName: "Mestaruussarja", rows: [team(1), team(2)] }),
@@ -207,6 +241,7 @@ describe("SeasonForecastBody", () => {
       <SeasonForecastBody
         forecast={{
           status: "ok",
+          leftOut: [],
           layout: "before-split",
           tables: [table({ groupName: "Runkosarja", decidesTitle: false })],
         }}
@@ -223,7 +258,7 @@ describe("SeasonForecastBody", () => {
     const widths = (layout: "single" | "several" | "before-split") => {
       const { container, unmount } = render(
         <SeasonForecastBody
-          forecast={{ status: "ok", layout, tables: [table({ groupName: "Lohko A" })] }}
+          forecast={ok(layout, [table({ groupName: "Lohko A" })])}
           qualityHref={HREF}
         />
       );
@@ -255,17 +290,36 @@ describe("SeasonForecastBody", () => {
   });
 
   it("says how the figures were made, and links to the model's record", () => {
-    render(
-      <SeasonForecastBody
-        forecast={{ status: "ok", layout: "single", tables: [table()] }}
-        qualityHref={HREF}
-      />
-    );
+    render(<SeasonForecastBody forecast={ok("single", [table()])} qualityHref={HREF} />);
 
     expect(screen.getByText(FORECAST_NOTE)).toBeDefined();
     expect(screen.queryByText(BEFORE_SPLIT_NOTE)).toBeNull();
     const link = screen.getByRole("link", { name: "Kuinka hyvin ennusteet ovat osuneet?" });
     expect(link.getAttribute("href")).toBe(HREF);
+  });
+
+  it("names the tables left out under the ones shown, before how the figures were made", () => {
+    const { container } = render(
+      <SeasonForecastBody
+        forecast={ok("several", [table({ groupName: "Karsintasarja" })], ["Mestaruussarja"])}
+        qualityHref={HREF}
+      />
+    );
+
+    const line = screen.getByText(leftOutText(["Mestaruussarja"]));
+    const following = (other: Element) =>
+      line.compareDocumentPosition(other) === Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(following(container.querySelector("table") as Element)).toBe(false);
+    expect(following(screen.getByText(FORECAST_NOTE))).toBe(true);
+  });
+
+  it("has no such line when every table of the season is shown", () => {
+    const { container } = render(
+      <SeasonForecastBody forecast={ok("single", [table()])} qualityHref={HREF} />
+    );
+
+    expect(container.textContent).not.toContain("mukana");
+    expect(container.querySelectorAll("p")).toHaveLength(2);
   });
 
   it.each([
@@ -291,6 +345,7 @@ describe("two tables under one name", () => {
       <SeasonForecastBody
         forecast={{
           status: "ok",
+          leftOut: [],
           layout: "several",
           tables: [
             table({ groupId: 4, groupName: "Lohko", rows: [team(1)] }),

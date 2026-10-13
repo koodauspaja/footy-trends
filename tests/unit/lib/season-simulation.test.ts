@@ -265,6 +265,7 @@ describe("seasonForecast", () => {
           rows: simulateTable([row(1, 3), row(2, 0)], [{ homeTeam: 1, awayTeam: 2, ...homeWin() }]),
         },
       ],
+      leftOut: [],
     });
     expect(forecast.status === "ok" && forecast.tables[0]?.rows[0]?.expectedPoints).toBe(6);
   });
@@ -364,6 +365,32 @@ describe("seasonForecast", () => {
       status: "not-simulated",
     });
     expect(seasonForecast("single", [], homeWin)).toEqual({ status: "not-simulated" });
+  });
+
+  it("names the tables that are not ours beside the ones simulated, in the page's order", () => {
+    const forecast = seasonForecast(
+      "several",
+      [
+        table({ groupName: "Mestaruussarja", simulated: false }),
+        table({ groupName: "Karsintasarja" }),
+        table({ groupName: "Haastajasarja", simulated: false, fixtures: [] }),
+      ],
+      homeWin
+    );
+
+    expect(forecast).toMatchObject({
+      tables: [{ groupName: "Karsintasarja" }],
+      leftOut: ["Mestaruussarja", "Haastajasarja"],
+    });
+  });
+
+  it("names no table when all are simulated, nor one stored without a name", () => {
+    expect(
+      seasonForecast("several", [table({ groupName: "A" }), table({ groupName: "B" })], homeWin)
+    ).toMatchObject({ leftOut: [] });
+    expect(
+      seasonForecast("several", [table(), table({ simulated: false })], homeWin)
+    ).toMatchObject({ leftOut: [] });
   });
 
   it("leaves out a fixture the model cannot predict", () => {

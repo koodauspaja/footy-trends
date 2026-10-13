@@ -319,8 +319,8 @@ describe("the cache", () => {
     await getSeasonForecast("taso", "VL", SEASON, SEASON);
 
     expect(mocks.getCachedUnlessDegraded.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
-      ["forecast:v1:football-data:PL:2026", 900],
-      ["forecast:v1:taso:VL:2026", 900],
+      ["forecast:v2:football-data:PL:2026", 900],
+      ["forecast:v2:taso:VL:2026", 900],
     ]);
   });
 
@@ -500,6 +500,19 @@ describe("a domestic league", () => {
     expect(forecast.status === "ok" && forecast.tables).toHaveLength(1);
   });
 
+  it("names neither a match list nor a continued group as left out", async () => {
+    tablesOf(
+      group({ groupId: 1, groupName: "Runkosarja", kind: "pass-through", standings: [] }),
+      group({ groupId: 2, groupName: "Mestaruussarja", parentGroupId: 1 }),
+      group({ groupId: 5, kind: "match-list", standings: [] })
+    );
+
+    expect(await getSeasonForecast("taso", "VL", SEASON, SEASON)).toMatchObject({
+      status: "ok",
+      leftOut: [],
+    });
+  });
+
   it("after a split simulates each continuation group and drops the group they continue", async () => {
     const upper = group({ groupId: 2, groupName: "Mestaruussarja", parentGroupId: 1 });
     const lower = group({ groupId: 3, groupName: "Karsintasarja", parentGroupId: 1 });
@@ -553,7 +566,7 @@ describe("a domestic league", () => {
     );
   });
 
-  it("leaves a pass-through group out, and says so when it is the only table", async () => {
+  it("leaves a pass-through group out by name, and says so when it is the only table", async () => {
     const ours = group({ groupId: 1 });
     const theirs = group({ groupId: 2, kind: "pass-through", standings: [] });
     tablesOf(ours, theirs);
@@ -561,7 +574,7 @@ describe("a domestic league", () => {
     expect(mixed.status === "ok" && mixed.tables.map((table) => table.groupName)).toEqual([
       "Group 1",
     ]);
-    expect(mixed).toMatchObject({ layout: "several" });
+    expect(mixed).toMatchObject({ layout: "several", leftOut: ["Group 2"] });
 
     tablesOf(theirs);
     expect(await getSeasonForecast("taso", "VL", SEASON, SEASON)).toEqual({
