@@ -92,14 +92,16 @@ test.describe("Home-win baseline, signed in", () => {
   }) => {
     await page.goto(PATH(UPCOMING_ID));
 
-    await expect(panel(page).getByRole("columnheader")).toHaveText([
+    // The predictions table is the panel's first; the scoreline grid follows it.
+    const predictions = panel(page).getByRole("table").first();
+    await expect(predictions.getByRole("columnheader")).toHaveText([
       "Malli",
       "Kotivoitto",
       "Tasapeli",
       "Vierasvoitto",
     ]);
     // The baseline first, then Elo, then Poisson, three whole percentages each.
-    const rows = panel(page).getByRole("row");
+    const rows = predictions.getByRole("row");
     await expect(rows).toHaveCount(4);
     for (const [index, model] of [
       [1, "Perustaso"],
@@ -132,6 +134,47 @@ test.describe("Home-win baseline, signed in", () => {
     expect(headings[at + 1]).toBe("Aiemmat kohtaamiset");
   });
 
+  test("an upcoming league match shows the Poisson model's scoreline grid under its line", async ({
+    page,
+  }) => {
+    await page.goto(PATH(UPCOMING_ID));
+
+    await expect(
+      panel(page).getByText("Tulosten todennäköisyydet Poisson-mallin mukaan:")
+    ).toBeVisible();
+    const grid = panel(page).getByRole("table").nth(1);
+    const labels = ["0", "1", "2", "3", "4", "5+"];
+    // Home goals down, away goals across.
+    await expect(grid.getByRole("columnheader")).toHaveText([
+      "E2E Koti ↓ / E2E Vieras →",
+      ...labels,
+    ]);
+    await expect(grid.getByRole("rowheader")).toHaveText(labels);
+    const cells = await grid.getByRole("cell").allTextContents();
+    expect(cells).toHaveLength(36);
+    for (const cell of cells) expect(cell).toMatch(/^(<1|\d{1,2})\u00a0%$/);
+
+    // The one outlined cell is the score the Poisson line names.
+    const line = await panel(page)
+      .getByText(/^Poisson: odotetut maalit/)
+      .textContent();
+    const [, home, away, share] = /todennäköisin tulos (\d)–(\d) \((\d{1,2})\u00a0%\)/.exec(
+      line ?? ""
+    ) as RegExpExecArray;
+    const marked = grid.locator("td[data-marked]");
+    await expect(marked).toHaveCount(1);
+    await expect(marked).toHaveText(`${share}\u00a0%`);
+    await expect(marked).toHaveCSS("font-weight", "700");
+    await expect(
+      grid
+        .getByRole("row")
+        .nth(Number(home) + 1)
+        .getByRole("cell")
+        .nth(Number(away))
+    ).toHaveAttribute("data-marked", "");
+    await expect(panel(page).getByText("5+ tarkoittaa viittä tai useampaa maalia.")).toBeVisible();
+  });
+
   test("a finished match has no prediction", async ({ page }) => {
     await page.goto(PATH(FINISHED_ID));
 
@@ -161,5 +204,7 @@ test.describe("Home-win baseline, signed out", () => {
     expect(html).not.toContain("Perustaso");
     expect(html).not.toContain("Elo:");
     expect(html).not.toContain("Poisson");
+    expect(html).not.toContain("data-level");
+    expect(html).not.toContain("Tulosten todennäköisyydet");
   });
 });

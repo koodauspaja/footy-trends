@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   averageText,
-  goalsLabel,
   goalsLine,
   homeLine,
   mostCommonSentence,
   playedLine,
   recordLine,
-  shadeLevel,
 } from "@/components/head-to-head-page";
+import { goalsLabel, shadeLevel } from "@/components/score-grid-table";
 import {
   type AnalysedMeeting,
   competitionGroups,
