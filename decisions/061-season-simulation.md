@@ -37,12 +37,14 @@ decide something the spec did not.
 | A table's name | An `h5` with the group's name above each table of several, and before a split; a single-table season's one table is not named | The panel's heading is an `h4`, and a league's one table is the page's own. |
 | The link (S21) | `qualityHref(kind, "backtest", code)` and `Ennuste`'s `QUALITY_LINK` string | The address and the words the match page already uses. |
 
-## Where this differs from the spec
+## Where the spec was made to say what is built
 
-| The spec | Built | Why |
+Two things the first review of the merged branch found described here and not in the spec. The spec now states both.
+
+| The spec said | Built, and now in the spec | Why |
 |---|---|---|
-| "The current table: as the standings page computes it" | football-data's is computed from regular-season matches only | S14 says a match of another stage is not in the table. See above: the difference cannot be seen while a fixture remains. |
-| "A group with no fixture left while another has: shown" | Shown, except a group that has been continued | Its teams are in the continuation groups. |
+| S16: "The current table: as the standings page computes it" | football-data's is calculated from regular-season matches only (S16, S14) | S14 says a match of another stage is not in the table. The difference cannot be seen while a fixture remains |
+| S17: "A group with no fixture left while another has: shown" | Shown, except a group that has been continued (S17) | Its teams are in the continuation groups |
 
 ## What the tests prove, and how
 
