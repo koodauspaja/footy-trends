@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signedInAs, waitForSession } from "./session";
 
 /**
  * Veikkausliiga's standings page, end to end: split seasons and their round
@@ -114,6 +115,23 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
       has: page.getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 }),
     });
     await expect(knockout.getByRole("listitem")).toHaveCount(0);
+  });
+
+  test("names the same positions to a signed-in reader", async ({ page }) => {
+    await signedInAs(page, "Matti Meikäläinen");
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
+    await waitForSession(page);
+
+    const section = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Runkosarja", level: 2 }) });
+    await expect(section.getByRole("listitem")).toHaveText([
+      "Sija 1: Kultaa",
+      "Sija 4: Putoaa Ykköseen",
+    ]);
+    await expect(
+      page.getByText("Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.")
+    ).toHaveCount(1);
   });
 
   test("a knockout group renders its matches, with no standings columns", async ({ page }) => {
