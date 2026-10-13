@@ -146,6 +146,7 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   | 69 | The zone run exiting 0 on a failure |
   | 70 | --zones running the full backfill after |
   | 71 | --zones not checked for a conflict |
+  | 72 | Every competition asked for its levels on a standings read |
 
 - **One first survived and was closed.** Mutation 28 was not seen while the
   Postgres fixture gave its second season another competition id as well; the
