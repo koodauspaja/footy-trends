@@ -46,6 +46,18 @@ Two things the first review of the merged branch found described here and not in
 | S16: "The current table: as the standings page computes it" | football-data's is calculated from regular-season matches only (S16, S14) | S14 says a match of another stage is not in the table. The difference cannot be seen while a fixture remains |
 | S17: "A group with no fixture left while another has: shown" | Shown, except a group that has been continued (S17) | Its teams are in the continuation groups |
 
+## After the review of the merged branch
+
+`main` was merged in on 2026-10-13 to resolve two conflicts with #629, and Sourcery's full review of the result found six things.
+
+| Finding | Outcome |
+|---|---|
+| A failed refresh of the group rows is not reported, so the forecast is cached as fresh | Not changed: stored rows that disagree with refreshed matches make the group TASO's, which is not simulated (S15), and that answer is cached for 15 minutes like any other |
+| Two requests missing the key at once can leave the older forecast cached | Not changed: as every cached report (decisions/055, decisions/056) |
+| A season with no fixture left that is still the provider's season in progress has a panel | As the spec: the no-fixtures line |
+| A fixture left in a group that is not simulated goes unseen | A match-list group: as the spec, which counts tables. A continued group with a regular-season match postponed past the split is not handled; it has not occurred in the stored seasons |
+| This record listed two differences from the spec | The spec now states both |
+
 ## What the tests prove, and how
 
 - **Every mutation below was caught**, one row each, so the count is the
