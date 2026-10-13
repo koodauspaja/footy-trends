@@ -1282,7 +1282,6 @@ describe("normalizeGroupLevels", () => {
     ["a count that is not a number", "1,1,x,0,0,0,0,0,0,0"],
     ["a count with a fraction", "1,1.5,0,0,0,0,0,0,0,0"],
     ["a negative count", "1,-1,0,0,0,0,0,0,0,0"],
-    ["an empty count", "1,,0,0,0,0,0,0,0,0"],
     ["a count with a space", "1, 1,0,0,0,0,0,0,0,0"],
     ["a count no column holds", "1,99999999999,0,0,0,0,0,0,0,0"],
     ["fewer than ten counts", "1,1,6,0,1,1"],
@@ -1294,6 +1293,26 @@ describe("normalizeGroupLevels", () => {
       { categoryId: "M1L", competitionId: "spljp26", groupId: 7 },
       "Unreadable TASO zone levels"
     );
+  });
+
+  it("reads an empty count as a level with none, as older seasons send it", () => {
+    // Veikkausliiga 2022's Runkosarja.
+    const rows = levelsOf({
+      next_stage_levels: "6,6,0,0,0,0,,,,",
+      next_stage_level_texts: ["Mestaruussarja", "Haastajasarja", "", "", "", "", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => [row.level, row.teamCount, row.label])).toEqual([
+      [1, 6, "Mestaruussarja"],
+      [2, 6, "Haastajasarja"],
+    ]);
+    expect(levelsOf({ next_stage_levels: ",2,,,,,,,," }).map((row) => row.level)).toEqual([2]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("still takes a string of only commas that is not ten parts as unreadable", () => {
+    expect(levelsOf({ next_stage_levels: ",,," })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
   });
 
   it("logs counts that are not a string as unreadable", () => {

@@ -473,7 +473,7 @@ export type TasoGroup = {
    * a source for the mapping: older seasons report `"0"`.
    */
   import_match_group_id?: string;
-  /** Ten comma-separated counts: how many places each level of the table takes. */
+  /** Ten comma-separated counts, how many places each level takes; `""` for none. */
   next_stage_levels?: string;
   /** Ten labels, one per level; `""` for a level that leads nowhere. */
   next_stage_level_texts?: string[];
@@ -616,7 +616,8 @@ const LEVELS_PER_GROUP = 10;
 
 /**
  * The ten counts of `next_stage_levels`, or null when the string is not ten
- * whole numbers a column can hold.
+ * whole numbers a column can hold. An empty part is a level with no count:
+ * older seasons send `"6,6,0,0,0,0,,,,"`.
  *
  * decisions/063-competition-zones.md
  */
@@ -625,6 +626,10 @@ function parseLevelCounts(levels: string): number[] | null {
   if (parts.length !== LEVELS_PER_GROUP) return null;
   const counts: number[] = [];
   for (const part of parts) {
+    if (part === "") {
+      counts.push(0);
+      continue;
+    }
     if (!/^\d+$/.test(part)) return null;
     const count = optionalNumber(part);
     if (count === null) return null;

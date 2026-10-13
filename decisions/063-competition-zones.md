@@ -24,7 +24,8 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
 | Decision | Choice | Why |
 |---|---|---|
 | A level's stored number | TASO's own, 1 to 10, with gaps where a level has no count | It is the identity TASO gives it, and the order is the same. A running count would renumber a level when an earlier one gains a count |
-| A level string that cannot be read | All or nothing: no level of that group, one `warn` line | S15, Miikka, 2026-10-13. A string is readable when it is exactly ten parts, each of digits only and no larger than an `integer` column |
+| A level string that cannot be read | All or nothing: no level of that group, one `warn` line | S15, Miikka, 2026-10-13. A string is readable when it is exactly ten parts, each empty or of digits only and no larger than an `integer` column |
+| An empty part | A level with no count, read as zero | Found by running the backfill against the test database on 2026-10-13: Veikkausliiga 2017, 2019, 2021 and 2022 send `"6,6,0,0,0,0,,,,"`, and 2021 and 2022 carry labels. Taken as unreadable, two seasons the spec expects to show zones would show none. It is how TASO writes "no count", not a broken string, so S15 is not what decides it |
 | A group that publishes no counts | Nothing stored, no log line: the field missing or `""` | The spec's `warn` is for counts that cannot be read. A group that sends none is not a failure, and a line for each on every sync would be noise. The spec's Edge Cases has the row now |
 | A label | Trimmed; empty, missing or not a string is no label | Spec, Edge Cases. The array is read by index, so a short one leaves the later levels unlabelled and not shifted |
 | Where the levels are written | Inside `synchronizeGroupTeams`, which takes them as a required argument and replaces the season's levels in the transaction that replaces its rows | Agreed with Miikka before any code, 2026-10-13. Three callers write group rows; a second function beside the first is one a caller can forget, as #630 showed for a parallel path |
@@ -147,6 +148,7 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   | 70 | --zones running the full backfill after |
   | 71 | --zones not checked for a conflict |
   | 72 | Every competition asked for its levels on a standings read |
+  | 73 | An empty count taken as unreadable |
 
 - **One first survived and was closed.** Mutation 28 was not seen while the
   Postgres fixture gave its second season another competition id as well; the
@@ -157,6 +159,11 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   succeed; a standings read returns a finished season's levels in order
   without asking TASO; and the backfill writes levels, leaves every team row
   as it was, `updated_at` included, and names the season it could not read.
+- **Run for real against the test database**, 2026-10-13: `npm run backfill --
+  --zones` over eleven stored seasons left `taso_group_teams` at the same
+  2 167 rows and the same checksum, wrote the seasons TASO answered for, and
+  named the three it could not read, one of them a real `500` for
+  Veikkausliiga 2025. That run is what found the empty counts above.
 - **The scripts are read from their source**, as the backfill's other choices
   are: that `--zones` returns before the full run, is checked for a conflict
   before the work loads, and that a reset empties the new table.

@@ -74,7 +74,8 @@ requests, of which 3 came back `500` with an empty body twice running
 
 Each group carries `next_stage_levels`, ten counts in one comma-separated
 string (`"1,1,6,0,1,1,0,0,0,0"`), and `next_stage_level_texts`, an array of ten
-labels. Positions are handed out from the top of
+labels. Seasons up to 2022 leave an unset count empty: Veikkausliiga 2022's
+`Runkosarja` reads `"6,6,0,0,0,0,,,,"` (seen on 2026-10-13). Positions are handed out from the top of
 the group in level order; a level with a count and no label is a stretch of
 the table that leads nowhere. Ykkösliiga 2026 reads `1,1,6,0,1,1`:
 
@@ -156,6 +157,7 @@ that cannot be read already shows the page's own error.
 | A group with no stored level, or none labelled (every season before 2021) | The table as today |
 | A count that is not a whole number, or a string that is not ten counts | No level of that group is stored, its table renders as today, and one `warn` line is logged (S15) |
 | A group that publishes no counts at all (the field missing or empty) | Nothing stored, and no log line |
+| An empty part among the ten (`"6,6,0,0,0,0,,,,"`) | A level with no count, as a `0` is; the string is readable |
 | A label missing from the array, or not text | No label |
 | A label that names two outcomes, or none (`Säilyy / Putoaa`, `Jatkokolmannekselle 5 kotiottelua`) | Shown as written |
 | A pass-through group | Its levels, on TASO's own order |
