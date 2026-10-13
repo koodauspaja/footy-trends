@@ -44,11 +44,16 @@ export const ELO_ROW = "Elo";
 export const POISSON_ROW = "Poisson";
 export const POISSON_ERROR_MESSAGE = "Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.";
 /**
- * The lines above and under the Poisson model's scoreline grid.
+ * The line above the Poisson model's scoreline grid.
  *
  * decisions/062-scoreline-probability-grid.md
  */
 export const SCORE_GRID_INTRO = "Tulosten todennäköisyydet Poisson-mallin mukaan:";
+/**
+ * The line under that grid, saying what its last row and column hold.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
 export const SCORE_GRID_CAP_NOTE = "5+ tarkoittaa viittä tai useampaa maalia.";
 /**
  * The link to the models' track record in the match's competition, from every
@@ -123,7 +128,7 @@ export function eloSentence(
 export function poissonSentence(
   homeName: string,
   awayName: string,
-  { homeGoals, awayGoals, score }: PoissonPrediction
+  { homeGoals, awayGoals, score }: Pick<PoissonPrediction, "homeGoals" | "awayGoals" | "score">
 ): string {
   return `Poisson: odotetut maalit ${homeName} ${formatDecimal(homeGoals)} – ${awayName} ${formatDecimal(awayGoals)}; todennäköisin tulos ${score.home}–${score.away} (${percentText(score.probability * 100)}).`;
 }

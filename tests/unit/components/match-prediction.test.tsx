@@ -179,11 +179,9 @@ describe("poissonSentence", () => {
   it("names each side's expected goals to one decimal, then the most likely score and its whole percentage", () => {
     expect(
       poissonSentence("HJK", "KuPS", {
-        prediction: { home: 0.48, draw: 0.27, away: 0.25 },
         homeGoals: 1.64,
         awayGoals: 1.06,
         score: { home: 2, away: 1, probability: 0.116 },
-        grid: [],
       })
     ).toBe("Poisson: odotetut maalit HJK 1,6 – KuPS 1,1; todennäköisin tulos 2–1 (12\u00a0%).");
   });
