@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
+import type { SeasonForecast } from "@/lib/season-simulation";
 import type { SeasonSurprises } from "@/lib/surprise";
 import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
@@ -13,6 +14,7 @@ import type { TableVolatilitySeries } from "@/lib/table-volatility";
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/050-table-volatility.md
  * decisions/057-surprise-index.md
+ * decisions/061-season-simulation.md
  * decisions/629-fold-side-by-side.md
  */
 
@@ -22,18 +24,25 @@ const {
   getOutcomeShares,
   getTableVolatility,
   getSeasonSurprises,
+  getSeasonForecast,
 } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
   getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
   getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
   getSeasonSurprises: vi.fn<() => Promise<SeasonSurprises>>(),
+  getSeasonForecast: vi.fn<() => Promise<SeasonForecast>>(),
 }));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
 vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
 vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
 vi.mock("@/lib/surprise-service", () => ({ getSeasonSurprises }));
+vi.mock("@/lib/season-simulation-service", () => ({ getSeasonForecast }));
+// `Ennuste`'s link string, which the forecast panel reuses; its component reads the models.
+vi.mock("@/components/match-prediction", () => ({
+  QUALITY_LINK: "Kuinka hyvin ennusteet ovat osuneet?",
+}));
 // The prompt's sign-in flow is sign-in-prompt.test.tsx's; here it only has to
 // show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
@@ -67,6 +76,7 @@ import {
   volatilitySentence,
   windowSentence,
 } from "@/components/competition-analytics";
+import { FORECAST_ERROR_MESSAGE, FORECAST_HEADING } from "@/components/season-forecast";
 import { SURPRISES_ERROR_MESSAGE, SURPRISES_HEADING } from "@/components/season-surprises";
 
 const inProgress = { seasonId: 2025, matches: 60, perGame: 3.1, inProgress: true };
@@ -148,6 +158,30 @@ const surprises: SeasonSurprises = {
   ],
 };
 
+const settled = { share: 1, settled: true };
+const forecast: SeasonForecast = {
+  status: "ok",
+  layout: "single",
+  tables: [
+    {
+      groupId: 0,
+      groupName: null,
+      decidesTitle: true,
+      rows: [
+        {
+          teamProviderId: 57,
+          teamName: "Arsenal FC",
+          expectedPoints: 81.3,
+          first: settled,
+          last: settled,
+          topThree: settled,
+          bottomThree: settled,
+        },
+      ],
+    },
+  ],
+};
+
 const seasonLabel = (season: number) => `${season}/${String(season + 1).slice(2)}`;
 
 async function renderSection({
@@ -180,6 +214,8 @@ beforeEach(() => {
   getTableVolatility.mockResolvedValue(volatility);
   getSeasonSurprises.mockReset();
   getSeasonSurprises.mockResolvedValue(surprises);
+  getSeasonForecast.mockReset();
+  getSeasonForecast.mockResolvedValue({ status: "unavailable" });
 });
 
 describe("the strings the spec agreed", () => {
@@ -221,6 +257,54 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       ["H3", SIDE_BY_SIDE_HEADING],
       ["H4", HOME_ADVANTAGE_HEADING],
     ]);
+  });
+
+  it("puts the season's forecast first in Tämä kausi, above the surprises", async () => {
+    getSeasonForecast.mockResolvedValue(forecast);
+    await renderSection();
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.slice(0, 4)).toEqual([
+      ANALYTICS_HEADING,
+      THIS_SEASON_HEADING,
+      FORECAST_HEADING,
+      SURPRISES_HEADING,
+    ]);
+    expect(screen.getByRole("heading", { level: 4, name: FORECAST_HEADING })).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(within(panel).getByRole("rowheader").textContent).toBe("Arsenal FC");
+  });
+
+  it("asks for the forecast of the page's own season, with the season in progress", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+
+    // The page's season first, then the season in progress: 2024 is a finished one.
+    expect(getSeasonForecast).toHaveBeenCalledWith("taso", "VL", 2024, 2025);
+  });
+
+  it("links the forecast to the models' record in this competition", async () => {
+    getSeasonForecast.mockResolvedValue(forecast);
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(within(panel).getByRole("link").getAttribute("href")).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL"
+    );
+  });
+
+  it("shows the forecast's failure line in its own panel", async () => {
+    getSeasonForecast.mockResolvedValue({ status: "error" });
+    await renderSection();
+
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(panel.textContent).toBe(`${FORECAST_HEADING}${FORECAST_ERROR_MESSAGE}`);
+  });
+
+  it("has no forecast panel where the season has none", async () => {
+    await renderSection();
+
+    expect(screen.queryByRole("region", { name: FORECAST_HEADING })).toBeNull();
+    expect(screen.queryByText(FORECAST_HEADING)).toBeNull();
   });
 
   it("asks for the competition's own seasons, with the season in progress", async () => {
@@ -380,6 +464,7 @@ describe("CompetitionAnalyticsSection, signed out", () => {
     expect(getOutcomeShares).not.toHaveBeenCalled();
     expect(getTableVolatility).not.toHaveBeenCalled();
     expect(getSeasonSurprises).not.toHaveBeenCalled();
+    expect(getSeasonForecast).not.toHaveBeenCalled();
   });
 });
 
@@ -400,6 +485,8 @@ describe("CompetitionAnalyticsSection where the spec has none", () => {
       expect(getOutcomeShares).not.toHaveBeenCalled();
       expect(getTableVolatility).not.toHaveBeenCalled();
       expect(getSeasonSurprises).not.toHaveBeenCalled();
+      expect(getSeasonForecast).not.toHaveBeenCalled();
+      expect(getSeasonForecast).not.toHaveBeenCalled();
     }
   );
 });

@@ -1155,11 +1155,12 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
 
 /**
  * Every group of the season as it renders, before any round filter: own-calculated,
- * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`
- * and `listSeasonRounds`, so they agree on which groups a round applies to.
+ * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`,
+ * `listSeasonRounds` and `getSeasonTables`, so they agree on every group.
  *
  * decisions/010-playoff-group-match-list.md
  * decisions/013-more-finnish-competitions.md
+ * decisions/061-season-simulation.md
  */
 const classifySeasonGroups = cache(async function classifySeasonGroups(
   categoryId: string,
@@ -1173,6 +1174,8 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
       groups: GroupStandingsResult[];
       /** Returned so a caller never reads them a second time. */
       teamRows: StoredGroupTeam[];
+      /** The matches are stored rows TASO could not be asked to refresh. */
+      refreshFailed: boolean;
     }
   | { status: "empty" | "error" }
 > {
@@ -1196,7 +1199,7 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
     .sort((left, right) => left - right)
     .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId));
 
-  return { status: "ok", matches: seasonMatches, groups, teamRows };
+  return { status: "ok", matches: seasonMatches, groups, teamRows, refreshFailed };
 });
 
 /**
@@ -1896,6 +1899,70 @@ export async function getSeasonStandings(
     );
     return { status: "error", groups: [] };
   }
+}
+
+/**
+ * One stored group of a season for the season forecast: how it renders, our
+ * table when it is ours, its own matches of every status, and the group it
+ * carries points over from.
+ *
+ * decisions/061-season-simulation.md
+ */
+export type SeasonTable = {
+  groupId: number;
+  groupName: string;
+  kind: GroupStandingsResult["kind"];
+  /** Empty unless the group is `own-calculated`. */
+  standings: TeamStanding[];
+  matches: MatchRow[];
+  parentGroupId: number | null;
+};
+
+/**
+ * Every stored group of a season as the standings page classifies it, read
+ * through the page's own refresh of matches and group rows. `refreshFailed`
+ * when the matches are stored rows TASO could not be asked to refresh.
+ *
+ * decisions/061-season-simulation.md
+ */
+export async function getSeasonTables(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<
+  { status: "ok"; tables: SeasonTable[]; refreshFailed: boolean } | { status: "empty" | "error" }
+> {
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") return { status: classified.status };
+
+  return {
+    status: "ok",
+    refreshFailed: classified.refreshFailed,
+    tables: classified.groups.map((group) => ({
+      groupId: group.groupId,
+      groupName: group.groupName,
+      kind: group.kind,
+      standings: group.kind === "own-calculated" ? group.standings : [],
+      matches: classified.matches.filter((match) => match.groupId === group.groupId),
+      parentGroupId: parentGroupId(categoryId, competitionId, group.groupId),
+    })),
+  };
+}
+
+/**
+ * Whether any group of a category's season carries points over from another:
+ * the season split.
+ *
+ * decisions/061-season-simulation.md
+ */
+export function hasCarryOver(categoryId: string, competitionId: string): boolean {
+  return CARRY_OVER_CONFIG[categoryId]?.[competitionId] !== undefined;
 }
 
 /**

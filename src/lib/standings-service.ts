@@ -95,7 +95,7 @@ function filterByRound<T extends { matchday: number | null }>(
   return matchList.filter((match) => match.matchday !== null && match.matchday <= round);
 }
 
-type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
+export type SyncedSeasonMatches = { matches: MatchRow[]; refreshFailed: boolean };
 
 /**
  * A season's stored matches, refreshed from the provider when `needsRefresh`
@@ -132,6 +132,20 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
     return { matches: storedMatches, refreshFailed: true };
   }
 });
+
+/**
+ * A season's stored matches of every status, through the standings page's own
+ * refresh, for the season forecast.
+ *
+ * decisions/061-season-simulation.md
+ */
+export function getLeagueSeasonMatches(
+  competitionCode: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<SyncedSeasonMatches> {
+  return getSyncedSeasonMatches(competitionCode, seasonId, activeSeasonId);
+}
 
 export async function getStandings({
   competitionCode,
