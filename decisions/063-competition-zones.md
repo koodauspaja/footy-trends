@@ -68,6 +68,99 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
 - **A forced refresh logs the line twice** for an unreadable group: once at
   the preview and once at the approval, as each reads TASO.
 
+## What the tests prove, and how
+
+- **Every mutation below was caught**, one row each:
+
+  | # | Mutation |
+  |---|---|
+  | 1 | Ten parts not required |
+  | 2 | A negative count read |
+  | 3 | A count with other characters read |
+  | 4 | A count no column holds kept |
+  | 5 | A level with no count stored |
+  | 6 | Levels numbered from zero |
+  | 7 | A label not trimmed |
+  | 8 | A whitespace label kept |
+  | 9 | Unreadable levels not logged |
+  | 10 | An empty string of counts logged |
+  | 11 | Every level given the first label |
+  | 12 | A group with an unusable id read |
+  | 13 | An unlabelled level not counted |
+  | 14 | A rule under the last row |
+  | 15 | A level not cut at the last row |
+  | 16 | Levels taken in the order read |
+  | 17 | Rules drawn with no labelled level |
+  | 18 | Levels past the table kept |
+  | 19 | Sijat for a single position |
+  | 20 | A hyphen for the en dash |
+  | 21 | A rule only under a labelled level |
+  | 22 | Levels stored for every competition |
+  | 23 | The earlier levels not deleted, unit |
+  | 24 | The earlier levels not deleted, Postgres |
+  | 25 | Levels skipped when the snapshot has no team rows |
+  | 26 | The last of two rows for a level kept |
+  | 27 | The page's refresh writing no levels |
+  | 28 | Levels deleted across seasons, Postgres |
+  | 29 | Levels deleted across competitions, Postgres |
+  | 30 | Levels read across competitions, Postgres |
+  | 31 | Levels read in stored order, Postgres |
+  | 32 | No levels returned with a round chosen |
+  | 33 | No levels returned for the full season |
+  | 34 | The levels-only writer outside a transaction |
+  | 35 | A failed write of the rows keeping the new levels, Postgres |
+  | 36 | The forced refresh writing no levels |
+  | 37 | The forced refresh writing levels outside its transaction argument |
+  | 38 | Miesten Kakkonen among the zone competitions |
+  | 39 | Kansallinen Ykkönen left out |
+  | 40 | The backfill taking no groups as no levels |
+  | 41 | The backfill writing nothing |
+  | 42 | The backfill writing nothing, Postgres |
+  | 43 | The backfill oldest season first |
+  | 44 | A failed season not reported |
+  | 45 | No log line at the end |
+  | 46 | The backfill not paced |
+  | 47 | Written and skipped swapped |
+  | 48 | The backfill stopping at the first failure |
+  | 49 | The backfill writing team rows, Postgres |
+  | 50 | The heavier rule never drawn |
+  | 51 | Every row ruled when not asked |
+  | 52 | Rules one row late |
+  | 53 | Rules by the row's own position |
+  | 54 | The source line under every list |
+  | 55 | The source line under the first list |
+  | 56 | The source line under the last group |
+  | 57 | A group given every group's levels |
+  | 58 | The rules not passed to the table |
+  | 59 | The list not drawn |
+  | 60 | A match list given zones |
+  | 61 | The list above the table |
+  | 62 | A cup drawn with the league groups |
+  | 63 | --zones allowed beside --refetch |
+  | 64 | --zones allowed beside --reset=name |
+  | 65 | Another flag taken for a reset |
+  | 66 | The conflict naming the whole argument |
+  | 67 | A reset leaving the levels |
+  | 68 | The refetch writing no levels |
+  | 69 | The zone run exiting 0 on a failure |
+  | 70 | --zones running the full backfill after |
+  | 71 | --zones not checked for a conflict |
+
+- **One first survived and was closed.** Mutation 28 was not seen while the
+  Postgres fixture gave its second season another competition id as well; the
+  two seasons now share one, so the season alone separates their levels.
+- **Against Postgres**: levels are written with a season's rows and replaced by
+  the next sync, another season's and another competition's left alone; a
+  failed write of the rows keeps the earlier levels; three syncs at once all
+  succeed; a standings read returns a finished season's levels in order
+  without asking TASO; and the backfill writes levels, leaves every team row
+  as it was, `updated_at` included, and names the season it could not read.
+- **The scripts are read from their source**, as the backfill's other choices
+  are: that `--zones` returns before the full run, is checked for a conflict
+  before the work loads, and that a reset empties the new table.
+- **End to end**, on the seeded season, signed out: the two lines under
+  `Runkosarja`, a 2 px rule under rows 1 and 3, and the source line once.
+
 ## The release step
 
 `npm run backfill -- --zones` is run once in each environment after
