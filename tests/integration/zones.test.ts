@@ -123,8 +123,9 @@ describe("a sync of a season's group rows", () => {
     await synchronizeGroupLevels("M1", COMPETITION, SEASON, [
       level({ categoryId: "M1", label: "Nousee" }),
     ]);
-    await synchronizeGroupLevels("VL", OTHER_COMPETITION, OTHER_SEASON, [
-      level({ competitionCode: OTHER_COMPETITION, seasonId: OTHER_SEASON, label: "Pronssia" }),
+    // Another season under the same competition id: the season alone tells them apart.
+    await synchronizeGroupLevels("VL", COMPETITION, OTHER_SEASON, [
+      level({ seasonId: OTHER_SEASON, label: "Pronssia" }),
     ]);
 
     // The next snapshot renames one level, drops another, and no longer has group 2.
