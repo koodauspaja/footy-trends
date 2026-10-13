@@ -139,7 +139,7 @@ export async function getSeasonForecast(
 
   try {
     return await getCachedUnlessDegraded(
-      `forecast:v1:${kind}:${code}:${seasonId}`,
+      `forecast:v2:${kind}:${code}:${seasonId}`,
       FORECAST_CACHE_TTL_SECONDS,
       async (): Promise<{ value: SeasonForecast; degraded: boolean }> => {
         const [fitted, season] = await Promise.all([

@@ -26,7 +26,7 @@ const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 async function dropCaches() {
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
   try {
-    const forecasts = await redis.keys("forecast:v1:football-data:*");
+    const forecasts = await redis.keys("forecast:v2:football-data:*");
     await redis.del("poisson:v1:football-data", ...forecasts);
   } finally {
     await redis.quit();

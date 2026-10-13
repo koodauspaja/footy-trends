@@ -3,7 +3,8 @@
 > **Status: revised on 2026-10-12 against `main` after specs/053 to 058 were
 > built. Q1–Q12 were answered on 2026-10-01; S1, S5, S8 and S12 are changed
 > and S13–S22 added on 2026-10-12, when the last three strings were confirmed
-> too. Strings may be fine-tuned during implementation.** Written for
+> too. S23 and its two strings were added on 2026-10-13 for #638. Strings may
+> be fine-tuned during implementation.** Written for
 > #347, release 4 in the predictions plan — the heaviest of its pieces. It
 > plays out the rest of a season many times with the Poisson model's
 > predictions (specs/055) and counts where each team finishes.
@@ -55,6 +56,7 @@ or the bottom, and its expected points.
 | S13 | A remaining fixture | **A stored match of the season in a table that is simulated (S15), with no result, both sides real teams, unless its status says it will not be played as listed: football-data's `CANCELLED` and `AWARDED`, TASO's `Abandoned`.** Every other status without a result is to be played: `SCHEDULED`, `TIMED`, `POSTPONED`, and a match being played | Decided for Miikka, 2026-10-12: "make a consistent decision and wording". A cancelled match comes back when the provider lists it again; an abandoned one from August would otherwise be simulated all winter. |
 | S14 | Which matches of a league | **football-data: stage `REGULAR_SEASON` only. TASO: the groups that keep a table we calculate** | The Championship's play-offs are stored under its code. |
 | S15 | A table that is not simulated | **A TASO group shown from TASO's own numbers (pass-through), and a group shown as a match list.** Its teams are not in the panel | As S13; its line confirmed by Miikka, 2026-10-12. Our table disagrees with the published one there, so simulated points would be added to a figure known to be off. |
+| S23 | Some tables simulated, others not | **One line under the tables names each group shown from TASO's own numbers and says why. A match-list group and a group that has been continued are not named** | Miikka, 2026-10-13 (#638): the wording "As proposed", and "No, pass-through only". A match list has no table, so the line's reason would be false of it. Without the line Veikkausliiga showed `Karsintasarja` alone on 2026-10-13, with no hint that the title race was missing. |
 | S16 | The current table | **Read through the standings page's own path, which refreshes matches and group rows together; never from stored group rows. football-data's is calculated from its `REGULAR_SEASON` matches alone (S14)** | The hourly run refreshes matches only: on 2026-10-12 production's group rows were thirteen days behind its matches. |
 | S17 | A group with no fixture left while another has | **Shown, each chance `100 %` or `0 %`; except a group that has been continued, whose teams are in its continuation groups** | As S13. The no-fixtures line is for a season with none left in any table. |
 | S18 | Near certain | **`> 99 %` at 99,5 or more unless decided; `100 %` only when decided** | As S13; the string confirmed by Miikka, 2026-10-12. S9's rule for `0 %`, said for the other end. |
@@ -78,7 +80,9 @@ first in specs/057's group `Tämä kausi` (S7):
 - Before a split (S20): `Joukkue` · `Odotetut pisteet` · `Runkosarjan voitto`
 - Percentages whole, `< 1 %`, `> 99 %`, `0 %` and `100 %` only when decided;
   points `52,4` (S9, S18)
-- Under it: `Jäljellä olevat ottelut on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Tasapisteissä ratkaisee nykyinen järjestys.`
+- Under the tables, when a group shown from TASO's own numbers is left out
+  beside them (S23): the line naming it, below
+- Then: `Jäljellä olevat ottelut on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Tasapisteissä ratkaisee nykyinen järjestys.`
 - Before a split: `Ennuste ulottuu runkosarjan loppuun; jatkosarjojen ottelut eivät ole vielä tiedossa.`
 - Then the link `Kuinka hyvin ennusteet ovat osuneet?`, `Ennuste`'s own
   string, to `/ennusteet` for this competition (S21)
@@ -88,6 +92,8 @@ first in specs/057's group `Tämä kausi` (S7):
 | `Kauden ennustetta ei voitu laskea. Yritä myöhemmin uudelleen.` | The simulation or a read failed |
 | `Kaudella ei ole enää pelaamattomia otteluita.` | No remaining fixture in any simulated table of the season in progress |
 | `Kauden ennustetta ei lasketa, koska sarjataulukko näytetään Palloliiton tiedoista sellaisenaan.` | No table of the season is simulated (S15) |
+| `Mestaruussarja ei ole mukana, koska sen sarjataulukko näytetään Palloliiton tiedoista sellaisenaan.` | One group left out beside the simulated tables (S23), by its stored name |
+| `Mestaruussarja ja Haastajasarja eivät ole mukana, koska niiden sarjataulukot näytetään Palloliiton tiedoista sellaisenaan.` | Two or more (S23): `A ja B`, `A, B ja C` |
 
 ## API & Data
 
@@ -124,6 +130,9 @@ first in specs/057's group `Tämä kausi` (S7):
 | One group finished, another not | Both shown; the finished one `100 %` and `0 %` (S17) |
 | Kakkonen's pools | Each pool simulated as its own table (S12), with S19's columns |
 | A pass-through or match-list group | Not simulated; its teams absent (S15) |
+| A pass-through group beside a simulated table | Named in the line of S23, whether or not it has a fixture left |
+| A match-list group beside a simulated table | Not named (S23) |
+| Every table of the season simulated | No line of S23 |
 | No table of the season simulated | The line of S15 |
 | A team absent from the fit | An average side (specs/055 S4) |
 | A competition with no match in the fit | No panel, as `Ennuste` shows no Poisson row (specs/055) |

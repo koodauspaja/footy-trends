@@ -162,6 +162,7 @@ const settled = { share: 1, settled: true };
 const forecast: SeasonForecast = {
   status: "ok",
   layout: "single",
+  leftOut: [],
   tables: [
     {
       groupId: 0,
