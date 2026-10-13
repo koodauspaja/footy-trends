@@ -1986,8 +1986,11 @@ export async function getSeasonStandings(
       activeSeasonId
     );
     if (classified.status !== "ok") return { status: classified.status, groups: [] };
-    // After the classification, whose refresh is what writes them.
-    const levels = await storedGroupLevels(categoryId, competitionId, seasonId);
+    // After the classification, whose refresh is what writes them. A competition
+    // that stores none is not asked.
+    const levels = publishesZones(categoryId)
+      ? await storedGroupLevels(categoryId, competitionId, seasonId)
+      : [];
     if (round === undefined) return { status: "ok", groups: classified.groups, levels };
 
     // Only an own-calculated group responds to a round; the classification

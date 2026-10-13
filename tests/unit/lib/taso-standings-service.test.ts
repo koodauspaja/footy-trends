@@ -5102,6 +5102,27 @@ describe("the stored levels a standings read returns", () => {
     expect(result).toEqual({ status: "ok", groups: [expect.anything()], levels: LEVELS });
   });
 
+  it.each(["M2", "P21SM", "MSC"])(
+    "reads no level for %s, which stores none",
+    async (categoryId) => {
+      const season = 2040 + ["M2", "P21SM", "MSC"].indexOf(categoryId);
+      mockStoredMatches([match({ seasonId: season, categoryId })], [], LEVELS);
+
+      const result = await getSeasonStandings(
+        categoryId,
+        "spljp40",
+        season,
+        ACTIVE_SEASON,
+        undefined
+      );
+
+      expect(result.status === "ok" && result.levels).toEqual([]);
+      const from = dbMock.select.mock.results[0]?.value.from as ReturnType<typeof vi.fn>;
+      expect(from.mock.calls.length).toBeGreaterThan(0);
+      expect(from.mock.calls.map(([table]) => table)).not.toContain(tasoGroupZones);
+    }
+  );
+
   it("asks for no level of a season with no matches", async () => {
     mockStoredMatches([], [], LEVELS);
     getSeasonMatchesMock.mockResolvedValue([]);

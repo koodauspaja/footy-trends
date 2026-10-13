@@ -34,6 +34,7 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
 | The forced refresh | `Snapshot` carries `groupLevels`; `writeSnapshot` passes them. They are not in `compare`, the diff, the hash or the audit | S10. A preview and its approval are unchanged by a level; the levels written are those of the answer fetched at approval |
 | The existing backfill | Passes the levels with the rows; `--reset` also empties `taso_group_zones` | It writes group rows, so it is a caller like the others. A reset that left the levels would leave rows for seasons it had just deleted |
 | Reading | `getSeasonStandings` reads the season's levels after the classification, in its own `try`, and returns them beside `groups` | Spec, API & Data: read with the group rows, no provider request, no cache. After the classification because its refresh is what writes them. A failed read is the page's own error, as the spec says: no new failure string |
+| A competition that stores no level | Not asked for any: `getSeasonStandings` reads the levels only where `publishesZones` says the writer stores them | The author's own review before the first push: a cup's or Kakkonen's page would otherwise make a query that can only come back empty, and fail with it |
 | What is not touched | `classifySeasonGroups`, `buildGroup`, `getSeasonTables`, `GroupStandingsResult` | They are shared by the season simulation, the cups and the team pages. The levels ride on `SeasonStandingsResult`, which only the standings page reads |
 | Positions from levels | `groupZones(levels, rowCount)` in `competition-zones.ts`, pure: zones as first and last position, and the positions a rule follows | A zone is a labelled level; an unlabelled one is counted and not named. Cut at the last row; rows past the counts have none |
 | Where the rule goes | Under the last row of every level that another row follows, labelled or not, the rows past the counts included | S16, Miikka, 2026-10-13 |
@@ -172,5 +173,9 @@ shows its zones from its next sync, and finished seasons show none.
 
 - **A finished season whose levels TASO changes later** keeps what is stored,
   as its rows do, until a forced refresh or another `--zones` run.
+- **A level string that turns unreadable** on a later sync clears the levels
+  stored for that group, as S15 has it. The backfill counts such a season by
+  what it could still store, written or skipped, and not as failed; the `warn`
+  line is what marks it.
 - **A season TASO answers `500` for** (three of 63 on 2026-10-12) has no zones
   until a run reads it.
