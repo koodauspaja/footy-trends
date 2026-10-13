@@ -119,8 +119,8 @@ DATABASE_URL='<production>' npm run backfill -- --reset=railway
 ```
 
 `--reset` deletes every row in `matches`, `taso_matches`, `taso_group_teams` and
-`taso_group_zones` before fetching. It requires the database name, and refuses if it does not
-match:
+`taso_group_zones` before fetching. It requires the database name, and refuses
+if it does not match:
 
 ```
 Refusing to reset: --reset=footy-trends does not match the target database (railway)
