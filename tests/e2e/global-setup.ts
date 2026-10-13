@@ -7,6 +7,7 @@ import {
   MATCHES,
   SEASON,
   TEAM_ROWS,
+  ZONE_ROWS,
 } from "./fixtures/veikkausliiga-2017";
 
 /**
@@ -23,6 +24,7 @@ const FIXTURE_LOCK_KEY = 3_040_026;
  *
  * decisions/304-test-database.md
  * decisions/036-halftime-comebacks.md
+ * decisions/063-competition-zones.md
  */
 async function seedFixtureSeason(url: string): Promise<void> {
   const sql = postgres(url);
@@ -38,6 +40,10 @@ async function seedFixtureSeason(url: string): Promise<void> {
       `;
       await tx`
         delete from taso_group_teams
+        where season_id = ${SEASON} and category_id = ${CATEGORY_ID}
+      `;
+      await tx`
+        delete from taso_group_zones
         where season_id = ${SEASON} and category_id = ${CATEGORY_ID}
       `;
 
@@ -77,6 +83,20 @@ async function seedFixtureSeason(url: string): Promise<void> {
             points: row.points,
             matches_played: row.matches_played,
             current_standing: row.current_standing,
+          })}
+        `;
+      }
+
+      for (const row of ZONE_ROWS) {
+        await tx`
+          insert into taso_group_zones ${tx({
+            category_id: CATEGORY_ID,
+            competition_id: COMPETITION_ID,
+            season_id: SEASON,
+            group_id: row.group_id,
+            level: row.level,
+            team_count: row.team_count,
+            label: row.label,
           })}
         `;
       }

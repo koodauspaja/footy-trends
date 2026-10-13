@@ -4,6 +4,7 @@ import {
   getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
+  normalizeGroupLevels,
   normalizeGroupTeams,
   normalizeTasoMatch,
 } from "@/lib/taso";
@@ -22,6 +23,7 @@ import {
  * decisions/272-group-standings-endpoint.md
  * decisions/284-provider-id-validation.md
  * decisions/363-render-timeouts.md
+ * decisions/063-competition-zones.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -1189,5 +1191,149 @@ describe("taso caching", () => {
 
     expect(result).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("normalizeGroupLevels", () => {
+  beforeEach(() => {
+    loggerWarnMock.mockReset();
+  });
+
+  const TEXTS = [
+    "Nousee Veikkausliigaan",
+    "Jatkaa liigakarsintaan",
+    "Säilyy Ykkösliigassa",
+    "",
+    "Karsii paikastaan Ykkösliigassa",
+    "Putoaa Ykköseen",
+    "",
+    "",
+    "",
+    "",
+  ];
+
+  function levelsOf(group: Record<string, unknown>) {
+    return normalizeGroupLevels([{ group_id: "7", ...group }], "M1L", "spljp26", 2026);
+  }
+
+  it("stores one row per level with a count, under TASO's own level number", () => {
+    const rows = levelsOf({
+      next_stage_levels: "1,1,6,0,1,1,0,0,0,0",
+      next_stage_level_texts: TEXTS,
+    });
+
+    expect(rows).toEqual(
+      [
+        { level: 1, teamCount: 1, label: "Nousee Veikkausliigaan" },
+        { level: 2, teamCount: 1, label: "Jatkaa liigakarsintaan" },
+        { level: 3, teamCount: 6, label: "Säilyy Ykkösliigassa" },
+        { level: 5, teamCount: 1, label: "Karsii paikastaan Ykkösliigassa" },
+        { level: 6, teamCount: 1, label: "Putoaa Ykköseen" },
+      ].map((row) => ({
+        categoryId: "M1L",
+        competitionCode: "spljp26",
+        seasonId: 2026,
+        groupId: 7,
+        ...row,
+      }))
+    );
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a level with a count and no label, as a null label", () => {
+    const rows = levelsOf({
+      next_stage_levels: "0,0,0,4,1,1,0,0,0,0",
+      next_stage_level_texts: ["", "", "", "", "Liigakarsintaan", "Ykkösliigaan", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => [row.level, row.teamCount, row.label])).toEqual([
+      [4, 4, null],
+      [5, 1, "Liigakarsintaan"],
+      [6, 1, "Ykkösliigaan"],
+    ]);
+  });
+
+  it("trims a label, and takes one that is only whitespace as none", () => {
+    const rows = levelsOf({
+      next_stage_levels: "1,1,0,0,0,0,0,0,0,0",
+      next_stage_level_texts: ["  Kultaa ", "   ", "", "", "", "", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => row.label)).toEqual(["Kultaa", null]);
+  });
+
+  it("takes a missing label, or one that is not text, as none", () => {
+    expect(levelsOf({ next_stage_levels: "2,0,0,0,0,0,0,0,0,0" }).map((row) => row.label)).toEqual([
+      null,
+    ]);
+    expect(
+      levelsOf({ next_stage_levels: "2,1,0,0,0,0,0,0,0,0", next_stage_level_texts: [7] }).map(
+        (row) => row.label
+      )
+    ).toEqual([null, null]);
+    expect(
+      levelsOf({ next_stage_levels: "2,0,0,0,0,0,0,0,0,0", next_stage_level_texts: "Kultaa" }).map(
+        (row) => row.label
+      )
+    ).toEqual([null]);
+  });
+
+  it.each([
+    ["a count that is not a number", "1,1,x,0,0,0,0,0,0,0"],
+    ["a count with a fraction", "1,1.5,0,0,0,0,0,0,0,0"],
+    ["a negative count", "1,-1,0,0,0,0,0,0,0,0"],
+    ["an empty count", "1,,0,0,0,0,0,0,0,0"],
+    ["a count with a space", "1, 1,0,0,0,0,0,0,0,0"],
+    ["a count no column holds", "1,99999999999,0,0,0,0,0,0,0,0"],
+    ["fewer than ten counts", "1,1,6,0,1,1"],
+    ["more than ten counts", "1,1,6,0,1,1,0,0,0,0,0"],
+  ])("stores no level of a group with %s, and logs it once", (_case, levels) => {
+    expect(levelsOf({ next_stage_levels: levels, next_stage_level_texts: TEXTS })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { categoryId: "M1L", competitionId: "spljp26", groupId: 7 },
+      "Unreadable TASO zone levels"
+    );
+  });
+
+  it("logs counts that are not a string as unreadable", () => {
+    expect(levelsOf({ next_stage_levels: [1, 1, 6] })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores nothing, silently, for a group that publishes no counts", () => {
+    expect(levelsOf({})).toEqual([]);
+    expect(levelsOf({ next_stage_levels: "" })).toEqual([]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the readable groups beside an unreadable one", () => {
+    const rows = normalizeGroupLevels(
+      [
+        { group_id: "1", next_stage_levels: "broken" },
+        {
+          group_id: "2",
+          next_stage_levels: "3,0,0,0,0,0,0,0,0,0",
+          next_stage_level_texts: ["Nousee"],
+        },
+      ],
+      "VL",
+      "spljp26",
+      2026
+    );
+
+    expect(rows.map((row) => [row.groupId, row.level, row.label])).toEqual([[2, 1, "Nousee"]]);
+  });
+
+  it("skips a group whose id is not an id, without a log line", () => {
+    expect(
+      normalizeGroupLevels(
+        [{ group_id: "abc", next_stage_levels: "broken" }],
+        "VL",
+        "spljp26",
+        2026
+      )
+    ).toEqual([]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
   });
 });

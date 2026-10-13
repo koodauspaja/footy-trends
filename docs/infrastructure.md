@@ -199,6 +199,11 @@ checkout of the commit that environment runs. It rewrites every row.
 - **History is filled by a backfill, not by traffic** (`docs/setup/022`). A new
   column on stored matches needs `npm run backfill -- --refetch` in each
   environment after its migration has deployed.
+- **Zone levels of finished seasons are filled by `npm run backfill -- --zones`**
+  (`docs/setup/022`, step 3c), once in each environment after the migration
+  `create_taso_group_zones` has deployed. The season being played fills itself
+  on its next sync; a finished season is never refetched, so without the run
+  its tables show no zones (decisions/063).
 - **The suites never touch the development database.** `npm run
   test:integration` and `npm run test:e2e` create and migrate `<name>_test`;
   e2e builds the application and serves that production build on port 3001.

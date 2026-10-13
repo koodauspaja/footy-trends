@@ -120,3 +120,17 @@ export function describeError(error: unknown, maxLength = 200): string {
 export function canSkip(storedRows: number, seasonId: number, currentSeason: number): boolean {
   return storedRows > 0 && seasonId < currentSeason;
 }
+
+/**
+ * Why `--zones` cannot run with these arguments, or null when it can: it
+ * writes the zone levels alone, so it is refused beside a flag that rewrites
+ * or deletes the other tables.
+ *
+ * decisions/063-competition-zones.md
+ */
+export function zonesConflict(args: readonly string[]): string | null {
+  const other = args.find(
+    (arg) => arg === "--refetch" || arg === "--reset" || arg.startsWith("--reset=")
+  );
+  return other === undefined ? null : `--zones cannot be combined with ${other.split("=")[0]}`;
+}

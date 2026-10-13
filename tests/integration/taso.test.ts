@@ -414,9 +414,9 @@ describe("synchronizeGroupTeams concurrency", () => {
     })) as Parameters<typeof synchronizeGroupTeams>[3];
 
     const results = await Promise.allSettled([
-      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
-      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
-      synchronizeGroupTeams("VL", "spljp99", seasonId, rows),
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows, []),
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows, []),
+      synchronizeGroupTeams("VL", "spljp99", seasonId, rows, []),
     ]);
 
     expect(results.every((r) => r.status === "fulfilled")).toBe(true);
@@ -464,6 +464,7 @@ describe("synchronizeGroupTeams and a table TASO serves as unplayed", () => {
       "spljp99",
       season,
       rows as Parameters<typeof synchronizeGroupTeams>[3],
+      [],
       db,
       { carryStartingPoints: !replace }
     );

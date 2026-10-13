@@ -6,10 +6,10 @@
  * decisions/013-more-finnish-competitions.md
  */
 
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
-import { tasoGroupTeams, tasoMatches } from "@/db/schema";
+import { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 import { getCached, getCachedUnlessDegraded } from "./cache";
 import { isRoundRobin } from "./cup-rounds";
 import {
@@ -22,6 +22,7 @@ import {
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
+  publishesZones,
 } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
@@ -54,8 +55,10 @@ import {
   getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
+  type NormalizedTasoGroupLevel,
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
+  normalizeGroupLevels,
   normalizeGroupTeams,
   parseProviderId,
   type TasoGroup,
@@ -73,6 +76,7 @@ const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
 type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
+type StoredGroupZone = typeof tasoGroupZones.$inferSelect;
 /**
  * A match as stored or as freshly fetched: the same shape either way.
  *
@@ -260,8 +264,20 @@ export type GroupStandingsResult =
   | { kind: "pass-through"; groupId: number; groupName: string; standings: TasoTeamStanding[] }
   | { kind: "match-list"; groupId: number; groupName: string; matches: MatchRow[] };
 
+/**
+ * One stored level of a group: the places it takes and what they lead to.
+ *
+ * decisions/063-competition-zones.md
+ */
+export type GroupLevel = Pick<StoredGroupZone, "groupId" | "level" | "teamCount" | "label">;
+
 export type SeasonStandingsResult =
-  | { status: "ok"; groups: GroupStandingsResult[] }
+  | {
+      status: "ok";
+      groups: GroupStandingsResult[];
+      /** Every stored level of the season's groups, in each group's own order. */
+      levels: GroupLevel[];
+    }
   | { status: "empty"; groups: [] }
   | { status: "error"; groups: [] };
 
@@ -685,21 +701,23 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
 }
 
 /**
- * Replaces a season's stored group standings with the snapshot TASO returned,
- * in one transaction, so a failure leaves the previous snapshot in place.
- * With `carryStartingPoints`, a group the snapshot reports as unplayed keeps
- * the starting points stored for its teams.
+ * Replaces a season's stored group standings and levels with the snapshot TASO
+ * returned, in one transaction, so a failure leaves the previous snapshot in
+ * place. With `carryStartingPoints`, an unplayed group keeps its starting points.
  *
  * decisions/013-more-finnish-competitions.md
  * decisions/029-forced-season-refresh.md
  * decisions/196-concurrent-group-syncs.md
  * decisions/628-zeroed-continuation-tables.md
+ * decisions/063-competition-zones.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
   competitionId: string,
   seasonId: number,
   rows: NormalizedTasoGroupTeam[],
+  /** The levels of the same response, so no caller writes the rows without them. */
+  levels: NormalizedTasoGroupLevel[],
   /** The transaction to join, when a caller has one. Defaults to its own. */
   executor: Executor = db,
   { carryStartingPoints = false }: { carryStartingPoints?: boolean } = {}
@@ -716,6 +734,7 @@ export async function synchronizeGroupTeams(
       ? await withStoredStartingPoints(tx, season, snapshot)
       : snapshot;
     await tx.delete(tasoGroupTeams).where(season);
+    await replaceGroupLevels(tx, categoryId, competitionId, seasonId, levels);
 
     if (incoming.length === 0) return;
 
@@ -749,6 +768,74 @@ export async function synchronizeGroupTeams(
         },
       });
   });
+}
+
+/**
+ * Replaces a season's stored levels with the snapshot's, through the caller's
+ * transaction. Only the competitions that show zones store any.
+ *
+ * decisions/063-competition-zones.md
+ */
+async function replaceGroupLevels(
+  tx: Executor,
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  levels: NormalizedTasoGroupLevel[]
+): Promise<void> {
+  if (!publishesZones(categoryId)) return;
+
+  await tx
+    .delete(tasoGroupZones)
+    .where(
+      and(
+        eq(tasoGroupZones.categoryId, categoryId),
+        eq(tasoGroupZones.competitionCode, competitionId),
+        eq(tasoGroupZones.seasonId, seasonId)
+      )
+    );
+
+  // One row per group and level: the first wins, as for the team rows.
+  const incoming = new Map<string, NormalizedTasoGroupLevel>();
+  for (const row of levels) {
+    const identity = `${row.groupId}/${row.level}`;
+    if (!incoming.has(identity)) incoming.set(identity, row);
+  }
+  if (incoming.size === 0) return;
+
+  // An upsert, for the reason the team rows have one.
+  await tx
+    .insert(tasoGroupZones)
+    .values([...incoming.values()].map((row) => ({ ...row, updatedAt: new Date() })))
+    .onConflictDoUpdate({
+      target: [
+        tasoGroupZones.categoryId,
+        tasoGroupZones.competitionCode,
+        tasoGroupZones.seasonId,
+        tasoGroupZones.groupId,
+        tasoGroupZones.level,
+      ],
+      set: {
+        teamCount: sql`excluded.team_count`,
+        label: sql`excluded.label`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+}
+
+/**
+ * Replaces a season's stored levels and nothing else: the team rows are left
+ * as they are. For the one-off backfill of seasons that are never refetched.
+ *
+ * decisions/063-competition-zones.md
+ */
+export async function synchronizeGroupLevels(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  levels: NormalizedTasoGroupLevel[]
+): Promise<void> {
+  await db.transaction((tx) => replaceGroupLevels(tx, categoryId, competitionId, seasonId, levels));
 }
 
 /**
@@ -812,7 +899,8 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
     const groups = await getSeasonGroups(competitionId, categoryId);
     reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows, db, {
+    const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
+    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows, levels, db, {
       carryStartingPoints: true,
     });
     // Re-read rather than returning `rows`: the caller needs full stored rows,
@@ -1855,6 +1943,34 @@ function seriesOf(
   return { status: "ok", points, teamCount, endsAtSplit };
 }
 
+/**
+ * A season's stored levels, each group's in TASO's order.
+ *
+ * decisions/063-competition-zones.md
+ */
+async function storedGroupLevels(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): Promise<GroupLevel[]> {
+  return await db
+    .select({
+      groupId: tasoGroupZones.groupId,
+      level: tasoGroupZones.level,
+      teamCount: tasoGroupZones.teamCount,
+      label: tasoGroupZones.label,
+    })
+    .from(tasoGroupZones)
+    .where(
+      and(
+        eq(tasoGroupZones.categoryId, categoryId),
+        eq(tasoGroupZones.competitionCode, competitionId),
+        eq(tasoGroupZones.seasonId, seasonId)
+      )
+    )
+    .orderBy(asc(tasoGroupZones.groupId), asc(tasoGroupZones.level));
+}
+
 export async function getSeasonStandings(
   categoryId: string,
   competitionId: string,
@@ -1870,7 +1986,9 @@ export async function getSeasonStandings(
       activeSeasonId
     );
     if (classified.status !== "ok") return { status: classified.status, groups: [] };
-    if (round === undefined) return { status: "ok", groups: classified.groups };
+    // After the classification, whose refresh is what writes them.
+    const levels = await storedGroupLevels(categoryId, competitionId, seasonId);
+    if (round === undefined) return { status: "ok", groups: classified.groups, levels };
 
     // Only an own-calculated group responds to a round; the classification
     // itself does not change with one, so it is reused rather than redone —
@@ -1891,7 +2009,7 @@ export async function getSeasonStandings(
         : group
     );
 
-    return { status: "ok", groups };
+    return { status: "ok", groups, levels };
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId },

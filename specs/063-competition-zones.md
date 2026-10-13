@@ -4,6 +4,9 @@
 > confirmed; the strings may be fine-tuned during implementation.** Q1–Q14 are
 > recorded as S1–S14. Written for #518, split out of specs/061 (#347) on
 > 2026-10-01. Measured against TASO, read-only, on 2026-10-12 (see Measured).
+> Two points were settled on 2026-10-13, when the work started: an unreadable
+> level string stores nothing for its group (S15), and a rule is drawn at every
+> level boundary (S16).
 
 ## Summary
 
@@ -33,7 +36,7 @@ shows them as published (S1).
 - The foreign leagues: football-data publishes no zones, so they need a
   hand-maintained registry: #634 (S2).
 - European places: TASO labels `Mestaruussarja` with medals only (S3).
-- Any change to the season simulation (specs/061, not yet merged): swapping its
+- Any change to the season simulation (specs/061): swapping its
   top-three and bottom-three columns for real zones, and its upper-group column
   before a split, is #635, which reads this (S11).
 - Seasons TASO gives no labels for: before 2021 or 2022, by competition (S5).
@@ -55,11 +58,13 @@ shows them as published (S1).
 | S7 | `Säilyy` levels | **Shown like any other label** | Miikka, 2026-10-12 (Q7). Hiding them is an interpretation of the text, as S6. |
 | S8 | An earlier round in the round selector | **The same zones on that round's order** | Miikka, 2026-10-12 (Q8). |
 | S9 | Where the labels go | **A list under each group's table**, not a column | Miikka, 2026-10-12 (Q9). The table is already at its width at 375 px. |
-| S10 | Storage and past seasons | **A new table written with the group's rows, and a one-off backfill that writes levels only.** A forced refresh rewrites the levels without listing them in its diff | Miikka, 2026-10-12 (Q10): "agree". A normal refetch of a finished season is unsafe while #628 is open. |
-| S11 | The season simulation | **#635, after #627 merges**; this feature changes nothing in specs/061 | Miikka, 2026-10-12 (Q11): "agree". |
+| S10 | Storage and past seasons | **A new table written with the group's rows, and a one-off backfill that writes levels only.** A forced refresh rewrites the levels without listing them in its diff | Miikka, 2026-10-12 (Q10): "agree". A normal refetch of a finished season was unsafe while #628 was open. It has merged since, and the levels-only backfill stays: about 50 requests, not a full run of both providers, and no team row rewritten. |
+| S11 | The season simulation | **#635** (#627 has merged since); this feature changes nothing in specs/061 | Miikka, 2026-10-12 (Q11): "agree". |
 | S12 | Caching and logging | **No new cache; the two lines in Logging** | Miikka, 2026-10-12 (Q12). |
 | S13 | Who sees it | **Everyone**, signed in or out | Miikka, 2026-10-12 (Q13): "this is not analytics, so yes". |
 | S14 | The strings | **As in UX / UI** | Miikka, 2026-10-12 (Q14). |
+| S15 | A level string that cannot be read | **All or nothing: the group stores no level and its table renders as today**, with one `warn` line | Miikka, 2026-10-13. The edge case kept the readable levels before the unreadable one while the acceptance criterion left the table as today; a broken string is not trusted in part. |
+| S16 | Where the heavier rule goes | **At every level boundary, labelled or not, and between the last counted row and the first row past the counts** | Miikka, 2026-10-13. `Mestaruussarja` 2026 reads `1,1,1,3`, with rules after rows 1, 2 and 3. |
 
 ## Measured
 
@@ -67,8 +72,9 @@ One `getCategory` request per league and season, 2015–2026, on 2026-10-12: 63
 requests, of which 3 came back `500` with an empty body twice running
 (Veikkausliiga 2025, Ykkönen 2023, Kansallinen Liiga 2026).
 
-Each group carries `next_stage_levels`, ten counts, and
-`next_stage_level_texts`, ten labels. Positions are handed out from the top of
+Each group carries `next_stage_levels`, ten counts in one comma-separated
+string (`"1,1,6,0,1,1,0,0,0,0"`), and `next_stage_level_texts`, an array of ten
+labels. Positions are handed out from the top of
 the group in level order; a level with a count and no label is a stretch of
 the table that leads nowhere. Ykkösliiga 2026 reads `1,1,6,0,1,1`:
 
@@ -111,7 +117,7 @@ drawn as a table, signed in or out:
 
 | Element | Content |
 |---|---|
-| In the table | A heavier rule between two adjacent rows that belong to different levels. No colour |
+| In the table | A heavier rule between two adjacent rows that belong to different levels, labelled or not, and between the last row the counts cover and the first one past them (S16). No colour |
 | Under the table, above the next group | One line per labelled level, in table order: `Sija 1: Nousee Veikkausliigaan`, `Sijat 3–8: Säilyy Ykkösliigassa` — `Sija` for one position, `Sijat` with an en dash for several, then TASO's label as written |
 | Under the last group's list, once | `Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.` |
 | A group with no labelled level | No rule and no list |
@@ -129,9 +135,9 @@ that cannot be read already shows the page's own error.
 | Needed | Where |
 |---|---|
 | The levels | `getCategory`'s groups, already fetched for the standings: `next_stage_levels` and `next_stage_level_texts`, which the client does not read today |
-| Stored | A new table, `taso_group_zones`: category, competition id, season, group, the level's order (1–10), its count, its label or null. One row per level with a count above zero. Migration `create_taso_group_zones` (S10) |
+| Stored | A new table, `taso_group_zones`: category, competition id, season, group, the level's own number in TASO's order (1–10, so a level without a count leaves a gap), its count, its label or null. One row per level with a count above zero. Migration `create_taso_group_zones` (S10) |
 | Written | For S4's competitions only, with the group's team rows, from the same response, replacing the group's earlier levels |
-| Past seasons | A one-off command that reads `getCategory` for every stored season of S4's competitions and writes the levels only, never the team rows; run per environment after the migration has deployed (S10) |
+| Past seasons | A one-off command, `npm run backfill -- --zones`, that reads `getCategory` for every stored season of S4's competitions and writes the levels only, never the team rows; run per environment after the migration has deployed (S10). It is refused beside `--reset` or `--refetch` |
 | A zone | A stored level with a label: the positions it covers, counted from the top of the group through every level before it, labelled or not |
 | The split's size | The regular-season group's own levels, as stored (S11) |
 
@@ -144,17 +150,20 @@ that cannot be read already shows the page's own error.
 |---|---|
 | A level with a count and no label | No zone; its positions are still counted, so the levels after it land where TASO puts them |
 | A label that is only whitespace | No label |
-| The counts add up to fewer than the group's rows | The rows past them have no zone |
+| The counts add up to fewer than the group's rows | The rows past them have no zone, and a rule separates them from the last counted row (S16) |
 | The counts add up to more than the group's rows | Zones are cut at the last row |
 | Miesten Kakkonen, a junior competition, a cup | Nothing stored and nothing shown, in any season (S4) |
 | A group with no stored level, or none labelled (every season before 2021) | The table as today |
-| A count that is not a whole number, or fewer than ten counts | The readable levels before it are kept, the rest dropped, and one `warn` line is logged |
+| A count that is not a whole number, or a string that is not ten counts | No level of that group is stored, its table renders as today, and one `warn` line is logged (S15) |
+| A group that publishes no counts at all (the field missing or empty) | Nothing stored, and no log line |
+| A label missing from the array, or not text | No label |
 | A label that names two outcomes, or none (`Säilyy / Putoaa`, `Jatkokolmannekselle 5 kotiottelua`) | Shown as written |
 | A pass-through group | Its levels, on TASO's own order |
 | A match-list or knockout group | Nothing |
 | An earlier round chosen in the round selector | The same zones, on that round's order (S8) |
 | A finished season whose continuation tables TASO has zeroed | Out of this spec: the zones are drawn on whatever table #628 leaves there |
-| The backfill meets a `500` or an empty body | That season is reported and skipped; a re-run takes it up again. Team rows are never touched |
+| The backfill meets a `500`, an empty body, or an answer with no groups | That season is reported as failed and nothing is written for it; a re-run asks every season again. Team rows are never touched |
+| The backfill reads a season with no level to store | Counted as skipped; levels stored for it earlier are cleared, as a sync would |
 | A forced refresh (specs/029) | Rewrites the levels with the rows; its diff and audit do not list them (S10) |
 | 375 px | The list wraps under the table; the table gains no column |
 
@@ -174,7 +183,7 @@ No new environment variable or secret.
 | Event | Level | The line |
 |---|---|---|
 | A group's levels cannot be read as ten whole counts | `warn` | `Unreadable TASO zone levels`, with the category, the competition id and the group id |
-| The backfill finishes | `info` | `Zone backfill finished`, with the seasons written, skipped and failed |
+| The backfill finishes | `info` | `Zone backfill finished`, with the number of seasons written and skipped (no level to store) and the seasons that failed, as `VL 2025` |
 
 A failed sync is already logged by the standings service. No personal data.
 

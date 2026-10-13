@@ -5,9 +5,10 @@
  *
  * decisions/036-halftime-comebacks.md
  * decisions/169-production-backfill.md
+ * decisions/063-competition-zones.md
  */
 import { existsSync } from "node:fs";
-import { authoriseReset, databaseNameFrom, describeTarget } from "./backfill-plan";
+import { authoriseReset, databaseNameFrom, describeTarget, zonesConflict } from "./backfill-plan";
 
 function out(line = ""): void {
   process.stdout.write(`${line}\n`);
@@ -51,6 +52,19 @@ async function main(): Promise<void> {
   const confirmedName = resetArg?.includes("=") ? (resetArg.split("=")[1] ?? null) : null;
 
   out(`Target       ${describeTarget(connectionString)}`);
+
+  // `--zones` writes the zone levels of the stored seasons and nothing else.
+  if (args.includes("--zones")) {
+    const conflict = zonesConflict(args);
+    if (conflict !== null) {
+      err(`\nRefusing to run: ${conflict}`);
+      process.exitCode = 1;
+      return;
+    }
+    const { backfillZoneLevels } = await import("./backfill-run");
+    process.exitCode = await backfillZoneLevels();
+    return;
+  }
 
   if (resetArg !== undefined) {
     const verdict = authoriseReset(connectionString, confirmedName);

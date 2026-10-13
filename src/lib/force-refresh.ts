@@ -41,8 +41,10 @@ import {
 import {
   getSeasonGroups,
   getSeasonMatches as getTasoSeasonMatches,
+  type NormalizedTasoGroupLevel,
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
+  normalizeGroupLevels,
   normalizeGroupTeams,
   tasoCategoryCacheKey,
   tasoMatchesCacheKey,
@@ -120,6 +122,7 @@ function seasonLabelFor(seasons: SeasonChoice[], seasonId: number): string | nul
  * under. A union, because only TASO has group standings.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/063-competition-zones.md
  */
 type Snapshot =
   | {
@@ -128,6 +131,8 @@ type Snapshot =
       categoryId: string;
       matches: NormalizedTasoMatch[];
       groupTeams: NormalizedTasoGroupTeam[];
+      /** Written with the group rows, and left out of the diff, the hash and the audit. */
+      groupLevels: NormalizedTasoGroupLevel[];
     }
   | {
       source: "football-data";
@@ -179,6 +184,7 @@ async function fetchSnapshot(choice: CompetitionChoice, seasonId: number): Promi
       categoryId,
       matches: providerMatches,
       groupTeams: normalizeGroupTeams(groups, categoryId, competitionId, seasonId),
+      groupLevels: normalizeGroupLevels(groups, categoryId, competitionId, seasonId),
     };
   }
   return {
@@ -526,6 +532,7 @@ async function writeSnapshot(
           snapshot.competitionId,
           seasonId,
           snapshot.groupTeams,
+          snapshot.groupLevels,
           tx
         );
         if (removedIds.length > 0) {
