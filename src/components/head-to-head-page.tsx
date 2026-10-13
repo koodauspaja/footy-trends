@@ -23,6 +23,7 @@ import {
 import { PredictionBody } from "@/components/match-prediction";
 import { PageShell } from "@/components/page-shell";
 import { RowLink } from "@/components/row-link";
+import { ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
@@ -36,7 +37,6 @@ import {
   headToHeadWindow,
   headToHeadWindowSentence,
   isCurrentRivalry,
-  SCORE_GRID_CAP,
   type ScoreAverage,
   type ScoreGrid,
   type Scoreline,
@@ -316,53 +316,6 @@ export function mostCommonSentence(grid: ScoreGrid): string | null {
 }
 
 /**
- * An axis label: the number of goals, or `5+` for the capped last row and column.
- *
- * decisions/044-scorelines-and-goal-averages.md
- */
-export function goalsLabel(goals: number): string {
-  return goals === SCORE_GRID_CAP ? `${SCORE_GRID_CAP}+` : String(goals);
-}
-
-/**
- * How many shading steps a filled cell can take, light to dark.
- *
- * decisions/044-scorelines-and-goal-averages.md
- */
-const SHADE_STEPS = [18, 38, 62, 85] as const;
-
-/**
- * How dark a cell is: 0 for an empty one, else 1–4 by its share of the fullest
- * cell. The count is printed in every filled cell too.
- *
- * decisions/044-scorelines-and-goal-averages.md
- */
-export function shadeLevel(count: number, largest: number): number {
-  if (count === 0) return 0;
-  return Math.ceil((count / largest) * SHADE_STEPS.length);
-}
-
-function ScoreCell({ count, largest }: Readonly<{ count: number; largest: number }>) {
-  const level = shadeLevel(count, largest);
-  const mix = SHADE_STEPS[level - 1];
-  return (
-    <td
-      className={`h-9 w-10 border border-border-subtle text-center ${level >= 3 ? "text-background" : ""}`}
-      data-level={level}
-      style={
-        mix === undefined
-          ? undefined
-          : {
-              backgroundColor: `color-mix(in oklab, var(--color-foreground) ${mix}%, var(--color-background))`,
-            }
-      }
-    >
-      {count === 0 ? "" : count}
-    </td>
-  );
-}
-
-/**
  * The `Tulokset` section: the grid, and its sentence where it has one.
  *
  * decisions/044-scorelines-and-goal-averages.md
@@ -379,34 +332,15 @@ function ScoresSection({
         {SCORES_HEADING}
       </SectionHeading>
       {sentence === null ? null : <p className="mb-3">{sentence}</p>}
-      <div className="overflow-x-auto">
-        <table className="border-collapse text-sm tabular-nums">
-          <thead>
-            <tr>
-              <th className="p-2 text-left font-normal text-muted text-xs" scope="col">
-                {`${view.first} ↓ / ${view.second} →`}
-              </th>
-              {grid.rows.map((row) => (
-                <th className="w-10 p-2 text-center font-medium" key={row.first} scope="col">
-                  {goalsLabel(row.first)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {grid.rows.map((row) => (
-              <tr key={row.first}>
-                <th className="p-2 text-right font-medium" scope="row">
-                  {goalsLabel(row.first)}
-                </th>
-                {row.cells.map((cell) => (
-                  <ScoreCell count={cell.count} key={cell.second} largest={grid.largest} />
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ScoreGridTable
+        corner={`${view.first} ↓ / ${view.second} →`}
+        rows={grid.rows.map((row) =>
+          row.cells.map(({ count }) => ({
+            level: shadeLevel(count, grid.largest),
+            text: count === 0 ? "" : String(count),
+          }))
+        )}
+      />
     </section>
   );
 }

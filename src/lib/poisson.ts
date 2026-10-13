@@ -97,16 +97,19 @@ export type PoissonFit = {
 };
 
 /**
- * A match's prediction: the three outcomes, each side's expected goals, and
- * the most likely score with its probability.
+ * A match's prediction: the three outcomes, each side's expected goals, the
+ * most likely score with its probability, and the scoreline grid they come
+ * from, `grid[home][away]`.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/062-scoreline-probability-grid.md
  */
 export type PoissonPrediction = {
   prediction: ThreeWay;
   homeGoals: number;
   awayGoals: number;
   score: { home: number; away: number; probability: number };
+  grid: number[][];
 };
 
 /**
@@ -195,6 +198,24 @@ export function mostLikelyScore(grid: readonly (readonly number[])[]): PoissonPr
     });
   });
   return best;
+}
+
+/**
+ * A scoreline grid folded to `cap` goals a side: every cell with `cap` or more
+ * goals for a side summed into that side's last row or column. It sums to what
+ * the grid did.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
+export function foldScoreGrid(grid: readonly (readonly number[])[], cap: number): number[][] {
+  const folded = Array.from({ length: cap + 1 }, () => new Array<number>(cap + 1).fill(0));
+  grid.forEach((row, home) => {
+    row.forEach((cell, away) => {
+      const foldedRow = folded[Math.min(home, cap)] as number[];
+      foldedRow[Math.min(away, cap)] = (foldedRow[Math.min(away, cap)] as number) + cell;
+    });
+  });
+  return folded;
 }
 
 /**
@@ -536,7 +557,13 @@ export function predictPoisson(
     competition.base + (fit.attack.get(awayTeam) ?? 0) + (fit.defence.get(homeTeam) ?? 0)
   );
   const grid = scoreGrid(homeGoals, awayGoals, competition.drawFactor);
-  return { prediction: outcomesOf(grid), homeGoals, awayGoals, score: mostLikelyScore(grid) };
+  return {
+    prediction: outcomesOf(grid),
+    homeGoals,
+    awayGoals,
+    score: mostLikelyScore(grid),
+    grid,
+  };
 }
 
 /**
