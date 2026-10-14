@@ -131,6 +131,8 @@ export function nationalTeamAnalytics(years: readonly NationalTeamYear[]) {
     loadOpponents: () => Promise.resolve({ status: "unavailable" as const }),
     // Clubs only.
     loadElo: () => Promise.resolve({ series: { status: "unavailable" as const } }),
+    // A club's league season only.
+    loadSummary: () => Promise.resolve({ series: { status: "unavailable" as const } }),
     // The six result panels, over the whole history.
     ...teamPanelLoaders(
       // No season to name: the panels cover the whole history. `MAA` marks

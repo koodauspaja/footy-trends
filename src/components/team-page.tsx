@@ -14,6 +14,7 @@ import type { OpponentsSeries } from "@/lib/head-to-head";
 import { matchCountLabel } from "@/lib/national-team";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { SeasonSummarySeries } from "@/lib/season-summary";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { TeamPageSource } from "@/lib/team-context";
 import type { TeamPanelLoaders } from "@/lib/team-panels";
@@ -58,6 +59,7 @@ export type TeamAnalyticsLoaders = TeamPanelLoaders & {
   loadComparison: () => Promise<SeasonComparisonSeries>;
   loadOpponents: () => Promise<OpponentsSeries>;
   loadElo: () => Promise<EloPanelData>;
+  loadSummary: () => Promise<SeasonSummarySeries>;
 };
 
 /**
@@ -208,6 +210,7 @@ export async function TeamPage<M extends MatchListRow>({
     );
 
   const played = seasons.status === "ok" ? seasons.seasons : [];
+  const matchHref = (providerMatchId: number) => `${basePath}/ottelu/${providerMatchId}`;
   // Either lookup failing is an outage, and neither is a club that does not exist.
   const lookups = nameStatus === "error" ? "error" : seasons.status;
 
@@ -243,6 +246,10 @@ export async function TeamPage<M extends MatchListRow>({
             seasons.status !== "error"
               ? loaders.loadComparison()
               : Promise.resolve({ status: "error" as const }),
+          loadSummary: async () => ({
+            series: seasons.status !== "error" ? await loaders.loadSummary() : { status: "error" },
+            matchHref,
+          }),
         });
 
   return (
@@ -270,7 +277,7 @@ export async function TeamPage<M extends MatchListRow>({
             >
               <MatchListTable
                 fourthColumn={data.fourthColumn}
-                matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
+                matchHref={(match) => matchHref(match.providerMatchId)}
                 matches={result.matches}
                 teamHref={null}
               />

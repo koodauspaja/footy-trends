@@ -26,6 +26,7 @@ import {
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamSeasonSummary,
   getTeamStreakRecords,
 } from "@/lib/standings-service";
 import type { TeamContextFilter } from "@/lib/team-context";
@@ -173,6 +174,18 @@ async function resolveTeamPage({
           context.activeSeasonId,
           played
         ),
+      // A club's latest league season only: a national team has no block.
+      loadSummary: () =>
+        region === "national-teams"
+          ? Promise.resolve({ status: "unavailable" as const })
+          : getTeamSeasonSummary(
+              competitionCode,
+              teamProviderId,
+              seasonId,
+              context.activeSeasonId,
+              played,
+              labelSeason
+            ),
       // A cup has no table to rank a position in, so the panel is absent, not
       // empty. Every other panel is computed from results, which a cup has.
       loadPosition: () =>

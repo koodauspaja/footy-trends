@@ -22,8 +22,10 @@ import {
   isFirstStoredSeason,
   type PredictedMatch,
   type SeasonSurprises,
+  type Surprise,
   seasonSurprises,
   surpriseOf,
+  teamUpset,
 } from "./surprise";
 
 const FINISHED_STATUS = "FINISHED";
@@ -113,6 +115,22 @@ async function tasoPredicted(code: string, seasonId: number): Promise<PredictedM
 }
 
 /**
+ * A competition-season's finished matches with Elo's backtest row, from the
+ * provider's own table.
+ *
+ * decisions/057-surprise-index.md
+ */
+function predictedIn(
+  kind: MatchSource["kind"],
+  code: string,
+  seasonId: number
+): Promise<PredictedMatch[]> {
+  return kind === "football-data"
+    ? footballDataPredicted(code, seasonId)
+    : tasoPredicted(code, seasonId);
+}
+
+/**
  * A competition-season's biggest surprises, or why there is no list. The
  * competition's first stored season is answered without reading a prediction.
  *
@@ -128,11 +146,7 @@ export async function getSeasonSurprises(
     if (isFirstStoredSeason(seasonId, await getFirstStoredSeason(kind, code))) {
       return { status: "first-season" };
     }
-    const predicted =
-      kind === "football-data"
-        ? await footballDataPredicted(code, seasonId)
-        : await tasoPredicted(code, seasonId);
-    return seasonSurprises(predicted, seasonId === activeSeasonId);
+    return seasonSurprises(await predictedIn(kind, code, seasonId), seasonId === activeSeasonId);
   } catch (error) {
     logger.error(
       { err: error, source: kind, code, seasonId },
@@ -140,6 +154,24 @@ export async function getSeasonSurprises(
     );
     return { status: "error" };
   }
+}
+
+/**
+ * The team's own win in a competition-season that Elo thought least likely, or
+ * `null`: none won, none predicted, or the competition's first stored season. A
+ * failed read throws, for the caller to log with what it was summarising.
+ *
+ * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
+ */
+export async function getTeamUpset(
+  kind: MatchSource["kind"],
+  code: string,
+  seasonId: number,
+  teamProviderId: number
+): Promise<Surprise | null> {
+  if (isFirstStoredSeason(seasonId, await getFirstStoredSeason(kind, code))) return null;
+  return teamUpset(await predictedIn(kind, code, seasonId), teamProviderId);
 }
 
 /**
