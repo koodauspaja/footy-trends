@@ -325,20 +325,25 @@ export function competitionsOf(
 /**
  * Every figure for one provider and kind: only the matches every model
  * predicted, each model judged on them. Given a competition, every figure but
- * the rows per competition counts that competition's matches only.
+ * the rows counts its matches only; given none, every competition's but `apart`.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 export function qualityReport(
   predictions: readonly JudgedPrediction[],
   models: readonly string[],
   competitionOrder: readonly string[],
-  competition: string | null = null
+  competition: string | null = null,
+  /** Competitions with a row of their own and no part in the figures of all. */
+  apart: ReadonlySet<string> = new Set()
 ): QualityReport {
   const everyCompetition = commonMatches(predictions, models);
   const common = (
-    competition === null ? everyCompetition : inCompetition(everyCompetition, models, competition)
+    competition === null
+      ? everyCompetition.filter((prediction) => !apart.has(prediction.competitionCode))
+      : inCompetition(everyCompetition, models, competition)
   ).toSorted(byKickoff);
   if (common.length === 0) return { status: "empty" };
 

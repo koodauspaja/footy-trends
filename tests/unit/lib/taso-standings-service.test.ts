@@ -60,6 +60,7 @@ import { teamPanelLoaders } from "@/lib/team-panels";
  * decisions/628-zeroed-continuation-tables.md
  * decisions/063-competition-zones.md
  * decisions/644-stored-table-behind-results.md
+ * decisions/064-season-simulation-zones.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -4947,6 +4948,7 @@ describe("getSeasonTables", () => {
           standings: groups[0]?.kind === "own-calculated" ? groups[0].standings : null,
           matches: [regular],
           parentGroupId: null,
+          levels: [],
         },
         {
           groupId: 2,
@@ -4955,6 +4957,7 @@ describe("getSeasonTables", () => {
           standings: groups[1]?.kind === "own-calculated" ? groups[1].standings : null,
           matches: [played, toPlay],
           parentGroupId: 1,
+          levels: [],
         },
       ],
     });
@@ -4962,6 +4965,40 @@ describe("getSeasonTables", () => {
     expect(
       season.status === "ok" && season.tables[1]?.standings.map((team) => team.points)
     ).toEqual([4, 1]);
+  });
+
+  it("gives each group its own stored levels", async () => {
+    const levels = [
+      { groupId: 1, level: 1, teamCount: 6, label: "Mestaruussarjaan" },
+      { groupId: 1, level: 2, teamCount: 6, label: "Karsintasarjaan" },
+      { groupId: 2, level: 1, teamCount: 1, label: "Kultaa" },
+    ];
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1 }), match({ providerMatchId: 2, groupId: 2 })],
+      [],
+      levels
+    );
+
+    const season = await getSeasonTables(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(season.status === "ok" && season.tables.map((table) => table.levels)).toEqual([
+      [levels[0], levels[1]],
+      [levels[2]],
+    ]);
+  });
+
+  it("reads no level for a competition that stores none", async () => {
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, categoryId: "M2" })],
+      [],
+      [{ groupId: 1, level: 1, teamCount: 1, label: "Nousee" }]
+    );
+
+    const season = await getSeasonTables("M2", COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(season.status === "ok" && season.tables.map((table) => table.levels)).toEqual([[]]);
+    const from = dbMock.select.mock.results[0]?.value.from as ReturnType<typeof vi.fn>;
+    expect(from.mock.calls.map(([table]) => table)).not.toContain(tasoGroupZones);
   });
 
   it("gives a group shown from TASO's own numbers no table of ours", async () => {
@@ -5369,6 +5406,37 @@ describe("the stored levels a standings read returns", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, seasonId: 2014 }),
       "Unable to load TASO standings"
+    );
+  });
+});
+
+describe("the stored levels a season's tables carry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fails when the levels cannot be read, rather than answering a table with none", async () => {
+    const from = vi.fn().mockImplementation((table: unknown) => {
+      if (table === tasoGroupZones) {
+        return {
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockRejectedValue(new Error("connection lost")),
+          }),
+        };
+      }
+      const rows = table === tasoGroupTeams ? [] : [match({ seasonId: 2015 })];
+      return {
+        where: vi
+          .fn()
+          .mockReturnValue(
+            Object.assign(Promise.resolve(rows), { orderBy: vi.fn().mockResolvedValue(rows) })
+          ),
+      };
+    });
+    dbMock.select.mockReturnValue({ from });
+
+    await expect(getSeasonTables(CATEGORY_ID, "spljp15", 2015, ACTIVE_SEASON)).rejects.toThrow(
+      "connection lost"
     );
   });
 });

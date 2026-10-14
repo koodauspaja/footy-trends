@@ -7,6 +7,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * is proved against Postgres in `tests/integration/predictions.test.ts`.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
@@ -68,9 +69,9 @@ const DROPPED_KEYS = [
     `quality:v3:football-data:backtest:${code}`,
   ]),
   ["quality:v3:taso:backtest"],
-  ...["VL", "M1L", "M1", "M2", "NL", "N1", "P21SM", "P211", "P18SM", "T18SM"].map((code) => [
-    `quality:v3:taso:backtest:${code}`,
-  ]),
+  ...["VL", "M1L", "M1", "M2", "NL", "N1", "P21SM", "P211", "P18SM", "T18SM", "MSC", "NSC"].map(
+    (code) => [`quality:v3:taso:backtest:${code}`]
+  ),
 ];
 // The real fit, behind a spy one test makes fail.
 vi.mock("@/lib/poisson", async (importOriginal) => {
@@ -238,10 +239,10 @@ describe("runPredictionLog", () => {
     expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, failures: [] });
   });
 
-  it("files a TASO row by its season's pair, and ignores a row no compared competition holds", async () => {
+  it("files a TASO row by its season's pair, and ignores a row no predicted competition holds", async () => {
     stored(
       [],
-      [tasoRow({ competitionId: "Liigacup26", categoryId: "VL" }), tasoRow({ categoryId: "MSC" })]
+      [tasoRow({ competitionId: "Liigacup26", categoryId: "VL" }), tasoRow({ categoryId: "LC" })]
     );
 
     const report = await runPredictionLog(() => NOW, immediate);
@@ -504,6 +505,81 @@ describe("runPredictionLog", () => {
       { refreshed: 1, logged: 2, backtested: 0, failures: ["poisson strengths"] },
       "Predictions run finished"
     );
+  });
+
+  // A Suomen Cup tie at hour 6, and the league matches that rate its sides.
+  const cupTie = (overrides: Record<string, unknown> = {}) =>
+    tasoRow({
+      categoryId: "MSC",
+      providerMatchId: 50,
+      homeTeam: 1001,
+      awayTeam: 1002,
+      ...overrides,
+    });
+  const leagueMatch = (providerMatchId: number, homeTeam: number, awayTeam: number) => ({
+    competitionId: "spljp26",
+    categoryId: "VL",
+    seasonId: 2026,
+    providerMatchId,
+    kickoffAt: new Date("2026-05-01T15:00:00Z"),
+    homeTeam,
+    awayTeam,
+    homeGoals: 1,
+    awayGoals: 0,
+  });
+
+  it("logs a cup tie under every model when the leagues have rated both sides", async () => {
+    // An earlier tie gives the cup its own goal rate, which Poisson needs.
+    const earlierTie = {
+      ...leagueMatch(901, 1002, 1001),
+      categoryId: "MSC",
+      kickoffAt: new Date("2026-06-01T15:00:00Z"),
+    };
+    stored([], [cupTie()], [[], [leagueMatch(900, 1001, 1002), earlierTie]]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+      expect(written(model).map((row) => [row.providerMatchId, row.competitionCode])).toEqual([
+        [50, "MSC"],
+      ]);
+    }
+    expect(mocks.getHomeBaseline).toHaveBeenCalledWith("taso", "MSC");
+  });
+
+  it("logs a cup tie under no model when one side has never played a league match", async () => {
+    // Team 1003 is rated; 1002 has played only this cup. The earlier tie gives
+    // Poisson a cup fit, so its own check is the one tested.
+    const earlierTie = {
+      ...leagueMatch(901, 1003, 1001),
+      categoryId: "MSC",
+      kickoffAt: new Date("2026-06-01T15:00:00Z"),
+    };
+    stored(
+      [],
+      [cupTie(), tasoRow({ providerMatchId: 51 })],
+      [[], [leagueMatch(900, 1001, 1003), earlierTie]]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+      expect(written(model).map((row) => row.providerMatchId)).toEqual([51]);
+    }
+  });
+
+  it("logs no cup tie, by any model, when the history that rates its sides cannot be read", async () => {
+    mocks.select
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cupTie(), tasoRow({ providerMatchId: 51 })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cupTie(), tasoRow({ providerMatchId: 51 })])
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockResolvedValueOnce([]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written().map((row) => row.providerMatchId)).toEqual([51]);
   });
 
   it("still writes the baseline when the Elo history cannot be read, and reports it", async () => {
@@ -822,6 +898,32 @@ describe("readFinished", () => {
     expect(mocks.select).toHaveBeenCalledTimes(1);
     expect(finished).toEqual([
       expect.objectContaining({ source: "taso", code: "VL", homeTeam: 1, seasonId: 2025 }),
+    ]);
+  });
+
+  it("marks a Suomen Cup match as a cup tie, and a league match not", async () => {
+    const row = {
+      competitionId: "spljp25",
+      seasonId: 2025,
+      kickoffAt: new Date("2025-05-01T15:00:00Z"),
+      homeTeam: 1,
+      awayTeam: 2,
+      homeGoals: 1,
+      awayGoals: 1,
+    };
+    mocks.select.mockResolvedValueOnce([
+      { ...row, categoryId: "MSC", providerMatchId: 8 },
+      { ...row, categoryId: "NSC", providerMatchId: 9 },
+      { ...row, categoryId: "VL", providerMatchId: 10 },
+      { ...row, categoryId: "LC", providerMatchId: 11 },
+    ]);
+
+    const finished = await readFinished(new Set(["taso"]));
+
+    expect(finished.map((match) => [match.providerMatchId, match.code, match.cup])).toEqual([
+      [8, "MSC", true],
+      [9, "NSC", true],
+      [10, "VL", undefined],
     ]);
   });
 

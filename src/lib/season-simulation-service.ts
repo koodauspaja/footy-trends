@@ -4,6 +4,8 @@
  * Poisson fit, and cached for 15 minutes. `season-simulation.ts` simulates.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 
 import { getCachedUnlessDegraded } from "./cache";
@@ -24,6 +26,7 @@ import { calculateStandings, toFinishedMatches } from "./standings";
 import { getLeagueSeasonMatches } from "./standings-service";
 import { hasTableVolatility } from "./table-volatility";
 import { getSeasonTables, hasCarryOver } from "./taso-standings-service";
+import { registryLevels } from "./zone-registry";
 
 /**
  * As long as the table's and the fit's own caches.
@@ -70,6 +73,7 @@ async function footballDataSeason(
         simulated: true,
         rows: calculateStandings(toFinishedMatches(regular), regular),
         fixtures: regular.filter(isRemainingFixture).map(fixtureOf),
+        levels: registryLevels(code, seasonId),
       },
     ],
   };
@@ -115,8 +119,25 @@ async function tasoSeason(
         simulated: table.kind === "own-calculated",
         rows: table.standings,
         fixtures: table.matches.filter(isRemainingFixture).map(fixtureOf),
+        levels: table.levels,
       })),
   };
+}
+
+/**
+ * The cache entry of a season's forecast. A forced refresh clears it, with the
+ * answers it was computed from.
+ *
+ * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
+ * decisions/065-foreign-league-zones.md
+ */
+export function forecastCacheKey(
+  kind: MatchSource["kind"],
+  code: string,
+  seasonId: number
+): string {
+  return `forecast:v4:${kind}:${code}:${seasonId}`;
 }
 
 /**
@@ -139,7 +160,7 @@ export async function getSeasonForecast(
 
   try {
     return await getCachedUnlessDegraded(
-      `forecast:v2:${kind}:${code}:${seasonId}`,
+      forecastCacheKey(kind, code, seasonId),
       FORECAST_CACHE_TTL_SECONDS,
       async (): Promise<{ value: SeasonForecast; degraded: boolean }> => {
         const [fitted, season] = await Promise.all([

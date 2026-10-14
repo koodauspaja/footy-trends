@@ -47,9 +47,10 @@ export type RefreshTarget =
   | { source: "taso"; code: string; seasonId: number; competitionId: string; categoryId: string };
 
 /**
- * One stored match of a compared competition, near enough to now to matter.
+ * One stored match of a predicted competition, near enough to now to matter.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export type LogCandidate = RefreshTarget & {
   providerMatchId: number;

@@ -90,7 +90,8 @@ export type PoissonMatch = EloMatch;
  * decisions/055-poisson-goal-model.md
  */
 export type PoissonFit = {
-  competitions: Map<string, { base: number; drawFactor: number }>;
+  /** `cup` for a cup, fitted on the leagues' strengths and predicted only between teams they know. */
+  competitions: Map<string, { base: number; drawFactor: number; cup?: boolean }>;
   home: number;
   attack: Map<number, number>;
   defence: Map<number, number>;
@@ -476,13 +477,15 @@ function drawFactors(columns: Columns, strengths: Strengths): number[] {
 
 /**
  * The fit of `history`, as it stands on `day`: weighted maximum likelihood by
- * sweeps until no parameter moves. `warm` is a nearby fit to start from; it
- * changes how long the sweeps take, not where they end.
+ * sweeps until no parameter moves, over the leagues' matches; the cups after.
+ * `warm` is a nearby fit to start from, which changes only how long it takes.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 function fitWindow(history: readonly PoissonMatch[], day: number, warm?: PoissonFit): PoissonFit {
-  const columns = columnsOf(history, day);
+  const leagues = history.filter((match) => !match.cup);
+  const columns = columnsOf(leagues, day);
   const { codes, teams } = columns;
   const strengths: Strengths = {
     base: Float64Array.from(codes.keys(), (code) => warm?.competitions.get(code)?.base ?? 0),
@@ -490,14 +493,14 @@ function fitWindow(history: readonly PoissonMatch[], day: number, warm?: Poisson
     defence: Float64Array.from(teams.keys(), (team) => warm?.defence.get(team) ?? 0),
     home: warm?.home ?? START_HOME_ADVANTAGE,
   };
-  for (let sweeps = 0; sweeps < MAX_SWEEPS && history.length > 0; sweeps += 1) {
+  for (let sweeps = 0; sweeps < MAX_SWEEPS && leagues.length > 0; sweeps += 1) {
     if (sweep(columns, strengths) < TOLERANCE) break;
   }
 
   const factors = drawFactors(columns, strengths);
   const byTeam = (values: Float64Array) =>
     new Map([...teams].map(([team, index]) => [team, values[index] as number]));
-  return {
+  const fit: PoissonFit = {
     competitions: new Map(
       [...codes].map(([code, index]) => [
         code,
@@ -508,6 +511,59 @@ function fitWindow(history: readonly PoissonMatch[], day: number, warm?: Poisson
     attack: byTeam(strengths.attack),
     defence: byTeam(strengths.defence),
   };
+  for (const [code, cup] of cupFits(history, fit, day)) fit.competitions.set(code, cup);
+  return fit;
+}
+
+/**
+ * Each cup's goal rate and draw factor, from its matches between two teams the
+ * leagues' fit knows, every strength held as the leagues left it.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function cupFits(
+  history: readonly PoissonMatch[],
+  fit: PoissonFit,
+  day: number
+): Map<string, { base: number; drawFactor: number; cup: true }> {
+  const known = (team: number) => fit.attack.has(team);
+  const byCode = new Map<string, PoissonMatch[]>();
+  for (const match of history) {
+    if (!match.cup || !known(match.homeTeam) || !known(match.awayTeam)) continue;
+    const ties = byCode.get(match.code);
+    if (ties === undefined) byCode.set(match.code, [match]);
+    else ties.push(match);
+  }
+
+  const rates = (match: PoissonMatch) => ({
+    home: Math.exp(
+      fit.home +
+        (fit.attack.get(match.homeTeam) as number) +
+        (fit.defence.get(match.awayTeam) as number)
+    ),
+    away: Math.exp(
+      (fit.attack.get(match.awayTeam) as number) + (fit.defence.get(match.homeTeam) as number)
+    ),
+  });
+  const cups = new Map<string, { base: number; drawFactor: number; cup: true }>();
+  for (const [code, matches] of byCode) {
+    let goals = 0;
+    let expected = 0;
+    for (const match of matches) {
+      const weight = Math.exp(-POISSON_DECAY_PER_DAY * (day - match.kickoffAt.getTime() / DAY_MS));
+      const { home, away } = rates(match);
+      goals += weight * (match.homeGoals + match.awayGoals);
+      expected += weight * (home + away);
+    }
+    const base = Math.log((goals + RATE_PRIOR_GOALS) / (expected + RATE_PRIOR_GOALS));
+    const draws = matches.map((match) => {
+      const { home, away } = rates(match);
+      return plainDraw(Math.exp(base) * home, Math.exp(base) * away);
+    });
+    const drawn = matches.filter((match) => match.homeGoals === match.awayGoals).length;
+    cups.set(code, { base, drawFactor: drawFactorFor(draws, drawn / matches.length), cup: true });
+  }
+  return cups;
 }
 
 /**
@@ -537,9 +593,10 @@ export function fitPoisson(matches: readonly PoissonMatch[], day: number): Poiss
 /**
  * A match's prediction from a fit, or null when a side is a placeholder or
  * the competition has no match in the fit. A team absent from the fit is an
- * average side.
+ * average side, except in a cup, where it is no prediction.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 export function predictPoisson(
   fit: PoissonFit,
@@ -550,6 +607,7 @@ export function predictPoisson(
   if (homeTeam === PLACEHOLDER_TEAM_ID || awayTeam === PLACEHOLDER_TEAM_ID) return null;
   const competition = fit.competitions.get(code);
   if (competition === undefined) return null;
+  if (competition.cup && !(fit.attack.has(homeTeam) && fit.attack.has(awayTeam))) return null;
   const homeGoals = Math.exp(
     competition.base + fit.home + (fit.attack.get(homeTeam) ?? 0) + (fit.defence.get(awayTeam) ?? 0)
   );

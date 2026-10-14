@@ -24,6 +24,7 @@ import {
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 
 const day = (n: number) => new Date(Date.UTC(2024, 0, 1) + n * 86_400_000);
@@ -401,5 +402,43 @@ describe("the rows per competition", () => {
 
   it("is empty for a competition without a match every model predicted, though others have one", () => {
     expect(qualityReport(rows, ["a", "b"], ["VL", "M1", "M2"], "M2")).toEqual({ status: "empty" });
+  });
+});
+
+describe("qualityReport with competitions kept apart", () => {
+  // Two models, a league match each won at home and a cup tie won away.
+  const both = (id: number, competitionCode: string, outcome: JudgedPrediction["outcome"]) => [
+    judged({ model: "a", providerMatchId: id, kickoffAt: day(id), competitionCode, outcome }),
+    judged({ model: "b", providerMatchId: id, kickoffAt: day(id), competitionCode, outcome }),
+  ];
+  const predictions = [
+    ...both(1, "VL", "home"),
+    ...both(2, "VL", "home"),
+    ...both(3, "MSC", "away"),
+  ];
+
+  it("leaves them out of every figure of all competitions, and gives each its row", () => {
+    const report = qualityReport(predictions, ["a", "b"], ["VL", "MSC"], null, new Set(["MSC"]));
+    const leagueOnly = qualityReport(predictions.slice(0, 4), ["a", "b"], ["VL", "MSC"]);
+
+    if (report.status !== "ok" || leagueOnly.status !== "ok") throw new Error("Expected reports");
+    expect(report.matches).toBe(2);
+    expect(report.totals).toEqual(leagueOnly.totals);
+    expect(report.competitions.map((row) => [row.code, row.matches])).toEqual([
+      ["VL", 2],
+      ["MSC", 1],
+    ]);
+  });
+
+  it("judges a competition kept apart on its own when it is the one chosen", () => {
+    const report = qualityReport(predictions, ["a", "b"], ["VL", "MSC"], "MSC", new Set(["MSC"]));
+
+    expect(report.status === "ok" && report.matches).toBe(1);
+  });
+
+  it("keeps every competition in the figures when none is kept apart", () => {
+    const report = qualityReport(predictions, ["a", "b"], ["VL", "MSC"]);
+
+    expect(report.status === "ok" && report.matches).toBe(3);
   });
 });

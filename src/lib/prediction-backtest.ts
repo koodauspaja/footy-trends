@@ -7,6 +7,7 @@
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
  */
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
@@ -49,11 +50,31 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 }
 
 /**
+ * Whether a match can be predicted for its sides: always in a league; in a cup
+ * only when the Elo replay predicts it, which rates both sides first.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function ratedSides(finished: readonly FinishedMatch[]): (match: FinishedMatch) => boolean {
+  const predicted = new Set<string>();
+  for (const source of ["football-data", "taso"] as const) {
+    replayElo(
+      finished.filter((match) => match.source === source),
+      (match) => {
+        if (match.cup) predicted.add(`${match.source}:${match.providerMatchId}`);
+      }
+    );
+  }
+  return (match) => !match.cup || predicted.has(`${match.source}:${match.providerMatchId}`);
+}
+
+/**
  * One `backtest` row per match with an earlier finished match in its
- * competition. Matches sharing a kickoff are predicted from the same tally and
- * added to it together; a competition's first kickoff gets no row.
+ * competition, and in a cup only between rated sides. Matches sharing a kickoff
+ * are predicted from one tally and added to it together.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export function backtestRows(
   finished: readonly FinishedMatch[],
@@ -66,6 +87,7 @@ export function backtestRows(
     byCompetition.set(key, [...(byCompetition.get(key) ?? []), match]);
   }
 
+  const predictable = ratedSides(finished);
   const rows: PredictionRow[] = [];
   for (const matches of byCompetition.values()) {
     const ordered = matches.toSorted(
@@ -79,7 +101,7 @@ export function backtestRows(
       let end = index;
       while (ordered[end]?.kickoffAt.getTime() === kickoff) end += 1;
       const together = ordered.slice(index, end);
-      for (const match of together) {
+      for (const match of together.filter(predictable)) {
         const baseline = sharesOf(tally, match.code, match.source);
         if (baseline.status !== "ok") continue;
         rows.push({

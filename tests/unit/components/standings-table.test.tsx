@@ -198,3 +198,55 @@ describe("StandingsTable rules between levels", () => {
     expect(ruledRows()).toEqual([false, false, false]);
   });
 });
+
+describe("StandingsTable zones", () => {
+  // Positions out of order and repeated, as a pass-through table or an earlier
+  // round can carry: the tint follows the row's place as drawn.
+  const shared = [7, 7, 7].map((position, index) =>
+    buildRow({ position, teamProviderId: index + 1, teamName: `Joukkue ${index + 1}` })
+  );
+
+  function tints() {
+    return screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => [...row.classList].find((name) => name.startsWith("bg-zone-")) ?? null);
+  }
+
+  it("tints each row by the kind of the zone its place is in", () => {
+    render(
+      <StandingsTable
+        standings={shared}
+        teamHref={teamHref}
+        zones={[
+          { from: 3, to: 3, label: "Putoaa", kind: "relegation" },
+          { from: 1, to: 2, label: "Nousee", kind: "promotion" },
+        ]}
+      />
+    );
+
+    expect(tints()).toEqual([
+      "bg-zone-promotion-background",
+      "bg-zone-promotion-background",
+      "bg-zone-relegation-background",
+    ]);
+  });
+
+  it("leaves a zone with no kind, and the rows outside any zone, untinted", () => {
+    render(
+      <StandingsTable
+        standings={shared}
+        teamHref={teamHref}
+        zones={[{ from: 2, to: 2, label: "Säilyy" }]}
+      />
+    );
+
+    expect(tints()).toEqual([null, null, null]);
+  });
+
+  it("tints nothing unless asked", () => {
+    render(<StandingsTable standings={shared} teamHref={teamHref} />);
+
+    expect(tints()).toEqual([null, null, null]);
+  });
+});
