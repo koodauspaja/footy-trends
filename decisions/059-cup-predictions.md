@@ -43,7 +43,7 @@ something the spec did not.
   | 8 | Elo: a cup tie never predicted |
   | 9 | Poisson: the cups in the sweep |
   | 10 | Poisson: a cup's goal rate without the prior |
-  | 11 | Poisson: a cup's draw factor of the leagues' |
+  | 11 | Poisson: a cup's draw factor fixed at 1 |
   | 12 | Poisson: an unknown side in a cup an average side |
   | 13 | Backtest: a cup tie's side rated at the same kickoff |
   | 14 | Backtest: a cup tie with an unrated side given a row |
@@ -60,8 +60,10 @@ something the spec did not.
   | 25 | `/ennusteet`: the line shown without a cup row |
   | 26 | `/ennusteet`: the line never shown |
   | 27 | The cached fit loses `cup` |
+  | 28 | `Ennuste`: a cup tie predicted without asking `predictsSides` |
 
-- **None survived.**
+- **None survived.** 7 and 10 survived the first pass: the unrated side was
+  only ever at home, and no cup was goalless. A test was added for each.
 - **Integration**, against Postgres: a league match rates two sides, a cup
   opener between them ends level after extra time, settled on penalties; the
   next tie between them gets a row from each model, the baseline a draw for
