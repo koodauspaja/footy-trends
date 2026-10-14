@@ -48,11 +48,13 @@ function cell(value: number | null): string {
  * decisions/009-veikkausliiga.md
  * decisions/021-table-consistency.md
  * decisions/026-favourites.md
+ * decisions/063-competition-zones.md
  */
 export function StandingsTable({
   standings,
   teamHref,
   favouriteSource,
+  ruleAfter = [],
 }: Readonly<{
   standings: readonly StandingsRow[];
   teamHref: (teamProviderId: number) => string;
@@ -61,6 +63,8 @@ export function StandingsTable({
    * toggle. Optional: a table without it shows no stars.
    */
   favouriteSource?: FavouriteSource;
+  /** The places in the table as drawn, counted from 1, that a heavier rule follows. */
+  ruleAfter?: readonly number[];
 }>) {
   const columns: Array<DataTableColumn<StandingsRow>> = [
     {
@@ -121,7 +125,14 @@ export function StandingsTable({
     },
   ];
 
-  return <DataTable columns={columns} rowKey={(row) => row.teamProviderId} rows={standings} />;
+  return (
+    <DataTable
+      columns={columns}
+      hasRuleBelow={(_row, index) => ruleAfter.includes(index + 1)}
+      rowKey={(row) => row.teamProviderId}
+      rows={standings}
+    />
+  );
 }
 
 /**

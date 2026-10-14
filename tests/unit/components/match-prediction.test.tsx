@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloRatings } from "@/lib/elo-service";
 import type { HomeBaseline } from "@/lib/home-baseline";
@@ -15,6 +15,7 @@ import type { PoissonFitResult } from "@/lib/poisson-service";
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
  * decisions/058-rivalry-prediction.md
+ * decisions/062-scoreline-probability-grid.md
  */
 
 const { canSeeAnalytics, getHomeBaseline, getEloRatings, getPoissonFit } = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import {
   BASELINE_ROW,
   baselineSentence,
+  cellText,
   ELO_ROW,
   eloSentence,
   MatchPrediction,
@@ -51,8 +53,11 @@ import {
   PredictionBody,
   poissonSentence,
   QUALITY_LINK,
+  SCORE_GRID_CAP_NOTE,
+  SCORE_GRID_INTRO,
+  scoreGridCells,
 } from "@/components/match-prediction";
-import { type PoissonPrediction, predictPoisson } from "@/lib/poisson";
+import { foldScoreGrid, type PoissonPrediction, predictPoisson, scoreGrid } from "@/lib/poisson";
 
 const baseline: Extract<HomeBaseline, { status: "ok" }> = {
   status: "ok",
@@ -122,9 +127,13 @@ async function renderPanel(stored: StoredMatch = upcoming()) {
   return render(<div>{panel}</div>);
 }
 
+// The predictions table is the panel's first; the scoreline grid follows it.
+const predictions = () => screen.getAllByRole("table")[0] as HTMLElement;
+const scoreGridTable = () => screen.getAllByRole("table")[1] as HTMLElement;
+
 // Each body row of the predictions table, as its cells read.
 function tableRows() {
-  return screen
+  return within(predictions())
     .getAllByRole("row")
     .slice(1)
     .map((row) => [...row.querySelectorAll("th, td")].map((cell) => cell.textContent));
@@ -170,12 +179,105 @@ describe("poissonSentence", () => {
   it("names each side's expected goals to one decimal, then the most likely score and its whole percentage", () => {
     expect(
       poissonSentence("HJK", "KuPS", {
-        prediction: { home: 0.48, draw: 0.27, away: 0.25 },
         homeGoals: 1.64,
         awayGoals: 1.06,
         score: { home: 2, away: 1, probability: 0.116 },
       })
     ).toBe("Poisson: odotetut maalit HJK 1,6 – KuPS 1,1; todennäköisin tulos 2–1 (12\u00a0%).");
+  });
+});
+
+describe("cellText", () => {
+  it("prints a whole percent", () => {
+    expect(cellText(0.124)).toBe("12\u00a0%");
+    expect(cellText(0.005)).toBe("1\u00a0%");
+  });
+
+  it("prints a probability that rounds to zero as less than one", () => {
+    expect(cellText(0.0049)).toBe("<1\u00a0%");
+    expect(cellText(0)).toBe("<1\u00a0%");
+  });
+});
+
+describe("scoreGridCells", () => {
+  const marked = (cells: ReturnType<typeof scoreGridCells>) =>
+    cells.flatMap((row, home) => row.flatMap((cell, away) => (cell.marked ? [[home, away]] : [])));
+  const prediction = (homeGoals: number, awayGoals: number): PoissonPrediction => {
+    const grid = scoreGrid(homeGoals, awayGoals, 1);
+    return { ...goals, homeGoals, awayGoals, grid, score: mostLikely(grid) };
+  };
+  // The largest cell, as the model picks it; no two are equal in these grids.
+  const mostLikely = (grid: number[][]) => {
+    let best = { home: 0, away: 0, probability: 0 };
+    grid.forEach((row, home) => {
+      row.forEach((probability, away) => {
+        if (probability > best.probability) best = { home, away, probability };
+      });
+    });
+    return best;
+  };
+
+  it("prints the folded grid, home goals down, each cell a whole percent", () => {
+    const cells = scoreGridCells(goals);
+    const folded = foldScoreGrid(goals.grid, 5);
+
+    expect(cells.map((row) => row.length)).toEqual([6, 6, 6, 6, 6, 6]);
+    expect(cells.map((row) => row.map((cell) => cell.text))).toEqual(
+      folded.map((row) => row.map(cellText))
+    );
+    // HJK is expected to score more: 2–0 is likelier than 0–2. By hand, e^-2,7 · 1,6² / 2
+    // is 8,6 % and e^-2,7 · 1,1² / 2 is 4,1 %, each a little less once the draws are scaled up.
+    expect(folded[2]?.[0] as number).toBeGreaterThan(folded[0]?.[2] as number);
+    expect(cells[2]?.[0]?.text).toBe("8\u00a0%");
+    expect(cells[0]?.[2]?.text).toBe("4\u00a0%");
+    expect(cells[5]?.[5]?.text).toBe("<1\u00a0%");
+  });
+
+  it("shades each cell by its share of the largest shown, and none is left unshaded", () => {
+    const levels = scoreGridCells(goals).map((row) => row.map((cell) => cell.level));
+
+    // 1–1 is the largest cell; a cell printed as less than one percent is still filled.
+    expect(levels[1]?.[1]).toBe(4);
+    expect(levels[5]?.[5]).toBe(1);
+    expect(new Set(levels.flat())).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it("marks the one cell of the score the Poisson line names", () => {
+    expect(goals.score).toMatchObject({ home: 1, away: 1 });
+    expect(marked(scoreGridCells(goals))).toEqual([[1, 1]]);
+  });
+
+  it("keeps the mark on the most likely score when a 5+ cell is larger", () => {
+    // 3,5 – 0,5: 3–0 is the likeliest single score, and five or more against none likelier still.
+    const lopsided = prediction(3.5, 0.5);
+    const cells = scoreGridCells(lopsided);
+    const folded = foldScoreGrid(lopsided.grid, 5);
+
+    expect(lopsided.score).toMatchObject({ home: 3, away: 0 });
+    expect(folded[5]?.[0] as number).toBeGreaterThan(lopsided.score.probability);
+    expect(marked(cells)).toEqual([[3, 0]]);
+    expect(cells[5]?.[0]).toMatchObject({ level: 4, marked: false });
+  });
+
+  it("marks the 5+ cell that holds a most likely score of five or more goals", () => {
+    const rout = prediction(6.2, 0.3);
+
+    expect(rout.score).toMatchObject({ home: 6, away: 0 });
+    expect(marked(scoreGridCells(rout))).toEqual([[5, 0]]);
+    expect(
+      marked(scoreGridCells({ ...rout, score: { home: 0, away: 7, probability: 0.1 } }))
+    ).toEqual([[0, 5]]);
+  });
+
+  it("leaves a cell that is exactly zero unshaded", () => {
+    const empty = scoreGridCells({
+      ...goals,
+      grid: [[1]],
+      score: { home: 0, away: 0, probability: 1 },
+    });
+
+    expect(empty[0]?.[0]).toEqual({ level: 4, text: "100\u00a0%", marked: true });
+    expect(empty[3]?.[2]).toEqual({ level: 0, text: "<1\u00a0%", marked: false });
   });
 });
 
@@ -201,6 +303,55 @@ describe("MatchPrediction", () => {
     expect(screen.queryByText(POISSON_ERROR_MESSAGE)).not.toBeInTheDocument();
   });
 
+  it("shows the scoreline grid under the Poisson line: home down, away across, 0–4 and 5+", async () => {
+    await renderPanel();
+    const grid = scoreGridTable();
+
+    expect(SCORE_GRID_INTRO).toBe("Tulosten todennäköisyydet Poisson-mallin mukaan:");
+    expect(SCORE_GRID_CAP_NOTE).toBe("5+ tarkoittaa viittä tai useampaa maalia.");
+    const labels = ["0", "1", "2", "3", "4", "5+"];
+    expect(
+      within(grid)
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent)
+    ).toEqual(["HJK ↓ / KuPS →", ...labels]);
+    expect(
+      within(grid)
+        .getAllByRole("rowheader")
+        .map((header) => header.textContent)
+    ).toEqual(labels);
+    // Row by row as the model's own cells: HJK's goals down.
+    const shown = within(grid)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) =>
+        within(row)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent)
+      );
+    expect(shown).toEqual(scoreGridCells(goals).map((row) => row.map((cell) => cell.text)));
+    expect(shown[2]?.[0]).toBe("8\u00a0%");
+    expect(shown[0]?.[2]).toBe("4\u00a0%");
+  });
+
+  it("outlines the cell of the score the Poisson line names, its figure bold, and no other", async () => {
+    await renderPanel();
+    const cells = within(scoreGridTable()).getAllByRole("cell");
+    const marked = cells.filter((cell) => cell.hasAttribute("data-marked"));
+
+    expect(marked).toHaveLength(1);
+    // 1–1: the second row's second cell.
+    expect(cells.indexOf(marked[0] as HTMLElement)).toBe(7);
+    expect(marked[0]).toHaveClass("font-bold");
+    expect(marked[0]?.style.outline).toContain("2px solid");
+    const plain = cells[0] as HTMLElement;
+    expect(plain).not.toHaveClass("font-bold");
+    expect(plain.style.outline).toBe("");
+    // Shaded like any other cell of its level.
+    expect(marked[0]?.getAttribute("data-level")).toBe("4");
+    expect(marked[0]?.style.backgroundColor).toContain("85%");
+  });
+
   it("keeps the other rows and says so when the Poisson fit fails", async () => {
     getPoissonFit.mockResolvedValue({ status: "error" });
     const { container } = await renderPanel();
@@ -214,6 +365,9 @@ describe("MatchPrediction", () => {
       "Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen."
     );
     expect(container.textContent).not.toContain("Poisson:");
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.queryByText(SCORE_GRID_INTRO)).not.toBeInTheDocument();
+    expect(screen.queryByText(SCORE_GRID_CAP_NOTE)).not.toBeInTheDocument();
     expect(screen.queryByText(ELO_ERROR_MESSAGE)).not.toBeInTheDocument();
   });
 
@@ -226,6 +380,8 @@ describe("MatchPrediction", () => {
 
     expect(tableRows()).toHaveLength(2);
     expect(container.textContent).not.toContain("Poisson");
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(container.textContent).not.toContain("5+");
   });
 
   it("shows the baseline row, then the Elo row, as whole percentages", async () => {
@@ -233,12 +389,11 @@ describe("MatchPrediction", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: PREDICTION_HEADING })).toBeInTheDocument();
     // The model column's heading is for screen readers only.
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      "Malli",
-      "Kotivoitto",
-      "Tasapeli",
-      "Vierasvoitto",
-    ]);
+    expect(
+      within(predictions())
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent)
+    ).toEqual(["Malli", "Kotivoitto", "Tasapeli", "Vierasvoitto"]);
     // Elo: even sides, so the draw is the baseline's 26,4 % and the rest halves.
     expect(tableRows().slice(0, 2)).toEqual([
       [BASELINE_ROW, percent(45), percent(26), percent(29)],
@@ -258,6 +413,8 @@ describe("MatchPrediction", () => {
       baselineSentence(baseline),
       eloSentence("HJK", 1500, "KuPS", 1560),
       POISSON_LINE,
+      SCORE_GRID_INTRO,
+      SCORE_GRID_CAP_NOTE,
       "Ennuste perustuu tähän mennessä pelattuihin otteluihin ja muuttuu, kun uusia pelataan.",
       ROUNDING_NOTE,
       QUALITY_LINK,
@@ -341,6 +498,8 @@ describe("MatchPrediction", () => {
     await renderPanel(upcoming("SCHEDULED", { awayTeamProviderId: 0, awayTeamName: "Tuntematon" }));
 
     expect(tableRows()).toEqual([[BASELINE_ROW, percent(45), percent(26), percent(29)]]);
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.queryByText(SCORE_GRID_INTRO)).not.toBeInTheDocument();
     expect(screen.queryByText(ELO_ERROR_MESSAGE)).not.toBeInTheDocument();
     expect(screen.queryByText(POISSON_ERROR_MESSAGE)).not.toBeInTheDocument();
   });
@@ -373,6 +532,8 @@ describe("MatchPrediction", () => {
     expect(getPoissonFit).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("%");
     expect(container.textContent).not.toContain("Poisson");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(container.innerHTML).not.toContain("data-level");
   });
 
   it("renders nothing, and asks nothing, for a match that is not upcoming", async () => {

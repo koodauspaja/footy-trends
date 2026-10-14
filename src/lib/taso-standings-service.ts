@@ -6,10 +6,10 @@
  * decisions/013-more-finnish-competitions.md
  */
 
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, type Executor } from "@/db";
-import { tasoGroupTeams, tasoMatches } from "@/db/schema";
+import { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 import { getCached, getCachedUnlessDegraded } from "./cache";
 import { isRoundRobin } from "./cup-rounds";
 import {
@@ -22,6 +22,7 @@ import {
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
+  publishesZones,
 } from "./domestic-competitions";
 import { logger } from "./logger";
 import {
@@ -54,8 +55,10 @@ import {
   getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
+  type NormalizedTasoGroupLevel,
   type NormalizedTasoGroupTeam,
   type NormalizedTasoMatch,
+  normalizeGroupLevels,
   normalizeGroupTeams,
   parseProviderId,
   type TasoGroup,
@@ -73,6 +76,7 @@ const CURRENT_SEASON_CACHE_TTL_SECONDS = 15 * 60;
 
 type StoredTasoMatch = typeof tasoMatches.$inferSelect;
 type StoredGroupTeam = typeof tasoGroupTeams.$inferSelect;
+type StoredGroupZone = typeof tasoGroupZones.$inferSelect;
 /**
  * A match as stored or as freshly fetched: the same shape either way.
  *
@@ -260,8 +264,20 @@ export type GroupStandingsResult =
   | { kind: "pass-through"; groupId: number; groupName: string; standings: TasoTeamStanding[] }
   | { kind: "match-list"; groupId: number; groupName: string; matches: MatchRow[] };
 
+/**
+ * One stored level of a group: the places it takes and what they lead to.
+ *
+ * decisions/063-competition-zones.md
+ */
+export type GroupLevel = Pick<StoredGroupZone, "groupId" | "level" | "teamCount" | "label">;
+
 export type SeasonStandingsResult =
-  | { status: "ok"; groups: GroupStandingsResult[] }
+  | {
+      status: "ok";
+      groups: GroupStandingsResult[];
+      /** Every stored level of the season's groups, in each group's own order. */
+      levels: GroupLevel[];
+    }
   | { status: "empty"; groups: [] }
   | { status: "error"; groups: [] };
 
@@ -685,40 +701,50 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
 }
 
 /**
- * Replaces a season's stored group standings with the snapshot TASO returned,
- * in one transaction, so a failure leaves the previous snapshot in place.
+ * Replaces a season's stored group standings and levels with the snapshot TASO
+ * returned, in one transaction, so a failure leaves the previous snapshot in
+ * place. With `carryStartingPoints`, an unplayed group keeps its starting points.
  *
  * decisions/013-more-finnish-competitions.md
  * decisions/029-forced-season-refresh.md
  * decisions/196-concurrent-group-syncs.md
+ * decisions/628-zeroed-continuation-tables.md
+ * decisions/063-competition-zones.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
   competitionId: string,
   seasonId: number,
   rows: NormalizedTasoGroupTeam[],
+  /** The levels of the same response, so no caller writes the rows without them. */
+  levels: NormalizedTasoGroupLevel[],
   /** The transaction to join, when a caller has one. Defaults to its own. */
-  executor: Executor = db
+  executor: Executor = db,
+  { carryStartingPoints = false }: { carryStartingPoints?: boolean } = {}
 ): Promise<void> {
   // An empty snapshot is an answer too, and replaces what was stored.
   await executor.transaction(async (tx) => {
-    await tx
-      .delete(tasoGroupTeams)
-      .where(
-        and(
-          eq(tasoGroupTeams.categoryId, categoryId),
-          eq(tasoGroupTeams.competitionCode, competitionId),
-          eq(tasoGroupTeams.seasonId, seasonId)
-        )
-      );
+    const season = and(
+      eq(tasoGroupTeams.categoryId, categoryId),
+      eq(tasoGroupTeams.competitionCode, competitionId),
+      eq(tasoGroupTeams.seasonId, seasonId)
+    );
+    const snapshot = dedupeByIdentity(rows);
+    const incoming = carryStartingPoints
+      ? await withStoredStartingPoints(tx, season, snapshot)
+      : snapshot;
+    await tx.delete(tasoGroupTeams).where(season);
+    await replaceGroupLevels(tx, categoryId, competitionId, seasonId, levels);
 
-    if (rows.length === 0) return;
+    if (incoming.length === 0) return;
 
     // An upsert: on an empty table the delete locks nothing, so two concurrent
-    // syncs would both insert and one would fail on the identity index.
+    // syncs would both insert and one would fail on the identity index. Stored
+    // under the season the delete cleared, whatever a row says of itself.
+    const identity = { categoryId, competitionCode: competitionId, seasonId };
     await tx
       .insert(tasoGroupTeams)
-      .values(dedupeByIdentity(rows).map((row) => ({ ...row, updatedAt: new Date() })))
+      .values(incoming.map((row) => ({ ...row, ...identity, updatedAt: new Date() })))
       .onConflictDoUpdate({
         target: [
           tasoGroupTeams.categoryId,
@@ -743,6 +769,107 @@ export async function synchronizeGroupTeams(
           updatedAt: sql`excluded.updated_at`,
         },
       });
+  });
+}
+
+/**
+ * Replaces a season's stored levels with the snapshot's, through the caller's
+ * transaction. Only the competitions that show zones store any.
+ *
+ * decisions/063-competition-zones.md
+ */
+async function replaceGroupLevels(
+  tx: Executor,
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  levels: NormalizedTasoGroupLevel[]
+): Promise<void> {
+  if (!publishesZones(categoryId)) return;
+
+  await tx
+    .delete(tasoGroupZones)
+    .where(
+      and(
+        eq(tasoGroupZones.categoryId, categoryId),
+        eq(tasoGroupZones.competitionCode, competitionId),
+        eq(tasoGroupZones.seasonId, seasonId)
+      )
+    );
+
+  // One row per group and level: the first wins, as for the team rows.
+  const incoming = new Map<string, NormalizedTasoGroupLevel>();
+  for (const row of levels) {
+    const identity = `${row.groupId}/${row.level}`;
+    if (!incoming.has(identity)) incoming.set(identity, row);
+  }
+  if (incoming.size === 0) return;
+
+  // An upsert, for the reason the team rows have one, under the season the
+  // delete cleared.
+  const season = { categoryId, competitionCode: competitionId, seasonId };
+  await tx
+    .insert(tasoGroupZones)
+    .values([...incoming.values()].map((row) => ({ ...row, ...season, updatedAt: new Date() })))
+    .onConflictDoUpdate({
+      target: [
+        tasoGroupZones.categoryId,
+        tasoGroupZones.competitionCode,
+        tasoGroupZones.seasonId,
+        tasoGroupZones.groupId,
+        tasoGroupZones.level,
+      ],
+      set: {
+        teamCount: sql`excluded.team_count`,
+        label: sql`excluded.label`,
+        updatedAt: sql`excluded.updated_at`,
+      },
+    });
+}
+
+/**
+ * Replaces a season's stored levels and nothing else: the team rows are left
+ * as they are. For the one-off backfill of seasons that are never refetched.
+ *
+ * decisions/063-competition-zones.md
+ */
+export async function synchronizeGroupLevels(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  levels: NormalizedTasoGroupLevel[]
+): Promise<void> {
+  await db.transaction((tx) => replaceGroupLevels(tx, categoryId, competitionId, seasonId, levels));
+}
+
+/**
+ * The snapshot, with each team's stored starting point put back where a group
+ * has come back unplayed and without it: the one figure the matches cannot
+ * give back. Reads nothing when no group of the snapshot is unplayed.
+ *
+ * decisions/628-zeroed-continuation-tables.md
+ */
+async function withStoredStartingPoints(
+  tx: Executor,
+  season: ReturnType<typeof and>,
+  snapshot: NormalizedTasoGroupTeam[]
+): Promise<NormalizedTasoGroupTeam[]> {
+  const unplayed = [...new Set(snapshot.map((row) => row.groupId))].filter((groupId) =>
+    isUnplayedTable(snapshot.filter((row) => row.groupId === groupId))
+  );
+  if (unplayed.length === 0) return snapshot;
+
+  const stored = await tx
+    .select()
+    .from(tasoGroupTeams)
+    .where(and(season, inArray(tasoGroupTeams.groupId, unplayed)));
+  const startingPoints = new Map(
+    stored.map((row) => [`${row.groupId}/${row.teamProviderId}`, row.startingPoints ?? 0])
+  );
+  return snapshot.map((row) => {
+    // Only the unplayed groups' rows were read, so only theirs can be found.
+    const kept = startingPoints.get(`${row.groupId}/${row.teamProviderId}`) ?? 0;
+    return (row.startingPoints ?? 0) === 0 && kept !== 0 ? { ...row, startingPoints: kept } : row;
   });
 }
 
@@ -776,7 +903,10 @@ const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
     const groups = await getSeasonGroups(competitionId, categoryId);
     reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
     const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows);
+    const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
+    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows, levels, db, {
+      carryStartingPoints: true,
+    });
     // Re-read rather than returning `rows`: the caller needs full stored rows,
     // and the snapshot has just replaced whatever was there.
     return await db
@@ -1030,12 +1160,55 @@ function pointsFromGroup(seasonMatches: MatchRow[], groupId: number): Map<number
 }
 
 /**
+ * Whether TASO reports the group as unplayed: points given for some team, and
+ * no team with a match played or a point. TASO can serve a continuation
+ * group's table so after its matches. Starting points are not asked about.
+ *
+ * decisions/628-zeroed-continuation-tables.md
+ */
+function isUnplayedTable(
+  teamRows: ReadonlyArray<Pick<StoredGroupTeam, "played" | "points">>
+): boolean {
+  return (
+    teamRows.some((row) => row.points !== null) &&
+    teamRows.every((row) => (row.played ?? 0) === 0 && (row.points ?? 0) === 0)
+  );
+}
+
+/**
+ * Whether an unplayed table for this group can be answered with our own: its
+ * carry-over is configured, and every team has what its row is calculated
+ * from, a starting point where seeded and the parent group's matches where not.
+ *
+ * decisions/628-zeroed-continuation-tables.md
+ */
+function calculableWithoutTaso(
+  entry: CarryOverEntry | null,
+  teamRows: StoredGroupTeam[],
+  seasonMatches: MatchRow[]
+): boolean {
+  if (entry === null) return false;
+  // A zero cannot be told from a starting point TASO has zeroed, so it counts as missing.
+  if (entry.seeded) return teamRows.every((row) => (row.startingPoints ?? 0) !== 0);
+  const inParent = teamIdsInGroup(seasonMatches, entry.parent);
+  return teamRows.every((row) => inParent.has(row.teamProviderId));
+}
+
+/**
  * Whether our calculation reproduces TASO's published points for every team it
- * ranks, over the full season. This decides how a group renders.
+ * ranks, over the full season. This decides how a group renders. A table that
+ * is unplayed where ours is calculable has no points to reproduce, only its
+ * teams.
  *
  * decisions/013-more-finnish-competitions.md
+ * decisions/628-zeroed-continuation-tables.md
  */
-function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTeam[]): boolean {
+function reproducesTasoPoints(
+  standings: TeamStanding[],
+  teamRows: StoredGroupTeam[],
+  /** Whether our table could stand in for an unplayed one of TASO's. */
+  calculable: boolean
+): boolean {
   // At least one row has points: `buildGroup` returns before calling this
   // when none does.
   const published = new Map(
@@ -1043,12 +1216,17 @@ function reproducesTasoPoints(standings: TeamStanding[], teamRows: StoredGroupTe
   );
 
   const calculated = new Set(standings.map((team) => team.teamProviderId));
+  const unplayed = calculable && isUnplayedTable(teamRows);
 
   return (
     standings.every((team) => {
       const tasoPoints = published.get(team.teamProviderId);
-      return tasoPoints === undefined || tasoPoints === team.points;
-    }) && [...published.keys()].every((teamProviderId) => calculated.has(teamProviderId))
+      return unplayed || tasoPoints === undefined || tasoPoints === team.points;
+    }) &&
+    // An unplayed table is taken on its teams alone, so on every one of them.
+    (unplayed ? teamRows.map((row) => row.teamProviderId) : [...published.keys()]).every(
+      (teamProviderId) => calculated.has(teamProviderId)
+    )
   );
 }
 
@@ -1069,11 +1247,12 @@ function keepsATable(teamRows: StoredGroupTeam[]): boolean {
 
 /**
  * Every group of the season as it renders, before any round filter: own-calculated,
- * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`
- * and `listSeasonRounds`, so they agree on which groups a round applies to.
+ * pass-through or a match list, by `group_id`. Shared by `getSeasonStandings`,
+ * `listSeasonRounds` and `getSeasonTables`, so they agree on every group.
  *
  * decisions/010-playoff-group-match-list.md
  * decisions/013-more-finnish-competitions.md
+ * decisions/061-season-simulation.md
  */
 const classifySeasonGroups = cache(async function classifySeasonGroups(
   categoryId: string,
@@ -1087,6 +1266,8 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
       groups: GroupStandingsResult[];
       /** Returned so a caller never reads them a second time. */
       teamRows: StoredGroupTeam[];
+      /** The matches are stored rows TASO could not be asked to refresh. */
+      refreshFailed: boolean;
     }
   | { status: "empty" | "error" }
 > {
@@ -1110,7 +1291,7 @@ const classifySeasonGroups = cache(async function classifySeasonGroups(
     .sort((left, right) => left - right)
     .map((groupId) => buildGroup(seasonMatches, teamRows, categoryId, competitionId, groupId));
 
-  return { status: "ok", matches: seasonMatches, groups, teamRows };
+  return { status: "ok", matches: seasonMatches, groups, teamRows, refreshFailed };
 });
 
 /**
@@ -1766,6 +1947,34 @@ function seriesOf(
   return { status: "ok", points, teamCount, endsAtSplit };
 }
 
+/**
+ * A season's stored levels, each group's in TASO's order.
+ *
+ * decisions/063-competition-zones.md
+ */
+async function storedGroupLevels(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): Promise<GroupLevel[]> {
+  return await db
+    .select({
+      groupId: tasoGroupZones.groupId,
+      level: tasoGroupZones.level,
+      teamCount: tasoGroupZones.teamCount,
+      label: tasoGroupZones.label,
+    })
+    .from(tasoGroupZones)
+    .where(
+      and(
+        eq(tasoGroupZones.categoryId, categoryId),
+        eq(tasoGroupZones.competitionCode, competitionId),
+        eq(tasoGroupZones.seasonId, seasonId)
+      )
+    )
+    .orderBy(asc(tasoGroupZones.groupId), asc(tasoGroupZones.level));
+}
+
 export async function getSeasonStandings(
   categoryId: string,
   competitionId: string,
@@ -1781,7 +1990,12 @@ export async function getSeasonStandings(
       activeSeasonId
     );
     if (classified.status !== "ok") return { status: classified.status, groups: [] };
-    if (round === undefined) return { status: "ok", groups: classified.groups };
+    // After the classification, whose refresh is what writes them. A competition
+    // that stores none is not asked.
+    const levels = publishesZones(categoryId)
+      ? await storedGroupLevels(categoryId, competitionId, seasonId)
+      : [];
+    if (round === undefined) return { status: "ok", groups: classified.groups, levels };
 
     // Only an own-calculated group responds to a round; the classification
     // itself does not change with one, so it is reused rather than redone —
@@ -1802,7 +2016,7 @@ export async function getSeasonStandings(
         : group
     );
 
-    return { status: "ok", groups };
+    return { status: "ok", groups, levels };
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId },
@@ -1813,12 +2027,77 @@ export async function getSeasonStandings(
 }
 
 /**
+ * One stored group of a season for the season forecast: how it renders, our
+ * table when it is ours, its own matches of every status, and the group it
+ * carries points over from.
+ *
+ * decisions/061-season-simulation.md
+ */
+export type SeasonTable = {
+  groupId: number;
+  groupName: string;
+  kind: GroupStandingsResult["kind"];
+  /** Empty unless the group is `own-calculated`. */
+  standings: TeamStanding[];
+  matches: MatchRow[];
+  parentGroupId: number | null;
+};
+
+/**
+ * Every stored group of a season as the standings page classifies it, read
+ * through the page's own refresh of matches and group rows. `refreshFailed`
+ * when the matches are stored rows TASO could not be asked to refresh.
+ *
+ * decisions/061-season-simulation.md
+ */
+export async function getSeasonTables(
+  categoryId: string,
+  competitionId: string,
+  seasonId: number,
+  activeSeasonId: number
+): Promise<
+  { status: "ok"; tables: SeasonTable[]; refreshFailed: boolean } | { status: "empty" | "error" }
+> {
+  const classified = await classifySeasonGroups(
+    categoryId,
+    competitionId,
+    seasonId,
+    activeSeasonId
+  );
+  if (classified.status !== "ok") return { status: classified.status };
+
+  return {
+    status: "ok",
+    refreshFailed: classified.refreshFailed,
+    tables: classified.groups.map((group) => ({
+      groupId: group.groupId,
+      groupName: group.groupName,
+      kind: group.kind,
+      standings: group.kind === "own-calculated" ? group.standings : [],
+      matches: classified.matches.filter((match) => match.groupId === group.groupId),
+      parentGroupId: parentGroupId(categoryId, competitionId, group.groupId),
+    })),
+  };
+}
+
+/**
+ * Whether any group of a category's season carries points over from another:
+ * the season split.
+ *
+ * decisions/061-season-simulation.md
+ */
+export function hasCarryOver(categoryId: string, competitionId: string): boolean {
+  return CARRY_OVER_CONFIG[categoryId]?.[competitionId] !== undefined;
+}
+
+/**
  * One group's rendering: a match list when it has no table, our table when it
  * reproduces TASO's points, and TASO's own numbers when it does not.
  *
  * decisions/013-more-finnish-competitions.md
  * decisions/043-liigacup.md
  * decisions/304-test-database.md
+ * decisions/628-zeroed-continuation-tables.md
  */
 function buildGroup(
   seasonMatches: MatchRow[],
@@ -1878,7 +2157,9 @@ function buildGroup(
     };
   }
 
-  if (!reproducesTasoPoints(fullSeason, teamRows)) {
+  const entry = carryOverEntry(categoryId, competitionId, groupId);
+  const calculable = calculableWithoutTaso(entry, teamRows, seasonMatches);
+  if (!reproducesTasoPoints(fullSeason, teamRows, calculable)) {
     return {
       kind: "pass-through",
       groupId,

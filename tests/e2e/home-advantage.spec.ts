@@ -20,8 +20,21 @@ const FOOTBALL_DATA_NAMES = new Set(
 );
 const TASO_NAMES = new Set([...COMPETITIONS.taso].map(getDomesticCompetitionName));
 
+const GROUP = "Kilpailut rinnakkain";
+
 function panel(page: Page) {
   return page.getByRole("region", { name: HEADING });
+}
+
+// The group's heading, which is what a reader presses to open or fold it.
+function fold(page: Page) {
+  return page.locator("summary").filter({ hasText: GROUP });
+}
+
+// The group starts folded, so the panel is opened before it is read.
+async function openPanel(page: Page) {
+  await fold(page).click();
+  await panel(page).waitFor();
 }
 
 // `+16`, `0` or `−3` as a number.
@@ -42,7 +55,7 @@ test.describe("Home advantage, signed in", () => {
       page,
     }) => {
       await page.goto(url);
-      await panel(page).waitFor();
+      await openPanel(page);
       const rows = panel(page).locator("tbody tr");
       const names = await rows.locator("th").allTextContents();
       const advantages = await rows.locator("td:last-child").allTextContents();
@@ -62,13 +75,54 @@ test.describe("Home advantage, signed in", () => {
 
   test("sits in its own group, after goals per game", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
-    await panel(page).waitFor();
+    await fold(page).waitFor();
     const groups = await page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 3 })
       .allTextContents();
 
     expect(groups).toEqual(["Tämä kausi", "Kausi kaudelta", "Kilpailut rinnakkain"]);
+  });
+});
+
+test.describe("Kilpailut rinnakkain, folded", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
+    await fold(page).waitFor();
+  });
+
+  test("starts folded: the heading and its marker show, the table does not", async ({ page }) => {
+    await expect(fold(page)).toHaveText(`▸${GROUP}`);
+    await expect(panel(page)).toBeHidden();
+    // The groups above it are as they were.
+    await expect(page.getByRole("region", { name: "Maaleja ottelua kohden" })).toBeVisible();
+  });
+
+  test("opens and folds from the mouse", async ({ page }) => {
+    await fold(page).click();
+    await expect(panel(page).locator("tbody tr").first()).toBeVisible();
+
+    await fold(page).click();
+    await expect(panel(page)).toBeHidden();
+  });
+
+  test("opens and folds from the keyboard", async ({ page }) => {
+    await fold(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(panel(page).locator("tbody tr").first()).toBeVisible();
+
+    await page.keyboard.press("Space");
+    await expect(panel(page)).toBeHidden();
+  });
+
+  test("is folded again after a reload", async ({ page }) => {
+    await fold(page).click();
+    await expect(panel(page)).toBeVisible();
+
+    await page.reload();
+    await fold(page).waitFor();
+    await expect(panel(page)).toBeHidden();
   });
 });
 

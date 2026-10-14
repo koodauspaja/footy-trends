@@ -9,6 +9,7 @@ import {
   refreshRuns,
   session,
   tasoGroupTeams,
+  tasoGroupZones,
   tasoMatches,
   user,
   userAvatar,
@@ -32,6 +33,7 @@ import {
  * decisions/028-admin-tools-and-roles.md
  * decisions/029-forced-season-refresh.md
  * decisions/536-database-url-required.md
+ * decisions/063-competition-zones.md
  */
 
 describe("matches table", () => {
@@ -435,5 +437,28 @@ describe("predictions table", () => {
       "model",
       "kind",
     ]);
+  });
+});
+
+describe("taso_group_zones table", () => {
+  it("makes a level unique by its group and its number", () => {
+    // What a second sync of the same group upserts on.
+    const { indexes, columns } = getTableConfig(tasoGroupZones);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "taso_group_zones_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "category_id",
+      "competition_id",
+      "season_id",
+      "group_id",
+      "level",
+    ]);
+    // A level that leads nowhere has a count and no label.
+    expect(columns.find((column) => column.name === "label")?.notNull).toBe(false);
+    expect(columns.find((column) => column.name === "team_count")?.notNull).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   drawFactorFor,
   fitPoisson,
+  foldScoreGrid,
   mostLikelyScore,
   outcomesOf,
   POISSON_DECAY_PER_DAY,
@@ -521,6 +522,13 @@ describe("predictPoisson", () => {
     ).toBeCloseTo(1, 12);
   });
 
+  it("carries the grid its outcomes and most likely score were read off", () => {
+    const prediction = predictPoisson(fit, "VL", 1, 2) as PoissonPrediction;
+
+    expect(prediction.grid).toEqual(scoreGrid(prediction.homeGoals, prediction.awayGoals, 1.2));
+    expect(prediction.grid).toHaveLength(11);
+  });
+
   it("predicts a team the fit has no match of as an average side", () => {
     const prediction = predictPoisson(fit, "VL", 7, 8) as PoissonPrediction;
 
@@ -670,5 +678,52 @@ describe("replayPoisson", () => {
 
     expect(seen.map(({ id }) => id)).toEqual([9_032]);
     expect(seen[0]?.prediction).toEqual(without[0]?.prediction);
+  });
+});
+
+describe("foldScoreGrid", () => {
+  // A grid with one cell set, 0–10 a side.
+  const only = (home: number, away: number) =>
+    Array.from({ length: 11 }, (_row, rowHome) =>
+      Array.from({ length: 11 }, (_cell, cellAway) =>
+        rowHome === home && cellAway === away ? 1 : 0
+      )
+    );
+  const filled = (folded: number[][]) =>
+    folded.flatMap((row, home) => row.flatMap((cell, away) => (cell === 0 ? [] : [[home, away]])));
+
+  it("makes six rows of six", () => {
+    const folded = foldScoreGrid(scoreGrid(1.6, 1.1, 1.1), 5);
+
+    expect(folded.map((row) => row.length)).toEqual([6, 6, 6, 6, 6, 6]);
+  });
+
+  it("leaves a score below the cap where it was", () => {
+    expect(filled(foldScoreGrid(only(4, 0), 5))).toEqual([[4, 0]]);
+    expect(filled(foldScoreGrid(only(2, 3), 5))).toEqual([[2, 3]]);
+  });
+
+  it("counts five or more goals for a side in that side's last row or column", () => {
+    expect(filled(foldScoreGrid(only(7, 0), 5))).toEqual([[5, 0]]);
+    expect(filled(foldScoreGrid(only(0, 7), 5))).toEqual([[0, 5]]);
+    expect(filled(foldScoreGrid(only(5, 2), 5))).toEqual([[5, 2]]);
+    expect(filled(foldScoreGrid(only(6, 6), 5))).toEqual([[5, 5]]);
+    expect(filled(foldScoreGrid(only(10, 4), 5))).toEqual([[5, 4]]);
+  });
+
+  it("sums the cells it folds together, and still sums to 1", () => {
+    const grid = scoreGrid(3, 0.6, 1.1);
+    const folded = foldScoreGrid(grid, 5);
+    const total = (rows: readonly (readonly number[])[]) =>
+      rows.flat().reduce((sum, cell) => sum + cell, 0);
+
+    expect(total(folded)).toBeCloseTo(1, 12);
+    expect(folded[2]?.[1]).toBe(grid[2]?.[1]);
+    // 5+ against 0: every home score from five to ten.
+    expect(folded[5]?.[0]).toBeCloseTo(
+      [5, 6, 7, 8, 9, 10].reduce((sum, home) => sum + (grid[home]?.[0] as number), 0),
+      12
+    );
+    expect(folded[5]?.[5]).toBeCloseTo(total(grid.slice(5).map((row) => row.slice(5))), 12);
   });
 });

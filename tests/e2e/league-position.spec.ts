@@ -133,14 +133,15 @@ test.describe("League position chart, rounds a team sat out", () => {
   });
 
   test("fills a point only for a round the team played in", async ({ page }) => {
-    // Veikkausliiga 2026's Mestaruussarja is numbered out of calendar order, so a
-    // line reaches rounds not yet played. Checked against the standings page, not
-    // hardcoded rounds: each match played fills one point, and the legend follows.
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
-    const table = page.getByRole("heading", { name: "Mestaruussarja", level: 2 });
-    const row = table.locator("xpath=following::table[1]").locator("tbody tr", { hasText: "KuPS" });
+    // Kakkonen 2024's pool B had eleven teams, so each sat out two of its 22
+    // rounds before the split. Checked against the standings page, not
+    // hardcoded rounds: each match played fills one point, and the legend
+    // follows. A season long over, whose table no longer trails its results.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=M2&kausi=2024");
+    const table = page.getByRole("heading", { name: "Ylempi jatkosarja B", level: 2 });
+    const row = table.locator("xpath=following::table[1]").locator("tbody tr").first();
     const matchesPlayed = Number(await row.locator("td:nth-child(3)").textContent());
-    await row.getByRole("link", { name: "KuPS" }).click();
+    await row.getByRole("link").first().click();
     await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
     await expect(chart(page)).toBeVisible();
 
@@ -150,6 +151,8 @@ test.describe("League position chart, rounds a team sat out", () => {
     const openCircles = await chart(page).locator("[data-part=points] circle[data-open]").count();
 
     expect(matchesPlayed).toBeGreaterThan(0);
+    // Two rounds sat out, or the checks below would hold with none drawn open.
+    expect(open).toBe(2);
     expect(sentences.length - open).toBe(matchesPlayed);
     expect(openCircles).toBe(open);
     await expect(page.getByText("Avoin pallo: joukkue ei pelannut kierroksella.")).toHaveCount(

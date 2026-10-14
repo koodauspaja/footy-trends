@@ -118,9 +118,9 @@ window between deploy and backfill, for instance:
 DATABASE_URL='<production>' npm run backfill -- --reset=railway
 ```
 
-`--reset` deletes every row in `matches`, `taso_matches` and `taso_group_teams`
-before fetching. It requires the database name, and refuses if it does not
-match:
+`--reset` deletes every row in `matches`, `taso_matches`, `taso_group_teams` and
+`taso_group_zones` before fetching. It requires the database name, and refuses
+if it does not match:
 
 ```
 Refusing to reset: --reset=footy-trends does not match the target database (railway)
@@ -152,6 +152,24 @@ It keeps the rows, unlike `--reset`, and costs a full run's provider quota —
 the ~11 minutes measured above. Without it the new column stays null for a past
 season until that season happens to become the active one again, which for a
 finished season is never.
+
+---
+
+## Step 3c — Zone levels of stored seasons
+
+```sh
+DATABASE_URL='<production>' npm run backfill -- --zones
+```
+
+Run once per environment, after the migration `create_taso_group_zones` has
+deployed. It asks TASO for the groups of every stored season of Veikkausliiga,
+Ykkösliiga, Ykkönen, Kansallinen Liiga and Kansallinen Ykkönen, one request
+every three seconds (about 50 requests), and writes `taso_group_zones` only.
+
+- It is refused together with `--reset` or `--refetch`.
+- A season TASO fails on is listed at the end and the run exits 1; run it again.
+
+Added for the competition zones (`specs/063-competition-zones.md`).
 
 ---
 

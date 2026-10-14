@@ -53,6 +53,8 @@ export type DataTableProps<T> = {
   rowKey: (row: T) => string | number;
   /** The one row a page is about, shaded and marked `aria-current`. */
   isCurrentRow?: (row: T) => boolean;
+  /** A heavier rule under this row: the next row belongs to another stretch of the table. */
+  hasRuleBelow?: (row: T, index: number) => boolean;
 };
 
 /**
@@ -78,12 +80,14 @@ function alignClass(align: DataTableColumn<unknown>["align"]): string {
  *
  * decisions/021-table-consistency.md
  * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/063-competition-zones.md
  */
 export function DataTable<T>({
   rows,
   columns,
   rowKey,
   isCurrentRow = () => false,
+  hasRuleBelow = () => false,
 }: Readonly<DataTableProps<T>>) {
   return (
     <div className="overflow-x-auto">
@@ -113,10 +117,10 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row, index) => (
             <tr
               aria-current={isCurrentRow(row) ? "true" : undefined}
-              className={`border-border-subtle border-b${isCurrentRow(row) ? " bg-surface font-semibold" : ""}`}
+              className={`${hasRuleBelow(row, index) ? "border-muted border-b-2" : "border-border-subtle border-b"}${isCurrentRow(row) ? " bg-surface font-semibold" : ""}`}
               key={rowKey(row)}
             >
               {columns.map((column) => {

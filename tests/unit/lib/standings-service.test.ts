@@ -3,6 +3,7 @@ import type { NormalizedProviderMatch } from "@/lib/football-data";
 import { toFinishedMatches } from "@/lib/standings";
 import {
   getCupSeason,
+  getLeagueSeasonMatches,
   getMaxMatchday,
   getRoundMatches,
   getSeasonMovements,
@@ -41,6 +42,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/039-streak-records.md
  * decisions/040-cup-analytics.md
  * decisions/050-table-volatility.md
+ * decisions/061-season-simulation.md
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/530-one-team-panel-builder.md
  */
@@ -2217,6 +2219,32 @@ describe("getSeasonMovements", () => {
     mockStoredMatches([]);
 
     await expect(getSeasonMovements(COMPETITION_CODE, ACTIVE_SEASON)).resolves.toEqual([]);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getLeagueSeasonMatches", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("gives a season's stored matches of every status, as the standings read them", async () => {
+    const rows = [
+      storedMatch({ providerMatchId: 1, updatedAt: new Date() }),
+      storedMatch({
+        providerMatchId: 2,
+        status: "TIMED",
+        homeGoals: null,
+        awayGoals: null,
+        updatedAt: new Date(),
+      }),
+    ];
+    mockStoredMatches(rows);
+
+    expect(await getLeagueSeasonMatches(COMPETITION_CODE, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      matches: rows,
+      refreshFailed: false,
+    });
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
   });
 });

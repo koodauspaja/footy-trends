@@ -2,6 +2,8 @@ import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-se
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { FoldMarker } from "@/components/fold-marker";
+import { FORECAST_HEADING, SeasonForecastBody } from "@/components/season-forecast";
 import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
@@ -18,6 +20,8 @@ import {
   roundedAdvantage,
   type SeasonRange,
 } from "@/lib/outcome-shares";
+import { qualityHref } from "@/lib/prediction-quality";
+import { getSeasonForecast } from "@/lib/season-simulation-service";
 import { formatSeasonLabel } from "@/lib/seasons";
 import { getSeasonSurprises } from "@/lib/surprise-service";
 import {
@@ -61,6 +65,7 @@ export const ROUNDING_NOTE =
 
 const SECTION_ID = "competition-analytics";
 const THIS_SEASON_ID = "competition-analytics-this-season";
+const FORECAST_ID = "season-forecast";
 const SURPRISES_ID = "season-surprises";
 const GROUP_ID = "competition-analytics-by-season";
 const PANEL_ID = "goals-per-game";
@@ -197,15 +202,16 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit`: the selected season's biggest
- * surprises, then goals per game and, on a league, table movement, then
- * `Kilpailut rinnakkain`. Gated before anything is read, and awaited by the
- * pages, not rendered as JSX.
+ * The competition standings page's `Analyysit`: this season's forecast and
+ * surprises, then goals per game and table movement, then `Kilpailut
+ * rinnakkain`, folded. Gated before anything is read; awaited by the pages.
  *
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/050-table-volatility.md
  * decisions/057-surprise-index.md
+ * decisions/061-season-simulation.md
+ * decisions/629-fold-side-by-side.md
  */
 export async function CompetitionAnalyticsSection({
   kind,
@@ -230,7 +236,8 @@ export async function CompetitionAnalyticsSection({
     );
   }
 
-  const [surprises, series, volatility, shares] = await Promise.all([
+  const [forecast, surprises, series, volatility, shares] = await Promise.all([
+    getSeasonForecast(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getSeasonSurprises(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getGoalsPerGame(kind, competitionCode, activeSeasonId),
     hasTableVolatility(kind, competitionCode)
@@ -241,6 +248,14 @@ export async function CompetitionAnalyticsSection({
   return (
     <Section>
       <Group heading={THIS_SEASON_HEADING} id={THIS_SEASON_ID}>
+        {forecast.status === "unavailable" ? null : (
+          <ChartPanel heading={FORECAST_HEADING} headingId={FORECAST_ID}>
+            <SeasonForecastBody
+              forecast={forecast}
+              qualityHref={qualityHref(kind, "backtest", competitionCode)}
+            />
+          </ChartPanel>
+        )}
         <ChartPanel heading={SURPRISES_HEADING} headingId={SURPRISES_ID}>
           <SeasonSurprisesBody
             inProgressLine={inProgressSeasonLine(seasonLabel(selectedSeasonId))}
@@ -267,7 +282,7 @@ export async function CompetitionAnalyticsSection({
           </ChartPanel>
         )}
       </Group>
-      <Group heading={SIDE_BY_SIDE_HEADING} id={SIDE_BY_SIDE_ID}>
+      <Group folded heading={SIDE_BY_SIDE_HEADING} id={SIDE_BY_SIDE_ID}>
         <ChartPanel heading={HOME_ADVANTAGE_HEADING} headingId={HOME_ADVANTAGE_ID}>
           <HomeAdvantageBody competitionCode={competitionCode} kind={kind} shares={shares} />
         </ChartPanel>
@@ -276,17 +291,40 @@ export async function CompetitionAnalyticsSection({
   );
 }
 
+/**
+ * One group of `Analyysit` under its heading. `folded` makes it a `<details>`
+ * that starts closed on every load, its heading the thing to press.
+ *
+ * decisions/424-analytics-panel-groups.md
+ * decisions/629-fold-side-by-side.md
+ */
 function Group({
   heading,
   id,
+  folded = false,
   children,
-}: Readonly<{ heading: string; id: string; children: React.ReactNode }>) {
+}: Readonly<{ heading: string; id: string; folded?: boolean; children: React.ReactNode }>) {
+  const title = (
+    <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={id}>
+      {heading}
+    </h3>
+  );
   return (
     <section aria-labelledby={id} className="mt-4">
-      <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={id}>
-        {heading}
-      </h3>
-      {children}
+      {folded ? (
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-baseline gap-2">
+            <FoldMarker />
+            {title}
+          </summary>
+          {children}
+        </details>
+      ) : (
+        <>
+          {title}
+          {children}
+        </>
+      )}
     </section>
   );
 }

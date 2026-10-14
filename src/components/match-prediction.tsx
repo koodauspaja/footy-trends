@@ -2,10 +2,12 @@ import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { ROUNDING_NOTE } from "@/components/competition-analytics";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
+import { type ScoreGridCell, ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_HOME_ADVANTAGE, predictElo } from "@/lib/elo";
 import { type EloRatings, getEloRatings } from "@/lib/elo-service";
+import { SCORE_GRID_CAP } from "@/lib/head-to-head";
 import {
   type BaselineCompetition,
   baselineCompetition,
@@ -13,7 +15,7 @@ import {
 } from "@/lib/home-baseline";
 import { teamDisplayName } from "@/lib/match-detail";
 import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
-import { type PoissonPrediction, predictPoisson } from "@/lib/poisson";
+import { foldScoreGrid, type PoissonPrediction, predictPoisson } from "@/lib/poisson";
 import { getPoissonFit, type PoissonFitResult } from "@/lib/poisson-service";
 import { qualityHref } from "@/lib/prediction-quality";
 import { formatSeasonLabel } from "@/lib/seasons";
@@ -41,6 +43,18 @@ export const ELO_ROW = "Elo";
  */
 export const POISSON_ROW = "Poisson";
 export const POISSON_ERROR_MESSAGE = "Poisson-mallia ei voitu laskea. Yritä myöhemmin uudelleen.";
+/**
+ * The line above the Poisson model's scoreline grid.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
+export const SCORE_GRID_INTRO = "Tulosten todennäköisyydet Poisson-mallin mukaan:";
+/**
+ * The line under that grid, saying what its last row and column hold.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
+export const SCORE_GRID_CAP_NOTE = "5+ tarkoittaa viittä tai useampaa maalia.";
 /**
  * The link to the models' track record in the match's competition, from every
  * `Ennuste`.
@@ -114,9 +128,39 @@ export function eloSentence(
 export function poissonSentence(
   homeName: string,
   awayName: string,
-  { homeGoals, awayGoals, score }: PoissonPrediction
+  { homeGoals, awayGoals, score }: Pick<PoissonPrediction, "homeGoals" | "awayGoals" | "score">
 ): string {
   return `Poisson: odotetut maalit ${homeName} ${formatDecimal(homeGoals)} – ${awayName} ${formatDecimal(awayGoals)}; todennäköisin tulos ${score.home}–${score.away} (${percentText(score.probability * 100)}).`;
+}
+
+/**
+ * A scoreline's probability as its cell prints it: a whole percent, and `<1 %`
+ * for one that rounds to zero.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
+export function cellText(probability: number): string {
+  return Math.round(probability * 100) === 0 ? "<1\u00a0%" : percentText(probability * 100);
+}
+
+/**
+ * The Poisson grid's cells, home goals down: the model's grid folded to `0`–`4`
+ * and `5+`, each shaded by its share of the largest, and the cell holding the
+ * most likely score marked.
+ *
+ * decisions/062-scoreline-probability-grid.md
+ */
+export function scoreGridCells({ grid, score }: PoissonPrediction): ScoreGridCell[][] {
+  const folded = foldScoreGrid(grid, SCORE_GRID_CAP);
+  const largest = Math.max(...folded.flat());
+  const likeliest = [Math.min(score.home, SCORE_GRID_CAP), Math.min(score.away, SCORE_GRID_CAP)];
+  return folded.map((row, home) =>
+    row.map((probability, away) => ({
+      level: shadeLevel(probability, largest),
+      text: cellText(probability),
+      marked: home === likeliest[0] && away === likeliest[1],
+    }))
+  );
 }
 
 /**
@@ -265,6 +309,16 @@ function Body({
         <p className="mt-2 text-muted text-sm">
           {poissonSentence(sides.homeName, sides.awayName, goals)}
         </p>
+      )}
+      {goals === null ? null : (
+        <div className="mt-2 text-sm">
+          <p className="mb-2 text-muted">{SCORE_GRID_INTRO}</p>
+          <ScoreGridTable
+            corner={`${sides.homeName} ↓ / ${sides.awayName} →`}
+            rows={scoreGridCells(goals)}
+          />
+          <p className="mt-2 text-muted">{SCORE_GRID_CAP_NOTE}</p>
+        </div>
       )}
       {elo.status === "error" ? <p className="mt-2">{ELO_ERROR_MESSAGE}</p> : null}
       {poisson.status === "error" ? <p className="mt-2">{POISSON_ERROR_MESSAGE}</p> : null}

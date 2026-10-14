@@ -12,6 +12,8 @@ import { canSkip } from "../../../scripts/backfill-plan";
  * decisions/219-backfill-season-from-the-provider.md
  * decisions/011-current-season-discovery.md
  * decisions/036-halftime-comebacks.md
+ * decisions/628-zeroed-continuation-tables.md
+ * decisions/063-competition-zones.md
  */
 
 const RAW = readFileSync(path.join(process.cwd(), "scripts", "backfill-run.ts"), "utf8");
@@ -127,5 +129,79 @@ describe("the backfill's refetch flag", () => {
 
     expect(entryPoint).toMatch(/refetch\s*=\s*args\.includes\("--refetch"\)/);
     expect(entryPoint).toMatch(/backfill\(\{[^}]*refetch/);
+  });
+});
+
+// A refetch replaces every stored group row with what TASO serves today, with
+// nobody shown a diff. The starting points are the one thing in those rows the
+// matches cannot give back, so the script asks the sync to carry them.
+describe("the backfill's group standings", () => {
+  it("carries stored starting points into a group TASO now serves as unplayed", () => {
+    expect(SOURCE).toMatch(/synchronizeGroupTeams\([^)]*carryStartingPoints:\s*true/s);
+  });
+});
+
+describe("the backfill's zone levels", () => {
+  it("writes a refetched season's levels with its group rows", () => {
+    expect(SOURCE).toMatch(
+      /const levels = normalizeGroupLevels\(groups, categoryId, competitionId, seasonId\)/
+    );
+    expect(SOURCE).toMatch(
+      /synchronizeGroupTeams\(categoryId, competitionId, seasonId, teams, levels,/
+    );
+  });
+
+  it("empties the levels with the other tables on a reset", () => {
+    expect(SOURCE).toMatch(/tx\.delete\(tasoGroupTeams\);\s*await tx\.delete\(tasoGroupZones\);/);
+  });
+
+  it("runs the zone backfill on its own pacer and fails the run on a season it could not read", () => {
+    const zones = SOURCE.slice(SOURCE.indexOf("async function backfillZoneLevels"));
+
+    expect(zones).toMatch(/backfillZones\(createPacer\(ZONE_BACKFILL_PER_MINUTE\), out\)/);
+    expect(zones).toMatch(/result\.failed\.length === 0 \? 0 : 1/);
+    // Nothing of the full run: no match or team-row writer, no reset.
+    expect(zones).not.toMatch(/synchronizeGroupTeams|synchronizeTasoMatches|tx\.delete/);
+  });
+
+  it("closes the database and Redis after the zone backfill, whatever happened", () => {
+    const zones = SOURCE.slice(SOURCE.indexOf("async function backfillZoneLevels"));
+
+    expect(zones).toMatch(/finally\s*\{[^}]*closeDatabase\(\), redis\.quit\(\)/s);
+  });
+});
+
+describe("the backfill's entry point", () => {
+  const ENTRY = ts.transpileModule(
+    readFileSync(path.join(process.cwd(), "scripts", "backfill.ts"), "utf8"),
+    { compilerOptions: { removeComments: true, target: ts.ScriptTarget.ESNext } }
+  ).outputText;
+
+  it("hands --zones to the zone backfill and returns before the full run", () => {
+    const zones = ENTRY.slice(
+      ENTRY.indexOf('args.includes("--zones")'),
+      ENTRY.indexOf("resetArg !== undefined")
+    );
+
+    // Its result is the exit code: a season it could not read fails the run.
+    expect(zones).toMatch(/process\.exitCode = await backfillZoneLevels\(\);\s*return;/);
+    expect(zones).not.toContain("backfill({");
+  });
+
+  it("refuses --zones beside a flag that rewrites or deletes, before loading the work", () => {
+    const zones = ENTRY.slice(ENTRY.indexOf('args.includes("--zones")'));
+
+    expect(zones.indexOf("zonesConflict(args)")).toBeGreaterThan(-1);
+    expect(zones.indexOf("zonesConflict(args)")).toBeLessThan(
+      zones.indexOf('import("./backfill-run")')
+    );
+    const refusal = zones.slice(0, zones.indexOf('import("./backfill-run")'));
+    expect(refusal).toMatch(/conflict !== null\)\s*\{.*process\.exitCode = 1;\s*return;/s);
+  });
+
+  it("reads --zones only after the target database is settled", () => {
+    expect(ENTRY.indexOf("process.env.DATABASE_URL = connectionString")).toBeLessThan(
+      ENTRY.indexOf('args.includes("--zones")')
+    );
   });
 });

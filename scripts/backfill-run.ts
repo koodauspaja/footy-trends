@@ -5,10 +5,11 @@
  *
  * decisions/169-production-backfill.md
  * decisions/292-sonar-zero-open-issues.md
+ * decisions/063-competition-zones.md
  */
 import { and, eq, sql } from "drizzle-orm";
 import { closeDatabase, db } from "../src/db";
-import { matches, tasoGroupTeams, tasoMatches } from "../src/db/schema";
+import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "../src/db/schema";
 import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions";
 import {
   categoryIdForSeason,
@@ -27,12 +28,14 @@ import {
   getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches as getTasoMatches,
+  normalizeGroupLevels,
   normalizeGroupTeams,
 } from "../src/lib/taso";
 import {
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
 } from "../src/lib/taso-standings-service";
+import { backfillZones, ZONE_BACKFILL_PER_MINUTE } from "../src/lib/zone-backfill";
 import { canSkip, describeError, tasoSeasonsFor } from "./backfill-plan";
 
 function out(line = ""): void {
@@ -204,7 +207,11 @@ async function backfillTasoSeason(
     if (!hasGroups) {
       const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
       const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
+      // A table TASO now serves at zero keeps the starting points stored for it.
+      const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
+      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams, levels, undefined, {
+        carryStartingPoints: true,
+      });
       groupCount = `${teams.length} group rows`;
     }
 
@@ -302,12 +309,15 @@ export async function backfill({
     }
 
     if (reset) {
-      out("\nResetting — deleting every row in matches, taso_matches, taso_group_teams");
+      out(
+        "\nResetting — deleting every row in matches, taso_matches, taso_group_teams, taso_group_zones"
+      );
       // One transaction, so a reset is all or nothing.
       await db.transaction(async (tx) => {
         await tx.delete(matches);
         await tx.delete(tasoMatches);
         await tx.delete(tasoGroupTeams);
+        await tx.delete(tasoGroupZones);
       });
       out("Reset done.");
     }
@@ -337,4 +347,28 @@ export async function backfill({
   // A partial run is re-runnable: every write is an upsert, so repeating it
   // costs requests rather than correctness.
   return failures === 0 ? 0 : 1;
+}
+
+/**
+ * `--zones`: the zone levels of every stored season of the competitions that
+ * show them, and nothing else. Exits 1 when a season could not be read.
+ *
+ * decisions/063-competition-zones.md
+ */
+export async function backfillZoneLevels(): Promise<number> {
+  out(`Rates        TASO ${ZONE_BACKFILL_PER_MINUTE}/min`);
+  out("Zones        on — only taso_group_zones is written");
+  try {
+    const result = await backfillZones(createPacer(ZONE_BACKFILL_PER_MINUTE), out);
+    out(
+      `\nFinished with ${result.written} season(s) written, ${result.skipped} skipped ` +
+        `and ${result.failed.length} failed.`
+    );
+    if (result.failed.length > 0) err(`Could not read: ${result.failed.join(", ")}`);
+    return result.failed.length === 0 ? 0 : 1;
+  } finally {
+    for (const settled of await Promise.allSettled([closeDatabase(), redis.quit()])) {
+      if (settled.status === "rejected") err(`  cleanup: ${describeError(settled.reason)}`);
+    }
+  }
 }

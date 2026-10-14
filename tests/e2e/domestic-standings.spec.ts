@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signedInAs, waitForSession } from "./session";
 
 /**
  * Veikkausliiga's standings page, end to end: split seasons and their round
@@ -9,6 +10,7 @@ import { expect, test } from "@playwright/test";
  * decisions/010-playoff-group-match-list.md
  * decisions/133-split-group-round-numbering.md
  * decisions/304-test-database.md
+ * decisions/063-competition-zones.md
  */
 
 test.describe("Domestic standings page (Veikkausliiga)", () => {
@@ -79,6 +81,57 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
     await expect(league.locator("tbody tr").first()).toContainText("Fixture HJK");
 
     await expect(page.locator("body")).not.toContainText("null");
+  });
+
+  test("names what the league group's positions lead to, and rules its levels off, signed out", async ({
+    page,
+  }) => {
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
+
+    const section = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Runkosarja", level: 2 }) });
+    // A level with a count and no label names no line and still takes its places.
+    await expect(section.getByRole("listitem")).toHaveText([
+      "Sija 1: Kultaa",
+      "Sija 4: Putoaa Ykköseen",
+    ]);
+
+    // A heavier rule under the last row of each level but the one ending the table.
+    const widths = await section
+      .locator("tbody tr")
+      .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).borderBottomWidth));
+    expect(widths).toEqual(["2px", "1px", "2px", "1px"]);
+
+    // The source of the labels once on the page, after the list.
+    const source = page.getByText("Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.");
+    await expect(source).toHaveCount(1);
+    await expect(section.locator("ul + p")).toHaveText(
+      "Sijoitusten merkitykset ovat Palloliiton tulospalvelusta."
+    );
+
+    // The match-list groups carry neither.
+    const knockout = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 }),
+    });
+    await expect(knockout.getByRole("listitem")).toHaveCount(0);
+  });
+
+  test("names the same positions to a signed-in reader", async ({ page }) => {
+    await signedInAs(page, "Matti Meikäläinen");
+    await page.goto("/kotimaa/sarjataulukko?kausi=2017");
+    await waitForSession(page);
+
+    const section = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Runkosarja", level: 2 }) });
+    await expect(section.getByRole("listitem")).toHaveText([
+      "Sija 1: Kultaa",
+      "Sija 4: Putoaa Ykköseen",
+    ]);
+    await expect(
+      page.getByText("Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.")
+    ).toHaveCount(1);
   });
 
   test("a knockout group renders its matches, with no standings columns", async ({ page }) => {

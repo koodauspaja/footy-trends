@@ -104,9 +104,14 @@ test.describe("The next meeting, signed in", () => {
     ]);
     const group = page.getByRole("region", { name: GROUP });
     await expect(group.getByText("01.05.2099 klo 18.00 · Veikkausliiga")).toBeVisible();
-    const rows = group.getByRole("row");
+    const rows = group.getByRole("table").first().getByRole("row");
     await expect(rows).toHaveCount(4);
     await expect(rows.locator("th[scope=row]")).toHaveText(["Perustaso", "Elo", "Poisson"]);
+    // The scoreline grid under the Poisson line, the fixture's home side down.
+    await expect(group.getByRole("table").nth(1).getByRole("columnheader").first()).toHaveText(
+      "E2E 058 101 ↓ / E2E 058 102 →"
+    );
+    await expect(group.locator("td[data-marked]")).toHaveCount(1);
     await expect(group.getByText(MOVES_NOTE)).toBeVisible();
     // `Ennuste`'s own heading stays on the match page: the group names it here.
     await expect(group.getByRole("heading", { name: "Ennuste" })).toHaveCount(0);
@@ -117,7 +122,8 @@ test.describe("The next meeting, signed in", () => {
   }) => {
     await page.goto(RIVALRY);
     const group = page.getByRole("region", { name: GROUP });
-    await expect(group.getByRole("row")).toHaveCount(4);
+    // Four rows of predictions, then the scoreline grid's seven.
+    await expect(group.getByRole("row")).toHaveCount(11);
     const rows = await group.getByRole("row").allTextContents();
 
     // The URL names the away side first; the fixture's home side still leads.
@@ -166,5 +172,6 @@ test.describe("The next meeting, signed out", () => {
     expect(html).not.toContain(GROUP);
     expect(html).not.toContain("Perustaso");
     expect(html).not.toContain("Poisson");
+    expect(html).not.toContain("data-marked");
   });
 });
