@@ -5357,6 +5357,46 @@ describe("the stored levels a standings read returns", () => {
   });
 });
 
+describe("a table behind its results at the start of a season", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("counts a team with only a fixture to come as having played none", async () => {
+    // Team 1 has won its one match, which TASO's table does not count yet; team 3
+    // has played nothing, as TASO says.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, homeTeamProviderId: 1, awayTeamProviderId: 2 }),
+        match({
+          providerMatchId: 2,
+          homeTeamProviderId: 3,
+          homeTeamName: "Team 3",
+          awayTeamProviderId: 1,
+          status: "SCHEDULED",
+          homeGoals: null,
+          awayGoals: null,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, points: 0, played: 0 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 1 }),
+        groupTeam({ teamProviderId: 3, teamName: "Team 3", points: 0, played: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups[0]?.kind).toBe("own-calculated");
+  });
+});
+
 describe("a cup's table behind its results", () => {
   beforeEach(() => {
     vi.clearAllMocks();
