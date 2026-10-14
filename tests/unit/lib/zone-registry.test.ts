@@ -133,6 +133,10 @@ describe("cupCaveat", () => {
     );
   });
 
+  it.each(["CL", "NOPE", "constructor"])("is none for %s, which is not one of the nine", (code) => {
+    expect(cupCaveat(code, registryLevels("PL", 2025))).toBeNull();
+  });
+
   it("is none when no level is a cup place", () => {
     expect(cupCaveat("ELC", registryLevels("ELC", 2025))).toBeNull();
   });

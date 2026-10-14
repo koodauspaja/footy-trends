@@ -50,8 +50,13 @@ export type RegistryLevel = ZoneLevel & { kind?: ZoneKind };
  */
 type League = {
   readonly teams: number;
+  /** The line under the list when a level is a cup place, which a cup result can move. */
+  readonly cupCaveat: string;
   readonly seasons: Readonly<Record<number, readonly Place[]>>;
 };
+
+const EUROPE_CAVEAT = "Eurooppa-paikat voivat muuttua cup-tuloksilla";
+const BRAZIL_CAVEAT = "Cup-paikat voivat muuttua cup-tuloksilla";
 
 const CL = "championsLeague";
 const CLQ = "championsLeagueQualifying";
@@ -91,6 +96,7 @@ const BOTTOM_THREE: readonly Place[] = [[18, 20, REL]];
 export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   PL: {
     teams: 20,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [[1, 4, CL], [5, 5, EL], [6, 6, ECL], PREMIER_LEAGUE_REL],
       2024: [[1, 5, CL], [6, 7, EL], PREMIER_LEAGUE_REL],
@@ -100,6 +106,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   ELC: {
     teams: 24,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: CHAMPIONSHIP_STABLE,
       2024: CHAMPIONSHIP_STABLE,
@@ -113,6 +120,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   FL1: {
     teams: 18,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: LIGUE_1_STABLE,
       2024: LIGUE_1_STABLE,
@@ -122,6 +130,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   BL1: {
     teams: 18,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [[1, 5, CL], [6, 7, EL], [8, 8, ECL], ...BOTTOM_TWO_AND_PLAY_OFF],
       2024: [[1, 4, CL], [5, 5, EL], [6, 6, ECL], ...BOTTOM_TWO_AND_PLAY_OFF],
@@ -131,6 +140,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   SA: {
     teams: 20,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [[1, 5, CL], [6, 7, EL], [8, 8, ECL], ...BOTTOM_THREE],
       2024: [[1, 4, CL], [5, 5, EL], [6, 6, ECL], ...BOTTOM_THREE],
@@ -140,6 +150,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   DED: {
     teams: 18,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [
         [1, 2, CL],
@@ -172,6 +183,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   PPL: {
     teams: 18,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [[1, 2, CL], [3, 3, EL], [4, 4, ELQ], [5, 5, ECLQ], ...BOTTOM_TWO_AND_PLAY_OFF],
       2024: [
@@ -188,6 +200,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   PD: {
     teams: 20,
+    cupCaveat: EUROPE_CAVEAT,
     seasons: {
       2023: [[1, 4, CL], [5, 6, EL], [7, 7, ECL], ...BOTTOM_THREE],
       2024: [[1, 5, CL], [6, 7, EL], [8, 8, ECL], ...BOTTOM_THREE],
@@ -197,6 +210,7 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
   },
   BSA: {
     teams: 20,
+    cupCaveat: BRAZIL_CAVEAT,
     seasons: {
       2023: [
         [1, 4, LIB],
@@ -262,9 +276,6 @@ export function registryLevels(code: string, seasonId: number): RegistryLevel[] 
   return places === undefined ? [] : toLevels(places);
 }
 
-const EUROPE_CAVEAT = "Eurooppa-paikat voivat muuttua cup-tuloksilla";
-const BRAZIL_CAVEAT = "Cup-paikat voivat muuttua cup-tuloksilla";
-
 /**
  * The line under the list when a level is a cup place, which a cup result can
  * move after the table has placed it.
@@ -273,5 +284,5 @@ const BRAZIL_CAVEAT = "Cup-paikat voivat muuttua cup-tuloksilla";
  */
 export function cupCaveat(code: string, levels: readonly RegistryLevel[]): string | null {
   if (!levels.some((level) => level.kind === "cup")) return null;
-  return code === "BSA" ? BRAZIL_CAVEAT : EUROPE_CAVEAT;
+  return Object.hasOwn(ZONE_REGISTRY, code) ? (ZONE_REGISTRY[code]?.cupCaveat ?? null) : null;
 }

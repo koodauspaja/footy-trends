@@ -152,7 +152,8 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const zone = zoneClassesOf(zoneKindOf(row, index));
+            // The row a page is about keeps its shade: two backgrounds on one row are decided by the stylesheet's order, not the class string's.
+            const zone = isCurrentRow(row) ? undefined : zoneClassesOf(zoneKindOf(row, index));
             return (
               <tr
                 aria-current={isCurrentRow(row) ? "true" : undefined}

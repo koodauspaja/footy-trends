@@ -16,12 +16,13 @@ simulation reads a table's levels as its columns).
 | Which kind a qualifying round is | `cup`: `Mestarien liigan karsinta`, `Eurooppa-liigan karsinta`, `Konferenssiliigan karsinta` and `Copa Libertadoresin karsinta` are places in a European or South American competition's own qualifying. `playoff`: `Nousukarsinta`, `Putoamiskarsinta` and the Eredivisie's `Karsinta Europeleihin`, which is a play-off played in the league's own country | The spec confirmed the labels and said the kinds of the qualifying rounds were confirmed, without writing them down. This is the reading that gives the Europe line (S3) to every level that is a European place and the `karsinta` tint to the ones the league plays out itself. **Not stated in the spec; named in the PR body for Miikka to correct** |
 | The table's size | `teams` per league, one number, not per season | Ligue 1's change from 20 to 18 predates the data (S2). The unit test says every entry fits it; a season that changes it is the upkeep step's to edit |
 | Zone type | `Zone` and `ZoneLevel` gain an optional `kind`; `groupZones` carries it. TASO's levels have none | The registry's levels go through `groupZones` unchanged, as S1 says, and the simulation's `ForecastTable.zones` carries the kind without a second shape |
+| The current row | A row `isCurrentRow` says is the page's keeps its shade and takes no tint: two backgrounds on one row are decided by the stylesheet's order, not the class string's. No table with a current row has zones today | `zone-registry` review, `code-review` on the branch |
 | The tint | `DataTable` takes `zoneKindOf(row, index)`: a `bg-zone-<kind>-background` class on the row and a 4 px inset `box-shadow` on its first cell, `var(--zone-<kind>-edge)` | The shadow takes no width, so a zoned row's columns line up with an unzoned row's; a border would add 4 px to the first cell of a `table-fixed` table. A class per kind is written out whole in `ZONE_CLASSES` because Tailwind finds a class by reading it |
 | The index, not the position | `StandingsTable` tints by the row's place in the table as drawn, as it draws the rule (decisions/063) | A table's own order is what a round's page shows; the `position` a row carries can repeat |
 | Tokens | `--zone-<kind>-background` and `--zone-<kind>-edge`, a value per scheme in `globals.css`, `--color-zone-…` in the theme | The file's rule: a role, never a shade. The values are the spec's palette |
 | The page | `renderLeagueStandings` reads `registryLevels(competitionCode, seasonId)` once, takes `groupZones` on the table's row count, and passes `zones` and `ruleAfter` to the table; the list and the caveat follow the table | One read, one function, as the Finnish page does. Only the league branch: a cup renders through `renderCupStandings`, which reads no registry |
 | The list's words | `zoneLine`, as the Finnish page: `Sija 8: …`, `Sijat 18–20: …`, then our label | S1, UX / UI |
-| The caveat line | `cupCaveat(code, levels)`: `Eurooppa-paikat voivat muuttua cup-tuloksilla`, and for `BSA` `Cup-paikat voivat muuttua cup-tuloksilla`, only when a level is a `cup` and a zone is drawn; once, under the list | S3 and the issue's third criterion |
+| The caveat line | `cupCaveat(code, levels)` returns the league's own `cupCaveat` from the registry: `Eurooppa-paikat voivat muuttua cup-tuloksilla`, and for `BSA` `Cup-paikat voivat muuttua cup-tuloksilla`; a tenth league has to name its line. Only when a level is a `cup` and a zone is drawn; once, under the list | S3 and the issue's third criterion |
 | Where the source line is not | The Finnish page says whose words its labels are (decisions/063); these are ours, so no source line | The labels are written by us (S1); the caveat is the line that says places can change |
 | The simulation | `footballDataSeason` passes `registryLevels(code, seasonId)` as the table's `levels`, where decisions/064 left `[]` | The spec's last criterion, and the row of decisions/064 that says football-data keeps specs/061's columns until the registry builds |
 | A season with no entry | `registryLevels` answers `[]`: no zone, no rule, no tint, no list, and the simulation keeps specs/061's columns | S2 |
@@ -119,6 +120,9 @@ Each was applied alone, the tests run, and the file restored from a commit.
 | 21 | A row tinted that nothing asked to tint |
 | 22 | A code read as a key of the registry that is not its own (`constructor`) |
 | 23 | Two stretches swapped in a season's entry (the registry test of order) |
+| 24 | The current row given the zone tint as well |
+| 25 | Brazil's league given the European line |
+| 26 | `cupCaveat` reading a key the registry does not own |
 
 The sort `toLevels` first had was removed: the places are written in table
 order and no input is not, so no test could tell it from its absence.

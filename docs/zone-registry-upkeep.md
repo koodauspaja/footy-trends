@@ -20,3 +20,6 @@ and nothing fails, so nobody is told when one is missing.
 5. When a finished season's marks changed afterwards (a cup winner's place
    passed down), the registry keeps the places as the page marked them when it
    was written; edit the season only to correct an error.
+6. A changed entry shows on the standings page at once, and in `Kauden ennuste`
+   within 15 minutes, when the cached forecast expires; the forecast key needs
+   no bump for it.
