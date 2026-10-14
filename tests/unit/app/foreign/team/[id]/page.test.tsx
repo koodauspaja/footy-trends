@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
+import type { SeasonSummaryPanelData } from "@/components/season-summary-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { TeamEloSeries } from "@/lib/elo-service";
@@ -11,6 +12,7 @@ import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { SeasonSummarySeries } from "@/lib/season-summary";
 import type { TeamMatchesResult } from "@/lib/standings-service";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
@@ -73,6 +75,9 @@ const getTeamStreakRecordsMock = vi.fn(
 const getTeamSeasonComparisonMock = vi.fn(
   async (..._args: unknown[]): Promise<SeasonComparisonSeries> => ({ status: "unavailable" })
 );
+const getTeamSeasonSummaryMock = vi.fn(
+  async (..._args: unknown[]): Promise<SeasonSummarySeries> => ({ status: "unavailable" })
+);
 
 // The Analyysit section stands in here with a marker: its panels and its
 // sign-in gate are `analytics-section.test.tsx`'s. This file owns the page's
@@ -90,6 +95,7 @@ const analyticsSectionMock = vi.fn(
     loadRecords: () => Promise<StreakRecordsSeries>;
     loadOpponents: () => Promise<OpponentsSeries>;
     loadElo: () => Promise<EloPanelData>;
+    loadSummary: () => Promise<SeasonSummaryPanelData>;
   }) => "analytics section placeholder"
 );
 const getTeamEloMock = vi.fn(async (): Promise<TeamEloSeries> => ({ status: "empty" }));
@@ -115,6 +121,7 @@ vi.mock("@/lib/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
   getTeamPanelMatches: getTeamPanelMatchesMock,
   getTeamSeasonComparison: getTeamSeasonComparisonMock,
+  getTeamSeasonSummary: getTeamSeasonSummaryMock,
   getTeamStreakRecords: getTeamStreakRecordsMock,
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
@@ -926,6 +933,35 @@ describe("Team page league position", () => {
 
     expect(await loadComparison?.()).toEqual({ status: "error" });
     expect(getTeamSeasonComparisonMock).not.toHaveBeenCalled();
+  });
+
+  it("asks for the season summary with the selector's wording, its match linked under /ulkomaat", async () => {
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadSummary = analyticsSectionMock.mock.calls[0]?.[0].loadSummary;
+
+    const data = await loadSummary?.();
+
+    expect(getTeamSeasonSummaryMock).toHaveBeenCalledWith(
+      "PL",
+      1,
+      2024,
+      2025,
+      expect.any(Array),
+      expect.any(Function)
+    );
+    const label = getTeamSeasonSummaryMock.mock.calls[0]?.[5] as (year: number) => string;
+    expect(label(2024)).toBe("2024/25");
+    expect(data && "matchHref" in data ? data.matchHref(42) : null).toBe("/ulkomaat/ottelu/42");
+  });
+
+  it("reports an outage for the season summary too when the season lookup fails", async () => {
+    getTeamSeasonsMock.mockResolvedValue({ status: "error" });
+
+    await renderTeamPage("1", { kilpailu: "PL", kausi: "2024" });
+    const loadSummary = analyticsSectionMock.mock.calls[0]?.[0].loadSummary;
+
+    expect((await loadSummary?.())?.series).toEqual({ status: "error" });
+    expect(getTeamSeasonSummaryMock).not.toHaveBeenCalled();
   });
 
   it("asks for the records with the season wording the selector uses", async () => {

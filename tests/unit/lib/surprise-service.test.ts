@@ -8,6 +8,7 @@ import type { StoredMatch } from "@/lib/match-service";
  * are proved against Postgres in `tests/integration/surprise.test.ts`.
  *
  * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -35,7 +36,7 @@ vi.mock("@/lib/match-service", () => ({
   getFirstStoredSeason: mocks.getFirstStoredSeason,
 }));
 
-import { getMatchSurprise, getSeasonSurprises } from "@/lib/surprise-service";
+import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surprise-service";
 
 function predicted(overrides: Record<string, unknown> = {}) {
   return {
@@ -148,6 +149,42 @@ describe("getSeasonSurprises", () => {
       status: "error",
     });
     expect(mocks.loggerError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getTeamUpset", () => {
+  it("is the team's own win in its competition-season, read from its provider", async () => {
+    mocks.seasonRows.mockResolvedValueOnce([
+      predicted({ providerMatchId: 1, home: 0.3 }),
+      // Lost by the team, so not its upset, however unlikely.
+      predicted({ providerMatchId: 2, homeGoals: 0, awayGoals: 1, away: 0.04 }),
+      predicted({ providerMatchId: 3, home: 0.12 }),
+    ]);
+
+    await expect(getTeamUpset("taso", "VL", 2025, 10)).resolves.toMatchObject({
+      providerMatchId: 3,
+      probability: 0.12,
+    });
+    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("taso", "VL");
+  });
+
+  it("reads a football-data season too", async () => {
+    mocks.seasonRows.mockResolvedValueOnce([predicted({ awayTeamProviderId: 99 })]);
+
+    await expect(getTeamUpset("football-data", "PL", 2025, 99)).resolves.toBeNull();
+    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("football-data", "PL");
+  });
+
+  it("has none in the competition's first stored season, and reads no prediction", async () => {
+    await expect(getTeamUpset("taso", "VL", 2023, 10)).resolves.toBeNull();
+    expect(mocks.seasonRows).not.toHaveBeenCalled();
+  });
+
+  it("throws a failed read for its caller to log", async () => {
+    mocks.seasonRows.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getTeamUpset("taso", "VL", 2025, 10)).rejects.toThrow("connection reset");
+    expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 });
 

@@ -217,6 +217,12 @@ describe("nationalTeamAnalytics", () => {
     });
   });
 
+  it("has no season summary: the block is a club's", async () => {
+    expect(await nationalTeamAnalytics(given).loadSummary()).toEqual({
+      series: { status: "unavailable" },
+    });
+  });
+
   it("reads Finland on both sides of the fixture, across every year", async () => {
     const result = await nationalTeamAnalytics(given).loadHomeAway();
 

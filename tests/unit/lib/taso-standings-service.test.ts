@@ -13,6 +13,7 @@ import {
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamSeasonSummary,
   getTeamStreakRecords,
   hasCarryOver,
   listSeasonRounds,
@@ -61,6 +62,7 @@ import { teamPanelLoaders } from "@/lib/team-panels";
  * decisions/063-competition-zones.md
  * decisions/644-stored-table-behind-results.md
  * decisions/064-season-simulation-zones.md
+ * decisions/066-season-summary.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -88,6 +90,7 @@ const {
   getCurrentSeasonMock,
   loggerWarnMock,
   loggerErrorMock,
+  getSeasonSummaryMock,
 } = vi.hoisted(() => ({
   dbMock: {
     select: vi.fn(),
@@ -104,8 +107,12 @@ const {
   getCurrentSeasonMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
+  getSeasonSummaryMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
+// The summary's own rules are season-summary.test.ts's; here only what this
+// provider hands it.
+vi.mock("@/lib/season-summary-service", () => ({ getSeasonSummary: getSeasonSummaryMock }));
 vi.mock("@/lib/cache", () => ({
   getCached: getCachedMock,
   getCachedUnlessDegraded: getCachedUnlessDegradedMock,
@@ -4157,6 +4164,33 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // the panel can print it as a place.
       expect(comparison.status === "ok" && comparison.teamCount).toBe(3);
       expect(comparison.status === "ok" && comparison.rows[0]?.selected).toBeCloseTo(1 / 3, 10);
+    });
+
+    it("summarises the season over the comparison's season reads and the records", async () => {
+      mockStoredMatches(matches, rows);
+      getSeasonSummaryMock.mockResolvedValueOnce({ status: "unavailable" });
+      const selected = ownSeason();
+
+      await expect(
+        getTeamSeasonSummary(LEAGUE, 1, selected, ACTIVE_SEASON, seasonsFor(selected), String)
+      ).resolves.toEqual({ status: "unavailable" });
+
+      const [source, readers] = getSeasonSummaryMock.mock.calls[0] ?? [];
+      expect(source).toBe("taso");
+      expect(readers).toMatchObject({
+        teamId: 1,
+        selected: { competitionCode: LEAGUE, seasonId: selected },
+        activeSeasonId: ACTIVE_SEASON,
+        label: String,
+      });
+      // Leagues only: a cup and a code the registry does not carry are not.
+      expect(readers.isLeague(LEAGUE)).toBe(true);
+      expect(readers.isLeague("MSC")).toBe(false);
+      expect(readers.isLeague("ZZZ")).toBe(false);
+      await expect(
+        readers.read({ competitionCode: LEAGUE, seasonId: selected })
+      ).resolves.toMatchObject({ status: "ok", read: { competition: "Ykkönen" } });
+      await expect(readers.records()).resolves.toMatchObject({ status: "ok", scope: "Ykkönen" });
     });
 
     it("keeps a season whose table ranks nothing, because its results still count", async () => {
