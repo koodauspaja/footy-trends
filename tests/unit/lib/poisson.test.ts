@@ -804,6 +804,14 @@ describe("a cup in the fit", () => {
     expect(predictPoisson(fit, "VL", 9, 1)).not.toBeNull();
   });
 
+  it("keeps a cup whose one tie was goalless at a goal rate of its own, above nothing", () => {
+    const fit = fitPoisson([...league, cup(10, 1, 2, 0, 0)], TODAY);
+    const base = fit.competitions.get("MSC")?.base as number;
+
+    expect(Number.isFinite(base)).toBe(true);
+    expect(base).toBeLessThan(fit.competitions.get("VL")?.base as number);
+  });
+
   it("has no cup when none of its ties is between known teams", () => {
     expect(fitPoisson([...league, cup(10, 9, 1, 1, 0)], TODAY).competitions.has("MSC")).toBe(false);
   });
