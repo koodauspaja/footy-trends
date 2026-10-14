@@ -396,8 +396,7 @@ function poissonFitsBySource(
 
 /**
  * Every stored finished match of the predicted competitions, a cup tie marked,
- * its score after extra time: of both providers unless told which. The
- * backtests, the live ratings and fits, and the pages' all read it.
+ * its score after extra time: of both providers unless told which.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md

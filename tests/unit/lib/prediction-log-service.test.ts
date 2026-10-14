@@ -548,12 +548,22 @@ describe("runPredictionLog", () => {
   });
 
   it("logs a cup tie under no model when one side has never played a league match", async () => {
-    // Team 1003 is rated; 1002 has played only this cup.
-    stored([], [cupTie(), tasoRow({ providerMatchId: 51 })], [[], [leagueMatch(900, 1001, 1003)]]);
+    // Team 1003 is rated; 1002 has played only this cup. The earlier tie gives
+    // Poisson a cup fit, so its own check is the one tested.
+    const earlierTie = {
+      ...leagueMatch(901, 1003, 1001),
+      categoryId: "MSC",
+      kickoffAt: new Date("2026-06-01T15:00:00Z"),
+    };
+    stored(
+      [],
+      [cupTie(), tasoRow({ providerMatchId: 51 })],
+      [[], [leagueMatch(900, 1001, 1003), earlierTie]]
+    );
 
     await runPredictionLog(() => NOW, immediate);
 
-    for (const model of ["home-baseline-v1", "elo-v1"]) {
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
       expect(written(model).map((row) => row.providerMatchId)).toEqual([51]);
     }
   });

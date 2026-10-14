@@ -530,7 +530,9 @@ function cupFits(
   const byCode = new Map<string, PoissonMatch[]>();
   for (const match of history) {
     if (!match.cup || !known(match.homeTeam) || !known(match.awayTeam)) continue;
-    byCode.set(match.code, [...(byCode.get(match.code) ?? []), match]);
+    const ties = byCode.get(match.code);
+    if (ties === undefined) byCode.set(match.code, [match]);
+    else ties.push(match);
   }
 
   const rates = (match: PoissonMatch) => ({

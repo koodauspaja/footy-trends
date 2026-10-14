@@ -339,7 +339,8 @@ describe("a cup's backtest rows", () => {
   });
 
   it("tallies every tie of the cup, rated or not, into its own baseline", () => {
-    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    // An away win in the league, so a tally mixing it in would show.
+    const league = played(1, 0, 1, { homeTeam: 1, awayTeam: 2 });
     // Two ties with an outsider, both won at home, then a rated tie.
     const ties = [
       cup(2, 1, 0, { homeTeam: 9, awayTeam: 1 }),
@@ -351,9 +352,13 @@ describe("a cup's backtest rows", () => {
       (candidate) => candidate.providerMatchId === rated.providerMatchId
     );
 
-    // The league's result is not the cup's: two home wins of two.
-    expect(row?.competitionCode).toBe("MSC");
-    expect(row?.homeProbability).toBeGreaterThan(row?.awayProbability as number);
+    // The cup's own two ties, both home wins: none of the league's away win.
+    expect(row).toMatchObject({
+      competitionCode: "MSC",
+      homeProbability: 1,
+      drawProbability: 0,
+      awayProbability: 0,
+    });
     expect(
       backtestRows([league, rated], "home-baseline-v1", NOW).map((r) => r.providerMatchId)
     ).not.toContain(rated.providerMatchId);
