@@ -21,6 +21,10 @@ sample rate's default; its other defaults stand.
 
 ## Measured
 
-A local e2e run with `NEXT_PUBLIC_SENTRY_DSN` pointing at a fake ingest on
-`127.0.0.1`, set in the shell so `.env` could not override it: see the pull
-request for the count of envelopes received.
+On 2026-10-14, with `NEXT_PUBLIC_SENTRY_DSN` set in the shell to a fake
+ingest on `127.0.0.1`, which `.env` cannot override:
+
+| Run | Tests | Envelopes received |
+|---|---|---|
+| The whole suite, with `withoutSentry` | 396 | 0 |
+| `womens-team.spec.ts`, with the blank removed (the control) | 10 | 23 |
