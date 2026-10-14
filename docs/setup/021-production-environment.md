@@ -410,9 +410,8 @@ were the one part of the app whose logging could not be turned down.
 ### Verifying Sentry actually receives events
 
 The client half needs no test event: `NEXT_PUBLIC_` values are inlined at build
-time, so the shipped bundle can be read directly — that is how v1.1.0 was
-confirmed (0 occurrences of `replayIntegration`, and the literals `"false"`,
-`"false"`, `"0.1"`).
+time, so the shipped bundle can be read directly: it holds no
+`replayIntegration`, and the sample rate as a literal, `0.1` in production.
 
 The **server** half gives no such evidence. It reads `process.env` at runtime,
 so the only proof is an event arriving. `npm run verify:sentry` sends one
@@ -678,14 +677,14 @@ are from this project's own run.
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
 - [ ] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
-- [ ] All three Sentry configs — server, edge and client — read their settings
-      from the environment
+- [ ] All three Sentry configs — server, edge and client — read the sample rate
+      from the environment and what an event may carry from `DATA_COLLECTION`
 - [ ] Session Replay is decided **and applied in code** — the integration is
       removed, so it neither records nor ships its bundle
 - [ ] The wizard's example routes are deleted rather than left reachable
-- [ ] The six Sentry variables are set on the production service. Note the code
-      defaults to the wizard's behaviour, so they take effect only once a release
-      carries this change to `release` — setting them alone does not
+- [ ] `SENTRY_TRACES_SAMPLE_RATE` and `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`
+      are set to `0.1` on the production service, and no other Sentry variable
+      but the DSN
 - [ ] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
 - [ ] A deploy runs migrations before taking traffic and passes its health check
 - [ ] `/api/health` in production returns `status: "ok"` with `checks.database`

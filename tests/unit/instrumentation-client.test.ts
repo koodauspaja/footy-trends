@@ -42,13 +42,16 @@ describe("instrumentation-client", () => {
     );
   });
 
-  it("reads the NEXT_PUBLIC_ sample rate, the only one a browser can see", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "0.25");
+  it.each([
+    ["0.25", 0.25],
+    ["0.6", 0.6],
+  ])("reads the NEXT_PUBLIC_ sample rate %s, the only one a browser can see", async (raw, rate) => {
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", raw);
 
     await load();
 
-    // Not 0.1, the default, which an ignored variable would also give.
-    expect(init).toHaveBeenCalledWith(expect.objectContaining({ tracesSampleRate: 0.25 }));
+    // Neither is 0.1, the default, which an ignored variable would also give.
+    expect(init).toHaveBeenCalledWith(expect.objectContaining({ tracesSampleRate: rate }));
   });
 
   it("limits what an event carries with the shared setting, and passes no option v11 removed", async () => {
