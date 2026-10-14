@@ -58,7 +58,8 @@ export const BY_COMPETITION_NOTE =
   "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi.";
 export const ALL_COMPETITIONS_LINK = "Kaikki kilpailut";
 /**
- * Under `Kilpailuittain` when a cup has a row: the figures above leave it out.
+ * Under `Kilpailuittain` when a cup has a row and no competition is chosen: the
+ * figures above then leave the cups out.
  *
  * decisions/059-cup-predictions.md
  */
@@ -458,7 +459,8 @@ function Report({
       <ChartPanel heading={BY_COMPETITION_HEADING} headingId="quality-competitions">
         <CompetitionTable competition={competition} kind={kind} report={report} source={source} />
         <p className="mt-2 text-muted text-sm">{BY_COMPETITION_NOTE}</p>
-        {report.competitions.some((row) => isPredictedCup(source, row.code)) ? (
+        {competition === null &&
+        report.competitions.some((row) => isPredictedCup(source, row.code)) ? (
           <p className="mt-1 text-muted text-sm">{CUPS_APART_NOTE}</p>
         ) : null}
       </ChartPanel>

@@ -318,16 +318,24 @@ describe("a cup's backtest rows", () => {
     expect(ids).not.toContain(sameKickoff.providerMatchId);
   });
 
-  it("rates no placeholder side, whatever league row it appears in", () => {
-    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
-    const opener = cup(2, 1, 0, { homeTeam: 1, awayTeam: 2 });
-    const slot = cup(3, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
+  it("rates no side from a league match against a placeholder, as Elo does not", () => {
+    const rating = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    // Team 3's only league match is against an unresolved slot.
+    const againstSlot = played(2, 1, 0, { homeTeam: 3, awayTeam: PLACEHOLDER_TEAM_ID });
+    const opener = cup(3, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    const slot = cup(4, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
+    const three = cup(5, 1, 0, { homeTeam: 3, awayTeam: 1 });
+    const rated = cup(6, 1, 0, { homeTeam: 2, awayTeam: 1 });
 
-    const ids = backtestRows([league, opener, slot], "home-baseline-v1", NOW).map(
-      (row) => row.providerMatchId
-    );
+    const ids = backtestRows(
+      [rating, againstSlot, opener, slot, three, rated],
+      "home-baseline-v1",
+      NOW
+    ).map((row) => row.providerMatchId);
 
     expect(ids).not.toContain(slot.providerMatchId);
+    expect(ids).not.toContain(three.providerMatchId);
+    expect(ids).toContain(rated.providerMatchId);
   });
 
   it("tallies every tie of the cup, rated or not, into its own baseline", () => {

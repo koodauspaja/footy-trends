@@ -12,7 +12,6 @@
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
 import { HOME_BASELINE_MODEL, homeBaseline } from "./home-baseline";
-import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 import type { MatchSource } from "./match-source";
 import { POISSON_MODEL, replayPoisson } from "./poisson";
 import type { PredictionRow } from "./prediction-log";
@@ -52,28 +51,21 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 
 /**
  * Whether a match can be predicted for its sides: always in a league; in a cup
- * only when both played a league match at an earlier kickoff, as Elo rates them.
+ * only when the Elo replay predicts it, which rates both sides first.
  *
  * decisions/059-cup-predictions.md
  */
 function ratedSides(finished: readonly FinishedMatch[]): (match: FinishedMatch) => boolean {
-  const firstLeagueKickoff = new Map<string, number>();
-  for (const match of finished) {
-    if (match.cup) continue;
-    for (const team of [match.homeTeam, match.awayTeam]) {
-      if (team === PLACEHOLDER_TEAM_ID) continue;
-      const key = `${match.source}:${team}`;
-      const kickoff = match.kickoffAt.getTime();
-      if (kickoff < (firstLeagueKickoff.get(key) ?? Number.POSITIVE_INFINITY)) {
-        firstLeagueKickoff.set(key, kickoff);
+  const predicted = new Set<string>();
+  for (const source of ["football-data", "taso"] as const) {
+    replayElo(
+      finished.filter((match) => match.source === source),
+      (match) => {
+        if (match.cup) predicted.add(`${match.source}:${match.providerMatchId}`);
       }
-    }
+    );
   }
-  const ratedBy = (match: FinishedMatch, team: number) =>
-    (firstLeagueKickoff.get(`${match.source}:${team}`) ?? Number.POSITIVE_INFINITY) <
-    match.kickoffAt.getTime();
-  return (match) =>
-    !match.cup || (ratedBy(match, match.homeTeam) && ratedBy(match, match.awayTeam));
+  return (match) => !match.cup || predicted.has(`${match.source}:${match.providerMatchId}`);
 }
 
 /**

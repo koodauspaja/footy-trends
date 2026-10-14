@@ -488,6 +488,19 @@ describe("PredictionQualityPage", () => {
     );
   });
 
+  it("does not say so on a chosen competition's report, whose figures are that competition's", async () => {
+    getPredictionQuality.mockResolvedValue({
+      ...report,
+      competitions: [
+        ...report.competitions,
+        { code: "MSC", matches: 210, brier: [0.66, 0.63, 0.64], best: [false, true, false] },
+      ],
+    });
+    await renderPage({ kilpailu: "VL" });
+
+    expect(screen.queryByText(CUPS_APART_NOTE)).not.toBeInTheDocument();
+  });
+
   it("does not say so without a cup's row", async () => {
     await renderPage();
 

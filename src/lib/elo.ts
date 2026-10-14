@@ -158,6 +158,29 @@ function homeScore(match: EloMatch): number {
 }
 
 /**
+ * Hands `onPredict` each cup tie of one kickoff whose two sides the leagues
+ * have rated, at the ratings before that kickoff.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function predictCupTies(
+  atKickoff: readonly EloMatch[],
+  ratings: ReadonlyMap<number, TeamRating>,
+  onPredict: (match: EloMatch, homeRating: number, awayRating: number) => void
+) {
+  for (const match of atKickoff) {
+    if (!match.cup || !isRated(ratings, match.homeTeam) || !isRated(ratings, match.awayTeam)) {
+      continue;
+    }
+    onPredict(
+      match,
+      ratingFor(ratings, match.homeTeam, match.seasonId),
+      ratingFor(ratings, match.awayTeam, match.seasonId)
+    );
+  }
+}
+
+/**
  * Every match in kickoff order. Matches sharing a kickoff are all rated from
  * the ratings before any of them, then all update; a cup tie never updates.
  * `onPredict` sees each match with the ratings it was played at.
@@ -186,16 +209,7 @@ export function replayElo(
     let end = index;
     while (ordered[end]?.kickoffAt.getTime() === kickoff) end += 1;
     const atKickoff = ordered.slice(index, end);
-    for (const match of atKickoff) {
-      // Predicted only between two sides the leagues have rated.
-      if (match.cup && isRated(ratings, match.homeTeam) && isRated(ratings, match.awayTeam)) {
-        onPredict?.(
-          match,
-          ratingFor(ratings, match.homeTeam, match.seasonId),
-          ratingFor(ratings, match.awayTeam, match.seasonId)
-        );
-      }
-    }
+    if (onPredict !== undefined) predictCupTies(atKickoff, ratings, onPredict);
     const together = atKickoff
       .filter((match) => !match.cup)
       .map((match) => {
