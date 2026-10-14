@@ -106,6 +106,7 @@ Each was applied alone, the tests run, and the file restored from a commit.
 | 19 | Promotion taken as a cup place |
 | 20 | Brazil 2023's gap at 15 and 16 closed |
 | 21 | A row tinted that nothing asked to tint |
+| 22 | A code read as a key of the registry that is not its own (`constructor`) |
 
 The sort `toLevels` first had was removed: the places are written in table
 order and no input is not, so no test could tell it from its absence.
