@@ -109,9 +109,18 @@ branch before it was pushed. What they changed:
 | 29 | The variants' predictions worked out when asked, not at the match |
 | 30 | An older season's match resetting the form |
 | 31 | `expectedHome` ignoring a home advantage of its own |
+| 32 | A team's form read from before the kickoff for each of its matches at it, so only the last surprise is kept |
 
 - **One first survived and was a wrong mutation**: number 12 replaced the draw
   share after its guard, which changed nothing; with the guard removed it was
   caught.
 - **Against Postgres, by accident**: timing the idempotence test with the
   variants' backtest rows switched off failed it on their assertions.
+
+## After the review
+
+Sourcery's first full review of #651 found one thing.
+
+| Finding | Outcome |
+|---|---|
+| A team with two matches at one kickoff keeps only one surprise in its form, each `set` replacing the other | Not so: the loop's `get` reads the map the previous iteration's `set` wrote, so both are kept. A test now says it, and the defect described, the form read from a copy taken before the kickoff, fails it: mutation 32 |
