@@ -98,9 +98,12 @@ describe("the zone registry", () => {
     expect(registryLevels("PL", 2022)).toEqual([]);
   });
 
-  it.each(["CL", "VL", "NOPE"])("is empty for %s, which is not one of the nine", (code) => {
-    expect(registryLevels(code, 2025)).toEqual([]);
-  });
+  it.each(["CL", "VL", "NOPE", "constructor", "__proto__"])(
+    "is empty for %s, which is not one of the nine",
+    (code) => {
+      expect(registryLevels(code, 2025)).toEqual([]);
+    }
+  );
 });
 
 describe("cupCaveat", () => {

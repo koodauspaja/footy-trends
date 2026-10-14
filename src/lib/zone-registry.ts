@@ -243,7 +243,9 @@ function toLevels(places: readonly Place[]): RegistryLevel[] {
  * hold, and for a competition that is not one of the nine leagues.
  */
 export function registryLevels(code: string, seasonId: number): RegistryLevel[] {
-  const places = ZONE_REGISTRY[code]?.seasons[seasonId];
+  // Own keys only: a code is a string from a URL, and `constructor` is not a league.
+  const league = Object.hasOwn(ZONE_REGISTRY, code) ? ZONE_REGISTRY[code] : undefined;
+  const places = league?.seasons[seasonId];
   return places === undefined ? [] : toLevels(places);
 }
 
