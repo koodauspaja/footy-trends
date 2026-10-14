@@ -67,6 +67,7 @@ describe("DATA_COLLECTION", () => {
       graphQL: { document: true, variables: true },
       genAI: { inputs: false, outputs: false },
       databaseQueryData: false,
+      queues: false,
       stackFrameVariables: true,
       frameContextLines: 7,
     });
