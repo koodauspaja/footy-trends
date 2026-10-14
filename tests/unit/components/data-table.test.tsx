@@ -243,7 +243,7 @@ describe("DataTable zone tint", () => {
     }
   });
 
-  it("lets the current row's shade win over a tint, with no second background", () => {
+  it("lets the current row's shade win over a tint, and keeps the zone's edge", () => {
     render(
       <DataTable
         columns={columns}
@@ -255,8 +255,8 @@ describe("DataTable zone tint", () => {
       />
     );
 
-    expect(screen.getAllByRole("row")[1]?.className).toBe(
-      "border-muted border-b-2 bg-surface font-semibold"
-    );
+    const row = screen.getAllByRole("row")[1];
+    expect(row?.className).toBe("border-muted border-b-2 bg-surface font-semibold");
+    expect(row?.firstElementChild).toHaveClass("shadow-[inset_4px_0_0_var(--zone-cup-edge)]");
   });
 });

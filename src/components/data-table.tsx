@@ -152,17 +152,18 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            // The row a page is about keeps its shade: two backgrounds on one row are decided by the stylesheet's order, not the class string's.
-            const zone = isCurrentRow(row) ? undefined : zoneClassesOf(zoneKindOf(row, index));
+            const current = isCurrentRow(row);
+            const zone = zoneClassesOf(zoneKindOf(row, index));
             return (
               <tr
-                aria-current={isCurrentRow(row) ? "true" : undefined}
+                aria-current={current ? "true" : undefined}
                 className={[
                   hasRuleBelow(row, index)
                     ? "border-muted border-b-2"
                     : "border-border-subtle border-b",
-                  zone?.row,
-                  isCurrentRow(row) ? "bg-surface font-semibold" : undefined,
+                  // The row a page is about keeps its shade and drops only the tint: two
+                  // backgrounds on one row follow the stylesheet's order. The edge is a shadow.
+                  current ? "bg-surface font-semibold" : zone?.row,
                 ]
                   .filter(Boolean)
                   .join(" ")}
