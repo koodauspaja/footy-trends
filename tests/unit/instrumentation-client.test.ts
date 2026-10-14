@@ -4,7 +4,7 @@ import { DEFAULT_TRACES_SAMPLE_RATE } from "@/lib/sentry-config";
 /**
  * The browser half of the Sentry wiring, which runs at import, so the test is the import with
  * the environment stubbed first. `@/lib/sentry-config` is not mocked: how a blank variable is
- * read is the difference between tracing 10% in production and tracing everything.
+ * read is the difference between tracing the default tenth and tracing nothing.
  *
  * decisions/403-coverage-exclusions-that-earn-it.md
  */

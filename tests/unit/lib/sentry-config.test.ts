@@ -6,6 +6,7 @@ import { DEFAULT_TRACES_SAMPLE_RATE, flagFrom, sampleRateFrom } from "@/lib/sent
  * flag.
  *
  * decisions/140-sentry-production-configuration.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 
 describe("sampleRateFrom", () => {
@@ -17,6 +18,10 @@ describe("sampleRateFrom", () => {
 
   it("falls back when the variable is unset", () => {
     expect(sampleRateFrom(undefined)).toBe(DEFAULT_TRACES_SAMPLE_RATE);
+  });
+
+  it("samples a tenth when nothing is set, so no environment traces every request", () => {
+    expect(DEFAULT_TRACES_SAMPLE_RATE).toBe(0.1);
   });
 
   it("falls back on an empty variable rather than switching tracing off", () => {

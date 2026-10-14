@@ -26,8 +26,9 @@ Web service → **Variables**, in `staging`:
 
 Locally, leave it empty unless you are testing Sentry itself.
 
-Staging sets nothing else, so it traces everything and sends logs to Sentry
-too. Production turns those down: `021-production-environment.md`, Step 5.
+Staging sets nothing else, so it takes the in-code defaults: a tenth of
+requests traced, PII and logs on. Production turns PII and logs off:
+`021-production-environment.md`, Step 5.
 
 ## Step 3 — Verify, after the first deploy
 
