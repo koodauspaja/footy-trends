@@ -10,6 +10,8 @@ import type { ZoneKind, ZoneLevel } from "./competition-zones";
 
 /**
  * One stretch of the table: the first and last position, and what they lead to.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 type Place = readonly [from: number, to: number, name: PlaceName];
 
@@ -35,12 +37,16 @@ type PlaceName = keyof typeof PLACES;
 /**
  * A level as the registry stores it. A stretch no place covers is a level with
  * neither label nor kind, which holds its positions.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 export type RegistryLevel = ZoneLevel & { kind?: ZoneKind };
 
 /**
  * The league's table size and its places for each stored season. A season that
  * is missing shows no zones.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 type League = { teams: number; seasons: Record<number, readonly Place[]> };
 
@@ -221,6 +227,8 @@ export const ZONE_REGISTRY: Readonly<Record<string, League>> = {
  * The places as levels, each stretch no place covers a level of its own so the
  * positions after it stay where the places say. The places are written in table
  * order.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 function toLevels(places: readonly Place[]): RegistryLevel[] {
   const levels: RegistryLevel[] = [];
@@ -241,6 +249,8 @@ function toLevels(places: readonly Place[]): RegistryLevel[] {
 /**
  * A competition's levels for a season: none for a season the registry does not
  * hold, and for a competition that is not one of the nine leagues.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 export function registryLevels(code: string, seasonId: number): RegistryLevel[] {
   // Own keys only: a code is a string from a URL, and `constructor` is not a league.
@@ -255,6 +265,8 @@ const BRAZIL_CAVEAT = "Cup-paikat voivat muuttua cup-tuloksilla";
 /**
  * The line under the list when a level is a cup place, which a cup result can
  * move after the table has placed it.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 export function cupCaveat(code: string, levels: readonly RegistryLevel[]): string | null {
   if (!levels.some((level) => level.kind === "cup")) return null;

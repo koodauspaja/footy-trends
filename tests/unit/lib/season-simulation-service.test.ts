@@ -354,8 +354,8 @@ describe("the cache", () => {
     await getSeasonForecast("taso", "VL", SEASON, SEASON);
 
     expect(mocks.getCachedUnlessDegraded.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
-      ["forecast:v3:football-data:PL:2026", 900],
-      ["forecast:v3:taso:VL:2026", 900],
+      ["forecast:v4:football-data:PL:2026", 900],
+      ["forecast:v4:taso:VL:2026", 900],
     ]);
   });
 

@@ -134,7 +134,7 @@ them into zones on the table's row count through `groupZones`. The standings pag
 registry for a football-data league and passes the zones to the table, as it
 does the stored levels for a Finnish one.
 
-**Caching:** none new; the registry is code, and the standings keep their own.
+**Caching:** the registry is code, and the standings keep their own caches. The season forecast's key becomes `forecast:v4:<provider>:<code>:<season>`: football-data's forecasts gain zone columns, and a v3 entry (or an older instance's write during a deploy) would show them without. It overrides decisions/064's `forecast:v3`, which stays as written.
 
 ## Edge Cases
 

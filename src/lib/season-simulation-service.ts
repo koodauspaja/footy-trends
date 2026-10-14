@@ -136,7 +136,7 @@ export function forecastCacheKey(
   code: string,
   seasonId: number
 ): string {
-  return `forecast:v3:${kind}:${code}:${seasonId}`;
+  return `forecast:v4:${kind}:${code}:${seasonId}`;
 }
 
 /**

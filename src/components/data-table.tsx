@@ -156,7 +156,15 @@ export function DataTable<T>({
             return (
               <tr
                 aria-current={isCurrentRow(row) ? "true" : undefined}
-                className={`${hasRuleBelow(row, index) ? "border-muted border-b-2" : "border-border-subtle border-b"}${zone === undefined ? "" : ` ${zone.row}`}${isCurrentRow(row) ? " bg-surface font-semibold" : ""}`}
+                className={[
+                  hasRuleBelow(row, index)
+                    ? "border-muted border-b-2"
+                    : "border-border-subtle border-b",
+                  zone?.row,
+                  isCurrentRow(row) ? "bg-surface font-semibold" : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 key={rowKey(row)}
               >
                 {columns.map((column, columnIndex) => {

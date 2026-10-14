@@ -29,15 +29,15 @@ simulation reads a table's levels as its columns).
 
 ## Cache
 
-**No key changes.** The registry is code and the standings keep their own
-caches. The forecast's value has the shape it had under decisions/064
-(`zones` per table, `zones` per row), so `forecast:v3:<provider>:<code>:<season>`
-stays. After the deploy a v3 entry of a football-data league written before it
-has no zone columns, for at most the fifteen minutes the forecast is cached; no
-value read is of a shape the page cannot render. A forced refresh already
-clears the forecast's key (decisions/064) and a forced refresh of a
-football-data season does not change the registry, so `force-refresh.ts` needs
-no change.
+`forecast:v4:<provider>:<code>:<season>`. **Overrides the key named in
+decisions/064 (`forecast:v3`), which stays as written.** The value's shape is
+unchanged, but a football-data league's forecast now has zone columns, and a v3
+entry written before the deploy, or by an older instance while the deploy rolls,
+has none; under the old key it would be served for up to fifteen minutes.
+Sourcery's first review of #649 found it, and the first draft of this record,
+which kept v3, was wrong: v3 was safe for the shape and not for the content.
+A forced refresh clears the forecast's key (decisions/064) through
+`forecastCacheKey`, so `force-refresh.ts` follows the bump without a change.
 
 ## A failed read
 
@@ -107,6 +107,7 @@ Each was applied alone, the tests run, and the file restored from a commit.
 | 20 | Brazil 2023's gap at 15 and 16 closed |
 | 21 | A row tinted that nothing asked to tint |
 | 22 | A code read as a key of the registry that is not its own (`constructor`) |
+| 23 | Two stretches swapped in a season's entry (the registry test of order) |
 
 The sort `toLevels` first had was removed: the places are written in table
 order and no input is not, so no test could tell it from its absence.

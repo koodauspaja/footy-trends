@@ -9,6 +9,8 @@
 /**
  * What a level leads to, by role. TASO's levels carry none; the foreign
  * leagues' registry names one for each.
+ *
+ * decisions/065-foreign-league-zones.md
  */
 export type ZoneKind = "cup" | "promotion" | "playoff" | "relegation";
 

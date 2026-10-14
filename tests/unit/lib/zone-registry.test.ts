@@ -39,6 +39,20 @@ describe("the zone registry", () => {
     }
   );
 
+  it.each(LEAGUES.flatMap((code) => STORED_SEASONS.map((season) => [code, season] as const)))(
+    "%s %i lists its stretches in table order, none overlapping and none empty",
+    (code, season) => {
+      const places = ZONE_REGISTRY[code]?.seasons[season] ?? [];
+
+      let previousEnd = 0;
+      for (const [from, to] of places) {
+        expect(from).toBeGreaterThan(previousEnd);
+        expect(to).toBeGreaterThanOrEqual(from);
+        previousEnd = to;
+      }
+    }
+  );
+
   it("numbers the stretch of a gap as a level of its own, without a label or a kind", () => {
     // Brazil 2023: Libertadores 1–4, qualifying 5–6, a gap at 7, Sudamericana
     // 8–14, a gap at 15–16, relegation 17–20.
