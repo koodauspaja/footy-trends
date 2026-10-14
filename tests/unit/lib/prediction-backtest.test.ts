@@ -5,10 +5,12 @@ import {
   backtestKey,
   backtestRows,
   eloBacktestRows,
+  eloVariantBacktestRows,
   type FinishedMatch,
   missingBacktestRows,
   poissonBacktestRows,
 } from "@/lib/prediction-backtest";
+import type { PredictionRow } from "@/lib/prediction-log";
 
 /**
  * The rows a backtest writes.
@@ -18,6 +20,7 @@ import {
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
  * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -230,18 +233,19 @@ describe("missingBacktestRows", () => {
     return [
       ...baseline,
       ...eloBacktestRows(finished, baseline, NOW),
+      ...eloVariantBacktestRows(finished, baseline, NOW),
       ...poissonBacktestRows(finished, NOW),
     ];
   };
 
-  it("is the whole backtest of all three models when nothing is written", () => {
+  it("is the whole backtest of all five models when nothing is written", () => {
     const finished = history();
 
     const rows = missingBacktestRows(finished, new Set(), NOW);
 
     expect(rows).toEqual(whole(finished));
     expect(new Set(rows.map((row) => row.model))).toEqual(
-      new Set(["home-baseline-v1", "elo-v1", "poisson-v1"])
+      new Set(["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"])
     );
   });
 
@@ -252,7 +256,7 @@ describe("missingBacktestRows", () => {
     expect(missingBacktestRows(finished, written, NOW)).toEqual([]);
   });
 
-  it.each(["home-baseline-v1", "elo-v1"])(
+  it.each(["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1"])(
     "is the one %s row that is not written, as the whole backtest has it",
     (model) => {
       const finished = history();
@@ -284,12 +288,12 @@ describe("missingBacktestRows", () => {
     const taso = played(1, 2, 0, { providerMatchId: 8_000 });
     const later = played(3, 1, 0, { providerMatchId: 8_001 });
     const written = new Set(
-      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) =>
+      ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"].map((model) =>
         backtestKey({ source: "football-data", providerMatchId: 8_001, model })
       )
     );
 
-    expect(missingBacktestRows([taso, later], written, NOW)).toHaveLength(3);
+    expect(missingBacktestRows([taso, later], written, NOW)).toHaveLength(5);
   });
 });
 
@@ -402,5 +406,69 @@ describe("the leagues' backtest beside a cup", () => {
     };
 
     expect(leagueRows([...league, ...cup])).toEqual(leagueRows(league));
+  });
+});
+
+describe("eloVariantBacktestRows", () => {
+  // Team 1 at home on days 1 and 3, team 2 at home on day 2.
+  const season = (third: [number, number] = [0, 1]) => {
+    const first = played(1, 2, 0);
+    const second = played(2, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const last = played(3, third[0], third[1], { providerMatchId: 9_003 });
+    return { first, second, last, finished: [last, first, second] };
+  };
+  const rowsOf = (finished: readonly FinishedMatch[]) => {
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+    return {
+      elo: eloBacktestRows(finished, baseline, NOW),
+      variants: eloVariantBacktestRows(finished, baseline, NOW),
+    };
+  };
+  const rowFor = (rows: readonly PredictionRow[], model: string, id: number) =>
+    rows.find((row) => row.model === model && row.providerMatchId === id);
+
+  it("writes one row of each variant for every match elo-v1's backtest has, at its draw share", () => {
+    const { elo, variants } = rowsOf(season().finished);
+
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      const own = variants.filter((row) => row.model === model);
+      expect(own.map((row) => [row.providerMatchId, row.drawProbability])).toEqual(
+        elo.map((row) => [row.providerMatchId, row.drawProbability])
+      );
+      expect(own.every((row) => row.kind === "backtest" && row.predictedAt === NOW)).toBe(true);
+    }
+  });
+
+  it("gives elo-form-v1 a form term once both sides have played, and elo-home-v1 none at a first home match", () => {
+    const { second, finished } = season();
+    const { elo, variants } = rowsOf(finished);
+    const plain = rowFor(elo, "elo-v1", second.providerMatchId)?.homeProbability as number;
+
+    // Day 2: both teams have day 1 behind them, and team 2 has never been at home.
+    expect(
+      rowFor(variants, "elo-form-v1", second.providerMatchId)?.homeProbability
+    ).not.toBeCloseTo(plain, 6);
+    expect(rowFor(variants, "elo-home-v1", second.providerMatchId)?.homeProbability).toBeCloseTo(
+      plain,
+      12
+    );
+  });
+
+  it("gives elo-home-v1 the home side's own advantage once it has been at home", () => {
+    const { elo, variants } = rowsOf(season().finished);
+
+    // Day 3: team 1 won at home on day 1, so its advantage is above 60.
+    expect(rowFor(variants, "elo-home-v1", 9_003)?.homeProbability).toBeGreaterThan(
+      rowFor(elo, "elo-v1", 9_003)?.homeProbability as number
+    );
+  });
+
+  it("predicts a match from what came before it: its own result moves none of its rows", () => {
+    const lost = rowsOf(season([0, 1]).finished).variants;
+    const won = rowsOf(season([3, 0]).finished).variants;
+
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      expect(rowFor(won, model, 9_003)).toEqual(rowFor(lost, model, 9_003));
+    }
   });
 });

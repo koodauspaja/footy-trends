@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { threeWay } from "@/lib/elo";
+import { emptyVariantState, predictUpcomingVariants } from "@/lib/elo-variants";
 import type { HomeBaseline } from "@/lib/home-baseline";
 import { type PoissonFit, type PoissonPrediction, predictPoisson } from "@/lib/poisson";
 import {
   awaitsResult,
   eloLiveRow,
+  eloVariantLiveRows,
   isLoggable,
   LOG_WINDOW_HOURS,
   type LogCandidate,
@@ -21,6 +23,7 @@ import {
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -264,5 +267,63 @@ describe("poissonLiveRow", () => {
   it("writes nothing for a placeholder side, or a competition the fit has no match of", () => {
     expect(poissonLiveRow({ ...match, awayTeam: 0 }, fit, NOW)).toBeNull();
     expect(poissonLiveRow({ ...match, code: "SA" }, fit, NOW)).toBeNull();
+  });
+});
+
+describe("eloVariantLiveRows", () => {
+  const baseline: HomeBaseline = {
+    status: "ok",
+    matches: 100,
+    homeShare: 45,
+    drawShare: 25,
+    awayShare: 30,
+    seasons: { first: 2023, last: 2026 },
+    spansCalendarYears: false,
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026, kickoffAt: at(7) });
+  const ratings = new Map([[11, { rating: 1650, seasonId: 2026 }]]);
+  const state = emptyVariantState();
+  state.form.set(11, { seasonId: 2026, surprises: [0.4, -0.1] });
+  state.home.set(11, { advantage: 110, seasonId: 2026 });
+
+  it("writes one live row for each variant, from the ratings, the state and the baseline's draw share", () => {
+    const rows = eloVariantLiveRows(match, ratings, state, baseline, NOW);
+
+    const expected = predictUpcomingVariants(ratings, state, match, 0.25);
+    const common = {
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      kind: "live",
+      drawProbability: 0.25,
+      predictedAt: NOW,
+      kickoffAt: at(7),
+    };
+    expect(rows).toEqual([
+      {
+        ...common,
+        model: "elo-form-v1",
+        homeProbability: expected?.form.home,
+        awayProbability: expected?.form.away,
+      },
+      {
+        ...common,
+        model: "elo-home-v1",
+        homeProbability: expected?.home.home,
+        awayProbability: expected?.home.away,
+      },
+    ]);
+    // The two are not the same model's figures under two names.
+    expect(rows[0]?.homeProbability).not.toBeCloseTo(rows[1]?.homeProbability as number, 6);
+  });
+
+  it("writes none without a draw share", () => {
+    expect(eloVariantLiveRows(match, ratings, state, { status: "empty" }, NOW)).toEqual([]);
+  });
+
+  it("writes none for a placeholder side", () => {
+    expect(
+      eloVariantLiveRows(candidate({ homeTeam: 11, awayTeam: 0 }), ratings, state, baseline, NOW)
+    ).toEqual([]);
   });
 });

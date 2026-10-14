@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { testDatabaseUrl } from "../support/test-database";
@@ -12,12 +13,14 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/060-elo-variants.md
  */
 
 const HEADING = "Ennusteiden osuvuus";
 const SEASON = 2098;
 const MATCH_ID = 999_054_001;
-const MODELS = ["home-baseline-v1", "elo-v1", "poisson-v1"];
+const MODELS = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
+const LABELS = ["Perustaso", "Elo", "Elo + vire", "Elo + kotietu", "Poisson"];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -25,6 +28,18 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
     await run(sql);
   } finally {
     await sql.end();
+  }
+}
+
+// The domestic reports are cached for 15 minutes, so one made before the seed,
+// by an earlier run or another suite, would leave the seeded match out.
+async function dropReports() {
+  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  try {
+    const reports = await redis.keys("quality:v3:taso:*");
+    if (reports.length > 0) await redis.del(...reports);
+  } finally {
+    await redis.quit();
   }
 }
 
@@ -69,6 +84,7 @@ test.beforeAll(async () => {
       }))
     )}`;
   });
+  await dropReports();
 });
 
 test.afterAll(async () => {
@@ -92,7 +108,7 @@ test.describe("Prediction quality, signed in", () => {
     await expect(page.getByRole("heading", { level: 1, name: HEADING })).toBeVisible();
   });
 
-  test("judges all three models on the domestic backtest by default", async ({ page }) => {
+  test("judges all five models on the domestic backtest by default", async ({ page }) => {
     await page.goto("/ennusteet");
 
     await expect(page.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
@@ -111,7 +127,9 @@ test.describe("Prediction quality, signed in", () => {
 
     const accuracy = region(page, "Osumatarkkuus");
     await expect(
-      accuracy.getByText(/^Perustaso \d{1,3} % · Elo \d{1,3} % · Poisson \d{1,3} %$/)
+      accuracy.getByText(
+        /^Perustaso \d{1,3} % · Elo \d{1,3} % · Elo \+ vire \d{1,3} % · Elo \+ kotietu \d{1,3} % · Poisson \d{1,3} %$/
+      )
     ).toBeVisible();
     // A line per model once 200 matches are judged; before that, the count.
     const lines = await accuracy.locator("[data-part=line]").count();
@@ -120,21 +138,19 @@ test.describe("Prediction quality, signed in", () => {
         accuracy.getByText(/^Liukuvaan osumatarkkuuteen tarvitaan vähintään 200 ottelua/)
       ).toBeVisible();
     } else {
-      expect(lines).toBe(3);
+      expect(lines).toBe(5);
     }
 
     const tables = region(page, "Brier-pistemäärä ja log-loss").getByRole("table");
-    await expect(tables.nth(0).getByRole("rowheader")).toHaveText(["Perustaso", "Elo", "Poisson"]);
+    await expect(tables.nth(0).getByRole("rowheader")).toHaveText(LABELS);
     await expect(tables.nth(1).getByRole("row").first().getByRole("columnheader")).toHaveText([
       "Kausi",
       "Ottelut",
-      "Perustaso",
-      "Elo",
-      "Poisson",
+      ...LABELS,
     ]);
 
     // The diagonal and a line per model.
-    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(4);
+    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(6);
   });
 
   test("lists the competitions, and a competition's name opens the page filtered to it", async ({
@@ -146,9 +162,7 @@ test.describe("Prediction quality, signed in", () => {
     await expect(byCompetition.getByRole("columnheader")).toHaveText([
       "Kilpailu",
       "Ottelut",
-      "Perustaso",
-      "Elo",
-      "Poisson",
+      ...LABELS,
     ]);
     // The row's lowest Brier score is bold: at least one in the seeded competition's row.
     const row = byCompetition.getByRole("row", { name: /Veikkausliiga/ });
@@ -178,6 +192,37 @@ test.describe("Prediction quality, signed in", () => {
     await page.getByRole("link", { name: "Kaikki kilpailut" }).click();
     await expect(page).toHaveURL(/\/ennusteet\?alue=kotimaa&tyyppi=ennakkoon$/);
     await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
+  });
+
+  test.describe("at 375 px", () => {
+    test.use({ viewport: { width: 375, height: 800 } });
+
+    test("scrolls the five-column tables within their boxes, never the page", async ({ page }) => {
+      await page.goto("/ennusteet");
+      await expect(region(page, "Kilpailuittain").getByRole("table")).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+      for (const table of [
+        region(page, "Kilpailuittain").getByRole("table"),
+        region(page, "Brier-pistemäärä ja log-loss").getByRole("table").nth(1),
+      ]) {
+        // Five models' columns do not fit: the box scrolls, and is no wider than the page.
+        const box = await table.evaluate((element) => {
+          const parent = element.parentElement as HTMLElement;
+          return {
+            overflowX: getComputedStyle(parent).overflowX,
+            width: parent.clientWidth,
+            content: parent.scrollWidth,
+          };
+        });
+        expect(box.overflowX).toBe("auto");
+        expect(box.width).toBeLessThanOrEqual(375);
+        expect(box.content).toBeGreaterThan(box.width);
+      }
+    });
   });
 
   test("the provider switch drops the competition, and another provider's is ignored", async ({

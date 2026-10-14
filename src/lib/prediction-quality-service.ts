@@ -14,6 +14,7 @@ import { getCached } from "./cache";
 import { SUPPORTED_COMPETITIONS } from "./competitions";
 import { DOMESTIC_COMPETITIONS } from "./domestic-competitions";
 import { ELO_MODEL } from "./elo";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "./elo-variants";
 import { HOME_BASELINE_MODEL, PREDICTED_COMPETITIONS, PREDICTED_CUPS } from "./home-baseline";
 import { logger } from "./logger";
 import { FOOTBALL_DATA_AWAY_GOALS, FOOTBALL_DATA_HOME_GOALS } from "./match-service";
@@ -30,8 +31,15 @@ import {
  * The models judged, in the order every figure lists them.
  *
  * decisions/054-prediction-quality.md
+ * decisions/060-elo-variants.md
  */
-export const QUALITY_MODELS = [HOME_BASELINE_MODEL, ELO_MODEL, POISSON_MODEL] as const;
+export const QUALITY_MODELS = [
+  HOME_BASELINE_MODEL,
+  ELO_MODEL,
+  ELO_FORM_MODEL,
+  ELO_HOME_MODEL,
+  POISSON_MODEL,
+] as const;
 
 /**
  * The first season judged: domestically 2016, leaving Elo's cold 2015

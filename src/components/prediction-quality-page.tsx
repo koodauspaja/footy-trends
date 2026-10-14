@@ -5,6 +5,7 @@ import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_MODEL } from "@/lib/elo";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "@/lib/elo-variants";
 import { HOME_BASELINE_MODEL, isPredictedCup } from "@/lib/home-baseline";
 import type { MatchSource } from "@/lib/match-source";
 import { POISSON_MODEL } from "@/lib/poisson";
@@ -30,10 +31,11 @@ import { formatSeasonLabel } from "@/lib/seasons";
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/060-elo-variants.md
  */
 export const QUALITY_HEADING = "Ennusteiden osuvuus";
 export const QUALITY_INTRO =
-  "Kuinka usein perustaso, Elo ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.";
+  "Kuinka usein perustaso, Elo, Elo + vire, Elo + kotietu ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa.";
 export const BACKTEST_NOTE =
   "Jälkikäteen lasketut ennusteet on laskettu kustakin ottelusta vain sitä ennen pelattujen otteluiden perusteella.";
 export const ACCURACY_HEADING = "Osumatarkkuus";
@@ -71,10 +73,13 @@ export const CUPS_APART_NOTE =
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 export const MODEL_LABELS: Record<string, string> = {
   [HOME_BASELINE_MODEL]: "Perustaso",
   [ELO_MODEL]: "Elo",
+  [ELO_FORM_MODEL]: "Elo + vire",
+  [ELO_HOME_MODEL]: "Elo + kotietu",
   [POISSON_MODEL]: "Poisson",
 };
 
@@ -89,14 +94,18 @@ export function modelLabel(model: string): string {
 
 /**
  * How a model's line is told from the others: the baseline, the yardstick,
- * dashed; Poisson dash-dotted; every other model solid.
+ * dashed; Poisson dash-dotted; `Elo + vire` long-dashed; `Elo + kotietu`
+ * dash-dot-dotted; Elo solid.
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 const lineStyle = (model: string) => ({
   dashed: model === HOME_BASELINE_MODEL,
   dashDotted: model === POISSON_MODEL,
+  longDashed: model === ELO_FORM_MODEL,
+  dashDotDotted: model === ELO_HOME_MODEL,
 });
 
 /**
@@ -311,46 +320,51 @@ function CompetitionTable({
   competition: string | null;
 }>) {
   return (
-    <table className="text-sm">
-      <thead>
-        <tr className="border-border border-b text-muted">
-          <th className="py-2 pr-2 text-left sm:pr-4 font-medium" scope="col">
-            Kilpailu
-          </th>
-          <th className="py-2 pl-2 text-right sm:pl-4 font-medium" scope="col">
-            Ottelut
-          </th>
-          {report.models.map((model) => (
-            <th className="py-2 pl-2 text-right sm:pl-4 font-medium" key={model} scope="col">
-              {modelLabel(model)}
+    <div className="overflow-x-auto">
+      <table className="text-sm">
+        <thead>
+          <tr className="border-border border-b text-muted">
+            <th className="py-2 pr-2 text-left sm:pr-4 font-medium" scope="col">
+              Kilpailu
             </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {report.competitions.map((row) => (
-          <tr className="border-border border-b" key={row.code}>
-            <th className="py-2 pr-2 text-left sm:pr-4 font-normal" scope="row">
-              <SameRouteLink
-                aria-current={row.code === competition ? "page" : undefined}
-                className={row.code === competition ? "font-semibold" : "underline"}
-                href={qualityHref(source, kind, row.code)}
-              >
-                {comparedCompetitionName(source, row.code)}
-              </SameRouteLink>
+            <th className="py-2 pl-2 text-right sm:pl-4 font-medium" scope="col">
+              Ottelut
             </th>
-            <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums">
-              {matchCount.format(row.matches)}
-            </td>
-            {row.brier.map((value, index) => (
-              <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums" key={report.models[index]}>
-                {row.best[index] ? <strong>{score(value)}</strong> : score(value)}
-              </td>
+            {report.models.map((model) => (
+              <th className="py-2 pl-2 text-right sm:pl-4 font-medium" key={model} scope="col">
+                {modelLabel(model)}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {report.competitions.map((row) => (
+            <tr className="border-border border-b" key={row.code}>
+              <th className="py-2 pr-2 text-left sm:pr-4 font-normal" scope="row">
+                <SameRouteLink
+                  aria-current={row.code === competition ? "page" : undefined}
+                  className={row.code === competition ? "font-semibold" : "underline"}
+                  href={qualityHref(source, kind, row.code)}
+                >
+                  {comparedCompetitionName(source, row.code)}
+                </SameRouteLink>
+              </th>
+              <td className="py-2 pl-2 text-right sm:pl-4 tabular-nums">
+                {matchCount.format(row.matches)}
+              </td>
+              {row.brier.map((value, index) => (
+                <td
+                  className="py-2 pl-2 text-right sm:pl-4 tabular-nums"
+                  key={report.models[index]}
+                >
+                  {row.best[index] ? <strong>{score(value)}</strong> : score(value)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -413,38 +427,40 @@ function Report({
             ))}
           </tbody>
         </table>
-        <table className="mt-4 text-sm">
-          <thead>
-            <tr className="border-border border-b text-muted">
-              <th className="py-2 pr-4 text-left font-medium" scope="col">
-                Kausi
-              </th>
-              <th className="py-2 pl-4 text-right font-medium" scope="col">
-                Ottelut
-              </th>
-              {report.models.map((model) => (
-                <th className="py-2 pl-4 text-right font-medium" key={model} scope="col">
-                  {modelLabel(model)}
+        <div className="mt-4 overflow-x-auto">
+          <table className="text-sm">
+            <thead>
+              <tr className="border-border border-b text-muted">
+                <th className="py-2 pr-4 text-left font-medium" scope="col">
+                  Kausi
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {report.seasons.map((season) => (
-              <tr className="border-border border-b" key={season.seasonId}>
-                <th className="py-2 pr-4 text-left font-normal" scope="row">
-                  {formatSeasonLabel(season.seasonId, source === "football-data")}
+                <th className="py-2 pl-4 text-right font-medium" scope="col">
+                  Ottelut
                 </th>
-                <td className="py-2 pl-4 text-right tabular-nums">{season.matches}</td>
-                {season.brier.map((value, index) => (
-                  <td className="py-2 pl-4 text-right tabular-nums" key={report.models[index]}>
-                    {score(value)}
-                  </td>
+                {report.models.map((model) => (
+                  <th className="py-2 pl-4 text-right font-medium" key={model} scope="col">
+                    {modelLabel(model)}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.seasons.map((season) => (
+                <tr className="border-border border-b" key={season.seasonId}>
+                  <th className="py-2 pr-4 text-left font-normal" scope="row">
+                    {formatSeasonLabel(season.seasonId, source === "football-data")}
+                  </th>
+                  <td className="py-2 pl-4 text-right tabular-nums">{season.matches}</td>
+                  {season.brier.map((value, index) => (
+                    <td className="py-2 pl-4 text-right tabular-nums" key={report.models[index]}>
+                      {score(value)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p className="mt-2 text-muted text-sm">{BRIER_NOTE}</p>
         <p className="mt-1 text-muted text-sm">{LOG_LOSS_NOTE}</p>
         <p className="mt-1 text-muted text-sm">{YARDSTICK_NOTE}</p>

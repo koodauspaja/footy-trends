@@ -172,6 +172,7 @@ export function ticksFor(min: number, max: number, count: number): number[] {
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 export type LineSeries = {
   /** What the line is, unique within its chart: its key, and `data-series`. */
@@ -186,6 +187,10 @@ export type LineSeries = {
    * A fourth style, for a third line of data.
    */
   dashDotted?: boolean;
+  /** A fifth style, for a fourth line of data. */
+  longDashed?: boolean;
+  /** A sixth style, for a fifth line of data. */
+  dashDotDotted?: boolean;
   /**
    * `false` draws the line without a dot at every point. Marked points are
    * still ringed.
@@ -211,23 +216,45 @@ const DOT = "2 4";
  * decisions/055-poisson-goal-model.md
  */
 const DASH_DOT = "6 4 2 4";
+/**
+ * A long-dashed series' pattern: a dash twice a dash's length.
+ *
+ * decisions/060-elo-variants.md
+ */
+const LONG_DASH = "12 4";
+/**
+ * A dash-dot-dotted series' pattern: a dash, then two dots.
+ *
+ * decisions/060-elo-variants.md
+ */
+const DASH_DOT_DOT = "6 4 2 4 2 4";
 
 /**
  * The styles a line can be drawn in, besides solid.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
-type LineStyle = Readonly<{ dashed?: boolean; dotted?: boolean; dashDotted?: boolean }>;
+type LineStyle = Readonly<{
+  dashed?: boolean;
+  dotted?: boolean;
+  dashDotted?: boolean;
+  longDashed?: boolean;
+  dashDotDotted?: boolean;
+}>;
 
 /**
  * A line's dash pattern, the same for the line and its legend sample.
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 function dashArray(style: LineStyle): string | undefined {
   if (style.dotted) return DOT;
   if (style.dashDotted) return DASH_DOT;
+  if (style.longDashed) return LONG_DASH;
+  if (style.dashDotDotted) return DASH_DOT_DOT;
   return style.dashed ? DASH : undefined;
 }
 
@@ -376,9 +403,11 @@ export function LineChart({
 
       {series.map((line) => (
         <g
+          data-dash-dot-dotted={line.dashDotDotted ? "" : undefined}
           data-dash-dotted={line.dashDotted ? "" : undefined}
           data-dashed={line.dashed ? "" : undefined}
           data-dotted={line.dotted ? "" : undefined}
+          data-long-dashed={line.longDashed ? "" : undefined}
           data-part="series"
           data-series={line.name}
           key={line.name}
