@@ -98,7 +98,7 @@ whichever columns it shows.
 | A group continued into others, in the season after the split | As specs/061 S17: not shown |
 | A pass-through group | Not simulated, as specs/061 S15 |
 | Kakkonen's pools | Each its own table with specs/061's columns (S5) |
-| A foreign league | specs/061's columns until specs/065 is built (S5) |
+| A foreign league | specs/061's columns until specs/065 is built (S5); since #649 the registry's levels, one column per labelled level |
 | A finished season | No panel, as specs/061 |
 | A season whose levels have not been stored yet | specs/061's columns; a sync stores them with the group's rows |
 | Signed out | No figure in the HTML, as specs/061 |
@@ -128,7 +128,7 @@ service.
 - [ ] `Mestaruus`, `Sarjan voitto`, `Sarjan viimeinen sija`, `Kolmen parhaan joukossa` and `Kolmen huonoimman joukossa` do not appear in a group that has labelled levels
 - [ ] A level's figure is the share of runs ending in its positions; a two-outcome label is one column
 - [ ] A league that has not split shows its regular-season group's continuation levels as columns, with no inference from the previous season
-- [ ] A group with no stored level, Miesten Kakkonen and the foreign leagues show specs/061's columns, per group
+- [ ] A group with no stored level and Miesten Kakkonen show specs/061's columns, per group (the foreign leagues too until specs/065; since #649 they have the registry's levels)
 - [ ] `0 %` appears only when the level's positions cannot intersect the team's possible finishes, `100 %` only when every possible finish lies inside them; `< 1 %` and `> 99 %` otherwise
 - [ ] The table scrolls within itself at 375 px; the team name stays in view
 - [ ] No provider request, the same cache, the same access, the same link to `/ennusteet`
