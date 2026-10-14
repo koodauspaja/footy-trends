@@ -40,8 +40,8 @@ type SpanJSON = Parameters<NonNullable<Parameters<typeof init>[0]["beforeSendSpa
 
 /**
  * Header and query names never sent: an address, a proxy hop, or a credential,
- * the OAuth callback's `code` and `state` among them. Matched as parts of a
- * name, case-insensitively.
+ * the OAuth callback's `code` and `state` among them, and the referer, a URL
+ * whose query may hold one. Matched as parts of a name, case-insensitively.
  *
  * decisions/565-sentry-11.md
  */
@@ -61,6 +61,7 @@ export const DENIED_NAME_PARTS = [
   "passwd",
   "code",
   "state",
+  "referer",
 ];
 
 /**
@@ -77,7 +78,10 @@ function decodedName(name: string): string {
   try {
     return decodeURIComponent(name);
   } catch {
-    return name;
+    // One malformed escape: decode each valid one on its own.
+    return name.replaceAll(/%[0-9a-f]{2}/gi, (sequence) =>
+      String.fromCodePoint(Number.parseInt(sequence.slice(1), 16))
+    );
   }
 }
 

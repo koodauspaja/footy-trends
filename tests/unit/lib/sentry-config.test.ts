@@ -108,13 +108,14 @@ describe("isDeniedName", () => {
       "X-Passwd",
       "code",
       "state",
+      "Referer",
     ]) {
       expect(denied(name), name).toBe(true);
     }
   });
 
   it("keeps the names that help debugging", () => {
-    for (const name of ["User-Agent", "Accept", "Content-Type", "Host", "Referer", "team"]) {
+    for (const name of ["User-Agent", "Accept", "Content-Type", "Host", "team"]) {
       expect(denied(name), name).toBe(false);
     }
   });
@@ -135,9 +136,9 @@ describe("withDeniedQueriesFiltered", () => {
     );
   });
 
-  it("matches a name once percent-decoded, and leaves one that does not decode alone", () => {
-    expect(withDeniedQueriesFiltered("/x?%63ode=abc&%74oken=t&%E0%A4%A=1")).toBe(
-      "/x?%63ode=[Filtered]&%74oken=[Filtered]&%E0%A4%A=1"
+  it("matches a name once percent-decoded, its valid escapes even beside a malformed one", () => {
+    expect(withDeniedQueriesFiltered("/x?%63ode=abc&%74oken=t&%E0%A4%A=1&to%6Ben%ZZ=v")).toBe(
+      "/x?%63ode=[Filtered]&%74oken=[Filtered]&%E0%A4%A=1&to%6Ben%ZZ=[Filtered]"
     );
   });
 
