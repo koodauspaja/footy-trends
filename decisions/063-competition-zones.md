@@ -152,6 +152,8 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   | 73 | An empty count taken as unreadable |
   | 74 | The levels stored under each row's own season |
   | 75 | The group rows stored under each row's own season |
+  | 76 | `--zones` not setting the exit code |
+  | 77 | The TASO request made outside the pacer |
 
 - **One first survived and was closed.** Mutation 28 was not seen while the
   Postgres fixture gave its second season another competition id as well; the
@@ -185,6 +187,19 @@ Sourcery's first review of #642 found four things, and Sonar three. Miikka,
 | The groups and the levels are read in two queries, so a sync between them pairs one snapshot's table with the other's levels | Not changed: the next view reads them together again. Reading both in one snapshot would mean reading the levels inside `classifySeasonGroups`, which the season simulation, the cups and the team pages share |
 | The writers deleted by their arguments and inserted each row's own category, competition and season | Fixed in both, the group rows' writer included: every row is stored under the season the delete cleared. Mutations 74 and 75 |
 | Sonar: `await` in a loop, three times in `zone-backfill.ts` | Closed for that file, as the row "Its loop" says |
+
+The second review, of the fix, found nine things. Two repeat the first
+review's second and third findings and are answered as above.
+
+| Finding | Outcome |
+|---|---|
+| Step 3b's last paragraph had come to sit under step 3c, so the zone run read as costing a full run's quota | Fixed: the paragraph is back under 3b |
+| The entry point's test passed without the exit code being set | Fixed: it holds `process.exitCode = await backfillZoneLevels()`. Mutation 76 |
+| The pacing test passed with the TASO request made outside the pacer | Fixed: the fake pacer says whether its work is running, and each request is asked. Mutation 77 |
+| A comment on the pace told how TASO was measured | Rewritten to say what the pace is |
+| A `--zones` run beside a `--reset` run in another shell can write levels after the reset | Not changed: the backfill is run by hand, one command at a time, and `--reset` already races a page's own sync in the same way |
+| No check constraint on `level` and `team_count` | Not changed: the one source of rows, `normalizeGroupLevels`, gives levels 1 to 10 and counts above zero, and the migration stays as reviewed |
+| The backfill's report lines are English | Not changed: they are an operator's terminal output, as every line of the backfill is, not the UI CLAUDE.md asks to be Finnish |
 
 ## The release step
 
