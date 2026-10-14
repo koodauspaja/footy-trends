@@ -130,6 +130,7 @@ async function tasoSeason(
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 export function forecastCacheKey(
   kind: MatchSource["kind"],
