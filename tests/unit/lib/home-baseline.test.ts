@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { baselineCompetition, HOME_BASELINE_MODEL, homeBaseline } from "@/lib/home-baseline";
+import { COMPETITIONS } from "@/lib/goals-per-game";
+import {
+  baselineCompetition,
+  HOME_BASELINE_MODEL,
+  homeBaseline,
+  isPredictedCup,
+} from "@/lib/home-baseline";
 import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-service";
 import type { SeasonOutcomes } from "@/lib/outcome-shares";
 
@@ -8,6 +14,7 @@ import type { SeasonOutcomes } from "@/lib/outcome-shares";
  * prediction.
  *
  * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
  */
 
 function season(overrides: Partial<SeasonOutcomes> = {}): SeasonOutcomes {
@@ -76,10 +83,23 @@ describe("baselineCompetition", () => {
     expect(baselineCompetition(taso({ status }))).toBeNull();
   });
 
-  it("predicts nothing in a cup, the World Cup or a national team's match", () => {
+  it("predicts the two Suomen Cups, which the shared competition set leaves out", () => {
+    for (const categoryId of ["MSC", "NSC"]) {
+      expect(baselineCompetition(taso({ categoryId }))).toEqual({ kind: "taso", code: categoryId });
+      expect(COMPETITIONS.taso.has(categoryId)).toBe(false);
+    }
+    expect(isPredictedCup("taso", "MSC")).toBe(true);
+    expect(isPredictedCup("taso", "VL")).toBe(false);
+    // A code is only read against its own provider.
+    expect(isPredictedCup("football-data", "MSC")).toBe(false);
+  });
+
+  it("predicts nothing in Liigacup, Ykkösliigacup, the World Cup or a national team's match", () => {
     expect(baselineCompetition(footballData({ competitionCode: "WC" }))).toBeNull();
     expect(baselineCompetition(footballData({ competitionCode: "EC" }))).toBeNull();
-    expect(baselineCompetition(taso({ categoryId: "MSC" }))).toBeNull();
+    expect(
+      baselineCompetition(taso({ competitionCode: "M1LCUP26", categoryId: "M1LCUP" }))
+    ).toBeNull();
     expect(
       baselineCompetition(taso({ competitionCode: "Liigacup26", categoryId: "LC" }))
     ).toBeNull();

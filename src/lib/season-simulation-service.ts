@@ -4,6 +4,7 @@
  * Poisson fit, and cached for 15 minutes. `season-simulation.ts` simulates.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 
 import { getCachedUnlessDegraded } from "./cache";
@@ -70,6 +71,7 @@ async function footballDataSeason(
         simulated: true,
         rows: calculateStandings(toFinishedMatches(regular), regular),
         fixtures: regular.filter(isRemainingFixture).map(fixtureOf),
+        levels: [],
       },
     ],
   };
@@ -115,8 +117,24 @@ async function tasoSeason(
         simulated: table.kind === "own-calculated",
         rows: table.standings,
         fixtures: table.matches.filter(isRemainingFixture).map(fixtureOf),
+        levels: table.levels,
       })),
   };
+}
+
+/**
+ * The cache entry of a season's forecast. A forced refresh clears it, with the
+ * answers it was computed from.
+ *
+ * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
+ */
+export function forecastCacheKey(
+  kind: MatchSource["kind"],
+  code: string,
+  seasonId: number
+): string {
+  return `forecast:v3:${kind}:${code}:${seasonId}`;
 }
 
 /**
@@ -139,7 +157,7 @@ export async function getSeasonForecast(
 
   try {
     return await getCachedUnlessDegraded(
-      `forecast:v2:${kind}:${code}:${seasonId}`,
+      forecastCacheKey(kind, code, seasonId),
       FORECAST_CACHE_TTL_SECONDS,
       async (): Promise<{ value: SeasonForecast; degraded: boolean }> => {
         const [fitted, season] = await Promise.all([

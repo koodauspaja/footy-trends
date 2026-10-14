@@ -15,6 +15,7 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
 }));
 
 import { expectedHome } from "@/lib/elo";
+import type { StoredMatch } from "@/lib/match-service";
 import {
   fitPoisson,
   type PoissonMatch,
@@ -23,6 +24,7 @@ import {
   utcDay,
 } from "@/lib/poisson";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
+import { getMatchSurprise } from "@/lib/surprise-service";
 
 /**
  * The predictions log against a real Postgres. The hourly run is set in 2099
@@ -36,9 +38,10 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-se
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
  */
 
-const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
+const IDS = Array.from({ length: 16 }, (_, index) => 985_001 + index);
 const NOW = new Date("2099-06-01T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
 const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
@@ -419,5 +422,46 @@ describe("the backtest", () => {
       ]);
     }
     expect(await rowsFor(IDS[9] as number, "backtest")).toHaveLength(0);
+  });
+
+  it("predicts a Suomen Cup tie between rated sides from the cup's own history, and an outsider's not at all", async () => {
+    const cup = (id: number, day: number, overrides: Partial<typeof tasoMatches.$inferInsert>) =>
+      tasoRow({ providerMatchId: id, categoryId: "MSC", kickoffAt: kickoff(day), ...overrides });
+    await db.insert(tasoMatches).values([
+      // The league match that rates both sides.
+      tasoRow({ providerMatchId: IDS[12] as number, kickoffAt: kickoff(1) }),
+      // The cup's first tie, level after extra time and settled on penalties.
+      cup(IDS[13] as number, 2, { homeGoals: 1, awayGoals: 1, winner: "home" }),
+      cup(IDS[14] as number, 3, {
+        homeTeamProviderId: 985_202,
+        awayTeamProviderId: 985_201,
+        homeGoals: 2,
+        awayGoals: 0,
+      }),
+      // A side that has played no league match.
+      cup(IDS[15] as number, 4, { awayTeamProviderId: 985_299, homeGoals: 0, awayGoals: 1 }),
+    ]);
+
+    await runPredictionBacktest(NOW);
+
+    const models = ["home-baseline-v1", "elo-v1", "poisson-v1"];
+    for (const model of models) {
+      const [row] = await rowsFor(IDS[14] as number, "backtest", model);
+      expect(row?.competitionCode).toBe("MSC");
+      expect(await rowsFor(IDS[15] as number, "backtest", model)).toHaveLength(0);
+    }
+    // The baseline is the cup's own: its one earlier tie, a draw.
+    expect((await rowsFor(IDS[14] as number, "backtest"))[0]).toMatchObject({
+      homeProbability: 0,
+      drawProbability: 1,
+      awayProbability: 0,
+    });
+    // The finished tie's page reads its surprise figure from the Elo row: a
+    // draw share of 1, used as it is, left the home win nothing.
+    const [tie] = await db
+      .select()
+      .from(tasoMatches)
+      .where(eq(tasoMatches.providerMatchId, IDS[14] as number));
+    expect(await getMatchSurprise({ source: "taso", match: tie } as StoredMatch)).toBe(0);
   });
 });

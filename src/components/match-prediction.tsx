@@ -5,13 +5,14 @@ import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import { type ScoreGridCell, ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
-import { ELO_HOME_ADVANTAGE, predictElo } from "@/lib/elo";
+import { ELO_HOME_ADVANTAGE, isRated, predictElo } from "@/lib/elo";
 import { type EloRatings, getEloRatings } from "@/lib/elo-service";
 import { SCORE_GRID_CAP } from "@/lib/head-to-head";
 import {
   type BaselineCompetition,
   baselineCompetition,
   type HomeBaseline,
+  isPredictedCup,
 } from "@/lib/home-baseline";
 import { teamDisplayName } from "@/lib/match-detail";
 import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
@@ -362,6 +363,25 @@ export async function PredictionBody({
 }
 
 /**
+ * Whether the models predict a match's sides: always in a league; in a cup only
+ * when the leagues have rated both, which unread ratings cannot say.
+ *
+ * decisions/059-cup-predictions.md
+ */
+export async function predictsSides(
+  stored: StoredMatch,
+  competition: BaselineCompetition
+): Promise<boolean> {
+  if (!isPredictedCup(competition.kind, competition.code)) return true;
+  const elo = await getEloRatings(competition.kind);
+  return (
+    elo.status === "ok" &&
+    isRated(elo.ratings, stored.match.homeTeamProviderId) &&
+    isRated(elo.ratings, stored.match.awayTeamProviderId)
+  );
+}
+
+/**
  * The match page's `Ennuste`: the competition's home-win baseline and, beside
  * it, the Elo and Poisson predictions, on an upcoming match in a compared
  * competition, or nothing. Gated before anything is read; awaited by the page,
@@ -371,10 +391,11 @@ export async function PredictionBody({
  * decisions/051-home-win-baseline.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 export async function MatchPrediction({ stored }: Readonly<{ stored: StoredMatch }>) {
   const competition = baselineCompetition(stored);
-  if (competition === null) return null;
+  if (competition === null || !(await predictsSides(stored, competition))) return null;
 
   const signedIn = await canSeeAnalytics();
   const body = signedIn ? (

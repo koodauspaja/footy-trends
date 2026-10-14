@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
+import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 
 // No Redis in the integration job: every read reaches Postgres.
 vi.mock("@/lib/cache", () => ({
@@ -22,6 +22,7 @@ import { getSeasonForecast } from "@/lib/season-simulation-service";
  * are dated this month, so the fit holds them.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 
 const SEASON = 2090;
@@ -36,6 +37,9 @@ async function clear() {
   await db
     .delete(tasoGroupTeams)
     .where(and(eq(tasoGroupTeams.categoryId, "VL"), eq(tasoGroupTeams.seasonId, SEASON)));
+  await db
+    .delete(tasoGroupZones)
+    .where(and(eq(tasoGroupZones.categoryId, "VL"), eq(tasoGroupZones.seasonId, SEASON)));
 }
 
 beforeEach(clear);
@@ -189,6 +193,45 @@ describe("a domestic league's season in progress", () => {
       [1, { share: 1, settled: true }],
       [1, { share: 0, settled: true }],
     ]);
+  });
+
+  it("gives a table the zones of its group's stored levels, and another none", async () => {
+    await db.insert(tasoMatches).values(season);
+    await db
+      .insert(tasoGroupTeams)
+      .values([published(1, 1, 3), published(1, 2, 0), published(2, 3, 1), published(2, 4, 1)]);
+    await db.insert(tasoGroupZones).values(
+      [
+        { level: 1, teamCount: 1, label: "Kultaa" },
+        { level: 2, teamCount: 1, label: "Putoaa" },
+      ].map((level) => ({
+        categoryId: "VL",
+        competitionCode: "spljp90",
+        seasonId: SEASON,
+        groupId: 1,
+        ...level,
+      }))
+    );
+
+    const forecast = await getSeasonForecast("taso", "VL", SEASON, SEASON);
+
+    const [poolA, poolB] = forecast.status === "ok" ? forecast.tables : [];
+    expect(poolA?.zones).toEqual([
+      { from: 1, to: 1, label: "Kultaa" },
+      { from: 2, to: 2, label: "Putoaa" },
+    ]);
+    // Team 1 stays first whatever the one fixture gives, and team 2 last.
+    expect(poolA?.rows.map((team) => team.zones)).toEqual([
+      [
+        { share: 1, settled: true },
+        { share: 0, settled: true },
+      ],
+      [
+        { share: 0, settled: true },
+        { share: 1, settled: true },
+      ],
+    ]);
+    expect(poolB?.zones).toEqual([]);
   });
 
   it("leaves out a table TASO's own numbers disagree with", async () => {

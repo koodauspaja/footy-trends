@@ -22,6 +22,7 @@ import { MENS_TEAM } from "@/lib/national-team";
  * decisions/044-scorelines-and-goal-averages.md
  * decisions/047-rivalry-page.md
  * decisions/058-rivalry-prediction.md
+ * decisions/059-cup-predictions.md
  * decisions/529-one-whole-number-parser.md
  */
 
@@ -69,7 +70,12 @@ vi.mock("@/lib/match-service", () => ({
   getNextMeeting: getNextMeetingMock,
 }));
 
-vi.mock("@/components/match-prediction", () => ({ PredictionBody: predictionBodyMock }));
+// Whether a cup tie's sides are rated is match-prediction.test.tsx's to prove.
+const predictsSidesMock = vi.fn(async (_stored: StoredMatch, _competition: unknown) => true);
+vi.mock("@/components/match-prediction", () => ({
+  PredictionBody: predictionBodyMock,
+  predictsSides: predictsSidesMock,
+}));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
 // The prompt's button and its sign-in flow are sign-in-prompt.test.tsx's. Here
@@ -998,8 +1004,27 @@ describe("the next meeting, predicted", () => {
     expect(predictionBodyMock).not.toHaveBeenCalled();
   });
 
-  it("has no group, and computes no prediction, when the next meeting is a cup tie the models do not cover", async () => {
+  it("predicts a Suomen Cup tie as the next meeting between rated sides", async () => {
     getNextMeetingMock.mockResolvedValue(next({ categoryId: "MSC" }));
+    await renderPage();
+
+    expect(h2s()).toContain("Seuraava kohtaaminen");
+    expect(predictionBodyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competition: { kind: "taso", code: "MSC" } })
+    );
+  });
+
+  it("has no group, and computes no prediction, when a cup tie's sides are not both rated", async () => {
+    predictsSidesMock.mockResolvedValueOnce(false);
+    getNextMeetingMock.mockResolvedValue(next({ categoryId: "MSC" }));
+    await renderPage();
+
+    expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);
+    expect(predictionBodyMock).not.toHaveBeenCalled();
+  });
+
+  it("has no group, and computes no prediction, when the next meeting is a cup tie the models do not cover", async () => {
+    getNextMeetingMock.mockResolvedValue(next({ categoryId: "LC" }));
     await renderPage();
 
     expect(h2s()).toEqual(["Nykyinen vire", "Keskinäinen historia"]);

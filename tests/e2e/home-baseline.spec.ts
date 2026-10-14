@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { testDatabaseUrl } from "../support/test-database";
@@ -12,6 +13,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 
 const HEADING = "Ennuste";
@@ -19,7 +21,22 @@ const SEASON = 2099;
 const UPCOMING_ID = 999_051_001;
 const FINISHED_ID = 999_051_002;
 const CUP_ID = 999_051_003;
+// A Suomen Cup tie with a side that has played no league match, and a Liigacup tie.
+const UNRATED_CUP_ID = 999_051_004;
+const LIIGACUP_ID = 999_051_005;
 const PATH = (id: number) => `/kotimaa/ottelu/${id}`;
+
+// The ratings and the fit are cached for 15 minutes. Made by another spec
+// before these fixtures were stored, they rate neither cup side, and a cup tie
+// is predicted only between rated sides; so both are dropped once seeded.
+async function dropModelCaches() {
+  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  try {
+    await redis.del("elo:v1:taso", "poisson:v1:taso");
+  } finally {
+    await redis.quit();
+  }
+}
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -59,7 +76,7 @@ function fixture(
   };
 }
 
-const IDS = [UPCOMING_ID, FINISHED_ID, CUP_ID];
+const IDS = [UPCOMING_ID, FINISHED_ID, CUP_ID, UNRATED_CUP_ID, LIIGACUP_ID];
 
 test.beforeAll(async () => {
   await withDatabase(async (sql) => {
@@ -67,11 +84,16 @@ test.beforeAll(async () => {
     await sql`insert into taso_matches ${sql([
       fixture(UPCOMING_ID, "SCHEDULED", null),
       fixture(FINISHED_ID, "FINISHED", 1, "VL", PLAYED_AT),
-      // Suomen Cup: upcoming, but not a competition the home-advantage table
-      // compares.
+      // Suomen Cup, between the two sides the league match has rated.
       fixture(CUP_ID, "SCHEDULED", null, "MSC"),
+      { ...fixture(UNRATED_CUP_ID, "SCHEDULED", null, "MSC"), away_team_provider_id: 999_051_103 },
+      {
+        ...fixture(LIIGACUP_ID, "SCHEDULED", null, "LC"),
+        competition_id: `Liigacup${SEASON % 100}`,
+      },
     ])}`;
   });
+  await dropModelCaches();
 });
 
 test.afterAll(async () => {
@@ -184,13 +206,36 @@ test.describe("Home-win baseline, signed in", () => {
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   });
 
-  test("an upcoming cup match has no prediction", async ({ page }) => {
+  test("an upcoming Suomen Cup tie between rated sides shows the baseline and Elo", async ({
+    page,
+  }) => {
     await page.goto(PATH(CUP_ID));
+
+    const models = panel(page).getByRole("table").first().locator("th[scope=row]");
+    await expect(models.first()).toHaveText("Perustaso");
+    await expect(models.nth(1)).toHaveText("Elo");
+    await expect(
+      panel(page).getByRole("link", { name: "Kuinka hyvin ennusteet ovat osuneet?" })
+    ).toHaveAttribute("href", "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=MSC");
+  });
+
+  async function expectNoPrediction(page: Page, id: number) {
+    await page.goto(PATH(id));
 
     await expect(
       page.getByRole("heading", { level: 2, name: "Aiemmat kohtaamiset" })
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
+  }
+
+  test("a Suomen Cup tie with a side the leagues have not rated has no prediction", async ({
+    page,
+  }) => {
+    await expectNoPrediction(page, UNRATED_CUP_ID);
+  });
+
+  test("a Liigacup tie has no prediction", async ({ page }) => {
+    await expectNoPrediction(page, LIIGACUP_ID);
   });
 });
 
