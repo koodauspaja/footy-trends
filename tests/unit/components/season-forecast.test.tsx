@@ -196,6 +196,14 @@ describe("SeasonForecastBody", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
+  it("gives the ordinary columns no second line", () => {
+    const { container } = render(
+      <SeasonForecastBody forecast={ok("single", [table()])} qualityHref={HREF} />
+    );
+
+    expect(container.querySelectorAll("thead span")).toHaveLength(0);
+  });
+
   it("shows each of several tables under its name, with first and last place", () => {
     render(
       <SeasonForecastBody
@@ -333,6 +341,23 @@ describe("SeasonForecastBody", () => {
       for (const gone of [TITLE_HEADER, TOP_THREE_HEADER, BOTTOM_THREE_HEADER, TABLE_LAST_HEADER]) {
         expect(screen.queryByText(gone)).toBeNull();
       }
+    });
+
+    it("makes a column of a single zone, as of several", () => {
+      const [only] = zones as [(typeof zones)[number]];
+      render(
+        <SeasonForecastBody
+          forecast={ok("single", [
+            zoned({
+              zones: [only],
+              rows: [team(1, { zones: [open(0.61)] })],
+            }),
+          ])}
+          qualityHref={HREF}
+        />
+      );
+
+      expect(headers()).toEqual(["Joukkue", "Odotetut pisteet", "Nousee Veikkausliigaansija 1"]);
     });
 
     it("prints a settled zone as 0 % or 100 %", () => {

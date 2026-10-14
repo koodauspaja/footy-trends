@@ -358,6 +358,15 @@ describe("seasonForecast", () => {
     ]);
   });
 
+  it("cuts a level at the table's last row when its count is larger", () => {
+    const levels = [{ level: 1, teamCount: 5, label: "Putoaa" }];
+    const forecast = seasonForecast("single", [table({ levels })], homeWin);
+
+    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([
+      { from: 1, to: 2, label: "Putoaa" },
+    ]);
+  });
+
   it("gives a group with no labelled level no zone", () => {
     const levels = [{ level: 1, teamCount: 1, label: null }];
     const forecast = seasonForecast("single", [table({ levels })], homeWin);
