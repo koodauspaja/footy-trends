@@ -6,11 +6,13 @@
  */
 
 /**
- * The default when a variable is unset, blank, or unusable.
+ * The default when a variable is unset, blank, or unusable: a tenth, so an
+ * environment that sets nothing cannot trace every request.
  *
  * decisions/140-sentry-production-configuration.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
-export const DEFAULT_TRACES_SAMPLE_RATE = 1;
+export const DEFAULT_TRACES_SAMPLE_RATE = 0.1;
 
 /**
  * A sample rate from a variable. Unset, blank, not a number or outside 0–1

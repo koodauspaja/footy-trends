@@ -357,7 +357,7 @@ everybody looks at.
 These were **code** rather than configuration, so staging and production got the
 same values — the wizard's development ones. All three now read from the
 environment via `src/lib/sentry-config.ts`, with the wizard's behaviour as the
-in-code default, so an environment that sets nothing behaves exactly as before.
+in-code default, bar the sample rate, whose default is `0.1` (decisions/656).
 
 What each one was, and what production sets:
 
@@ -369,7 +369,7 @@ What each one was, and what production sets:
 
 The browser needs its own `NEXT_PUBLIC_`-prefixed copies of all three: values
 read in the browser are inlined at build time, so a server-only variable is
-`undefined` there. That asymmetry is how a client keeps tracing everything while
+`undefined` there. That asymmetry is how a client stays on the default while
 the server behaves.
 
 ### A blank variable means "unset", not "zero"

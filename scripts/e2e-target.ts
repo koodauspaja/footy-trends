@@ -58,3 +58,16 @@ export function startUpTimeoutMs(target: E2eTarget): number {
 export function vouchesForAPush(target: E2eTarget): boolean {
   return target === "fresh-build";
 }
+
+/**
+ * The server's environment with no Sentry DSN, so a run reports nothing to
+ * Sentry whatever `.env` holds. A `prebuilt` build keeps the DSN it was built
+ * with: the browser's is inlined at build time.
+ *
+ * decisions/656-e2e-sends-nothing-to-sentry.md
+ */
+export function withoutSentry<Env extends object>(
+  env: Env
+): Env & { NEXT_PUBLIC_SENTRY_DSN: string } {
+  return { ...env, NEXT_PUBLIC_SENTRY_DSN: "" };
+}

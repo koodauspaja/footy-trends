@@ -112,7 +112,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `LOG_LEVEL` | `info` | `info` | why `info` is safe: `docs/setup/021` |
 | `AUTH_ALLOWED_EMAILS` | set | absent | unset means anyone may sign in |
 | `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` | present, **empty on purpose** | absent | the default, `x-real-ip`, is right behind Railway's edge (decisions/309) |
-| `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_SEND_DEFAULT_PII`, `SENTRY_ENABLE_LOGS` and their `NEXT_PUBLIC_` copies | absent | set | production: 0.1, false, false. Absent means the wizard's defaults: 1, true, true |
+| `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_SEND_DEFAULT_PII`, `SENTRY_ENABLE_LOGS` and their `NEXT_PUBLIC_` copies | absent | set | production: 0.1, false, false. Absent means the in-code defaults: 0.1 (decisions/656), true, true |
 
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
 provider keys, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`

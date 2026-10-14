@@ -4,6 +4,7 @@ import {
   serverCommand,
   startUpTimeoutMs,
   vouchesForAPush,
+  withoutSentry,
 } from "../../../scripts/e2e-target";
 
 /**
@@ -68,4 +69,22 @@ describe("vouchesForAPush", () => {
       expect(vouchesForAPush(target)).toBe(false);
     }
   );
+});
+
+describe("withoutSentry", () => {
+  it("blanks the DSN, so a run reports nothing to Sentry whatever .env holds", () => {
+    const env = withoutSentry({ NEXT_PUBLIC_SENTRY_DSN: "https://key@example.ingest.sentry.io/1" });
+
+    expect(env.NEXT_PUBLIC_SENTRY_DSN).toBe("");
+  });
+
+  it("keeps every other variable as it was", () => {
+    expect(
+      withoutSentry({ DATABASE_URL: "postgres://localhost/x_test", LOG_LEVEL: "info" })
+    ).toEqual({
+      DATABASE_URL: "postgres://localhost/x_test",
+      LOG_LEVEL: "info",
+      NEXT_PUBLIC_SENTRY_DSN: "",
+    });
+  });
 });
