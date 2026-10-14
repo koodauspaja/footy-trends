@@ -61,6 +61,7 @@ a table that was not read: a test per status.
 
 - **The kinds of the qualifying rounds** are written into the table above; the
   spec confirmed them without listing them, and its S4 row now says them.
+- **Caching, the UX table and the acceptance criterion** say what is built: the forecast's key is `v4`, and Brazil's caveat line is named beside the European one. specs/064's cache rows and its out-of-scope line say `v4` and that this built the foreign leagues' columns; its other records stay as written.
 - **The registry's shape** (API & Data): stretches of positions, from which the
   levels are derived, where the spec said levels.
 - **Tests Required and Files To Update** name the files built, and the upkeep

@@ -75,7 +75,7 @@ entry, signed in or out:
 |---|---|
 | In the table | A heavier rule between two adjacent rows of different levels, as specs/063, and the row tinted by its kind |
 | Under the table | One line per level, in table order, as specs/063: `Sija 1: …`, `Sijat 5–6: …`, then our label |
-| Under the list, when a level is a `Euroopan cup` | `Eurooppa-paikat voivat muuttua cup-tuloksilla` |
+| Under the list, when a level is a `Euroopan cup` | `Eurooppa-paikat voivat muuttua cup-tuloksilla`, and for Brazil `Cup-paikat voivat muuttua cup-tuloksilla` |
 | A season with no entry | No rule, no tint, no list |
 
 Labels, confirmed by Miikka on 2026-10-14 (the first seven): `Mestarien liiga`,
@@ -170,7 +170,7 @@ state, not a failure. A season with no entry is not logged.
 
 - [ ] Each of the nine leagues has an entry for every stored season, or is documented as having none
 - [ ] `/ulkomaat/sarjataulukko` for a registered season draws a rule between levels, tints each row by its kind, and lists `Sija …`/`Sijat …` with our label under the table
-- [ ] A level of kind `Euroopan cup` adds `Eurooppa-paikat voivat muuttua cup-tuloksilla` once, under the list
+- [ ] A level of kind `Euroopan cup` adds `Eurooppa-paikat voivat muuttua cup-tuloksilla` once, under the list (`Cup-paikat voivat muuttua cup-tuloksilla` for Brazil)
 - [ ] A season with no entry, and any other competition, render as today
 - [ ] No entry's counts exceed its league's table size (unit test)
 - [ ] The tint is never the only signal, and is legible in light and dark and at 375 px

@@ -30,7 +30,7 @@ to.
 
 - Storing or showing zones on the standings table: specs/063.
 - The foreign leagues' zones: #634, specs/065. They keep specs/061's columns
-  until it builds (S5).
+  until it builds (S5); #649 built it.
 - Miesten Kakkonen and the junior competitions: no levels are stored, so
   specs/061's columns stay (S5).
 - Any change to the model, the number of runs, the seed, the tie rule, the
@@ -79,7 +79,7 @@ whichever columns it shows.
 | A level's chance | The share of runs in which the team finishes in the zone's positions, `from` to `to` (S1) |
 | Best and worst reachable finish | specs/061's extreme scenarios, applied to both ends of the zone's range (S6) |
 | Before a split | The regular-season group's levels naming its continuation groups (specs/063 S11) |
-| Cache | specs/061 S10: per competition-season, Redis, 15 minutes, and cleared by a forced refresh (specs/029) with the answers it was computed from. The key's version is bumped, `forecast:v3`, because the cached value changes shape; a changed set of levels shows within the 15 minutes |
+| Cache | specs/061 S10: per competition-season, Redis, 15 minutes, and cleared by a forced refresh (specs/029) with the answers it was computed from. The key's version is bumped, `forecast:v3`, because the cached value changes shape (`forecast:v4` since #649, specs/065); a changed set of levels shows within the 15 minutes |
 
 ## Edge Cases
 
@@ -140,7 +140,7 @@ service.
 | File | Minimal assertions |
 |---|---|
 | `tests/unit/lib/season-simulation.test.ts` | A level's share by hand with a fixed seed; a range in the middle of the table; best and worst reachable finish for both ends of a range, so `0 %` and `100 %` each need the range's two ends separately |
-| `tests/unit/lib/season-simulation-service*.test.ts` | Levels read with the group; an unlabelled level counted and not a column; a group with none keeps specs/061's columns; before a split with and without levels; the cache key `forecast:v3`, and a forced refresh clearing it |
+| `tests/unit/lib/season-simulation-service*.test.ts` | Levels read with the group; an unlabelled level counted and not a column; a group with none keeps specs/061's columns; before a split with and without levels; the cache key `forecast:v3` (`v4` since #649), and a forced refresh clearing it |
 | `tests/unit/components/…` | The columns, the two-line heading, a two-outcome label, the scroll box, the unchanged line under the tables |
 | `tests/e2e/…` | Signed in, a seeded league with levels shows its columns; a seeded league without keeps specs/061's |
 
