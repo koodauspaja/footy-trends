@@ -81,6 +81,32 @@ table is behind:
 
 ## What the tests prove, and how
 
+- **Every mutation below was caught**, one row each:
+
+  | # | Mutation |
+  |---|---|
+  | 1 | The rule never applies |
+  | 2 | The parent's matches not counted |
+  | 3 | Every group of the season counted |
+  | 4 | A missing `matches_played` ignored |
+  | 5 | A count above ours allowed |
+  | 6 | A team behind allowed more points than ours |
+  | 7 | A team level with us allowed other points |
+  | 8 | The same, against Postgres |
+  | 9 | No team behind needed: a table level with ours then had every listed team checked |
+  | 10 | A table at zero taken as behind |
+  | 11 | A cup taken as behind |
+  | 12 | A configured group taken as behind without what it is calculated from |
+  | 13 | A group with no carry-over entry never behind |
+  | 15 | The rule applied in place of the unplayed one |
+  | 16 | The rule never applies, against Postgres |
+
+- **Two first survived.** Mutation 9 did because the test's listed team had
+  never played in the parent, which made the group not calculable either way;
+  the test now lists a team that did. Mutation 14, accepting a team TASO
+  ranks and ours lacks, survives and is left: `reproducesTasoPoints` refuses
+  that table by its teams, so the early `false` in `isBehindResults` only
+  keeps the comparison typed.
 - No end-to-end test: the seeded 2017 season is shared by several end-to-end
   specs, and a group behind its results there would change what they count.
   The rule is held through `getSeasonStandings` in unit tests and against

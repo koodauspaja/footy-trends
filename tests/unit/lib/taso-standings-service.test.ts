@@ -3296,16 +3296,17 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("takes a table level with ours as before, beside a team TASO lists without points", async () => {
-    // Not behind, so only the teams TASO gives points to must be in ours.
+    // Not behind, so only the teams TASO gives points to must be in ours. Team 2
+    // played the regular season, so the group stays calculable without it.
     const group = await lowerGroup(
       (row) => ({ ...row, played: 4 }),
-      [listedTeam({ points: null })]
+      [listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null })]
     );
 
     expect(group?.kind).toBe("own-calculated");
   });
 
-  it("keeps TASO's numbers when TASO lists a team behind that our table lacks", async () => {
+  it("keeps TASO's numbers when TASO lists a team with no match we store", async () => {
     const group = await lowerGroup(beforeTheSplitMatch, [listedTeam({ played: 1, points: 0 })]);
 
     expect(group?.kind).toBe("pass-through");
