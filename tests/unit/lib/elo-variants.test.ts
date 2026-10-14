@@ -216,6 +216,24 @@ describe("replayVariants", () => {
     expect(seen[1]?.home).toBeCloseTo(splitThreeWay(homeExpected, 0.25).home, 10);
   });
 
+  it("hands over predictions worked out at the match, whenever they are asked for", () => {
+    const first = played(1, 1, 2, 2, 0);
+    const second = played(2, 1, 2, 3, 0);
+    const kept: Array<(drawShare: number) => { form: { home: number }; home: { home: number } }> =
+      [];
+    const atTheTime: number[] = [];
+
+    replayVariants([first, second], (_match, predict) => {
+      kept.push(predict);
+      atTheTime.push(predict(0.25).form.home, predict(0.25).home.home);
+    });
+
+    // Asked after the whole replay, when both matches have been learned from.
+    expect(kept.flatMap((predict) => [predict(0.25).form.home, predict(0.25).home.home])).toEqual(
+      atTheTime
+    );
+  });
+
   it("predicts matches at one kickoff from the state before any of them", () => {
     const opener = played(1, 1, 2, 3, 0);
     const same = [played(2, 1, 3, 1, 0), played(2, 3, 1, 0, 1)];
