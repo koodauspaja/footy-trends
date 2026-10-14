@@ -15,6 +15,7 @@ import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
  * decisions/036-halftime-comebacks.md
  * decisions/127-carry-over-config-validation.md
  * decisions/196-concurrent-group-syncs.md
+ * decisions/644-stored-table-behind-results.md
  */
 
 vi.mock("@/lib/taso", async (importOriginal) => {
@@ -543,5 +544,116 @@ describe("synchronizeGroupTeams and a table TASO serves as unplayed", () => {
     await sync([row(2, 1, 0, 0)], { replace: true });
 
     expect(await stored()).toEqual([[2, 1, 0, 0, 0]]);
+  });
+});
+
+describe("a stored TASO table behind the stored results", () => {
+  const behindSeason = 901103;
+  const behindCompetition = "spljp901103";
+
+  async function clear() {
+    await db.delete(tasoMatches).where(eq(tasoMatches.seasonId, behindSeason));
+    await db.delete(tasoGroupTeams).where(eq(tasoGroupTeams.seasonId, behindSeason));
+  }
+  beforeEach(clear);
+  afterEach(clear);
+
+  // United beat City, then the two draw: ours has United at 4 points and City at
+  // 1, two matches each. TASO's stored rows are from before the draw.
+  async function storeSeason(rows: Array<{ team: number; played: number; points: number }>) {
+    const { synchronizeMatches } = await import("@/lib/taso-standings-service");
+    await synchronizeMatches([
+      buildMatch({
+        providerMatchId: 9011031,
+        competitionCode: behindCompetition,
+        seasonId: behindSeason,
+        matchday: 1,
+      }),
+      buildMatch({
+        providerMatchId: 9011032,
+        competitionCode: behindCompetition,
+        seasonId: behindSeason,
+        matchday: 2,
+        homeTeamProviderId: 9002,
+        homeTeamName: "Integration City",
+        awayTeamProviderId: 9001,
+        awayTeamName: "Integration United",
+        homeGoals: 0,
+        awayGoals: 0,
+      }),
+    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      behindCompetition,
+      behindSeason,
+      rows.map(({ team, played, points }) => ({
+        categoryId: CATEGORY_ID,
+        competitionCode: behindCompetition,
+        seasonId: behindSeason,
+        groupId: 1,
+        teamProviderId: team,
+        teamName: team === 9001 ? "Integration United" : "Integration City",
+        startingPoints: 0,
+        points,
+        played,
+        won: null,
+        drawn: null,
+        lost: null,
+        goalsFor: null,
+        goalsAgainst: null,
+        goalDifference: null,
+        currentStanding: null,
+        finalGroupStanding: null,
+      })),
+      []
+    );
+  }
+
+  async function group() {
+    const { getSeasonStandings } = await import("@/lib/taso-standings-service");
+    // A finished season, so nothing is asked of TASO.
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      behindCompetition,
+      behindSeason,
+      behindSeason + 1,
+      undefined
+    );
+    return result.status === "ok" ? result.groups[0] : undefined;
+  }
+
+  it("renders our own table, and leaves the stored rows as they are", async () => {
+    await storeSeason([
+      { team: 9001, played: 1, points: 3 },
+      { team: 9002, played: 1, points: 0 },
+    ]);
+
+    const shown = await group();
+
+    expect(shown?.kind).toBe("own-calculated");
+    expect(
+      shown?.kind === "own-calculated" &&
+        shown.standings.map((team) => [team.teamProviderId, team.played, team.points])
+    ).toEqual([
+      [9001, 2, 4],
+      [9002, 2, 1],
+    ]);
+    const stored = await db
+      .select()
+      .from(tasoGroupTeams)
+      .where(eq(tasoGroupTeams.seasonId, behindSeason));
+    expect(stored.map((row) => [row.teamProviderId, row.played, row.points]).sort()).toEqual([
+      [9001, 1, 3],
+      [9002, 1, 0],
+    ]);
+  });
+
+  it("keeps TASO's numbers when a team level with us on matches has other points", async () => {
+    await storeSeason([
+      { team: 9001, played: 2, points: 1 },
+      { team: 9002, played: 1, points: 0 },
+    ]);
+
+    expect((await group())?.kind).toBe("pass-through");
   });
 });

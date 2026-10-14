@@ -1195,19 +1195,60 @@ function calculableWithoutTaso(
 }
 
 /**
+ * Whether TASO's stored table is only behind our results: every team it ranks
+ * has a count, none above ours and one below; a team level with us has our
+ * points, one behind no more. Counted over the group and its parent, as TASO does.
+ *
+ * decisions/644-stored-table-behind-results.md
+ */
+function isBehindResults(
+  standings: TeamStanding[],
+  teamRows: StoredGroupTeam[],
+  seasonMatches: MatchRow[],
+  groupId: number,
+  entry: CarryOverEntry | null
+): boolean {
+  // A table at zero is decisions/628's to answer, which asks more of it.
+  if (isUnplayedTable(teamRows)) return false;
+
+  const parent = entry?.parent ?? null;
+  const played = new Map<number, number>();
+  for (const match of toFinishedMatches(seasonMatches)) {
+    if (match.groupId !== groupId && match.groupId !== parent) continue;
+    for (const team of [match.homeTeamProviderId, match.awayTeamProviderId]) {
+      played.set(team, (played.get(team) ?? 0) + 1);
+    }
+  }
+
+  const points = new Map(standings.map((team) => [team.teamProviderId, team.points]));
+  let behind = false;
+  for (const row of teamRows) {
+    if (row.points === null) continue;
+    const ourPoints = points.get(row.teamProviderId);
+    if (row.played === null || ourPoints === undefined) return false;
+    const ours = played.get(row.teamProviderId) ?? 0;
+    // Level with us, TASO's points are ours; behind, they cannot be more.
+    if (row.played > ours || row.points > ourPoints) return false;
+    if (row.played === ours && row.points !== ourPoints) return false;
+    if (row.played < ours) behind = true;
+  }
+  return behind;
+}
+
+/**
  * Whether our calculation reproduces TASO's published points for every team it
- * ranks, over the full season. This decides how a group renders. A table that
- * is unplayed where ours is calculable has no points to reproduce, only its
- * teams.
+ * ranks, over the full season. This decides how a group renders. A table ours
+ * can stand in for has no points to reproduce, only its teams.
  *
  * decisions/013-more-finnish-competitions.md
  * decisions/628-zeroed-continuation-tables.md
+ * decisions/644-stored-table-behind-results.md
  */
 function reproducesTasoPoints(
   standings: TeamStanding[],
   teamRows: StoredGroupTeam[],
-  /** Whether our table could stand in for an unplayed one of TASO's. */
-  calculable: boolean
+  /** TASO's table is unplayed, or behind the results, and ours can be calculated. */
+  standIn: boolean
 ): boolean {
   // At least one row has points: `buildGroup` returns before calling this
   // when none does.
@@ -1216,15 +1257,14 @@ function reproducesTasoPoints(
   );
 
   const calculated = new Set(standings.map((team) => team.teamProviderId));
-  const unplayed = calculable && isUnplayedTable(teamRows);
 
   return (
     standings.every((team) => {
       const tasoPoints = published.get(team.teamProviderId);
-      return unplayed || tasoPoints === undefined || tasoPoints === team.points;
+      return standIn || tasoPoints === undefined || tasoPoints === team.points;
     }) &&
-    // An unplayed table is taken on its teams alone, so on every one of them.
-    (unplayed ? teamRows.map((row) => row.teamProviderId) : [...published.keys()]).every(
+    // A table stood in for is taken on its teams alone, so on every one of them.
+    (standIn ? teamRows.map((row) => row.teamProviderId) : [...published.keys()]).every(
       (teamProviderId) => calculated.has(teamProviderId)
     )
   );
@@ -2098,6 +2138,7 @@ export function hasCarryOver(categoryId: string, competitionId: string): boolean
  * decisions/043-liigacup.md
  * decisions/304-test-database.md
  * decisions/628-zeroed-continuation-tables.md
+ * decisions/644-stored-table-behind-results.md
  */
 function buildGroup(
   seasonMatches: MatchRow[],
@@ -2159,7 +2200,14 @@ function buildGroup(
 
   const entry = carryOverEntry(categoryId, competitionId, groupId);
   const calculable = calculableWithoutTaso(entry, teamRows, seasonMatches);
-  if (!reproducesTasoPoints(fullSeason, teamRows, calculable)) {
+  // A cup's table is in TASO's published order, so it is never stood in for as
+  // behind; a group with no carry-over is calculated from its own matches.
+  const standIn =
+    (calculable && isUnplayedTable(teamRows)) ||
+    (!isCupCategory(categoryId) &&
+      (entry === null || calculable) &&
+      isBehindResults(fullSeason, teamRows, seasonMatches, groupId, entry));
+  if (!reproducesTasoPoints(fullSeason, teamRows, standIn)) {
     return {
       kind: "pass-through",
       groupId,

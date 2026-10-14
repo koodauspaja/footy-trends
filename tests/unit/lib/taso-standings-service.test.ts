@@ -59,6 +59,7 @@ import { teamPanelLoaders } from "@/lib/team-panels";
  * decisions/530-one-team-panel-builder.md
  * decisions/628-zeroed-continuation-tables.md
  * decisions/063-competition-zones.md
+ * decisions/644-stored-table-behind-results.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -3228,6 +3229,163 @@ describe("getTeamPositionSeries", () => {
     expect(group?.kind).toBe("pass-through");
   });
 
+  // TASO's lower-group rows as they stood before the group's own match: three
+  // matches a team, team 3 at 3 points and team 4 at none. Ours count four.
+  const beforeTheSplitMatch = (row: ReturnType<typeof groupTeam>) => ({
+    ...row,
+    played: 3,
+    points: row.teamProviderId === 3 ? 3 : 0,
+  });
+
+  it("renders our own table when TASO's stored table is only behind the stored results", async () => {
+    // Three behind four only when the regular season's matches are counted
+    // with the group's, as TASO counts them.
+    const group = await lowerGroup(beforeTheSplitMatch);
+
+    expect(pointsOf(group)).toEqual([
+      [4, 3],
+      [3, 3],
+    ]);
+  });
+
+  it("renders our own table when only some teams are behind and the rest agree", async () => {
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 4, points: 3 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("own-calculated");
+  });
+
+  it("keeps TASO's numbers when a team behind has more points than ours", async () => {
+    // Fewer matches cannot have earned more: TASO knows of something we do not.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 4
+        ? { ...beforeTheSplitMatch(row), points: 4 }
+        : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team level with us on matches has other points", async () => {
+    // A deduction, or a corrected result, beside a team that is behind.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 4, points: 2 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when it counts more matches for a team than we store", async () => {
+    // Our matches are the ones behind, and TASO's table the newer answer.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 5, points: 3 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team's matches played is not reported", async () => {
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3
+        ? { ...beforeTheSplitMatch(row), played: null }
+        : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when TASO lists a team behind that our table lacks", async () => {
+    const group = await lowerGroup(beforeTheSplitMatch, [listedTeam({ played: 1, points: 0 })]);
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers for a continuation with no carry-over entry, whose count includes the parent", async () => {
+    // 2095 has no entry: ours counts the group's one match, TASO's three include
+    // the regular season, so TASO's is not behind ours but ahead of it.
+    const group = await lowerGroup((row) => ({ ...row, played: 3, points: 0 }), [], "spljp95");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("renders a seeded group's own table from its starting points when TASO's is behind", async () => {
+    const group = await lowerGroup(
+      (row) => ({ ...row, played: 3, points: 3, startingPoints: 3 }),
+      [],
+      "spljp24"
+    );
+
+    expect(pointsOf(group)).toEqual([
+      [4, 6],
+      [3, 3],
+    ]);
+  });
+
+  it("keeps TASO's numbers for a seeded group behind its results whose starting points are gone", async () => {
+    // Without the seeds ours would count the group's own matches alone.
+    const group = await lowerGroup((row) => ({ ...row, played: 3, points: 0 }), [], "spljp24");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("renders a regular season with no carry-over entry as ours when TASO's table is behind", async () => {
+    // After two of the three rounds: 6, 3, 3 and 0, where ours has 9, 6, 3, 0.
+    const matches = splitSeason(SPLIT_SEASON);
+    const afterTwo = new Map([
+      [1, 6],
+      [2, 3],
+      [3, 3],
+      [4, 0],
+    ]);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 1
+        ? { ...row, played: 2, points: afterTwo.get(row.teamProviderId) ?? 0 }
+        : { ...row, played: 4 }
+    );
+    mockStoredMatches(matches, rows);
+
+    const result = await getSeasonStandings(
+      LEAGUE,
+      SPLIT_SEASON,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups.map((group) => group.kind)).toEqual([
+      "own-calculated",
+      "own-calculated",
+      "own-calculated",
+    ]);
+  });
+
+  it("continues past the split, offers the group's rounds and simulates it, when TASO's table is behind", async () => {
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? beforeTheSplitMatch(row) : { ...row, played: row.groupId === 1 ? 3 : 4 }
+    );
+
+    const series = await seriesFor(4, matches, rows);
+    expect(series.status === "ok" && series.endsAtSplit).toBe(false);
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 3,
+      played: true,
+    });
+
+    mockStoredMatches(matches, rows);
+    await expect(
+      listSeasonRounds(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toContain(4);
+
+    mockStoredMatches(matches, rows);
+    const season = await getSeasonTables(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON);
+    expect(season.status === "ok" && season.tables.find((table) => table.groupId === 3)?.kind).toBe(
+      "own-calculated"
+    );
+  });
+
   it("continues past the split when TASO reports the continuation's table as unplayed", async () => {
     const matches = splitSeason(SPLIT_SEASON);
     const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
@@ -5185,5 +5343,58 @@ describe("the stored levels a standings read returns", () => {
       expect.objectContaining({ categoryId: CATEGORY_ID, seasonId: 2014 }),
       "Unable to load TASO standings"
     );
+  });
+});
+
+describe("a cup's table behind its results", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Three teams, a match each against each, at 3 points each; TASO's rows count
+  // one match a team and no points, as before the last two were played.
+  async function kindFor(categoryId: string) {
+    const game = (id: number, home: number, away: number) =>
+      match({
+        providerMatchId: id,
+        categoryId,
+        groupName: "Lohko B",
+        matchday: id,
+        homeTeamProviderId: home,
+        homeTeamName: `Team ${home}`,
+        awayTeamProviderId: away,
+        awayTeamName: `Team ${away}`,
+        homeGoals: 1,
+        awayGoals: 0,
+      });
+    mockStoredMatches(
+      [game(1, 1, 2), game(2, 2, 3), game(3, 3, 1)],
+      [1, 2, 3].map((teamProviderId) =>
+        groupTeam({
+          categoryId,
+          teamProviderId,
+          teamName: `Team ${teamProviderId}`,
+          points: 0,
+          played: 1,
+          currentStanding: teamProviderId,
+        })
+      )
+    );
+    const result = await getSeasonStandings(
+      categoryId,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    return result.status === "ok" ? result.groups[0]?.kind : undefined;
+  }
+
+  it("keeps TASO's numbers for a Liigacup group, which is ranked in TASO's order", async () => {
+    expect(await kindFor("LC")).toBe("pass-through");
+  });
+
+  it("renders the same rows of a league group as our own table", async () => {
+    expect(await kindFor(CATEGORY_ID)).toBe("own-calculated");
   });
 });
