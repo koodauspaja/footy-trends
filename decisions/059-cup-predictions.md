@@ -14,12 +14,12 @@ something the spec did not.
 | Elo and a cup tie (S2) | In `replayElo`, a cup tie at a kickoff is handed to `onPredict` from the ratings before that kickoff when both sides are rated, and then left out of the kickoff's updates | The ratings are those of the league matches only, so `elo-v1` and every league row are unchanged, which the backtest test asserts on a history with and without the cups. |
 | Poisson and a cup tie (S5) | `fitWindow` sweeps over the league matches only. Then `cupFits` gives each cup with a tie between two teams the fit knows a goal rate (its goals over the league strengths' expectation, with the competitions' prior) and its own draw factor, marked `cup: true` | The strengths are the leagues', so nothing a cup does moves them. The goal rate and the draw factor are fitted as a league's are, with the strengths held. |
 | Poisson and an unknown side | `predictPoisson` answers `null` in a cup when a side is not in the fit, where in a league it is an average side | S3. The fit knows a side exactly when it has played a league match on an earlier day. |
-| Poisson on a side's first league day | A side whose first league match is earlier on the cup tie's own UTC day is rated for Elo and the baseline, not yet for Poisson, so that tie has no Poisson row | Poisson fits once per UTC day (specs/055 S9). Such a tie drops out of `/ennusteet`'s common matches, as any match a model has no row for. |
-| The baseline (S4) | Each cup's own outcome shares, as for a league, and in `backtestRows` only for a tie between rated sides (`ratedSides`). The tally still counts every finished tie | S4: the cup's own history, all of it. The row needs both sides rated so that every model has the same matches. |
+| Rated for Elo, unknown to Poisson | Two cases: a side whose first league match is earlier on the tie's own UTC day, and one whose last league match is more than `POISSON_HORIZON_DAYS` (1 500) before it. Elo and the baseline predict the tie; Poisson has no row, and `Ennuste` simply shows none | Poisson fits once per UTC day and leaves older matches out (specs/055). Such a tie drops out of `/ennusteet`'s common matches, as any match a model has no row for. Rated stays Elo's rule, the one S3 and S10 name. |
+| The baseline (S4) | Each cup's own outcome shares, as for a league, and in `backtestRows` only for a cup tie the Elo replay predicts (`ratedSides`). The tally still counts every finished tie | S4: the cup's own history, all of it. Taking the ties from the replay, rather than restating its rule, keeps every model on the same matches: a side whose only league match was against a placeholder is rated by neither. |
 | The live log | The hourly run writes a cup tie's rows only when its provider's ratings were read and both sides are rated, every model alike | S3. A history that could not be read cannot say a side is rated, so the tie waits for the next hour. |
 | `Ennuste` and the rivalry group (S8) | `predictsSides(stored, competition)` in `match-prediction.tsx`: true for a league; for a cup, the Elo ratings read and both sides rated. `MatchPrediction` and the rivalry page's `loadNext` ask it after `baselineCompetition` | One rule for both places. It reads `getEloRatings`, which the body reads anyway, from the same cache. |
 | Signed out on a cup tie | `predictsSides` is asked before the gate, so a tie with an unrated side has no sign-in prompt either | The prompt promises a prediction. A cached ratings read is the cost, and it is made only for a cup tie. |
-| `/ennusteet` (S7) | `qualityReport` takes `apart`, competitions left out of the figures of all but given their rows; `getPredictionQuality` passes `PREDICTED_CUPS` for TASO. `CUPS_APART_NOTE` is shown under `Kilpailuittain` when a cup has a row | The rows per competition are still read from every competition, so a cup has its row and the leagues' figures are those they were. |
+| `/ennusteet` (S7) | `qualityReport` takes `apart`, competitions left out of the figures of all but given their rows; `getPredictionQuality` passes `PREDICTED_CUPS` for TASO. `CUPS_APART_NOTE` is shown under `Kilpailuittain` when a cup has a row and no competition is chosen | The rows per competition are still read from every competition, so a cup has its row and the leagues' figures are those they were. |
 | The cache keys | Unchanged: `quality:v3:*`, `poisson:v1:*`, `elo:v1:*` | S15. A report or fit cached from before the release has no cup in it and expires in 15 minutes. Nothing cached is wrong, only short of the cups. |
 | The cached fit | `PoissonSnapshot` types a competition's `cup` | JSON carries the flag either way; the type now says so, and a test reads a cup back through the cache's JSON. |
 | Neutral venues (S6) | The side TASO lists first is at home | TASO marks no neutral venue. |
@@ -45,7 +45,7 @@ something the spec did not.
   | 10 | Poisson: a cup's goal rate without the prior |
   | 11 | Poisson: a cup's draw factor fixed at 1 |
   | 12 | Poisson: an unknown side in a cup an average side |
-  | 13 | Backtest: a cup tie's side rated at the same kickoff |
+  | 13 | Backtest: every cup tie given a row, rated or not |
   | 14 | Backtest: a cup tie with an unrated side given a row |
   | 15 | Backtest: an unrated side's tie left out of the tally |
   | 16 | Log: a cup tie logged with an unrated side |
@@ -61,7 +61,8 @@ something the spec did not.
   | 26 | `/ennusteet`: the line never shown |
   | 27 | The cached fit loses `cup` |
   | 28 | `Ennuste`: a cup tie predicted without asking `predictsSides` |
-  | 29 | Backtest: a placeholder side rated by a league row |
+  | 29 | Elo: a league match against a placeholder rated, so its other side is too |
+  | 30 | `/ennusteet`: the line shown on a chosen competition's report |
 
 - **None survived.** 7 and 10 survived the first pass: the unrated side was
   only ever at home, and no cup was goalless. A test was added for each.
