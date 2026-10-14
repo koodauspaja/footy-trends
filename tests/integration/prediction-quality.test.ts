@@ -20,10 +20,11 @@ import { getPredictionQuality } from "@/lib/prediction-quality-service";
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/060-elo-variants.md
  */
 
 const IDS = Array.from({ length: 8 }, (_, index) => 986_001 + index);
-const MODELS = ["home-baseline-v1", "elo-v1", "poisson-v1"] as const;
+const MODELS = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"] as const;
 
 function footballDataMatch(
   id: number,
@@ -132,6 +133,8 @@ describe("getPredictionQuality against Postgres", () => {
       totals: [
         { model: "home-baseline-v1", matches: 2, accuracy: 50, brier: 1 },
         { model: "elo-v1", matches: 2, accuracy: 50, brier: 1 },
+        { model: "elo-form-v1", matches: 2, accuracy: 50, brier: 1 },
+        { model: "elo-home-v1", matches: 2, accuracy: 50, brier: 1 },
         { model: "poisson-v1", matches: 2, accuracy: 50, brier: 1 },
       ],
     });
@@ -170,6 +173,8 @@ describe("getPredictionQuality against Postgres", () => {
       totals: [
         { model: "home-baseline-v1", accuracy: 50 },
         { model: "elo-v1", accuracy: 50 },
+        { model: "elo-form-v1", accuracy: 50 },
+        { model: "elo-home-v1", accuracy: 50 },
         { model: "poisson-v1", accuracy: 50 },
       ],
       // The site's code the predictions carry, not the match's `spljp25`.
@@ -199,8 +204,8 @@ describe("getPredictionQuality against Postgres", () => {
 
     // The picker lists the Premier League before the Champions League.
     const competitions = [
-      { code: "PL", matches: 1, brier: [0, 0, 0], best: [true, true, true] },
-      { code: "CL", matches: 2, brier: [1, 1, 1], best: [true, true, true] },
+      { code: "PL", matches: 1, brier: MODELS.map(() => 0), best: MODELS.map(() => true) },
+      { code: "CL", matches: 2, brier: MODELS.map(() => 1), best: MODELS.map(() => true) },
     ];
     await expect(getPredictionQuality("football-data", "live", null)).resolves.toMatchObject({
       status: "ok",
@@ -210,7 +215,7 @@ describe("getPredictionQuality against Postgres", () => {
     await expect(getPredictionQuality("football-data", "live", "PL")).resolves.toMatchObject({
       status: "ok",
       matches: 1,
-      totals: [{ accuracy: 100 }, { accuracy: 100 }, { accuracy: 100 }],
+      totals: MODELS.map(() => ({ accuracy: 100 })),
       competitions,
     });
     await expect(getPredictionQuality("football-data", "live", "ELC")).resolves.toEqual({

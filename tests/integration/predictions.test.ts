@@ -31,7 +31,8 @@ import { getMatchSurprise } from "@/lib/surprise-service";
  * and the backtest in 1990, so the live rows and the rows asserted on are this
  * suite's. Both also backtest every finished match stored, other suites'
  * included, so every backtest row in the database is deleted either side of
- * each test, with this suite's own rows.
+ * each test, with this suite's own rows. Their time follows what the database
+ * holds, which an end-to-end run fills with whole seasons, so each test has 30 s.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md
@@ -116,7 +117,7 @@ function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v
     );
 }
 
-describe("the hourly run", () => {
+describe("the hourly run", { timeout: 30_000 }, () => {
   // One finished match in each competition, well before the run and outside its
   // 24-hour result window, so the baseline has history whatever else is stored.
   beforeEach(async () => {
@@ -294,7 +295,7 @@ describe("the hourly run", () => {
   });
 });
 
-describe("the backtest", () => {
+describe("the backtest", { timeout: 30_000 }, () => {
   const kickoff = (day: number) => new Date(Date.UTC(1990, 4, day, 15));
 
   it("predicts each match from strictly earlier ones, a shoot-out draw a draw, and is idempotent", async () => {
