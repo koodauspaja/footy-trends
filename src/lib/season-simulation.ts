@@ -6,6 +6,7 @@
  * decisions/061-season-simulation.md
  */
 
+import { groupZones, type Zone, type ZoneLevel } from "./competition-zones";
 import type { ThreeWay } from "./elo";
 import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 
@@ -78,6 +79,7 @@ export type Chance = { share: number; settled: boolean };
  * A team's figures, in the current table's order.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export type ForecastRow = {
   teamProviderId: number;
@@ -87,6 +89,8 @@ export type ForecastRow = {
   last: Chance;
   topThree: Chance;
   bottomThree: Chance;
+  /** The chance of each of the table's zones, in the order the zones are given. */
+  zones: Chance[];
 };
 
 /**
@@ -153,6 +157,8 @@ type Tally = {
   last: number[];
   topThree: number[];
   bottomThree: number[];
+  /** Per zone, the runs each place of the current table finished in it. */
+  zones: number[][];
 };
 
 function add(counts: number[], position: number, amount: number): void {
@@ -185,11 +191,21 @@ function playOnce(
  *
  * decisions/061-season-simulation.md
  */
-function count(tally: Tally, order: readonly number[], points: readonly number[]): void {
+function count(
+  tally: Tally,
+  order: readonly number[],
+  points: readonly number[],
+  zones: readonly Zone[]
+): void {
   const size = order.length;
   for (let place = 0; place < size; place += 1) {
     const position = order[place] as number;
     add(tally.points, position, points[position] as number);
+    zones.forEach((zone, index) => {
+      if (place + 1 >= zone.from && place + 1 <= zone.to) {
+        add(tally.zones[index] as number[], position, 1);
+      }
+    });
     if (place === 0) add(tally.first, position, 1);
     if (place === size - 1) add(tally.last, position, 1);
     if (place < 3) add(tally.topThree, position, 1);
@@ -200,15 +216,18 @@ function count(tally: Tally, order: readonly number[], points: readonly number[]
 /**
  * A table's forecast: every fixture drawn `runs` times, each run ranked by
  * points and then the current order. A place is settled when the team's best
- * and worst possible finishes fall on the same side of it.
+ * and worst possible finishes fall on the same side of it; a zone, a stretch of
+ * places, is settled when they all fall outside it or all inside it.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export function simulateTable(
   table: readonly TableRow[],
   fixtures: readonly SimulatedFixture[],
   runs: number = SIMULATION_RUNS,
-  seed: number = SIMULATION_SEED
+  seed: number = SIMULATION_SEED,
+  zones: readonly Zone[] = []
 ): ForecastRow[] {
   const size = table.length;
   const positions = new Map(table.map((row, position) => [row.teamProviderId, position]));
@@ -235,6 +254,7 @@ export function simulateTable(
     last: zeros(),
     topThree: zeros(),
     bottomThree: zeros(),
+    zones: zones.map(zeros),
   };
   const order = table.map((_row, position) => position);
   const random = generator(seed);
@@ -244,7 +264,7 @@ export function simulateTable(
     playOnce(points, played, random);
     // Points, then the current order: a position is its place in that order.
     order.sort((one, other) => (points[other] as number) - (points[one] as number) || one - other);
-    count(tally, order, points);
+    count(tally, order, points, zones);
   }
 
   return table.map((row, position) => {
@@ -263,6 +283,15 @@ export function simulateTable(
       last: chanceOf(share(tally.last), worst === size - 1, best === size - 1),
       topThree: chanceOf(share(tally.topThree), best < 3, worst < 3),
       bottomThree: chanceOf(share(tally.bottomThree), worst >= size - 3, best >= size - 3),
+      // The places a team can still finish in run from `best` to `worst`
+      // (counted from 0); a zone's own run from `from - 1` to `to - 1`.
+      zones: zones.map((zone, index) =>
+        chanceOf(
+          share(tally.zones[index] as number[]),
+          best <= zone.to - 1 && worst >= zone.from - 1,
+          best >= zone.from - 1 && worst <= zone.to - 1
+        )
+      ),
     };
   });
 }
@@ -287,6 +316,7 @@ export type ForecastLayout = "single" | "several" | "before-split";
  * remaining fixtures. `simulated` is false for a table that is not ours.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export type SeasonTableInput = {
   /** The stored group's id, or 0 for a league with one table and no groups. */
@@ -295,17 +325,22 @@ export type SeasonTableInput = {
   simulated: boolean;
   rows: TableRow[];
   fixtures: Array<{ homeTeam: number; awayTeam: number }>;
+  /** The group's stored levels, empty for a group that has none. */
+  levels: ZoneLevel[];
 };
 
 /**
  * One simulated table's forecast. `decidesTitle` when first place is the title.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export type ForecastTable = {
   groupId: number;
   groupName: string | null;
   decidesTitle: boolean;
+  /** The labelled zones its columns are, in table order; none for a group without. */
+  zones: Zone[];
   rows: ForecastRow[];
 };
 
@@ -331,6 +366,7 @@ export type SeasonForecast =
  *
  * decisions/061-season-simulation.md
  * decisions/638-forecast-names-left-out-groups.md
+ * decisions/064-season-simulation-zones.md
  */
 export function seasonForecast(
   layout: ForecastLayout,
@@ -348,18 +384,25 @@ export function seasonForecast(
   return {
     status: "ok",
     layout,
-    tables: simulated.map((table) => ({
-      groupId: table.groupId,
-      groupName: table.groupName,
-      decidesTitle: layout === "single" || table.groupName === TITLE_GROUP_NAME,
-      rows: simulateTable(
-        table.rows,
-        table.fixtures.flatMap((fixture) => {
-          const predicted = predict(fixture.homeTeam, fixture.awayTeam);
-          return predicted === null ? [] : [{ ...fixture, prediction: predicted.prediction }];
-        })
-      ),
-    })),
+    tables: simulated.map((table) => {
+      const { zones } = groupZones(table.levels, table.rows.length);
+      return {
+        groupId: table.groupId,
+        groupName: table.groupName,
+        decidesTitle: layout === "single" || table.groupName === TITLE_GROUP_NAME,
+        zones,
+        rows: simulateTable(
+          table.rows,
+          table.fixtures.flatMap((fixture) => {
+            const predicted = predict(fixture.homeTeam, fixture.awayTeam);
+            return predicted === null ? [] : [{ ...fixture, prediction: predicted.prediction }];
+          }),
+          SIMULATION_RUNS,
+          SIMULATION_SEED,
+          zones
+        ),
+      };
+    }),
     leftOut: tables.flatMap((table) =>
       table.simulated || table.groupName === null ? [] : [table.groupName]
     ),

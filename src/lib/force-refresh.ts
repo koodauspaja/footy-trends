@@ -33,6 +33,7 @@ import type {
   SeasonChoice,
   SeasonsResult,
 } from "@/lib/refresh-view";
+import { forecastCacheKey } from "@/lib/season-simulation-service";
 import {
   standingsCacheKey,
   storedForeignSeasons,
@@ -142,12 +143,12 @@ type Snapshot =
     };
 
 /**
- * The Redis entries a refetch must clear: the answer refetched and anything
- * computed from it, each key from its owner's builder. Season and name lists stay.
+ * The Redis entries holding what the provider answered: a refetch clears them
+ * so it asks again. The apply does not, so it reads what the preview saw.
  *
  * decisions/029-forced-season-refresh.md
  */
-export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
+function answerCacheKeys(choice: CompetitionChoice, seasonId: number): string[] {
   if (choice.source === "taso") {
     const competitionId = competitionIdForSeason(choice.code, seasonId);
     const categoryId = categoryIdForSeason(choice.code, seasonId);
@@ -156,11 +157,35 @@ export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): strin
       tasoCategoryCacheKey(competitionId, categoryId),
     ];
   }
+  return [footballDataMatchesCacheKey(choice.code, seasonId)];
+}
+
+/**
+ * The entries computed from the stored rows: the table, and the season forecast
+ * with the levels. Cleared by the refetch and again once the write has
+ * committed, or a request between the two caches the old rows' figures.
+ *
+ * decisions/029-forced-season-refresh.md
+ * decisions/064-season-simulation-zones.md
+ */
+function computedCacheKeys(choice: CompetitionChoice, seasonId: number): string[] {
+  if (choice.source === "taso") return [forecastCacheKey("taso", choice.code, seasonId)];
   return [
-    footballDataMatchesCacheKey(choice.code, seasonId),
     // The computed table, or the old standings show for fifteen minutes.
     standingsCacheKey(choice.code, seasonId),
+    forecastCacheKey("football-data", choice.code, seasonId),
   ];
+}
+
+/**
+ * The Redis entries a refetch must clear: the answer refetched and anything
+ * computed from it, each key from its owner's builder. Season and name lists stay.
+ *
+ * decisions/029-forced-season-refresh.md
+ * decisions/064-season-simulation-zones.md
+ */
+export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
+  return [...answerCacheKeys(choice, seasonId), ...computedCacheKeys(choice, seasonId)];
 }
 
 async function clearCaches(keys: string[]): Promise<boolean> {
@@ -497,6 +522,9 @@ export async function applyRefresh(
     return { ok: false, reason: "write" };
   }
 
+  // The write is committed; a failed clear is logged by the cache and the
+  // entries expire in fifteen minutes.
+  await clearCaches(computedCacheKeys(choice, seasonId));
   await recordSuccess(preview, adminId);
   return { ok: true, applied: preview };
 }

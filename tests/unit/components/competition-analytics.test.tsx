@@ -168,6 +168,7 @@ const forecast: SeasonForecast = {
       groupId: 0,
       groupName: null,
       decidesTitle: true,
+      zones: [],
       rows: [
         {
           teamProviderId: 57,
@@ -177,6 +178,7 @@ const forecast: SeasonForecast = {
           last: settled,
           topThree: settled,
           bottomThree: settled,
+          zones: [],
         },
       ],
     },

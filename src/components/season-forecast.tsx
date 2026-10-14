@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { QUALITY_LINK } from "@/components/match-prediction";
+import type { Zone } from "@/lib/competition-zones";
 import type {
   Chance,
   ForecastLayout,
@@ -62,13 +63,16 @@ export function chanceText(chance: Chance): string {
 
 /**
  * One column: its heading, what a row prints in it, and its width in pixels.
- * The team's column has none and takes what is left.
+ * The team's column has none and takes what is left. A zone's column has a
+ * `subheader` too, the places it covers, under its label.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 type ForecastColumn = {
   key: string;
   header: string;
+  subheader?: string;
   width?: number;
   text: (row: ForecastRow) => string;
 };
@@ -83,6 +87,7 @@ type ForecastColumn = {
 const POINTS_WIDTH = 72;
 const CHANCE_WIDTH = 76;
 const WIDE_CHANCE_WIDTH = 96;
+const ZONE_WIDTH = 112;
 const TEAM_MINIMUM = 112;
 
 function chanceColumn(
@@ -95,13 +100,27 @@ function chanceColumn(
 }
 
 /**
- * A table's columns: the title, top three and bottom three for a season with
- * one table; first and last place for one of several; first place only before
- * a split.
+ * The places a zone covers, as its column's second line: `sija 1`, `sijat 3–8`.
+ *
+ * decisions/064-season-simulation-zones.md
+ */
+export function zonePositionsText(zone: Zone): string {
+  return zone.from === zone.to ? `sija ${zone.from}` : `sijat ${zone.from}–${zone.to}`;
+}
+
+/**
+ * A table's columns: one per labelled zone when the group has any; else the
+ * title, top three and bottom three for a season with one table; first and
+ * last place for one of several; first place only before a split.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
-function columnsFor(layout: ForecastLayout, decidesTitle: boolean): ForecastColumn[] {
+function columnsFor(
+  layout: ForecastLayout,
+  decidesTitle: boolean,
+  zones: readonly Zone[]
+): ForecastColumn[] {
   const shared: ForecastColumn[] = [
     { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
     {
@@ -111,6 +130,18 @@ function columnsFor(layout: ForecastLayout, decidesTitle: boolean): ForecastColu
       text: (row) => formatDecimal(row.expectedPoints),
     },
   ];
+  if (zones.length > 0) {
+    return [
+      ...shared,
+      ...zones.map((zone, index) => ({
+        key: `zone-${zone.from}-${zone.to}-${index}`,
+        header: zone.label,
+        subheader: zonePositionsText(zone),
+        width: ZONE_WIDTH,
+        text: (row: ForecastRow) => chanceText(row.zones[index] as Chance),
+      })),
+    ];
+  }
   if (layout === "before-split") {
     return [
       ...shared,
@@ -141,15 +172,17 @@ function columnsFor(layout: ForecastLayout, decidesTitle: boolean): ForecastColu
 /**
  * One table's forecast, under the group's name when it has one. Fixed column
  * widths, so the tables of a season line up; narrower than `DataTable`'s,
- * whose 240px name column would push the chances off a phone's screen.
+ * whose 240px name column would push the chances off a phone's screen. The
+ * team's name stays in view when the table scrolls.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 function ForecastTableView({
   table,
   layout,
 }: Readonly<{ table: ForecastTable; layout: ForecastLayout }>) {
-  const columns = columnsFor(layout, table.decidesTitle);
+  const columns = columnsFor(layout, table.decidesTitle, table.zones);
   const [team, ...figures] = columns as [ForecastColumn, ...ForecastColumn[]];
   const minWidth = figures.reduce(
     (total, column) => total + (column.width as number),
@@ -172,7 +205,10 @@ function ForecastTableView({
           </colgroup>
           <thead>
             <tr className="border-border border-b text-muted">
-              <th className="py-2 pr-2 text-left align-bottom font-medium" scope="col">
+              <th
+                className="sticky left-0 bg-background py-2 pr-2 text-left align-bottom font-medium"
+                scope="col"
+              >
                 {team.header}
               </th>
               {figures.map((column) => (
@@ -182,6 +218,9 @@ function ForecastTableView({
                   scope="col"
                 >
                   {column.header}
+                  {column.subheader === undefined ? null : (
+                    <span className="block font-normal text-xs">{column.subheader}</span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -189,7 +228,10 @@ function ForecastTableView({
           <tbody>
             {table.rows.map((row) => (
               <tr className="border-border-subtle border-b" key={row.teamProviderId}>
-                <th className="py-2 pr-2 text-left font-semibold" scope="row">
+                <th
+                  className="sticky left-0 bg-background py-2 pr-2 text-left font-semibold"
+                  scope="row"
+                >
                   {team.text(row)}
                 </th>
                 {figures.map((column) => (
