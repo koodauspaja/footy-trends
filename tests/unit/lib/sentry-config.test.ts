@@ -135,6 +135,12 @@ describe("withDeniedQueriesFiltered", () => {
     );
   });
 
+  it("matches a name once percent-decoded, and leaves one that does not decode alone", () => {
+    expect(withDeniedQueriesFiltered("/x?%63ode=abc&%74oken=t&%E0%A4%A=1")).toBe(
+      "/x?%63ode=[Filtered]&%74oken=[Filtered]&%E0%A4%A=1"
+    );
+  });
+
   it("stops a value at a fragment, so a full referer stays intact around it", () => {
     expect(withDeniedQueriesFiltered("https://example.com/a?state=s1#top")).toBe(
       "https://example.com/a?state=[Filtered]#top"

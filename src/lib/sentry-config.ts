@@ -73,9 +73,18 @@ export function isDeniedName(name: string): boolean {
   return DENIED_NAME_PARTS.some((part) => lower.includes(part));
 }
 
+function decodedName(name: string): string {
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
+}
+
 /**
- * Text with the value of every denied query parameter in it filtered. Sentry
- * filters the query it extracts, not the raw URLs some span attributes keep.
+ * Text with the value of every denied query parameter in it filtered, its name
+ * matched once percent-decoded. Sentry filters the query it extracts, not the
+ * raw URLs some span attributes keep.
  *
  * decisions/565-sentry-11.md
  */
@@ -83,7 +92,7 @@ export function withDeniedQueriesFiltered(text: string): string {
   return text.replaceAll(
     /([?&])([^=&#\s]+)=([^&#\s]*)/g,
     (match, separator: string, name: string) =>
-      isDeniedName(name) ? `${separator}${name}=[Filtered]` : match
+      isDeniedName(decodedName(name)) ? `${separator}${name}=[Filtered]` : match
   );
 }
 
