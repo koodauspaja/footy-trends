@@ -1214,10 +1214,12 @@ function isBehindResults(
 
   const played = finishedMatchCounts(seasonMatches, groupId, entry?.parent ?? null);
   const points = new Map(standings.map((team) => [team.teamProviderId, team.points]));
-  const rows = teamRows.map((row) =>
-    rowAgainstOurs(row, played.get(row.teamProviderId) ?? 0, points.get(row.teamProviderId))
+  const rows = new Set(
+    teamRows.map((row) =>
+      rowAgainstOurs(row, played.get(row.teamProviderId) ?? 0, points.get(row.teamProviderId))
+    )
   );
-  return !rows.includes("differs") && rows.includes("behind");
+  return !rows.has("differs") && rows.has("behind");
 }
 
 /**
