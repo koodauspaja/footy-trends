@@ -112,7 +112,17 @@ export function expectedHome(homeRating: number, awayRating: number): number {
  * decisions/053-elo-ratings.md
  */
 export function threeWay(homeRating: number, awayRating: number, drawShare: number): ThreeWay {
-  const expected = expectedHome(homeRating, awayRating);
+  return splitThreeWay(expectedHome(homeRating, awayRating), drawShare);
+}
+
+/**
+ * The three outcomes from a home side's expected score: the draw is the
+ * competition's draw share, and home and away split the rest by it.
+ *
+ * decisions/053-elo-ratings.md
+ * decisions/060-elo-variants.md
+ */
+export function splitThreeWay(expected: number, drawShare: number): ThreeWay {
   return {
     home: (1 - drawShare) * expected,
     draw: drawShare,
@@ -152,7 +162,13 @@ function isRateable(match: EloMatch): boolean {
   return match.homeTeam !== PLACEHOLDER_TEAM_ID && match.awayTeam !== PLACEHOLDER_TEAM_ID;
 }
 
-function homeScore(match: EloMatch): number {
+/**
+ * The home side's score from a match: a win 1, a draw ½, a loss 0.
+ *
+ * decisions/053-elo-ratings.md
+ * decisions/060-elo-variants.md
+ */
+export function homeScore(match: EloMatch): number {
   if (match.homeGoals > match.awayGoals) return 1;
   return match.homeGoals === match.awayGoals ? 0.5 : 0;
 }
@@ -181,17 +197,27 @@ function predictCupTies(
 }
 
 /**
+ * A league match as one kickoff played it: the ratings both sides went in with.
+ *
+ * decisions/060-elo-variants.md
+ */
+export type PlayedMatch = { match: EloMatch; home: number; away: number };
+
+/**
  * Every match in kickoff order. Matches sharing a kickoff are all rated from
  * the ratings before any of them, then all update; a cup tie never updates.
- * `onPredict` sees each match with the ratings it was played at.
+ * `onPredict` sees each match with the ratings it was played at, and `onPlayed`
+ * each kickoff's league matches once their updates are applied.
  *
  * decisions/053-elo-ratings.md
  * decisions/052-predictions-log.md
  * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 export function replayElo(
   matches: readonly EloMatch[],
-  onPredict?: (match: EloMatch, homeRating: number, awayRating: number) => void
+  onPredict?: (match: EloMatch, homeRating: number, awayRating: number) => void,
+  onPlayed?: (played: readonly PlayedMatch[]) => void
 ): EloReplay {
   const ratings = new Map<number, TeamRating>();
   const history = new Map<number, EloHistoryPoint[]>();
@@ -242,6 +268,7 @@ export function replayElo(
         record(team, ratingFor(ratings, team, match.seasonId), match);
       }
     }
+    onPlayed?.(together);
     index = end;
   }
   return { ratings, history };

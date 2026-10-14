@@ -7,6 +7,7 @@
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/060-elo-variants.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -14,7 +15,8 @@ import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "./cache";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
-import { isRated, replayElo, type TeamRating } from "./elo";
+import { isRated, type TeamRating } from "./elo";
+import { replayVariants, type VariantState } from "./elo-variants";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
@@ -30,12 +32,14 @@ import {
   backtestKey,
   backtestRows,
   eloBacktestRows,
+  eloVariantBacktestRows,
   type FinishedMatch,
   missingBacktestRows,
   poissonBacktestRows,
 } from "./prediction-backtest";
 import {
   eloLiveRow,
+  eloVariantLiveRows,
   isLoggable,
   LOG_WINDOW_HOURS,
   type LogCandidate,
@@ -258,6 +262,7 @@ export type PredictionRunReport = {
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
  * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -306,7 +311,7 @@ export async function runPredictionLog(
   // read costs the Elo and Poisson rows only: the baseline's are still written,
   // and no row is ever made from ratings or strengths that were never read.
   const finished = readFinished();
-  const ratings = await finished.then(eloRatingsBySource, (error: unknown) => {
+  const elo = await finished.then(eloBySource, (error: unknown) => {
     logger.error({ err: error }, "Unable to read the Elo history for predictions");
     failures.push("elo ratings");
     return null;
@@ -330,15 +335,24 @@ export async function runPredictionLog(
       // A cup tie is logged by no model unless both sides are rated, which an
       // unread history cannot say.
       if (isPredictedCup(candidate.source, candidate.code)) {
-        const rated = ratings?.[candidate.source];
+        const rated = elo?.[candidate.source].ratings;
         if (rated === undefined || !isRated(rated, candidate.homeTeam)) return [];
         if (!isRated(rated, candidate.awayTeam)) return [];
       }
       return [
         liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt),
-        ratings === null
+        elo === null
           ? null
-          : eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
+          : eloLiveRow(candidate, elo[candidate.source].ratings, baseline, writtenAt),
+        ...(elo === null
+          ? []
+          : eloVariantLiveRows(
+              candidate,
+              elo[candidate.source].ratings,
+              elo[candidate.source].state,
+              baseline,
+              writtenAt
+            )),
         fits === null ? null : poissonLiveRow(candidate, fits[candidate.source], writtenAt),
       ].filter((row) => row !== null);
     });
@@ -364,16 +378,18 @@ export async function runPredictionLog(
 }
 
 /**
- * Each provider's current Elo ratings, replayed apart: the id spaces never meet.
+ * Each provider's current Elo ratings and the variants' state, from one replay
+ * each, apart: the id spaces never meet.
  *
  * decisions/053-elo-ratings.md
+ * decisions/060-elo-variants.md
  */
-function eloRatingsBySource(
+function eloBySource(
   finished: readonly FinishedMatch[]
-): Record<MatchSource["kind"], ReadonlyMap<number, TeamRating>> {
-  const ratingsOf = (source: MatchSource["kind"]) =>
-    replayElo(finished.filter((match) => match.source === source)).ratings;
-  return { "football-data": ratingsOf("football-data"), taso: ratingsOf("taso") };
+): Record<MatchSource["kind"], { ratings: ReadonlyMap<number, TeamRating>; state: VariantState }> {
+  const replayOf = (source: MatchSource["kind"]) =>
+    replayVariants(finished.filter((match) => match.source === source));
+  return { "football-data": replayOf("football-data"), taso: replayOf("taso") };
 }
 
 /**
@@ -532,6 +548,7 @@ async function writeMissingBacktest(
  * decisions/052-predictions-log.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/060-elo-variants.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
@@ -539,6 +556,7 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
   const rows = [
     ...baseline,
     ...eloBacktestRows(finished, baseline, now),
+    ...eloVariantBacktestRows(finished, baseline, now),
     ...poissonBacktestRows(finished, now),
   ];
   try {
