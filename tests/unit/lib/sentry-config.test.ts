@@ -141,6 +141,19 @@ describe("withDeniedQueriesFiltered", () => {
     );
   });
 
+  it("ends a value at whitespace, and reads a second query in a value as its own", () => {
+    expect(withDeniedQueriesFiltered("GET /x?code=abc HTTP/1.1")).toBe(
+      "GET /x?code=[Filtered] HTTP/1.1"
+    );
+    expect(withDeniedQueriesFiltered("/x?next=/y?state=s2&team=1")).toBe(
+      "/x?next=/y?state=[Filtered]&team=1"
+    );
+  });
+
+  it("leaves a name with no value and a lone separator alone", () => {
+    expect(withDeniedQueriesFiltered("/x?code&token&=v?")).toBe("/x?code&token&=v?");
+  });
+
   it("stops a value at a fragment, so a full referer stays intact around it", () => {
     expect(withDeniedQueriesFiltered("https://example.com/a?state=s1#top")).toBe(
       "https://example.com/a?state=[Filtered]#top"

@@ -81,6 +81,20 @@ function decodedName(name: string): string {
   }
 }
 
+function isValueEnd(char: string): boolean {
+  return char === "&" || char === "#" || /\s/.test(char);
+}
+
+function isNameEnd(char: string): boolean {
+  return char === "=" || isValueEnd(char);
+}
+
+function endOf(text: string, from: number, isEnd: (char: string) => boolean): number {
+  let index = from;
+  while (index < text.length && !isEnd(text.charAt(index))) index++;
+  return index;
+}
+
 /**
  * Text with the value of every denied query parameter in it filtered, its name
  * matched once percent-decoded. Sentry filters the query it extracts, not the
@@ -89,11 +103,21 @@ function decodedName(name: string): string {
  * decisions/565-sentry-11.md
  */
 export function withDeniedQueriesFiltered(text: string): string {
-  return text.replaceAll(
-    /([?&])([^=&#\s]+)=([^&#\s]*)/g,
-    (match, separator: string, name: string) =>
-      isDeniedName(decodedName(name)) ? `${separator}${name}=[Filtered]` : match
-  );
+  let result = "";
+  let index = 0;
+  while (index < text.length) {
+    const char = text.charAt(index);
+    result += char;
+    index++;
+    if (char !== "?" && char !== "&") continue;
+    const nameEnd = endOf(text, index, isNameEnd);
+    if (text.charAt(nameEnd) !== "=") continue;
+    const name = text.slice(index, nameEnd);
+    if (!isDeniedName(decodedName(name))) continue;
+    result += `${name}=[Filtered]`;
+    index = endOf(text, nameEnd + 1, isValueEnd);
+  }
+  return result;
 }
 
 function filteredAttribute(value: unknown): unknown {
