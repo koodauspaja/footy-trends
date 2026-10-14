@@ -580,7 +580,7 @@ describe("applyRefresh", () => {
     expect(state.deleteCalls).toBe(1);
   });
 
-  it("does not clear the cache again, so the apply reads what the preview saw", async () => {
+  it("clears only what is computed once the write commits, so the apply reads what the preview saw", async () => {
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam()];
 
@@ -590,6 +590,17 @@ describe("applyRefresh", () => {
     const { applyRefresh } = await import("@/lib/force-refresh");
     await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
 
+    // Not the provider's answers: asking again would double the load and could bounce the hash.
+    expect(state.invalidated).toEqual(["forecast:v3:taso:VL:2026"]);
+  });
+
+  it("clears nothing when the write is refused", async () => {
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    state.invalidated = [];
+
+    const refused = await applyRefresh(VEIKKAUSLIIGA, 2026, "not-the-hash", "admin-1");
+
+    expect(refused.ok).toBe(false);
     expect(state.invalidated).toEqual([]);
   });
 
@@ -916,6 +927,18 @@ describe("the foreign provider", () => {
     expect(result.ok).toBe(true);
     expect(synchronizeForeignMatches).toHaveBeenCalledTimes(1);
     expect(state.deleteCalls).toBe(0);
+  });
+
+  it("clears the computed table and forecast after the write, not the provider's answer", async () => {
+    state.storedMatches = [match(1)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+
+    const preview = await foreignHash();
+    state.invalidated = [];
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    await applyRefresh(PREMIER_LEAGUE, 2025, preview.snapshotHash, "admin-1");
+
+    expect(state.invalidated).toEqual(["standings:PL:2025", "forecast:v3:football-data:PL:2025"]);
   });
 
   it("applies through the foreign writer, never the TASO one", async () => {
