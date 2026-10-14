@@ -356,8 +356,9 @@ Suggested literals, chosen to be obviously non-secret at a glance:
 - The only personal data stored is name, email and avatar URL — what the
   `openid email profile` scopes already return. No extra scope is requested.
 - **Sentry:** signing in must not start sending user emails to Sentry.
-  `SENTRY_SEND_DEFAULT_PII` is already unset in production per
-  `docs/setup/021-production-environment.md`; this spec adds no `setUser` call.
+  `DATA_COLLECTION` in `src/lib/sentry-config.ts` sets `userInfo: false` and
+  denies cookie, credential and OAuth-callback names (decisions/565); this spec
+  adds no `setUser` call.
 
 ## Acceptance Criteria
 

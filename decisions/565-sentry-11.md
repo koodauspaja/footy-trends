@@ -17,7 +17,7 @@ and by `scripts/verify-sentry.ts`. Decided by Miikka, 2026-10-14.
 | `userInfo` | `false` | No IP address, as v10 with `sendDefaultPii: false` |
 | `cookies` | `false` | v10's "off" mapping kept cookies, and production's events carried the session cookie (Measured) |
 | `httpHeaders` | request and response deny `DENIED_NAME_PARTS` | v10's five address and proxy parts, plus `cookie`, `auth`, `token`, `session`, `secret`, `key`: the `Authorization` header reached Sentry too |
-| `urlQueryParams` | deny `DENIED_NAME_PARTS` | The same names, in a query |
+| `urlQueryParams` | deny `DENIED_NAME_PARTS` | The same names, in a query. `password`, `passwd`, and the OAuth callback's `code` and `state` are on the list too: Google's callback, `/api/auth/callback/google`, carries both in its query |
 | `httpBodies` | `[]` | v10 sent none |
 | `databaseQueryData`, `genAI`, `queues` | off | v10 sent none. `queues` is new in v11 and not in its migration guide; the type check found it |
 | `graphQL`, `stackFrameVariables`, `frameContextLines` | as v10: on, on, `7` | No change was decided |
@@ -30,6 +30,7 @@ and by `scripts/verify-sentry.ts`. Decided by Miikka, 2026-10-14.
 | `enableLogs` removed, with nothing in its place | In v10 it acted only through `Sentry.logger`, `consoleLoggingIntegration` or `pinoIntegration`. The app uses none, and Pino's integration is not a default, so no log ever reached Sentry. |
 | v11's span streaming kept | `traceLifecycle: 'static'` is temporary and goes in v12. `tracesSampleRate` still applies. No Sentry alert or dashboard reads transactions. |
 | v11's `attachStacktrace` kept | It changes `captureMessage`, which the app does not call, and non-`Error` values passed to `captureException`, which gain a stack. |
+| `beforeSendSpan: filterSpanQueries`, in all three runtimes | Sentry filters the query it extracts (`url.full`, `url.query`, an event's `request`) but not the raw URL that `http.target` and the referer header keep on a span, so a sampled OAuth callback sent its `code` in clear. The filter applies the deny list to every string attribute and the span's name, so an attribute not yet seen is covered too. Found by Sourcery on the pull request. |
 | The `@sentry/cli` install-script allowance removed | v11 no longer depends on it. Nothing uploads source maps: no `SENTRY_AUTH_TOKEN` is set anywhere. |
 
 ## Measured
@@ -55,9 +56,8 @@ searched for each value.
 
 v10 applies the header deny list to span attributes only: on an error event it
 removes the cookie header and the IP headers and nothing else, which is why
-`Authorization` survived the first step. The query value in `http.target` is
-the same before and after, and the app puts no credential in a query of its
-own. The edge runtime was not measured: the app has no middleware and no edge
+`Authorization` survived the first step. The query value in `http.target` was
+the same before and after: `filterSpanQueries` closes it (the table above). The edge runtime was not measured: the app has no middleware and no edge
 route, so nothing runs there.
 
 ## Release step

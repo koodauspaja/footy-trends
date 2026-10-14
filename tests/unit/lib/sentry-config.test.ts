@@ -3,7 +3,10 @@ import {
   DATA_COLLECTION,
   DEFAULT_TRACES_SAMPLE_RATE,
   DENIED_NAME_PARTS,
+  filterSpanQueries,
+  isDeniedName,
   sampleRateFrom,
+  withDeniedQueriesFiltered,
 } from "@/lib/sentry-config";
 
 /**
@@ -74,10 +77,9 @@ describe("DATA_COLLECTION", () => {
   });
 });
 
-describe("DENIED_NAME_PARTS", () => {
-  // Sentry denies a name when it contains any part, case-insensitively.
-  const denied = (name: string) =>
-    DENIED_NAME_PARTS.some((part) => name.toLowerCase().includes(part));
+describe("isDeniedName", () => {
+  // As Sentry matches the deny list: a name containing any part, case-insensitively.
+  const denied = isDeniedName;
 
   it("denies the names that carry an address or a proxy hop", () => {
     for (const name of [
@@ -102,6 +104,10 @@ describe("DENIED_NAME_PARTS", () => {
       "X-Session-Id",
       "Client-Secret",
       "token",
+      "password",
+      "X-Passwd",
+      "code",
+      "state",
     ]) {
       expect(denied(name), name).toBe(true);
     }
@@ -111,5 +117,66 @@ describe("DENIED_NAME_PARTS", () => {
     for (const name of ["User-Agent", "Accept", "Content-Type", "Host", "Referer", "team"]) {
       expect(denied(name), name).toBe(false);
     }
+  });
+});
+
+describe("withDeniedQueriesFiltered", () => {
+  it("filters the OAuth callback's code and state, and keeps the rest of the query", () => {
+    expect(
+      withDeniedQueriesFiltered(
+        "/api/auth/callback/google?code=4%2F0Ab-secret&state=xyz&scope=email"
+      )
+    ).toBe("/api/auth/callback/google?code=[Filtered]&state=[Filtered]&scope=email");
+  });
+
+  it("filters a denied name whatever its case, and an empty value", () => {
+    expect(withDeniedQueriesFiltered("/x?Password=hunter2&token=&team=1")).toBe(
+      "/x?Password=[Filtered]&token=[Filtered]&team=1"
+    );
+  });
+
+  it("stops a value at a fragment, so a full referer stays intact around it", () => {
+    expect(withDeniedQueriesFiltered("https://example.com/a?state=s1#top")).toBe(
+      "https://example.com/a?state=[Filtered]#top"
+    );
+  });
+
+  it("leaves text with no denied query parameter as it was", () => {
+    expect(withDeniedQueriesFiltered("GET /kotimaa/sarjataulukko?kausi=2026&team=1")).toBe(
+      "GET /kotimaa/sarjataulukko?kausi=2026&team=1"
+    );
+    expect(withDeniedQueriesFiltered("Router")).toBe("Router");
+  });
+});
+
+describe("filterSpanQueries", () => {
+  const span = {
+    trace_id: "t",
+    span_id: "s",
+    name: "GET /api/auth/callback/google?code=abc",
+    start_timestamp: 1,
+    status: "ok" as const,
+    is_segment: true,
+    attributes: {
+      "http.target": "/api/auth/callback/google?code=abc&state=def",
+      "http.request.header.referer": ["https://example.com/?token=t1&team=1"],
+      "url.full": { value: "https://example.com/?code=abc" },
+      "http.response.status_code": 302,
+      "sentry.op": "http.server",
+    },
+  };
+
+  it("filters denied query values in the name and in string, list and object attributes", () => {
+    expect(filterSpanQueries(span)).toEqual({
+      ...span,
+      name: "GET /api/auth/callback/google?code=[Filtered]",
+      attributes: {
+        "http.target": "/api/auth/callback/google?code=[Filtered]&state=[Filtered]",
+        "http.request.header.referer": ["https://example.com/?token=[Filtered]&team=1"],
+        "url.full": { value: "https://example.com/?code=[Filtered]" },
+        "http.response.status_code": 302,
+        "sentry.op": "http.server",
+      },
+    });
   });
 });

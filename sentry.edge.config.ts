@@ -2,7 +2,7 @@
 // locally too; it is unrelated to the Vercel Edge Runtime.
 
 import * as Sentry from "@sentry/nextjs";
-import { DATA_COLLECTION, sampleRateFrom } from "@/lib/sentry-config";
+import { DATA_COLLECTION, filterSpanQueries, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
  * Read from the environment so production can differ from staging. Unset,
@@ -19,6 +19,7 @@ Sentry.init({
   // How likely a trace is sampled.
   tracesSampleRate,
 
-  // What an event may carry.
+  // What an event may carry, and no credential left in a span's raw URL.
   dataCollection: DATA_COLLECTION,
+  beforeSendSpan: filterSpanQueries,
 });

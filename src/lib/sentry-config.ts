@@ -36,10 +36,12 @@ export function sampleRateFrom(
 }
 
 type DataCollection = NonNullable<Parameters<typeof init>[0]["dataCollection"]>;
+type SpanJSON = Parameters<NonNullable<Parameters<typeof init>[0]["beforeSendSpan"]>>[0];
 
 /**
- * Header and query names never sent: an address, a proxy hop, or a credential.
- * Matched as parts of a name, case-insensitively.
+ * Header and query names never sent: an address, a proxy hop, or a credential,
+ * the OAuth callback's `code` and `state` among them. Matched as parts of a
+ * name, case-insensitively.
  *
  * decisions/565-sentry-11.md
  */
@@ -55,7 +57,61 @@ export const DENIED_NAME_PARTS = [
   "session",
   "secret",
   "key",
+  "password",
+  "passwd",
+  "code",
+  "state",
 ];
+
+/**
+ * Whether a header or query name is never sent.
+ *
+ * decisions/565-sentry-11.md
+ */
+export function isDeniedName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return DENIED_NAME_PARTS.some((part) => lower.includes(part));
+}
+
+/**
+ * Text with the value of every denied query parameter in it filtered. Sentry
+ * filters the query it extracts, not the raw URLs some span attributes keep.
+ *
+ * decisions/565-sentry-11.md
+ */
+export function withDeniedQueriesFiltered(text: string): string {
+  return text.replaceAll(
+    /([?&])([^=&#\s]+)=([^&#\s]*)/g,
+    (match, separator: string, name: string) =>
+      isDeniedName(name) ? `${separator}${name}=[Filtered]` : match
+  );
+}
+
+function filteredAttribute(value: unknown): unknown {
+  if (typeof value === "string") return withDeniedQueriesFiltered(value);
+  if (Array.isArray(value)) return value.map(filteredAttribute);
+  if (value !== null && typeof value === "object" && "value" in value) {
+    return { ...value, value: filteredAttribute(value.value) };
+  }
+  return value;
+}
+
+/**
+ * A span with denied query values filtered from its name and every string
+ * attribute, `http.target` and the referer among them.
+ *
+ * decisions/565-sentry-11.md
+ */
+export function filterSpanQueries(span: SpanJSON): SpanJSON {
+  const attributes = Object.fromEntries(
+    Object.entries(span.attributes).map(([key, value]) => [key, filteredAttribute(value)])
+  );
+  return {
+    ...span,
+    name: withDeniedQueriesFiltered(span.name),
+    attributes: attributes as SpanJSON["attributes"],
+  };
+}
 
 /**
  * What an event may carry, in every environment. Every category is stated, so

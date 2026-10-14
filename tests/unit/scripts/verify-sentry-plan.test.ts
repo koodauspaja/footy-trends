@@ -50,7 +50,7 @@ describe("buildMarker", () => {
 
 describe("describeSettings", () => {
   it("shows the sample rate the server runtime would use", () => {
-    expect(describeSettings({ tracesSampleRate: 0.1 })).toBe("tracesSampleRate=0.1");
+    expect(describeSettings({ tracesSampleRate: 0.25 })).toBe("tracesSampleRate=0.25");
   });
 });
 

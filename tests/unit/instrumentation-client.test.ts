@@ -43,11 +43,12 @@ describe("instrumentation-client", () => {
   });
 
   it("reads the NEXT_PUBLIC_ sample rate, the only one a browser can see", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "0.1");
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "0.25");
 
     await load();
 
-    expect(init).toHaveBeenCalledWith(expect.objectContaining({ tracesSampleRate: 0.1 }));
+    // Not 0.1, the default, which an ignored variable would also give.
+    expect(init).toHaveBeenCalledWith(expect.objectContaining({ tracesSampleRate: 0.25 }));
   });
 
   it("limits what an event carries with the shared setting, and passes no option v11 removed", async () => {
@@ -56,6 +57,10 @@ describe("instrumentation-client", () => {
     const options = init.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
 
     expect(options?.dataCollection).toEqual(DATA_COLLECTION);
+    const filter = options?.beforeSendSpan as (span: { name: string; attributes: object }) => {
+      name: string;
+    };
+    expect(filter({ name: "GET /x?code=abc", attributes: {} }).name).toBe("GET /x?code=[Filtered]");
     expect(options && "sendDefaultPii" in options).toBe(false);
     expect(options && "enableLogs" in options).toBe(false);
   });
