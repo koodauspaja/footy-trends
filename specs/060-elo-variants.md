@@ -1,8 +1,9 @@
 # 060 — Elo variants: recent form, and each team's own home advantage
 
-> **Status: all questions (Q1–Q10) answered in chat on 2026-10-01. Strings may
-> be fine-tuned during implementation. Built once specs/054 has a few weeks of
-> live predictions (S9).** Written for #346, release 4 in the
+> **Status: Q1–Q10 answered in chat on 2026-10-01; S9 reworded and S11–S13
+> added on 2026-10-14, re-read against `main` after specs/055 to 059, and the
+> spec confirmed the same day. Strings may be fine-tuned during implementation.**
+> Written for #346, release 4 in the
 > predictions plan. Two variants of specs/053's Elo, filed together because
 > they change the same rating loop. The plan said they are worth having only
 > if specs/054's measurements show room for Elo to improve (Q9).
@@ -44,8 +45,11 @@ better than plain Elo.
 | S6 | `/ennusteet` | **Beside the other models in every figure and in `Kilpailuittain`; the table scrolls within itself at 375 px** | Miikka, 2026-10-01 (Q6). |
 | S7 | Backtest | **Both, from strictly earlier matches, re-run per environment after release** | Miikka, 2026-10-01 (Q7). specs/052 S14. |
 | S8 | Constants | **Window 5, weight 20, home K 4, bounds 0–150, fixed in `-v1`** | Miikka, 2026-10-01 (Q8). |
-| S9 | When to build | **Spec now; build once specs/054 has a few weeks of live predictions** | Miikka, 2026-10-01 (Q9). #346 waits in Backlog until then. |
+| S9 | When to build | **Not gated on a date: the variants are judged on the backtest from the day they ship and on live rows as these accumulate.** Overrides the wait for a few weeks of live predictions of 2026-10-01 | Miikka, 2026-10-14 (Q3): "Backtests are enough; S9 reworded (Recommended)". `elo-v1` had about two weeks of live rows and `poisson-v1` two days; both have backtests. |
 | S10 | Names | **`Elo + vire` (`elo-form-v1`) and `Elo + kotietu` (`elo-home-v1`), after `Elo`** | Miikka, 2026-10-01 (Q10). |
+| S11 | Cup ties (specs/059) | **Both variants predict the same matches `elo-v1` does, cup ties included, from league state, without updating it: a cup tie moves no rating, form or home advantage, and the form window and home advantage count league matches only** | Miikka, 2026-10-14 (Q2): "Yes, from league state, no update (Recommended)". specs/059 S2 for `elo-v1`; a model that skipped cups would drop cup ties from every figure, since only matches all models predicted are judged. |
+| S12 | Logging | **Nothing new** | Miikka, 2026-10-14 (Q1): "Both 'nothing new' (Recommended)". The hourly run's `info` line already counts the rows it writes, and every failure is logged where it is today. |
+| S13 | Caching | **Nothing new** | Miikka, 2026-10-14 (Q1). The models read through their existing reads. |
 
 ## UX / UI (Finnish strings)
 
@@ -76,6 +80,8 @@ Only on `/ennusteet` (S5, S6): the variants' names in its legends, tables and
 | A new season | Home advantage a third of the way back to 60 (S4) |
 | Matches at one kickoff | Each from the state before any of them, as specs/053 S14 |
 | A placeholder side | No row, as specs/053 |
+| A cup tie (specs/059) | Predicted from league state, nothing updated (S11) |
+| A team's first league match of a season, with cup ties played before it | No form term: cup ties are not in the window (S11) |
 
 ## Performance & Limits
 
@@ -85,11 +91,20 @@ Two more replays of about 28 000 matches, each milliseconds (decisions/053).
 
 No new environment variable or secret.
 
+## Logging
+
+None new (S12): the hourly run's `info` line counts the rows it writes, both
+variants' and cup ties' included, and a failure is logged where it is today.
+No personal data.
+
+**Caching:** nothing new (S13).
+
 ## Acceptance Criteria
 
 - [ ] `elo-form-v1` adds `20 × Σ (S − E)` over the team's last five current-season matches to its rating at prediction, the rating itself unchanged
 - [ ] `elo-home-v1` gives each team its own home advantage, from 60, moved by `4 × (S − E)` after each home match, within 0–150, regressed a third towards 60 each season
 - [ ] `elo-v1`'s predictions are unchanged
+- [ ] Both predict a cup tie from league state and move no rating, form or home advantage on one
 - [ ] Both are logged live and backtested from strictly earlier matches
 - [ ] `/ennusteet` shows both beside the other models in every figure and in `Kilpailuittain`; `Ennuste` does not
 - [ ] No provider request
@@ -114,5 +129,6 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 ## Open Questions
 
-**None.** Q1–Q10 were answered in chat on 2026-10-01 and are recorded as
-S1–S10.
+**None.** Q1–Q10 were answered on 2026-10-01 and are S1–S10; the three
+questions of 2026-10-14 (S9 reworded, S11, and S12–S13) are answered too, and
+the spec is confirmed.
