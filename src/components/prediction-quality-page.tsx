@@ -5,7 +5,7 @@ import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_MODEL } from "@/lib/elo";
-import { HOME_BASELINE_MODEL } from "@/lib/home-baseline";
+import { HOME_BASELINE_MODEL, isPredictedCup } from "@/lib/home-baseline";
 import type { MatchSource } from "@/lib/match-source";
 import { POISSON_MODEL } from "@/lib/poisson";
 import {
@@ -57,6 +57,13 @@ export const BY_COMPETITION_HEADING = "Kilpailuittain";
 export const BY_COMPETITION_NOTE =
   "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi.";
 export const ALL_COMPETITIONS_LINK = "Kaikki kilpailut";
+/**
+ * Under `Kilpailuittain` when a cup has a row: the figures above leave it out.
+ *
+ * decisions/059-cup-predictions.md
+ */
+export const CUPS_APART_NOTE =
+  "Suomen Cupit näytetään omina riveinään, eivätkä ne sisälly yllä oleviin kokonaislukuihin.";
 
 /**
  * Each model's name on the page.
@@ -451,6 +458,9 @@ function Report({
       <ChartPanel heading={BY_COMPETITION_HEADING} headingId="quality-competitions">
         <CompetitionTable competition={competition} kind={kind} report={report} source={source} />
         <p className="mt-2 text-muted text-sm">{BY_COMPETITION_NOTE}</p>
+        {report.competitions.some((row) => isPredictedCup(source, row.code)) ? (
+          <p className="mt-1 text-muted text-sm">{CUPS_APART_NOTE}</p>
+        ) : null}
       </ChartPanel>
     </div>
   );

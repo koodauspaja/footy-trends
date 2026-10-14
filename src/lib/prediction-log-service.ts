@@ -14,10 +14,9 @@ import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "./cache";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
-import { replayElo, type TeamRating } from "./elo";
+import { isRated, replayElo, type TeamRating } from "./elo";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
-import { COMPETITIONS } from "./goals-per-game";
-import { HOME_BASELINE_MODEL } from "./home-baseline";
+import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
@@ -61,12 +60,13 @@ const HOUR_MS = 60 * 60 * 1000;
  */
 const WRITE_BATCH = 1000;
 
-const TASO_CODES = [...COMPETITIONS.taso];
+const TASO_CODES = [...PREDICTED_COMPETITIONS.taso];
 
 /**
- * Stored matches of the compared competitions kicking off inside either window.
+ * Stored matches of the predicted competitions kicking off inside either window.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 async function readCandidates(now: Date): Promise<LogCandidate[]> {
   const from = new Date(now.getTime() - RESULT_WINDOW_HOURS * HOUR_MS);
@@ -88,7 +88,7 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
       .from(matches)
       .where(
         and(
-          inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+          inArray(matches.competitionCode, [...PREDICTED_COMPETITIONS["football-data"]]),
           gt(matches.kickoffAt, from),
           lte(matches.kickoffAt, to)
         )
@@ -257,6 +257,7 @@ export type PredictionRunReport = {
  * decisions/603-server-side-records.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -326,6 +327,13 @@ export async function runPredictionLog(
     .flatMap((candidate) => {
       const baseline = baselines.get(keyOf(candidate));
       if (baseline === undefined) return [];
+      // A cup tie is logged by no model unless both sides are rated, which an
+      // unread history cannot say.
+      if (isPredictedCup(candidate.source, candidate.code)) {
+        const rated = ratings?.[candidate.source];
+        if (rated === undefined || !isRated(rated, candidate.homeTeam)) return [];
+        if (!isRated(rated, candidate.awayTeam)) return [];
+      }
       return [
         liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt),
         ratings === null
@@ -387,13 +395,14 @@ function poissonFitsBySource(
 }
 
 /**
- * Every stored finished match of the compared competitions, its score after
- * extra time, with its teams and season: of both providers unless told which.
- * The backtests, the live ratings and fits, and the pages' all read it.
+ * Every stored finished match of the predicted competitions, a cup tie marked,
+ * its score after extra time: of both providers unless told which. The
+ * backtests, the live ratings and fits, and the pages' all read it.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 export async function readFinished(
   sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
@@ -415,7 +424,7 @@ export async function readFinished(
           .from(matches)
           .where(
             and(
-              inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+              inArray(matches.competitionCode, [...PREDICTED_COMPETITIONS["football-data"]]),
               eq(matches.status, FINISHED_STATUS),
               isNotNull(matches.homeGoals),
               isNotNull(matches.awayGoals)
@@ -453,7 +462,17 @@ export async function readFinished(
       // Both scores are non-null by the query; the check narrows the type.
       return code === null || homeGoals === null || awayGoals === null
         ? []
-        : [{ source: "taso" as const, code, seasonId, homeGoals, awayGoals, ...row }];
+        : [
+            {
+              source: "taso" as const,
+              code,
+              seasonId,
+              homeGoals,
+              awayGoals,
+              ...row,
+              ...(isPredictedCup("taso", code) ? { cup: true } : {}),
+            },
+          ];
     }),
   ];
 }

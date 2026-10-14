@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -71,12 +72,26 @@ describe("getPredictionQuality", () => {
       );
   });
 
+  it("keeps the Suomen Cups out of the domestic figures of all, each in its own row", async () => {
+    const models = ["home-baseline-v1", "elo-v1", "poisson-v1"];
+    mocks.select.mockResolvedValueOnce([
+      ...models.map((model) => row(model, 1, 2, 0, "VL")),
+      ...models.map((model) => row(model, 2, 0, 1, "MSC")),
+    ]);
+
+    const report = await getPredictionQuality("taso", "backtest", null);
+
+    if (report.status !== "ok") throw new Error("Expected a report");
+    expect(report.matches).toBe(1);
+    expect(report.competitions.map((competition) => competition.code)).toEqual(["VL", "MSC"]);
+  });
+
   it("judges the baseline, Elo and Poisson, from 2016 domestically and 2023 for football-data", () => {
     expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
   });
 
-  it("lists a provider's compared competitions in its picker's order", () => {
+  it("lists a provider's predicted competitions in its picker's order, the Suomen Cups last", () => {
     expect(qualityCompetitions("taso")).toEqual([
       "VL",
       "M1L",
@@ -88,6 +103,8 @@ describe("getPredictionQuality", () => {
       "P211",
       "P18SM",
       "T18SM",
+      "MSC",
+      "NSC",
     ]);
     expect(qualityCompetitions("football-data")).toEqual([
       "PL",

@@ -11,6 +11,7 @@ import type { QualityResult } from "@/lib/prediction-quality-service";
  * decisions/050-table-volatility.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ import {
   BY_COMPETITION_NOTE,
   CALIBRATION_HEADING,
   CALIBRATION_NOTE,
+  CUPS_APART_NOTE,
   filteredSentence,
   LOG_LOSS_NOTE,
   modelLabel,
@@ -463,6 +465,33 @@ describe("PredictionQualityPage", () => {
     );
     expect(screen.getByRole("link", { name: "Veikkausliiga" })).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: ALL_COMPETITIONS_LINK })).not.toBeInTheDocument();
+  });
+
+  it("lists a Suomen Cup's row, and says the figures above leave the cups out", async () => {
+    getPredictionQuality.mockResolvedValue({
+      ...report,
+      competitions: [
+        ...report.competitions,
+        { code: "MSC", matches: 210, brier: [0.66, 0.63, 0.64], best: [false, true, false] },
+      ],
+    });
+    await renderPage();
+
+    const panel = screen.getByRole("region", { name: BY_COMPETITION_HEADING });
+    expect(within(panel).getByRole("link", { name: "Miesten Suomen Cup" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=MSC"
+    );
+    expect(within(panel).getByText(CUPS_APART_NOTE)).toBeInTheDocument();
+    expect(CUPS_APART_NOTE).toBe(
+      "Suomen Cupit näytetään omina riveinään, eivätkä ne sisälly yllä oleviin kokonaislukuihin."
+    );
+  });
+
+  it("does not say so without a cup's row", async () => {
+    await renderPage();
+
+    expect(screen.queryByText(CUPS_APART_NOTE)).not.toBeInTheDocument();
   });
 
   it("names football-data's competitions from its own registry", async () => {

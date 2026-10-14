@@ -7,10 +7,12 @@
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
  */
 
 import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
 import { HOME_BASELINE_MODEL, homeBaseline } from "./home-baseline";
+import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 import type { MatchSource } from "./match-source";
 import { POISSON_MODEL, replayPoisson } from "./poisson";
 import type { PredictionRow } from "./prediction-log";
@@ -49,11 +51,38 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 }
 
 /**
+ * Whether a match can be predicted for its sides: always in a league; in a cup
+ * only when both played a league match at an earlier kickoff, as Elo rates them.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function ratedSides(finished: readonly FinishedMatch[]): (match: FinishedMatch) => boolean {
+  const firstLeagueKickoff = new Map<string, number>();
+  for (const match of finished) {
+    if (match.cup) continue;
+    for (const team of [match.homeTeam, match.awayTeam]) {
+      if (team === PLACEHOLDER_TEAM_ID) continue;
+      const key = `${match.source}:${team}`;
+      const kickoff = match.kickoffAt.getTime();
+      if (kickoff < (firstLeagueKickoff.get(key) ?? Number.POSITIVE_INFINITY)) {
+        firstLeagueKickoff.set(key, kickoff);
+      }
+    }
+  }
+  const ratedBy = (match: FinishedMatch, team: number) =>
+    (firstLeagueKickoff.get(`${match.source}:${team}`) ?? Number.POSITIVE_INFINITY) <
+    match.kickoffAt.getTime();
+  return (match) =>
+    !match.cup || (ratedBy(match, match.homeTeam) && ratedBy(match, match.awayTeam));
+}
+
+/**
  * One `backtest` row per match with an earlier finished match in its
- * competition. Matches sharing a kickoff are predicted from the same tally and
- * added to it together; a competition's first kickoff gets no row.
+ * competition, and in a cup only between rated sides. Matches sharing a kickoff
+ * are predicted from one tally and added to it together.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export function backtestRows(
   finished: readonly FinishedMatch[],
@@ -66,6 +95,7 @@ export function backtestRows(
     byCompetition.set(key, [...(byCompetition.get(key) ?? []), match]);
   }
 
+  const predictable = ratedSides(finished);
   const rows: PredictionRow[] = [];
   for (const matches of byCompetition.values()) {
     const ordered = matches.toSorted(
@@ -79,7 +109,7 @@ export function backtestRows(
       let end = index;
       while (ordered[end]?.kickoffAt.getTime() === kickoff) end += 1;
       const together = ordered.slice(index, end);
-      for (const match of together) {
+      for (const match of together.filter(predictable)) {
         const baseline = sharesOf(tally, match.code, match.source);
         if (baseline.status !== "ok") continue;
         rows.push({

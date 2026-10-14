@@ -9,6 +9,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * are seeded with fixtures in 2099, a season nothing else stores. No probability is named.
  *
  * decisions/058-rivalry-prediction.md
+ * decisions/059-cup-predictions.md
  */
 
 const SEASON = 2099;
@@ -21,10 +22,24 @@ const NEXT_ID = 999_058_002;
 const CUP_PLAYED_ID = 999_058_003;
 const CUP_NEXT_ID = 999_058_004;
 const CUP_LEAGUE_ID = 999_058_005;
-const IDS = [PLAYED_ID, NEXT_ID, CUP_PLAYED_ID, CUP_NEXT_ID, CUP_LEAGUE_ID];
+// A third pair has met only in the cup, so the leagues have rated neither side.
+const CUP_ONLY_HOME = 999_058_105;
+const CUP_ONLY_AWAY = 999_058_106;
+const CUP_ONLY_PLAYED_ID = 999_058_006;
+const CUP_ONLY_NEXT_ID = 999_058_007;
+const IDS = [
+  PLAYED_ID,
+  NEXT_ID,
+  CUP_PLAYED_ID,
+  CUP_NEXT_ID,
+  CUP_LEAGUE_ID,
+  CUP_ONLY_PLAYED_ID,
+  CUP_ONLY_NEXT_ID,
+];
 
 const RIVALRY = `/kotimaa/kohtaamiset/${AWAY}/${HOME}`;
 const CUP_RIVALRY = `/kotimaa/kohtaamiset/${CUP_HOME}/${CUP_AWAY}`;
+const CUP_ONLY_RIVALRY = `/kotimaa/kohtaamiset/${CUP_ONLY_HOME}/${CUP_ONLY_AWAY}`;
 const GROUP = "Seuraava kohtaaminen";
 const QUALITY_LINK = "Kuinka hyvin ennusteet ovat osuneet?";
 const MOVES_NOTE =
@@ -79,6 +94,13 @@ test.beforeAll(async () => {
       fixture(CUP_PLAYED_ID, [CUP_HOME, CUP_AWAY], PLAYED_AT, "VL", 1),
       fixture(CUP_NEXT_ID, [CUP_HOME, CUP_AWAY], new Date(`${SEASON}-04-01T15:00:00Z`), "MSC"),
       fixture(CUP_LEAGUE_ID, [CUP_HOME, CUP_AWAY], new Date(`${SEASON}-05-01T15:00:00Z`)),
+      fixture(CUP_ONLY_PLAYED_ID, [CUP_ONLY_HOME, CUP_ONLY_AWAY], PLAYED_AT, "MSC", 1),
+      fixture(
+        CUP_ONLY_NEXT_ID,
+        [CUP_ONLY_HOME, CUP_ONLY_AWAY],
+        new Date(`${SEASON}-04-01T15:00:00Z`),
+        "MSC"
+      ),
     ])}`;
   });
 });
@@ -151,10 +173,22 @@ test.describe("The next meeting, signed in", () => {
     await expect(page.getByText("Näytetään vain kilpailu Veikkausliiga.")).toBeVisible();
   });
 
-  test("has no group when the next meeting is a cup tie, a later league meeting or not", async ({
+  test("predicts the next meeting when it is a Suomen Cup tie between rated sides", async ({
     page,
   }) => {
     await page.goto(CUP_RIVALRY);
+
+    const group = page.getByRole("region", { name: GROUP });
+    await expect(group.getByText("01.04.2099 klo 18.00 · Miesten Suomen Cup")).toBeVisible();
+    await expect(
+      group.getByRole("table").first().getByRole("row").locator("th[scope=row]")
+    ).toContainText(["Perustaso", "Elo"]);
+  });
+
+  test("has no group when the next meeting is a cup tie between sides the leagues have not rated", async ({
+    page,
+  }) => {
+    await page.goto(CUP_ONLY_RIVALRY);
 
     await expect(page.getByRole("heading", { level: 2 })).toHaveText([
       "Nykyinen vire",

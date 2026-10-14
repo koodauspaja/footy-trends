@@ -16,6 +16,7 @@ import {
  * decisions/051-home-win-baseline.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
  */
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -288,5 +289,92 @@ describe("missingBacktestRows", () => {
     );
 
     expect(missingBacktestRows([taso, later], written, NOW)).toHaveLength(3);
+  });
+});
+
+describe("a cup's backtest rows", () => {
+  const cup = (n: number, home: number, away: number, overrides: Partial<FinishedMatch> = {}) =>
+    played(n, home, away, { code: "MSC", cup: true, ...overrides });
+
+  it("predicts a tie only between sides with a league match at an earlier kickoff", () => {
+    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    const opener = cup(2, 2, 0, { homeTeam: 1, awayTeam: 2 });
+    const rated = cup(3, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const outsider = cup(4, 0, 1, { homeTeam: 9, awayTeam: 1 });
+    const sameKickoff = cup(5, 1, 0, { homeTeam: 7, awayTeam: 1 });
+    const seven = played(5, 1, 0, { homeTeam: 7, awayTeam: 2 });
+
+    const rows = backtestRows(
+      [league, opener, rated, outsider, sameKickoff, seven],
+      "home-baseline-v1",
+      NOW
+    );
+    const ids = rows.map((row) => row.providerMatchId);
+
+    // The opener is the cup's first tie: no history yet.
+    expect(ids).toContain(rated.providerMatchId);
+    expect(ids).not.toContain(outsider.providerMatchId);
+    expect(ids).not.toContain(sameKickoff.providerMatchId);
+  });
+
+  it("tallies every tie of the cup, rated or not, into its own baseline", () => {
+    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    // Two ties with an outsider, both won at home, then a rated tie.
+    const ties = [
+      cup(2, 1, 0, { homeTeam: 9, awayTeam: 1 }),
+      cup(3, 1, 0, { homeTeam: 8, awayTeam: 2 }),
+    ];
+    const rated = cup(4, 0, 0, { homeTeam: 1, awayTeam: 2 });
+
+    const [row] = backtestRows([league, ...ties, rated], "home-baseline-v1", NOW).filter(
+      (candidate) => candidate.providerMatchId === rated.providerMatchId
+    );
+
+    // The league's result is not the cup's: two home wins of two.
+    expect(row?.competitionCode).toBe("MSC");
+    expect(row?.homeProbability).toBeGreaterThan(row?.awayProbability as number);
+    expect(
+      backtestRows([league, rated], "home-baseline-v1", NOW).map((r) => r.providerMatchId)
+    ).not.toContain(rated.providerMatchId);
+  });
+
+  it("writes Elo and Poisson rows for a rated tie and none for an outsider's", () => {
+    const league = [1, 2, 3, 4, 5, 6].map((n) =>
+      played(n, n % 3, 1, { homeTeam: n % 2 === 0 ? 1 : 2, awayTeam: n % 2 === 0 ? 2 : 1 })
+    );
+    const opener = cup(7, 2, 1, { homeTeam: 1, awayTeam: 2 });
+    const rated = cup(9, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const outsider = cup(10, 0, 3, { homeTeam: 9, awayTeam: 1 });
+    const finished = [...league, opener, rated, outsider];
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+
+    const elo = eloBacktestRows(finished, baseline, NOW).map((row) => row.providerMatchId);
+    const poisson = poissonBacktestRows(finished, NOW).map((row) => row.providerMatchId);
+
+    expect(elo).toContain(rated.providerMatchId);
+    expect(elo).not.toContain(outsider.providerMatchId);
+    expect(poisson).toContain(rated.providerMatchId);
+    expect(poisson).not.toContain(outsider.providerMatchId);
+  });
+});
+
+describe("the leagues' backtest beside a cup", () => {
+  it("writes every league row exactly as without the cup, under each model", () => {
+    const league = [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
+      played(n, (n * 7) % 4, (n * 3) % 3, { homeTeam: 1 + (n % 3), awayTeam: 1 + ((n + 1) % 3) })
+    );
+    const cup = [3, 6, 9].map((n) =>
+      played(n, 4, 0, { code: "MSC", cup: true, homeTeam: 1 + (n % 2), awayTeam: 3 })
+    );
+    const leagueRows = (finished: FinishedMatch[]) => {
+      const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+      return [
+        ...baseline,
+        ...eloBacktestRows(finished, baseline, NOW),
+        ...poissonBacktestRows(finished, NOW),
+      ].filter((row) => row.competitionCode !== "MSC");
+    };
+
+    expect(leagueRows([...league, ...cup])).toEqual(leagueRows(league));
   });
 });
