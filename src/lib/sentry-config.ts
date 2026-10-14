@@ -4,6 +4,7 @@
  *
  * decisions/140-sentry-production-configuration.md
  * decisions/565-sentry-11.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 
 import type { init } from "@sentry/nextjs";

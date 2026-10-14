@@ -7,7 +7,7 @@ import { DATA_COLLECTION, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
  * `NEXT_PUBLIC_`-prefixed, because anything read in the browser is inlined into
- * the bundle at build time. Unset, each takes its default in
+ * the bundle at build time. Unset, it takes its default in
  * `src/lib/sentry-config.ts`.
  *
  * decisions/140-sentry-production-configuration.md

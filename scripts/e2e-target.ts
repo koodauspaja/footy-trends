@@ -69,6 +69,6 @@ export function vouchesForAPush(target: E2eTarget): boolean {
  */
 export function withoutSentry<Env extends object>(
   env: Env
-): Env & { NEXT_PUBLIC_SENTRY_DSN: string } {
+): Omit<Env, "NEXT_PUBLIC_SENTRY_DSN"> & { NEXT_PUBLIC_SENTRY_DSN: "" } {
   return { ...env, NEXT_PUBLIC_SENTRY_DSN: "" };
 }

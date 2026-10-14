@@ -7,7 +7,7 @@ import { DATA_COLLECTION, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
  * Read from the environment so production can differ from staging. Unset,
- * each takes its default in `src/lib/sentry-config.ts`.
+ * it takes its default in `src/lib/sentry-config.ts`.
  *
  * decisions/140-sentry-production-configuration.md
  * decisions/656-e2e-sends-nothing-to-sentry.md
