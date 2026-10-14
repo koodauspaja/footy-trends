@@ -123,6 +123,21 @@ async function tasoSeason(
 }
 
 /**
+ * The cache entry of a season's forecast. A forced refresh clears it, with the
+ * answers it was computed from.
+ *
+ * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
+ */
+export function forecastCacheKey(
+  kind: MatchSource["kind"],
+  code: string,
+  seasonId: number
+): string {
+  return `forecast:v3:${kind}:${code}:${seasonId}`;
+}
+
+/**
  * The forecast of a covered league's season in progress, or why there is
  * none. `unavailable` is no panel: another season, a competition outside the
  * leagues, nothing stored, or a competition the fit has no match of.
@@ -142,7 +157,7 @@ export async function getSeasonForecast(
 
   try {
     return await getCachedUnlessDegraded(
-      `forecast:v3:${kind}:${code}:${seasonId}`,
+      forecastCacheKey(kind, code, seasonId),
       FORECAST_CACHE_TTL_SECONDS,
       async (): Promise<{ value: SeasonForecast; degraded: boolean }> => {
         const [fitted, season] = await Promise.all([

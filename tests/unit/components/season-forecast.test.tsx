@@ -332,6 +332,11 @@ describe("SeasonForecastBody", () => {
         "Nousee Veikkausliigaansija 1",
         "Säilyy / Putoaasijat 3–8",
       ]);
+      // The places are a block of their own under the label, not on its line.
+      const positions = screen.getByText("sijat 3–8");
+      expect(positions.tagName).toBe("SPAN");
+      expect(positions.className).toContain("block");
+      expect(positions.parentElement?.firstChild?.textContent).toBe("Säilyy / Putoaa");
       const [, first] = screen.getAllByRole("row");
       expect(
         within(first as HTMLElement)

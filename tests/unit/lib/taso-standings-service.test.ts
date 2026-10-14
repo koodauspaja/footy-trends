@@ -4967,7 +4967,7 @@ describe("getSeasonTables", () => {
     ).toEqual([4, 1]);
   });
 
-  it("gives each group its own stored levels, in TASO's order", async () => {
+  it("gives each group its own stored levels", async () => {
     const levels = [
       { groupId: 1, level: 1, teamCount: 6, label: "Mestaruussarjaan" },
       { groupId: 1, level: 2, teamCount: 6, label: "Karsintasarjaan" },

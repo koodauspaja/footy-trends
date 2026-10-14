@@ -2107,7 +2107,7 @@ export type SeasonTable = {
   standings: TeamStanding[];
   matches: MatchRow[];
   parentGroupId: number | null;
-  /** The group's stored levels in TASO's order; empty when it has none. */
+  /** The group's stored levels; empty when it has none. */
   levels: GroupLevel[];
 };
 

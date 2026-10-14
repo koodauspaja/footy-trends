@@ -33,6 +33,7 @@ import type {
   SeasonChoice,
   SeasonsResult,
 } from "@/lib/refresh-view";
+import { forecastCacheKey } from "@/lib/season-simulation-service";
 import {
   standingsCacheKey,
   storedForeignSeasons,
@@ -146,6 +147,7 @@ type Snapshot =
  * computed from it, each key from its owner's builder. Season and name lists stay.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/064-season-simulation-zones.md
  */
 export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
   if (choice.source === "taso") {
@@ -154,12 +156,15 @@ export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): strin
     return [
       tasoMatchesCacheKey(competitionId, categoryId),
       tasoCategoryCacheKey(competitionId, categoryId),
+      // Computed from the stored rows and levels this refetch rewrites.
+      forecastCacheKey("taso", choice.code, seasonId),
     ];
   }
   return [
     footballDataMatchesCacheKey(choice.code, seasonId),
     // The computed table, or the old standings show for fifteen minutes.
     standingsCacheKey(choice.code, seasonId),
+    forecastCacheKey("football-data", choice.code, seasonId),
   ];
 }
 
