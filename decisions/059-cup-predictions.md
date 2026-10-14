@@ -63,6 +63,8 @@ something the spec did not.
   | 28 | `Ennuste`: a cup tie predicted without asking `predictsSides` |
   | 29 | Elo: a league match against a placeholder rated, so its other side is too |
   | 30 | `/ennusteet`: the line shown on a chosen competition's report |
+  | 31 | Backtest: a cup's baseline tallied with the leagues' matches |
+  | 32 | Poisson: a cup fitted on its first tie only |
 
 - **None survived.** 7 and 10 survived the first pass: the unrated side was
   only ever at home, and no cup was goalless. A test was added for each.
