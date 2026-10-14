@@ -4900,6 +4900,30 @@ describe("zone levels storage", () => {
     expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
   });
 
+  it("stores every row under the season it replaced, whatever the row says of itself", async () => {
+    const mock = mockWrites();
+    const elsewhere = { categoryId: "M1", competitionCode: "spljp99", seasonId: 1999 };
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [{ ...teamRow(), ...elsewhere }],
+      [level(elsewhere)]
+    );
+
+    const here = {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+    };
+    expect(mock.levelsWritten()).toEqual([expect.objectContaining(here)]);
+    const teams = mock.writes.find(
+      (write) => write.op === "insert" && write.table === tasoGroupTeams
+    )?.values;
+    expect(teams).toEqual([expect.objectContaining(here)]);
+  });
+
   it("upserts a level on its group and number", async () => {
     const mock = mockWrites();
 

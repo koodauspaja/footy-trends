@@ -50,6 +50,7 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
 | Its pace | One request every three seconds, `ZONE_BACKFILL_PER_MINUTE` | Spec, Performance: as the sweep that measured TASO was spaced |
 | Written, skipped, failed | Written: levels stored. Skipped: TASO answered and there was no level to store, and what was stored for the season is cleared. Failed: the request failed or the answer had no groups, and nothing is written | Agreed with Miikka, 2026-10-13. No groups for a season we hold rows for is not an answer about its levels |
 | A re-run | Asks every season again | About 50 requests. Keeping track of what a run had done would be a second source of truth for a one-off |
+| Its loop | One season after another, each `await`ed, and Sonar's `await` in a loop rule (S9382) closed for `src/lib/zone-backfill.ts` in `sonar-project.properties` | The pacer spaces requests one after another; run in parallel they would queue on it all the same and only lose the order of the report. The rule is closed for this file alone, as decisions/592 does for the other backfill |
 | The run's exit code | 1 when a season failed | A release step that has to be run again should say so |
 
 ## Where this departs from the spec
@@ -149,6 +150,8 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   | 71 | --zones not checked for a conflict |
   | 72 | Every competition asked for its levels on a standings read |
   | 73 | An empty count taken as unreadable |
+  | 74 | The levels stored under each row's own season |
+  | 75 | The group rows stored under each row's own season |
 
 - **One first survived and was closed.** Mutation 28 was not seen while the
   Postgres fixture gave its second season another competition id as well; the
@@ -169,6 +172,19 @@ empty, so `Karsintasarja`'s levels are 4, 5 and 6.
   before the work loads, and that a reset empties the new table.
 - **End to end**, on the seeded season, signed out: the two lines under
   `Runkosarja`, a 2 px rule under rows 1 and 3, and the source line once.
+
+## After the review
+
+Sourcery's first review of #642 found four things, and Sonar three. Miikka,
+2026-10-14: "do as suggested".
+
+| Finding | Outcome |
+|---|---|
+| An older snapshot written after a newer one replaces its levels | Not changed: the group rows do the same, and decisions/196 accepts it. Each sync ends with one whole snapshot |
+| Two syncs at once with different levels can leave levels of both | Not changed, for the same reason: it is decisions/196's outcome for the group rows. Serialising the syncs is the lock #630 grew and then removed |
+| The groups and the levels are read in two queries, so a sync between them pairs one snapshot's table with the other's levels | Not changed: the next view reads them together again. Reading both in one snapshot would mean reading the levels inside `classifySeasonGroups`, which the season simulation, the cups and the team pages share |
+| The writers deleted by their arguments and inserted each row's own category, competition and season | Fixed in both, the group rows' writer included: every row is stored under the season the delete cleared. Mutations 74 and 75 |
+| Sonar: `await` in a loop, three times in `zone-backfill.ts` | Closed for that file, as the row "Its loop" says |
 
 ## The release step
 

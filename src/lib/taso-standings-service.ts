@@ -739,10 +739,12 @@ export async function synchronizeGroupTeams(
     if (incoming.length === 0) return;
 
     // An upsert: on an empty table the delete locks nothing, so two concurrent
-    // syncs would both insert and one would fail on the identity index.
+    // syncs would both insert and one would fail on the identity index. Stored
+    // under the season the delete cleared, whatever a row says of itself.
+    const identity = { categoryId, competitionCode: competitionId, seasonId };
     await tx
       .insert(tasoGroupTeams)
-      .values(incoming.map((row) => ({ ...row, updatedAt: new Date() })))
+      .values(incoming.map((row) => ({ ...row, ...identity, updatedAt: new Date() })))
       .onConflictDoUpdate({
         target: [
           tasoGroupTeams.categoryId,
@@ -803,10 +805,12 @@ async function replaceGroupLevels(
   }
   if (incoming.size === 0) return;
 
-  // An upsert, for the reason the team rows have one.
+  // An upsert, for the reason the team rows have one, under the season the
+  // delete cleared.
+  const season = { categoryId, competitionCode: competitionId, seasonId };
   await tx
     .insert(tasoGroupZones)
-    .values([...incoming.values()].map((row) => ({ ...row, updatedAt: new Date() })))
+    .values([...incoming.values()].map((row) => ({ ...row, ...season, updatedAt: new Date() })))
     .onConflictDoUpdate({
       target: [
         tasoGroupZones.categoryId,
