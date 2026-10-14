@@ -9,7 +9,9 @@ render because the client disconnected, which a test does when it moves on
 before a page has finished. The source was local runs: the developer's `.env`
 held staging's DSN, against `docs/setup/017`'s "Locally, leave it empty", and
 staging traced every request. This record overrides decisions/140 on the
-sample rate's default; its other defaults stand.
+sample rate's default, and decisions/531's note above `.env.example`'s
+`SENTRY_TRACES_SAMPLE_RATE=` that blank means 100% tracing; their other
+defaults stand.
 
 | Decision | Why |
 |---|---|
