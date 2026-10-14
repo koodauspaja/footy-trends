@@ -132,3 +132,28 @@ describe("zoneLine", () => {
     );
   });
 });
+
+describe("groupZones with a kind", () => {
+  it("keeps a level's kind on its zone, and gives none to a level that has none", () => {
+    const levels = [
+      { level: 1, teamCount: 2, label: "Nousee", kind: "promotion" as const },
+      { level: 2, teamCount: 1, label: "Muu" },
+    ];
+
+    expect(groupZones(levels, 3).zones).toEqual([
+      { from: 1, to: 2, label: "Nousee", kind: "promotion" },
+      { from: 3, to: 3, label: "Muu" },
+    ]);
+  });
+
+  it("leaves an unlabelled level's kind out: it names no zone", () => {
+    const levels = [
+      { level: 1, teamCount: 1, label: null, kind: "cup" as const },
+      { level: 2, teamCount: 1, label: "Putoaa", kind: "relegation" as const },
+    ];
+
+    expect(groupZones(levels, 2).zones).toEqual([
+      { from: 2, to: 2, label: "Putoaa", kind: "relegation" },
+    ]);
+  });
+});

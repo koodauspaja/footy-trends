@@ -48,6 +48,21 @@
   --notice-background: #fffbeb;
   --notice-border: #fcd34d;
   --notice-foreground: #78350f;
+
+  /*
+   * What a table place leads to, by kind: a row tint and a 4 px edge, never
+   * the only signal (the word and the heavier rule say it too). Text on a tint
+   * reads 14.9:1 or better in light, 12.4:1 in dark; an edge is at least
+   * 4.9:1 against the page. specs/065 has every pairing.
+   */
+  --zone-cup-background: #e0f2fe;
+  --zone-cup-edge: #0369a1;
+  --zone-promotion-background: #dcfce7;
+  --zone-promotion-edge: #15803d;
+  --zone-playoff-background: #fef3c7;
+  --zone-playoff-edge: #a16207;
+  --zone-relegation-background: #ffe4e6;
+  --zone-relegation-edge: #be123c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -65,6 +80,15 @@
     --notice-background: #451a03;
     --notice-border: #b45309;
     --notice-foreground: #fde68a;
+
+    --zone-cup-background: #0c2a4a;
+    --zone-cup-edge: #38bdf8;
+    --zone-promotion-background: #0b2e1f;
+    --zone-promotion-edge: #34d399;
+    --zone-playoff-background: #33260a;
+    --zone-playoff-edge: #fbbf24;
+    --zone-relegation-background: #3b1219;
+    --zone-relegation-edge: #fb7185;
   }
 }
 
@@ -79,6 +103,14 @@
   --color-notice-background: var(--notice-background);
   --color-notice-border: var(--notice-border);
   --color-notice-foreground: var(--notice-foreground);
+  --color-zone-cup-background: var(--zone-cup-background);
+  --color-zone-cup-edge: var(--zone-cup-edge);
+  --color-zone-promotion-background: var(--zone-promotion-background);
+  --color-zone-promotion-edge: var(--zone-promotion-edge);
+  --color-zone-playoff-background: var(--zone-playoff-background);
+  --color-zone-playoff-edge: var(--zone-playoff-edge);
+  --color-zone-relegation-background: var(--zone-relegation-background);
+  --color-zone-relegation-edge: var(--zone-relegation-edge);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

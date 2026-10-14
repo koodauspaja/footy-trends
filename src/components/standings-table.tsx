@@ -1,6 +1,7 @@
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { RowLink } from "@/components/row-link";
+import type { Zone } from "@/lib/competition-zones";
 import type { FavouriteSource } from "@/lib/favourite-keys";
 
 const statColumns = [
@@ -49,12 +50,14 @@ function cell(value: number | null): string {
  * decisions/021-table-consistency.md
  * decisions/026-favourites.md
  * decisions/063-competition-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 export function StandingsTable({
   standings,
   teamHref,
   favouriteSource,
   ruleAfter = [],
+  zones = [],
 }: Readonly<{
   standings: readonly StandingsRow[];
   teamHref: (teamProviderId: number) => string;
@@ -65,6 +68,8 @@ export function StandingsTable({
   favouriteSource?: FavouriteSource;
   /** The places in the table as drawn, counted from 1, that a heavier rule follows. */
   ruleAfter?: readonly number[];
+  /** The stretches of the table as drawn that carry a kind, tinted by it. */
+  zones?: readonly Zone[];
 }>) {
   const columns: Array<DataTableColumn<StandingsRow>> = [
     {
@@ -131,6 +136,9 @@ export function StandingsTable({
       hasRuleBelow={(_row, index) => ruleAfter.includes(index + 1)}
       rowKey={(row) => row.teamProviderId}
       rows={standings}
+      zoneKindOf={(_row, index) =>
+        zones.find((zone) => zone.from <= index + 1 && index + 1 <= zone.to)?.kind
+      }
     />
   );
 }

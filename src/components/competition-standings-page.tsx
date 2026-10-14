@@ -8,6 +8,7 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
+import { groupZones, zoneLine } from "@/lib/competition-zones";
 import { competitionsInRegion, isCupCompetition } from "@/lib/competitions";
 import { localiseForRegion } from "@/lib/country-names";
 import { buildBracket } from "@/lib/cup-bracket";
@@ -17,6 +18,7 @@ import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
 import { formatSeasonLabel } from "@/lib/seasons";
 import { getCupSeason, getMaxMatchday, getStandings } from "@/lib/standings-service";
+import { cupCaveat, registryLevels } from "@/lib/zone-registry";
 
 const ERROR_MESSAGE = "Sarjataulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi.";
@@ -138,6 +140,7 @@ async function renderCupStandings({
  *
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/065-foreign-league-zones.md
  */
 async function renderLeagueStandings({
   resolved,
@@ -159,6 +162,12 @@ async function renderLeagueStandings({
     ...(selectedRound !== undefined ? { round: selectedRound } : {}),
   });
   const analytics = await analyticsFor(resolved);
+  const levels = registryLevels(competitionCode, seasonId);
+  const { zones, ruleAfter } = groupZones(
+    levels,
+    result.status === "ok" ? result.standings.length : 0
+  );
+  const caveat = zones.length > 0 ? cupCaveat(competitionCode, levels) : null;
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
@@ -188,12 +197,22 @@ async function renderLeagueStandings({
       {result.status === "ok" && (
         <StandingsTable
           favouriteSource="football-data"
+          ruleAfter={ruleAfter}
           standings={result.standings}
           teamHref={(teamProviderId) =>
             `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
           }
+          zones={zones}
         />
       )}
+      {zones.length > 0 && (
+        <ul className="mt-3 text-sm">
+          {zones.map((zone) => (
+            <li key={zone.from}>{zoneLine(zone)}</li>
+          ))}
+        </ul>
+      )}
+      {caveat !== null && <p className="mt-2 text-sm text-muted">{caveat}</p>}
       <StandingsLegend />
       {analytics}
     </PageShell>
