@@ -729,3 +729,155 @@ describe("Standings page, cup competitions", () => {
     expect(screen.queryByText("Pudotuspelit eivät ole vielä alkaneet.")).not.toBeInTheDocument();
   });
 });
+
+describe("Standings page zones", () => {
+  type Rows = Extract<StandingsResult, { status: "ok" }>["standings"];
+
+  // The positions run backwards: what is tinted is the row's place in the table
+  // as drawn, which is the order the service returned.
+  function table(size: number): StandingsResult {
+    const standings: Rows = Array.from({ length: size }, (_unused, index) => ({
+      position: size - index,
+      teamProviderId: index + 1,
+      teamName: `Joukkue ${index + 1}`,
+      played: 1,
+      won: 0,
+      drawn: 0,
+      lost: 1,
+      goalsFor: 0,
+      goalsAgainst: 1,
+      goalDifference: -1,
+      points: 0,
+      form: [],
+    }));
+    return { status: "ok", standings };
+  }
+
+  function bodyRows() {
+    return screen.getAllByRole("row").slice(1);
+  }
+
+  function tintOf(row: HTMLElement) {
+    return [...row.classList].find((name) => name.startsWith("bg-zone-")) ?? null;
+  }
+
+  function zoneLines() {
+    return screen.queryAllByRole("listitem").map((item) => item.textContent);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    getSeasonContextMock.mockResolvedValue({
+      ...seasonContext,
+      selectableSeasons: [...seasonContext.selectableSeasons, { seasonId: 2022, label: "2022/23" }],
+    });
+    getMaxMatchdayMock.mockResolvedValue(38);
+    getStandingsMock.mockResolvedValue(table(20));
+    getCupSeasonMock.mockResolvedValue({ status: "empty" });
+  });
+
+  it("tints each row by the kind of its place, in the order the table is drawn", async () => {
+    await renderStandings({ kilpailu: "PL", kausi: "2025" });
+
+    const tints = bodyRows().map(tintOf);
+    expect(tints.slice(0, 8)).toEqual(Array(8).fill("bg-zone-cup-background"));
+    expect(tints.slice(8, 17)).toEqual(Array(9).fill(null));
+    expect(tints.slice(17)).toEqual(Array(3).fill("bg-zone-relegation-background"));
+  });
+
+  it("draws the heavier rule where one level ends and another begins", async () => {
+    await renderStandings({ kilpailu: "PL", kausi: "2025" });
+
+    const ruled = bodyRows().flatMap((row, index) =>
+      row.classList.contains("border-b-2") ? [index + 1] : []
+    );
+    // Champions League 1–5, Europa League 6–7, Conference League 8, a gap, relegation.
+    expect(ruled).toEqual([5, 7, 8, 17]);
+  });
+
+  it("lists the places in table order under the table, with our labels", async () => {
+    await renderStandings({ kilpailu: "PL", kausi: "2025" });
+
+    expect(zoneLines()).toEqual([
+      "Sijat 1–5: Mestarien liiga",
+      "Sijat 6–7: Eurooppa-liiga",
+      "Sija 8: Konferenssiliiga",
+      "Sijat 18–20: Putoaa",
+    ]);
+    const list = screen.getByRole("list");
+    expect(screen.getByRole("table").compareDocumentPosition(list)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
+  it("says once, under the list, that European places can change", async () => {
+    await renderStandings({ kilpailu: "PL", kausi: "2025" });
+
+    const caveat = screen.getAllByText("Eurooppa-paikat voivat muuttua cup-tuloksilla");
+    expect(caveat).toHaveLength(1);
+    expect(screen.getByRole("list").compareDocumentPosition(caveat[0] as HTMLElement)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
+  it("names the cups, not Europe, for Brazil", async () => {
+    getStandingsMock.mockResolvedValue(table(20));
+    await renderStandings({ kilpailu: "BSA", kausi: "2025" });
+
+    expect(screen.getAllByText("Cup-paikat voivat muuttua cup-tuloksilla")).toHaveLength(1);
+    expect(screen.queryByText(/Eurooppa-paikat/)).not.toBeInTheDocument();
+  });
+
+  it("tints promotion and its play-off, and adds no cup line where no place is a cup's", async () => {
+    getStandingsMock.mockResolvedValue(table(24));
+    await renderStandings({ kilpailu: "ELC", kausi: "2025" });
+
+    const tints = bodyRows().map(tintOf);
+    expect(tints.slice(0, 2)).toEqual(Array(2).fill("bg-zone-promotion-background"));
+    expect(tints.slice(2, 6)).toEqual(Array(4).fill("bg-zone-playoff-background"));
+    expect(zoneLines()).toEqual([
+      "Sijat 1–2: Nousee",
+      "Sijat 3–6: Nousukarsinta",
+      "Sijat 22–24: Putoaa",
+    ]);
+    expect(screen.queryByText(/voivat muuttua/)).not.toBeInTheDocument();
+  });
+
+  it("cuts the zones at the last row of a shorter table, as an earlier round has", async () => {
+    getStandingsMock.mockResolvedValue(table(4));
+    await renderStandings({ kilpailu: "PL", kausi: "2025", kierros: "1" });
+
+    expect(bodyRows().map(tintOf)).toEqual(Array(4).fill("bg-zone-cup-background"));
+    expect(zoneLines()).toEqual(["Sijat 1–4: Mestarien liiga"]);
+  });
+
+  it("shows a season with no entry as before: no rule, tint, list or line", async () => {
+    getStandingsMock.mockResolvedValue(table(20));
+    await renderStandings({ kilpailu: "PL", kausi: "2022" });
+
+    expect(bodyRows().map(tintOf)).toEqual(Array(20).fill(null));
+    expect(bodyRows().some((row) => row.classList.contains("border-b-2"))).toBe(false);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.queryByText(/voivat muuttua/)).not.toBeInTheDocument();
+  });
+
+  it.each(["empty", "error"] as const)(
+    "shows no zones when the standings are %s",
+    async (status) => {
+      getStandingsMock.mockResolvedValue({ status, standings: [] });
+      await renderStandings({ kilpailu: "PL", kausi: "2025" });
+
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+      expect(screen.queryByText(/voivat muuttua/)).not.toBeInTheDocument();
+    }
+  );
+
+  it("shows the Champions League, which has no league table, with no zones", async () => {
+    await renderStandings({ kilpailu: "CL", kausi: "2025" });
+
+    expect(getStandingsMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.queryByText(/voivat muuttua/)).not.toBeInTheDocument();
+  });
+});

@@ -5,6 +5,7 @@
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 
 import { getCachedUnlessDegraded } from "./cache";
@@ -25,6 +26,7 @@ import { calculateStandings, toFinishedMatches } from "./standings";
 import { getLeagueSeasonMatches } from "./standings-service";
 import { hasTableVolatility } from "./table-volatility";
 import { getSeasonTables, hasCarryOver } from "./taso-standings-service";
+import { registryLevels } from "./zone-registry";
 
 /**
  * As long as the table's and the fit's own caches.
@@ -71,7 +73,7 @@ async function footballDataSeason(
         simulated: true,
         rows: calculateStandings(toFinishedMatches(regular), regular),
         fixtures: regular.filter(isRemainingFixture).map(fixtureOf),
-        levels: [],
+        levels: registryLevels(code, seasonId),
       },
     ],
   };
@@ -128,13 +130,14 @@ async function tasoSeason(
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 export function forecastCacheKey(
   kind: MatchSource["kind"],
   code: string,
   seasonId: number
 ): string {
-  return `forecast:v3:${kind}:${code}:${seasonId}`;
+  return `forecast:v4:${kind}:${code}:${seasonId}`;
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { ZoneKind } from "@/lib/competition-zones";
 
 /**
  * The width scale every table column is sized from. Fixed widths are what make
@@ -22,6 +23,31 @@ export const COLUMN_WIDTHS = {
   /** The least the flexible column may take before the table starts scrolling. */
   flexMinimum: 240,
 } as const;
+
+/**
+ * A row's tint and the 4 px edge on its first cell, by kind. Written out whole
+ * so Tailwind finds each class; the colours are the theme's zone tokens.
+ *
+ * decisions/065-foreign-league-zones.md
+ */
+const ZONE_CLASSES: Record<ZoneKind, { row: string; edge: string }> = {
+  cup: {
+    row: "bg-zone-cup-background",
+    edge: "shadow-[inset_4px_0_0_var(--zone-cup-edge)]",
+  },
+  promotion: {
+    row: "bg-zone-promotion-background",
+    edge: "shadow-[inset_4px_0_0_var(--zone-promotion-edge)]",
+  },
+  playoff: {
+    row: "bg-zone-playoff-background",
+    edge: "shadow-[inset_4px_0_0_var(--zone-playoff-edge)]",
+  },
+  relegation: {
+    row: "bg-zone-relegation-background",
+    edge: "shadow-[inset_4px_0_0_var(--zone-relegation-edge)]",
+  },
+};
 
 /**
  * One column. Exactly one column in a table carries `width: "flex"` and takes
@@ -55,6 +81,8 @@ export type DataTableProps<T> = {
   isCurrentRow?: (row: T) => boolean;
   /** A heavier rule under this row: the next row belongs to another stretch of the table. */
   hasRuleBelow?: (row: T, index: number) => boolean;
+  /** The kind of zone this row sits in: a tint across the row and an edge on its first cell. */
+  zoneKindOf?: (row: T, index: number) => ZoneKind | undefined;
 };
 
 /**
@@ -69,6 +97,10 @@ export function tableMinWidth<T>(columns: ReadonlyArray<DataTableColumn<T>>): nu
   );
 }
 
+function zoneClassesOf(kind: ZoneKind | undefined) {
+  return kind === undefined ? undefined : ZONE_CLASSES[kind];
+}
+
 function alignClass(align: DataTableColumn<unknown>["align"]): string {
   return align === "right" ? "text-right" : "text-left";
 }
@@ -81,6 +113,7 @@ function alignClass(align: DataTableColumn<unknown>["align"]): string {
  * decisions/021-table-consistency.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/063-competition-zones.md
+ * decisions/065-foreign-league-zones.md
  */
 export function DataTable<T>({
   rows,
@@ -88,6 +121,7 @@ export function DataTable<T>({
   rowKey,
   isCurrentRow = () => false,
   hasRuleBelow = () => false,
+  zoneKindOf = () => undefined,
 }: Readonly<DataTableProps<T>>) {
   return (
     <div className="overflow-x-auto">
@@ -117,27 +151,46 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr
-              aria-current={isCurrentRow(row) ? "true" : undefined}
-              className={`${hasRuleBelow(row, index) ? "border-muted border-b-2" : "border-border-subtle border-b"}${isCurrentRow(row) ? " bg-surface font-semibold" : ""}`}
-              key={rowKey(row)}
-            >
-              {columns.map((column) => {
-                const className =
-                  `p-3 ${alignClass(column.align)} ${column.cellClassName ?? ""}`.trim();
-                return column.rowHeader ? (
-                  <th className={className} key={column.key} scope="row">
-                    {column.render(row)}
-                  </th>
-                ) : (
-                  <td aria-label={column.cellLabel?.(row)} className={className} key={column.key}>
-                    {column.render(row)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const current = isCurrentRow(row);
+            const zone = zoneClassesOf(zoneKindOf(row, index));
+            return (
+              <tr
+                aria-current={current ? "true" : undefined}
+                className={[
+                  hasRuleBelow(row, index)
+                    ? "border-muted border-b-2"
+                    : "border-border-subtle border-b",
+                  // The row a page is about keeps its shade and drops only the tint: two
+                  // backgrounds on one row follow the stylesheet's order. The edge is a shadow.
+                  current ? "bg-surface font-semibold" : zone?.row,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                key={rowKey(row)}
+              >
+                {columns.map((column, columnIndex) => {
+                  const className = [
+                    "p-3",
+                    alignClass(column.align),
+                    column.cellClassName,
+                    columnIndex === 0 ? zone?.edge : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  return column.rowHeader ? (
+                    <th className={className} key={column.key} scope="row">
+                      {column.render(row)}
+                    </th>
+                  ) : (
+                    <td aria-label={column.cellLabel?.(row)} className={className} key={column.key}>
+                      {column.render(row)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

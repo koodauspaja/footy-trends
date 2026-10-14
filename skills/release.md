@@ -217,6 +217,8 @@ it, so the two cannot drift the way a hand-maintained version string does.
   drifts.
 - `npm run release:version -- <from> <to>` computes for any two refs, which is
   useful for seeing what a release *would* be before opening anything.
+- Each summer the foreign leagues' zone registry takes the new season:
+  `docs/zone-registry-upkeep.md`. Nothing fails when it is missing.
 - `--since-last-tag` is what the workflow uses after the merge, when
   `origin/release..origin/main` is empty because everything is already on
   `release`.

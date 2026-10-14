@@ -167,8 +167,38 @@ describe("which seasons have a forecast", () => {
   );
 });
 
+// Premier League 2026 as the registry has it, written out: the places a league's
+// forecast reads, here cut at the three rows these tables have.
+const PREMIER_LEAGUE_2026 = [
+  { level: 1, teamCount: 4, label: "Mestarien liiga", kind: "cup" as const },
+  { level: 2, teamCount: 1, label: "Eurooppa-liiga", kind: "cup" as const },
+  { level: 3, teamCount: 12, label: null },
+  { level: 4, teamCount: 3, label: "Putoaa", kind: "relegation" as const },
+];
+
 describe("a football-data league", () => {
   const played = [stored(1, 2, [2, 0]), stored(3, 2, [1, 1])];
+
+  async function zonesFor(season: number) {
+    mocks.getLeagueSeasonMatches.mockResolvedValue({
+      matches: [...played, stored(3, 1, null)],
+      refreshFailed: false,
+    });
+    const forecast = await getSeasonForecast("football-data", "PL", season, season);
+    if (forecast.status !== "ok") throw new Error(`Expected a forecast, got ${forecast.status}`);
+    return forecast.tables[0]?.zones;
+  }
+
+  it("takes its zones from the registry, cut at the table's last row", async () => {
+    // Premier League 2026: Champions League 1–4, cut at three rows.
+    expect(await zonesFor(2026)).toEqual([
+      { from: 1, to: 3, label: "Mestarien liiga", kind: "cup" },
+    ]);
+  });
+
+  it("has no zone for a season the registry does not hold", async () => {
+    expect(await zonesFor(2030)).toEqual([]);
+  });
 
   it("simulates the regular season's table and fixtures with the provider's fit", async () => {
     const fixtures = [stored(3, 1, null), stored(2, 1, null, { status: "SCHEDULED" })];
@@ -195,7 +225,7 @@ describe("a football-data league", () => {
               { homeTeam: 3, awayTeam: 1 },
               { homeTeam: 2, awayTeam: 1 },
             ],
-            levels: [],
+            levels: PREMIER_LEAGUE_2026,
           },
         ],
         predictWith("PL")
@@ -225,7 +255,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
             fixtures: [{ homeTeam: 3, awayTeam: 1 }],
-            levels: [],
+            levels: PREMIER_LEAGUE_2026,
           },
         ],
         predictWith("PL")
@@ -249,7 +279,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(2, 0)],
             fixtures: [{ homeTeam: 2, awayTeam: 1 }],
-            levels: [],
+            levels: PREMIER_LEAGUE_2026,
           },
         ],
         predictWith("PL")
@@ -278,7 +308,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
             fixtures: [{ homeTeam: 1, awayTeam: 3 }],
-            levels: [],
+            levels: PREMIER_LEAGUE_2026,
           },
         ],
         predictWith("PL")
@@ -324,8 +354,8 @@ describe("the cache", () => {
     await getSeasonForecast("taso", "VL", SEASON, SEASON);
 
     expect(mocks.getCachedUnlessDegraded.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
-      ["forecast:v3:football-data:PL:2026", 900],
-      ["forecast:v3:taso:VL:2026", 900],
+      ["forecast:v4:football-data:PL:2026", 900],
+      ["forecast:v4:taso:VL:2026", 900],
     ]);
   });
 
@@ -509,17 +539,6 @@ describe("a domestic league", () => {
       { from: 1, to: 1, label: "Nousee" },
     ]);
     expect(forecast.status === "ok" && forecast.tables[0]?.rows[0]?.zones).toHaveLength(1);
-  });
-
-  it("gives a football-data league no zones", async () => {
-    mocks.getLeagueSeasonMatches.mockResolvedValue({
-      matches: [stored(1, 2, [1, 0]), stored(2, 1, null)],
-      refreshFailed: false,
-    });
-
-    const forecast = await getSeasonForecast("football-data", "PL", SEASON, SEASON);
-
-    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([]);
   });
 
   it("does not count a match list as a table when telling one table from several", async () => {

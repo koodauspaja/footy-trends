@@ -30,7 +30,7 @@ to.
 
 - Storing or showing zones on the standings table: specs/063.
 - The foreign leagues' zones: #634, specs/065. They keep specs/061's columns
-  until it builds (S5).
+  until it builds (S5); #649 built it.
 - Miesten Kakkonen and the junior competitions: no levels are stored, so
   specs/061's columns stay (S5).
 - Any change to the model, the number of runs, the seed, the tie rule, the
@@ -79,7 +79,7 @@ whichever columns it shows.
 | A level's chance | The share of runs in which the team finishes in the zone's positions, `from` to `to` (S1) |
 | Best and worst reachable finish | specs/061's extreme scenarios, applied to both ends of the zone's range (S6) |
 | Before a split | The regular-season group's levels naming its continuation groups (specs/063 S11) |
-| Cache | specs/061 S10: per competition-season, Redis, 15 minutes, and cleared by a forced refresh (specs/029) with the answers it was computed from. The key's version is bumped, `forecast:v3`, because the cached value changes shape; a changed set of levels shows within the 15 minutes |
+| Cache | specs/061 S10: per competition-season, Redis, 15 minutes, and cleared by a forced refresh (specs/029) with the answers it was computed from. The key's version is bumped, `forecast:v3`, because the cached value changes shape (`forecast:v4` since #649, specs/065); a changed set of levels shows within the 15 minutes |
 
 ## Edge Cases
 
@@ -98,7 +98,7 @@ whichever columns it shows.
 | A group continued into others, in the season after the split | As specs/061 S17: not shown |
 | A pass-through group | Not simulated, as specs/061 S15 |
 | Kakkonen's pools | Each its own table with specs/061's columns (S5) |
-| A foreign league | specs/061's columns until specs/065 is built (S5) |
+| A foreign league | specs/061's columns until specs/065 is built (S5); since #649 the registry's levels, one column per labelled level |
 | A finished season | No panel, as specs/061 |
 | A season whose levels have not been stored yet | specs/061's columns; a sync stores them with the group's rows |
 | Signed out | No figure in the HTML, as specs/061 |
@@ -128,7 +128,7 @@ service.
 - [ ] `Mestaruus`, `Sarjan voitto`, `Sarjan viimeinen sija`, `Kolmen parhaan joukossa` and `Kolmen huonoimman joukossa` do not appear in a group that has labelled levels
 - [ ] A level's figure is the share of runs ending in its positions; a two-outcome label is one column
 - [ ] A league that has not split shows its regular-season group's continuation levels as columns, with no inference from the previous season
-- [ ] A group with no stored level, Miesten Kakkonen and the foreign leagues show specs/061's columns, per group
+- [ ] A group with no stored level and Miesten Kakkonen show specs/061's columns, per group (the foreign leagues too until specs/065; since #649 they have the registry's levels)
 - [ ] `0 %` appears only when the level's positions cannot intersect the team's possible finishes, `100 %` only when every possible finish lies inside them; `< 1 %` and `> 99 %` otherwise
 - [ ] The table scrolls within itself at 375 px; the team name stays in view
 - [ ] No provider request, the same cache, the same access, the same link to `/ennusteet`
@@ -140,7 +140,7 @@ service.
 | File | Minimal assertions |
 |---|---|
 | `tests/unit/lib/season-simulation.test.ts` | A level's share by hand with a fixed seed; a range in the middle of the table; best and worst reachable finish for both ends of a range, so `0 %` and `100 %` each need the range's two ends separately |
-| `tests/unit/lib/season-simulation-service*.test.ts` | Levels read with the group; an unlabelled level counted and not a column; a group with none keeps specs/061's columns; before a split with and without levels; the cache key `forecast:v3`, and a forced refresh clearing it |
+| `tests/unit/lib/season-simulation-service*.test.ts` | Levels read with the group; an unlabelled level counted and not a column; a group with none keeps specs/061's columns; before a split with and without levels; the cache key `forecast:v3` (`v4` since #649), and a forced refresh clearing it |
 | `tests/unit/components/…` | The columns, the two-line heading, a two-outcome label, the scroll box, the unchanged line under the tables |
 | `tests/e2e/…` | Signed in, a seeded league with levels shows its columns; a seeded league without keeps specs/061's |
 

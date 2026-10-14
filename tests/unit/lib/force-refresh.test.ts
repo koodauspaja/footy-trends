@@ -360,7 +360,7 @@ describe("previewRefresh", () => {
     expect(state.invalidated).toEqual([
       "taso:matches:spljp26:VL",
       "taso:category:spljp26:VL",
-      "forecast:v3:taso:VL:2026",
+      "forecast:v4:taso:VL:2026",
     ]);
     // Which seasons and names exist is not what a refresh corrects.
     expect(state.invalidated).not.toContain("taso:season-context:v2:VL");
@@ -376,7 +376,7 @@ describe("previewRefresh", () => {
     expect(state.invalidated).toEqual([
       "football-data:matches:PL:2025",
       "standings:PL:2025",
-      "forecast:v3:football-data:PL:2025",
+      "forecast:v4:football-data:PL:2025",
     ]);
   });
 
@@ -591,7 +591,7 @@ describe("applyRefresh", () => {
     await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
 
     // Not the provider's answers: asking again would double the load and could bounce the hash.
-    expect(state.invalidated).toEqual(["forecast:v3:taso:VL:2026"]);
+    expect(state.invalidated).toEqual(["forecast:v4:taso:VL:2026"]);
   });
 
   it("clears nothing when the write is refused", async () => {
@@ -938,7 +938,7 @@ describe("the foreign provider", () => {
     const { applyRefresh } = await import("@/lib/force-refresh");
     await applyRefresh(PREMIER_LEAGUE, 2025, preview.snapshotHash, "admin-1");
 
-    expect(state.invalidated).toEqual(["standings:PL:2025", "forecast:v3:football-data:PL:2025"]);
+    expect(state.invalidated).toEqual(["standings:PL:2025", "forecast:v4:football-data:PL:2025"]);
   });
 
   it("applies through the foreign writer, never the TASO one", async () => {
