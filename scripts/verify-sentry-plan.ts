@@ -36,8 +36,6 @@ export function buildMarker(now: Date): string {
 
 export type Settings = {
   tracesSampleRate: number;
-  sendDefaultPii: boolean;
-  enableLogs: boolean;
 };
 
 /**
@@ -47,11 +45,7 @@ export type Settings = {
  * decisions/230-sentry-delivery-check.md
  */
 export function describeSettings(settings: Settings): string {
-  return [
-    `tracesSampleRate=${settings.tracesSampleRate}`,
-    `sendDefaultPii=${settings.sendDefaultPii}`,
-    `enableLogs=${settings.enableLogs}`,
-  ].join("  ");
+  return `tracesSampleRate=${settings.tracesSampleRate}`;
 }
 
 export type Outcome =

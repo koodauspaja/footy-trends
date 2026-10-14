@@ -349,25 +349,26 @@ environment — server, edge and client:
 | `sentry.edge.config.ts` | middleware and edge routes |
 | `src/instrumentation-client.ts` | the user's browser |
 
-Each sets `tracesSampleRate: 1`, `enableLogs: true` and `sendDefaultPii: true`.
+The wizard set `tracesSampleRate: 1`, `enableLogs: true` and `sendDefaultPii: true` in each.
 Changing only the server file leaves edge and browser traffic on the
 development defaults, which is easy to miss because the server file is the one
 everybody looks at.
 
 These were **code** rather than configuration, so staging and production got the
-same values — the wizard's development ones. All three now read from the
-environment via `src/lib/sentry-config.ts`, with the wizard's behaviour as the
-in-code default, bar the sample rate, whose default is `0.1` (decisions/656).
+same values — the wizard's development ones. All three now read the sample rate
+from the environment via `src/lib/sentry-config.ts`, with `0.1` as the in-code
+default (decisions/656), and take what an event may carry from the same file's
+`DATA_COLLECTION`, the same in every environment.
 
 What each one was, and what production sets:
 
 | Setting | Wizard default | Production | Why |
 |---|---|---|---|
 | `tracesSampleRate` | `1` | `0.1` | 100% tracing ties Sentry quota directly to traffic. At today's volume the cost is small; the exposure is a spike burning a month's quota in a day. Sampling bounds it |
-| `sendDefaultPii` | `true` | `false` | Sends IP addresses and request headers to a third-party processor. There are no user accounts, so almost nothing is gained, and it is a GDPR question worth answering deliberately rather than inheriting |
-| `enableLogs` | `true` | `false` | Logs already ship to Axiom (`009-axiom-logs.md`). Leaving this on gives two destinations, two bills, and two places to search |
+| `dataCollection`, formerly `sendDefaultPii` | everything | `DATA_COLLECTION`, in code | No IP address, cookie, body, database value or credential header reaches a third-party processor (decisions/565) |
+| `enableLogs` | `true` | removed in v11 | Logs ship to Axiom (`009-axiom-logs.md`); nothing in the app sends a log to Sentry |
 
-The browser needs its own `NEXT_PUBLIC_`-prefixed copies of all three: values
+The browser needs its own `NEXT_PUBLIC_`-prefixed copy of the sample rate: values
 read in the browser are inlined at build time, so a server-only variable is
 `undefined` there. That asymmetry is how a client stays on the default while
 the server behaves.
@@ -378,10 +379,7 @@ the server behaves.
 `.env.example`, or added in the dashboard without a value — would switch tracing
 off entirely while looking configured. `src/lib/sentry-config.ts` parses these
 rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
-fall back to the default. A flag turns off on `false` — case-insensitively and
-ignoring surrounding whitespace, since `FALSE` and a stray space are plainly the
-same intent — and anything else leaves it alone, because the failure worth
-guarding is a setting silently flipping.
+fall back to the default.
 
 ### Session Replay is removed, not sampled down
 
@@ -412,23 +410,21 @@ were the one part of the app whose logging could not be turned down.
 ### Verifying Sentry actually receives events
 
 The client half needs no test event: `NEXT_PUBLIC_` values are inlined at build
-time, so the shipped bundle can be read directly — that is how v1.1.0 was
-confirmed (0 occurrences of `replayIntegration`, and the literals `"false"`,
-`"false"`, `"0.1"`).
+time, so the shipped bundle can be read directly: it holds no
+`replayIntegration`, and the sample rate as a literal, `0.1` in production.
 
 The **server** half gives no such evidence. It reads `process.env` at runtime,
 so the only proof is an event arriving. `npm run verify:sentry` sends one
 deliberately (#230):
 
 ```sh
-SENTRY_TRACES_SAMPLE_RATE=0.1 SENTRY_SEND_DEFAULT_PII=false \
-SENTRY_ENABLE_LOGS=false NEXT_PUBLIC_SENTRY_DSN='<production>' \
+SENTRY_TRACES_SAMPLE_RATE=0.1 NEXT_PUBLIC_SENTRY_DSN='<production>' \
   npm run verify:sentry
 ```
 
 ```
 Project      o4511499874729984.ingest.de.sentry.io/4511977968959568
-Settings     tracesSampleRate=0.1  sendDefaultPii=false  enableLogs=false
+Settings     tracesSampleRate=0.1
 Marker       footy-trends verification 2026-08-31T09:07:43.508Z
 
 Event 1bbe0bdb… was accepted and flushed.
@@ -464,7 +460,7 @@ no configuration change for this.
 
 One optional hardening, not required: Sentry can scrub sensitive data
 server-side as well (**Settings → Security & Privacy → Data Scrubbing**). With
-`sendDefaultPii: false` we are not sending it in the first place, so this is
+`DATA_COLLECTION` we are not sending it in the first place, so this is
 defence in depth rather than the fix.
 
 ## Step 6 — Set `LOG_LEVEL`
@@ -681,14 +677,14 @@ are from this project's own run.
       credentials share no value with staging; `FOOTBALL_DATA_API_KEY` and
       `TASO_API_KEY` deliberately do — see *The provider keys are shared*
 - [ ] The four auth variables are **set**, from the production Google Cloud project and with production's own `BETTER_AUTH_SECRET`. This line previously said they were deliberately left unset, which stopped being true when `specs/023-google-oauth-login.md` shipped the sign-in that reads them (#264)
-- [ ] All three Sentry configs — server, edge and client — read their settings
-      from the environment
+- [ ] All three Sentry configs — server, edge and client — read the sample rate
+      from the environment and what an event may carry from `DATA_COLLECTION`
 - [ ] Session Replay is decided **and applied in code** — the integration is
       removed, so it neither records nor ships its bundle
 - [ ] The wizard's example routes are deleted rather than left reachable
-- [ ] The six Sentry variables are set on the production service. Note the code
-      defaults to the wizard's behaviour, so they take effect only once a release
-      carries this change to `release` — setting them alone does not
+- [ ] `SENTRY_TRACES_SAMPLE_RATE` and `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`
+      are set to `0.1` on the production service, and no other Sentry variable
+      but the DSN
 - [ ] `LOG_LEVEL` is decided and recorded — `info`, with the reasoning in Step 6
 - [ ] A deploy runs migrations before taking traffic and passes its health check
 - [ ] `/api/health` in production returns `status: "ok"` with `checks.database`
