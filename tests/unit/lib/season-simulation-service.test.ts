@@ -628,6 +628,23 @@ describe("a domestic league", () => {
     expect(forecast).toMatchObject({ layout: "before-split" });
   });
 
+  it("gives a regular season before its split the continuation groups as zones", async () => {
+    const levels = [
+      { groupId: 1, level: 1, teamCount: 1, label: "Mestaruussarjaan" },
+      { groupId: 1, level: 2, teamCount: 1, label: "Karsintasarjaan" },
+    ];
+    tablesOf(group({ groupId: 1, groupName: "Runkosarja", levels }));
+    mocks.hasCarryOver.mockReturnValue(true);
+
+    const forecast = await getSeasonForecast("taso", "VL", SEASON, SEASON);
+
+    expect(forecast).toMatchObject({ layout: "before-split" });
+    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([
+      { from: 1, to: 1, label: "Mestaruussarjaan" },
+      { from: 2, to: 2, label: "Karsintasarjaan" },
+    ]);
+  });
+
   it("is not before a split when last season did not split", async () => {
     tablesOf(group({ groupId: 1 }), group({ groupId: 2 }));
 
