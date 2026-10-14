@@ -1,9 +1,12 @@
 /**
- * Reading Sentry's settings from the environment, safely. Shared by all three
- * configs: server, edge and client.
+ * Sentry's settings, shared by all three configs: server, edge and client. The
+ * sample rate is read from the environment; what an event may carry is fixed.
  *
  * decisions/140-sentry-production-configuration.md
+ * decisions/565-sentry-11.md
  */
+
+import type { init } from "@sentry/nextjs";
 
 /**
  * The default when a variable is unset, blank, or unusable: a tenth, so an
@@ -31,14 +34,46 @@ export function sampleRateFrom(
   return parsed;
 }
 
+type DataCollection = NonNullable<Parameters<typeof init>[0]["dataCollection"]>;
+
 /**
- * A boolean from a variable, defaulting to on. Only `false` turns a flag off,
- * case-insensitively and ignoring surrounding whitespace.
+ * Header and query names never sent: an address, a proxy hop, or a credential.
+ * Matched as parts of a name, case-insensitively.
  *
- * decisions/140-sentry-production-configuration.md
+ * decisions/565-sentry-11.md
  */
-export function flagFrom(raw: string | undefined, fallback = true): boolean {
-  const trimmed = raw?.trim().toLowerCase();
-  if (trimmed === undefined || trimmed === "") return fallback;
-  return trimmed !== "false";
-}
+export const DENIED_NAME_PARTS = [
+  "forwarded",
+  "-ip",
+  "remote-",
+  "via",
+  "-user",
+  "cookie",
+  "auth",
+  "token",
+  "session",
+  "secret",
+  "key",
+];
+
+/**
+ * What an event may carry, in every environment. Every category is stated, so
+ * none falls back to Sentry's default of collecting everything.
+ *
+ * decisions/565-sentry-11.md
+ */
+export const DATA_COLLECTION = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: {
+    request: { deny: DENIED_NAME_PARTS },
+    response: { deny: DENIED_NAME_PARTS },
+  },
+  httpBodies: [],
+  urlQueryParams: { deny: DENIED_NAME_PARTS },
+  graphQL: { document: true, variables: true },
+  genAI: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  stackFrameVariables: true,
+  frameContextLines: 7,
+} satisfies Required<Omit<DataCollection, "queryParams">>;

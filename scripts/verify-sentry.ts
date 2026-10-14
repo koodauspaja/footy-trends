@@ -8,7 +8,7 @@
  */
 import { existsSync } from "node:fs";
 import * as Sentry from "@sentry/nextjs";
-import { flagFrom, sampleRateFrom } from "../src/lib/sentry-config";
+import { DATA_COLLECTION, sampleRateFrom } from "../src/lib/sentry-config";
 import {
   buildMarker,
   describeDsn,
@@ -60,8 +60,6 @@ async function main(): Promise<void> {
   // that could drift from it.
   const settings = {
     tracesSampleRate: sampleRateFrom(process.env.SENTRY_TRACES_SAMPLE_RATE),
-    enableLogs: flagFrom(process.env.SENTRY_ENABLE_LOGS),
-    sendDefaultPii: flagFrom(process.env.SENTRY_SEND_DEFAULT_PII),
   };
 
   out(`Project      ${describeDsn(dsn) ?? "<unrecognised DSN>"}`);
@@ -69,7 +67,7 @@ async function main(): Promise<void> {
   out(`Marker       ${marker}`);
   out();
 
-  Sentry.init({ dsn, ...settings });
+  Sentry.init({ dsn, ...settings, dataCollection: DATA_COLLECTION });
 
   const eventId = Sentry.captureException(new Error(marker));
   const flushed = await Sentry.flush(FLUSH_TIMEOUT_MS);
