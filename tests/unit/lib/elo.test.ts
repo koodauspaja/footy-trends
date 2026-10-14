@@ -257,13 +257,19 @@ describe("a cup tie in the replay", () => {
     ]);
   });
 
-  it("is not predicted when a side has never played a rated match", () => {
-    const tie = cup(4, 3, 1, 1, 0);
-    const seen: number[] = [];
-    replayElo([...league, tie], (match) => seen.push(match.providerMatchId));
+  it.each([
+    ["home", 3, 1],
+    ["away", 1, 3],
+  ] as const)(
+    "is not predicted when the %s side has never played a rated match",
+    (_side, home, away) => {
+      const tie = cup(4, home, away, 1, 0);
+      const seen: number[] = [];
+      replayElo([...league, tie], (match) => seen.push(match.providerMatchId));
 
-    expect(seen).not.toContain(tie.providerMatchId);
-  });
+      expect(seen).not.toContain(tie.providerMatchId);
+    }
+  );
 
   it("is not predicted from a league match at the same kickoff", () => {
     // Team 3's first league match kicks off with the tie, so it is not yet rated.
