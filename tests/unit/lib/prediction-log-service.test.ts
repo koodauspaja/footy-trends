@@ -11,6 +11,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/060-elo-variants.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -186,8 +187,9 @@ describe("runPredictionLog", () => {
     expect(mocks.synchronizeFootballDataMatches).toHaveBeenCalledWith([{ id: "fd" }]);
     expect(mocks.getTasoSeasonMatches).toHaveBeenCalledWith("spljp26", "VL", 2026);
     expect(mocks.synchronizeTasoMatches).toHaveBeenCalledWith([{ id: "taso" }]);
-    // Each match is logged under both models.
-    expect(report).toEqual({ refreshed: 2, logged: 4, backtested: 0, failures: [] });
+    // Each match is logged under the baseline and the three Elo models; no
+    // stored match gives Poisson a fit of these competitions.
+    expect(report).toEqual({ refreshed: 2, logged: 8, backtested: 0, failures: [] });
   });
 
   it("logs every loggable match under the model, one baseline read per competition", async () => {
@@ -260,7 +262,7 @@ describe("runPredictionLog", () => {
     expect(mocks.synchronizeTasoMatches).toHaveBeenCalled();
     expect(report).toEqual({
       refreshed: 1,
-      logged: 4,
+      logged: 8,
       backtested: 0,
       failures: ["refresh football-data PL 2026"],
     });
@@ -352,7 +354,7 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog();
 
-    expect(report).toEqual({ refreshed: 1, logged: 2, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 1, logged: 4, backtested: 0, failures: [] });
     expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
   });
 
@@ -385,13 +387,52 @@ describe("runPredictionLog", () => {
     ]);
   });
 
-  it("writes no elo-v1 row for a placeholder side, and still logs the baseline", async () => {
+  it("logs elo-form-v1 and elo-home-v1 from the same ratings, with form and the home side's own advantage", async () => {
+    // As above: team 57 beat 61 at home, so both have form, and 57 a home advantage above 60.
+    const meeting = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored([footballDataRow()], [], [[meeting], []]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const surprise = 1 - 1 / (1 + 10 ** (-60 / 400));
+    const shift = 20 * surprise;
+    const form = 1 / (1 + 10 ** ((1500 - 2 * shift - (1500 + 2 * shift + 60)) / 400));
+    const advantage = 60 + 4 * surprise;
+    const home = 1 / (1 + 10 ** ((1500 - shift - (1500 + shift + advantage)) / 400));
+    for (const [model, expected] of [
+      ["elo-form-v1", form],
+      ["elo-home-v1", home],
+    ] as const) {
+      expect(written(model)).toEqual([
+        expect.objectContaining({
+          providerMatchId: 1,
+          kind: "live",
+          drawProbability: 0.25,
+          homeProbability: expect.closeTo(0.75 * expected, 12),
+          awayProbability: expect.closeTo(0.75 * (1 - expected), 12),
+        }),
+      ]);
+    }
+  });
+
+  it("writes no Elo row of any of the three for a placeholder side, and still logs the baseline", async () => {
     stored([footballDataRow({ awayTeam: 0 })], []);
 
     await runPredictionLog(() => NOW, immediate);
 
     expect(written()).toHaveLength(1);
-    expect(written("elo-v1")).toEqual([]);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+      expect(written(model)).toEqual([]);
+    }
   });
 
   it("logs poisson-v1 from a fit of the earlier days' matches, today's left out", async () => {
@@ -494,7 +535,9 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(written()).toHaveLength(1);
-    expect(written("elo-v1")).toHaveLength(1);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+      expect(written(model)).toHaveLength(1);
+    }
     expect(written("poisson-v1")).toEqual([]);
     expect(report.failures).toEqual(["poisson strengths"]);
     expect(mocks.loggerError).toHaveBeenCalledWith(
@@ -502,7 +545,7 @@ describe("runPredictionLog", () => {
       "Unable to fit the Poisson model for predictions"
     );
     expect(mocks.loggerInfo).toHaveBeenCalledWith(
-      { refreshed: 1, logged: 2, backtested: 0, failures: ["poisson strengths"] },
+      { refreshed: 1, logged: 4, backtested: 0, failures: ["poisson strengths"] },
       "Predictions run finished"
     );
   });
@@ -539,7 +582,13 @@ describe("runPredictionLog", () => {
 
     await runPredictionLog(() => NOW, immediate);
 
-    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+    for (const model of [
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]) {
       expect(written(model).map((row) => [row.providerMatchId, row.competitionCode])).toEqual([
         [50, "MSC"],
       ]);
@@ -563,7 +612,13 @@ describe("runPredictionLog", () => {
 
     await runPredictionLog(() => NOW, immediate);
 
-    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+    for (const model of [
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]) {
       expect(written(model).map((row) => row.providerMatchId)).toEqual([51]);
     }
   });
@@ -594,8 +649,9 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(written()).toHaveLength(1);
-    expect(written("elo-v1")).toEqual([]);
-    expect(written("poisson-v1")).toEqual([]);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"]) {
+      expect(written(model)).toEqual([]);
+    }
     // One read feeds both models and the backtest step, so each reports its own loss.
     expect(report.failures).toEqual(["elo ratings", "poisson strengths", "backtest"]);
     expect(mocks.loggerError).toHaveBeenCalledWith(
@@ -622,7 +678,7 @@ describe("runPredictionLog", () => {
       { code: "PL", seasonId: 2026, providerMatchId: 9, kickoffAt: at(-200) },
       { code: "PL", seasonId: 2026, providerMatchId: 10, kickoffAt: at(-30) },
     ].map((match) => ({ ...match, homeTeam: 57, awayTeam: 61, homeGoals: 2, awayGoals: 0 }));
-    const MODELS = ["home-baseline-v1", "elo-v1", "poisson-v1"];
+    const MODELS = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
     const key = (model: string) => ({ source: "football-data", providerMatchId: 10, model });
 
     it("writes every model's backtest row of a finished match that has none", async () => {
@@ -646,7 +702,7 @@ describe("runPredictionLog", () => {
           }),
         ]);
       }
-      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 3, failures: [] });
+      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 5, failures: [] });
       expect(mocks.loggerInfo).toHaveBeenCalledWith(report, "Predictions run finished");
     });
 
@@ -659,7 +715,7 @@ describe("runPredictionLog", () => {
         ...new Set((rows as Array<{ kind: string }>).map((row) => row.kind)),
       ]);
       expect(kinds).toEqual([["live"], ["backtest"]]);
-      expect(report).toMatchObject({ logged: 3, backtested: 3 });
+      expect(report).toMatchObject({ logged: 5, backtested: 5 });
     });
 
     it("drops the cached backtest reports once it has written", async () => {
@@ -677,8 +733,10 @@ describe("runPredictionLog", () => {
 
       expect(backtested("home-baseline-v1")).toEqual([]);
       expect(backtested("poisson-v1")).toEqual([]);
-      expect(backtested("elo-v1")).toHaveLength(1);
-      expect(report.backtested).toBe(1);
+      for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+        expect(backtested(model)).toHaveLength(1);
+      }
+      expect(report.backtested).toBe(3);
     });
 
     it("writes nothing, and drops no cached report, when no row is missing", async () => {
@@ -700,7 +758,7 @@ describe("runPredictionLog", () => {
       const report = await runPredictionLog(() => NOW, immediate);
 
       expect(written()).toHaveLength(1);
-      expect(report).toEqual({ refreshed: 1, logged: 3, backtested: 0, failures: ["backtest"] });
+      expect(report).toEqual({ refreshed: 1, logged: 5, backtested: 0, failures: ["backtest"] });
       expect(mocks.loggerError).toHaveBeenCalledWith(
         { err: new Error("connection reset") },
         "Unable to write the backtest rows for predictions"
@@ -806,8 +864,18 @@ describe("runPredictionBacktest", () => {
 
     const count = await runPredictionBacktest(NOW);
 
-    // Two matches with history, each under all three models.
-    expect(count).toBe(6);
+    // Two matches with history, each under all five models.
+    expect(count).toBe(10);
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      expect(backtested(model)).toEqual([
+        expect.objectContaining({
+          source: "football-data",
+          providerMatchId: 102,
+          kind: "backtest",
+        }),
+        expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+      ]);
+    }
     expect(backtested("poisson-v1")).toEqual([
       expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
       expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
@@ -823,7 +891,8 @@ describe("runPredictionBacktest", () => {
   });
 
   // 1 501 finished matches an hour apart: 1 500 rows under the baseline and under
-  // Elo, and 1 477 under Poisson, which predicts none of the first day's 24.
+  // each of the three Elo models, and 1 477 under Poisson, which predicts none of
+  // the first day's 24.
   const threeBatchesOfFinished = () =>
     Array.from({ length: 1_501 }, (_, index) => ({
       code: "PL",
@@ -839,15 +908,15 @@ describe("runPredictionBacktest", () => {
   it("writes in batches of a thousand", async () => {
     mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
 
-    // 4 477 rows, written a thousand at a time.
-    await expect(runPredictionBacktest(NOW)).resolves.toBe(4_477);
+    // 7 477 rows, written a thousand at a time.
+    await expect(runPredictionBacktest(NOW)).resolves.toBe(7_477);
     expect(mocks.insertValues.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([
-      1_000, 1_000, 1_000, 1_000, 477,
+      1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 477,
     ]);
   });
 
   it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
-    // Five batches: the first is still writing and fails in the end, the second
+    // Eight batches: the first is still writing and fails in the end, the second
     // fails at once, the rest are stored.
     mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
     let failFirst = (_reason: Error) => {};
@@ -861,7 +930,7 @@ describe("runPredictionBacktest", () => {
 
     const run = runPredictionBacktest(NOW);
     run.then(settled, settled);
-    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(5));
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(8));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(settled).not.toHaveBeenCalled();

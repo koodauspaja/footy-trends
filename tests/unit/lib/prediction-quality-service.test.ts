@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
  * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -73,10 +74,9 @@ describe("getPredictionQuality", () => {
   });
 
   it("keeps the Suomen Cups out of the domestic figures of all, each in its own row", async () => {
-    const models = ["home-baseline-v1", "elo-v1", "poisson-v1"];
     mocks.select.mockResolvedValueOnce([
-      ...models.map((model) => row(model, 1, 2, 0, "VL")),
-      ...models.map((model) => row(model, 2, 0, 1, "MSC")),
+      ...QUALITY_MODELS.map((model) => row(model, 1, 2, 0, "VL")),
+      ...QUALITY_MODELS.map((model) => row(model, 2, 0, 1, "MSC")),
     ]);
 
     const report = await getPredictionQuality("taso", "backtest", null);
@@ -86,8 +86,14 @@ describe("getPredictionQuality", () => {
     expect(report.competitions.map((competition) => competition.code)).toEqual(["VL", "MSC"]);
   });
 
-  it("judges the baseline, Elo and Poisson, from 2016 domestically and 2023 for football-data", () => {
-    expect(QUALITY_MODELS).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
+  it("judges the baseline, Elo, its two variants and Poisson, from 2016 domestically and 2023 for football-data", () => {
+    expect(QUALITY_MODELS).toEqual([
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]);
     expect(QUALITY_FIRST_SEASON).toEqual({ taso: 2016, "football-data": 2023 });
   });
 
@@ -166,7 +172,7 @@ describe("getPredictionQuality", () => {
     });
   });
 
-  it("reads each outcome from the score, and judges the matches all three models predicted", async () => {
+  it("reads each outcome from the score, and judges the matches all five models predicted", async () => {
     const byAll = (providerMatchId: number, homeGoals: number, awayGoals: number) =>
       QUALITY_MODELS.map((model) => row(model, providerMatchId, homeGoals, awayGoals));
     mocks.select.mockResolvedValue([
@@ -178,6 +184,8 @@ describe("getPredictionQuality", () => {
       // Poisson did not, on the competition's first day: not judged under any.
       row("home-baseline-v1", 5, 3, 0),
       row("elo-v1", 5, 3, 0),
+      // The variants did not, as before their release: not judged under any.
+      ...["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) => row(model, 6, 3, 0)),
     ]);
 
     const result = await getPredictionQuality("football-data", "backtest", null);
@@ -189,6 +197,8 @@ describe("getPredictionQuality", () => {
     expect(result.totals.map((total) => [total.model, total.matches])).toEqual([
       ["home-baseline-v1", 3],
       ["elo-v1", 3],
+      ["elo-form-v1", 3],
+      ["elo-home-v1", 3],
       ["poisson-v1", 3],
     ]);
   });

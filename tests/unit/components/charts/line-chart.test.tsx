@@ -26,6 +26,7 @@ import {
  * decisions/050-table-volatility.md
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  * decisions/413-rounds-a-team-sat-out.md
  * decisions/441-line-chart-text-on-a-phone.md
  */
@@ -320,6 +321,51 @@ describe("LineChart", () => {
     );
   });
 
+  it.each([
+    ["longDashed", "data-long-dashed", "12 4"],
+    ["dashDotDotted", "data-dash-dot-dotted", "6 4 2 4 2 4"],
+  ] as const)(
+    "draws a %s series with its own pattern, and only its own marker",
+    (style, marker, dash) => {
+      const { container } = render(
+        <LineChart
+          describedBy="chart-text"
+          labelledBy="chart-heading"
+          series={[
+            {
+              name: "more",
+              [style]: true,
+              points: [
+                { x: 1, y: 1 },
+                { x: 3, y: 4 },
+              ],
+            },
+          ]}
+          title="Osumatarkkuus"
+          xDomain={[1, 3]}
+          xLabel="x"
+          xTicks={[1, 3]}
+          yDomain={[1, 4]}
+          yLabel="y"
+          yTicks={[1, 4]}
+        />
+      );
+      const series = container.querySelector("[data-part=series]");
+      const markers = [
+        "data-dashed",
+        "data-dotted",
+        "data-dash-dotted",
+        "data-long-dashed",
+        "data-dash-dot-dotted",
+      ];
+
+      expect(markers.filter((name) => series?.hasAttribute(name))).toEqual([marker]);
+      expect(series?.querySelector("[data-part=line]")?.getAttribute("stroke-dasharray")).toBe(
+        dash
+      );
+    }
+  );
+
   it("uses the theme's colour tokens, so dark mode is not a second drawing", () => {
     const line = chart(true).querySelector("[data-part=line]");
 
@@ -345,6 +391,17 @@ describe("LineLegend", () => {
       <LineLegend items={[{ label: "Kolmas", dashDotted: true }]} />
     );
     expect(dashDotted.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("6 4 2 4");
+    const { container: more } = render(
+      <LineLegend
+        items={[
+          { label: "Neljäs", longDashed: true },
+          { label: "Viides", dashDotDotted: true },
+        ]}
+      />
+    );
+    expect(
+      [...more.querySelectorAll("line")].map((line) => line.getAttribute("stroke-dasharray"))
+    ).toEqual(["12 4", "6 4 2 4 2 4"]);
     // The sample is decoration: the label is what a screen reader reads.
     expect(items[1]?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
   });

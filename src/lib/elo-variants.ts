@@ -227,7 +227,7 @@ export function learnKickoff(state: VariantState, played: readonly PlayedMatch[]
 
   for (const { team, seasonId, surprise } of surprises) {
     const known = state.form.get(team);
-    const kept = known?.seasonId === seasonId ? known.surprises : [];
+    const kept = known !== undefined && known.seasonId === seasonId ? known.surprises : [];
     state.form.set(team, { seasonId, surprises: [...kept, surprise].slice(-FORM_WINDOW) });
   }
   for (const [team, { advantage, seasonId }] of advantages) {
