@@ -6,10 +6,11 @@ import * as Sentry from "@sentry/nextjs";
 import { flagFrom, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
- * Read from the environment so production can differ from staging. Each
- * default keeps what the runtime did before its variable existed.
+ * Read from the environment so production can differ from staging. Unset,
+ * each takes its default in `src/lib/sentry-config.ts`.
  *
  * decisions/140-sentry-production-configuration.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 const tracesSampleRate = sampleRateFrom(process.env.SENTRY_TRACES_SAMPLE_RATE);
 const enableLogs = flagFrom(process.env.SENTRY_ENABLE_LOGS);
