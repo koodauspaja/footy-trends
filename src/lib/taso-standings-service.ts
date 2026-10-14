@@ -1208,10 +1208,28 @@ function isBehindResults(
   groupId: number,
   entry: CarryOverEntry | null
 ): boolean {
-  // A table at zero is decisions/628's to answer, which asks more of it.
+  // A table at zero is ours only under a configured carry-over, which the
+  // unplayed rule asks for and this one does not.
   if (isUnplayedTable(teamRows)) return false;
 
-  const parent = entry?.parent ?? null;
+  const played = finishedMatchCounts(seasonMatches, groupId, entry?.parent ?? null);
+  const points = new Map(standings.map((team) => [team.teamProviderId, team.points]));
+  const rows = teamRows.map((row) =>
+    rowAgainstOurs(row, played.get(row.teamProviderId) ?? 0, points.get(row.teamProviderId))
+  );
+  return !rows.includes("differs") && rows.includes("behind");
+}
+
+/**
+ * Each team's finished matches in a group and its parent.
+ *
+ * decisions/644-stored-table-behind-results.md
+ */
+function finishedMatchCounts(
+  seasonMatches: MatchRow[],
+  groupId: number,
+  parent: number | null
+): Map<number, number> {
   const played = new Map<number, number>();
   for (const match of toFinishedMatches(seasonMatches)) {
     if (match.groupId !== groupId && match.groupId !== parent) continue;
@@ -1219,20 +1237,25 @@ function isBehindResults(
       played.set(team, (played.get(team) ?? 0) + 1);
     }
   }
+  return played;
+}
 
-  const points = new Map(standings.map((team) => [team.teamProviderId, team.points]));
-  let behind = false;
-  for (const row of teamRows) {
-    if (row.points === null) continue;
-    const ourPoints = points.get(row.teamProviderId);
-    if (row.played === null || ourPoints === undefined) return false;
-    const ours = played.get(row.teamProviderId) ?? 0;
-    // Level with us, TASO's points are ours; behind, they cannot be more.
-    if (row.played > ours || row.points > ourPoints) return false;
-    if (row.played === ours && row.points !== ourPoints) return false;
-    if (row.played < ours) behind = true;
-  }
-  return behind;
+/**
+ * One TASO row against ours. Fewer matches cannot have earned more points; a
+ * row without points is held to its count, and alone never makes a table behind.
+ *
+ * decisions/644-stored-table-behind-results.md
+ */
+function rowAgainstOurs(
+  row: StoredGroupTeam,
+  ourPlayed: number,
+  ourPoints: number | undefined
+): "level" | "behind" | "differs" {
+  if (row.played === null || row.played > ourPlayed) return "differs";
+  if (row.points === null) return "level";
+  if (ourPoints === undefined) return "differs";
+  if (row.played === ourPlayed) return row.points === ourPoints ? "level" : "differs";
+  return row.points <= ourPoints ? "behind" : "differs";
 }
 
 /**

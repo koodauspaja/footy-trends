@@ -3295,6 +3295,22 @@ describe("getTeamPositionSeries", () => {
     expect(group?.kind).toBe("pass-through");
   });
 
+  it("keeps TASO's numbers when a team listed without points counts more matches than ours", async () => {
+    const group = await lowerGroup(beforeTheSplitMatch, [
+      listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null, played: 9 }),
+    ]);
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team listed without points has no count", async () => {
+    const group = await lowerGroup(beforeTheSplitMatch, [
+      listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null, played: null }),
+    ]);
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
   it("takes a table level with ours as before, beside a team TASO lists without points", async () => {
     // Not behind, so only the teams TASO gives points to must be in ours. Team 2
     // played the regular season, so the group stays calculable without it.
@@ -5360,6 +5376,38 @@ describe("the stored levels a standings read returns", () => {
 describe("a table behind its results at the start of a season", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("keeps TASO's numbers when only a fixture to come would make its table look behind", async () => {
+    // Every count agrees with the finished match; team 1's points do not. Counted
+    // as played, the fixture would put team 1 behind, and its table ours.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, homeTeamProviderId: 1, awayTeamProviderId: 2 }),
+        match({
+          providerMatchId: 2,
+          homeTeamProviderId: 2,
+          awayTeamProviderId: 1,
+          status: "SCHEDULED",
+          homeGoals: null,
+          awayGoals: null,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, points: 2, played: 1 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 1 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups[0]?.kind).toBe("pass-through");
   });
 
   it("counts a team with only a fixture to come as having played none", async () => {
