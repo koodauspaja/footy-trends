@@ -2132,7 +2132,7 @@ export function hasCarryOver(categoryId: string, competitionId: string): boolean
 
 /**
  * One group's rendering: a match list when it has no table, our table when it
- * reproduces TASO's points, and TASO's own numbers when it does not.
+ * reproduces TASO's points or TASO's is unplayed or behind, else TASO's numbers.
  *
  * decisions/013-more-finnish-competitions.md
  * decisions/043-liigacup.md
