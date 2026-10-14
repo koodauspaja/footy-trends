@@ -61,6 +61,7 @@ something the spec did not.
   | 26 | `/ennusteet`: the line never shown |
   | 27 | The cached fit loses `cup` |
   | 28 | `Ennuste`: a cup tie predicted without asking `predictsSides` |
+  | 29 | Backtest: a placeholder side rated by a league row |
 
 - **None survived.** 7 and 10 survived the first pass: the unrated side was
   only ever at home, and no cup was goalless. A test was added for each.

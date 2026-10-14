@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PLACEHOLDER_TEAM_ID } from "@/lib/match-detail";
 import { fitPoisson, type PoissonPrediction, predictPoisson, utcDay } from "@/lib/poisson";
 import {
   backtestKey,
@@ -315,6 +316,18 @@ describe("a cup's backtest rows", () => {
     expect(ids).toContain(rated.providerMatchId);
     expect(ids).not.toContain(outsider.providerMatchId);
     expect(ids).not.toContain(sameKickoff.providerMatchId);
+  });
+
+  it("rates no placeholder side, whatever league row it appears in", () => {
+    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
+    const opener = cup(2, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    const slot = cup(3, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
+
+    const ids = backtestRows([league, opener, slot], "home-baseline-v1", NOW).map(
+      (row) => row.providerMatchId
+    );
+
+    expect(ids).not.toContain(slot.providerMatchId);
   });
 
   it("tallies every tie of the cup, rated or not, into its own baseline", () => {

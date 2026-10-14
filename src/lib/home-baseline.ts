@@ -83,15 +83,16 @@ export type HomeBaseline =
   | { status: "error" };
 
 /**
- * A compared competition, as the models know it: the provider and its code.
+ * A predicted competition, as the models know it: the provider and its code.
  *
  * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
  */
 export type BaselineCompetition = { kind: MatchSource["kind"]; code: string };
 
 /**
  * The competition a match is predicted from, or `null` when it gets no
- * prediction: not upcoming, or not a compared competition. A TASO match is
+ * prediction: not upcoming, or not a predicted competition. A TASO match is
  * filed by its `(competition_id, category_id)` pair.
  *
  * decisions/049-home-advantage-and-draw-rate.md
