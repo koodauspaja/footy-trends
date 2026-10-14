@@ -100,6 +100,15 @@ describe("formTerm", () => {
     expect(formTerm(state, 1, 2025)).toBeCloseTo(20 * (0.5 - expectedHome(1600, 1400)), 10);
   });
 
+  it("keeps both of a team's matches at one kickoff in its form", () => {
+    const state = emptyVariantState();
+    // A stored duplicate: team 1 in two matches at one kickoff, both from 1500.
+    learnKickoff(state, [at(played(1, 1, 2, 1, 0)), at(played(1, 1, 3, 1, 0))]);
+
+    expect(formTerm(state, 1, 2025)).toBeCloseTo(2 * 20 * (1 - EVEN), 10);
+    expect(state.form.get(1)?.surprises).toHaveLength(2);
+  });
+
   it("counts the latest five matches only", () => {
     const state = emptyVariantState();
     // A loss first, then five wins: the loss falls out of the window.
