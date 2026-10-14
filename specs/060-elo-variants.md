@@ -60,6 +60,9 @@ Only on `/ennusteet` (S5, S6): the variants' names in its legends, tables and
 `Kilpailuittain` columns, (S10): `Elo + vire` for
 `elo-form-v1` and `Elo + kotietu` for `elo-home-v1`, after `Elo`. In the line
 charts `Elo + vire` is long-dashed and `Elo + kotietu` dash-dot-dotted (S14).
+The intro names the five: `Kuinka usein perustaso, Elo, Elo + vire, Elo + kotietu
+ja Poisson ovat ennustaneet …`. Both tables with a column per model,
+`Kilpailuittain` and the scores by season, scroll within their own box at 375 px.
 
 ## API & Data
 
@@ -118,10 +121,12 @@ No personal data.
 
 | File | Minimal assertions |
 |---|---|
-| `tests/unit/lib/elo.test.ts` | The form term by hand, its window and season reset; the home advantage's update, clamp and regression; `elo-v1` unchanged |
+| `tests/unit/lib/elo.test.ts` | `elo-v1` unchanged with the replay's new callback |
+| `tests/unit/lib/elo-variants.test.ts` | The form term by hand, its window and season reset; the home advantage's update, clamp and regression |
 | `tests/unit/lib/prediction-*.test.ts` | Both models logged and backtested |
-| `tests/unit/lib/prediction-quality.test.ts` | Five models in every figure |
-| `tests/integration/…` | Both backtests against Postgres |
+| `tests/unit/lib/prediction-quality-service.test.ts`, `tests/unit/components/prediction-quality-page.test.tsx` | Five models in every figure, the two lines' patterns, the tables' boxes |
+| `tests/integration/predictions.test.ts` | Both backtests against Postgres |
+| `tests/e2e/prediction-quality.spec.ts` | Five models on `/ennusteet`, at 375 px |
 
 Every new test is mutation-checked before review, per `skills/self-review.md`.
 

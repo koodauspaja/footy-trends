@@ -41,4 +41,53 @@ predicted, shows its empty state. Must reach the release notes.
 
 ## What the tests prove, and how
 
-To be filled in as the tests are written and mutation-checked.
+- **By hand**: the form term, its window and its season; the home advantage's
+  move, clamp, regression and two matches at one kickoff; each variant's
+  prediction in a replay, of an upcoming match, and in the backtest against
+  Postgres, the stored 5–4 shoot-out a draw for both (`tests/unit/lib/elo-variants.test.ts`,
+  `tests/integration/predictions.test.ts`).
+- **`elo-v1` unchanged**: `replayElo` with and without `onPlayed` gives the same
+  ratings, history and predictions; `elo.test.ts`'s earlier tests are as they were.
+- **End to end**: `/ennusteet` with five models seeded, every figure naming all
+  five, and at 375 px the page itself not scrolling sideways while the two
+  five-column tables sit in boxes that do.
+- **Every mutation below was caught**, each applied alone and restored from a
+  commit, and each by the test written for it, read from the failing test's
+  name:
+
+| # | Mutation |
+|---|---|
+| 1 | The form window six long |
+| 2 | Form carried into a new season |
+| 3 | The away side's form given the home side's surprise |
+| 4 | The home advantage moved by `elo-v1`'s expectation |
+| 5 | No clamp |
+| 6 | No regression of a home advantage |
+| 7 | The away side's advantage moved |
+| 8 | A second home match at one kickoff dropping the first's change |
+| 9 | Each match learned before the next at one kickoff |
+| 10 | A cup tie learned from |
+| 11 | The two predictions swapped |
+| 12 | A variant backtest row without the baseline's draw share |
+| 13 | The variant rows under each other's names |
+| 14 | Missing variant backtest rows never written |
+| 15 | The whole backtest without the variants |
+| 16 | The hourly run without variant live rows |
+| 17 | Variant live rows without a draw share |
+| 18 | An upcoming match not regressed into its season |
+| 19 | An upcoming placeholder side predicted |
+| 20 | The variants in the other order on the page |
+| 21 | The labels swapped |
+| 22 | The line styles swapped |
+| 23 | A long dash drawn as a dash |
+| 24 | No marker for a dash-dot-dotted line |
+| 25 | The scores by season not in a scrolling box |
+| 26 | `Kilpailuittain` not in a scrolling box |
+| 27 | The intro naming three models |
+| 28 | The form term against the variant's own form-weighted expectation |
+
+- **One first survived and was a wrong mutation**: number 12 replaced the draw
+  share after its guard, which changed nothing; with the guard removed it was
+  caught.
+- **Against Postgres, by accident**: timing the idempotence test with the
+  variants' backtest rows switched off failed it on their assertions.
