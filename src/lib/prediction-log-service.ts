@@ -308,8 +308,8 @@ export async function runPredictionLog(
   }
 
   // The run replays and fits for itself, never from the pages' cache. A failed
-  // read costs the Elo and Poisson rows only: the baseline's are still written,
-  // and no row is ever made from ratings or strengths that were never read.
+  // read costs the three Elo models' and Poisson's rows only: the baseline's are
+  // still written, and no row is ever made from ratings or strengths never read.
   const finished = readFinished();
   const elo = await finished.then(eloBySource, (error: unknown) => {
     logger.error({ err: error }, "Unable to read the Elo history for predictions");

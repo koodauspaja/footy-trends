@@ -259,8 +259,8 @@ export function backtestKey(
 
 /**
  * The backtest rows of every model that `written` does not hold. The baseline
- * and Elo are replayed whole and filtered; Poisson is fitted only for the days
- * of a match that lacks its row.
+ * and the three Elo models are replayed whole and filtered; Poisson is fitted
+ * only for the days of a match that lacks its row.
  *
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md

@@ -85,6 +85,7 @@ predicted, shows its empty state. Must reach the release notes.
 | 26 | `Kilpailuittain` not in a scrolling box |
 | 27 | The intro naming three models |
 | 28 | The form term against the variant's own form-weighted expectation |
+| 29 | The variants' predictions worked out when asked, not at the match |
 
 - **One first survived and was a wrong mutation**: number 12 replaced the draw
   share after its guard, which changed nothing; with the guard removed it was
