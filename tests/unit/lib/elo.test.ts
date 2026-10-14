@@ -19,6 +19,7 @@ import {
  * prediction.
  *
  * decisions/053-elo-ratings.md
+ * decisions/059-cup-predictions.md
  */
 
 let nextId = 1;
@@ -219,5 +220,63 @@ describe("predictElo", () => {
   it("predicts nothing for a placeholder side", () => {
     expect(predictElo(ratings, 0, 2, 2025, 0.2)).toBeNull();
     expect(predictElo(ratings, 1, 0, 2025, 0.2)).toBeNull();
+  });
+});
+
+describe("a cup tie in the replay", () => {
+  // Teams 1 and 2 play the league; 3 has played only the cup.
+  const league = [played(1, 1, 2, 2, 0), played(8, 2, 1, 1, 1)];
+  const cup = (
+    day: number,
+    homeTeam: number,
+    awayTeam: number,
+    homeGoals: number,
+    awayGoals: number
+  ) => played(day, homeTeam, awayTeam, homeGoals, awayGoals, { code: "MSC", cup: true });
+
+  it("moves no rating and adds nothing to any team's history", () => {
+    const without = replayElo(league);
+    const withCups = replayElo([...league, cup(4, 2, 1, 5, 0), cup(10, 1, 2, 0, 3)]);
+
+    expect(withCups.ratings).toEqual(without.ratings);
+    expect(withCups.history).toEqual(without.history);
+  });
+
+  it("is predicted from the ratings both sides had at its kickoff", () => {
+    const tie = cup(4, 2, 1, 0, 0);
+    const seen: Array<[number, number, number]> = [];
+    replayElo([...league, tie], (match, home, away) => {
+      seen.push([match.providerMatchId, home, away]);
+    });
+    const before = replayElo([league[0] as EloMatch]).ratings;
+
+    expect(seen.find(([id]) => id === tie.providerMatchId)).toEqual([
+      tie.providerMatchId,
+      ratingFor(before, 2, 2025),
+      ratingFor(before, 1, 2025),
+    ]);
+  });
+
+  it.each([
+    ["home", 3, 1],
+    ["away", 1, 3],
+  ] as const)(
+    "is not predicted when the %s side has never played a rated match",
+    (_side, home, away) => {
+      const tie = cup(4, home, away, 1, 0);
+      const seen: number[] = [];
+      replayElo([...league, tie], (match) => seen.push(match.providerMatchId));
+
+      expect(seen).not.toContain(tie.providerMatchId);
+    }
+  );
+
+  it("is not predicted from a league match at the same kickoff", () => {
+    // Team 3's first league match kicks off with the tie, so it is not yet rated.
+    const tie = cup(5, 3, 1, 1, 0);
+    const seen: number[] = [];
+    replayElo([...league, played(5, 3, 2, 1, 0), tie], (match) => seen.push(match.providerMatchId));
+
+    expect(seen).not.toContain(tie.providerMatchId);
   });
 });

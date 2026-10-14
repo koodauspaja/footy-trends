@@ -6,6 +6,7 @@ import type { FinishedMatch } from "@/lib/prediction-backtest";
  * own case.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -78,6 +79,20 @@ describe("the Poisson service", () => {
       predictPoisson(expected, "VL", 11, 22)
     );
     expect(result.fit.attack.get(11)).toBeGreaterThan(result.fit.attack.get(22) as number);
+  });
+
+  it("keeps a cup a cup through the cache's JSON, so an unknown side is still no prediction", async () => {
+    mocks.readFinished.mockResolvedValue([
+      ...history,
+      { ...played(21, 15, 11, 22, 2), code: "MSC", cup: true },
+    ]);
+
+    const result = await getPoissonFit("taso", () => NOW);
+
+    if (result.status !== "ok") throw new Error("no fit");
+    expect(result.fit.competitions.get("MSC")?.cup).toBe(true);
+    expect(predictPoisson(result.fit, "MSC", 11, 22)).not.toBeNull();
+    expect(predictPoisson(result.fit, "MSC", 11, 33)).toBeNull();
   });
 
   it("asks the real clock for today when given none", async () => {

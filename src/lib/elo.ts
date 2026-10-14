@@ -49,6 +49,7 @@ export const ELO_REGRESSION = 1 / 3;
  *
  * decisions/053-elo-ratings.md
  * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/059-cup-predictions.md
  */
 export type EloMatch = {
   source: MatchSource["kind"];
@@ -60,6 +61,8 @@ export type EloMatch = {
   awayTeam: number;
   homeGoals: number;
   awayGoals: number;
+  /** A cup tie: predicted where both sides are rated, and never learned from. */
+  cup?: boolean;
 };
 
 /**
@@ -135,6 +138,16 @@ export function ratingFor(
   return known.rating + (ELO_START - known.rating) * ELO_REGRESSION;
 }
 
+/**
+ * Whether a team has a rating: a match in a rated competition before now. A
+ * team without one starts at 1500, which a cup tie is never predicted from.
+ *
+ * decisions/059-cup-predictions.md
+ */
+export function isRated(ratings: ReadonlyMap<number, TeamRating>, team: number): boolean {
+  return ratings.has(team);
+}
+
 function isRateable(match: EloMatch): boolean {
   return match.homeTeam !== PLACEHOLDER_TEAM_ID && match.awayTeam !== PLACEHOLDER_TEAM_ID;
 }
@@ -145,12 +158,36 @@ function homeScore(match: EloMatch): number {
 }
 
 /**
+ * Hands `onPredict` each cup tie of one kickoff whose two sides the leagues
+ * have rated, at the ratings before that kickoff.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function predictCupTies(
+  atKickoff: readonly EloMatch[],
+  ratings: ReadonlyMap<number, TeamRating>,
+  onPredict: (match: EloMatch, homeRating: number, awayRating: number) => void
+) {
+  for (const match of atKickoff) {
+    if (!match.cup || !isRated(ratings, match.homeTeam) || !isRated(ratings, match.awayTeam)) {
+      continue;
+    }
+    onPredict(
+      match,
+      ratingFor(ratings, match.homeTeam, match.seasonId),
+      ratingFor(ratings, match.awayTeam, match.seasonId)
+    );
+  }
+}
+
+/**
  * Every match in kickoff order. Matches sharing a kickoff are all rated from
- * the ratings before any of them, then all update. `onPredict` sees each match
- * with the ratings it was played at. Feed one provider at a time.
+ * the ratings before any of them, then all update; a cup tie never updates.
+ * `onPredict` sees each match with the ratings it was played at.
  *
  * decisions/053-elo-ratings.md
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export function replayElo(
   matches: readonly EloMatch[],
@@ -171,12 +208,16 @@ export function replayElo(
     const kickoff = ordered[index]?.kickoffAt.getTime();
     let end = index;
     while (ordered[end]?.kickoffAt.getTime() === kickoff) end += 1;
-    const together = ordered.slice(index, end).map((match) => {
-      const home = ratingFor(ratings, match.homeTeam, match.seasonId);
-      const away = ratingFor(ratings, match.awayTeam, match.seasonId);
-      onPredict?.(match, home, away);
-      return { match, home, away };
-    });
+    const atKickoff = ordered.slice(index, end);
+    if (onPredict !== undefined) predictCupTies(atKickoff, ratings, onPredict);
+    const together = atKickoff
+      .filter((match) => !match.cup)
+      .map((match) => {
+        const home = ratingFor(ratings, match.homeTeam, match.seasonId);
+        const away = ratingFor(ratings, match.awayTeam, match.seasonId);
+        onPredict?.(match, home, away);
+        return { match, home, away };
+      });
 
     // Every change at this kickoff is added up before any is applied, so a
     // team in two of these matches (a stored duplicate) keeps both updates.

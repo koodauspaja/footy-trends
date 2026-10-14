@@ -174,8 +174,8 @@ The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
 checkout of the commit that environment runs. It rewrites every row.
 
-- **After a release that adds a model**, so the hour's run does not compute
-  the model's whole history: it would, in about 30 s.
+- **After a release that adds a model or a predicted competition**, so the
+  hour's run does not compute their whole history: it would, in about 30 s.
 - **On staging, whenever its backtest rows should be current**: nothing
   scheduled runs there.
 

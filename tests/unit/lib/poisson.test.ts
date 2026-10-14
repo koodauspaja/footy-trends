@@ -25,6 +25,7 @@ import {
  * replay over a history.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 
 const DAY_MS = 86_400_000;
@@ -725,5 +726,105 @@ describe("foldScoreGrid", () => {
       12
     );
     expect(folded[5]?.[5]).toBeCloseTo(total(grid.slice(5).map((row) => row.slice(5))), 12);
+  });
+});
+
+describe("a cup in the fit", () => {
+  // Four league sides, two seasons' worth, and a cup they and an outsider play.
+  const random = (() => {
+    let seed = 7;
+    return () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+  })();
+  const league = Array.from({ length: 120 }, (_, index) =>
+    played(
+      1 + index,
+      1 + (index % 4),
+      1 + ((index + 1 + (index % 3)) % 4),
+      Math.floor(random() * 4),
+      Math.floor(random() * 3)
+    )
+  ).filter((match) => match.homeTeam !== match.awayTeam);
+  const cup = (
+    daysAgo: number,
+    homeTeam: number,
+    awayTeam: number,
+    homeGoals: number,
+    awayGoals: number
+  ) => played(daysAgo, homeTeam, awayTeam, homeGoals, awayGoals, { code: "MSC", cup: true });
+  const ties = [cup(5, 1, 2, 4, 3), cup(15, 3, 4, 2, 2), cup(25, 2, 3, 5, 1), cup(35, 4, 1, 1, 1)];
+
+  const leaguesOf = (fit: PoissonFit) => ({
+    home: fit.home,
+    attack: fit.attack,
+    defence: fit.defence,
+    competitions: [...fit.competitions].filter(([code]) => code !== "MSC"),
+  });
+
+  it("leaves the leagues' fit exactly as it is without the cup", () => {
+    const outsider = cup(10, 9, 1, 7, 0);
+
+    expect(leaguesOf(fitPoisson([...league, ...ties, outsider], TODAY))).toEqual(
+      leaguesOf(fitPoisson(league, TODAY))
+    );
+  });
+
+  it("gives the cup its own goal rate and draw factor, marked as a cup", () => {
+    const fit = fitPoisson([...league, ...ties], TODAY);
+    const own = fit.competitions.get("MSC");
+
+    expect(own?.cup).toBe(true);
+    // Its ties are higher scoring than the league's, so its rate is above the league's.
+    expect(own?.base).toBeGreaterThan(fit.competitions.get("VL")?.base as number);
+    // Two draws in four: the factor brings the ties' average draw chance to a half.
+    const draws = ties.map(
+      (tie) =>
+        (predictPoisson(fit, "MSC", tie.homeTeam, tie.awayTeam) as PoissonPrediction).prediction
+          .draw
+    );
+    expect(total(draws) / draws.length).toBeCloseTo(0.5, 2);
+  });
+
+  it("fits the cup from its ties between teams the leagues know, and no other", () => {
+    const withOutsider = fitPoisson([...league, ...ties, cup(10, 9, 1, 9, 0)], TODAY);
+
+    expect(withOutsider.competitions.get("MSC")).toEqual(
+      fitPoisson([...league, ...ties], TODAY).competitions.get("MSC")
+    );
+  });
+
+  it("predicts no cup tie with a side the leagues do not know, where a league match takes it as average", () => {
+    const fit = fitPoisson([...league, ...ties], TODAY);
+
+    expect(predictPoisson(fit, "MSC", 9, 1)).toBeNull();
+    expect(predictPoisson(fit, "MSC", 1, 9)).toBeNull();
+    expect(predictPoisson(fit, "MSC", 1, 2)).not.toBeNull();
+    expect(predictPoisson(fit, "VL", 9, 1)).not.toBeNull();
+  });
+
+  it("keeps a cup whose one tie was goalless at a goal rate of its own, above nothing", () => {
+    const fit = fitPoisson([...league, cup(10, 1, 2, 0, 0)], TODAY);
+    const base = fit.competitions.get("MSC")?.base as number;
+
+    expect(Number.isFinite(base)).toBe(true);
+    expect(base).toBeLessThan(fit.competitions.get("VL")?.base as number);
+  });
+
+  it("has no cup when none of its ties is between known teams", () => {
+    expect(fitPoisson([...league, cup(10, 9, 1, 1, 0)], TODAY).competitions.has("MSC")).toBe(false);
+  });
+
+  it("is replayed on the leagues' strengths, a tie predicted only between known teams", () => {
+    const predicted: number[] = [];
+    const later = cup(2, 1, 3, 2, 1);
+    const outsiderTie = cup(1, 9, 2, 0, 1);
+    replayPoisson([...league, ...ties, later, outsiderTie], (match) => {
+      if (match.cup) predicted.push(match.providerMatchId);
+    });
+
+    expect(predicted).toContain(later.providerMatchId);
+    expect(predicted).not.toContain(outsiderTie.providerMatchId);
   });
 });

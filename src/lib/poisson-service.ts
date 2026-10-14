@@ -23,9 +23,10 @@ const POISSON_CACHE_TTL_SECONDS = 15 * 60;
  * What the cache holds per provider: the fit, its maps as JSON-safe pairs.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 type PoissonSnapshot = {
-  competitions: Array<[string, { base: number; drawFactor: number }]>;
+  competitions: Array<[string, { base: number; drawFactor: number; cup?: boolean }]>;
   home: number;
   attack: Array<[number, number]>;
   defence: Array<[number, number]>;
