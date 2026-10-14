@@ -128,6 +128,16 @@ Sourcery's first review of #645 found four things, and Sonar one.
 | A continuation with no carry-over entry could be taken as behind if its stored count fell below the group's own matches | Not changed: TASO's count for a continuation includes the regular season (Measured), 22 matches in Veikkausliiga against at most ten in a split group, and a continuation's rows exist only once the regular season is over |
 | Sonar: `isBehindResults` above the complexity limit | Split into `finishedMatchCounts` and `rowAgainstOurs` |
 
+The second review, of the fix, found four new things and repeated two of the
+first review's, answered as above. Nothing was changed.
+
+| Finding | Outcome |
+|---|---|
+| A deduction in TASO's points disappears when its table is behind | A deduction TASO publishes as starting points is applied to ours. One carried only in its points cannot be told from a copy that is behind, as What is not solved says |
+| Tie-breaks of a team level on matches are not compared | specs/013's comparison has only ever compared points; this keeps that rule |
+| A row without points should differ, not be level | specs/013 skips such a row; its match count is checked since the first review (mutations 18 and 20) |
+| The start-of-season test should assert team 3's `played` | That figure comes from `calculateStandings`, not from the count this rule uses, so it would pass with fixtures counted. Mutation 19's test holds it |
+
 ## Measured
 
 On 2026-10-14, read-only on production, from inside the production container,
