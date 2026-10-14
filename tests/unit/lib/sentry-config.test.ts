@@ -152,6 +152,7 @@ describe("withDeniedQueriesFiltered", () => {
 
   it("leaves a name with no value and a lone separator alone", () => {
     expect(withDeniedQueriesFiltered("/x?code&token&=v?")).toBe("/x?code&token&=v?");
+    expect(withDeniedQueriesFiltered("/x?code#c=1 ?token x=2")).toBe("/x?code#c=1 ?token x=2");
   });
 
   it("stops a value at a fragment, so a full referer stays intact around it", () => {
