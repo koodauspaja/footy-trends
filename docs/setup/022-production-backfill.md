@@ -148,6 +148,11 @@ an ordinary run skips them all and writes nothing.
 
 Added for the half-time score (`specs/036-halftime-comebacks.md`).
 
+It keeps the rows, unlike `--reset`, and costs a full run's provider quota —
+the ~11 minutes measured above. Without it the new column stays null for a past
+season until that season happens to become the active one again, which for a
+finished season is never.
+
 ---
 
 ## Step 3c — Zone levels of stored seasons
@@ -165,11 +170,6 @@ every three seconds (about 50 requests), and writes `taso_group_zones` only.
 - A season TASO fails on is listed at the end and the run exits 1; run it again.
 
 Added for the competition zones (`specs/063-competition-zones.md`).
-
-It keeps the rows, unlike `--reset`, and costs a full run's provider quota —
-the ~11 minutes measured above. Without it the new column stays null for a past
-season until that season happens to become the active one again, which for a
-finished season is never.
 
 ---
 

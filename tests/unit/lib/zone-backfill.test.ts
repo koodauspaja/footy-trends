@@ -31,14 +31,20 @@ const LEVELLED = {
   next_stage_level_texts: ["Nousee"],
 };
 
-// A pacer that only counts its turns.
-function countingPacer(): Paced & { turns: () => number } {
+// A pacer that counts its turns and knows whether its work is running.
+function countingPacer(): Paced & { turns: () => number; running: () => boolean } {
   let turns = 0;
-  const pace: Paced = (work) => {
+  let running = false;
+  const pace: Paced = async (work) => {
     turns += 1;
-    return work();
+    running = true;
+    try {
+      return await work();
+    } finally {
+      running = false;
+    }
   };
-  return Object.assign(pace, { turns: () => turns });
+  return Object.assign(pace, { turns: () => turns, running: () => running });
 }
 
 beforeEach(() => {
@@ -103,10 +109,16 @@ describe("backfillZones", () => {
       async (code) => new Set(code === "VL" ? [2025, 2026] : [])
     );
     const pace = countingPacer();
+    const pacedRequests: boolean[] = [];
+    getSeasonGroups.mockImplementation(async () => {
+      pacedRequests.push(pace.running());
+      return [LEVELLED];
+    });
 
     await backfillZones(pace, vi.fn());
 
     expect(pace.turns()).toBe(2);
+    expect(pacedRequests).toEqual([true, true]);
     expect(ZONE_BACKFILL_PER_MINUTE).toBe(20);
   });
 

@@ -183,7 +183,8 @@ describe("the backfill's entry point", () => {
       ENTRY.indexOf("resetArg !== undefined")
     );
 
-    expect(zones).toMatch(/await backfillZoneLevels\(\);\s*return;/);
+    // Its result is the exit code: a season it could not read fails the run.
+    expect(zones).toMatch(/process\.exitCode = await backfillZoneLevels\(\);\s*return;/);
     expect(zones).not.toContain("backfill({");
   });
 

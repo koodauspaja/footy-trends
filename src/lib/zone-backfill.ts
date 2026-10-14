@@ -17,8 +17,8 @@ import { getSeasonGroups, normalizeGroupLevels } from "./taso";
 import { storedTasoSeasons, synchronizeGroupLevels } from "./taso-standings-service";
 
 /**
- * The gap the read-only sweep of TASO kept between requests: one every three
- * seconds.
+ * One TASO request every three seconds: slower than the full backfill's pace,
+ * since this run is one-off and has no deadline.
  */
 export const ZONE_BACKFILL_PER_MINUTE = 20;
 
