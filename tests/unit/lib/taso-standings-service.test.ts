@@ -5410,6 +5410,37 @@ describe("the stored levels a standings read returns", () => {
   });
 });
 
+describe("the stored levels a season's tables carry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fails when the levels cannot be read, rather than answering a table with none", async () => {
+    const from = vi.fn().mockImplementation((table: unknown) => {
+      if (table === tasoGroupZones) {
+        return {
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockRejectedValue(new Error("connection lost")),
+          }),
+        };
+      }
+      const rows = table === tasoGroupTeams ? [] : [match({ seasonId: 2015 })];
+      return {
+        where: vi
+          .fn()
+          .mockReturnValue(
+            Object.assign(Promise.resolve(rows), { orderBy: vi.fn().mockResolvedValue(rows) })
+          ),
+      };
+    });
+    dbMock.select.mockReturnValue({ from });
+
+    await expect(getSeasonTables(CATEGORY_ID, "spljp15", 2015, ACTIVE_SEASON)).rejects.toThrow(
+      "connection lost"
+    );
+  });
+});
+
 describe("a table behind its results at the start of a season", () => {
   beforeEach(() => {
     vi.clearAllMocks();

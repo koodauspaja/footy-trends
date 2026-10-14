@@ -19,6 +19,8 @@ columns only (see Where the spec was made to say what is built).
 | The cache | `forecast:v3:<provider>:<code>:<season>` | The cached value changed shape: a v2 entry has no `zones`, and a page rendering it within the 15 minutes after a deploy would read `undefined`. The spec said the key was unchanged; a changed shape is what a key's version is for. |
 | Zone columns | One column per zone, 112 px, headed by the label as written with `sija 1` or `sijat 3–8` on a second line; the table scrolls inside its box as before | S2. The label wraps; positions are specs/063's words in lower case. Five zones (Ykkösliiga) need 112 + 72 + 5 × 112 = 744 px. |
 | The team's name | `sticky left-0` with the page's background on the name cells, in every forecast table | AC "the team name stays in view". The tables scrolled before without it; a wide table is where it matters, but a name that stays in view is no worse in a narrow one. A unit test asserts the class; jsdom cannot scroll, so the behaviour is not asserted. |
+| A levels read that fails | `getSeasonTables` throws, as the classification's own failure does; the service's catch logs `Unable to simulate the season` and the panel says it could not be calculated | A failure must not share a value with "no zones": a table drawn on specs/061's columns because the read failed would be a plausible wrong answer. |
+| The groups and the levels in two queries | Not changed | As decisions/063 for the standings page. A sync between the two reads pairs one snapshot's table with the other's levels for at most the fifteen minutes the forecast is cached; a level past the table's last row is cut. |
 | The panel's other lines | Unchanged | S7. |
 
 ## Where the spec was made to say what is built
