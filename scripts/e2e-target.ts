@@ -7,9 +7,10 @@
 
 /**
  * `fresh-build` builds and then serves, `prebuilt` serves a build the caller
- * made, and `dev` is `next dev`.
+ * made, with whatever Sentry DSN it was built with, and `dev` is `next dev`.
  *
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 export type E2eTarget = "fresh-build" | "prebuilt" | "dev";
 
@@ -60,9 +61,9 @@ export function vouchesForAPush(target: E2eTarget): boolean {
 }
 
 /**
- * The server's environment with no Sentry DSN, so a run reports nothing to
- * Sentry whatever `.env` holds. A `prebuilt` build keeps the DSN it was built
- * with: the browser's is inlined at build time.
+ * The server's environment with no Sentry DSN, so a `fresh-build` or `dev` run
+ * reports nothing to Sentry whatever `.env` holds. A `prebuilt` build keeps the
+ * DSN it was built with, inlined at build time.
  *
  * decisions/656-e2e-sends-nothing-to-sentry.md
  */
