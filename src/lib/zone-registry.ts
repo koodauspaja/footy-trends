@@ -48,7 +48,10 @@ export type RegistryLevel = ZoneLevel & { kind?: ZoneKind };
  *
  * decisions/065-foreign-league-zones.md
  */
-type League = { teams: number; seasons: Record<number, readonly Place[]> };
+type League = {
+  readonly teams: number;
+  readonly seasons: Readonly<Record<number, readonly Place[]>>;
+};
 
 const CL = "championsLeague";
 const CLQ = "championsLeagueQualifying";

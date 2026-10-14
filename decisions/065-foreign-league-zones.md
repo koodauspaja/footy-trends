@@ -27,6 +27,16 @@ simulation reads a table's levels as its columns).
 | A season with no entry | `registryLevels` answers `[]`: no zone, no rule, no tint, no list, and the simulation keeps specs/061's columns | S2 |
 | Upkeep | `docs/zone-registry-upkeep.md`, linked from `skills/release.md`'s Notes | S5. Not a release step: it happens once a year, and a failing test would block unrelated work |
 
+## After the review
+
+Sourcery's second review of #649 found three things.
+
+| Finding | Outcome |
+|---|---|
+| A forced refresh by an old instance clears only `forecast:v3` while a new instance has cached `v4`, during a rolling deploy | Not changed: it is the old instance's code, which this change cannot alter, and it lasts the deploy window and at most the fifteen minutes of the entry |
+| The exported registry is only shallowly readonly | Fixed: `League`'s `teams` and `seasons` are `readonly` and `seasons` is `Readonly<Record<…>>`, so an importer cannot assign into an entry. A type, so there is no runtime mutation to run; `tsc` fails an assignment |
+| The registry test's seasons are a fixed list | Not changed: S5, Miikka, 2026-10-14: no test that fails when a season has no entry, because one red in August would block unrelated work. The upkeep step is what adds the season |
+
 ## Cache
 
 `forecast:v4:<provider>:<code>:<season>`. **Overrides the key named in
