@@ -55,7 +55,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Read exactly as `sentry.server.config.ts` reads them, so what is printed is
+  // Read exactly as `sentry.server.config.ts` reads it, so what is printed is
   // what the server runtime would actually use — not a second interpretation
   // that could drift from it.
   const settings = {
