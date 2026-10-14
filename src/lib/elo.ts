@@ -97,12 +97,18 @@ export type EloReplay = {
 export type ThreeWay = { home: number; draw: number; away: number };
 
 /**
- * The home side's expected score (win 1, draw ½), its 60 points included.
+ * The home side's expected score (win 1, draw ½), its home advantage included:
+ * 60 points unless a variant gives the side its own.
  *
  * decisions/053-elo-ratings.md
+ * decisions/060-elo-variants.md
  */
-export function expectedHome(homeRating: number, awayRating: number): number {
-  return 1 / (1 + 10 ** ((awayRating - (homeRating + ELO_HOME_ADVANTAGE)) / 400));
+export function expectedHome(
+  homeRating: number,
+  awayRating: number,
+  homeAdvantage: number = ELO_HOME_ADVANTAGE
+): number {
+  return 1 / (1 + 10 ** ((awayRating - (homeRating + homeAdvantage)) / 400));
 }
 
 /**
@@ -204,10 +210,9 @@ function predictCupTies(
 export type PlayedMatch = { match: EloMatch; home: number; away: number };
 
 /**
- * Every match in kickoff order. Matches sharing a kickoff are all rated from
- * the ratings before any of them, then all update; a cup tie never updates.
- * `onPredict` sees each match with the ratings it was played at, and `onPlayed`
- * each kickoff's league matches once their updates are applied.
+ * Every match in kickoff order, a kickoff's matches rated from the ratings
+ * before any of them, a cup tie never updating. `onPredict` sees each at those
+ * ratings; `onPlayed` each kickoff's league matches once they are applied.
  *
  * decisions/053-elo-ratings.md
  * decisions/052-predictions-log.md

@@ -109,6 +109,16 @@ describe("formTerm", () => {
     expect(formTerm(state, 1, 2025)).toBeCloseTo(5 * 20 * (1 - EVEN), 10);
   });
 
+  it("counts an older season's match as its own, as ratingFor does", () => {
+    const state = emptyVariantState();
+    learnKickoff(state, [at(played(1, 1, 2, 2, 0, { seasonId: 2026 }))]);
+
+    expect(formTerm(state, 1, 2025)).toBeCloseTo(20 * (1 - EVEN), 10);
+
+    learnKickoff(state, [at(played(2, 1, 2, 2, 0, { seasonId: 2025 }))]);
+    expect(formTerm(state, 1, 2025)).toBeCloseTo(2 * 20 * (1 - EVEN), 10);
+  });
+
   it("is nothing at a team's first match of a new season, and counts only that season after it", () => {
     const state = emptyVariantState();
     learnKickoff(state, [at(played(1, 1, 2, 3, 0))]);
@@ -262,20 +272,22 @@ describe("replayVariants", () => {
     const tie = played(2, 1, 2, 0, 4, { code: "MSC", cup: true });
     const after = played(3, 1, 2, 0, 0);
     const predicted: number[] = [];
-    let atAfter: number | undefined;
+    const atAfter = (history: EloMatch[]) => {
+      let home: number | undefined;
+      const { state } = replayVariants(history, (match, predict) => {
+        predicted.push(match.providerMatchId);
+        if (match.providerMatchId === after.providerMatchId) home = predict(0.25).home.home;
+      });
+      return { home, state };
+    };
 
-    const { state } = replayVariants([league, tie, after], (match, predict) => {
-      predicted.push(match.providerMatchId);
-      if (match.providerMatchId === after.providerMatchId) atAfter = predict(0.25).home.home;
-    });
-    const withoutTie = replayVariants([league, after], (match, predict) => {
-      if (match.providerMatchId === after.providerMatchId) {
-        expect(predict(0.25).home.home).toBe(atAfter);
-      }
-    });
+    const withTie = atAfter([league, tie, after]);
+    const withoutTie = atAfter([league, after]);
 
     expect(predicted).toContain(tie.providerMatchId);
-    expect(state).toEqual(withoutTie.state);
+    expect(withTie.home).toEqual(expect.any(Number));
+    expect(withTie.home).toBe(withoutTie.home);
+    expect(withTie.state).toEqual(withoutTie.state);
   });
 });
 

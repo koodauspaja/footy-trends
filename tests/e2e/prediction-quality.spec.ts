@@ -209,13 +209,18 @@ test.describe("Prediction quality, signed in", () => {
         region(page, "Kilpailuittain").getByRole("table"),
         region(page, "Brier-pistemäärä ja log-loss").getByRole("table").nth(1),
       ]) {
-        // The box is no wider than the page; the table inside it may be.
+        // Five models' columns do not fit: the box scrolls, and is no wider than the page.
         const box = await table.evaluate((element) => {
           const parent = element.parentElement as HTMLElement;
-          return { overflowX: getComputedStyle(parent).overflowX, width: parent.clientWidth };
+          return {
+            overflowX: getComputedStyle(parent).overflowX,
+            width: parent.clientWidth,
+            content: parent.scrollWidth,
+          };
         });
         expect(box.overflowX).toBe("auto");
         expect(box.width).toBeLessThanOrEqual(375);
+        expect(box.content).toBeGreaterThan(box.width);
       }
     });
   });

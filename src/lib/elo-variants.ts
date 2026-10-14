@@ -1,8 +1,7 @@
 /**
- * Two variants of Elo, each logged as a model of its own beside `elo-v1`: a
- * form term from a team's recent results, and each team's own home advantage.
- * Both read `elo-v1`'s ratings and never change them. Pure: the services read
- * the finished matches.
+ * Two variants of Elo logged beside `elo-v1`: a form term from a team's recent
+ * results, and each team's own home advantage. Both read `elo-v1`'s ratings and
+ * never change them. Pure: the services read the finished matches.
  *
  * decisions/060-elo-variants.md
  */
@@ -134,14 +133,14 @@ export function emptyVariantState(): VariantState {
 
 /**
  * A team's form term going into a match of `seasonId`: the weight times its
- * score above expectation over its latest matches of that season, none at its
- * first match of a season.
+ * score above expectation over its latest matches, none at its first match of
+ * a later season, as `ratingFor` regresses a rating.
  *
  * decisions/060-elo-variants.md
  */
 export function formTerm(state: VariantState, team: number, seasonId: number): number {
   const known = state.form.get(team);
-  if (known === undefined || known.seasonId !== seasonId) return 0;
+  if (known === undefined || seasonId > known.seasonId) return 0;
   return FORM_WEIGHT * known.surprises.reduce((sum, surprise) => sum + surprise, 0);
 }
 
@@ -182,31 +181,35 @@ function formExpected(state: VariantState, fixture: RatedFixture): number {
  * decisions/060-elo-variants.md
  */
 function homeExpected(state: VariantState, fixture: RatedFixture): number {
-  const advantage = homeAdvantageFor(state, fixture.homeTeam, fixture.seasonId);
-  return 1 / (1 + 10 ** ((fixture.away - (fixture.home + advantage)) / 400));
+  return expectedHome(
+    fixture.home,
+    fixture.away,
+    homeAdvantageFor(state, fixture.homeTeam, fixture.seasonId)
+  );
 }
 
+type Expectations = { form: number; home: number };
+
 /**
- * The two variants' predictions of a match from the ratings it was played at.
+ * Both variants' expected home score of a match, from the state as it stands.
  *
  * decisions/060-elo-variants.md
  */
-function predictVariants(
-  state: VariantState,
-  fixture: RatedFixture,
-  drawShare: number
-): { form: ThreeWay; home: ThreeWay } {
+function expectations(state: VariantState, fixture: RatedFixture): Expectations {
+  return { form: formExpected(state, fixture), home: homeExpected(state, fixture) };
+}
+
+function splitBoth(expected: Expectations, drawShare: number): { form: ThreeWay; home: ThreeWay } {
   return {
-    form: splitThreeWay(formExpected(state, fixture), drawShare),
-    home: splitThreeWay(homeExpected(state, fixture), drawShare),
+    form: splitThreeWay(expected.form, drawShare),
+    home: splitThreeWay(expected.home, drawShare),
   };
 }
 
 /**
- * One kickoff's league matches learned from: every change is worked out from
- * the state before any of them, then applied. Form takes each side's score
- * above `elo-v1`'s expectation; the home side's advantage moves by its score
- * above the variant's own.
+ * One kickoff's league matches learned from, every change worked out from the
+ * state before any of them: form by each side's score above `elo-v1`'s
+ * expectation, the home side's advantage by its score above the variant's own.
  *
  * decisions/060-elo-variants.md
  */
@@ -232,7 +235,7 @@ export function learnKickoff(state: VariantState, played: readonly PlayedMatch[]
 
   for (const { team, seasonId, surprise } of surprises) {
     const known = state.form.get(team);
-    const kept = known !== undefined && known.seasonId === seasonId ? known.surprises : [];
+    const kept = known !== undefined && seasonId <= known.seasonId ? known.surprises : [];
     state.form.set(team, { seasonId, surprises: [...kept, surprise].slice(-FORM_WINDOW) });
   }
   for (const [team, { advantage, seasonId }] of advantages) {
@@ -241,9 +244,8 @@ export function learnKickoff(state: VariantState, played: readonly PlayedMatch[]
 }
 
 /**
- * Elo's replay with the variants' state kept beside it: `onPredict` sees each
- * match with the variants' predictions from the ratings it was played at and
- * the state before its kickoff, worked out before the callback is called. A cup
+ * Elo's replay with the variants' state beside it: `onPredict` gets each match's
+ * predictions, worked out at its ratings and the state before its kickoff. A cup
  * tie is predicted and never learned from.
  *
  * decisions/060-elo-variants.md
@@ -261,13 +263,8 @@ export function replayVariants(
     onPredict === undefined
       ? undefined
       : (match, home, away) => {
-          const fixture = fixtureOf({ match, home, away });
-          const form = formExpected(state, fixture);
-          const own = homeExpected(state, fixture);
-          onPredict(match, (drawShare) => ({
-            form: splitThreeWay(form, drawShare),
-            home: splitThreeWay(own, drawShare),
-          }));
+          const expected = expectations(state, fixtureOf({ match, home, away }));
+          onPredict(match, (drawShare) => splitBoth(expected, drawShare));
         },
     (played) => learnKickoff(state, played)
   );
@@ -287,15 +284,12 @@ export function predictUpcomingVariants(
   drawShare: number
 ): { form: ThreeWay; home: ThreeWay } | null {
   if (match.homeTeam === PLACEHOLDER_TEAM_ID || match.awayTeam === PLACEHOLDER_TEAM_ID) return null;
-  return predictVariants(
-    state,
-    {
-      homeTeam: match.homeTeam,
-      awayTeam: match.awayTeam,
-      seasonId: match.seasonId,
-      home: ratingFor(ratings, match.homeTeam, match.seasonId),
-      away: ratingFor(ratings, match.awayTeam, match.seasonId),
-    },
-    drawShare
-  );
+  const fixture = {
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    seasonId: match.seasonId,
+    home: ratingFor(ratings, match.homeTeam, match.seasonId),
+    away: ratingFor(ratings, match.awayTeam, match.seasonId),
+  };
+  return splitBoth(expectations(state, fixture), drawShare);
 }

@@ -285,6 +285,14 @@ describe("a cup tie in the replay", () => {
   });
 });
 
+describe("expectedHome with a home advantage of its own", () => {
+  it("takes the given advantage in place of 60, and 60 when given none", () => {
+    expect(expectedHome(1500, 1500, 0)).toBe(0.5);
+    expect(expectedHome(1500, 1600, 100)).toBe(0.5);
+    expect(expectedHome(1550, 1500, 60)).toBe(expectedHome(1550, 1500));
+  });
+});
+
 describe("splitThreeWay and homeScore", () => {
   it("splits a home side's expected score as threeWay does from two ratings", () => {
     expect(splitThreeWay(expectedHome(1600, 1450), 0.3)).toEqual(threeWay(1600, 1450, 0.3));
