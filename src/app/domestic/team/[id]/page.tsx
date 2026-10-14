@@ -24,6 +24,7 @@ import {
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamSeasonSummary,
   getTeamStreakRecords,
   type TeamMatchesResult,
 } from "@/lib/taso-standings-service";
@@ -148,6 +149,16 @@ async function resolveTeamPage({
       // seasons, and a category id belongs to one.
       loadComparison: () =>
         getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
+      // The club's latest league season only; a cup page has no block.
+      loadSummary: () =>
+        getTeamSeasonSummary(
+          competitionCode,
+          teamProviderId,
+          seasonId,
+          currentSeason,
+          played,
+          String
+        ),
       // A cup has no table to rank a position in, so the panel is absent, not
       // empty. League competitions only.
       loadPosition: () =>

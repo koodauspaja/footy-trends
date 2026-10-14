@@ -15,6 +15,8 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
+import type { SeasonSummarySeries } from "./season-summary";
+import { getSeasonSummary } from "./season-summary-service";
 import {
   calculateStandings,
   selectTeamMatches,
@@ -304,6 +306,33 @@ export function getTeamStreakRecords(
   ).catch((error) => {
     logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
     return { status: "error" as const };
+  });
+}
+
+/**
+ * The `Kausi lyhyesti` block for this club's season, over the same reads as
+ * `Tämä kausi verrattuna` and the same records as `Ennätykset`.
+ *
+ * decisions/066-season-summary.md
+ */
+export function getTeamSeasonSummary(
+  competitionCode: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number,
+  seasons: readonly TeamSeason[],
+  label: (seasonId: number) => string
+): Promise<SeasonSummarySeries> {
+  return getSeasonSummary("football-data", {
+    teamId: teamProviderId,
+    selected: { competitionCode, seasonId },
+    activeSeasonId,
+    seasons,
+    isLeague: isLeagueCompetition,
+    label,
+    read: (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+    records: () =>
+      getTeamStreakRecords(competitionCode, teamProviderId, activeSeasonId, seasons, label),
   });
 }
 
