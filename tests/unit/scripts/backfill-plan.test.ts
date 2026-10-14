@@ -6,6 +6,7 @@ import {
   describeError,
   describeTarget,
   tasoSeasonsFor,
+  zonesConflict,
 } from "../../../scripts/backfill-plan";
 
 /**
@@ -15,6 +16,7 @@ import {
  *
  * decisions/169-production-backfill.md
  * decisions/196-concurrent-group-syncs.md
+ * decisions/063-competition-zones.md
  */
 
 describe("tasoSeasonsFor", () => {
@@ -168,5 +170,23 @@ describe("canSkip", () => {
 
   it("does not skip a future season", () => {
     expect(canSkip(10, 2027, 2026)).toBe(false);
+  });
+});
+
+describe("zonesConflict", () => {
+  it("lets the zone backfill run on its own", () => {
+    expect(zonesConflict(["--zones"])).toBeNull();
+  });
+
+  it.each([
+    ["--refetch", "--refetch"],
+    ["--reset", "--reset"],
+    ["--reset=railway", "--reset"],
+  ])("refuses it beside %s", (flag, named) => {
+    expect(zonesConflict(["--zones", flag])).toBe(`--zones cannot be combined with ${named}`);
+  });
+
+  it("does not take another flag that merely starts the same way for a reset", () => {
+    expect(zonesConflict(["--zones", "--resetting"])).toBeNull();
   });
 });

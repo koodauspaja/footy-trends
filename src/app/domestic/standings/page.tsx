@@ -9,10 +9,12 @@ import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
+import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
+  type GroupLevel,
   type GroupStandingsResult,
   getSeasonStandings,
   listSeasonRounds,
@@ -34,6 +36,14 @@ const NO_MATCHES_MESSAGE = "Otteluita ei ole saatavilla.";
 const TASO_FALLBACK_MESSAGE =
   "Näytetään Palloliiton omat pisteet: ne poikkeavat otteluista lasketuista. " +
   "Kierrosvalitsin ei ole käytössä tässä ryhmässä.";
+
+/**
+ * Under the last group's list of what its positions lead to: whose words the
+ * labels are.
+ *
+ * decisions/063-competition-zones.md
+ */
+const ZONE_SOURCE_MESSAGE = "Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.";
 
 type DomesticStandingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -62,22 +72,31 @@ const KNOCKOUT_HEADING = "Pudotuspelit";
  * decisions/010-playoff-group-match-list.md
  * decisions/013-more-finnish-competitions.md
  * decisions/015-finnish-cups.md
+ * decisions/063-competition-zones.md
  */
 function GroupBody({
   group,
   teamHref,
   isCup,
+  ruleAfter = [],
 }: Readonly<{
   group: GroupStandingsResult;
   teamHref: (teamProviderId: number) => string;
   /** A cup round drops the `Kierros` column — see the render below. */
   isCup: boolean;
+  /** The places of this group's table a heavier rule follows. Omitted means none. */
+  ruleAfter?: readonly number[];
 }>) {
   if (group.kind !== "match-list") {
     return (
       <>
         {group.kind === "pass-through" && <Notice>{TASO_FALLBACK_MESSAGE}</Notice>}
-        <StandingsTable favouriteSource="taso" standings={group.standings} teamHref={teamHref} />
+        <StandingsTable
+          favouriteSource="taso"
+          ruleAfter={ruleAfter}
+          standings={group.standings}
+          teamHref={teamHref}
+        />
       </>
     );
   }
@@ -106,6 +125,55 @@ function GroupBody({
       fourthColumn={{ header: "Kierros", render: (match) => match.matchday ?? "–" }}
     />
   );
+}
+
+/**
+ * A group's zones on its table as drawn, or none for a group with no table.
+ *
+ * decisions/063-competition-zones.md
+ */
+function zonesOf(group: GroupStandingsResult, levels: readonly GroupLevel[]): GroupZones {
+  if (group.kind === "match-list") return { zones: [], ruleAfter: [] };
+  return groupZones(
+    levels.filter((level) => level.groupId === group.groupId),
+    group.standings.length
+  );
+}
+
+/**
+ * A league's groups, each table with the list of what its positions lead to
+ * under it, and the source of the labels once, under the last list.
+ *
+ * decisions/063-competition-zones.md
+ */
+function LeagueGroups({
+  groups,
+  levels,
+  teamHref,
+}: Readonly<{
+  groups: GroupStandingsResult[];
+  levels: readonly GroupLevel[];
+  teamHref: (teamProviderId: number) => string;
+}>) {
+  const zoned = groups.map((group) => ({ group, ...zonesOf(group, levels) }));
+  const lastWithList = zoned.findLast(({ zones }) => zones.length > 0)?.group.groupId;
+
+  return zoned.map(({ group, zones, ruleAfter }) => (
+    <section className="mb-10" key={group.groupId}>
+      <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+      <GroupBody group={group} isCup={false} ruleAfter={ruleAfter} teamHref={teamHref} />
+      {zones.length > 0 && (
+        <ul className="mt-3 text-sm">
+          {zones.map((zone) => (
+            <li key={zone.from}>{zoneLine(zone)}</li>
+          ))}
+        </ul>
+      )}
+      {group.groupId === lastWithList && (
+        <p className="mt-2 text-sm text-muted">{ZONE_SOURCE_MESSAGE}</p>
+      )}
+    </section>
+  ));
 }
 
 /**
@@ -195,6 +263,7 @@ export async function generateMetadata({
  * decisions/015-finnish-cups.md
  * decisions/043-liigacup.md
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/063-competition-zones.md
  */
 export default async function DomesticStandingsPage({
   searchParams,
@@ -298,16 +367,13 @@ export default async function DomesticStandingsPage({
       )}
       {result.status === "ok" &&
         !isGroupsAndPlayoff &&
-        result.groups.map((group) =>
-          isCup ? (
-            <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
-          ) : (
-            <section className="mb-10" key={group.groupId}>
-              <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
-              <GroupBody group={group} isCup={false} teamHref={teamHref} />
-            </section>
-          )
-        )}
+        isCup &&
+        result.groups.map((group) => (
+          <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
+        ))}
+      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+        <LeagueGroups groups={result.groups} levels={result.levels} teamHref={teamHref} />
+      )}
       {!isGroupsAndPlayoff && <StandingsLegend />}
       {analytics}
     </PageShell>

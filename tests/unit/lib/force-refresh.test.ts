@@ -7,6 +7,7 @@ import { warmModules } from "../../support/warm-module";
  * writers are mocked and their call counts asserted, so "wrote nothing" is checked.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/063-competition-zones.md
  */
 
 const { state, logger } = vi.hoisted(() => ({
@@ -475,6 +476,79 @@ describe("applyRefresh", () => {
       expect.anything(),
       2026,
       expect.anything(),
+      expect.anything(),
+      state.lastTx
+    );
+  });
+
+  // One group as TASO sends its levels: two places that go up, one that goes down.
+  function groupWithLevels(labels: [string, string]) {
+    return {
+      group_id: "1",
+      next_stage_levels: "2,0,1,0,0,0,0,0,0,0",
+      next_stage_level_texts: [labels[0], "", labels[1], "", "", "", "", "", "", ""],
+    };
+  }
+
+  it("writes the levels of the same answer with the group rows", async () => {
+    state.storedMatches = [match(1)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+    state.normalizedGroupTeams = [groupTeam()];
+    state.providerGroups = [groupWithLevels(["Nousee", "Putoaa"])];
+
+    const hash = await previewThenHash();
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    const identity = { categoryId: "VL", competitionCode: "spljp26", seasonId: 2026, groupId: 1 };
+    expect(synchronizeGroupTeams).toHaveBeenCalledWith(
+      "VL",
+      "spljp26",
+      2026,
+      state.normalizedGroupTeams,
+      [
+        { ...identity, level: 1, teamCount: 2, label: "Nousee" },
+        { ...identity, level: 3, teamCount: 1, label: "Putoaa" },
+      ],
+      state.lastTx
+    );
+  });
+
+  it("leaves the levels out of the diff and the fingerprint of what an admin approves", async () => {
+    state.storedMatches = [match(1)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+    state.normalizedGroupTeams = [groupTeam()];
+    const { previewRefresh } = await import("@/lib/force-refresh");
+
+    state.providerGroups = [];
+    const without = await previewRefresh(VEIKKAUSLIIGA, 2026);
+    state.providerGroups = [groupWithLevels(["Nousee", "Putoaa"])];
+    const withLevels = await previewRefresh(VEIKKAUSLIIGA, 2026);
+
+    expect(withLevels).toEqual(without);
+  });
+
+  it("writes the levels TASO has when the write is approved, though they changed after the preview", async () => {
+    state.storedMatches = [match(1)];
+    state.providerMatches = [match(1, { status: "POSTPONED" })];
+    state.normalizedGroupTeams = [groupTeam()];
+    state.providerGroups = [groupWithLevels(["Nousee", "Putoaa"])];
+    const hash = await previewThenHash();
+
+    state.providerGroups = [groupWithLevels(["Nousee", "Karsii"])];
+    const { applyRefresh } = await import("@/lib/force-refresh");
+    const result = await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
+
+    expect(result.ok).toBe(true);
+    expect(synchronizeGroupTeams).toHaveBeenCalledWith(
+      "VL",
+      "spljp26",
+      2026,
+      expect.anything(),
+      [
+        expect.objectContaining({ level: 1, label: "Nousee" }),
+        expect.objectContaining({ level: 3, label: "Karsii" }),
+      ],
       state.lastTx
     );
   });

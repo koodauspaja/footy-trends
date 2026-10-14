@@ -5,6 +5,7 @@
  *
  * decisions/304-test-database.md
  * decisions/036-halftime-comebacks.md
+ * decisions/063-competition-zones.md
  */
 
 export const SEASON = 2017;
@@ -187,4 +188,21 @@ export const TEAM_ROWS: TeamRow[] = [
     matches_played: 2,
     current_standing: null,
   },
+];
+
+type ZoneRow = {
+  group_id: number;
+  level: number;
+  team_count: number;
+  label: string | null;
+};
+
+/**
+ * The league group's levels, seeded as TASO publishes them from 2021 on: the
+ * first place, two places that lead nowhere, and the last.
+ */
+export const ZONE_ROWS: ZoneRow[] = [
+  { group_id: GROUPS.league.id, level: 1, team_count: 1, label: "Kultaa" },
+  { group_id: GROUPS.league.id, level: 3, team_count: 2, label: null },
+  { group_id: GROUPS.league.id, level: 4, team_count: 1, label: "Putoaa Ykköseen" },
 ];

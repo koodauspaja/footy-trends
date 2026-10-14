@@ -473,6 +473,10 @@ export type TasoGroup = {
    * a source for the mapping: older seasons report `"0"`.
    */
   import_match_group_id?: string;
+  /** Ten comma-separated counts, how many places each level takes; `""` for none. */
+  next_stage_levels?: string;
+  /** Ten labels, one per level; `""` for a level that leads nowhere. */
+  next_stage_level_texts?: string[];
   teams?: TasoGroupTeam[];
 };
 
@@ -589,6 +593,100 @@ export function normalizeGroupTeams(
         },
       ];
     });
+  });
+}
+
+/**
+ * One level of a group's table, typed for storage: its number in TASO's order,
+ * the places it takes, and what they lead to.
+ *
+ * decisions/063-competition-zones.md
+ */
+export type NormalizedTasoGroupLevel = {
+  categoryId: string;
+  competitionCode: string;
+  seasonId: number;
+  groupId: number;
+  level: number;
+  teamCount: number;
+  label: string | null;
+};
+
+const LEVELS_PER_GROUP = 10;
+
+/**
+ * The ten counts of `next_stage_levels`, or null when the string is not ten
+ * whole numbers a column can hold. An empty part is a level with no count:
+ * older seasons send `"6,6,0,0,0,0,,,,"`.
+ *
+ * decisions/063-competition-zones.md
+ */
+function parseLevelCounts(levels: string): number[] | null {
+  const parts = levels.split(",");
+  if (parts.length !== LEVELS_PER_GROUP) return null;
+  const counts: number[] = [];
+  for (const part of parts) {
+    if (part === "") {
+      counts.push(0);
+      continue;
+    }
+    if (!/^\d+$/.test(part)) return null;
+    const count = optionalNumber(part);
+    if (count === null) return null;
+    counts.push(count);
+  }
+  return counts;
+}
+
+function levelLabel(texts: unknown, index: number): string | null {
+  const text: unknown = Array.isArray(texts) ? texts[index] : undefined;
+  if (typeof text !== "string") return null;
+  const trimmed = text.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * Flattens the groups into one row per level that has a count. A group whose
+ * counts cannot be read contributes none and is logged; one that publishes no
+ * counts contributes none silently.
+ *
+ * decisions/063-competition-zones.md
+ */
+export function normalizeGroupLevels(
+  groups: TasoGroup[],
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): NormalizedTasoGroupLevel[] {
+  return groups.flatMap((group) => {
+    const groupId = parseProviderId(group.group_id);
+    if (groupId === null) return [];
+    if (group.next_stage_levels === undefined || group.next_stage_levels === "") return [];
+
+    const counts =
+      typeof group.next_stage_levels === "string"
+        ? parseLevelCounts(group.next_stage_levels)
+        : null;
+    if (counts === null) {
+      logger.warn({ categoryId, competitionId, groupId }, "Unreadable TASO zone levels");
+      return [];
+    }
+
+    return counts.flatMap((teamCount, index) =>
+      teamCount === 0
+        ? []
+        : [
+            {
+              categoryId,
+              competitionCode: competitionId,
+              seasonId,
+              groupId,
+              level: index + 1,
+              teamCount,
+              label: levelLabel(group.next_stage_level_texts, index),
+            },
+          ]
+    );
   });
 }
 

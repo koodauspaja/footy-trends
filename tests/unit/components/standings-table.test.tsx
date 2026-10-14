@@ -9,6 +9,7 @@ import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components
  * decisions/009-veikkausliiga.md
  * decisions/021-table-consistency.md
  * decisions/026-favourites.md
+ * decisions/063-competition-zones.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -161,5 +162,39 @@ describe("StandingsLegend", () => {
       ...Array(8).fill(`${COLUMN_WIDTHS.stat}px`),
       `${COLUMN_WIDTHS.form}px`,
     ]);
+  });
+});
+
+describe("StandingsTable rules between levels", () => {
+  const standings = [1, 2, 3].map((position) =>
+    buildRow({ position, teamProviderId: position, teamName: `Joukkue ${position}` })
+  );
+
+  function ruledRows() {
+    return screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.classList.contains("border-b-2"));
+  }
+
+  it("draws a heavier rule after the places it is given, counted from 1", () => {
+    render(<StandingsTable ruleAfter={[1]} standings={standings} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([true, false, false]);
+  });
+
+  it("counts the place in the table as drawn, not the position the row carries", () => {
+    // A pass-through table, or an earlier round, can carry positions that are
+    // not 1, 2, 3 in order.
+    const shared = standings.map((row) => ({ ...row, position: 1 }));
+    render(<StandingsTable ruleAfter={[2]} standings={shared} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([false, true, false]);
+  });
+
+  it("draws none unless asked", () => {
+    render(<StandingsTable standings={standings} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([false, false, false]);
   });
 });

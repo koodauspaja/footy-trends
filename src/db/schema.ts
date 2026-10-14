@@ -217,6 +217,39 @@ export const tasoGroupTeams = pgTable(
 );
 
 /**
+ * What a stretch of a group's table leads to, as TASO publishes it: one row per
+ * level with a count, in the group's own order. A null label is a stretch that
+ * leads nowhere and still takes its places.
+ *
+ * decisions/063-competition-zones.md
+ */
+export const tasoGroupZones = pgTable(
+  "taso_group_zones",
+  {
+    id: serial("id").primaryKey(),
+    categoryId: text("category_id").notNull(),
+    competitionCode: text("competition_id").notNull(),
+    seasonId: integer("season_id").notNull(),
+    groupId: integer("group_id").notNull(),
+    /** TASO's own number for the level, 1 to 10; a level with no count leaves a gap. */
+    level: integer("level").notNull(),
+    teamCount: integer("team_count").notNull(),
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("taso_group_zones_identity_idx").on(
+      table.categoryId,
+      table.competitionCode,
+      table.seasonId,
+      table.groupId,
+      table.level
+    ),
+  ]
+);
+
+/**
  * better-auth's `user` table, written by hand as its other three are. Its ids
  * are `text`, and the property names stay camelCase: the adapter resolves a
  * field by indexing this object.

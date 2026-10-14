@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { tasoGroupTeams } from "@/db/schema";
+import { tasoGroupTeams, tasoGroupZones } from "@/db/schema";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
@@ -20,6 +20,7 @@ import {
   needsRefresh,
   parseTasoRoundParam,
   resolveTasoSeasonContext,
+  synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
@@ -57,6 +58,7 @@ import { teamPanelLoaders } from "@/lib/team-panels";
  * decisions/363-render-timeouts.md
  * decisions/530-one-team-panel-builder.md
  * decisions/628-zeroed-continuation-tables.md
+ * decisions/063-competition-zones.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -187,11 +189,16 @@ function groupTeam(overrides: Partial<typeof tasoGroupTeams.$inferSelect> = {}) 
   };
 }
 
-// The service reads two tables, so the mock dispatches on which one.
+// The service reads three tables, so the mock dispatches on which one.
 // `groupTeams` defaults to empty, the "TASO groups unavailable" path:
 // own-calculated with no adjustment, and no comparison to fall back on.
-function mockStoredMatches(rows: unknown[], groupTeams: unknown[] = []) {
+function mockStoredMatches(rows: unknown[], groupTeams: unknown[] = [], levels: unknown[] = []) {
   const from = vi.fn().mockImplementation((table: unknown) => {
+    if (table === tasoGroupZones) {
+      return {
+        where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue(levels) }),
+      };
+    }
     const rowsForTable = table === tasoGroupTeams ? groupTeams : rows;
     const orderBy = vi.fn().mockResolvedValue(rowsForTable);
     // Awaited as it is by the sync, ordered by the page's own reads.
@@ -1681,7 +1688,7 @@ describe("group standings storage", () => {
 
   // The page's refresh and the backfill, which carry starting points over.
   function carryingSync(rows: Parameters<typeof synchronizeGroupTeams>[3]) {
-    return synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, rows, undefined, {
+    return synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, rows, [], undefined, {
       carryStartingPoints: true,
     });
   }
@@ -1811,9 +1818,13 @@ describe("group standings storage", () => {
       groupTeam({ teamProviderId: 1, points: 28, startingPoints: -3 }),
     ]);
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      snapshotRow({ teamProviderId: 1 }),
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [snapshotRow({ teamProviderId: 1 })],
+      []
+    );
 
     expect(where).not.toHaveBeenCalled();
     expect(insert.values).toHaveBeenCalledWith([
@@ -1827,7 +1838,7 @@ describe("group standings storage", () => {
     // failed request is the case that preserves what is stored.
     const insert = mockInsert();
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, []);
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], []);
 
     expect(insert.values).not.toHaveBeenCalled();
     expect(dbMock.delete).toHaveBeenCalled();
@@ -1836,27 +1847,33 @@ describe("group standings storage", () => {
   it("upserts group rows on the group-and-team identity", async () => {
     const insert = mockInsert();
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      {
-        categoryId: "VL",
-        competitionCode: COMPETITION_ID,
-        seasonId: PAST_SEASON,
-        groupId: 1,
-        teamProviderId: 1,
-        teamName: "HJK",
-        startingPoints: -2,
-        points: 10,
-        played: 4,
-        won: 3,
-        drawn: 1,
-        lost: 0,
-        goalsFor: 8,
-        goalsAgainst: 2,
-        goalDifference: 6,
-        currentStanding: 1,
-        finalGroupStanding: null,
-      },
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [
+        {
+          categoryId: "VL",
+          competitionCode: COMPETITION_ID,
+          seasonId: PAST_SEASON,
+          groupId: 1,
+          teamProviderId: 1,
+          teamName: "HJK",
+          startingPoints: -2,
+          points: 10,
+          played: 4,
+          won: 3,
+          drawn: 1,
+          lost: 0,
+          goalsFor: 8,
+          goalsAgainst: 2,
+          goalDifference: 6,
+          currentStanding: 1,
+          finalGroupStanding: null,
+        },
+      ],
+      []
+    );
 
     expect(insert.values).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -1874,8 +1891,8 @@ describe("group standings storage", () => {
   it("clears the season's existing rows before writing the new snapshot", async () => {
     const insert = mockInsert();
     const order: string[] = [];
-    dbMock.delete.mockImplementation(() => {
-      order.push("delete");
+    dbMock.delete.mockImplementation((table: unknown) => {
+      if (table === tasoGroupTeams) order.push("delete");
       return { where: vi.fn().mockResolvedValue(undefined) };
     });
     insert.values.mockImplementation(() => {
@@ -1883,27 +1900,33 @@ describe("group standings storage", () => {
       return { onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) };
     });
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      {
-        categoryId: CATEGORY_ID,
-        competitionCode: COMPETITION_ID,
-        seasonId: PAST_SEASON,
-        groupId: 1,
-        teamProviderId: 1,
-        teamName: "HJK",
-        startingPoints: 0,
-        points: 3,
-        played: 1,
-        won: 1,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 2,
-        goalsAgainst: 1,
-        goalDifference: 1,
-        currentStanding: 1,
-        finalGroupStanding: null,
-      },
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [
+        {
+          categoryId: CATEGORY_ID,
+          competitionCode: COMPETITION_ID,
+          seasonId: PAST_SEASON,
+          groupId: 1,
+          teamProviderId: 1,
+          teamName: "HJK",
+          startingPoints: 0,
+          points: 3,
+          played: 1,
+          won: 1,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 2,
+          goalsAgainst: 1,
+          goalDifference: 1,
+          currentStanding: 1,
+          finalGroupStanding: null,
+        },
+      ],
+      []
+    );
 
     expect(order).toEqual(["delete", "insert"]);
   });
@@ -1933,11 +1956,13 @@ describe("group standings storage", () => {
       finalGroupStanding: null,
     });
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      slot(1),
-      slot(2),
-      slot(1),
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [slot(1), slot(2), slot(1)],
+      []
+    );
 
     const values = insert.values.mock.calls[0]?.[0] as { teamProviderId: number }[];
     expect(values.map((row) => row.teamProviderId)).toEqual([1, 2]);
@@ -4801,5 +4826,364 @@ describe("hasCarryOver", () => {
     expect(hasCarryOver("VL", "spljp20")).toBe(false);
     expect(hasCarryOver("M1L", "spljp25")).toBe(false);
     expect(hasCarryOver("P18SM", "spljp25")).toBe(false);
+  });
+});
+
+describe("zone levels storage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  type Level = Parameters<typeof synchronizeGroupLevels>[3][number];
+
+  function level(overrides: Partial<Level> = {}): Level {
+    return {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+      groupId: 1,
+      level: 1,
+      teamCount: 1,
+      label: "Kultaa",
+      ...overrides,
+    };
+  }
+
+  // Every write, by table, in the order it was made.
+  function mockWrites() {
+    const writes: Array<{ op: "delete" | "insert"; table: unknown; values?: unknown[] }> = [];
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    dbMock.delete.mockImplementation((table: unknown) => {
+      writes.push({ op: "delete", table });
+      return { where: vi.fn().mockResolvedValue(undefined) };
+    });
+    dbMock.insert.mockImplementation((table: unknown) => ({
+      values: vi.fn().mockImplementation((values: unknown[]) => {
+        writes.push({ op: "insert", table, values });
+        return { onConflictDoUpdate };
+      }),
+    }));
+    dbMock.transaction.mockImplementation(
+      async (run: (tx: typeof dbMock) => Promise<unknown>) => await run(dbMock)
+    );
+    return {
+      writes,
+      onConflictDoUpdate,
+      to: (table: unknown) => writes.filter((write) => write.table === table).map((w) => w.op),
+      levelsWritten: () =>
+        writes.find((write) => write.op === "insert" && write.table === tasoGroupZones)?.values,
+    };
+  }
+
+  function teamRow(): Parameters<typeof synchronizeGroupTeams>[3][number] {
+    const { updatedAt: _updatedAt, ...row } = groupTeam({ points: 3, played: 1 });
+    return row;
+  }
+
+  it("replaces the season's levels with the group rows, in the same transaction", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [teamRow()],
+      [level(), level({ level: 2, teamCount: 3, label: null })]
+    );
+
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+    expect(mock.levelsWritten()).toEqual([
+      { ...level(), updatedAt: expect.any(Date) },
+      { ...level({ level: 2, teamCount: 3, label: null }), updatedAt: expect.any(Date) },
+    ]);
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+  });
+
+  it("stores every row under the season it replaced, whatever the row says of itself", async () => {
+    const mock = mockWrites();
+    const elsewhere = { categoryId: "M1", competitionCode: "spljp99", seasonId: 1999 };
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [{ ...teamRow(), ...elsewhere }],
+      [level(elsewhere)]
+    );
+
+    const here = {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+    };
+    expect(mock.levelsWritten()).toEqual([expect.objectContaining(here)]);
+    const teams = mock.writes.find(
+      (write) => write.op === "insert" && write.table === tasoGroupTeams
+    )?.values;
+    expect(teams).toEqual([expect.objectContaining(here)]);
+  });
+
+  it("upserts a level on its group and number", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], [level()]);
+
+    expect(mock.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: [
+          tasoGroupZones.categoryId,
+          tasoGroupZones.competitionCode,
+          tasoGroupZones.seasonId,
+          tasoGroupZones.groupId,
+          tasoGroupZones.level,
+        ],
+        set: expect.objectContaining({
+          teamCount: expect.anything(),
+          label: expect.anything(),
+          updatedAt: expect.anything(),
+        }),
+      })
+    );
+  });
+
+  it("writes the levels of a snapshot that has no group rows", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], [level()]);
+
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete"]);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+  });
+
+  it("clears the stored levels when the snapshot has none", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [teamRow()], []);
+
+    expect(mock.to(tasoGroupZones)).toEqual(["delete"]);
+  });
+
+  it("keeps the first of two rows for the same group and level", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [],
+      [
+        level({ label: "Kultaa" }),
+        level({ label: "Hopeaa" }),
+        level({ groupId: 2, label: "Nousee" }),
+        level({ level: 2, label: "Pronssia" }),
+      ]
+    );
+
+    expect((mock.levelsWritten() as Level[]).map((row) => row.label)).toEqual([
+      "Kultaa",
+      "Nousee",
+      "Pronssia",
+    ]);
+  });
+
+  it.each(["M2", "P21SM", "P20SM", "MSC", "LC"])(
+    "stores no level for %s, and leaves that table alone",
+    async (categoryId) => {
+      const mock = mockWrites();
+
+      await synchronizeGroupTeams(
+        categoryId,
+        COMPETITION_ID,
+        PAST_SEASON,
+        [{ ...teamRow(), categoryId }],
+        [level({ categoryId })]
+      );
+
+      expect(mock.to(tasoGroupZones)).toEqual([]);
+      expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+    }
+  );
+
+  it.each(["VL", "M1L", "M1", "NL", "N1"])("stores the levels of %s", async (categoryId) => {
+    const mock = mockWrites();
+
+    await synchronizeGroupLevels(categoryId, COMPETITION_ID, PAST_SEASON, [level({ categoryId })]);
+
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+  });
+
+  it("writes the levels alone, in a transaction, when only they are synchronized", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupLevels(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [level()]);
+
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+    expect(mock.to(tasoGroupTeams)).toEqual([]);
+    expect(dbMock.select).not.toHaveBeenCalled();
+  });
+
+  it("stores the levels of the answer a page's refresh fetched", async () => {
+    const season = 2031;
+    mockStoredMatches([match({ seasonId: season })], []);
+    const mock = mockWrites();
+    getSeasonMatchesMock.mockResolvedValue([match({ seasonId: season })]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        group_name: "Runkosarja",
+        next_stage_levels: "6,6,0,0,0,0,0,0,0,0",
+        next_stage_level_texts: [
+          "Mestaruussarjaan",
+          "Karsintasarjaan",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ],
+        teams: [{ team_id: "1", team_name: "HJK", points: 3 }],
+      },
+    ]);
+
+    await getSeasonStandings(CATEGORY_ID, "spljp31", season, season, undefined);
+
+    const identity = { categoryId: CATEGORY_ID, competitionCode: "spljp31", seasonId: season };
+    expect(mock.levelsWritten()).toEqual([
+      expect.objectContaining({
+        ...identity,
+        groupId: 1,
+        level: 1,
+        teamCount: 6,
+        label: "Mestaruussarjaan",
+      }),
+      expect.objectContaining({
+        ...identity,
+        groupId: 1,
+        level: 2,
+        teamCount: 6,
+        label: "Karsintasarjaan",
+      }),
+    ]);
+  });
+
+  it("logs unreadable levels once and still stores the group's rows", async () => {
+    const season = 2032;
+    mockStoredMatches([match({ seasonId: season })], []);
+    const mock = mockWrites();
+    getSeasonMatchesMock.mockResolvedValue([match({ seasonId: season })]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        next_stage_levels: "6,six",
+        teams: [{ team_id: "1", team_name: "HJK", points: 3 }],
+      },
+    ]);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp32", season, season, undefined);
+
+    expect(result.status).toBe("ok");
+    expect(
+      loggerWarnMock.mock.calls.filter(([, message]) => message === "Unreadable TASO zone levels")
+    ).toEqual([
+      [
+        { categoryId: CATEGORY_ID, competitionId: "spljp32", groupId: 1 },
+        "Unreadable TASO zone levels",
+      ],
+    ]);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete"]);
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+  });
+});
+
+describe("the stored levels a standings read returns", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const LEVELS = [
+    { groupId: 1, level: 1, teamCount: 1, label: "Kultaa" },
+    { groupId: 1, level: 2, teamCount: 3, label: null },
+  ];
+
+  it("returns the season's levels with the groups", async () => {
+    mockStoredMatches([match({ seasonId: 2011 })], [], LEVELS);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp11", 2011, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "ok", groups: [expect.anything()], levels: LEVELS });
+  });
+
+  it("returns the same levels when a round is chosen", async () => {
+    mockStoredMatches([match({ seasonId: 2012 })], [], LEVELS);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp12", 2012, ACTIVE_SEASON, 1);
+
+    expect(result).toEqual({ status: "ok", groups: [expect.anything()], levels: LEVELS });
+  });
+
+  it.each(["M2", "P21SM", "MSC"])(
+    "reads no level for %s, which stores none",
+    async (categoryId) => {
+      const season = 2040 + ["M2", "P21SM", "MSC"].indexOf(categoryId);
+      mockStoredMatches([match({ seasonId: season, categoryId })], [], LEVELS);
+
+      const result = await getSeasonStandings(
+        categoryId,
+        "spljp40",
+        season,
+        ACTIVE_SEASON,
+        undefined
+      );
+
+      expect(result.status === "ok" && result.levels).toEqual([]);
+      const from = dbMock.select.mock.results[0]?.value.from as ReturnType<typeof vi.fn>;
+      expect(from.mock.calls.length).toBeGreaterThan(0);
+      expect(from.mock.calls.map(([table]) => table)).not.toContain(tasoGroupZones);
+    }
+  );
+
+  it("asks for no level of a season with no matches", async () => {
+    mockStoredMatches([], [], LEVELS);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp13", 2013, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "empty", groups: [] });
+  });
+
+  it("answers with the page's error when the levels cannot be read", async () => {
+    const from = vi.fn().mockImplementation((table: unknown) => {
+      if (table === tasoGroupZones) {
+        return {
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockRejectedValue(new Error("connection lost")),
+          }),
+        };
+      }
+      const rows = table === tasoGroupTeams ? [] : [match({ seasonId: 2014 })];
+      return {
+        where: vi
+          .fn()
+          .mockReturnValue(
+            Object.assign(Promise.resolve(rows), { orderBy: vi.fn().mockResolvedValue(rows) })
+          ),
+      };
+    });
+    dbMock.select.mockReturnValue({ from });
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp14", 2014, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "error", groups: [] });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, seasonId: 2014 }),
+      "Unable to load TASO standings"
+    );
   });
 });

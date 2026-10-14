@@ -209,6 +209,23 @@ export function categoryIdsFor(code: string): string[] {
 }
 
 /**
+ * The competitions whose table positions are marked with what they lead to:
+ * the men's top three tiers and the women's top two, in every season.
+ *
+ * decisions/063-competition-zones.md
+ */
+export const ZONE_COMPETITION_CODES: readonly string[] = ["VL", "M1L", "M1", "NL", "N1"];
+
+/**
+ * Whether a category's groups have their levels stored and shown.
+ *
+ * decisions/063-competition-zones.md
+ */
+export function publishesZones(categoryId: string): boolean {
+  return ZONE_COMPETITION_CODES.some((code) => categoryIdsFor(code).includes(categoryId));
+}
+
+/**
  * Every `category_id` any competition in the picker has ever been published
  * under: the set a stored row must belong to for the site to show it.
  *
