@@ -20,7 +20,7 @@ import {
   MatchListTable,
   matchDateFormatter,
 } from "@/components/match-list-table";
-import { PredictionBody } from "@/components/match-prediction";
+import { PredictionBody, predictsSides } from "@/components/match-prediction";
 import { PageShell } from "@/components/page-shell";
 import { RowLink } from "@/components/row-link";
 import { ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
@@ -425,10 +425,11 @@ async function loadAverages(view: View): Promise<Averages> {
 type NextGroup = { line: string; match: string; href: string; prediction: React.ReactNode };
 
 /**
- * The pair's next meeting with its predictions, or `null`: none stored, one in
- * a competition the models do not cover, or a read that failed.
+ * The pair's next meeting with its predictions, or `null`: none stored, one the
+ * models do not predict, or a read that failed.
  *
  * decisions/058-rivalry-prediction.md
+ * decisions/059-cup-predictions.md
  */
 async function loadNext(
   view: View,
@@ -438,7 +439,7 @@ async function loadNext(
   const next = await getNextMeeting(source, view.firstId, view.secondId, now);
   if (next.status !== "ok" || next.match === null) return null;
   const competition = baselineCompetition(next.match);
-  if (competition === null) return null;
+  if (competition === null || !(await predictsSides(next.match, competition))) return null;
 
   const { match } = next.match;
   const home = teamDisplayName(match.homeTeamProviderId, match.homeTeamName);

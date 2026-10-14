@@ -38,10 +38,11 @@ export type EloRatings =
  * A team's rating after each of its matches, oldest first.
  *
  * decisions/053-elo-ratings.md
+ * decisions/059-cup-predictions.md
  */
 export type TeamEloSeries =
   | { status: "ok"; points: Array<{ seasonId: number; rating: number }> }
-  /** The team played none of the covered competitions. */
+  /** The team played none of the competitions Elo rates from: a cup tie rates no one. */
   | { status: "empty" }
   | { status: "error" };
 

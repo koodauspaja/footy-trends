@@ -14,6 +14,7 @@ import type { PoissonFitResult } from "@/lib/poisson-service";
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  * decisions/058-rivalry-prediction.md
  * decisions/062-scoreline-probability-grid.md
  */
@@ -544,8 +545,8 @@ describe("MatchPrediction", () => {
     expect(getHomeBaseline).not.toHaveBeenCalled();
   });
 
-  it("renders nothing for a competition the home-advantage table does not compare", async () => {
-    const { container } = await renderPanel(upcoming("SCHEDULED", { categoryId: "MSC" }));
+  it("renders nothing for a competition the models do not predict", async () => {
+    const { container } = await renderPanel(upcoming("SCHEDULED", { categoryId: "LC" }));
 
     expect(container.firstChild).toBeEmptyDOMElement();
   });
@@ -581,5 +582,73 @@ describe("PredictionBody", () => {
     expect(getHomeBaseline).toHaveBeenCalledWith("taso", "M1L");
     expect(getEloRatings).toHaveBeenCalledWith("taso");
     expect(getPoissonFit).toHaveBeenCalledWith("taso");
+  });
+});
+
+describe("MatchPrediction on a Suomen Cup tie", () => {
+  // HJK and KuPS rated by the leagues; 33 has played only the cup.
+  const cupTie = (overrides: Record<string, unknown> = {}) =>
+    upcoming("SCHEDULED", { categoryId: "MSC", ...overrides });
+  const cupFit: Extract<PoissonFitResult, { status: "ok" }> = {
+    status: "ok",
+    fit: {
+      ...poisson.fit,
+      competitions: new Map([
+        ...poisson.fit.competitions,
+        ["MSC", { base: 0.2, drawFactor: 0.9, cup: true }],
+      ]),
+      attack: new Map([
+        [11, 0],
+        [22, 0],
+      ]),
+    },
+  };
+
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(true);
+    getHomeBaseline.mockReset().mockResolvedValue(baseline);
+    getEloRatings.mockReset().mockResolvedValue(ratings);
+    getPoissonFit.mockReset().mockResolvedValue(cupFit);
+  });
+
+  it("predicts a tie between two rated sides with every model, from the cup's own baseline", async () => {
+    await renderPanel(cupTie());
+
+    expect(tableRows().map((row) => row[0])).toEqual([BASELINE_ROW, ELO_ROW, POISSON_ROW]);
+    expect(getHomeBaseline).toHaveBeenCalledWith("taso", "MSC");
+  });
+
+  it("shows the scoreline grid under the Poisson line", async () => {
+    await renderPanel(cupTie());
+
+    expect(scoreGridTable()).toBeInTheDocument();
+  });
+
+  it.each([
+    ["the home side", { homeTeamProviderId: 33 }],
+    ["the away side", { awayTeamProviderId: 33 }],
+  ])("renders nothing, signed in or out, when %s has never been rated", async (_side, sides) => {
+    for (const signedIn of [true, false]) {
+      canSeeAnalytics.mockResolvedValue(signedIn);
+      const { container, unmount } = await renderPanel(cupTie(sides));
+      expect(container.firstChild).toBeEmptyDOMElement();
+      unmount();
+    }
+  });
+
+  it("renders nothing when the ratings that would say so cannot be read", async () => {
+    getEloRatings.mockResolvedValue({ status: "error" });
+
+    const { container } = await renderPanel(cupTie());
+
+    expect(container.firstChild).toBeEmptyDOMElement();
+  });
+
+  it("does not read the ratings to place a league match", async () => {
+    canSeeAnalytics.mockResolvedValue(false);
+
+    await renderPanel(upcoming());
+
+    expect(getEloRatings).not.toHaveBeenCalled();
   });
 });
