@@ -50,7 +50,11 @@ a table that was not read: a test per status.
 ## Where the spec was made to say what is built
 
 - **The kinds of the qualifying rounds** are written into the table above; the
-  spec confirmed them without listing them.
+  spec confirmed them without listing them, and its S4 row now says them.
+- **The registry's shape** (API & Data): stretches of positions, from which the
+  levels are derived, where the spec said levels.
+- **Tests Required and Files To Update** name the files built, and the upkeep
+  step's file.
 - **The Measured table's reading is the registry's content as written**, with
   the gaps S7 fills as `toLevels` handles them: a stretch no place covers.
 
@@ -74,3 +78,34 @@ a table that was not read: a test per status.
   rule and caveat, at 375 px with no sideways scroll on the page.
   `tests/e2e/dark-mode.spec.ts`: the zoned pages swept in both schemes, and
   each kind's edge measured against the page.
+
+## Every mutation was caught
+
+Each was applied alone, the tests run, and the file restored from a commit.
+
+| # | Mutation |
+|---|---|
+| 1 | A gap not held as a level |
+| 2 | The kind not carried by `groupZones` |
+| 3 | Brazil given the Europe line |
+| 4 | Europe given the cup line |
+| 5 | The caveat with no level a cup place |
+| 6 | The caveat drawn with no zone |
+| 7 | The edge on every cell |
+| 8 | The tint by the position a row carries |
+| 9 | The zones not given to the table |
+| 10 | The rules not given to the table |
+| 11 | The list not drawn |
+| 12 | The active season read for the registry |
+| 13 | The simulation reading no levels |
+| 14 | A relegation row given the cup tint |
+| 15 | A play-off row given no edge |
+| 16 | The Championship's table size too small |
+| 17 | The Premier League 2025's Conference place dropped |
+| 18 | The Eredivisie's play-off taken as a cup place |
+| 19 | Promotion taken as a cup place |
+| 20 | Brazil 2023's gap at 15 and 16 closed |
+| 21 | A row tinted that nothing asked to tint |
+
+The sort `toLevels` first had was removed: the places are written in table
+order and no input is not, so no test could tell it from its absence.

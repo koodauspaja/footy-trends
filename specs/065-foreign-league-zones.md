@@ -41,7 +41,7 @@ simulation's columns for those leagues then use them (specs/064).
 | S1 | Where the rules live | **A hand-kept registry beside `competitions.ts`, per competition and season, in the level shape of specs/063 (`level`, `teamCount`, `label`) plus a kind (S4), so `groupZones` and specs/064 read it unchanged. The labels are written by us, in Finnish** | Miikka, 2026-10-14 (Q1): "Hand-kept registry beside competitions.ts (Recommended)". |
 | S2 | Which seasons | **Every stored season, from 2023 (football-data's plan stops there), keyed per season. A season with no entry shows nothing, as specs/063 S5** | Miikka, 2026-10-14 (Q2): "Every stored season (2023 on) (Recommended)". Ligue 1's change from 20 to 18 teams predates 2023's data; the key per season is for the next change. |
 | S3 | European places | **The league's nominal places, with one line under the table: `Eurooppa-paikat voivat muuttua cup-tuloksilla`** | Miikka, 2026-10-14 (Q3): "Nominal places + one caveat line (Recommended)". They can move with cup results and a coefficient, during and after a season; the line says so. specs/063 S3 left Europe out because TASO publishes none. |
-| S4 | Colour | **By kind, never alone: the label in words stays, and a heavier rule is drawn between levels as in specs/063. Kinds: `Euroopan cup`, `nousu`, `karsinta`, `putoaminen`, each a row tint plus a 4 px edge, from the tokens below** | Miikka, 2026-10-14 (Q4): "Colour by kind, label always in words (Recommended)"; the palette: "pick something good that works with the dark color especially and if we had a light theme, something for that too". The registry names its kinds, unlike TASO's free text (specs/063 S6). |
+| S4 | Colour | **By kind, never alone: the label in words stays, and a heavier rule is drawn between levels as in specs/063. Kinds: `Euroopan cup`, `nousu`, `karsinta`, `putoaminen`, each a row tint plus a 4 px edge, from the tokens below** | Miikka, 2026-10-14 (Q4): "Colour by kind, label always in words (Recommended)"; the palette: "pick something good that works with the dark color especially and if we had a light theme, something for that too". The registry names its kinds, unlike TASO's free text (specs/063 S6). The qualifying rounds of a European or South American competition (`Mestarien liigan karsinta`, `Eurooppa-liigan karsinta`, `Konferenssiliigan karsinta`, `Copa Libertadoresin karsinta`) are `Euroopan cup`; the play-offs the league itself plays (`Nousukarsinta`, `Putoamiskarsinta`, the Eredivisie's `Karsinta Europeleihin`) are `karsinta` (decisions/065). |
 | S5 | Upkeep | **A checklist step in `skills/release.md` or `docs/`, naming the source to check each summer; no test that fails when a season has no entry. A unit test checks that no entry's counts exceed the league's table size** | Miikka, 2026-10-14 (Q5): "Checklist step, no failing test (Recommended)". A test red in August would block unrelated work. |
 | S6 | Who sees it, and the simulation | **Everyone, signed in or out. After specs/064, `Kauden ennuste` for these leagues uses the registry's levels as columns** | Miikka, 2026-10-14 (Q6): "Everyone; 635 first, 634 adds foreign simulation columns (Recommended)". Zones are not analytics (specs/063 S13). |
 | S7 | How the rules are read | **One rule: the registry holds the places Wikipedia's table for the league and season marks by position (Measured), left out where the page tags a place to a cup winner, a title holder or an administrative decision. A position left out inside one stretch takes that stretch's level (Brazil 2023's 11th, 2025's 13th; Primeira Liga 2024's 18th). No further interpretation and no check against UEFA's or CONMEBOL's lists** | Miikka, 2026-10-14: "let's don't create too complex rules, since this is not the most valuable feature of the whole set". A cup shuffle may leave a place a position did not earn; the caveat line (S3) says places can change. |
@@ -126,9 +126,11 @@ rel 17–18).
 ## API & Data
 
 **No new table and no provider request.** A registry module beside
-`competitions.ts` maps competition code and season to its levels:
-`{ level, teamCount, label, kind }`. A pure function turns them into zones on
-the table's row count through `groupZones`. The standings page reads the
+`competitions.ts` holds each league's places per season as stretches of
+positions (`from`, `to`, a named place with its label and kind), and maps
+competition code and season to levels, `{ level, teamCount, label, kind }`, a
+stretch no place covers becoming a level with no label. A pure function turns
+them into zones on the table's row count through `groupZones`. The standings page reads the
 registry for a football-data league and passes the zones to the table, as it
 does the stored levels for a Finnish one.
 
@@ -182,10 +184,10 @@ state, not a failure. A season with no entry is not logged.
 
 | File | Minimal assertions |
 |---|---|
-| `tests/unit/lib/…zone-registry….test.ts` | Each league's entry for each stored season is the right length; counts within table size; the kind of each level |
+| `tests/unit/lib/zone-registry.test.ts` | Each league's entry for each stored season is the right length; counts within table size; the kind of each level |
 | `tests/unit/lib/competition-zones.test.ts` | The registry's levels through `groupZones` with a kind kept |
-| `tests/unit/components/…` | The tint and the rule, the list, the Europe line once, a season with none |
-| `tests/e2e/…` | A foreign league's page shows its zones, signed out |
+| `tests/unit/components/data-table.test.tsx`, `standings-table.test.tsx`, `tests/unit/app/foreign/standings/page.test.tsx` | The tint and the rule, the list, the Europe line once, a season with none |
+| `tests/e2e/standings.spec.ts`, `tests/e2e/dark-mode.spec.ts` | A foreign league's page shows its zones, signed out and at 375 px; each kind's edge is measured in both schemes |
 
 Every new test is mutation-checked before review, per `skills/self-review.md`.
 
@@ -194,7 +196,7 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 - `specs/065-foreign-league-zones.md` (this file)
 - The registry module, the standings table and page, the simulation's level
   read once specs/064 has merged
-- `skills/release.md` or `docs/`: the summer step (S5)
+- `docs/zone-registry-upkeep.md`, linked from `skills/release.md`: the summer step (S5)
 - `decisions/065-foreign-league-zones.md`, by the implementing agent
 
 ## Open Questions
