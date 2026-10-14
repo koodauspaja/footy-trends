@@ -122,7 +122,6 @@ Each was applied alone, the tests run, and the file restored from a commit.
 | 23 | Two stretches swapped in a season's entry (the registry test of order) |
 | 24 | The current row given the zone tint as well |
 | 25 | Brazil's league given the European line |
-| 26 | `cupCaveat` reading a key the registry does not own |
 
-The sort `toLevels` first had was removed: the places are written in table
+The own-key check `cupCaveat` first had survived its mutation (a key the registry does not own reads `undefined` there anyway) and was removed; the `constructor` case stays as a test of the behaviour. The sort `toLevels` first had was removed: the places are written in table
 order and no input is not, so no test could tell it from its absence.

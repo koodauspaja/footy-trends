@@ -284,5 +284,5 @@ export function registryLevels(code: string, seasonId: number): RegistryLevel[] 
  */
 export function cupCaveat(code: string, levels: readonly RegistryLevel[]): string | null {
   if (!levels.some((level) => level.kind === "cup")) return null;
-  return Object.hasOwn(ZONE_REGISTRY, code) ? (ZONE_REGISTRY[code]?.cupCaveat ?? null) : null;
+  return ZONE_REGISTRY[code]?.cupCaveat ?? null;
 }
