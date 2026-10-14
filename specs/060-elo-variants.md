@@ -50,12 +50,16 @@ better than plain Elo.
 | S11 | Cup ties (specs/059) | **Both variants predict the same matches `elo-v1` does, cup ties included, from league state, without updating it: a cup tie moves no rating, form or home advantage, and the form window and home advantage count league matches only** | Miikka, 2026-10-14 (Q2): "Yes, from league state, no update (Recommended)". specs/059 S2 for `elo-v1`; a model that skipped cups would drop cup ties from every figure, since only matches all models predicted are judged. |
 | S12 | Logging | **Nothing new** | Miikka, 2026-10-14 (Q1): "Both 'nothing new' (Recommended)". The hourly run's `info` line already counts the rows it writes, and every failure is logged where it is today. |
 | S13 | Caching | **Nothing new** | Miikka, 2026-10-14 (Q1). The models read through their existing reads. |
+| S14 | Lines on `/ennusteet` | **Two new dash patterns, every line still the foreground colour: `Elo + vire` long-dashed, `Elo + kotietu` dash-dot-dotted; each named in its legend** | Miikka, 2026-10-14 (Q1 of the build): "Two new dash patterns (Recommended)". The charts tell lines apart by dash, not colour; the per-model lines under each chart carry the figures in words. |
+| S15 | The home advantage's expectation | **`E` is the variant's own, with the team's home advantage in place of 60; the ratings are `elo-v1`'s, unchanged** | Miikka, 2026-10-14 (Q2 of the build): "Its own E, ratings stay elo-v1's (Recommended)". One rating replay, so `elo-v1` is unchanged by construction. |
+| S16 | The live figures | **Judged on the matches all five models predicted, as every figure is: the live tab restarts from the release and fills as matches finish; the backtest keeps the full comparison meanwhile** | Miikka, 2026-10-14 (Q3 of the build): "Accept, as S9 says (Recommended)". |
 
 ## UX / UI (Finnish strings)
 
 Only on `/ennusteet` (S5, S6): the variants' names in its legends, tables and
 `Kilpailuittain` columns, (S10): `Elo + vire` for
-`elo-form-v1` and `Elo + kotietu` for `elo-home-v1`, after `Elo`.
+`elo-form-v1` and `Elo + kotietu` for `elo-home-v1`, after `Elo`. In the line
+charts `Elo + vire` is long-dashed and `Elo + kotietu` dash-dot-dotted (S14).
 
 ## API & Data
 
@@ -65,7 +69,7 @@ Only on `/ennusteet` (S5, S6): the variants' names in its legends, tables and
 |---|---|
 | The ratings | specs/053's replay, unchanged, over the same matches |
 | Form (`elo-form-v1`) | Per team, its last five matches of the current season, each `S − E` as Elo computed it at kickoff; the term `20 × Σ` added to its rating before the expectation (S2, S4) |
-| Home advantage (`elo-home-v1`) | Per team, from 60, updated after each of its home matches by `4 × (S − E)`, clamped 0–150, regressed a third towards 60 at its first match of a new season (S3, S4) — used in place of the flat 60 for that team's home matches |
+| Home advantage (`elo-home-v1`) | Per team, from 60, updated after each of its home matches by `4 × (S − E)`, `E` the variant's own (S15), clamped 0–150, regressed a third towards 60 at its first match of a new season (S3, S4) — used in place of the flat 60 for that team's home matches; the ratings are `elo-v1`'s |
 | Three outcomes | specs/053 S4's rule, the competition's draw share |
 | Log | Both models live (hourly run) and backtested (S7) |
 
@@ -131,4 +135,4 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 
 **None.** Q1–Q10 were answered on 2026-10-01 and are S1–S10; the three
 questions of 2026-10-14 (S9 reworded, S11, and S12–S13) are answered too, and
-the spec is confirmed.
+the spec is confirmed. The three the build raised the same day are S14–S16.
