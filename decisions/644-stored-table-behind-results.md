@@ -101,6 +101,9 @@ table is behind:
   | 15 | The rule applied in place of the unplayed one |
   | 16 | The rule never applies, against Postgres |
   | 17 | A team with no finished match counted as below none |
+  | 18 | A row without points spared its count check |
+  | 19 | A fixture to come counted as played |
+  | 20 | A row without points making a table behind on its own |
 
 - **Two first survived.** Mutation 9 did because the test's listed team had
   never played in the parent, which made the group not calculable either way;
@@ -112,6 +115,18 @@ table is behind:
   specs, and a group behind its results there would change what they count.
   The rule is held through `getSeasonStandings` in unit tests and against
   Postgres.
+
+## After the review
+
+Sourcery's first review of #645 found four things, and Sonar one.
+
+| Finding | Outcome |
+|---|---|
+| A row without points skipped its count, so a missing or larger count did not stop a table being taken as behind | Fixed: every row's count is checked. A row without points is then level, never behind: alone it cannot make a table behind, which keeps today's team check for a table level with ours. Mutations 18 and 20 |
+| The start-of-season test passed whether or not a fixture to come was counted | Fixed: a case whose result changes if it is counted. Mutation 19 |
+| A comment named another record instead of the constraint | Rewritten to say what the unplayed rule asks for |
+| A continuation with no carry-over entry could be taken as behind if its stored count fell below the group's own matches | Not changed: TASO's count for a continuation includes the regular season (Measured), 22 matches in Veikkausliiga against at most ten in a split group, and a continuation's rows exist only once the regular season is over |
+| Sonar: `isBehindResults` above the complexity limit | Split into `finishedMatchCounts` and `rowAgainstOurs` |
 
 ## Measured
 

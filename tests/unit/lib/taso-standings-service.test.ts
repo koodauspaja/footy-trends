@@ -3295,20 +3295,20 @@ describe("getTeamPositionSeries", () => {
     expect(group?.kind).toBe("pass-through");
   });
 
-  it("keeps TASO's numbers when a team listed without points counts more matches than ours", async () => {
-    const group = await lowerGroup(beforeTheSplitMatch, [
-      listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null, played: 9 }),
-    ]);
+  // Team 3's row without points, its count changed; team 4 behind as before.
+  const withoutPoints = (played: number | null) => (row: ReturnType<typeof groupTeam>) =>
+    row.teamProviderId === 3 ? { ...row, points: null, played } : beforeTheSplitMatch(row);
 
-    expect(group?.kind).toBe("pass-through");
+  it("keeps TASO's numbers when a team without points counts more matches than ours", async () => {
+    expect((await lowerGroup(withoutPoints(9)))?.kind).toBe("pass-through");
   });
 
-  it("keeps TASO's numbers when a team listed without points has no count", async () => {
-    const group = await lowerGroup(beforeTheSplitMatch, [
-      listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null, played: null }),
-    ]);
+  it("keeps TASO's numbers when a team without points has no count", async () => {
+    expect((await lowerGroup(withoutPoints(null)))?.kind).toBe("pass-through");
+  });
 
-    expect(group?.kind).toBe("pass-through");
+  it("takes a team without points and a count no more than ours as level", async () => {
+    expect((await lowerGroup(withoutPoints(4)))?.kind).toBe("own-calculated");
   });
 
   it("takes a table level with ours as before, beside a team TASO lists without points", async () => {
