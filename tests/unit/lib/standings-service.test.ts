@@ -12,6 +12,7 @@ import {
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
+  getTeamSeasonSummary,
   getTeamStreakRecords,
   synchronizeMatches,
 } from "@/lib/standings-service";
@@ -45,6 +46,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/061-season-simulation.md
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/530-one-team-panel-builder.md
+ * decisions/066-season-summary.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -67,6 +69,7 @@ const {
   calculateStandingsMock,
   loggerWarnMock,
   loggerErrorMock,
+  getSeasonSummaryMock,
 } = vi.hoisted(() => ({
   dbMock: { select: vi.fn(), insert: vi.fn() },
   redisMock: { get: vi.fn(), setex: vi.fn() },
@@ -74,8 +77,12 @@ const {
   calculateStandingsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
+  getSeasonSummaryMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
+// The summary's own rules are season-summary.test.ts's; here only what this
+// provider hands it.
+vi.mock("@/lib/season-summary-service", () => ({ getSeasonSummary: getSeasonSummaryMock }));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
 vi.mock("@/lib/football-data", () => ({ getSeasonMatches: getSeasonMatchesMock }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
@@ -2064,6 +2071,33 @@ describe("getTeamSeasonComparison", () => {
 
     expect(comparison.status === "ok" && comparison.seasons).toBe(1);
     expect(comparison.status === "ok" && comparison.competitions).toEqual(["Valioliiga"]);
+  });
+
+  it("summarises the season over the comparison's season reads and the records", async () => {
+    getSeasonSummaryMock.mockResolvedValueOnce({ status: "unavailable" });
+    mockSeasonReads(strongSeason, strongSeason, weakSeason);
+
+    await expect(
+      getTeamSeasonSummary(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons, String)
+    ).resolves.toEqual({ status: "unavailable" });
+
+    const [source, readers] = getSeasonSummaryMock.mock.calls[0] ?? [];
+    expect(source).toBe("football-data");
+    expect(readers).toMatchObject({
+      teamId: 1,
+      selected: { competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON },
+      activeSeasonId: ACTIVE_SEASON,
+      seasons,
+      label: String,
+    });
+    // Leagues only: a cup and a code the registry no longer carries are not.
+    expect(readers.isLeague(COMPETITION_CODE)).toBe(true);
+    expect(readers.isLeague("CL")).toBe(false);
+    expect(readers.isLeague("ZZZ")).toBe(false);
+    await expect(
+      readers.read({ competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON })
+    ).resolves.toMatchObject({ status: "ok", read: { competition: "Valioliiga" } });
+    await expect(readers.records()).resolves.toMatchObject({ status: "ok", scope: "Valioliiga" });
   });
 
   it("reads the club's records across its league seasons", async () => {

@@ -78,7 +78,11 @@ vi.mock("next/navigation", () => ({
 // about it: what it owns is the page's headings, notices and season wiring, and
 // the real section is ten panels and their charts on every test.
 const analyticsSectionMock = vi.hoisted(() =>
-  vi.fn(async (_props: { loadElo: () => Promise<unknown> }) => <p>analytics section placeholder</p>)
+  vi.fn(
+    async (_props: { loadElo: () => Promise<unknown>; loadSummary: () => Promise<unknown> }) => (
+      <p>analytics section placeholder</p>
+    )
+  )
 );
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
@@ -239,6 +243,19 @@ describe("National-teams team page", () => {
     const loadElo = analyticsSectionMock.mock.calls.at(-1)?.[0].loadElo;
 
     await expect(loadElo?.()).resolves.toEqual({ series: { status: "unavailable" } });
+  });
+
+  it("has no season summary: the block is a club's", async () => {
+    const { default: Page } = await import("@/app/national-teams/team/[id]/page");
+    render(
+      await Page({
+        params: Promise.resolve({ id: "1" }),
+        searchParams: Promise.resolve({ kilpailu: "WC" }),
+      })
+    );
+    const loadSummary = analyticsSectionMock.mock.calls.at(-1)?.[0].loadSummary;
+
+    await expect(loadSummary?.()).resolves.toMatchObject({ series: { status: "unavailable" } });
   });
 
   it("names the team in Finnish", async () => {
