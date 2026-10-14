@@ -8,6 +8,7 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
  * is named: the figures move with every result.
  *
  * decisions/061-season-simulation.md
+ * decisions/065-foreign-league-zones.md
  */
 
 const STANDINGS = (code: string) => `/ulkomaat/sarjataulukko?kilpailu=${code}`;
@@ -75,12 +76,22 @@ test.describe("Season forecast, signed in", () => {
     const group = page.getByRole("region", { name: "Tämä kausi" });
     await expect(group.getByRole("heading", { level: 4 }).first()).toHaveText(HEADING);
     const panel = forecastPanel(page);
+    // A league whose season is in the registry has a column per place it marks
+    // (specs/065), the page's list under its table naming the same places. A
+    // column's header is its label, then the positions it covers.
+    const zoneLines = await page
+      .getByRole("listitem")
+      .filter({ hasText: /^Sijat? \d/ })
+      .allTextContents();
+    expect(zoneLines.length, "the league's zones are listed under its table").toBeGreaterThan(0);
+    const zoneColumns = zoneLines.map((line) => {
+      const [positions = "", label = ""] = line.split(": ");
+      return `${label}${positions.replace(/^Sija/, "sija")}`;
+    });
     await expect(panel.getByRole("columnheader")).toHaveText([
       "Joukkue",
       "Odotetut pisteet",
-      "Mestaruus",
-      "Kolmen parhaan joukossa",
-      "Kolmen huonoimman joukossa",
+      ...zoneColumns,
     ]);
     // The standings table is the page's first: the forecast lists the same
     // teams in the same order.

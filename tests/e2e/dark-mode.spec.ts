@@ -230,9 +230,13 @@ for (const scheme of ["light", "dark"] as const) {
 
         const { edge, page: background } = await first.evaluate((cell) => {
           const toRgb = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+          // Tailwind composes its shadow utilities, so the computed value lists empty shadows
+          // before the edge: take the one that is 4 px wide, inset.
+          const edgeShadow = getComputedStyle(cell)
+            .boxShadow.split(/,\s*(?=rgb)/)
+            .find((shadow) => shadow.includes("4px") && shadow.includes("inset"));
           return {
-            // `rgb(r, g, b) 4px 0px 0px 0px inset`: the colour leads the shadow.
-            edge: toRgb(getComputedStyle(cell).boxShadow),
+            edge: toRgb(edgeShadow ?? ""),
             page: toRgb(getComputedStyle(document.body).backgroundColor),
           };
         });
