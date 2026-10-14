@@ -120,6 +120,7 @@ function group(overrides: Partial<SeasonTable> & { groupId: number }): SeasonTab
     standings: [row(1, 3), row(3, 0)] as unknown as SeasonTable["standings"],
     matches: [groupMatch(1, 3)],
     parentGroupId: null,
+    levels: [],
     ...overrides,
   };
 }
@@ -194,6 +195,7 @@ describe("a football-data league", () => {
               { homeTeam: 3, awayTeam: 1 },
               { homeTeam: 2, awayTeam: 1 },
             ],
+            levels: [],
           },
         ],
         predictWith("PL")
@@ -223,6 +225,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
             fixtures: [{ homeTeam: 3, awayTeam: 1 }],
+            levels: [],
           },
         ],
         predictWith("PL")
@@ -246,6 +249,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(2, 0)],
             fixtures: [{ homeTeam: 2, awayTeam: 1 }],
+            levels: [],
           },
         ],
         predictWith("PL")
@@ -274,6 +278,7 @@ describe("a football-data league", () => {
             simulated: true,
             rows: [row(1, 3), row(3, 1), row(2, 1)],
             fixtures: [{ homeTeam: 1, awayTeam: 3 }],
+            levels: [],
           },
         ],
         predictWith("PL")
@@ -319,8 +324,8 @@ describe("the cache", () => {
     await getSeasonForecast("taso", "VL", SEASON, SEASON);
 
     expect(mocks.getCachedUnlessDegraded.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
-      ["forecast:v2:football-data:PL:2026", 900],
-      ["forecast:v2:taso:VL:2026", 900],
+      ["forecast:v3:football-data:PL:2026", 900],
+      ["forecast:v3:taso:VL:2026", 900],
     ]);
   });
 
@@ -470,6 +475,7 @@ describe("a domestic league", () => {
       points,
     })),
     fixtures: [{ homeTeam: 1, awayTeam: 3 }],
+    levels: table.levels,
   });
 
   it("reads the season under its own category and competition ids, with the domestic fit", async () => {
@@ -488,6 +494,32 @@ describe("a domestic league", () => {
     expect(await getSeasonForecast("taso", "VL", SEASON, SEASON)).toMatchObject(
       seasonForecast("single", [asInput(only)], predictWith("VL"))
     );
+  });
+
+  it("gives each table the zones of its group's stored levels", async () => {
+    const levels = [
+      { groupId: 1, level: 1, teamCount: 1, label: "Nousee" },
+      { groupId: 1, level: 2, teamCount: 1, label: null },
+    ];
+    tablesOf(group({ groupId: 1, levels }));
+
+    const forecast = await getSeasonForecast("taso", "VL", SEASON, SEASON);
+
+    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([
+      { from: 1, to: 1, label: "Nousee" },
+    ]);
+    expect(forecast.status === "ok" && forecast.tables[0]?.rows[0]?.zones).toHaveLength(1);
+  });
+
+  it("gives a football-data league no zones", async () => {
+    mocks.getLeagueSeasonMatches.mockResolvedValue({
+      matches: [stored(1, 2, [1, 0]), stored(2, 1, null)],
+      refreshFailed: false,
+    });
+
+    const forecast = await getSeasonForecast("football-data", "PL", SEASON, SEASON);
+
+    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([]);
   });
 
   it("does not count a match list as a table when telling one table from several", async () => {

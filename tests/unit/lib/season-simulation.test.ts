@@ -16,6 +16,7 @@ import {
  * a season are simulated.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 
 function row(teamProviderId: number, points: number): TableRow {
@@ -238,6 +239,75 @@ describe("simulateTable", () => {
   });
 });
 
+describe("simulateTable's zones", () => {
+  const zone = (from: number, to: number) => ({ from, to, label: `Places ${from} to ${to}` });
+  const table = [row(1, 9), row(2, 6), row(3, 3), row(4, 0)];
+
+  it("settles a middle stretch: certain for the teams inside it, out of reach for the rest", () => {
+    const rows = simulateTable(table, [], 10, 61, [zone(2, 3)]);
+
+    expect(rows.map((team) => team.zones[0])).toEqual([
+      { share: 0, settled: true },
+      { share: 1, settled: true },
+      { share: 1, settled: true },
+      { share: 0, settled: true },
+    ]);
+  });
+
+  it("leaves a stretch the team can still reach open, with its share of the runs", () => {
+    // One fixture between the two on top, level on points: team 1 wins it or
+    // draws and stays first, team 2 is first when it wins.
+    const rows = simulateTable(
+      [row(1, 0), row(2, 0), row(3, 0)],
+      [fixture(1, 2, [0.5, 0.2, 0.3])],
+      10_000,
+      61,
+      [zone(1, 1), zone(2, 3)]
+    );
+
+    expect(rows[0]?.zones[0]?.settled).toBe(false);
+    expect(rows[0]?.zones[0]?.share).toBeGreaterThan(0.68);
+    expect(rows[0]?.zones[0]?.share).toBeLessThan(0.72);
+    expect(rows[0]?.zones[1]?.share).toBeCloseTo(1 - (rows[0]?.zones[0]?.share ?? 0), 10);
+  });
+
+  it("agrees with first place and the bottom three when the zone is the same stretch", () => {
+    const four = [row(1, 3), row(2, 3), row(3, 1), row(4, 0)];
+    const fixtures = [fixture(2, 1, [0.4, 0.3, 0.3]), fixture(4, 3, [0.3, 0.3, 0.4])];
+    const rows = simulateTable(four, fixtures, 2_000, 61, [zone(1, 1), zone(2, 4)]);
+
+    expect(rows.map((team) => team.zones[0])).toEqual(rows.map((team) => team.first));
+    expect(rows.map((team) => team.zones[1])).toEqual(rows.map((team) => team.bottomThree));
+  });
+
+  it("counts a team only in the places the zone covers", () => {
+    // Team 2 finishes second in every run, team 3 third: a zone of the third
+    // place alone holds team 3 and nobody else.
+    const rows = simulateTable(table, [fixture(4, 3, HOME_WINS)], 10, 61, [zone(3, 3)]);
+
+    expect(rows.map((team) => team.zones[0]?.share)).toEqual([0, 0, 1, 0]);
+  });
+
+  it("puts a stretch that is out of reach from below at zero, and from above too", () => {
+    // Team 3 on 3 points with a win left can reach 6: still short of team 2's 6
+    // on the tie rule, so places 1–2 are out of its reach; and team 2 cannot fall
+    // below third.
+    const rows = simulateTable(table, [fixture(3, 4, HOME_WINS)], 10, 61, [zone(1, 2), zone(4, 4)]);
+
+    expect(rows[2]?.zones[0]).toEqual({ share: 0, settled: true });
+    expect(rows[1]?.zones[1]).toEqual({ share: 0, settled: true });
+  });
+
+  it("gives every row a chance for every zone, none when there are none", () => {
+    expect(simulateTable(table, [], 10).every((team) => team.zones.length === 0)).toBe(true);
+    expect(
+      simulateTable(table, [], 10, 61, [zone(1, 1), zone(2, 4)]).every(
+        (team) => team.zones.length === 2
+      )
+    ).toBe(true);
+  });
+});
+
 describe("seasonForecast", () => {
   function table(overrides: Partial<SeasonTableInput> = {}): SeasonTableInput {
     return {
@@ -246,6 +316,7 @@ describe("seasonForecast", () => {
       simulated: true,
       rows: [row(1, 3), row(2, 0)],
       fixtures: [{ homeTeam: 1, awayTeam: 2 }],
+      levels: [],
       ...overrides,
     };
   }
@@ -262,12 +333,50 @@ describe("seasonForecast", () => {
           groupId: 0,
           groupName: null,
           decidesTitle: true,
+          zones: [],
           rows: simulateTable([row(1, 3), row(2, 0)], [{ homeTeam: 1, awayTeam: 2, ...homeWin() }]),
         },
       ],
       leftOut: [],
     });
     expect(forecast.status === "ok" && forecast.tables[0]?.rows[0]?.expectedPoints).toBe(6);
+  });
+
+  it("turns a group's levels into the zones of its table and counts them", () => {
+    const levels = [
+      { level: 1, teamCount: 1, label: "Nousee" },
+      { level: 2, teamCount: 1, label: null },
+    ];
+    const forecast = seasonForecast("single", [table({ levels })], homeWin);
+
+    const first = forecast.status === "ok" ? forecast.tables[0] : undefined;
+    // The unlabelled second level takes a place and shows nothing.
+    expect(first?.zones).toEqual([{ from: 1, to: 1, label: "Nousee" }]);
+    expect(first?.rows.map((team) => team.zones)).toEqual([
+      [{ share: 1, settled: true }],
+      [{ share: 0, settled: true }],
+    ]);
+  });
+
+  it("gives a group with no labelled level no zone", () => {
+    const levels = [{ level: 1, teamCount: 1, label: null }];
+    const forecast = seasonForecast("single", [table({ levels })], homeWin);
+
+    expect(forecast.status === "ok" && forecast.tables[0]?.zones).toEqual([]);
+    expect(forecast.status === "ok" && forecast.tables[0]?.rows[0]?.zones).toEqual([]);
+  });
+
+  it("decides zones group by group, so a group without levels keeps its own columns", () => {
+    const levels = [{ level: 1, teamCount: 1, label: "Kultaa" }];
+    const forecast = seasonForecast(
+      "several",
+      [table({ groupId: 1, groupName: "A", levels }), table({ groupId: 2, groupName: "B" })],
+      homeWin
+    );
+
+    expect(forecast.status === "ok" && forecast.tables.map((each) => each.zones.length)).toEqual([
+      1, 0,
+    ]);
   });
 
   it("asks the model for each fixture's own two sides", () => {

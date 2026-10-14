@@ -2097,6 +2097,7 @@ export async function getSeasonStandings(
  * carries points over from.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export type SeasonTable = {
   groupId: number;
@@ -2106,6 +2107,8 @@ export type SeasonTable = {
   standings: TeamStanding[];
   matches: MatchRow[];
   parentGroupId: number | null;
+  /** The group's stored levels in TASO's order; empty when it has none. */
+  levels: GroupLevel[];
 };
 
 /**
@@ -2114,6 +2117,7 @@ export type SeasonTable = {
  * when the matches are stored rows TASO could not be asked to refresh.
  *
  * decisions/061-season-simulation.md
+ * decisions/064-season-simulation-zones.md
  */
 export async function getSeasonTables(
   categoryId: string,
@@ -2131,6 +2135,12 @@ export async function getSeasonTables(
   );
   if (classified.status !== "ok") return { status: classified.status };
 
+  // After the classification, whose refresh is what writes them, as the
+  // standings page reads them. A competition that stores none is not asked.
+  const levels = publishesZones(categoryId)
+    ? await storedGroupLevels(categoryId, competitionId, seasonId)
+    : [];
+
   return {
     status: "ok",
     refreshFailed: classified.refreshFailed,
@@ -2141,6 +2151,7 @@ export async function getSeasonTables(
       standings: group.kind === "own-calculated" ? group.standings : [],
       matches: classified.matches.filter((match) => match.groupId === group.groupId),
       parentGroupId: parentGroupId(categoryId, competitionId, group.groupId),
+      levels: levels.filter((level) => level.groupId === group.groupId),
     })),
   };
 }
