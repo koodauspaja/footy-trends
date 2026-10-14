@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { testDatabaseUrl } from "../support/test-database";
@@ -24,6 +25,18 @@ const CUP_ID = 999_051_003;
 const UNRATED_CUP_ID = 999_051_004;
 const LIIGACUP_ID = 999_051_005;
 const PATH = (id: number) => `/kotimaa/ottelu/${id}`;
+
+// The ratings and the fit are cached for 15 minutes. Made by another spec
+// before these fixtures were stored, they rate neither cup side, and a cup tie
+// is predicted only between rated sides; so both are dropped once seeded.
+async function dropModelCaches() {
+  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  try {
+    await redis.del("elo:v1:taso", "poisson:v1:taso");
+  } finally {
+    await redis.quit();
+  }
+}
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -80,6 +93,7 @@ test.beforeAll(async () => {
       },
     ])}`;
   });
+  await dropModelCaches();
 });
 
 test.afterAll(async () => {

@@ -76,6 +76,10 @@ something the spec did not.
   link to the cup's record; one with an unrated side and a Liigacup tie show
   none; a rivalry whose next meeting is a cup tie between rated sides is
   predicted, and one whose sides have met only in the cup is not.
+  Both specs drop the cached ratings and fit once their fixtures are stored:
+  a copy made by an earlier spec rated neither seeded side, and the first full
+  run failed both rated cases on it. A league match never showed this, since an
+  unrated league side is predicted at 1500.
 
 ## Measured
 
