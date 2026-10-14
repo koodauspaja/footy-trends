@@ -160,8 +160,14 @@ export function DataTable<T>({
                 key={rowKey(row)}
               >
                 {columns.map((column, columnIndex) => {
-                  const className =
-                    `p-3 ${alignClass(column.align)} ${column.cellClassName ?? ""}${columnIndex === 0 && zone !== undefined ? ` ${zone.edge}` : ""}`.trim();
+                  const className = [
+                    "p-3",
+                    alignClass(column.align),
+                    column.cellClassName,
+                    columnIndex === 0 ? zone?.edge : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return column.rowHeader ? (
                     <th className={className} key={column.key} scope="row">
                       {column.render(row)}
